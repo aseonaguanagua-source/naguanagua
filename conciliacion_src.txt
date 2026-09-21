@@ -1,0 +1,44 @@
+﻿'use client';
+import React, { useState, useEffect, useCallback } from 'react';
+import { CheckCheck, RefreshCw, Filter, Landmark, Eye, Download, X, Pencil, Mail, Building2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+
+type Pago = {
+  id: string;
+  identidad: string;
+  cod_inmueble?: string;
+  contribuyente?: string;
+  referencia?: string;
+  created_at?: string;
+  fecha_transaccion?: string;
+  tipo?: string;
+  banco?: string;
+  banco_destino?: string;
+  estado?: string;
+  monto?: string | number;
+  detalles?: any;
+  correo?: string;
+  telefono?: string;
+};
+
+type Filtros = { desde: string; hasta: string; estatus: string; bancoDestino: string; formaPago: string; referencia: string; monto: string; };
+
+const BANCOS_DESTINO = ['Todos','BANESCO - 0134 - 1715','BANCO DE VENEZUELA - 0102','BANCO MERCANTIL - 0105','BANCO PROVINCIAL - 0108'];
+const FORMAS_PAGO = ['Todos','Transferencia','Punto de Venta','Debito','Efectivo'];
+const ESTATUS_LIST = ['Todos','Pendiente','Por Verificar','Aprobado','Rechazado'];
+
+function fmt(val: string | number | undefined) {
+  const n = parseFloat(String(val || '0').replace(/[^0-9.]/g, ''));
+  return isNaN(n) ? '0,00' : n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtFecha(iso: string | undefined) {
+  if (!iso) return '---';
+  try { return new Date(iso).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return iso; }
+}
+
+function parseDetalles(raw: any): any {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try { return JSON.parse(raw); } catch { return {}; }
+}

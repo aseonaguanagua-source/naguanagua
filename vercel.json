@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/billing",
+      "schedule": "59 3 28-31 * *"
+    },
+    {
+      "path": "/api/cron/ucd-semanal",
+      "schedule": "0 12 * * 1"
+    },
+    {
+      "path": "/api/telegram-report",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/telegram-report",
+      "schedule": "0 22 * * *"
+    }
+  ]
+}
