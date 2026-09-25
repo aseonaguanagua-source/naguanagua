@@ -627,6 +627,37 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             await supabase.from('facturas').update({ estado: 'Pagado' }).in('referencia', recibos);
           }
         }
+        
+        // ── LIMPIAR DEUDA DEL INMUEBLE SI INCLUYE RECIB-DEUDA ──
+        // Sin esto, la deuda reaparece porque deuda_mmv sigue > 0
+        if (recibos.includes('RECIB-DEUDA') && !det.es_abono) {
+          const { data: inmList2 } = await supabase
+            .from('inmuebles')
+            .select('id')
+            .eq('identidad', pago.identidad);
+          if (inmList2 && inmList2.length > 0) {
+            for (const inm of inmList2) {
+              await supabase.from('inmuebles')
+                .update({ deuda_mmv: 0, deuda_congelada_bs: 0 })
+                .eq('id', inm.id);
+            }
+          }
+        }
+        
+        // Emitir Factura Digital The Factory HKA (Asíncrono)
+        try {
+          fetch('/api/admin/factura-digital/emitir', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pagoId: pago.id,
+              recibos: recibos,
+              montos: { total: montoConciliadoNum },
+              contribuyente: contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad,
+              identidad: pago.identidad
+            })
+          }).catch(e => console.error("Error trigger factura digital:", e));
+        } catch(e) {}
       }
       // Con Diferencia: agregar monto de diferencia como saldo a favor
       if (estatus === 'Con Diferencia' && montoConciliadoNum > 0) {

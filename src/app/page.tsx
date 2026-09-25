@@ -10,8 +10,8 @@ export default function Home() {
 
   useEffect(() => {
     const host = window.location.hostname;
-    if (host === 'aseosilvaad.globalrecca.com') setMode('workers-only');
-    else if (host === 'aseosilva.globalrecca.com') setMode('contribuyente-only');
+    if (host === 'aseonaguanaguaad.globalrecca.com') setMode('workers-only');
+    else if (host === 'aseonaguanagua.globalrecca.com') setMode('contribuyente-only');
   }, []);
 
   const showContribuyente = mode === 'all' || mode === 'contribuyente-only';
@@ -313,7 +313,7 @@ export default function Home() {
         <div className="footer">
           <div className="footer-isma">
             <div className="footer-isma-glow" />
-            <img src={logos.isma} alt="Instituto de Aseo" className="isma-logo" />
+            <img src={logos.isma} alt="ISMA Naguanagua" className="isma-logo" />
           </div>
           <div className="footer-logos">
             <img src={logos.global_rec}   alt="Global Rec"   className="footer-logo" />

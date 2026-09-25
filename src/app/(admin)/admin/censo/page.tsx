@@ -3,14 +3,13 @@ import React, { useState } from 'react';
 import { useAppContext } from '@/store/AppContext';
 import { Save, AlertCircle, CheckCircle, Calendar, MapPin, Calculator } from 'lucide-react';
 import Select from 'react-select';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), { ssr: false });
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function CensoPage() {
   const { addAuditLog, ordenanzasConfig: ordenanzaData } = useAppContext();
@@ -152,7 +151,8 @@ export default function CensoPage() {
         }
       }
 
-      const rawTotal = factorTotal * data.tcmmv;
+      let ucdMult = (formData.Clasificacion === 'Residencial') ? 0.02673 : 0.128;
+      const rawTotal = factorTotal * 57 * ucdMult * data.tcmmv;
       const totalTruncado = (Math.trunc(rawTotal * 100) / 100).toFixed(2);
 
       setCalculoDetalle({
@@ -763,7 +763,7 @@ export default function CensoPage() {
                 
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-600 font-medium">Factor Total Mensual:</span>
+                    <span className="text-slate-600 font-medium">Factor Ordenanza Total:</span>
                     <span className="font-bold text-slate-800">{calculoDetalle.factor.toFixed(2)} EUR (€) (Tarifa Real)</span>
                   </div>
                   {bcvRate && (
@@ -784,7 +784,7 @@ export default function CensoPage() {
                               <p className="text-[10px] text-slate-500">{d.leyenda.substring(0, 45)}...</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs font-bold text-slate-700">{d.factor.toFixed(2)} MMV</p>
+                              <p className="text-xs font-bold text-slate-700">{d.factor.toFixed(2)} UCD</p>
                             </div>
                           </div>
                         ))}

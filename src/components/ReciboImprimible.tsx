@@ -11,6 +11,7 @@ interface ReciboProps {
   domicilioFiscal: string;
   rifCi: string;
   caja: string;
+  tipoContribuyente?: string;
   conceptos: {
     descripcion: string;
     precioUnit: number;
@@ -162,7 +163,7 @@ function ReciboContenido({
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom: B, padding:'3px 6px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:5 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo_alcaldia.png" alt="" style={{ width:30, height:30, objectFit:'contain' }} />
+          <img src="/logos/global_rec.jpg" alt="" style={{ width:30, height:30, objectFit:'contain' }} />
           <div>
             <div style={{ fontWeight:'bold', fontSize:8, lineHeight:1.2 }}>
               INSTITUTO SOCIALISTA MUNICIPAL PARA EL AMBIENTE (I.S.M.A)
@@ -174,12 +175,16 @@ function ReciboContenido({
           </div>
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/images/logo_isma.png" alt="" style={{ width:60, height:22, objectFit:'contain' }} />
+        <img src="/logos/basura_cero.jpg" alt="" style={{ width:60, height:22, objectFit:'contain' }} />
       </div>
 
       {/* ── TÍTULO ── */}
       <div style={{ textAlign:'center', fontWeight:'bold', fontSize:9.5, letterSpacing:'0.05em', borderBottom: B, padding:'2px 0' }}>
-        {data.esAbono ? 'RECIBO DE ABONO / PAGO PARCIAL' : 'RECIBO DE ASEO URBANO'}
+        {data.esAbono 
+          ? 'RECIBO DE ABONO / PAGO PARCIAL' 
+          : ((data.tipoContribuyente && data.tipoContribuyente.toLowerCase().includes('residencial')) || (data.codContribuyente && data.codContribuyente.startsWith('AURI'))
+              ? 'RECIBO DE COBRO' 
+              : 'FACTURA DE ASEO URBANO')}
       </div>
 
       {/* ── DATOS CONTRIBUYENTE + Nro ── */}

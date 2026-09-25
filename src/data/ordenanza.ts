@@ -1,246 +1,1719 @@
 export const ordenanzaData = {
-  clasificaciones: ['Residencial', 'Comercial/Institucional', 'Mixto', 'Industrial', 'Otros'],
+  clasificaciones: ['Residencial', 'Comercial/Institucional', 'Industrial', 'Otros'],
   tiposResidenciales: [
     { label: 'Tipo I: Viviendas en zonas populares', factor: 0.50 },
-    { label: 'Tipo II: Apartamentos', factor: 3.00 },
-    { label: 'Tipo III: Casas', factor: 2.50 },
-    { label: 'Tipo IV: Penthouse, Town House, Quintas, Villas', factor: 5.00 }
+    { label: 'Tipo II: Casas', factor: 0.80 },
+    { label: 'Tipo III: Apartamentos', factor: 0.91 },
+    { label: 'Tipo IV: Penthouse, Town House, Quintas, Villas', factor: 1.06 }
+  ],
+  zonasResidenciales: [
+    { label: 'ZONA A', factor: 1.0 },
+    { label: 'ZONA B', factor: 0.8 },
+    { label: 'ZONA C', factor: 0.6 },
+    { label: 'ZONA D', factor: 0.4 }
   ],
   nivelesMetraje: [
-    '0 - 50 m²',
-    '51 - 100 m²',
-    '101 - 200 m²',
-    'Mayor a 201 m²'
+    'Generacion Baja',
+    'Generacion Media',
+    'Generacion Alta'
   ],
   actividadesComerciales: [
-    { label: 'VENTAS AMBULANTES', factores: [0, 0, 0, 0] },
-    { label: 'BUHONEROS Y / ARTESANOS', factores: [0, 0, 0, 0] },
-    { label: 'MERCADOS A CIELO ABIERTO', factores: [0, 0, 0, 0] },
-    { label: 'COMERCIO ITINERANTE (PLAYAS)', factores: [0, 0, 0, 0] },
-    { label: 'MINIPUESTOS DE COMIDA O BEBIDA', factores: [0, 0, 0, 0] },
-    { label: 'SERVICIOS NÁUTICOS Y RECREATIVOS', factores: [0, 0, 0, 0] },
-    { label: 'Academias varias Privadas', factores: [10, 15, 20, 50] },
-    { label: 'Colegios Privados', factores: [20, 30, 40, 150] },
-    { label: 'Prescolar, Guarderías infantiles Privadas', factores: [10, 15, 20, 50] },
-    { label: 'Parques temáticos', factores: [50, 100, 150, 350] },
-    { label: 'Agencia bancaria', factores: [30, 55, 60, 90] },
-    { label: 'Casa de cambio', factores: [30, 55, 60, 90] },
-    { label: 'Seguros', factores: [30, 55, 60, 90] },
-    { label: 'Inversora', factores: [30, 55, 60, 90] },
-    { label: 'Centro comercial', factores: [228, 400, 500, 800] },
-    { label: 'Clínica', factores: [50, 60, 100, 150] },
-    { label: 'Consultorio veterinario', factores: [15, 15, 20, 40] },
-    { label: 'Consultorios', factores: [15, 20, 25, 50] },
-    { label: 'Consultorio dental', factores: [20, 20, 25, 40] },
-    { label: 'Laboratorio clínico', factores: [35, 45, 50, 60] },
-    { label: 'Lavado de moto', factores: [10, 15, 20, 25] },
-    { label: 'Autolavado', factores: [15, 26, 29, 50] },
-    { label: 'Tapicería', factores: [20, 25, 30, 40] },
-    { label: 'Electroauto', factores: [10, 15, 20, 25] },
-    { label: 'Estación de servicio', factores: [20, 25, 30, 45] },
-    { label: 'Reencauchadora', factores: [10, 15, 20, 45] },
-    { label: 'Taller de latonería y pintura', factores: [15, 20, 25, 30] },
-    { label: 'Taller de toldos', factores: [10, 15, 20, 30] },
-    { label: 'Taller mecánico', factores: [20, 25, 30, 50] },
-    { label: 'Arepera', factores: [20, 30, 50, 80] },
-    { label: 'Bar-restaurant', factores: [30, 50, 80, 150] },
-    { label: 'Bar', factores: [20, 40, 60, 80] },
-    { label: 'Discoteca o Sala de fiesta', factores: [20, 40, 50, 60] },
-    { label: 'Cafetería', factores: [10, 15, 25, 30] },
-    { label: 'Fuente de soda, luncheria, pizzería, venta comida rápida', factores: [15, 30, 40, 60] },
-    { label: 'Heladería', factores: [10, 15, 25, 30] },
-    { label: 'Panadería', factores: [20, 30, 50, 100] },
-    { label: 'Pastelería', factores: [20, 25, 30, 40] },
-    { label: 'Pollera', factores: [30, 40, 80, 120] },
-    { label: 'Restaurant', factores: [30, 50, 80, 120] },
-    { label: 'Discoteca', factores: [20, 40, 60, 90] },
-    { label: 'Abastos', factores: [20, 30, 40, 60] },
-    { label: 'Automercado (Hipermercado)', factores: [50, 150, 300, 700] },
-    { label: 'Bodegas', factores: [10, 15, 25, 30] },
-    { label: 'Charcutería', factores: [20, 30, 40, 60] },
-    { label: 'Carnicería', factores: [25, 35, 50, 70] },
-    { label: 'Frigorífico', factores: [20, 30, 50, 60] },
-    { label: 'Frutería', factores: [15, 25, 40, 60] },
-    { label: 'Pescadería', factores: [20, 30, 40, 60] },
-    { label: 'Puesto de mercado, Venta ambulante', factores: [10, 15, 20, 25] },
-    { label: 'Supermercados y Bodegones', factores: [30, 70, 120, 180] },
-    { label: 'Gimnasio', factores: [5, 10, 15, 20] },
-    { label: 'Embarcadero y marina', factores: [30, 70, 140, 200] },
-    { label: 'Posadas', factores: [20, 40, 80, 110] },
-    { label: 'Club nocturno', factores: [30, 40, 80, 100] },
-    { label: 'Club Deportivo', factores: [20, 40, 50, 60] },
-    { label: 'Club Social', factores: [20, 40, 50, 60] },
-    { label: 'Hotel 1 estrella', factores: [20, 40, 70, 100] },
-    { label: 'Hotel 2 estrellas', factores: [30, 60, 80, 120] },
-    { label: 'Hotel 3 estrellas', factores: [40, 80, 120, 160] },
-    { label: 'Hotel 4 estrellas', factores: [60, 100, 140, 180] },
-    { label: 'Hotel 5 estrellas', factores: [80, 120, 160, 220] },
-    { label: 'Aserradero', factores: [20, 35, 40, 50] },
-    { label: 'Carpintería', factores: [10, 15, 20, 25] },
-    { label: 'Concretera', factores: [25, 35, 45, 55] },
-    { label: 'Cría de animales', factores: [10, 20, 25, 35] },
-    { label: 'Droguería', factores: [40, 80, 120, 260] },
-    { label: 'Embotelladora', factores: [10, 15, 20, 25] },
-    { label: 'Granja', factores: [20, 30, 40, 50] },
-    { label: 'Mantenimiento y/o aire acondicionado', factores: [10, 15, 20, 25] },
-    { label: 'Marquetería', factores: [10, 15, 20, 25] },
-    { label: 'Mueblería', factores: [20, 30, 40, 60] },
-    { label: 'Rectificadora de gas', factores: [10, 15, 20, 25] },
-    { label: 'Taller de confección', factores: [10, 15, 20, 25] },
-    { label: 'Taller de grabado', factores: [10, 15, 20, 25] },
-    { label: 'Taller de herrería', factores: [10, 15, 20, 25] },
-    { label: 'Taller de lancha', factores: [10, 30, 50, 70] },
-    { label: 'Tapicería', factores: [10, 15, 20, 25] },
-    { label: 'Tornería', factores: [10, 15, 20, 25] },
-    { label: 'Almacén', factores: [10, 15, 20, 30] },
-    { label: 'Boutique', factores: [10, 15, 20, 30] },
-    { label: 'Chivera', factores: [10, 15, 20, 30] },
-    { label: 'Cerrajería', factores: [10, 10, 15, 20] },
-    { label: 'Comercio de mercancía seca', factores: [10, 15, 25, 35] },
-    { label: 'Confitería', factores: [10, 15, 25, 35] },
-    { label: 'Cristalería', factores: [10, 15, 25, 35] },
-    { label: 'Deposito', factores: [10, 15, 20, 25] },
-    { label: 'Distribuidoras', factores: [20, 40, 70, 100] },
-    { label: 'Distribuidora de pintura', factores: [20, 30, 60, 80] },
-    { label: 'Distribuidora de gas', factores: [10, 20, 40, 60] },
-    { label: 'Farmacia', factores: [20, 40, 70, 100] },
-    { label: 'Ferretería', factores: [20, 25, 30, 50] },
-    { label: 'Floristería', factores: [10, 15, 20, 25] },
-    { label: 'Instrumentos de precisión', factores: [10, 15, 20, 25] },
-    { label: 'Joyería', factores: [10, 15, 20, 25] },
-    { label: 'Juguetería', factores: [10, 15, 20, 25] },
-    { label: 'Kiosco', factores: [10, 15, 20, 25] },
-    { label: 'Librería', factores: [15, 20, 25, 30] },
-    { label: 'Licorería', factores: [20, 25, 35, 40] },
-    { label: 'Óptica', factores: [10, 15, 20, 25] },
-    { label: 'Perfumería', factores: [10, 15, 20, 25] },
-    { label: 'Quincalla', factores: [10, 15, 20, 25] },
-    { label: 'Receptoría de ropa', factores: [10, 15, 20, 25] },
-    { label: 'Venta de alimentos dietéticos', factores: [10, 15, 20, 25] },
-    { label: 'Venta de artefactos ortopédicos', factores: [10, 15, 20, 25] },
-    { label: 'Venta de equipos de computación', factores: [10, 15, 20, 25] },
-    { label: 'Venta equipos médicos', factores: [10, 15, 20, 25] },
-    { label: 'Venta equipos oficina', factores: [10, 15, 20, 25] },
-    { label: 'Venta de espejos', factores: [10, 15, 20, 25] },
-    { label: 'Venta de maquinarias', factores: [10, 15, 20, 25] },
-    { label: 'Venta de materiales eléctricos', factores: [10, 15, 20, 25] },
-    { label: 'Venta de repuestos', factores: [20, 15, 20, 25] },
-    { label: 'Venta de ropa', factores: [10, 15, 20, 25] },
-    { label: 'Venta de vehículos', factores: [10, 15, 20, 25] },
-    { label: 'Vivero', factores: [10, 15, 20, 25] },
-    { label: 'Zapatería', factores: [10, 15, 20, 25] },
-    { label: 'Salón de video', factores: [10, 15, 20, 25] },
-    { label: 'Venta alimentos animales', factores: [10, 15, 20, 25] },
-    { label: 'Venta bicicletas', factores: [10, 15, 20, 25] },
-    { label: 'Venta de materiales construcción', factores: [10, 15, 20, 25] },
-    { label: 'Administradoras', factores: [10, 15, 20, 25] },
-    { label: 'Oficinas', factores: [10, 15, 20, 25] },
-    { label: 'Agencia festejos', factores: [10, 15, 20, 25] },
-    { label: 'Agencia lotería', factores: [10, 15, 20, 25] },
-    { label: 'Agencia de viajes', factores: [10, 15, 20, 25] },
-    { label: 'Agencia publicitaria', factores: [10, 15, 20, 25] },
-    { label: 'Alquiler de vehículo', factores: [10, 15, 20, 25] },
-    { label: 'Artes graficas', factores: [10, 15, 20, 25] },
-    { label: 'Aviso/valla', factores: [10, 15, 20, 25] },
-    { label: 'Barberia', factores: [10, 15, 20, 25] },
-    { label: 'Editorial', factores: [10, 15, 20, 25] },
-    { label: 'Emisora de radio', factores: [10, 15, 20, 25] },
-    { label: 'Emisora de televisión', factores: [10, 15, 20, 25] },
-    { label: 'Ensayos musicales', factores: [10, 15, 20, 25] },
-    { label: 'Estacionamiento', factores: [10, 15, 20, 25] },
-    { label: 'Estudio de grabación', factores: [10, 15, 20, 25] },
-    { label: 'Estudio fotográfico', factores: [10, 15, 20, 25] },
-    { label: 'Fotocopiadoras', factores: [10, 15, 20, 25] },
-    { label: 'Funeraria', factores: [10, 15, 20, 25] },
-    { label: 'Gestoría', factores: [10, 15, 20, 25] },
-    { label: 'Hilo musical', factores: [10, 15, 20, 25] },
-    { label: 'Imprenta', factores: [10, 15, 20, 25] },
-    { label: 'Lavado de alfombras', factores: [10, 15, 20, 25] },
-    { label: 'Lavandería', factores: [10, 15, 20, 25] },
-    { label: 'Tintorería', factores: [10, 15, 20, 25] },
-    { label: 'Litografía', factores: [10, 15, 20, 25] },
-    { label: 'Peluquería', factores: [10, 15, 20, 25] },
-    { label: 'Sastrería', factores: [10, 15, 20, 25] },
-    { label: 'Servicio de transporte', factores: [10, 15, 20, 25] },
-    { label: 'Servicios técnicos', factores: [10, 15, 20, 25] },
-    { label: 'Taller de electrónicos', factores: [10, 15, 20, 25] },
-    { label: 'Taller de plomería', factores: [10, 15, 20, 25] },
-    { label: 'Taller de refrigeración', factores: [10, 15, 20, 25] },
-    { label: 'Taller de televisión', factores: [10, 15, 20, 25] },
-    { label: 'Tarjetería', factores: [10, 15, 20, 25] },
-    { label: 'Cine, Sala de espectáculos, de exposición, de reuniones', factores: [10, 15, 20, 25] },
-    { label: 'Salón de billar', factores: [10, 15, 20, 25] },
-    { label: 'Construcciones', factores: [10, 15, 20, 25] },
-    { label: 'Inmueble desocupado (vacío)', factores: [10, 15, 20, 25] },
-    { label: 'Remodelaciones', factores: [10, 15, 20, 25] },
-    { label: 'Terreno sin uso', factores: [10, 15, 20, 25] },
-    { label: 'Empresas de servicio publico', factores: [10, 15, 20, 25] },
-    { label: 'Servicio de electricidad', factores: [10, 15, 20, 25] },
-    { label: 'Otras actividades económicas', factores: [15, 30, 60, 80] }
-  ],
-  actividadesIndustriales: [
-    { label: 'Trituradora de materiales', factores: [10, 15, 20, 25] },
-    { label: 'Fábrica de botones', factores: [30, 50, 70, 90] },
-    { label: 'Fábrica de calzado', factores: [30, 50, 70, 90] },
-    { label: 'Fábrica de cartón', factores: [30, 50, 70, 90] },
-    { label: 'Fábrica de cerámica', factores: [30, 50, 70, 90] },
-    { label: 'Fábrica de hielo', factores: [30, 50, 70, 90] },
-    { label: 'Fábrica de lámparas', factores: [30, 50, 70, 90] },
-    { label: 'Fábrica de persianas', factores: [30, 50, 70, 90] },
-    { label: 'Fábrica de tapas', factores: [30, 50, 70, 90] },
-    { label: 'Industria alimenticia', factores: [100, 200, 300, 400] },
-    { label: 'Industria Cervecera', factores: [80, 160, 210, 300] },
-    { label: 'Industria del calzado', factores: [30, 50, 70, 90] },
-    { label: 'Industria del mueble', factores: [30, 50, 70, 90] },
-    { label: 'Industria del plástico', factores: [30, 50, 70, 90] },
-    { label: 'Industria metalúrgica', factores: [30, 50, 70, 90] },
-    { label: 'Industria química', factores: [30, 50, 70, 90] },
-    { label: 'Industria textil', factores: [30, 50, 70, 90] },
-    { label: 'Fábrica de ropa', factores: [30, 50, 70, 90] },
-    { label: 'Suministros industriales', factores: [10, 15, 20, 25] }
-  ],
-  // =====================================================================
-  // SERVICIOS ESPECIALES / EXTRAORDINARIOS / INSPECCIONES / VISTO BUENO
-  // Arts. 43-58 de la Ordenanza de Aseo Urbano y Domiciliario
-  // =====================================================================
-  serviciosExtraordinarios: [
-    // Tabla 3 — Servicios de Recolección Especial
-    // Camión: tipo | Distancia: menor/mayor a 20 Km | Tarifa en TCMV
-    { camion: '350', label: 'Camión 350 (< 20 Km)', distancia: 'menor', tcmv: 30 },
-    { camion: '350', label: 'Camión 350 (> 20 Km)', distancia: 'mayor', tcmv: 40 },
-    { camion: '600', label: 'Camión 600 (< 20 Km)', distancia: 'menor', tcmv: 50 },
-    { camion: '600', label: 'Camión 600 (> 20 Km)', distancia: 'mayor', tcmv: 60 },
-    { camion: '750', label: 'Camión 750 / Volteo (< 20 Km)', distancia: 'menor', tcmv: 70 },
-    { camion: '750', label: 'Camión 750 / Volteo (> 20 Km)', distancia: 'mayor', tcmv: 80 }
-  ],
-  serviciosEspeciales: [
-    // Tabla 4 — Servicios Especiales (tarifa base en TCMV; el funcionario puede ajustar)
-    { codigo: 'SE-01', label: 'Limpieza de terreno vacío (por m²)', tcmvBase: 0.5, unidad: 'm²' },
-    { codigo: 'SE-02', label: 'Recolección de desechos sólidos en playas', tcmvBase: 20, unidad: 'evento' },
-    { codigo: 'SE-03', label: 'Limpieza post-evento o festejo público', tcmvBase: 50, unidad: 'evento' },
-    { codigo: 'SE-04', label: 'Recolección industrial / empresarial (mensual)', tcmvBase: 100, unidad: 'mes' },
-    { codigo: 'SE-05', label: 'Servicio de barrido especial de vías', tcmvBase: 30, unidad: 'jornada' },
-    { codigo: 'SE-06', label: 'Desechos hospitalarios / biomédicos (mensual)', tcmvBase: 150, unidad: 'mes' },
-    { codigo: 'SE-07', label: 'Recolección de residuos de poda y jardinería', tcmvBase: 25, unidad: 'viaje' },
-    { codigo: 'SE-09', label: 'Permiso de Tala de Árbol (por árbol)', tcmvBase: 5, unidad: 'árbol' },
-    { codigo: 'SE-10', label: 'Permiso de Poda de Árbol / Raíces (por árbol)', tcmvBase: 3, unidad: 'árbol' },
-    { codigo: 'SE-11', label: 'Limpieza de quebradas / cauces (por m lineal)', tcmvBase: 1, unidad: 'm lineal' },
-    { codigo: 'SE-12', label: 'Disposición especial de escombros (por m³)', tcmvBase: 8, unidad: 'm³' },
-    { codigo: 'SE-08', label: 'Otro servicio especial (tarifa libre)', tcmvBase: 0, unidad: 'libre' }
-  ],
-  inspeccionesTecnicas: [
-    // Tabla 5 — Inspecciones y Certificaciones Ambientales
-    { codigo: 'IT-01', label: 'Inspección técnica general de establecimiento', tcmv: 3 },
-    { codigo: 'IT-02', label: 'Inspección de manejo de desechos peligrosos', tcmv: 5 },
-    { codigo: 'IT-03', label: 'Inspección de actividad industrial', tcmv: 8 },
-    { codigo: 'IT-04', label: 'Inspección de construcción o demolición', tcmv: 4 },
-    { codigo: 'IT-05', label: 'Inspección post-sanción / re-inspección', tcmv: 2 }
-  ],
-  vistoBueno: [
-    // Tabla 6 — Visto Bueno Ambiental (por m² del inmueble)
-    { codigo: 'VB-01', label: 'Nueva Actividad Económica (por m²)', tcmvPorM2: 0.5 },
-    { codigo: 'VB-02', label: 'Renovación de Actividad Económica (por m²)', tcmvPorM2: 0.3 },
-    { codigo: 'VB-03', label: 'Proyecto de Construcción (por m²)', tcmvPorM2: 0.8 },
-    { codigo: 'VB-04', label: 'Modificación / Ampliación (por m²)', tcmvPorM2: 0.4 }
-  ]
+    {
+        "label": "INMUEBLES DESOCUPADOS",
+        "factores": [
+            0.2940,
+            0.2940,
+            0.2940
+        ]
+    },
+    {
+        "label": "ABASTOS",
+        "factores": [
+            2.39,
+            5.8,
+            9
+        ]
+    },
+    {
+        "label": "BODEGAS",
+        "factores": [
+            1.54,
+            4.23,
+            6.61
+        ]
+    },
+    {
+        "label": "MINIMARKET",
+        "factores": [
+            10.2,
+            15.3,
+            30.6
+        ]
+    },
+    {
+        "label": "FRUTERIAS",
+        "factores": [
+            2.83,
+            7.32,
+            11.31
+        ]
+    },
+    {
+        "label": "CARNICERIAS",
+        "factores": [
+            4.28,
+            7.98,
+            12.05
+        ]
+    },
+    {
+        "label": "CHARCUTERIAS",
+        "factores": [
+            3.77,
+            7.8,
+            12.05
+        ]
+    },
+    {
+        "label": "FRIGORIFICO",
+        "factores": [
+            3.77,
+            7.8,
+            12.05
+        ]
+    },
+    {
+        "label": "PESCADERIAS",
+        "factores": [
+            3.77,
+            8.01,
+            12.05
+        ]
+    },
+    {
+        "label": "PANADERIAS, PASTELERIAS, DULCERIAS",
+        "factores": [
+            7.54,
+            11.9,
+            16.03
+        ]
+    },
+    {
+        "label": "CONFITERIAS",
+        "factores": [
+            7.54,
+            11.9,
+            16.03
+        ]
+    },
+    {
+        "label": "REPOSTERIAS",
+        "factores": [
+            7.54,
+            11.9,
+            16.03
+        ]
+    },
+    {
+        "label": "AUTOMERCADOS",
+        "factores": [
+            28.28,
+            48.95,
+            70.69
+        ]
+    },
+    {
+        "label": "SUPERMERCADOS",
+        "factores": [
+            28.28,
+            48.95,
+            70.69
+        ]
+    },
+    {
+        "label": "PENSIONES/RESIDENCIAS ESTUDIANTILES",
+        "factores": [
+            7.54,
+            15.08,
+            22.62
+        ]
+    },
+    {
+        "label": "MERCADOS MAYORISTAS Y POPULARES",
+        "factores": [
+            50.12,
+            66.7,
+            84.41
+        ]
+    },
+    {
+        "label": "AREPERAS",
+        "factores": [
+            3.77,
+            11.82,
+            19.8
+        ]
+    },
+    {
+        "label": "CAFETERIAS",
+        "factores": [
+            3.77,
+            7.8,
+            12.05
+        ]
+    },
+    {
+        "label": "FUENTES DE SODA",
+        "factores": [
+            3.77,
+            7.8,
+            12.05
+        ]
+    },
+    {
+        "label": "HELADERIAS",
+        "factores": [
+            3.77,
+            7.8,
+            12.05
+        ]
+    },
+    {
+        "label": "LONCHERIAS",
+        "factores": [
+            3.77,
+            9.29,
+            16.03
+        ]
+    },
+    {
+        "label": "LICORERIAS",
+        "factores": [
+            3.95,
+            11.43,
+            19.76
+        ]
+    },
+    {
+        "label": "KIOSCOS",
+        "factores": [
+            1.45,
+            4.72,
+            8.09
+        ]
+    },
+    {
+        "label": "VENTA AMBULANTE DE ALIMENTOS Y BEBIDAS",
+        "factores": [
+            1.69,
+            5.45,
+            9.31
+        ]
+    },
+    {
+        "label": "ACADEMIAS VARIAS",
+        "factores": [
+            2.85,
+            7.68,
+            13.49
+        ]
+    },
+    {
+        "label": "GUARDERIAS INFANTILES",
+        "factores": [
+            2.85,
+            7.68,
+            13.49
+        ]
+    },
+    {
+        "label": "PREESCOLARES",
+        "factores": [
+            2.85,
+            7.68,
+            13.49
+        ]
+    },
+    {
+        "label": "COLEGIOS, ESCUELAS Y LICEOS",
+        "factores": [
+            11.5,
+            26.13,
+            40.57
+        ]
+    },
+    {
+        "label": "INSTITUTOS UNIVERSITARIOS",
+        "factores": [
+            11.5,
+            26.13,
+            40.57
+        ]
+    },
+    {
+        "label": "UNIVERSIDADES",
+        "factores": [
+            24.64,
+            53.56,
+            80.34
+        ]
+    },
+    {
+        "label": "AREAS TURISTICAS RECREACIONALES PUBLICAS",
+        "factores": [
+            2.02,
+            4.02,
+            4.32
+        ]
+    },
+    {
+        "label": "AREAS TURISTICAS Y RECREACIONALES",
+        "factores": [
+            64.27,
+            83.77,
+            96.41
+        ]
+    },
+    {
+        "label": "BIBLIOTECAS",
+        "factores": [
+            2.83,
+            5.98,
+            9
+        ]
+    },
+    {
+        "label": "IGLESIAS",
+        "factores": [
+            1.89,
+            0,
+            0
+        ]
+    },
+    {
+        "label": "CASA PARROQUIAL",
+        "factores": [
+            2.18,
+            0,
+            0
+        ]
+    },
+    {
+        "label": "TEATROS",
+        "factores": [
+            5.97,
+            12.76,
+            21.3
+        ]
+    },
+    {
+        "label": "CINES",
+        "factores": [
+            26.41,
+            33.75,
+            42.58
+        ]
+    },
+    {
+        "label": "ESTUDIOS DE GRABACION Y FOTOGRAFIA",
+        "factores": [
+            2.83,
+            5.98,
+            9
+        ]
+    },
+    {
+        "label": "EMISORAS DE RADIO",
+        "factores": [
+            2.83,
+            5.98,
+            9
+        ]
+    },
+    {
+        "label": "SALAS DE BILLAR Y JUEGOS",
+        "factores": [
+            3.74,
+            11,
+            18.04
+        ]
+    },
+    {
+        "label": "PARQUES DE ATRACCIONES Y RECREATIVOS PRIVADOS",
+        "factores": [
+            18.85,
+            42.84,
+            75.4
+        ]
+    },
+    {
+        "label": "SALAS ESPECTACULOS, EXPOSICIONES, REUNIONES, CONFERENCIAS",
+        "factores": [
+            3.77,
+            7.8,
+            12.05
+        ]
+    },
+    {
+        "label": "AGENCIAS DE FESTEJOS CON SALA",
+        "factores": [
+            9.43,
+            22.49,
+            37.7
+        ]
+    },
+    {
+        "label": "AGENCIAS DE FESTEJOS",
+        "factores": [
+            2.39,
+            7.03,
+            12.05
+        ]
+    },
+    {
+        "label": "ASOCIACIONES CULTURALES Y DEPORTIVOS",
+        "factores": [
+            1.29,
+            4.68,
+            8.05
+        ]
+    },
+    {
+        "label": "CLUB DEPORTIVO",
+        "factores": [
+            9.89,
+            23.63,
+            39.52
+        ]
+    },
+    {
+        "label": "CLUB SOCIAL",
+        "factores": [
+            56.55,
+            72.84,
+            84.83
+        ]
+    },
+    {
+        "label": "BARES",
+        "factores": [
+            3.77,
+            8.3,
+            12.05
+        ]
+    },
+    {
+        "label": "CERVECERIAS",
+        "factores": [
+            3.77,
+            8.3,
+            12.05
+        ]
+    },
+    {
+        "label": "POLLERAS",
+        "factores": [
+            7.91,
+            20.47,
+            33.18
+        ]
+    },
+    {
+        "label": "RESTAURANTES",
+        "factores": [
+            13.53,
+            32.73,
+            54.08
+        ]
+    },
+    {
+        "label": "COMEDORES",
+        "factores": [
+            3.42,
+            6.87,
+            11.25
+        ]
+    },
+    {
+        "label": "VENTA DE COMIDA RAPIDA Y PIZZERIA",
+        "factores": [
+            17.03,
+            52.69,
+            89.42
+        ]
+    },
+    {
+        "label": "BOÎTES",
+        "factores": [
+            9.89,
+            20.11,
+            31.61
+        ]
+    },
+    {
+        "label": "DISCOTECAS",
+        "factores": [
+            9.89,
+            20.11,
+            31.61
+        ]
+    },
+    {
+        "label": "NIGHT CLUBS",
+        "factores": [
+            9.89,
+            20.11,
+            31.61
+        ]
+    },
+    {
+        "label": "POSADAS",
+        "factores": [
+            29.65,
+            43.39,
+            59.28
+        ]
+    },
+    {
+        "label": "HOTELES DE 3, 4, 5 ESTRELLAS",
+        "factores": [
+            29.65,
+            54.83,
+            82.99
+        ]
+    },
+    {
+        "label": "HOTELES CON MENOS DE 3 ESTRELLAS",
+        "factores": [
+            29.65,
+            43.39,
+            59.28
+        ]
+    },
+    {
+        "label": "MOTELES",
+        "factores": [
+            29.65,
+            43.39,
+            59.28
+        ]
+    },
+    {
+        "label": "BANCOS Y ENTIDADES BANCARIAS",
+        "factores": [
+            20.67,
+            30.58,
+            41.34
+        ]
+    },
+    {
+        "label": "COMPANIAS DE SEGUROS",
+        "factores": [
+            19.76,
+            29.22,
+            39.52
+        ]
+    },
+    {
+        "label": "ADMINISTRADORAS",
+        "factores": [
+            3.07,
+            6.91,
+            10.12
+        ]
+    },
+    {
+        "label": "AGENCIAS DE LOTERIAS",
+        "factores": [
+            3.07,
+            6.91,
+            10.12
+        ]
+    },
+    {
+        "label": "AGENCIAS ADUANALES",
+        "factores": [
+            3.07,
+            6.91,
+            10.22
+        ]
+    },
+    {
+        "label": "AGENCIAS DE NOTICIAS",
+        "factores": [
+            3.07,
+            6.91,
+            10.12
+        ]
+    },
+    {
+        "label": "AGENCIAS DE VIAJES Y TURISMO",
+        "factores": [
+            3.07,
+            6.91,
+            10.12
+        ]
+    },
+    {
+        "label": "AGENCIAS DE PUBLICIDAD",
+        "factores": [
+            3.07,
+            6.91,
+            10.12
+        ]
+    },
+    {
+        "label": "GESTORIAS",
+        "factores": [
+            2.57,
+            6.05,
+            10.12
+        ]
+    },
+    {
+        "label": "OFICINAS DE CONDOMINIO",
+        "factores": [
+            2.57,
+            6.4,
+            10.05
+        ]
+    },
+    {
+        "label": "OFICINAS",
+        "factores": [
+            2.57,
+            6.21,
+            9.65
+        ]
+    },
+    {
+        "label": "OFICINAS Y DEPARTAMENTOS MUNICIPALES",
+        "factores": [
+            2.38,
+            4.48,
+            8.29
+        ]
+    },
+    {
+        "label": "OFICINAS DE SERVICIO DE TELEVISION",
+        "factores": [
+            2.57,
+            6.4,
+            10.05
+        ]
+    },
+    {
+        "label": "CENTROS DE COMUNICACION TELEFONICA",
+        "factores": [
+            5.17,
+            8.81,
+            14.85
+        ]
+    },
+    {
+        "label": "CENTROS DE INTERNET",
+        "factores": [
+            5.17,
+            8.81,
+            14.85
+        ]
+    },
+    {
+        "label": "CLINICAS CON HOSPITALIZACION",
+        "factores": [
+            57.56,
+            72.02,
+            93.78
+        ]
+    },
+    {
+        "label": "HOSPITALES",
+        "factores": [
+            57.56,
+            72.02,
+            93.78
+        ]
+    },
+    {
+        "label": "CLINICAS SIN HOSPITALIZACION",
+        "factores": [
+            46.67,
+            59.35,
+            79.17
+        ]
+    },
+    {
+        "label": "CONSULTORIOS MEDICOS Y ODONTOLOGICOS",
+        "factores": [
+            2.98,
+            6.46,
+            9.89
+        ]
+    },
+    {
+        "label": "CONSULTORIOS VETERINARIOS",
+        "factores": [
+            2.98,
+            6.35,
+            9.89
+        ]
+    },
+    {
+        "label": "LABORATORIOS CLINICOS Y DENTALES",
+        "factores": [
+            2.98,
+            6.35,
+            9.89
+        ]
+    },
+    {
+        "label": "CENTROS DE ESTETICA",
+        "factores": [
+            5.58,
+            9.06,
+            15.09
+        ]
+    },
+    {
+        "label": "SERVICIO DE AMBULANCIA",
+        "factores": [
+            3.95,
+            8.23,
+            12.64
+        ]
+    },
+    {
+        "label": "DROGUERIAS",
+        "factores": [
+            3.95,
+            7.8,
+            12.64
+        ]
+    },
+    {
+        "label": "FARMACIAS",
+        "factores": [
+            3.95,
+            7.8,
+            12.64
+        ]
+    },
+    {
+        "label": "TIENDA NATURISTA",
+        "factores": [
+            3.95,
+            7.8,
+            12.64
+        ]
+    },
+    {
+        "label": "FUNERARIAS",
+        "factores": [
+            3.95,
+            8.23,
+            12.64
+        ]
+    },
+    {
+        "label": "CEMENTERIOS PUBLICOS",
+        "factores": [
+            12.98,
+            27.38,
+            41.43
+        ]
+    },
+    {
+        "label": "CEMENTERIOS PRIVADOS",
+        "factores": [
+            22.98,
+            37.41,
+            51.45
+        ]
+    },
+    {
+        "label": "VENTA DE ARTICULOS ORTOPEDICOS",
+        "factores": [
+            3.95,
+            6.85,
+            9.89
+        ]
+    },
+    {
+        "label": "VENTA DE EQUIPOS Y ARTICULOS MEDICOS",
+        "factores": [
+            3.95,
+            6.85,
+            9.89
+        ]
+    },
+    {
+        "label": "AMBULATORIOS SEGURO SOCIAL",
+        "factores": [
+            3.95,
+            6.71,
+            9.89
+        ]
+    },
+    {
+        "label": "ASILOS MEDICO ASISTENCIALES",
+        "factores": [
+            3.95,
+            6.71,
+            9.89
+        ]
+    },
+    {
+        "label": "ASOCIACIONES BENEFICAS",
+        "factores": [
+            3.95,
+            6.71,
+            9.89
+        ]
+    },
+    {
+        "label": "CASAS Y CENTROS DE REHABILITACION",
+        "factores": [
+            3.95,
+            6.71,
+            9.89
+        ]
+    },
+    {
+        "label": "ALMACENES Y DEPARTAMENTOS MERCANCIA SECA",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "BARBERIAS",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "PELUQUERIAS",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "FERRETERIAS Y SIMILARES",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "PERFUMERIAS",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "LAVANDERIAS Y TINTORERIAS",
+        "factores": [
+            2.75,
+            6.41,
+            10.89
+        ]
+    },
+    {
+        "label": "TIENDA PARA ALQUIER DE PRENDAS",
+        "factores": [
+            6.07,
+            9.45,
+            2.75
+        ]
+    },
+    {
+        "label": "CERRAJERIAS",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "MERCERIAS",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "BAZARES",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "SERVICIOS TECNICOS",
+        "factores": [
+            2.51,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "TIENDA DE ROPA Y ACCESORIOS",
+        "factores": [
+            2.51,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "ZAPATERIAS",
+        "factores": [
+            2.51,
+            7.32,
+            11.85
+        ]
+    },
+    {
+        "label": "DEPARTAMENTOS",
+        "factores": [
+            17.94,
+            46.12,
+            80.74
+        ]
+    },
+    {
+        "label": "TIENDA DE LENCERIA",
+        "factores": [
+            2.51,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "TIENDA DE TELAS",
+        "factores": [
+            2.51,
+            7.32,
+            11.85
+        ]
+    },
+    {
+        "label": "TAPICERIA",
+        "factores": [
+            2.85,
+            6.89,
+            10.73
+        ]
+    },
+    {
+        "label": "TIENDA DE ARTICULOS DE CUERO",
+        "factores": [
+            2.51,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "ACCESORIOS MUSICALES",
+        "factores": [
+            2.51,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "SIMILARES",
+        "factores": [
+            2.53,
+            4.77,
+            8.15
+        ]
+    },
+    {
+        "label": "TIENDA DE ARTICULOS DE CERAMICA",
+        "factores": [
+            2.53,
+            4.77,
+            8.15
+        ]
+    },
+    {
+        "label": "TIENDA DE ARTESANIA TIPICA Y FOLKLORICA",
+        "factores": [
+            2.53,
+            4.77,
+            8.15
+        ]
+    },
+    {
+        "label": "TIENDA DE ARTICULOS RELIGIOSOS",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "PELUQUERIA",
+        "factores": [
+            2.53,
+            6.07,
+            9.45
+        ]
+    },
+    {
+        "label": "REPARACION DE CALZADOS",
+        "factores": [
+            2.51,
+            4.77,
+            8.15
+        ]
+    },
+    {
+        "label": "REPARACION DE ARTICULOS DE CUERO",
+        "factores": [
+            2.51,
+            4.77,
+            8.15
+        ]
+    },
+    {
+        "label": "REPARACION DE JOYAS Y RELOJES",
+        "factores": [
+            2.51,
+            4.77,
+            8.15
+        ]
+    },
+    {
+        "label": "CRISTALERIAS",
+        "factores": [
+            2.39,
+            5.8,
+            9
+        ]
+    },
+    {
+        "label": "MARQUETERIAS",
+        "factores": [
+            2.39,
+            5.8,
+            9
+        ]
+    },
+    {
+        "label": "VENTA DE ESPEJOS",
+        "factores": [
+            2.39,
+            5.8,
+            9
+        ]
+    },
+    {
+        "label": "LITOGRAFIA",
+        "factores": [
+            2.57,
+            6.21,
+            9.65
+        ]
+    },
+    {
+        "label": "TIPOGRAFIA Y TARJETERIA",
+        "factores": [
+            1.89,
+            5.62,
+            9
+        ]
+    },
+    {
+        "label": "AUTOTAPICERIAS",
+        "factores": [
+            2.53,
+            7.73,
+            12.86
+        ]
+    },
+    {
+        "label": "ALQUILER DE VEHICULOS",
+        "factores": [
+            2.53,
+            6.12,
+            9.45
+        ]
+    },
+    {
+        "label": "CHIVERAS",
+        "factores": [
+            2.98,
+            7.54,
+            11.85
+        ]
+    },
+    {
+        "label": "REENCAUCHADORAS",
+        "factores": [
+            2.53,
+            6.12,
+            9.45
+        ]
+    },
+    {
+        "label": "SERVICIOS DE CAMBIO DE ACEITE, FILTROS Y SIMILARES",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "VENTA DE MAQUINARIA",
+        "factores": [
+            3.95,
+            8.69,
+            13.83
+        ]
+    },
+    {
+        "label": "ALQUILER DE MAQUINARIA",
+        "factores": [
+            3.95,
+            8.69,
+            13.83
+        ]
+    },
+    {
+        "label": "VENTA DE REPUESTOS Y ACCESORIOS DE VEHICULOS",
+        "factores": [
+            2.53,
+            6.12,
+            9.45
+        ]
+    },
+    {
+        "label": "VENTA DE VEHICULOS",
+        "factores": [
+            13.05,
+            17.79,
+            24.23
+        ]
+    },
+    {
+        "label": "VENTA DE MOTOCICLETAS",
+        "factores": [
+            3.95,
+            8.69,
+            13.83
+        ]
+    },
+    {
+        "label": "VENTA DE BICICLETAS",
+        "factores": [
+            2.65,
+            6.09,
+            12.53
+        ]
+    },
+    {
+        "label": "VENTA DE RESPUESTOS Y ACCESORIOS DE MOTOSCICLETAS Y BICICLETAS",
+        "factores": [
+            2.53,
+            6.12,
+            9.45
+        ]
+    },
+    {
+        "label": "VENTA DE LANCHAS",
+        "factores": [
+            13.05,
+            17.79,
+            24.23
+        ]
+    },
+    {
+        "label": "VENTA DE REPUESTOS Y ACCESORIOS PARA LANCHAS",
+        "factores": [
+            2.53,
+            6.12,
+            9.45
+        ]
+    },
+    {
+        "label": "ELECTROAUTOS",
+        "factores": [
+            2.53,
+            6.12,
+            9.45
+        ]
+    },
+    {
+        "label": "AUTOLAVADOS",
+        "factores": [
+            7.02,
+            17.37,
+            28.22
+        ]
+    },
+    {
+        "label": "ESTACIONES DE SERVICIO",
+        "factores": [
+            9.43,
+            20.67,
+            32.99
+        ]
+    },
+    {
+        "label": "GIMNASIOS",
+        "factores": [
+            3.99,
+            9.62,
+            15.05
+        ]
+    },
+    {
+        "label": "HERRERIAS",
+        "factores": [
+            1.98,
+            7.14,
+            11.85
+        ]
+    },
+    {
+        "label": "TALLER MECANICO, LATONERIA, PINTURA Y CAUCHOS",
+        "factores": [
+            7.28,
+            13.75,
+            19.99
+        ]
+    },
+    {
+        "label": "TALLER METALURGICO",
+        "factores": [
+            7.28,
+            13.75,
+            19.99
+        ]
+    },
+    {
+        "label": "TALLER MECANICO",
+        "factores": [
+            7.28,
+            13.75,
+            19.99
+        ]
+    },
+    {
+        "label": "TALLER REPARACION DE ELECTRODOMESTICOS Y SIMILARES",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "SERVICIO E INSTALACION DE EQUIPOS DE TRANSMISION",
+        "factores": [
+            7.28,
+            13.75,
+            19.99
+        ]
+    },
+    {
+        "label": "TALLER DE REPARACION DE AIRES ACONDICIONADOS",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "FLORISTERIAS",
+        "factores": [
+            3.38,
+            9,
+            14.63
+        ]
+    },
+    {
+        "label": "VIVEROS",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "BOUTIQUE",
+        "factores": [
+            2.85,
+            6.89,
+            10.73
+        ]
+    },
+    {
+        "label": "GALERIAS DE ARTE",
+        "factores": [
+            2.85,
+            6.89,
+            10.73
+        ]
+    },
+    {
+        "label": "JOYERIAS",
+        "factores": [
+            2.85,
+            6.89,
+            10.73
+        ]
+    },
+    {
+        "label": "JUGUETERIAS",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "PINATERIAS",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "OPTICAS",
+        "factores": [
+            2.85,
+            6.89,
+            10.73
+        ]
+    },
+    {
+        "label": "SASTRERIA Y TALLERES DE COSTURA",
+        "factores": [
+            2.85,
+            6.89,
+            10.73
+        ]
+    },
+    {
+        "label": "VENTA DE ANIMALES Y ARTICULOS PARA ANIMALES",
+        "factores": [
+            2.85,
+            6.89,
+            10.73
+        ]
+    },
+    {
+        "label": "VENTA DE ARTICULOS DEPORTIVOS Y HOBBIES",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "VENTA DE ARTICULOS PARA EL HOGAR",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "VENTA DE EQUIPOS Y ARTICULOS ELECTRICOS",
+        "factores": [
+            2.85,
+            6.98,
+            11.25
+        ]
+    },
+    {
+        "label": "VENTA DE LAMPARAS",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "VENTA DE EQUIPOS Y ARTICULOS TELEFONICOS",
+        "factores": [
+            3.95,
+            6.85,
+            9.89
+        ]
+    },
+    {
+        "label": "VENTA DE EQUIPOS Y ARTICULOS DE COMPUTACION",
+        "factores": [
+            3.95,
+            6.85,
+            9.89
+        ]
+    },
+    {
+        "label": "VENTA DE ARTICULOS, EQUIPOS Y MATERIALES DE OFICINA",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "VENTA DE PERIODICOS Y REVISTAS",
+        "factores": [
+            2.53,
+            6.12,
+            9.45
+        ]
+    },
+    {
+        "label": "VENTA DE PRODUCTOS QUIMICOS",
+        "factores": [
+            3.95,
+            7.8,
+            12.64
+        ]
+    },
+    {
+        "label": "COPISTERIA",
+        "factores": [
+            2.85,
+            6.89,
+            10.73
+        ]
+    },
+    {
+        "label": "DISTRIBUIDORA DE GAS Y OTROS COMBUSTIBLES",
+        "factores": [
+            2.98,
+            7.54,
+            11.85
+        ]
+    },
+    {
+        "label": "DISTRIBUIDORA DE FERTILIZANTES, ABONOS Y OTROS PRODUCTOS SIMILARESPARA LA AGRICULTURA",
+        "factores": [
+            3.95,
+            7.8,
+            12.64
+        ]
+    },
+    {
+        "label": "LIBRERIAS Y PAPELERIAS",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "ESTACIONAMIENTOS",
+        "factores": [
+            2.83,
+            7.18,
+            11.31
+        ]
+    },
+    {
+        "label": "SERVICIO DE EMBALAJE Y MUDANZA",
+        "factores": [
+            3.38,
+            9.26,
+            13.49
+        ]
+    },
+    {
+        "label": "DISTRIBUIDORA DE ALIMENTOS Y BEBIDAS",
+        "factores": [
+            3.38,
+            9.26,
+            13.49
+        ]
+    },
+    {
+        "label": "LINEAS DE AUTOBUSES Y TAXIS",
+        "factores": [
+            2.53,
+            8.07,
+            11.85
+        ]
+    },
+    {
+        "label": "MAYORISTAS DE MERCANCIAS",
+        "factores": [
+            3.38,
+            8.91,
+            13.49
+        ]
+    },
+    {
+        "label": "SERVICIO DE LIMPIEZA Y MANTENIMIENTO",
+        "factores": [
+            2.98,
+            7.9,
+            11.85
+        ]
+    },
+    {
+        "label": "SERVICIO DE CORRESPONDENCIA",
+        "factores": [
+            4.73,
+            8.42,
+            12.64
+        ]
+    },
+    {
+        "label": "SERVICIO DE VIGILANCIA",
+        "factores": [
+            2.57,
+            6.21,
+            9.65
+        ]
+    },
+    {
+        "label": "SERVICIOS DE FUMIGACION",
+        "factores": [
+            2.98,
+            6.31,
+            9.45
+        ]
+    },
+    {
+        "label": "ALMACENES DE ADUANAS",
+        "factores": [
+            5.63,
+            13.95,
+            22.49
+        ]
+    },
+    {
+        "label": "DE ALOJAMIENTO DE DEPORTISTAS",
+        "factores": [
+            15.35,
+            30.39,
+            46.28
+        ]
+    },
+    {
+        "label": "BATALLONES DE GUARNICION MILITAR",
+        "factores": [
+            15.35,
+            30.39,
+            46.28
+        ]
+    },
+    {
+        "label": "GUARDIA NACIONAL",
+        "factores": [
+            15.35,
+            30.39,
+            46.28
+        ]
+    },
+    {
+        "label": "VENTA Y REPARACION DE CELULARES",
+        "factores": [
+            5.45,
+            9.69,
+            15.43
+        ]
+    },
+    {
+        "label": "EMBOTELLADORAS/RECARGA DE AGUA POTABLE",
+        "factores": [
+            4.85,
+            9.69,
+            14.33
+        ]
+    },
+    {
+        "label": "DEPOSITOS O GALPONES",
+        "factores": [
+            3.38,
+            13.04,
+            22.49
+        ]
+    },
+    {
+        "label": "ANGARES",
+        "factores": [
+            3.38,
+            13.04,
+            22.49
+        ]
+    },
+    {
+        "label": "SUMINISTRO DE MATERIALES PARA INDUSTRIA Y CONSTRUCCION",
+        "factores": [
+            3.38,
+            13.04,
+            22.49
+        ]
+    },
+    {
+        "label": "FABRICA DE HIELO",
+        "factores": [
+            2.83,
+            12.76,
+            23.57
+        ]
+    },
+    {
+        "label": "TALLER DE CONFECCION",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "FABRICA DE PINATAS",
+        "factores": [
+            3.38,
+            8.55,
+            13.49
+        ]
+    },
+    {
+        "label": "TAPICES Y SIMILARES",
+        "factores": [
+            5.46,
+            12.45,
+            19.99
+        ]
+    },
+    {
+        "label": "FABRICA DE LAMPARAS",
+        "factores": [
+            5.46,
+            12.45,
+            19.99
+        ]
+    },
+    {
+        "label": "FABRICA DE TEXTILES",
+        "factores": [
+            5.46,
+            12.45,
+            19.99
+        ]
+    },
+    {
+        "label": "FABRICA DE CALZADOS",
+        "factores": [
+            5.46,
+            12.45,
+            19.99
+        ]
+    },
+    {
+        "label": "FABRICA DE DETERGENTES",
+        "factores": [
+            5.46,
+            12.45,
+            19.99
+        ]
+    },
+    {
+        "label": "FABRICA DE ARTICULOS DE CERAMICA",
+        "factores": [
+            5.46,
+            12.45,
+            19.99
+        ]
+    },
+    {
+        "label": "FABRICA DE ARTESANIA",
+        "factores": [
+            5.46,
+            12.45,
+            19.99
+        ]
+    },
+    {
+        "label": "CARPINTERIAS",
+        "factores": [
+            2.98,
+            8.34,
+            12.86
+        ]
+    },
+    {
+        "label": "FABRICA DE MUEBLES",
+        "factores": [
+            10.66,
+            17.65,
+            25.19
+        ]
+    },
+    {
+        "label": "MUEBLERIA (EXHIBICION Y VENTA)",
+        "factores": [
+            3.38,
+            7.12,
+            10.73
+        ]
+    },
+    {
+        "label": "QUINCALLAS Y BAZARES",
+        "factores": [2.53, 6.07, 9.45]
+    },
+    {
+        "label": "TIENDAS POR DEPARTAMENTOS",
+        "factores": [17.94, 46.12, 80.74]
+    },
+    {
+        "label": "VENTA DE REPUESTOS Y ACCESORIOS VEHICULOS",
+        "factores": [2.53, 6.12, 9.45]
+    },
+    {
+        "label": "VENTA AMB. ALIMENTOS Y BEBIDAS",
+        "factores": [1.69, 5.45, 9.31]
+    },
+    {
+        "label": "INMUEBLES Y LOCALES DESOCUPADOS",
+        "factores": [1.98, 1.98, 1.98]
+    },
+    {
+        "label": "TERRENOS, CONSTRUCCIONES E INMUEBLES A ESTRENAR",
+        "factores": [0, 0, 0]
+    },
+    {
+        "label": "ESTACIONAMIENTOS",
+        "factores": [2.83, 7.18, 11.31]
+    },
+    {
+        "label": "PUESTO DE ESTACIONAMIENTO",
+        "factores": [2.83, 7.18, 11.31]
+    },
+    {
+        "label": "DULCERIAS/REPOSTERIAS",
+        "factores": [7.54, 11.9, 16.03]
+    },
+    {
+        "label": "LUNCHERIAS",
+        "factores": [5.67, 10.19, 15.97]
+    },
+    {
+        "label": "SERVICIOS TECNICOS",
+        "factores": [2.53, 6.12, 9.45]
+    }
+],
+actividadesIndustriales: [] as any[],
+  serviciosEspeciales: [] as any[],
+  inspeccionesTecnicas: [] as any[],
+  vistoBueno: [] as any[],
+  serviciosExtraordinarios: [] as any[]
 };

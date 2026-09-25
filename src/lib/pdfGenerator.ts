@@ -1,11 +1,8 @@
 import { logos } from './logosBase64';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
   try {
@@ -15,7 +12,7 @@ export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
     doc.setFillColor(230, 230, 230); // light gray
     doc.rect(0, 0, 210, 40, 'F');
     
-    // Instituto de Aseo logo only
+    // ISMA Naguanagua logo only
     doc.addImage(logos.isma, 'JPEG', 15, 8, 45, 25);
     
     // Header Text
@@ -109,7 +106,7 @@ export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
     doc.text(splitDecl, 15, 150);
     
     // QR Code
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://aseosilva.globalrecca.com';
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://aseonaguanagua.globalrecca.com';
     const qrData = `${baseUrl}/validar?codigo=${data.codigo}`;
     const qrDataUrl = await QRCode.toDataURL(qrData, { margin: 1, width: 100 });
     doc.addImage(qrDataUrl, 'PNG', 85, 180, 40, 40);

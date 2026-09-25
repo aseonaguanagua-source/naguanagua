@@ -40,7 +40,7 @@ export default function DashboardAdministrativo() {
   const [recaudacionHistoria, setRecaudacionHistoria] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchTCMMV();
+    fetchUCD();
   }, []);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function DashboardAdministrativo() {
     }
   }, [recibos, pagosReportados, inmuebles, loading, tcmmv]);
 
-  const fetchTCMMV = async () => {
+  const fetchUCD = async () => {
     try {
       const res = await fetch('/api/bcv');
       const data = await res.json();
@@ -98,6 +98,24 @@ export default function DashboardAdministrativo() {
         deudasContribuyentes[f.identidad].monto += monto;
       }
     });
+
+    // Deuda REAL = deuda acumulada en inmuebles (deuda_mmv * tcmmv + deuda_congelada_bs)
+    let deudaInmueblesBs = 0;
+    inmuebles.forEach((inm: any) => {
+      const deudaMMV = parseFloat(inm.deuda_mmv || inm.DeudaMMV || 0);
+      const deudaCong = parseFloat(inm.deuda_congelada_bs || inm.DeudaCongelada || 0);
+      const inmDeuda = (deudaMMV * tcmmv) + deudaCong;
+      deudaInmueblesBs += inmDeuda;
+      // Agregar al mapa de deudas por contribuyente
+      if (inmDeuda > 0 && inm.identidad) {
+        if (!deudasContribuyentes[inm.identidad]) {
+          deudasContribuyentes[inm.identidad] = { nombre: inm.contribuyente || 'N/A', monto: 0 };
+        }
+        deudasContribuyentes[inm.identidad].monto = Math.max(deudasContribuyentes[inm.identidad].monto, inmDeuda);
+      }
+    });
+    // Usar la deuda real de inmuebles (mayor y más precisa que la de facturas)
+    deuda = Math.max(deuda, deudaInmueblesBs);
 
     // Calcular recaudacion a partir de pagos aprobados reales
     pagosReportados.forEach((pago: any) => {
@@ -174,7 +192,7 @@ export default function DashboardAdministrativo() {
   const formatCurrency = (val: number) => {
     if (currency === 'MMV') {
       const valMmv = val / tcmmv;
-      return `${valMmv.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MMV`;
+      return `${valMmv.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} UCD`;
     }
     return `Bs ${val.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
@@ -206,7 +224,7 @@ export default function DashboardAdministrativo() {
             onClick={() => setCurrency('MMV')}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${currency === 'MMV' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
           >
-            MMV (Euro)
+            UCD (UCD)
           </button>
         </div>
       </div>

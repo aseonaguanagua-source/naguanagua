@@ -531,9 +531,9 @@ export default function ServiciosEspecialesPage() {
                         <select value={form.alturaArbol} onChange={e => setForm(prev => ({ ...prev, alturaArbol: e.target.value }))}
                           className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white">
                           <option value="">Seleccione...</option>
-                          <option value="hasta_3">Hasta 3 metros (7 UMMV)</option>
-                          <option value="de_4_a_5">De 4 a 5 metros (10 UMMV)</option>
-                          <option value="mayor_5">Mayor de 5 metros (15 UMMV)</option>
+                          <option value="hasta_3">Hasta 3 metros (7 UCD)</option>
+                          <option value="de_4_a_5">De 4 a 5 metros (10 UCD)</option>
+                          <option value="mayor_5">Mayor de 5 metros (15 UCD)</option>
                         </select>
                       </div>
                       <div>

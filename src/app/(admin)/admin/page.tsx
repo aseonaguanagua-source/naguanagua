@@ -73,11 +73,11 @@ export default async function AdminHome() {
           <div className="p-6">
             <div className="flex flex-wrap gap-4 text-sm text-slate-700 items-center justify-center">
               <span className="flex items-center gap-1">
-                TCMMV (Moneda de Mayor Valor): 
+                UCD (Moneda de Mayor Valor): 
                 <strong className="text-blue-700 text-lg font-bold">Bs. {rates.tcmmv.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong>
               </span>
               <span className="text-slate-300">|</span>
-              <span>Euro: <strong className="text-green-600 font-semibold">Bs. {rates.eur.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong></span>
+              <span>UCD: <strong className="text-green-600 font-semibold">Bs. {rates.eur.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong></span>
               <span className="text-slate-300">|</span>
               <span>Dólar: <strong className="text-slate-900 font-semibold">Bs. {rates.usd.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong></span>
               <span className="text-slate-300">|</span>
@@ -134,7 +134,7 @@ export default async function AdminHome() {
                 <Mail className="w-5 h-5 text-slate-400 mt-0.5" />
                 <div>
                   <div className="font-semibold text-sm text-slate-700 mb-1">Correo Electrónico:</div>
-                  <a href="mailto:info@aseosilva.globalrecca.com" className="text-sm text-blue-600 hover:underline">info@aseosilva.globalrecca.com</a>
+                  <a href="mailto:info@aseonaguanagua.globalrecca.com" className="text-sm text-blue-600 hover:underline">info@aseonaguanagua.globalrecca.com</a>
                 </div>
               </div>
             </div>
@@ -158,7 +158,7 @@ export default async function AdminHome() {
                 <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
                 <div>
                   Ordenanza Sobre la Gestión y Prestación del Servicio de Manejo integral de Residuos y Desechos Sólidos del Municipio.
-                  <a href="https://aseodesilva.sirid.net/ordenanza.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
+                  <a href="https://aseonaguanagua.sirid.net/ordenanza.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
                     Clic aquí para Descargar
                   </a>
                 </div>
@@ -167,7 +167,7 @@ export default async function AdminHome() {
                 <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
                 <div>
                   Gaceta Municipal 19. Exoneración del 100% en multas, recargos e intereses correspondientes a los años 2024 y 2025.
-                  <a href="https://aseodesilva.sirid.net/gaceta_municipal.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
+                  <a href="https://aseonaguanagua.sirid.net/gaceta_municipal.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
                     Clic aquí para Descargar
                   </a>
                 </div>
@@ -176,7 +176,7 @@ export default async function AdminHome() {
                 <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
                 <div>
                   Gaceta Municipal 23. Plan de Saneamiento y Regularización de Deudas para Conjuntos Residenciales (50% desc. capital).
-                  <a href="https://aseodesilva.sirid.net/gaceta23.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
+                  <a href="https://aseonaguanagua.sirid.net/gaceta23.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
                     Clic aquí para Descargar
                   </a>
                 </div>
@@ -185,7 +185,7 @@ export default async function AdminHome() {
                 <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
                 <div>
                   Gaceta Municipal 31. Plan de Saneamiento y Regularización de Deudas para Comercios e Industrias.
-                  <a href="https://aseodesilva.sirid.net/gaceta31.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
+                  <a href="https://aseonaguanagua.sirid.net/gaceta31.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
                     Clic aquí para Descargar
                   </a>
                 </div>

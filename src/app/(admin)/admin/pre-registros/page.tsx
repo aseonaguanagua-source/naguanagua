@@ -3,13 +3,12 @@ import React, { useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { useAppContext } from '@/store/AppContext';
 import { List, Check, X, CheckCircle, Calculator, AlertCircle, FileSpreadsheet, Clock } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function PreRegistrosPage() {
   const { inmuebles, recibos, preRegistros, aprobarPreRegistro, addContribuyente, ordenanzasConfig: ordenanzaData, setPreRegistros, setInmuebles, setFacturas, addAuditLog, tcmmv } = useAppContext();
@@ -264,7 +263,7 @@ export default function PreRegistrosPage() {
         setInmuebles([...newInmuebles, ...inmuebles]);
       }
       setPreRegistros(preRegistros.filter((r: any) => r.id !== rowToApprove.id));
-      await addAuditLog('APROBAR_PREREGISTRO', `Aprobado con deuda inicial de ${deudaMMV} MMV para ${rowToApprove.identidad}`);
+      await addAuditLog('APROBAR_PREREGISTRO', `Aprobado con deuda inicial de ${deudaMMV} UCD para ${rowToApprove.identidad}`);
 
       setShowSuccess(`Contribuyente ${rowToApprove.contribuyente} aprobado y deuda inicial asignada.`);
       setTimeout(() => setShowSuccess(null), 4000);
@@ -457,7 +456,7 @@ export default function PreRegistrosPage() {
 
               <div className="space-y-4">
                 <div className="flex justify-between items-center bg-blue-50 p-3 rounded border border-blue-100">
-                  <span className="text-sm font-semibold text-blue-800">Tarifa Mensual (MMV):</span>
+                  <span className="text-sm font-semibold text-blue-800">Tarifa Mensual (UCD):</span>
                   <span className="font-bold text-blue-900 text-lg">{calculatedFactor.toFixed(2)}</span>
                 </div>
 
@@ -475,7 +474,7 @@ export default function PreRegistrosPage() {
                 <div className="flex justify-between items-center bg-emerald-50 p-4 rounded-lg border border-emerald-200 shadow-inner">
                   <span className="font-bold text-emerald-800">Deuda Total Inicial:</span>
                   <div className="text-right">
-                    <span className="block font-black text-emerald-600 text-2xl">{(calculatedFactor * meses).toFixed(2)} MMV</span>
+                    <span className="block font-black text-emerald-600 text-2xl">{(calculatedFactor * meses).toFixed(2)} UCD</span>
                     <span className="block text-xs font-semibold text-emerald-700 mt-1">≈ Bs. {(calculatedFactor * meses * (tcmmv || 1)).toFixed(2)}</span>
                   </div>
                 </div>

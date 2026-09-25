@@ -27,6 +27,7 @@ type AppState = {
   auditLogs: any[];
   setPreRegistros: React.Dispatch<React.SetStateAction<any[]>>;
   setFacturas: React.Dispatch<React.SetStateAction<any[]>>;
+  refreshData: () => Promise<void>;
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -69,19 +70,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       let allInmuebles: any[] = [];
-      let fetchMoreInm = true;
-      let fromInm = 0;
-      let stepInm = 999;
-      while (fetchMoreInm) {
-        const { data: chunk } = await supabase.from('inmuebles').select('*')
-          .order('id', { ascending: true })
-          .range(fromInm, fromInm + stepInm);
-        if (chunk && chunk.length > 0) {
-          allInmuebles = [...allInmuebles, ...chunk];
-          fromInm += stepInm + 1;
-        } else {
-          fetchMoreInm = false;
-        }
+      let apiCondominios: any[] = [];
+      try {
+        const response = await fetch('/api/get-all-data');
+        const jsonResponse = await response.json();
+        allInmuebles = jsonResponse.inmuebles || [];
+        apiCondominios = jsonResponse.condominios || [];
+      } catch (err) {
+        console.error("Error fetching fast data:", err);
       }
 
       const [
@@ -101,7 +97,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supabase.from('pre_registros').select('*'),
         supabase.from('documentos').select('*'),
         supabase.from('certificados').select('*'),
-        supabase.from('condominios').select('*'),
+        Promise.resolve({ data: [] }), // Placeholder for dbCondominios to keep indices correct
         supabase.from('reclamos').select('*'),
         supabase.from('convenios').select('*'),
         supabase.from('pre_liquidaciones').select('*'),
@@ -167,6 +163,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }));
         setInmuebles(mappedInmuebles);
         
+        setCondominios(apiCondominios);
+        
         const map = new Map();
         dbInmuebles.forEach((row: any) => {
           if (row.identidad && !map.has(row.identidad)) {
@@ -188,15 +186,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
             map.set(row.identidad, {
               Identidad: row.identidad,
-              Contribuyente: row.contribuyente,
-              Telefono: row.telefono || 'No registrado',
-              Correo: row.correo_electronico || row.correo || 'No registrado',
-              CodCont: row.cod_cont,
-              cod_cont: row.cod_cont,
-              Direccion: row.direccion,
+              Contribuyente: row.contribuyentes?.nombre || row.nombre || row.contribuyente || 'Sin Nombre',
+              Telefono: row.contribuyentes?.telefono || row.telefono || 'No registrado',
+              Correo: row.contribuyentes?.email || row.email || row.correo_electronico || row.correo || 'No registrado',
+              CodCont: row.inmueble || row.cod_cont,
+              cod_cont: row.inmueble || row.cod_cont,
+              Direccion: (function() {
+                if (act.includes('[HIJO_DE:')) {
+                  const match = act.match(/\[HIJO_DE:(.*?)\]/);
+                  if (match) {
+                    const padreUrb = match[1];
+                    const padre = dbInmuebles.find((i: any) => i.inmueble === padreUrb);
+                    if (padre && padre.direccion && padre.direccion !== '') {
+                      return padre.direccion;
+                    }
+                  }
+                }
+                return row.direccion || row.contribuyentes?.direccion || '';
+              })(),
+              Observaciones: row.contribuyentes?.observaciones || '',
               Actividad: act || 'No aplica',
               Clasificacion: clase,
               SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
+              DeudaMMV: parseFloat(row.deuda_mmv || 0),
+              DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
+              DeudaBs: (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * currentTcmmv)),
+              MesesDeuda: parseInt(row.meses_deuda || '0'),
               Estado: row.estado || 'Activo',
               FechaRegistro: row.created_at || null
             });
@@ -204,9 +219,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
             // Si ya existe, sumar saldo a favor
             const existing = map.get(row.identidad);
             existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
+            existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
+            existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
+            existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * currentTcmmv));
             // Mantener el estado más severo si hay múltiples (Eliminado > Inactivo > Activo)
             if (row.estado === 'Eliminado' || (row.estado === 'Inactivo' && existing.Estado !== 'Eliminado')) {
               existing.Estado = row.estado;
+            }
+            const cod = row.inmueble || row.cod_cont;
+            if (cod && !existing.CodCont.includes(cod)) {
+              existing.CodCont += " " + cod;
             }
             map.set(row.identidad, existing);
           }
@@ -218,7 +240,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (dbFacturas) setFacturas(dbFacturas);
       if (dbDocumentos) setDocumentos(dbDocumentos);
       if (dbCertificados) setCertificados(dbCertificados);
-      if (dbCondominios) setCondominios(dbCondominios);
+      // Removed overwriting of setCondominios
       if (dbReclamos) setReclamos(dbReclamos);
       if (dbConvenios) setConvenios(dbConvenios);
       if (dbPreLiquidaciones) setPreLiquidaciones(dbPreLiquidaciones);
@@ -228,6 +250,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const refreshData = async () => {
+    await loadAllData();
   };
 
   useEffect(() => {
@@ -442,7 +468,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       aprobarPreRegistro,
       addFactura,
       setPreRegistros,
-      setFacturas
+      setFacturas,
+      refreshData
     }}>
       {children}
     </AppContext.Provider>

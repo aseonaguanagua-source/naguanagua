@@ -3,27 +3,27 @@ import { calcularDeudaSaneada, DeudaMensual } from '@/lib/aseo';
 import { Calculator, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function SaneamientoPage() {
-  // Simulación de Tasa TCMMV (esto en la vida real vendría del API del BCV)
+  // Simulación de Tasa UCD (esto en la vida real vendría del API del BCV)
   const tcmmvActual = 875.22; 
 
   // Simulación de deudas de un comercio tipo "Supermercados y Bodegones" Nivel II
-  // (Tarifa = 70 TCMMV mensuales)
-  const tarifaComercioTCMMV = 70;
+  // (Tarifa = 70 UCD mensuales)
+  const tarifaComercioUCD = 70;
 
   const deudasSimuladas: DeudaMensual[] = [
     // Año 2023 (Decreto 005 - Condonación 100%)
-    { anio: 2023, mes: 10, capitalFacturado_TCMMV: tarifaComercioTCMMV, multas_TCMMV: 15, intereses_TCMMV: 5 },
-    { anio: 2023, mes: 11, capitalFacturado_TCMMV: tarifaComercioTCMMV, multas_TCMMV: 15, intereses_TCMMV: 5 },
-    { anio: 2023, mes: 12, capitalFacturado_TCMMV: tarifaComercioTCMMV, multas_TCMMV: 15, intereses_TCMMV: 5 },
+    { anio: 2023, mes: 10, capitalFacturado_UCD: tarifaComercioUCD, multas_UCD: 15, intereses_UCD: 5 },
+    { anio: 2023, mes: 11, capitalFacturado_UCD: tarifaComercioUCD, multas_UCD: 15, intereses_UCD: 5 },
+    { anio: 2023, mes: 12, capitalFacturado_UCD: tarifaComercioUCD, multas_UCD: 15, intereses_UCD: 5 },
     
     // Año 2024 (Decreto 006 - Condonación 100% multas/intereses y Decreto 007 - 50% desc. capital)
-    { anio: 2024, mes: 1, capitalFacturado_TCMMV: tarifaComercioTCMMV, multas_TCMMV: 10, intereses_TCMMV: 2 },
-    { anio: 2024, mes: 2, capitalFacturado_TCMMV: tarifaComercioTCMMV, multas_TCMMV: 10, intereses_TCMMV: 2 },
-    { anio: 2024, mes: 3, capitalFacturado_TCMMV: tarifaComercioTCMMV, multas_TCMMV: 10, intereses_TCMMV: 2 },
+    { anio: 2024, mes: 1, capitalFacturado_UCD: tarifaComercioUCD, multas_UCD: 10, intereses_UCD: 2 },
+    { anio: 2024, mes: 2, capitalFacturado_UCD: tarifaComercioUCD, multas_UCD: 10, intereses_UCD: 2 },
+    { anio: 2024, mes: 3, capitalFacturado_UCD: tarifaComercioUCD, multas_UCD: 10, intereses_UCD: 2 },
     
     // Año 2025 (Decreto 006 - Condonación 100% multas/intereses y Decreto 007 - 50% desc. capital)
-    { anio: 2025, mes: 1, capitalFacturado_TCMMV: tarifaComercioTCMMV, multas_TCMMV: 10, intereses_TCMMV: 2 },
-    { anio: 2025, mes: 2, capitalFacturado_TCMMV: tarifaComercioTCMMV, multas_TCMMV: 10, intereses_TCMMV: 2 },
+    { anio: 2025, mes: 1, capitalFacturado_UCD: tarifaComercioUCD, multas_UCD: 10, intereses_UCD: 2 },
+    { anio: 2025, mes: 2, capitalFacturado_UCD: tarifaComercioUCD, multas_UCD: 10, intereses_UCD: 2 },
   ];
 
   const resultado = calcularDeudaSaneada('comercial', deudasSimuladas, tcmmvActual, false);

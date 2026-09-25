@@ -1,25 +1,23 @@
 const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const path = require('path');
 
-const supabaseUrl = 'https://mikjixthqdxlynhxecdr.supabase.co';
-const supabaseKey = 'sb_publishable_G45L3NkAerlI7c7WmMgqAw_PtZ33qt2';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-async function restore() {
-  const { data, error } = await supabase
-    .from('facturas')
-    .insert([
-      {
-        referencia: 'HIST-' + Math.floor(Math.random() * 1000000) + '-RESTORED',
-        contribuyente: 'J-400454140',
-        emision: '2023-12-31',
-        vencimiento: '2023-12-31',
-        monto: 52513.20,
-        estado: 'Pendiente'
-      }
-    ]);
-    
-  if (error) console.error('Error:', error);
-  else console.log('Deuda restaurada:', data);
+let SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+let SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  try {
+    const envContent = fs.readFileSync(path.join(__dirname, '../.env.local'), 'utf-8');
+    const urlMatch = envContent.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/);
+    const keyMatch = envContent.match(/NEXT_PUBLIC_SUPABASE_ANON_KEY=(.*)/);
+    if(urlMatch) SUPABASE_URL = urlMatch[1].trim();
+    if(keyMatch) SUPABASE_KEY = keyMatch[1].trim();
+  } catch(e) {}
 }
 
-restore();
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+(async () => {
+  const { error } = await supabase.from('inmuebles').update({ deuda_mmv: 500 }).eq('identidad', 'JTEST10MESES');
+  console.log("Error:", error);
+  console.log("Restored dummy debt.");
+})();

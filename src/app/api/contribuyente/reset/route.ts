@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'default_secret';

@@ -5,6 +5,7 @@ import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { useAppContext } from '@/store/AppContext';
 import { logos } from '@/lib/logosBase64';
+import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 
 interface UnidadesModalProps {
   condominioId: number;
@@ -101,15 +102,47 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
 
   const fetchUnidades = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data: ud, error: e1 } = await supabase
       .from('unidades_condominio')
       .select('*')
       .eq('condominio_id', condominioId)
       .order('id', { ascending: true });
+      
+    const searchCodigo = condominioCodigoPadre || condominioIdentidad || '';
+    const { data: inms, error: e2 } = await supabase
+      .from('inmuebles')
+      .select('*, contribuyentes(*)')
+      .ilike('actividad_principal', `%[HIJO_DE:${searchCodigo}]%`);
+      
+    let combined = [...(ud || [])];
     
-    if (!error && data) {
-      setUnidades(data);
+    if (inms && inms.length > 0) {
+      const mappedInms = inms.map((inm: any) => {
+        const rawPropietario = inm.contribuyentes?.nombre || 'No asignado';
+        const isDesocupado = rawPropietario.toUpperCase().includes('DESOCUPAD');
+        
+        return {
+          id: inm.id,
+          condominio_id: condominioId,
+          numero_unidad: (inm.inmueble || '').replace(searchCodigo + '-', ''),
+          codigo_ch: inm.inmueble,
+          propietario: isDesocupado ? 'Desocupado' : rawPropietario,
+          cedula_rif: isDesocupado ? '-' : inm.identidad,
+          telefono: inm.contribuyentes?.telefono || '',
+          correo: inm.contribuyentes?.email || '',
+          ficha_catastral: '',
+          estado: inm.estado || 'Solvente',
+          ocupacion: isDesocupado ? 'Desocupada' : 'Ocupada',
+          clave_acceso: '',
+          es_migrado: true,
+          actividad_economica_id: inm.actividad_economica_id,
+          tipo: inm.tipo || 'INDEPENDIENTE'
+        };
+      });
+      combined = [...combined, ...mappedInms];
     }
+    
+    setUnidades(combined);
     setLoading(false);
   };
 
@@ -300,7 +333,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
       doc.setFillColor(230, 230, 230); // light gray
       doc.rect(0, 0, 210, 40, 'F');
       
-      // Instituto de Aseo logo only
+      // ISMA Naguanagua logo only
       doc.addImage(logos.isma, 'JPEG', 15, 8, 45, 25);
       
       // Header Text
@@ -396,7 +429,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
       doc.text(splitDecl, 15, 150);
       
       // QR Code
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://aseosilva.globalrecca.com';
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://aseonaguanagua.globalrecca.com';
       const qrData = `${baseUrl}/validar?codigo=${codigoUnico}`;
       const qrDataUrl = await QRCode.toDataURL(qrData, { margin: 1, width: 100 });
       doc.addImage(qrDataUrl, 'PNG', 85, 180, 40, 40);
@@ -567,6 +600,8 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                       <th className="px-4 py-3">Unidad</th>
                       <th className="px-4 py-3">Propietario / Cédula</th>
                       <th className="px-4 py-3">Contacto</th>
+                      <th className="px-4 py-3">Tipo</th>
+                      <th className="px-4 py-3">Nietos</th>
                       <th className="px-4 py-3">Ficha</th>
                       <th className="px-4 py-3">Ocupación</th>
                       <th className="px-4 py-3">Estado</th>
@@ -620,6 +655,12 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                                 onChange={(e) => setEditForm({...editForm, correo: e.target.value})}
                                 className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 min-w-[100px]"
                               />
+                            </td>
+                            <td className="px-4 py-2">
+                              {/* Read-only edit mode for Tipo */}
+                            </td>
+                            <td className="px-4 py-2">
+                              {/* Read-only edit mode for Nietos */}
                             </td>
                             <td className="px-4 py-2">
                               <input 
@@ -684,12 +725,32 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                               <div>{u.telefono || 'Sin Telf.'}</div>
                               <div>{u.correo || 'Sin Correo'}</div>
                             </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2 py-1 text-[10px] font-bold uppercase rounded ${u.tipo === 'CONDOMINIO' ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700 border border-blue-100'}`}>
+                                {u.tipo || 'INDEPENDIENTE'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {u.actividad_economica_id && u.actividad_economica_id !== '0' ? (
+                                <div className="flex flex-col gap-1">
+                                  {u.actividad_economica_id.split(',').map((actId: string) => (
+                                    <span key={actId} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase rounded border border-emerald-200 shadow-sm whitespace-nowrap" title={`Actividad ID: ${actId}`}>
+                                      <Building2 size={10} />
+                                      {/* @ts-ignore */}
+                                      {economicActivitiesBase[actId] || 'Nieto Desconocido'}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-slate-300 text-xs">-</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-slate-500 text-xs">{u.ficha_catastral || 'N/A'}</td>
-                            <td className="px-4 py-3 text-slate-600">
-                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                u.activo === false ? 'bg-slate-200 text-slate-500' : u.ocupacion === 'Ocupada' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                                u.ocupacion === 'Ocupada' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'
                               }`}>
-                                {u.activo === false ? 'Inactivo' : (u.ocupacion || 'Ocupada')}
+                                {u.ocupacion}
                               </span>
                             </td>
                             <td className="px-4 py-3">

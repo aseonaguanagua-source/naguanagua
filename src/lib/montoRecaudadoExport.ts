@@ -55,7 +55,7 @@ export const exportMontoRecaudadoExcel = async (
   yearRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
   const headerRow = worksheet.addRow([
-    'MES', 'FECHA PAGO', 'EURO (TCMMV)', 'RECAUDADO POR PUNTO Bs.', 'CONCILIADO POR PUNTO EN �',
+    'MES', 'FECHA PAGO', 'EURO (UCD)', 'RECAUDADO POR PUNTO Bs.', 'CONCILIADO POR PUNTO EN �',
     'CONCILIADO POR TRANSFERENCIA Y/O DEPOSITOS (Bs)', 'CONCILIADO POR TRANSFERENCIA Y/O DEPOSITOS (�)',
     'RECAUDADO EN EL ESTADO DE CUENTA (Bs)', 'RECAUDADO EN EL ESTADO DE CUENTA (�)'
   ]);

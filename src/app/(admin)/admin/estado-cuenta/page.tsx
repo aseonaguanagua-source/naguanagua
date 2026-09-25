@@ -348,12 +348,14 @@ export default function EstadoCuentaPage() {
           });
           if (monthlyMMV > 0) montoNumerico = parseFloat((monthlyMMV * tcmmv).toFixed(2));
         } else if (row.referencia.startsWith('RECIB-')) {
-          // RECIB- = deuda acumulada: deuda_mmv × tcmmv
+          // RECIB- = deuda acumulada: (deuda_mmv × tcmmv) + deuda_congelada_bs
           let totalDeudaMMV = 0;
+          let totalCongelada = 0;
           userInmsForCalc.forEach((inm: any) => {
             totalDeudaMMV += parseFloat(inm.deuda_mmv || 0);
+            totalCongelada += parseFloat(inm.deuda_congelada_bs || 0);
           });
-          if (totalDeudaMMV > 0) montoNumerico = parseFloat((totalDeudaMMV * tcmmv).toFixed(2));
+          if (totalDeudaMMV > 0 || totalCongelada > 0) montoNumerico = parseFloat(((totalDeudaMMV * tcmmv) + totalCongelada).toFixed(2));
         }
       }
     }
@@ -479,7 +481,7 @@ export default function EstadoCuentaPage() {
     const idLimpio = identidadBusqueda.replace(/-/g, '');
 
     let codContrib = '---';
-    let direccionFiscal = 'TUCACAS MUNICIPIO SILVA, FALCÓN';
+    let direccionFiscal = 'NAGUANAGUA, CARABOBO';
     let razonSocial = abonoOverride?.contribuyente || row.contribuyente || '---';
     let rifCiReal = identidadBusqueda || '---';
     try {
@@ -536,7 +538,7 @@ export default function EstadoCuentaPage() {
           const userInmsForAll = (inmuebles as any[]).filter((inm: any) =>
             (inm.identidad || '').replace(/-/g,'').toUpperCase() === idClean
           );
-          conceptos = todasFacturas.map((f: any) => {
+          conceptos = todasFacturas.flatMap((f: any) => {
             let mF = parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
             let descripcionBase = `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${getMesTxt(f.emision)}`;
 
@@ -562,8 +564,9 @@ export default function EstadoCuentaPage() {
                 if (mmv > 0) mF = parseFloat((mmv * tcmmv).toFixed(2));
               } else if (f.referencia?.startsWith('RECIB-')) {
                 let deuda = 0;
-                userInmsForAll.forEach((inm: any) => { deuda += parseFloat(inm.deuda_mmv || 0); });
-                if (deuda > 0) mF = parseFloat((deuda * tcmmv).toFixed(2));
+                let congelada = 0;
+                userInmsForAll.forEach((inm: any) => { deuda += parseFloat(inm.deuda_mmv || 0); congelada += parseFloat(inm.deuda_congelada_bs || 0); });
+                if (deuda > 0 || congelada > 0) mF = parseFloat(((deuda * tcmmv) + congelada).toFixed(2));
               }
             }
             return {
@@ -591,6 +594,7 @@ export default function EstadoCuentaPage() {
       controlWeb: (row.estado === 'Pagado' || esAbono) ? 'WEB-0000001' : '',
       fechaEmision: row.emision || new Date().toISOString().split('T')[0],
       codContribuyente: codContrib,
+      tipoContribuyente: inmuebles[0]?.tipo,
       razonSocial,
       domicilioFiscal: direccionFiscal,
       rifCi: rifCiReal,
@@ -682,11 +686,11 @@ export default function EstadoCuentaPage() {
 
   const generarFacturacionMensual = async () => {
     if (!tcmmv) {
-      alert("Debes actualizar la tasa TCMMV primero.");
+      alert("Debes actualizar la tasa UCD primero.");
       return;
     }
     
-    if (!confirm(`┬┐Generar facturaci├│n usando TCMMV de ${tcmmv} Bs? Esto recibir├í a los ${inmuebles.length} inmuebles.`)) {
+    if (!confirm(`┬┐Generar facturaci├│n usando UCD de ${tcmmv} Bs? Esto recibir├í a los ${inmuebles.length} inmuebles.`)) {
       return;
     }
 
@@ -796,7 +800,8 @@ export default function EstadoCuentaPage() {
             monto = pRel.reduce((s, p) => s + (parseFloat(String(p.monto || '0').replace(/[^\d.]/g, '')) || 0), 0);
           }
         }
-        return `Bs. ${monto.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+        const ucd = (tcmmv || 0) > 0 ? monto / (tcmmv || 1) : 0;
+        return `${ucd.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})} UCD`;
       }
     },
     { key: 'estado', header: 'Estado', render: (row: any) => {
@@ -957,7 +962,7 @@ export default function EstadoCuentaPage() {
           </button>
 
           <div className="bg-slate-100 px-3 py-1.5 rounded-lg flex items-center gap-2 border border-slate-200">
-            <span className="text-xs font-medium text-slate-500">TCMMV (Euro):</span>
+            <span className="text-xs font-medium text-slate-500">UCD (UCD):</span>
             <span className="text-sm font-bold text-slate-800">
               {tcmmv ? `${tcmmv} Bs` : '---'}
             </span>
@@ -1074,14 +1079,14 @@ export default function EstadoCuentaPage() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm mb-4 overflow-hidden">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Desglose Anual de Deuda Pendiente</span>
-                <span className="text-xs font-bold text-red-600">Total: {fmt(totalPendiente)} Bs</span>
+                <span className="text-xs font-bold text-red-600">Total: {fmt((tcmmv || 0) > 0 ? totalPendiente / (tcmmv || 1) : 0)} UCD</span>
               </div>
               <div className="p-3 flex flex-wrap gap-2">
                 {yearsArray.map(([year, { total, count }]) => {
                   return (
                     <div key={year} className="flex flex-col items-center bg-red-50 border border-red-200 rounded-lg px-4 py-2 min-w-[120px]">
                       <span className="text-xs font-bold text-red-500 uppercase">AÑO {year}</span>
-                      <span className="text-sm font-bold text-slate-800">{fmt(total)} Bs</span>
+                      <span className="text-sm font-bold text-slate-800">{fmt((tcmmv || 0) > 0 ? total / (tcmmv || 1) : 0)} UCD</span>
                       <span className="text-[10px] text-slate-400">{count} recibo{count > 1 ? 's' : ''}</span>
                     </div>
                   );

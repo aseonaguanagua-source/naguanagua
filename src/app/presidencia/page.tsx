@@ -66,13 +66,13 @@ export default function PresidenciaDashboard() {
     } catch { router.replace('/presidencia/login'); }
   }, [router]);
 
-  // Load inmuebles and TCMMV once
+  // Load inmuebles and UCD once
   useEffect(() => {
     // Inmuebles for sector mapping
     supabase.from('inmuebles').select('identidad,actividad_principal').limit(1000)
       .then(({ data }) => setInmuebles(data || []));
 
-    // TCMMV rate from sistema_config
+    // UCD rate from sistema_config
     const fetchTcmmv = async () => {
       try {
         const { data: cfg } = await supabase.from('sistema_config').select('*');
@@ -229,7 +229,7 @@ export default function PresidenciaDashboard() {
           )}
 
           <p style={{ margin: '6px 0 10px', fontSize: 12, color: 'rgba(200,230,200,.5)' }}>
-            {pagosEnr.length} transacciones · TCMMV: {tcmmv > 0 ? tcmmv.toLocaleString('es-VE', {minimumFractionDigits:2}) + ' Bs/€' : 'N/D'}
+            {pagosEnr.length} transacciones · UCD: {tcmmv > 0 ? tcmmv.toLocaleString('es-VE', {minimumFractionDigits:2}) + ' Bs/€' : 'N/D'}
           </p>
 
           {/* Toggle button */}

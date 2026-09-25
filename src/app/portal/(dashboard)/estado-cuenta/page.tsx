@@ -96,8 +96,9 @@ export default function EstadoCuentaPage() {
     // RECIB-
     if (r.referencia?.startsWith('RECIB-')) {
       let totalDeudaMMV = 0;
-      misInmuebles.forEach((inm: any) => { totalDeudaMMV += parseFloat(inm.deuda_mmv || 0); });
-      if (totalDeudaMMV > 0) baseMonto = totalDeudaMMV * tasaBcv;
+      let totalCongelada = 0;
+      misInmuebles.forEach((inm: any) => { totalDeudaMMV += parseFloat(inm.deuda_mmv || 0); totalCongelada += parseFloat(inm.deuda_congelada_bs || 0); });
+      if (totalDeudaMMV > 0 || totalCongelada > 0) baseMonto = (totalDeudaMMV * tasaBcv) + totalCongelada;
     }
     // CM-
     else if (r.referencia?.startsWith('CM-')) {

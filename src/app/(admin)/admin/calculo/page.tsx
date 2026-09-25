@@ -105,7 +105,7 @@ export default function CalculoProyeccionPage() {
               {/* Tasa BCV */}
               <div>
                 <label className="flex justify-between text-sm font-semibold text-slate-700 mb-2">
-                  <span>Simular Tasa (TCMMV)</span>
+                  <span>Simular Tasa (UCD)</span>
                   <span className="text-blue-600 font-bold">Bs. {formatNumber(simTcmmv)}</span>
                 </label>
                 <input 
@@ -189,7 +189,7 @@ export default function CalculoProyeccionPage() {
                 Bs. {formatNumber(data.baseTotalBs)}
               </p>
               <p className="text-sm font-semibold text-slate-500">
-                {formatNumber(data.baseTotalMMV)} MMV
+                {formatNumber(data.baseTotalMMV)} UCD
               </p>
             </div>
 
@@ -203,7 +203,7 @@ export default function CalculoProyeccionPage() {
                 Bs. {formatNumber(data.simTotalBs)}
               </p>
               <div className="flex items-center gap-2 text-sm font-semibold">
-                <span className="text-slate-500">{formatNumber(data.simTotalMMV)} MMV</span>
+                <span className="text-slate-500">{formatNumber(data.simTotalMMV)} UCD</span>
                 {data.simTotalBs !== data.baseTotalBs && (
                   <span className={`px-2 py-0.5 rounded text-xs ${data.simTotalBs > data.baseTotalBs ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                     {data.simTotalBs > data.baseTotalBs ? '+' : ''}{((data.simTotalBs - data.baseTotalBs) / data.baseTotalBs * 100).toFixed(2)}%
@@ -224,7 +224,7 @@ export default function CalculoProyeccionPage() {
                 Bs. {formatNumber(data.baseTotalBs * 12)}
               </p>
               <p className="text-xs font-semibold text-slate-500">
-                {formatNumber(data.baseTotalMMV * 12)} MMV al año
+                {formatNumber(data.baseTotalMMV * 12)} UCD al año
               </p>
             </div>
 
@@ -237,7 +237,7 @@ export default function CalculoProyeccionPage() {
                 Bs. {formatNumber(data.simTotalBs * 12)}
               </p>
               <p className="text-xs font-semibold text-slate-500">
-                {formatNumber(data.simTotalMMV * 12)} MMV al año
+                {formatNumber(data.simTotalMMV * 12)} UCD al año
               </p>
             </div>
           </div>

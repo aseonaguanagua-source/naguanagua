@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { Resend } from 'resend';
 import jwt from 'jsonwebtoken';
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
     // Generate JWT token valid for 1 hour
     const token = jwt.sign({ identidad: user.identidad }, JWT_SECRET, { expiresIn: '1h' });
-    const resetUrl = `https://aseosilva.globalrecca.com/portal/reset?token=${token}`;
+    const resetUrl = `https://aseonaguanagua.globalrecca.com/portal/reset?token=${token}`;
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; color: #333; max-w: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 8px; overflow: hidden;">
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     // Send email using Resend
     if (process.env.RESEND_API_KEY) {
       await resend.emails.send({
-        from: 'Global Rec <aseo.municipiosilva@globalgreenca.com>',
+        from: 'Global Rec <isma.naguanagua@globalgreenca.com>',
         to: user.correo_electronico,
         subject: 'Recuperación de Contraseña - Global Rec',
         html: emailHtml,

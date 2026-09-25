@@ -9,6 +9,7 @@ type Metodo = 'transferencia' | '';
 
 export default function DondePagarPage() {
   const [metodo, setMetodo] = useState<Metodo>('');
+  const [bloqueadoPorCondominio, setBloqueadoPorCondominio] = useState(false);
   const [formData, setFormData] = useState({
     bancoOrigen: '',
     referencia: '',
@@ -62,8 +63,9 @@ export default function DondePagarPage() {
         if (tcmmv > 0) {
           if (f.referencia?.startsWith('RECIB-')) {
             let totalDeudaMMV = 0;
-            misInmuebles.forEach((inm: any) => { totalDeudaMMV += parseFloat(inm.deuda_mmv || 0); });
-            if (totalDeudaMMV > 0) baseMonto = totalDeudaMMV * tcmmv;
+            let totalCongelada = 0;
+            misInmuebles.forEach((inm: any) => { totalDeudaMMV += parseFloat(inm.deuda_mmv || 0); totalCongelada += parseFloat(inm.deuda_congelada_bs || 0); });
+            if (totalDeudaMMV > 0 || totalCongelada > 0) baseMonto = (totalDeudaMMV * tcmmv) + totalCongelada;
           } else if (f.referencia?.startsWith('CM-')) {
             let monthlyMMV = 0;
             const matchedInmueble = misInmuebles.find((inm: any) => inm.inmueble && f.referencia.includes(inm.inmueble));
@@ -79,6 +81,17 @@ export default function DondePagarPage() {
               });
             }
             if (monthlyMMV > 0) baseMonto = monthlyMMV * tcmmv;
+          }
+        }
+        
+        // Determinar si todos los inmuebles de este usuario son hijos de condominio SIN autorización de pago individual
+        if (misInmuebles.length > 0) {
+          const todosHijos = misInmuebles.every((inm: any) => (inm.actividad_principal || '').includes('[HIJO_DE:'));
+          const esPagoIndividual = misInmuebles.some((inm: any) => (inm.actividad_principal || '').includes('PAGOS INDIVIDUALES'));
+          if (todosHijos && !esPagoIndividual) {
+            setBloqueadoPorCondominio(true);
+          } else {
+            setBloqueadoPorCondominio(false);
           }
         }
 
@@ -223,6 +236,20 @@ export default function DondePagarPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (bloqueadoPorCondominio) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 mt-10 bg-white rounded-lg shadow-sm border border-red-200 max-w-2xl mx-auto text-center">
+        <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold text-red-700 mb-2">Pago Gestionado por Condominio</h2>
+        <p className="text-slate-600 text-lg">
+          Su inmueble pertenece a un condominio registrado con esquema de <strong>pagos centralizados (Completos o por Abono)</strong>.
+          <br /><br />
+          Por favor, contacte al administrador del condominio para gestionar su solvencia y reportar pagos. Solo el administrador tiene habilitada esta función en la plataforma.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto mt-6 pb-12">

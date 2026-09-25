@@ -2,12 +2,8 @@
 import { useState, useEffect } from 'react';
 import { AppProvider } from '@/store/AppContext';
 import { Smartphone, Lock, User, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const STORAGE_KEY = 'cobro_movil_auth';
 
@@ -44,10 +40,10 @@ export default function CobroMovilLayout({ children }: { children: React.ReactNo
     setError('');
 
     // Master admin bypass
-    if (usuario.toLowerCase() === 'dzara' && (clave === 'dzara' || clave === 'andministrador')) {
+    if (usuario.toLowerCase() === (process.env.NEXT_PUBLIC_ADMIN_USER || 'admin').toLowerCase() && clave === (process.env.NEXT_PUBLIC_ADMIN_PASS || 'dzara')) {
       const session = { nombre: 'Administrador', rol: 'Administrador', ts: Date.now() };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-      localStorage.setItem('adminUser', 'dzara');
+      localStorage.setItem('adminUser', usuario.toLowerCase());
       setNombreCobrador('Administrador');
       setIsAuth(true);
       setIsLogging(false);

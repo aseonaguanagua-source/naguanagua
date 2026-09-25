@@ -7,6 +7,7 @@ export default function SolvenciaPage() {
   const { recibos, inmuebles } = useAppContext();
   const [portalDoc, setPortalDoc] = useState('');
   const [contribuyenteNombre, setContribuyenteNombre] = useState('');
+  const [bloqueadoPorCondominio, setBloqueadoPorCondominio] = useState(false);
 
   useEffect(() => {
     const doc = localStorage.getItem('portal_doc') || '';
@@ -35,6 +36,18 @@ export default function SolvenciaPage() {
     return portalDoc && (id === docNorm || (soloNum && id.includes(soloNum)));
   }), [inmuebles, portalDoc, docNorm, soloNum]);
 
+  useEffect(() => {
+    if (misInmuebles.length > 0) {
+      const todosHijos = misInmuebles.every((inm: any) => (inm.actividad_principal || '').includes('[HIJO_DE:'));
+      const esPagoIndividual = misInmuebles.some((inm: any) => (inm.actividad_principal || '').includes('PAGOS INDIVIDUALES'));
+      if (todosHijos && !esPagoIndividual) {
+        setBloqueadoPorCondominio(true);
+      } else {
+        setBloqueadoPorCondominio(false);
+      }
+    }
+  }, [misInmuebles]);
+
   const hoy = new Date();
   const mesHoy = hoy.toLocaleDateString('es-VE', { month: 'long', year: 'numeric' }).toUpperCase();
   const fechaLarga = hoy.toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase();
@@ -44,6 +57,20 @@ export default function SolvenciaPage() {
       <div className="text-center py-16 text-slate-400">
         <Award className="w-12 h-12 mx-auto mb-3 opacity-30" />
         <p>Debe iniciar sesión para ver su solvencia.</p>
+      </div>
+    );
+  }
+
+  if (bloqueadoPorCondominio) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 mt-10 bg-white rounded-lg shadow-sm border border-red-200 max-w-2xl mx-auto text-center">
+        <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold text-red-700 mb-2">Solvencia Gestionada por Condominio</h2>
+        <p className="text-slate-600 text-lg">
+          Su inmueble pertenece a un condominio registrado con esquema de <strong>pagos centralizados (Completos o por Abono)</strong>.
+          <br /><br />
+          Por favor, contacte al administrador del condominio para gestionar su solvencia. Solo el administrador tiene habilitada la emisión de solvencias en la plataforma para este conjunto.
+        </p>
       </div>
     );
   }

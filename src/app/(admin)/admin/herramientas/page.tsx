@@ -1,12 +1,8 @@
 ﻿'use client';
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { Loader2, BarChart3, ChevronDown, ChevronUp, FileText, CheckSquare, Square, RefreshCw, AlertCircle, Building2, User } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 
@@ -171,9 +167,9 @@ export default function HerramientasPage() {
           Las recibos CM- en estado "Pendiente" son la fuente de verdad de la deuda.
         </p>
         <div className="mt-3 flex items-center gap-2">
-          <span className="text-indigo-300 text-xs">TCMMV:</span>
+          <span className="text-indigo-300 text-xs">UCD:</span>
           <span className="bg-indigo-600 px-2 py-0.5 rounded font-bold text-sm">{tcmmv > 0 ? `Bs. ${fmt(tcmmv)}` : 'N/D'}</span>
-          {tcmmv === 0 && <input type="number" placeholder="Ingresa TCMMV" className="ml-2 px-2 py-1 rounded text-slate-800 text-xs w-36" onChange={e => setTcmmv(parseFloat(e.target.value) || 0)} />}
+          {tcmmv === 0 && <input type="number" placeholder="Ingresa UCD" className="ml-2 px-2 py-1 rounded text-slate-800 text-xs w-36" onChange={e => setTcmmv(parseFloat(e.target.value) || 0)} />}
         </div>
       </div>
 

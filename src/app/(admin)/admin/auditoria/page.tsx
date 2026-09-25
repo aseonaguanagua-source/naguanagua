@@ -1,13 +1,9 @@
 ﻿'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { ShieldCheck, Download, RefreshCw, Search, Filter, X, User, Calendar } from 'lucide-react';
 import * as xlsx from 'xlsx';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const CATEGORIAS = ['TODAS', 'SESION', 'COBRO', 'TRANSFERENCIA', 'TASA', 'CONTRIBUYENTE', 'RECIBO', 'REPORTE', 'CONFIGURACION', 'CONVENIO', 'SISTEMA'];
 

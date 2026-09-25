@@ -10,13 +10,13 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Global Rec Mun Silva",
+  title: "ISMA Naguanagua",
   description: "Sistema Integral de Recaudación Tributaria Municipal para el Municipio Naguanagua.",
   openGraph: {
-    title: "Global Rec Mun Silva",
+    title: "ISMA Naguanagua",
     description: "Accede al Sistema Integral de Recaudación Tributaria Municipal del Municipio Naguanagua. Autogestión en línea para contribuyentes y operadores.",
-    url: "https://aseosilva.globalrecca.com",
-    siteName: "Global Rec Mun Silva",
+    url: "https://aseonaguanagua.globalrecca.com",
+    siteName: "ISMA Naguanagua",
     locale: "es_VE",
     type: "website",
   }

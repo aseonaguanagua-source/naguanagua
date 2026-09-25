@@ -9,7 +9,7 @@ import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
 
 export default function CajaPage() {
-  const { inmuebles, convenios, contribuyentes, documentos, tcmmv } = useAppContext();
+  const { inmuebles, convenios, contribuyentes, documentos, tcmmv, refreshData } = useAppContext();
   
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'Pagos' | 'NotasCredito'>('Pagos');
@@ -20,6 +20,21 @@ export default function CajaPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [foundUser, setFoundUser] = useState<any>(null);
   
+
+  // Condominio State
+  const [isCondominio, setIsCondominio] = useState(false);
+  const [condominioHijos, setCondominioHijos] = useState<any[]>([]);
+  const [condominioModo, setCondominioModo] = useState<'Total' | 'Local' | 'Abono'>('Total');
+  const [isCondominioModalOpen, setIsCondominioModalOpen] = useState(false);
+  const [condominioSearch, setCondominioSearch] = useState("");
+  const [selectedHijos, setSelectedHijos] = useState<string[]>([]);
+  
+  // Impuestos y Retenciones
+  const [ivaPercent, setIvaPercent] = useState<number>(0); // 0 o 0.16
+  const [retencionIVA, setRetencionIVA] = useState<number>(75); // 0, 75 o 100
+  const [comprobanteRetencion, setComprobanteRetencion] = useState<string>('');
+  const [montoRetencionIVA, setMontoRetencionIVA] = useState<number>(0);
+
   // Debt State
   const [recibos, setRecibos] = useState<any[]>([]);
   const [cuotas, setCuotas] = useState<any[]>([]);
@@ -27,6 +42,9 @@ export default function CajaPage() {
   const [serviciosEsp, setServiciosEsp] = useState<any[]>([]);
   const [talaPoda, setTalaPoda] = useState<any[]>([]);
   const [selectedTalaPoda, setSelectedTalaPoda] = useState<string[]>([]);
+
+  // Inmuebles frescos — se consultan de Supabase en cada búsqueda para evitar datos stale del contexto React
+  const [freshInmuebles, setFreshInmuebles] = useState<any[]>([]);
   
   // Selection State
   const [selectedRecibos, setSelectedRecibos] = useState<string[]>([]);
@@ -128,18 +146,22 @@ export default function CajaPage() {
       return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
     }
 
-    const userInms = inmuebles.filter((i: any) =>
+    // IMPORTANTE: usar freshInmuebles (frescos de Supabase) en vez de inmuebles del contexto React
+    const sourceInms = freshInmuebles.length > 0 ? freshInmuebles : inmuebles;
+    const userInms = sourceInms.filter((i: any) =>
       (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
     );
 
     // RECIB- = deuda acumulada de N meses → usar deuda_mmv del inmueble × tasa actual
     if (r.referencia?.startsWith('RECIB-')) {
       let totalDeudaMMV = 0;
+      let totalCongelada = 0;
       userInms.forEach((inm: any) => {
         totalDeudaMMV += parseFloat(inm.deuda_mmv || 0);
+        totalCongelada += parseFloat(inm.deuda_congelada_bs || 0);
       });
-      if (totalDeudaMMV > 0) {
-        let baseMonto = totalDeudaMMV * tasaActual;
+      if (totalDeudaMMV > 0 || totalCongelada > 0) {
+        let baseMonto = (totalDeudaMMV * tasaActual) + totalCongelada;
         let montoPendiente = 0;
         pagosPendientes.forEach((p: any) => {
           let det: any = {};
@@ -189,7 +211,7 @@ export default function CajaPage() {
       }
     }
 
-    // Fallback genérico (para otros tipos de recibos que no sean CM- o RECIB- y no tengan cálculo MMV)
+    // Fallback genérico (para otros tipos de recibos que no sean CM- o RECIB- y no tengan cálculo UCD)
     return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
   };
 
@@ -209,7 +231,8 @@ export default function CajaPage() {
     setRateAuthError('');
     setIsAuthorizing(true);
     
-    if (adminPassword !== 'dzara') {
+    const adminPass = process.env.NEXT_PUBLIC_ADMIN_PASS || 'dzara';
+    if (adminPassword !== adminPass) {
       const { data, error } = await supabase
         .from('trabajadores')
         .select('*')
@@ -264,7 +287,7 @@ export default function CajaPage() {
       const { data: inmFallback } = await supabase
         .from('inmuebles')
         .select('*')
-        .or(`identidad.eq.${cleanFullDoc},identidad.eq.${idLimpioSearch},cod_cont.ilike.${docNumber}`)
+        .or(`identidad.eq.${cleanFullDoc},identidad.eq.${idLimpioSearch},inmueble.ilike.%${docNumber}%,contribuyente.ilike.%${docNumber}%`)
         .limit(1)
         .maybeSingle();
 
@@ -274,10 +297,11 @@ export default function CajaPage() {
           Contribuyente: inmFallback.contribuyente,
           Telefono: inmFallback.telefono || 'No registrado',
           Correo: inmFallback.correo_electronico || 'No registrado',
-          CodCont: inmFallback.cod_cont,
-          cod_cont: inmFallback.cod_cont,
+          CodCont: inmFallback.inmueble || inmFallback.cod_cont,
+          cod_cont: inmFallback.inmueble || inmFallback.cod_cont,
           Direccion: inmFallback.direccion,
           Clasificacion: inmFallback.clasificacion || 'Residencial',
+          Actividad: inmFallback.actividad_principal || inmFallback.actividad || '',
           SaldoFavor: parseFloat(inmFallback.saldo_favor_bs || '0'),
           Estado: inmFallback.estado || 'Activo'
         };
@@ -285,18 +309,29 @@ export default function CajaPage() {
     }
     
     if (user) {
-      // Obtener saldo_favor_bs fresco desde Supabase (el contexto puede estar desactualizado
-      // si hubo conciliaciones o notas de crédito posteriores a la carga inicial)
+      // Obtener TODOS los datos frescos del inmueble desde Supabase
+      // Esto es crucial para que getReciboMonto calcule la deuda correctamente
       const { data: inmFresh } = await supabase
         .from('inmuebles')
-        .select('saldo_favor_bs')
+        .select('*')
         .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc}`);
+      
+      // Guardar inmuebles frescos para que getReciboMonto los use
+      setFreshInmuebles(inmFresh || []);
       
       const saldoFavorFresh = (inmFresh || []).reduce(
         (sum: number, i: any) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0), 0
       );
       
-      setFoundUser({ ...user, SaldoFavor: saldoFavorFresh });
+      // Calcular deuda total fresca
+      const deudaTotalFresh = (inmFresh || []).reduce(
+        (sum: number, i: any) => {
+          const currentBcvRate = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : tcmmv;
+          return sum + (parseFloat(i.deuda_mmv || '0') * currentBcvRate) + parseFloat(i.deuda_congelada_bs || '0');
+        }, 0
+      );
+      
+      setFoundUser({ ...user, SaldoFavor: saldoFavorFresh, DeudaTotal: deudaTotalFresh });
       
       // Consulta directa a Supabase: siempre fresca, incluye todas las CM- mensuales
       // Incluye variantes de identidad (con/sin guión) + búsqueda por nombre (recibos antiguas sin identidad)
@@ -321,18 +356,38 @@ export default function CajaPage() {
         
         if (fByName && fByName.length > 0) {
           fallbackFacturas = fByName;
-          // Backfill identidad en BD para que próximas búsquedas funcionen directamente
+          // Backfill identidad en BD (fire-and-forget, no bloquea la búsqueda)
           const idsToUpdate = fByName.map((f: any) => f.id);
-          await supabase
-            .from('facturas')
-            .update({ identidad: user.Identidad })
-            .in('id', idsToUpdate);
+          Promise.resolve(
+            supabase.from('facturas').update({ identidad: user.Identidad }).in('id', idsToUpdate)
+          ).catch((e: any) => console.warn('Backfill identidad falló:', e));
         }
       }
 
       // NO combinar con contexto React (puede estar desactualizado tras un pago)
       // Solo usar datos frescos de Supabase
       const combined = [...(allUserFacturas || []), ...fallbackFacturas];
+      
+      // Si no hay recibos, pero tiene inmuebles con deuda_mmv, inyectamos un recibo acumulado dinámico
+      // Usar inmuebles frescos para evaluar si hay deuda
+      const misInmuebles = (inmFresh || []).length > 0 
+        ? (inmFresh || [])
+        : inmuebles.filter((i: any) => (i.identidad || '').replace(/-/g,'').toUpperCase() === (user.Identidad || '').replace(/-/g,'').toUpperCase());
+      if (combined.length === 0 && misInmuebles && misInmuebles.length > 0) {
+        const hasDeuda = misInmuebles.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0);
+        if (hasDeuda && !isCondominio) {
+          combined.push({
+            id: 'dummy-deuda-acumulada',
+            referencia: 'RECIB-DEUDA',
+            identidad: user.Identidad,
+            contribuyente: user.Contribuyente,
+            emision: new Date().toISOString(),
+            vencimiento: new Date().toISOString(),
+            estado: 'Pendiente',
+            monto: '0' // getReciboMonto lo calculará basado en inmuebles.deuda_mmv
+          });
+        }
+      }
 
       // Ordenar: primero recibos normales (RECIB-), luego CM- por fecha
       combined.sort((a: any, b: any) => {
@@ -395,6 +450,48 @@ export default function CajaPage() {
         .or('identidad.eq.' + user.Identidad + ',identidad.eq.' + cleanFullDoc)
         .eq('estado', 'Por Verificar');
       setPagosPendientes(pagosPendData || []);
+
+      // Buscar si es un Condominio (Padre)
+      // Usar el flag es_condominio de la migración, con fallback a detección por nombre
+      const isCondoByFlag = (inmFresh || []).some((i: any) => i.es_condominio === true);
+      const isCondoByName = (user.Contribuyente || user.contribuyente || '').toLowerCase().includes('condominio') || (user.Actividad || user.actividad || '').toLowerCase().includes('condominio');
+      const codCont = user.cod_cont || user.CodCont || user.Identidad || user.identidad;
+      if (isCondoByFlag || isCondoByName) {
+        // Primero buscar hijos por condominio_padre_id (nueva migración)
+        const { data: hijosById } = await supabase
+          .from('inmuebles')
+          .select('id, identidad, inmueble, tipo, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente')
+          .eq('condominio_padre_id', codCont);
+        
+        // Fallback: buscar por patrón antiguo [HIJO_DE:...]
+        let hijosData = hijosById;
+        if (!hijosData || hijosData.length === 0) {
+          const { data: hijosByPattern } = await supabase
+            .from('inmuebles')
+            .select('id, identidad, inmueble, tipo, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente')
+            .ilike('actividad_principal', `%[HIJO_DE:${codCont}]%`);
+          hijosData = hijosByPattern;
+        }
+        
+        if (hijosData && hijosData.length > 0) {
+          setIsCondominio(true);
+          setCondominioHijos(hijosData);
+          setSelectedHijos(hijosData.map(h => h.id));
+          setIsCondominioModalOpen(true);
+        } else {
+          setIsCondominio(false);
+          setCondominioHijos([]);
+          setSelectedHijos([]);
+        }
+      }
+      
+      // Calcular IVA inicial
+      if (user.Clasificacion === 'Residencial') {
+        setIvaPercent(0);
+      } else {
+        setIvaPercent(0.16); // 16% por defecto si no es residencial
+      }
+
 
     } else {
       alert("Contribuyente no encontrado. Puede intentar buscar por Código de Usuario.");
@@ -521,15 +618,17 @@ export default function CajaPage() {
   };
 
   const handlePayment = async () => {
-    if (totalBs <= 0) return alert("Debe seleccionar al menos una deuda a pagar.");
+    if (totalBs <= 0 && (!isCondominio || condominioModo === 'Abono')) return alert("Debe seleccionar al menos una deuda a pagar.");
     
+    if (retencionIVA > 0 && !comprobanteRetencion.trim()) return alert("Debe ingresar el número de comprobante de retención de IVA.");
+    const totalConImpuestos = (totalBs + (totalBs * ivaPercent)) - montoRetencionIVA;
     const maxSaldoUsable = foundUser?.SaldoFavor || 0;
     // Cuando el método de pago ES Saldo a Favor, el checkbox no aplica
     // (evita doble deducción: una por descuento + otra por el método)
     const descuentoSaldoFavor = (paymentMethod !== 'Saldo a Favor' && useSaldoFavor)
-      ? Math.min(totalBs, maxSaldoUsable)
+      ? Math.min(totalConImpuestos, maxSaldoUsable)
       : 0;
-    const finalTotal = Math.max(0, totalBs - descuentoSaldoFavor);
+    const finalTotal = Math.max(0, totalConImpuestos - descuentoSaldoFavor);
     
     let saldoAFavorNuevo = 0;
     let esAbono = false;
@@ -578,10 +677,10 @@ export default function CajaPage() {
       // El método paga con el saldo directamente (totalBs completo, sin descuento previo)
       const saldoDisponible = foundUser?.SaldoFavor || 0;
       if (saldoDisponible <= 0) return alert("El contribuyente no tiene Saldo a Favor disponible.");
-      if (saldoDisponible < totalBs) {
-        return alert(`Saldo a Favor insuficiente. Disponible: Bs. ${formatBs(saldoDisponible)}. Deuda total: Bs. ${formatBs(totalBs)}.\nUse otro método de pago o combínelo con el descuento de saldo parcial.`);
+      if (saldoDisponible < totalConImpuestos) {
+        return alert(`Saldo a Favor insuficiente. Disponible: Bs. ${formatBs(saldoDisponible)}. Deuda total: Bs. ${formatBs(totalConImpuestos)}.\nUse otro método de pago o combínelo con el descuento de saldo parcial.`);
       }
-      montoReal = totalBs; // Paga la deuda completa con el saldo
+      montoReal = totalConImpuestos; // Paga la deuda completa con el saldo
     }
     
     if (customBcvRate && !justificacionBcv.trim()) {
@@ -654,7 +753,7 @@ export default function CajaPage() {
 
       const isAutoAprobado = ['Debito', 'Saldo a Favor'].includes(paymentMethod);
       // Detect abono: montoDebito provided and < totalBs
-      const esAbonoDebito = !!(montoDebito && parseFloat(montoDebito) > 0 && parseFloat(montoDebito) < totalBs - 0.01);
+      const esAbonoDebito = !!(montoDebito && parseFloat(montoDebito) > 0 && parseFloat(montoDebito) < confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor - 0.01);
 
       if (isAutoAprobado) {
         if (!esAbonoDebito) {
@@ -756,7 +855,9 @@ export default function CajaPage() {
           });
         }
 
-        await supabase.from('pagos_reportados').insert({
+        const pagoId = crypto.randomUUID();
+        const { error: insertErr } = await supabase.from('pagos_reportados').insert({
+          id: pagoId,
           identidad: foundUser.Identidad,
           monto: montoReal,
           banco: paymentMethod,
@@ -775,9 +876,58 @@ export default function CajaPage() {
             deuda_total_sistema: foundUser.DeudaTotal,
             fecha_transaccion: fechaTransaccion,
             tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
-            nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined
+            nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
+            monto_retencion_iva: montoRetencionIVA,
+            iva_percent: ivaPercent,
+            es_condominio: isCondominio,
+            condominio_modo: condominioModo,
+            condominio_hijos_pagados: condominioModo === 'Local' ? selectedHijos : []
           })
         });
+        if (insertErr) {
+          console.error('Error insertando pago:', insertErr);
+          throw new Error('No se pudo registrar el pago: ' + insertErr.message);
+        }
+
+        // ── LIMPIAR DEUDA SI SE PAGÓ EL DUMMY DEBT ──
+        if (selectedRecibos.includes('RECIB-DEUDA') && !esAbonoDebito) {
+          // Usar freshInmuebles (datos frescos) en lugar de inmuebles del contexto
+          const sourceInms = freshInmuebles.length > 0 ? freshInmuebles : inmuebles;
+          const userInmsClean = sourceInms.filter((i: any) =>
+            (i.identidad || '').replace(/-/g,'').toUpperCase() === 
+            (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
+          );
+          for (const inm of userInmsClean) {
+            await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
+          }
+        }
+
+        // ── TFHKA FACTURACIÓN DIGITAL ──
+        if (pagoId) {
+          try {
+            const tfhkaRes = await fetch('/api/admin/factura-digital/emitir', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                pagoId: pagoId,
+                recibos: selectedRecibos,
+                montos: [],
+                contribuyente: foundUser.Contribuyente,
+                identidad: foundUser.Identidad,
+                montoTotal: montoReal,
+                formasPago: [
+                  { descripcion: paymentMethod, fecha: new Date().toISOString(), forma: '01', monto: montoReal }
+                ]
+              })
+            });
+            const tfhkaData = await tfhkaRes.json();
+            if (tfhkaData.url) {
+              window.open(tfhkaData.url, '_blank');
+            }
+          } catch(err) {
+            console.error('Error enviando a factura digital TFHKA', err);
+          }
+        }
 
         if (esAbonoDebito) {
           (window as any).__lastPaymentAbono = { 
@@ -867,7 +1017,7 @@ export default function CajaPage() {
                 fechaEmision: new Date().toISOString().split('T')[0],
                 codContribuyente: inmGrupo?.cod_cont || foundUser.Identidad,
                 razonSocial: inmGrupo?.contribuyente || foundUser.Contribuyente || '',
-                domicilioFiscal: ((inmGrupo?.direccion || 'TUCACAS MUNICIPIO SILVA, FALCÓN') as string).toUpperCase(),
+                domicilioFiscal: ((inmGrupo?.direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
                 rifCi: foundUser.Identidad,
                 caja: cajero_id_recibo,
                 conceptos: conceptosGrupo,
@@ -1042,6 +1192,7 @@ export default function CajaPage() {
       // Refrescar datos del contribuyente sin salir de la pantalla
       setTimeout(async () => {
         setSuccessMsg('');
+        await refreshData();
         setSelectedRecibos([]);
         setSelectedCuotas([]);
         setSelectedServicios([]);
@@ -1289,16 +1440,17 @@ export default function CajaPage() {
                 <span className="font-bold">Fórmula Aplicada:</span>{' '}
                 {(() => {
                   const userInms = inmuebles.filter((i: any) => i.identidad === foundUser.Identidad);
-                  const totalMMV = userInms.reduce((acc: number, inm: any) => acc + (parseFloat(inm.cant_inmuebles || 1) * parseFloat(inm.mmv_mes || 0)), 0);
-                  if (totalMMV > 0) {
+                  const totalDeudaUCD = userInms.reduce((acc: number, inm: any) => acc + parseFloat(inm.deuda_mmv || 0), 0);
+                  if (totalDeudaUCD > 0) {
+                    const ucdMensual = totalDeudaUCD / 2;
                     return (
                       <>
-                        {totalMMV.toFixed(2)} MMV (Tarifa) Ã— {currentBcvRate.toFixed(2)} Bs/MMV (Tasa BCV) = {(totalMMV * currentBcvRate).toFixed(2)} Bs Mensuales.
-                        <span className="block text-[9px] text-slate-400 mt-0.5">* Las recibos previas se están recalculando con la tasa manual asignada.</span>
+                        {ucdMensual.toFixed(2)} UCD (Tarifa Mensual) × {currentBcvRate.toFixed(2)} Bs/UCD (Tasa BCV) = {(ucdMensual * currentBcvRate).toFixed(2)} Bs Mensuales.
+                        <span className="block text-[9px] text-slate-400 mt-0.5">* La deuda total bimestral se obtiene multiplicando este monto por 2.</span>
                       </>
                     );
                   }
-                  return 'El cálculo se realizó multiplicando el Factor MMV por la Tasa BCV vigente en la emisión.';
+                  return 'El cálculo se realizó multiplicando la Tarifa UCD por la Tasa BCV vigente en la emisión.';
                 })()}
               </div>
             </div>
@@ -1520,24 +1672,72 @@ export default function CajaPage() {
 
           </div>
 
-          {/* Panel de Pago Disgregado */}
+                    {/* Panel de Pago Disgregado */}
           <div className="bg-slate-50 rounded-lg shadow-sm border border-slate-200 p-6 h-fit sticky top-6">
             <h3 className="font-bold text-slate-800 text-lg mb-4 border-b border-slate-200 pb-2">Resumen de Pago</h3>
             
             <div className="space-y-2 mb-6 text-sm border-b border-slate-200 pb-4">
               <div className="flex justify-between items-center text-slate-600">
-                <span>Deuda Total Seleccionada:</span>
+                <span>Deuda Total (Bimestral) Seleccionada:</span>
                 <span className="font-semibold">Bs. {formatBs(totalBs)}</span>
               </div>
-              {useSaldoFavor && foundUser?.SaldoFavor > 0 && (
-                <div className="flex justify-between items-center text-emerald-600 font-medium">
-                  <span>Saldo a Favor Aplicado:</span>
-                  <span>- Bs. {formatBs(Math.min(totalBs, foundUser.SaldoFavor))}</span>
+              <div className="flex justify-between items-center text-slate-500 text-xs mt-1">
+                <span>Equivalente por Mes:</span>
+                <span>Bs. {formatBs(totalBs / 2)}</span>
+              </div>
+              
+              <div className="flex justify-between items-center text-slate-600 mt-2">
+                <span>IVA ({ivaPercent * 100}%):</span>
+                <span className="font-semibold">Bs. {formatBs(totalBs * ivaPercent)}</span>
+              </div>
+
+              {ivaPercent > 0 && (
+                <div className="mt-3 bg-slate-100 p-3 rounded border border-slate-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-semibold text-slate-700">Retención de IVA:</span>
+                    <select 
+                      value={retencionIVA} 
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setRetencionIVA(val);
+                        setMontoRetencionIVA((totalBs * ivaPercent) * (val / 100));
+                      }}
+                      className="border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-emerald-500"
+                    >
+                      <option value={0}>0% (Sin Retención)</option>
+                      <option value={75}>75%</option>
+                      <option value={100}>100%</option>
+                    </select>
+                  </div>
+                  {retencionIVA > 0 && (
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="font-semibold text-slate-700">Monto Retenido:</span>
+                      <span className="text-red-600 font-bold">- Bs. {formatBs((totalBs * ivaPercent) * (retencionIVA / 100))}</span>
+                    </div>
+                  )}
+                  {retencionIVA > 0 && (
+                    <div className="mt-2">
+                      <input 
+                        type="text" 
+                        placeholder="N° Comprobante de Retención *" 
+                        value={comprobanteRetencion}
+                        onChange={e => setComprobanteRetencion(e.target.value)}
+                        className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
-              <div className="flex justify-between items-center pt-2">
+
+              {useSaldoFavor && foundUser?.SaldoFavor > 0 && (
+                <div className="flex justify-between items-center text-emerald-600 font-medium mt-2">
+                  <span>Saldo a Favor Aplicado:</span>
+                  <span>- Bs. {formatBs(Math.min((totalBs + (totalBs * ivaPercent)) - montoRetencionIVA, foundUser.SaldoFavor))}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-200">
                 <span className="text-slate-800 font-bold text-base">Total Neto a Pagar:</span>
-                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(Math.max(0, totalBs - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)))}</span>
+                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(Math.max(0, ((totalBs + (totalBs * ivaPercent)) - montoRetencionIVA) - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)))}</span>
               </div>
             </div>
 
@@ -1709,7 +1909,7 @@ export default function CajaPage() {
 
             <button 
               onClick={handlePayment}
-              disabled={isProcessing || totalBs <= 0}
+              disabled={isProcessing || totalBs <= 0 && (!isCondominio || condominioModo === 'Abono')}
               className="w-full bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-slate-900 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
               <CreditCard className="w-5 h-5" /> 
@@ -1978,6 +2178,138 @@ export default function CajaPage() {
                   ))
                 : <ReciboImprimible data={reciboData} />
               }
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL CONDOMINIO (NUEVO) ── */}
+      {/* ── SELECCION DE LOCALES CONDOMINIO ── */}
+          {isCondominio && condominioModo === 'Local' && (
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6 flex flex-col">
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-slate-200 pb-4 mb-4 gap-4">
+                <h3 className="font-bold text-slate-800 text-lg">Selección de Locales (Condominio)</h3>
+                <input 
+                  type="text" 
+                  placeholder="Buscar código, RIF o actividad..." 
+                  value={condominioSearch}
+                  onChange={e => setCondominioSearch(e.target.value)}
+                  className="border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-emerald-500 w-full lg:w-[300px]"
+                />
+              </div>
+              <div className="overflow-y-auto max-h-[400px] border border-slate-200 rounded-md">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 sticky top-0 shadow-sm z-10">
+                    <tr className="border-b border-slate-200">
+                      <th className="text-left py-2 px-3 w-10">
+                        <input type="checkbox" onChange={(e) => {
+                          if (e.target.checked) {
+                            const allIds = condominioHijos.map(h => h.id);
+                            setSelectedHijos(allIds);
+                            setTotalBs(condominioHijos.reduce((acc, h) => acc + ((h.deuda_mmv || 0) * tcmmv), 0));
+                          } else {
+                            setSelectedHijos([]);
+                            setTotalBs(0);
+                          }
+                        }} checked={selectedHijos.length === condominioHijos.length && condominioHijos.length > 0} className="w-4 h-4 accent-emerald-600 cursor-pointer" />
+                      </th>
+                      <th className="text-left py-2 px-3 font-semibold text-slate-600">Inmueble / Local</th>
+                      <th className="text-left py-2 px-3 font-semibold text-slate-600 hidden md:table-cell">Identidad / RIF</th>
+                      <th className="text-left py-2 px-3 font-semibold text-slate-600">Actividad Comercial</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-600">Deuda Bs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {condominioHijos.filter((h: any) => 
+                      !condominioSearch || 
+                      (h.inmueble || '').toLowerCase().includes(condominioSearch.toLowerCase()) || 
+                      (h.identidad || '').toLowerCase().includes(condominioSearch.toLowerCase()) || 
+                      (h.actividad_principal || '').toLowerCase().includes(condominioSearch.toLowerCase())
+                    ).map((hijo: any) => (
+                      <tr key={hijo.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <td className="py-2 px-3 align-top pt-3">
+                          <input type="checkbox" checked={selectedHijos.includes(hijo.id)} onChange={(e) => {
+                            let newSelected = [];
+                            if (e.target.checked) newSelected = [...selectedHijos, hijo.id];
+                            else newSelected = selectedHijos.filter(id => id !== hijo.id);
+                            setSelectedHijos(newSelected);
+                            const newTotal = condominioHijos.filter(h => newSelected.includes(h.id)).reduce((acc, h) => acc + ((h.deuda_mmv || 0) * tcmmv), 0);
+                            setTotalBs(newTotal);
+                          }} className="w-4 h-4 accent-emerald-600 cursor-pointer" />
+                        </td>
+                        <td className="py-2 px-3 align-top pt-2.5">
+                          <span className="font-semibold text-slate-700">{hijo.inmueble || hijo.identidad}</span>
+                        </td>
+                        <td className="py-2 px-3 align-top text-slate-500 pt-2.5 hidden md:table-cell">{hijo.identidad || 'N/A'}</td>
+                        <td className="py-2 px-3 align-top text-xs text-slate-500 pt-2.5" title={hijo.actividad_principal || 'N/A'}>
+                          {hijo.actividad_principal ? hijo.actividad_principal.replace(/\[HIJO_DE:.*?\]\s*/g, '').replace('[CONDOMINIO]', '') : 'N/A'}
+                        </td>
+                        <td className="text-right py-2 px-3 align-top pt-2.5 text-emerald-700 font-bold whitespace-nowrap">
+                          {formatBs((hijo.deuda_mmv || 0) * tcmmv)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+
+
+      {isCondominioModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-800">Modalidad de Pago - Condominio</h2>
+              <button onClick={() => setIsCondominioModalOpen(false)} className="text-slate-500 hover:text-slate-700">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <div className="flex gap-4 mb-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="modoCondo" checked={condominioModo === 'Total'} onChange={() => { setCondominioModo('Total'); setSelectedHijos(condominioHijos.map(h => h.id)); }} className="w-4 h-4 accent-emerald-600" />
+                  <span>Pago Total</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="modoCondo" checked={condominioModo === 'Local'} onChange={() => { setCondominioModo('Local'); setSelectedHijos([]); }} className="w-4 h-4 accent-emerald-600" />
+                  <span>Pago por Local</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="modoCondo" checked={condominioModo === 'Abono'} onChange={() => { setCondominioModo('Abono'); setSelectedHijos([]); }} className="w-4 h-4 accent-emerald-600" />
+                  <span>Abono General</span>
+                </label>
+              </div>
+
+              {condominioModo === 'Local' && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded text-emerald-800 text-sm">
+                  Al confirmar, la lista de locales aparecerá en la pantalla principal de Caja para que pueda seleccionarlos y ver la suma total de deuda.
+                </div>
+              )}
+              {condominioModo === 'Abono' && (
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded text-orange-800 text-sm">
+                  Al confirmar, podrá ingresar el monto del abono directamente en el método de pago (Punto de Venta o Transferencia).
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-200 flex justify-end gap-3">
+              <button onClick={() => {
+                if (condominioModo === 'Local') {
+                  setSelectedHijos([]);
+                  setTotalBs(0);
+                } else if (condominioModo === 'Total') {
+                  const allIds = condominioHijos.map(h => h.id);
+                  setSelectedHijos(allIds);
+                  const total = condominioHijos.reduce((acc, h) => acc + ((h.deuda_mmv || 0) * tcmmv), 0);
+                  setTotalBs(total);
+                } else if (condominioModo === 'Abono') {
+                  setSelectedHijos([]);
+                  const total = condominioHijos.reduce((acc, h) => acc + ((h.deuda_mmv || 0) * tcmmv), 0);
+                  setTotalBs(total); // For abono, totalBs is total, but monto real will be lower
+                }
+                setIsCondominioModalOpen(false);
+              }} className="bg-emerald-600 text-white px-4 py-2 rounded font-bold hover:bg-emerald-700">Aplicar Modalidad</button>
             </div>
           </div>
         </div>

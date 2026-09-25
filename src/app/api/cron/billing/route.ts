@@ -1,12 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-// Service role key bypasses RLS — necesario para inserts server-side
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false, autoRefreshToken: false }
-});
+import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -36,7 +29,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Obtener tasa TCMMV (EUR oficial)
+    // Obtener tasa UCD (EUR oficial)
     const eurRes = await fetch('https://ve.dolarapi.com/v1/euros/oficial', { cache: 'no-store' });
     if (!eurRes.ok) throw new Error('Error obteniendo tasa EUR/BCV');
     const eurData = await eurRes.json();
@@ -56,7 +49,7 @@ export async function GET(request: Request) {
     // ── PASO 1: Obtener todos los inmuebles activos de una sola vez ──
     const { data: inmuebles, error: inmueblesError } = await supabase
       .from('inmuebles')
-      .select('id, identidad, contribuyente, cod_cont, inmueble, mmv_mes, cant_inmuebles, deuda_mmv')
+      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, tipo')
       .gt('mmv_mes', 0);
 
     if (inmueblesError) throw inmueblesError;
@@ -117,13 +110,16 @@ export async function GET(request: Request) {
       const esUnicoLocal = (inmueblesXidentidad[inm.identidad] || 0) === 1;
       if (esUnicoLocal && identidadesConFacturaVieja.has(inm.identidad)) continue;
 
-      const deudaAgregadaBs = parseFloat((cant * mmv * tcmmv).toFixed(2));
-      const nuevaDeudaMmv   = (parseFloat(inm.deuda_mmv) || 0) + (cant * mmv);
+      let ucdMultiplicador = 0.128; // Comercial por defecto
+      if (inm.tipo === 'Residencial') ucdMultiplicador = 0.02673;
+
+      const deudaAgregadaBs = parseFloat((cant * mmv * 57 * ucdMultiplicador * tcmmv).toFixed(2));
+      const nuevaDeudaMmv   = (parseFloat(inm.deuda_mmv) || 0) + (cant * mmv * 57 * ucdMultiplicador);
 
       facturasNuevas.push({
         referencia:    refFactura,
         identidad:     inm.identidad,
-        contribuyente: inm.contribuyente,
+        
         monto:         deudaAgregadaBs,
         estado:        'Pendiente',
         emision:       emisionDate,
@@ -170,7 +166,7 @@ export async function GET(request: Request) {
       await supabase.from('audit_logs').insert({
         usuario:  'Sistema (Cron)',
         accion:   'FACTURACION_MENSUAL_AUTOMATICA',
-        detalles: `Período: ${mesFacturado}${modoTexto}. Procesados: ${facturasNuevas.length}. Omitidos: ${omitidos}. Monto total: Bs ${montoTotal.toFixed(2)}. Tasa TCMMV: ${tcmmv}`
+        detalles: `Período: ${mesFacturado}${modoTexto}. Procesados: ${facturasNuevas.length}. Omitidos: ${omitidos}. Monto total: Bs ${montoTotal.toFixed(2)}. Tasa UCD: ${tcmmv}`
       });
     } catch(e) {}
 

@@ -125,7 +125,7 @@ export default function TarifasPage() {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-3 font-semibold text-slate-700">Clasificador</th>
-                  <th className="px-4 py-3 font-semibold text-center w-32">Factor (TCMMV)</th>
+                  <th className="px-4 py-3 font-semibold text-center w-32">F.O.</th>
                   <th className="px-4 py-3 font-semibold text-right w-40">Monto Mensual (Bs)</th>
                 </tr>
               </thead>
@@ -160,7 +160,7 @@ export default function TarifasPage() {
             <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">Tarifas Comerciales / Institucionales</h2>
           </div>
           <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
-            Los cálculos muestran el monto final en Bolívares (Factor TCMMV × Tasa BCV) para cada nivel de metraje.
+            Los cálculos muestran el monto final en Bolívares (Factor UCD × Tasa BCV) para cada nivel de metraje.
           </div>
           <div className="overflow-x-auto h-[600px] relative">
             <table className="w-full text-left text-xs text-slate-600 border-collapse">
@@ -186,7 +186,7 @@ export default function TarifasPage() {
                         const monto = (factor * rate).toFixed(2);
                         return (
                           <td key={fIdx} className="px-4 py-2 text-center border-r border-slate-100 group relative cursor-default">
-                            <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} TCMMV</div>
+                            <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} UCD</div>
                             <div className="font-bold text-green-700">Bs. {monto}</div>
                           </td>
                         );
@@ -214,7 +214,7 @@ export default function TarifasPage() {
             <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">Tarifas Industriales</h2>
           </div>
           <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
-            Los cálculos muestran el monto final en Bolívares (Factor TCMMV × Tasa BCV) para cada nivel de metraje.
+            Los cálculos muestran el monto final en Bolívares (Factor UCD × Tasa BCV) para cada nivel de metraje.
           </div>
           <div className="overflow-x-auto h-[600px] relative">
             <table className="w-full text-left text-xs text-slate-600 border-collapse">
@@ -236,11 +236,11 @@ export default function TarifasPage() {
                       <td className="px-4 py-3 font-medium text-slate-700 border-r border-slate-100 bg-white sticky left-0 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                         {actividad.label}
                       </td>
-                      {actividad.factores.map((factor, fIdx) => {
+                      {actividad.factores.map((factor: any, fIdx: number) => {
                         const monto = (factor * rate).toFixed(2);
                         return (
                           <td key={fIdx} className="px-4 py-2 text-center border-r border-slate-100 group relative cursor-default">
-                            <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} TCMMV</div>
+                            <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} UCD</div>
                             <div className="font-bold text-green-700">Bs. {monto}</div>
                           </td>
                         );
@@ -277,7 +277,7 @@ export default function TarifasPage() {
                     <th className="px-4 py-3 font-semibold">Cód.</th>
                     <th className="px-4 py-3 font-semibold">Servicio / Permiso</th>
                     <th className="px-4 py-3 font-semibold text-center">Unidad</th>
-                    <th className="px-4 py-3 font-semibold text-center">Factor (TCMMV)</th>
+                    <th className="px-4 py-3 font-semibold text-center">Factor (UCD)</th>
                     <th className="px-4 py-3 font-semibold text-right">Tarifa Base (Bs)</th>
                   </tr>
                 </thead>
@@ -309,7 +309,7 @@ export default function TarifasPage() {
                   <tr>
                     <th className="px-4 py-3 font-semibold">Cód.</th>
                     <th className="px-4 py-3 font-semibold">Tipo de Inspección</th>
-                    <th className="px-4 py-3 font-semibold text-center">Factor (TCMMV)</th>
+                    <th className="px-4 py-3 font-semibold text-center">Factor (UCD)</th>
                     <th className="px-4 py-3 font-semibold text-right">Tarifa (Bs)</th>
                   </tr>
                 </thead>
@@ -340,7 +340,7 @@ export default function TarifasPage() {
                   <tr>
                     <th className="px-4 py-3 font-semibold">Cód.</th>
                     <th className="px-4 py-3 font-semibold">Tipo de Visto Bueno</th>
-                    <th className="px-4 py-3 font-semibold text-center">TCMMV / m²</th>
+                    <th className="px-4 py-3 font-semibold text-center">UCD / m²</th>
                     <th className="px-4 py-3 font-semibold text-center">Ej: 100 m²</th>
                     <th className="px-4 py-3 font-semibold text-center">Ej: 200 m²</th>
                     <th className="px-4 py-3 font-semibold text-center">Ej: 500 m²</th>
@@ -361,7 +361,7 @@ export default function TarifasPage() {
               </table>
             </div>
             <div className="px-4 py-2 bg-indigo-50/50 border-t border-indigo-100 text-[10px] text-indigo-500">
-              * La tarifa final se calcula multiplicando: TCMMV/m² × Superficie del inmueble (m²) × Tasa BCV del día
+              * La tarifa final se calcula multiplicando: UCD/m² × Superficie del inmueble (m²) × Tasa BCV del día
             </div>
           </div>
 
@@ -378,7 +378,7 @@ export default function TarifasPage() {
                   <tr>
                     <th className="px-4 py-3 font-semibold">Tipo de Camión</th>
                     <th className="px-4 py-3 font-semibold text-center">Distancia</th>
-                    <th className="px-4 py-3 font-semibold text-center">Factor (TCMMV)</th>
+                    <th className="px-4 py-3 font-semibold text-center">Factor (UCD)</th>
                     <th className="px-4 py-3 font-semibold text-right">Tarifa (Bs)</th>
                   </tr>
                 </thead>
@@ -450,7 +450,7 @@ export default function TarifasPage() {
                 </>
               ) : calcTipo !== 'Reclamos / Sugerencias' ? (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Monto de la Tasa (En TCMMV)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Monto de la Tasa (En UCD)</label>
                   <input 
                     type="number" 
                     min="0"
@@ -459,7 +459,7 @@ export default function TarifasPage() {
                     value={calcTcmmv}
                     onChange={(e) => setCalcTcmmv(e.target.value === '' ? '' : Number(e.target.value))}
                   />
-                  <p className="text-xs text-slate-500 mt-1">Ingrese el valor en unidades tributarias municipales (TCMMV) según indique la ordenanza correspondiente.</p>
+                  <p className="text-xs text-slate-500 mt-1">Ingrese el valor en unidades tributarias municipales (UCD) según indique la ordenanza correspondiente.</p>
                 </div>
               ) : (
                 <div className="bg-emerald-50 text-emerald-700 p-3 rounded-md text-sm border border-emerald-100">
@@ -472,7 +472,7 @@ export default function TarifasPage() {
               <span className="text-slate-500 font-medium mb-2 uppercase tracking-wide text-xs">Total Calculado</span>
               <div className="text-4xl font-bold text-slate-800 mb-2">Bs. {montoCalculadoBs}</div>
               <div className="text-sm text-slate-500">
-                Basado en {factorCalculadora} TCMMV x {rate.toFixed(2)} Bs (Tasa BCV)
+                Basado en {factorCalculadora} UCD x {rate.toFixed(2)} Bs (Tasa BCV)
               </div>
               {calcTipo === 'Servicios Extraordinarios' && (
                 <div className="mt-4 text-xs text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">

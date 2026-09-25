@@ -4,11 +4,10 @@ import { useRouter } from 'next/navigation';
 import { Building2, UserPlus, CheckCircle, ArrowLeft, Upload, FileText, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAppContext } from '@/store/AppContext';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function RegistroPublico() {
   const router = useRouter();

@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // API Route: /api/telegram-report
 // Reportes automaticos a las 12:00 y 18:00 hora Venezuela
 // Variables requeridas en Vercel:
@@ -7,16 +7,10 @@
 //   SUPABASE_SERVICE_ROLE_KEY — para leer sin RLS
 // ============================================================
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID   || '';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { persistSession: false, autoRefreshToken: false } }
-);
 
 const fmt = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const parseMonto = (v: any) => parseFloat(String(v || 0).replace(/[^\d.]/g, '')) || 0;
@@ -108,7 +102,7 @@ async function generarReporte(request?: Request) {
     const ICON = turno === 'MEDIODÍA' ? '🌤️' : '🌆';
 
     const mensaje = [
-      `🏛️ <b>Instituto de Aseo — Aseo Urbano Naguanagua</b>`,
+      `🏛️ <b>ISMA Naguanagua — Aseo Urbano Naguanagua</b>`,
       `${ICON} <b>Reporte ${turno} | ${horaStr} VE</b>`,
       `📅 ${fechaFmt}`,
       ``,

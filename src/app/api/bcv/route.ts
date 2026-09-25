@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   // 0. Revisar si hay una tasa manual en la base de datos
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
     if (supabaseUrl && supabaseKey) {
       const dbRes = await fetch(`${supabaseUrl}/rest/v1/sistema_config?id=eq.tasa_bcv_manual&select=valor`, {
         headers: {
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   let fechaSemanalGuardada = null;
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
     if (supabaseUrl && supabaseKey) {
       const dbRes = await fetch(`${supabaseUrl}/rest/v1/sistema_config?id=eq.tasa_bcv_semanal&select=valor,updated_at`, {
         headers: {
@@ -120,7 +120,7 @@ export async function GET(request: Request) {
     // Guardar como tasa guardada (se actualiza de lunes a viernes)
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
       if (supabaseUrl && supabaseKey) {
         await fetch(`${supabaseUrl}/rest/v1/sistema_config?id=eq.tasa_bcv_semanal`, {
           method: 'PATCH',
@@ -169,7 +169,7 @@ export async function GET(request: Request) {
 
       try {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
         if (supabaseUrl && supabaseKey) {
           await fetch(`${supabaseUrl}/rest/v1/sistema_config?id=eq.tasa_bcv_semanal`, {
             method: 'PATCH',

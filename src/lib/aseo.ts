@@ -4,7 +4,7 @@ export type TipoUsuario = 'residencial' | 'comercial' | 'industrial' | 'instituc
 export type ClasificadorResidencial = 'I' | 'II' | 'III' | 'IV';
 export type NivelArea = 'I' | 'II' | 'III' | 'IV';
 
-// TABLA 1: Tarifas Residenciales (en TCMMV-BCV)
+// TABLA 1: Tarifas Residenciales (en UCD-BCV)
 export const TARIFAS_RESIDENCIALES: Record<ClasificadorResidencial, number> = {
   'I': 0.50, // Viviendas en zonas populares
   'II': 3.00, // Apartamentos
@@ -29,9 +29,9 @@ export const TARIFAS_COMERCIALES: Record<string, Record<NivelArea, number>> = {
 export interface DeudaMensual {
   mes: number; // 1-12
   anio: number; // Ej: 2023, 2024, 2025
-  capitalFacturado_TCMMV: number;
-  multas_TCMMV: number;
-  intereses_TCMMV: number;
+  capitalFacturado_UCD: number;
+  multas_UCD: number;
+  intereses_UCD: number;
 }
 
 export interface ResultadoSaneamiento {
@@ -66,9 +66,9 @@ export function calcularDeudaSaneada(
   };
 
   for (const deuda of deudasMensuales) {
-    const capitalBs = deuda.capitalFacturado_TCMMV * tcmmvActual;
-    const multasBs = deuda.multas_TCMMV * tcmmvActual;
-    const interesesBs = deuda.intereses_TCMMV * tcmmvActual;
+    const capitalBs = deuda.capitalFacturado_UCD * tcmmvActual;
+    const multasBs = deuda.multas_UCD * tcmmvActual;
+    const interesesBs = deuda.intereses_UCD * tcmmvActual;
 
     res.capitalOriginal += capitalBs;
     res.multasOriginales += multasBs;

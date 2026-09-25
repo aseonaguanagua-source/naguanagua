@@ -1,19 +1,13 @@
-﻿import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { Resend } from 'resend';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { persistSession: false } }
-);
-
 function buildHtml(nombre: string): string {
-  const BASE = 'https://aseosilvaad.globalrecca.com';
+  const BASE = 'https://aseonaguanaguaad.globalrecca.com';
   return `
 <!DOCTYPE html>
 <html lang="es">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Comunicado Oficial Instituto de Aseo</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Comunicado Oficial ISMA Naguanagua</title></head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:20px 0;">
 <tr><td align="center">
@@ -25,10 +19,10 @@ function buildHtml(nombre: string): string {
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
           <td align="center" width="33%">
-            <img src="${BASE}/logos/alcaldia.jpg" alt="Alcaldia Municipio Naguanagua" width="100" style="display:block;margin:0 auto;border-radius:6px;" />
+            <img src="${BASE}/logos/global_rec.jpg" alt="Global Rec - Naguanagua" width="100" style="display:block;margin:0 auto;border-radius:6px;" />
           </td>
           <td align="center" width="34%">
-            <img src="${BASE}/logos/isma.jpg" alt="Instituto de Aseo" width="120" style="display:block;margin:0 auto;background:#fff;border-radius:8px;padding:4px;" />
+            <img src="${BASE}/logos/basura_cero.jpg" alt="ISMA Naguanagua" width="120" style="display:block;margin:0 auto;background:#fff;border-radius:8px;padding:4px;" />
           </td>
           <td align="center" width="33%">
             <img src="${BASE}/logos/basura_cero.jpg" alt="Basura Cero" width="90" style="display:block;margin:0 auto;border-radius:6px;" />
@@ -53,7 +47,7 @@ function buildHtml(nombre: string): string {
       <table width="100%" cellpadding="4" cellspacing="0" style="font-size:13px;color:#374151;">
         <tr>
           <td width="80" style="font-weight:bold;color:#1a7a40;vertical-align:top;">DE:</td>
-          <td style="color:#1e293b;">INSTITUTO DE AMBIENTE DEL MUNICIPIO SILVA (Instituto de Aseo) / ALCALD&Iacute;A DEL MUNICIPIO SILVA</td>
+          <td style="color:#1e293b;">INSTITUTO DE SANEAMIENTO AMBIENTAL (ISMA) / ALCALDÍA DE NAGUANAGUA</td>
         </tr>
         <tr>
           <td style="font-weight:bold;color:#1a7a40;vertical-align:top;">FECHA:</td>
@@ -61,7 +55,7 @@ function buildHtml(nombre: string): string {
         </tr>
         <tr>
           <td style="font-weight:bold;color:#1a7a40;vertical-align:top;">PARA:</td>
-          <td style="color:#1e293b;">COMERCIANTES, CONTRIBUYENTES Y COMUNIDAD EN GENERAL DEL MUNICIPIO SILVA</td>
+          <td style="color:#1e293b;">COMERCIANTES, CONTRIBUYENTES Y COMUNIDAD EN GENERAL DE NAGUANAGUA</td>
         </tr>
         <tr>
           <td style="font-weight:bold;color:#1a7a40;vertical-align:top;">ASUNTO:</td>
@@ -78,7 +72,7 @@ function buildHtml(nombre: string): string {
         Estimado(a) <strong>${nombre}</strong>,
       </p>
       <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.8;">
-        Reciban un cordial y respetuoso saludo institucional. En el marco del fortalecimiento integral del sistema de recolección de desechos sólidos y preservación ambiental en nuestras comunidades y ejes comerciales, el <strong>Instituto de Ambiente del Municipio Naguanagua (Instituto de Aseo)</strong> conjuntamente con la <strong>Alcaldía del Municipio Naguanagua</strong>, les informa la <strong>renovación y modernización tecnológica</strong> de nuestra plataforma de atención y recaudación.
+        Reciban un cordial y respetuoso saludo institucional. En el marco del fortalecimiento integral del sistema de recolección de desechos sólidos y preservación ambiental en nuestras comunidades y ejes comerciales, el <strong>Instituto de Ambiente del Municipio Naguanagua (ISMA Naguanagua)</strong> conjuntamente con la <strong>Alcaldía del Municipio Naguanagua</strong>, les informa la <strong>renovación y modernización tecnológica</strong> de nuestra plataforma de atención y recaudación.
       </p>
       <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.8;">
         Esta actualización tiene como objetivo brindar a cada ciudadano y comerciante una experiencia &aacute;gil, aut&oacute;noma y accesible, evitando traslados innecesarios y garantizando total transparencia en sus gestiones tributarias.
@@ -99,8 +93,8 @@ function buildHtml(nombre: string): string {
               Desde cualquier dispositivo m&oacute;vil o computador, acceda a consultar su estado de cuenta, efectuar pagos y gestionar su solvencia en el siguiente enlace oficial:
             </p>
             <p style="margin:0 0 12px;text-align:center;">
-              <a href="https://aseosilva.globalrecca.com" style="display:inline-block;background:#1a7a40;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:24px;font-size:14px;font-weight:bold;letter-spacing:0.5px;">
-                &#x1F517; aseosilva.globalrecca.com
+              <a href="https://aseonaguanagua.globalrecca.com" style="display:inline-block;background:#1a7a40;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:24px;font-size:14px;font-weight:bold;letter-spacing:0.5px;">
+                &#x1F517; aseonaguanagua.globalrecca.com
               </a>
             </p>
             <table cellpadding="3" cellspacing="0" style="font-size:13px;color:#166534;">
@@ -127,7 +121,7 @@ function buildHtml(nombre: string): string {
             </p>
             <table width="100%" cellpadding="6" cellspacing="0" style="background:#ffffff;border-radius:8px;font-size:13px;color:#1e293b;">
               <tr style="background:#0369a1;">
-                <td colspan="2" style="color:#ffffff;font-weight:bold;padding:8px 12px;border-radius:6px 6px 0 0;">Datos Bancarios Instituto de Aseo</td>
+                <td colspan="2" style="color:#ffffff;font-weight:bold;padding:8px 12px;border-radius:6px 6px 0 0;">Datos Bancarios ISMA Naguanagua</td>
               </tr>
               <tr><td style="padding:6px 12px;font-weight:bold;color:#0369a1;width:100px;">Titular:</td><td style="padding:6px 12px;">INST SOC MUN PARA EL AMBIENTE</td></tr>
               <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#0369a1;">Banco:</td><td style="padding:6px 12px;">BANESCO (0134)</td></tr>
@@ -160,7 +154,7 @@ function buildHtml(nombre: string): string {
                 <td width="50%" style="vertical-align:top;">
                   <p style="margin:0 0 6px;font-size:13px;font-weight:bold;color:#92400e;">&#x2709;&#xFE0F; Correos Electr&oacute;nicos:</p>
                   <p style="margin:0;font-size:12px;color:#78350f;line-height:2.0;">
-                    aseo.municipiosilva@globalgreenca.com<br/>
+                    isma.naguanagua@globalgreenca.com<br/>
                     atencion.aseourbanoms@globalgreenca.com<br/>
                     coordinacion.aseourbanoms@gmail.com
                   </p>
@@ -190,7 +184,7 @@ function buildHtml(nombre: string): string {
           <td style="padding:14px 20px;text-align:center;">
             <p style="margin:0 0 6px;color:#ffffff;font-size:12px;font-weight:bold;letter-spacing:1px;">&#x1F310; REDES SOCIALES OFICIALES</p>
             <p style="margin:0;font-size:13px;color:#bbf7d0;">
-              @ismamunicipiosilva &nbsp;|&nbsp; @alcaldiadesilvaoficial &nbsp;|&nbsp; @osnel_arniasoficial
+              @ismanaguanagua &nbsp;|&nbsp; @alcaldianaguanagua &nbsp;|&nbsp; @osnel_arniasoficial
             </p>
           </td>
         </tr>
@@ -202,7 +196,7 @@ function buildHtml(nombre: string): string {
   <tr>
     <td style="background:#0a4a2a;padding:16px 24px;text-align:center;">
       <p style="margin:0;font-size:11px;color:#86efac;line-height:1.7;">
-        Instituto de Ambiente del Municipio Naguanagua (Instituto de Aseo) &bull; Alcald&iacute;a del Municipio Naguanagua &bull; Estado Falc&oacute;n<br/>
+        Instituto de Ambiente del Municipio Naguanagua (ISMA Naguanagua) &bull; Alcald&iacute;a del Municipio Naguanagua &bull; Estado Falc&oacute;n<br/>
         Este correo fue enviado de forma oficial. Por favor no responda directamente a este mensaje.
       </p>
     </td>
@@ -221,11 +215,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const testMode: boolean = body.test !== false;
-    const testEmail = 'davidzara66@gmail.com';
+    const testEmail = process.env.ADMIN_EMAIL || 'davidzara66@gmail.com';
 
     let destinatarios: { nombre: string; correo: string }[] = [];
     if (testMode) {
-      destinatarios = [{ nombre: 'Prueba Instituto de Aseo', correo: testEmail }];
+      destinatarios = [{ nombre: 'Prueba ISMA Naguanagua', correo: testEmail }];
     } else {
       const { data: inms, error } = await supabase
         .from('inmuebles')
@@ -254,9 +248,9 @@ export async function POST(request: Request) {
       await Promise.all(lote.map(async (dest) => {
         try {
           await resend.emails.send({
-            from: 'Instituto de Aseo Aseo Urbano <aseo.municipiosilva@globalgreenca.com>',
+            from: 'ISMA Naguanagua <isma.naguanagua@globalgreenca.com>',
             to: [dest.correo],
-            subject: 'Comunicado Oficial - Renovacion de Plataforma Digital | Instituto de Aseo Municipio Naguanagua',
+            subject: 'Comunicado Oficial - Renovacion de Plataforma Digital | ISMA Naguanagua Municipio Naguanagua',
             html: buildHtml(dest.nombre),
           });
           enviados++;

@@ -301,10 +301,10 @@ export default function ConveniosPagoPage() {
                   <p><span className="font-semibold">Contribuyente:</span> {foundUser.contribuyente}</p>
                   <p><span className="font-semibold">Identidad:</span> {foundUser.identidad}</p>
                   <div className="pt-2 mt-2 border-t border-blue-200/50">
-                    <p className="text-xs text-slate-500 mb-1">Tasa BCV (TCMMV) Actual: <span className="font-semibold text-slate-700">{tcmmv} Bs</span></p>
+                    <p className="text-xs text-slate-500 mb-1">Tasa BCV (UCD) Actual: <span className="font-semibold text-slate-700">{tcmmv} Bs</span></p>
                     <p className="flex justify-between items-center text-red-600 font-medium">
-                      <span>Deuda Fluctuante a Congelar (MMV):</span>
-                      <span>{foundUser.totalMMV} MMV</span>
+                      <span>Deuda Fluctuante a Congelar (UCD):</span>
+                      <span>{foundUser.totalMMV} UCD</span>
                     </p>
                     <p className="flex justify-between items-center text-slate-600 font-medium mt-1">
                       <span>Deuda por Recibos (Recibos):</span>

@@ -1,14 +1,13 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { MapPin, TrendingUp, Clock, PlusCircle, Download, FileSpreadsheet, UploadCloud } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function OperadorDashboard() {
   const router = useRouter();

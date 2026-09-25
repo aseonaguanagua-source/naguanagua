@@ -3,10 +3,9 @@
 import { useState } from 'react';
 import { Save, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function ManualBCVRateEditor({ currentRate }: { currentRate: number }) {
   const [manualRate, setManualRate] = useState<string>(currentRate.toString());

@@ -3,11 +3,10 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Award, CheckCircle, AlertTriangle, Search, Loader2 } from 'lucide-react';
 import Image from 'next/image';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function ValidarContent() {
   const searchParams = useSearchParams();
@@ -62,10 +61,10 @@ function ValidarContent() {
         <div className="text-center mb-10">
           <div className="flex justify-center gap-4 mb-6">
             <div className="relative w-24 h-24">
-              <Image src="/images/logo_isma.png" alt="Logo Instituto de Aseo" fill className="object-contain" />
+              <Image src="/logos/basura_cero.jpg" alt="Logo ISMA Naguanagua" fill className="object-contain" />
             </div>
             <div className="relative w-24 h-24">
-              <Image src="/images/logo_alcaldia.png" alt="Logo Alcaldia" fill className="object-contain" />
+              <Image src="/logos/global_rec.jpg" alt="Logo Global Rec" fill className="object-contain" />
             </div>
           </div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight sm:text-4xl">

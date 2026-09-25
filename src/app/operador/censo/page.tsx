@@ -3,14 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { Save, AlertCircle, CheckCircle, Calendar, MapPin, Calculator } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import Select from 'react-select';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), { ssr: false });
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function CensoMobilePage() {
   const { ordenanzasConfig: ordenanzaData } = useAppContext();

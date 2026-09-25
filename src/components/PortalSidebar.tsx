@@ -134,7 +134,7 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
         <div className="flex items-center gap-2 opacity-70 pt-2">
           
           <span className="text-white font-bold tracking-wider text-xs">
-            <span className="text-[#c8e64c]">GLOBAL</span> REC
+            ALCALDÍA NAGUANAGUA
           </span>
         </div>
       </div>
@@ -159,7 +159,7 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
         (isOpen || showMobileMenu) ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-          <span className="text-white font-bold text-sm"><span className="text-[#c8e64c]">GLOBAL</span> REC</span>
+          <span className="text-white font-bold text-sm">ALCALDÍA NAGUANAGUA</span>
           <button onClick={() => { setIsOpen && setIsOpen(false); setShowMobileMenu(false); }}>
             <X className="w-5 h-5 text-slate-400" />
           </button>

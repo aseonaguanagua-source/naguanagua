@@ -3,7 +3,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
 import { useAppContext } from '@/store/AppContext';
-import { Users, Save, ArrowLeft, Plus, Building, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, Download, FileText, Trash2, Power } from 'lucide-react';
+import { Users, Save, ArrowLeft, Plus, Building, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import { ordenanzaData } from '@/data/ordenanza';
 import Select from 'react-select';
@@ -21,12 +21,10 @@ import { DebtAdjustmentModal } from '@/components/DebtAdjustmentModal';
 
 import { logos } from '@/lib/logosBase64';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function ContribuyentesPageContent() {
   const { inmuebles, contribuyentes, recibos, setFacturas, convenios, updateContribuyente, addContribuyente, addAuditLog, tcmmv, addCertificado, auditLogs } = useAppContext();
@@ -72,6 +70,11 @@ function ContribuyentesPageContent() {
   const [statusNota, setStatusNota] = useState('');
   const [isProcessingStatus, setIsProcessingStatus] = useState(false);
   const [activeTab, setActiveTab] = useState<'Activos' | 'Inactivos'>('Activos');
+  const [serverSearchTerm, setServerSearchTerm] = useState('');
+  const [isSearchingServer, setIsSearchingServer] = useState(false);
+  const [serverResults, setServerResults] = useState<any[]>([]);
+  const [isShowingServerResults, setIsShowingServerResults] = useState(false);
+  const [showWithNotes, setShowWithNotes] = useState(false);
   const [filteredContribuyentes, setFilteredContribuyentes] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -119,12 +122,19 @@ function ContribuyentesPageContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
+    let result = isShowingServerResults ? serverResults : contribuyentes;
     if (activeTab === 'Activos') {
-      setFilteredContribuyentes(contribuyentes.filter(c => c.Estado !== 'Eliminado' && c.Estado !== 'Inactivo'));
+      result = result.filter(c => c.Estado !== 'Eliminado' && c.Estado !== 'Inactivo');
     } else {
-      setFilteredContribuyentes(contribuyentes.filter(c => c.Estado === 'Eliminado' || c.Estado === 'Inactivo'));
+      result = result.filter(c => c.Estado === 'Eliminado' || c.Estado === 'Inactivo');
     }
-  }, [activeTab, contribuyentes]);
+    
+    if (showWithNotes) {
+      result = result.filter(c => c.Observaciones && c.Observaciones.trim().length > 0);
+    }
+    
+    setFilteredContribuyentes(result);
+  }, [activeTab, contribuyentes, showWithNotes, isShowingServerResults, serverResults]);
 
   useEffect(() => {
     if (searchParams.get('action') === 'new') {
@@ -242,21 +252,22 @@ function ContribuyentesPageContent() {
           factorTotal += (localFactor * cant);
           
           if (localFactor > 0) {
+            let ucdMult = (tipoVivienda === 'Residencial' || row.clasificacion === 'Residencial') ? 0.02673 : 0.128;
             if (cant > 1) {
               for(let i=1; i<=cant; i++) {
                 desgloseLocales.push({
-                  numeracion: `${inm.inmueble || inm.cod_cont} - Unidad ${i}`,
-                  leyenda: conceptoTexto,
+                  numeracion: `Local/Inmueble Múltiple - Unidad ${i}`,
+                  leyenda: `Base calculada sobre código ordenanza`,
                   factor: localFactor,
-                  montoBs: (Math.trunc((localFactor * data.tcmmv) * 100) / 100).toFixed(2)
+                  montoBs: (Math.trunc((localFactor * 57 * ucdMult * data.tcmmv) * 100) / 100).toFixed(2)
                 });
               }
             } else {
               desgloseLocales.push({
-                numeracion: inm.inmueble || inm.cod_cont,
-                leyenda: conceptoTexto,
+                numeracion: `Inmueble/Local`,
+                leyenda: `Base calculada sobre código ordenanza`,
                 factor: localFactor,
-                montoBs: (Math.trunc((localFactor * data.tcmmv) * 100) / 100).toFixed(2)
+                montoBs: (Math.trunc((localFactor * 57 * ucdMult * data.tcmmv) * 100) / 100).toFixed(2)
               });
             }
           }
@@ -501,7 +512,7 @@ function ContribuyentesPageContent() {
 
       const docNro = Math.floor(10000 + Math.random() * 90000);
 
-      // ── LOGO Instituto de Aseo (solo Instituto de Aseo, lado izquierdo) ──
+      // ── LOGO ISMA Naguanagua (solo ISMA Naguanagua, lado izquierdo) ──
       try { doc.addImage(logos.isma, 'JPEG', 14, 8, 42, 22); } catch(e) {}
 
       // ── TÍTULO ──
@@ -748,6 +759,46 @@ function ContribuyentesPageContent() {
     // Save only ONCE for all inmuebles (as requested by user to prevent multi-downloads)
     if (pageAdded) {
       doc.save(`Estado_Cuenta_${viewData.Identidad}_${Date.now()}.pdf`);
+    }
+  };
+
+  
+  const handleServerSearch = async () => {
+    if (!serverSearchTerm.trim()) {
+      setIsShowingServerResults(false);
+      return;
+    }
+    setIsSearchingServer(true);
+    setIsShowingServerResults(true);
+    try {
+      const term = serverSearchTerm.trim();
+      const { data, error } = await supabase.from('inmuebles')
+        .select('*')
+        .or(`identidad.ilike.%${term}%,inmueble.ilike.%${term}%,contribuyente.ilike.%${term}%`)
+        .limit(50);
+        
+      if (error) throw error;
+      
+      const mapped = (data || []).map((row: any) => ({
+          Identidad: row.identidad,
+          Contribuyente: row.contribuyente || row.nombre || 'Sin Nombre',
+          Telefono: row.telefono || 'No registrado',
+          Correo: row.email || row.correo_electronico || 'No registrado',
+          CodCont: row.inmueble || row.cod_cont,
+          cod_cont: row.inmueble || row.cod_cont,
+          Direccion: row.direccion || '',
+          Observaciones: '',
+          Actividad: row.actividad_principal || 'No aplica',
+          Clasificacion: row.clasificacion || 'Residencial',
+          SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
+          Estado: row.estado || 'Activo',
+          FechaRegistro: row.created_at || null
+      }));
+      setServerResults(mapped);
+    } catch (e: any) {
+      alert("Error en la busqueda: " + e.message);
+    } finally {
+      setIsSearchingServer(false);
     }
   };
 
@@ -1395,6 +1446,17 @@ function ContribuyentesPageContent() {
                   rows={2}
                 />
               </div>
+              {formData.Observaciones && (
+                <div className="md:col-span-2 mt-2">
+                  <label className="block text-[10px] font-bold text-amber-700 mb-1">Observaciones Históricas (Sistema Anterior)</label>
+                  <textarea 
+                    readOnly
+                    value={formData.Observaciones}
+                    className="w-full border border-amber-200 rounded p-2 text-sm outline-none bg-amber-50/50 text-amber-900"
+                    rows={3}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Clasificación de Ordenanza */}
@@ -1780,7 +1842,7 @@ function ContribuyentesPageContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600 bg-white p-3 border border-slate-100 rounded">
                   <div>
                     <p className="mb-1"><span className="font-semibold text-slate-700">Clasificación:</span> {calculoDetalle.leyenda}</p>
-                    <p className="mb-1"><span className="font-semibold text-slate-700">Factor Multiplicador (Ordenanza):</span> {calculoDetalle.factor} TCMMV-BCV</p>
+                    <p className="mb-1"><span className="font-semibold text-slate-700">Factor Ordenanza (F.O.):</span> {calculoDetalle.factor}</p>
                   </div>
                   <div>
                     <p className="mb-1"><span className="font-semibold text-slate-700">Tasa de Cambio Oficial:</span> {bcvRate} Bs/EUR</p>
@@ -1815,7 +1877,7 @@ function ContribuyentesPageContent() {
                           <tr>
                             <th className="px-3 py-2 font-semibold border-r border-slate-100">Identificador</th>
                             <th className="px-3 py-2 font-semibold border-r border-slate-100">Concepto / Clasificación</th>
-                            <th className="px-3 py-2 font-semibold text-right border-r border-slate-100 w-24">Factor (EUR)</th>
+                            <th className="px-3 py-2 font-semibold text-right border-r border-slate-100 w-24">F.O.</th>
                             <th className="px-3 py-2 font-semibold text-right text-green-700 w-24">Monto (Bs)</th>
                           </tr>
                         </thead>
@@ -1860,7 +1922,7 @@ function ContribuyentesPageContent() {
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center bg-blue-50 p-3 rounded border border-blue-100">
-                    <span className="text-sm font-semibold text-blue-800">Tarifa Mensual (MMV):</span>
+                    <span className="text-sm font-semibold text-blue-800">Tarifa Mensual (UCD):</span>
                     <span className="font-bold text-blue-900 text-lg">{calculoDetalle.factor.toFixed(2)}</span>
                   </div>
 
@@ -1880,7 +1942,7 @@ function ContribuyentesPageContent() {
                   <div className="flex justify-between items-center bg-orange-50 p-4 rounded-lg border border-orange-200 shadow-inner">
                     <span className="font-bold text-orange-800">Nueva Deuda Total:</span>
                     <div className="text-right">
-                      <span className="block font-black text-orange-600 text-2xl">{(calculoDetalle.factor * debtMonths).toFixed(2)} MMV</span>
+                      <span className="block font-black text-orange-600 text-2xl">{(calculoDetalle.factor * debtMonths).toFixed(2)} UCD</span>
                       <span className="block text-xs font-semibold text-orange-700 mt-1">â‰ˆ Bs. {(calculoDetalle.factor * debtMonths * (bcvRate ? parseFloat(bcvRate.replace(',', '.')) : 1)).toFixed(2)}</span>
                     </div>
                   </div>
@@ -2129,20 +2191,35 @@ function ContribuyentesPageContent() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 border-b border-slate-200 mt-4">
-        <button
-          onClick={() => setActiveTab('Activos')}
-          className={`pb-2 px-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'Activos' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-        >
-          Activos
-        </button>
-        <button
-          onClick={() => setActiveTab('Inactivos')}
-          className={`pb-2 px-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'Inactivos' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-        >
-          Usuarios Inactivos / Eliminados
-        </button>
+      {/* Tabs y Filtros */}
+      <div className="flex items-center justify-between border-b border-slate-200 mt-4">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setActiveTab('Activos')}
+            className={`pb-2 px-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'Activos' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            Activos
+          </button>
+          <button
+            onClick={() => setActiveTab('Inactivos')}
+            className={`pb-2 px-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'Inactivos' ? 'border-rose-600 text-rose-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            Usuarios Inactivos / Eliminados
+          </button>
+        </div>
+        
+        <div className="flex items-center gap-2 mb-2">
+          <input 
+            type="checkbox" 
+            id="showNotesToggle"
+            checked={showWithNotes}
+            onChange={(e) => setShowWithNotes(e.target.checked)}
+            className="rounded border-amber-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+          />
+          <label htmlFor="showNotesToggle" className="text-sm font-medium text-amber-700 cursor-pointer select-none flex items-center gap-1">
+            Solo mostrar con Notas Históricas
+          </label>
+        </div>
       </div>
 
       <div className="bg-white rounded border border-slate-200 shadow-sm mt-4 overflow-hidden">
@@ -2184,6 +2261,12 @@ function ContribuyentesPageContent() {
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Dirección</span>
                   <p className="text-sm font-medium text-slate-700">{viewData.Direccion || 'N/A'}</p>
                 </div>
+                {viewData.Observaciones && (
+                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 col-span-2">
+                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1 block">Observaciones Históricas (Sistema Anterior)</span>
+                    <p className="text-sm font-medium text-amber-900 whitespace-pre-wrap">{viewData.Observaciones}</p>
+                  </div>
+                )}
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 col-span-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Actividad Económica / Clasificación</span>
                   <p className="text-sm font-semibold text-slate-700">{viewData.Actividad || 'N/A'}</p>
@@ -2216,12 +2299,29 @@ function ContribuyentesPageContent() {
                           </div>
                           
                           <div>
-                            <span className="block text-[10px] text-slate-400 font-bold uppercase">Clasificación</span>
-                            <span className="font-medium text-slate-700">{inm.clasificacion || 'Residencial'}</span>
+                            <span className="block text-[10px] text-slate-400 font-bold uppercase">Clasificación / Tipo</span>
+                            <span className="font-medium text-slate-700">{inm.tipo || 'INDEPENDIENTE'}</span>
                           </div>
                           <div>
-                            <span className="block text-[10px] text-slate-400 font-bold uppercase">Act. Económica</span>
+                            <span className="block text-[10px] text-slate-400 font-bold uppercase">Jerarquía</span>
                             <span className="font-medium text-slate-700 truncate block" title={inm.actividad_principal}>{inm.actividad_principal || 'N/A'}</span>
+                          </div>
+                          <div className="col-span-2 md:col-span-4 border-t border-slate-100 mt-1 pt-2">
+                            <span className="block text-[10px] text-slate-400 font-bold uppercase">Actividad Económica (Nietos)</span>
+                            <div className="mt-1">
+                              {inm.actividad_economica_id && String(inm.actividad_economica_id) !== '0' ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {String(inm.actividad_economica_id).split(',').map((actId: string) => (
+                                    <span key={actId} className="inline-flex items-center px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase rounded border border-emerald-200">
+                                      {/* @ts-ignore */}
+                                      {economicActivitiesBase[actId] || 'Nieto Desconocido'}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="font-medium text-slate-500 text-xs">-</span>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <span className="block text-[10px] text-slate-400 font-bold uppercase">Metraje (m²)</span>
@@ -2250,7 +2350,7 @@ function ContribuyentesPageContent() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600 bg-white p-3 border border-slate-100 rounded">
                     <div>
                       <p className="mb-1"><span className="font-semibold text-slate-700">Clasificación:</span> {viewCalculo.leyenda}</p>
-                      <p className="mb-1"><span className="font-semibold text-slate-700">Factor Multiplicador:</span> {viewCalculo.factor} TCMMV</p>
+                      <p className="mb-1"><span className="font-semibold text-slate-700">Factor Ordenanza (F.O.):</span> {viewCalculo.factor}</p>
                     </div>
                     <div>
                       <p className="mb-1"><span className="font-semibold text-slate-700">Tasa de Cambio Oficial:</span> {Number(viewCalculo.tasaBcv || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:4})} Bs</p>
@@ -2272,7 +2372,7 @@ function ContribuyentesPageContent() {
                             <tr>
                               <th className="px-3 py-2 font-semibold">Identificador</th>
                               <th className="px-3 py-2 font-semibold">Concepto</th>
-                              <th className="px-3 py-2 font-semibold text-right">Factor (EUR)</th>
+                              <th className="px-3 py-2 font-semibold text-right">F.O.</th>
                               <th className="px-3 py-2 font-semibold text-right text-green-700">Monto (Bs)</th>
                             </tr>
                           </thead>
@@ -2354,7 +2454,13 @@ function ContribuyentesPageContent() {
 
                     const totalBs = deudas.reduce((acc: number, f: any) => acc + getMontoActual(f), 0);
 
-                    if (deudas.length === 0) {
+
+                    // Calcular deuda acumulada directamente del inmueble (puede existir sin facturas)
+                    const deudaInmuebleBs = userInms.reduce((sum: number, inm: any) => {
+                      return sum + (parseFloat(inm.deuda_congelada_bs || 0) + (parseFloat(inm.deuda_mmv || 0) * tcmmv));
+                    }, 0);
+                    const tieneDeudaReal = deudaInmuebleBs > 0.01;
+                    if (deudas.length === 0 && !tieneDeudaReal) {
                       return (
                         <div className="p-6 text-center">
                           <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
@@ -2394,6 +2500,35 @@ function ContribuyentesPageContent() {
                               </button>
                             )}
                           </div>
+                        </div>
+                      );
+                    }
+
+                    // Si hay deuda en el inmueble pero no hay facturas pendientes
+                    if (deudas.length === 0 && tieneDeudaReal) {
+                      return (
+                        <div className="p-4">
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <AlertTriangle className="w-5 h-5 text-amber-600" />
+                              <span className="font-bold text-amber-800">Deuda Acumulada (sin recibos emitidos)</span>
+                            </div>
+                            <p className="text-sm text-amber-700 mb-3">Este contribuyente tiene deuda registrada en sus inmuebles pero no tiene recibos pendientes. La deuda se generó por acumulación mensual.</p>
+                          </div>
+                          <table className="w-full text-sm">
+                            <thead><tr className="bg-slate-50"><th className="p-2 text-left">Inmueble</th><th className="p-2 text-left">Tipo</th><th className="p-2 text-right">Deuda MMV</th><th className="p-2 text-right">Deuda Bs</th></tr></thead>
+                            <tbody>
+                              {userInms.filter((inm: any) => parseFloat(inm.deuda_mmv || 0) > 0 || parseFloat(inm.deuda_congelada_bs || 0) > 0).map((inm: any, idx: number) => (
+                                <tr key={idx} className="border-b border-slate-100">
+                                  <td className="p-2 font-mono text-xs">{inm.inmueble || inm.Inmueble}</td>
+                                  <td className="p-2">{inm.tipo || inm.clasificacion || "Residencial"}</td>
+                                  <td className="p-2 text-right">{parseFloat(inm.deuda_mmv || 0).toFixed(2)}</td>
+                                  <td className="p-2 text-right font-bold text-red-600">{(parseFloat(inm.deuda_congelada_bs || 0) + (parseFloat(inm.deuda_mmv || 0) * tcmmv)).toFixed(2)} Bs</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot><tr className="bg-red-50 font-bold"><td colSpan={3} className="p-2">Total Deuda</td><td className="p-2 text-right text-red-700">{deudaInmuebleBs.toFixed(2)} Bs</td></tr></tfoot>
+                          </table>
                         </div>
                       );
                     }
@@ -2666,8 +2801,9 @@ function ContribuyentesPageContent() {
                           <th className="px-3 py-2">Tipo</th>
                           <th className="px-3 py-2">Cajero / Operador</th>
                           <th className="px-3 py-2">Estado</th>
-                        </tr>
-                      </thead>
+<th className="px-3 py-2 text-center">Factura Fiscal</th>
+</tr>
+</thead>
                       <tbody>
                         {viewPagos.map((p: any, idx: number) => {
                           let det: any = {};
@@ -2702,6 +2838,18 @@ function ContribuyentesPageContent() {
                                   p.estado === 'Por Verificar' ? 'bg-yellow-100 text-yellow-800' :
                                   'bg-red-100 text-red-800'
                                 }`}>{p.estado}</span>
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {det.factura_digital?.emitida && det.factura_digital?.url ? (
+                                  <a href={det.factura_digital.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium shadow-sm transition-colors">
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                    Ver Factura TFHKA
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-slate-400 font-medium">No disponible</span>
+                                )}
                               </td>
                             </tr>
                           );
