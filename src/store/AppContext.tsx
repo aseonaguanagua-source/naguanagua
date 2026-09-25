@@ -72,12 +72,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let allInmuebles: any[] = [];
       let apiCondominios: any[] = [];
       try {
-        const response = await fetch('/api/get-all-data');
-        const jsonResponse = await response.json();
-        allInmuebles = jsonResponse.inmuebles || [];
-        apiCondominios = jsonResponse.condominios || [];
+        const fetchAllClient = async (table: string, select: string) => {
+          let all: any[] = [];
+          let from = 0;
+          const step = 999;
+          while (true) {
+            const { data } = await supabase.from(table).select(select).range(from, from + step);
+            if (data && data.length > 0) {
+              all = [...all, ...data];
+              from += step + 1;
+              if (data.length < step + 1) break;
+            } else {
+              break;
+            }
+          }
+          return all;
+        };
+        const [rawInmuebles, rawContribuyentes] = await Promise.all([
+          fetchAllClient('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,created_at'),
+          fetchAllClient('contribuyentes', '*')
+        ]);
+        const contribMap = new Map();
+        rawContribuyentes.forEach(c => contribMap.set(c.identidad, c));
+        allInmuebles = rawInmuebles.map(inm => ({
+          ...inm,
+          contribuyentes: contribMap.get(inm.identidad) || null
+        }));
+        apiCondominios = allInmuebles
+          .filter(i => i.es_condominio === true)
+          .map(inm => ({
+            id: inm.id,
+            codigo: inm.inmueble,
+            identidad: inm.identidad,
+            nombre: 'Condominio ' + inm.inmueble,
+            direccion: inm.direccion || '',
+            unidades: parseInt(inm.cant_inmuebles || '0'),
+            representante: contribMap.get(inm.identidad)?.nombre || 'N/A',
+            estado: inm.estado || 'Activo',
+            created_at: inm.created_at
+          }));
       } catch (err) {
-        console.error("Error fetching fast data:", err);
+        console.error('Error fetching fast data:', err);
       }
 
       const [
