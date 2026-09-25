@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { Search, CreditCard, CheckCircle2, XCircle, AlertCircle, ChevronLeft, ArrowRight, Landmark } from 'lucide-react';
-import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 
@@ -15,7 +14,15 @@ interface Contribuyente { Contribuyente: string; Identidad: string; }
 const fmtBs = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function KioskPage() {
-  const { contribuyentes, tcmmv } = useAppContext();
+  const [tcmmv, setTcmmv] = useState<number>(0);
+  
+  useEffect(() => {
+    // Fetch BCV
+    fetch('/api/bcv').then(r => r.json()).then(d => {
+      if (d && d.tcmmv) setTcmmv(d.tcmmv);
+    }).catch(e => console.error(e));
+  }, []);
+
   const [step, setStep] = useState<Step>('search');
   const [docType, setDocType] = useState('V');
   const [docNumber, setDocNumber] = useState('');
@@ -77,17 +84,13 @@ export default function KioskPage() {
     const fullDoc = docType + idLimpio;           
     const fullDocDash = docType + '-' + idLimpio; 
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let user: Contribuyente | null = (contribuyentes as any[]).find((c: any) => {
-      const id = (c.Identidad || '').replace(/-/g, '').toUpperCase();
-      return id === fullDoc || id === idLimpio;
-    }) || null;
-
-    if (!user) {
-      const { data } = await supabase.from('inmuebles').select('*')
-        .or(`identidad.eq.${fullDoc},identidad.eq.${fullDocDash},identidad.eq.${idLimpio}`)
-        .limit(1).maybeSingle();
-      if (data) user = {
+    const { data } = await supabase.from('inmuebles').select('*')
+      .or(`identidad.eq.${fullDoc},identidad.eq.${fullDocDash},identidad.eq.${idLimpio}`)
+      .limit(1).maybeSingle();
+    
+    let user: Contribuyente | null = null;
+    if (data) {
+      user = {
         Identidad: data.identidad,
         Contribuyente: data.contribuyente
       };

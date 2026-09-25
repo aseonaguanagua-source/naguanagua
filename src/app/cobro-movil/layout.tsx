@@ -174,7 +174,6 @@ export default function CobroMovilLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <AppProvider>
       <div className="min-h-screen bg-slate-900 flex flex-col">
         {/* Mini header */}
         <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700">
@@ -199,6 +198,5 @@ export default function CobroMovilLayout({ children }: { children: React.ReactNo
           {children}
         </div>
       </div>
-    </AppProvider>
   );
 }
