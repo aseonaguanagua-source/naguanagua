@@ -15,6 +15,7 @@ interface Inmueble {
   mmv_mes?: string | number;
   deuda_mmv?: string | number;
   deuda_congelada_bs?: string | number;
+  multa_bs?: string | number;
   clasificacion?: string;
   direccion?: string;
   actividad_principal?: string;
