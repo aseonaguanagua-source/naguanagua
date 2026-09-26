@@ -829,9 +829,9 @@ export const ordenanzaData = {
     {
         "label": "TIENDA PARA ALQUIER DE PRENDAS",
         "factores": [
+            2.75,
             6.07,
-            9.45,
-            2.75
+            9.45
         ]
     },
     {
@@ -1701,10 +1701,6 @@ export const ordenanzaData = {
     {
         "label": "DULCERIAS/REPOSTERIAS",
         "factores": [7.54, 11.9, 16.03]
-    },
-    {
-        "label": "LUNCHERIAS",
-        "factores": [5.67, 10.19, 15.97]
     },
     {
         "label": "SERVICIOS TECNICOS",

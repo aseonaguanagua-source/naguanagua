@@ -245,21 +245,25 @@ function ContribuyentesPageContent() {
           const cant = parseInt(inm.cant_inmuebles) || 1;
           const metraje = inm.area || inm.area_operativa || 'N/A';
           const actividad = inm.actividad_principal || 'No especificada';
-          const tipoVivienda = inm.tipo || 'Inmueble';
+          const clasificacion = inm.clasificacion || inm.tipo || 'Residencial';
           
-          const conceptoTexto = `${actividad} | Nivel: ${metraje} m² | ${tipoVivienda}`;
+          const conceptoTexto = `${actividad} | Nivel: ${metraje} m² | ${clasificacion}`;
           
           factorTotal += (localFactor * cant);
           
           if (localFactor > 0) {
-            let ucdMult = (tipoVivienda === 'Residencial' || row.clasificacion === 'Residencial') ? 0.02673 : 0.128;
+            // Formula oficial Ordenanza:
+            //   Residencial: TR = F.O. x 57 x UCD x 0.02673
+            //   Comercial:   TC = F.O. x UCD x 0.1280
+            const esResidencial = (clasificacion || '').toLowerCase().includes('residencial');
+            const ucdMult = esResidencial ? (57 * 0.02673) : 0.128;
             if (cant > 1) {
               for(let i=1; i<=cant; i++) {
                 desgloseLocales.push({
                   numeracion: `Local/Inmueble Múltiple - Unidad ${i}`,
                   leyenda: `Base calculada sobre código ordenanza`,
                   factor: localFactor,
-                  montoBs: (Math.trunc((localFactor * 57 * ucdMult * data.tcmmv) * 100) / 100).toFixed(2)
+                  montoBs: (Math.trunc((localFactor * ucdMult * data.tcmmv) * 100) / 100).toFixed(2)
                 });
               }
             } else {
@@ -267,7 +271,7 @@ function ContribuyentesPageContent() {
                 numeracion: `Inmueble/Local`,
                 leyenda: `Base calculada sobre código ordenanza`,
                 factor: localFactor,
-                montoBs: (Math.trunc((localFactor * 57 * ucdMult * data.tcmmv) * 100) / 100).toFixed(2)
+                montoBs: (Math.trunc((localFactor * ucdMult * data.tcmmv) * 100) / 100).toFixed(2)
               });
             }
           }

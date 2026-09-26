@@ -365,21 +365,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     
     if (clasificacion === 'Residencial') {
       const tipo = localOrData.tipoResidencia || localOrData.TipoResidencia;
-      const tarifa = config.tiposResidenciales?.find((t: any) => t.label === tipo);
+      // Búsqueda exacta primero, luego case-insensitive
+      const tarifa = config.tiposResidenciales?.find((t: any) => t.label === tipo)
+        || config.tiposResidenciales?.find((t: any) => t.label.toLowerCase().trim() === (tipo || '').toLowerCase().trim());
       if (tarifa) mmv = tarifa.factor;
     } else {
       const act = localOrData.actividad || localOrData.ActividadComercial;
-      const tarifa = config.actividadesComerciales?.find((t: any) => t.label === act) || 
-                     config.actividadesIndustriales?.find((t: any) => t.label === act);
+      // Búsqueda case-insensitive de actividad
+      const tarifa = config.actividadesComerciales?.find((t: any) => t.label === act)
+        || config.actividadesComerciales?.find((t: any) => t.label.toLowerCase().trim() === (act || '').toLowerCase().trim())
+        || config.actividadesIndustriales?.find((t: any) => t.label === act)
+        || config.actividadesIndustriales?.find((t: any) => t.label.toLowerCase().trim() === (act || '').toLowerCase().trim());
       
       if (tarifa && tarifa.factores) {
         const nivel = localOrData.nivel || localOrData.NivelMetraje;
-        const index = config.nivelesMetraje?.indexOf(nivel) ?? 0;
-        if (index >= 0 && index < tarifa.factores.length) {
-          mmv = tarifa.factores[index];
-        } else {
-          mmv = tarifa.factores[0];
-        }
+        // Búsqueda case-insensitive del nivel de generación
+        const index = config.nivelesMetraje?.findIndex(
+          (n: string) => n.toLowerCase().trim() === (nivel || '').toLowerCase().trim()
+        ) ?? -1;
+        const safeIndex = index >= 0 ? index : 0;
+        mmv = tarifa.factores[safeIndex] ?? tarifa.factores[0];
       }
     }
     return mmv;

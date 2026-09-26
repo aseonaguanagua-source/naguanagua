@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     // ── PASO 1: Obtener todos los inmuebles activos de una sola vez ──
     const { data: inmuebles, error: inmueblesError } = await supabase
       .from('inmuebles')
-      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, tipo')
+      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, clasificacion')
       .gt('mmv_mes', 0);
 
     if (inmueblesError) throw inmueblesError;
@@ -110,11 +110,15 @@ export async function GET(request: Request) {
       const esUnicoLocal = (inmueblesXidentidad[inm.identidad] || 0) === 1;
       if (esUnicoLocal && identidadesConFacturaVieja.has(inm.identidad)) continue;
 
-      let ucdMultiplicador = 0.128; // Comercial por defecto
-      if (inm.tipo === 'Residencial') ucdMultiplicador = 0.02673;
+      // Fórmula oficial de la Ordenanza:
+      //   Residencial: TR = F.O. × 57 × UCD × FAR  (FAR = 0.02673)
+      //   Comercial:   TC = F.O. × UCD × FAC        (FAC = 0.1280)
+      // UCD = Euro BCV (tcmmv) — cambia con la tasa diaria
+      const esResidencial = (inm.clasificacion || '').toLowerCase().includes('residencial');
+      const ucdMultiplicador = esResidencial ? (57 * 0.02673) : 0.128;
 
-      const deudaAgregadaBs = parseFloat((cant * mmv * 57 * ucdMultiplicador * tcmmv).toFixed(2));
-      const nuevaDeudaMmv   = (parseFloat(inm.deuda_mmv) || 0) + (cant * mmv * 57 * ucdMultiplicador);
+      const deudaAgregadaBs = parseFloat((cant * mmv * ucdMultiplicador * tcmmv).toFixed(2));
+      const nuevaDeudaMmv   = (parseFloat(inm.deuda_mmv) || 0) + (cant * mmv * ucdMultiplicador);
 
       facturasNuevas.push({
         referencia:    refFactura,
