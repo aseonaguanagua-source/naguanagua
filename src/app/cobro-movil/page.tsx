@@ -440,6 +440,16 @@ export default function KioskPage() {
                 placeholder="Nro. Referencia del Voucher"
                 className="w-full bg-slate-900 border-2 border-slate-700 rounded-2xl px-5 py-5 text-2xl text-center text-white font-bold focus:border-emerald-500 outline-none mb-4 tracking-widest" />
               {payError && <p className="text-red-400 text-center font-bold mb-4">{payError}</p>}
+              
+              {foundUser?.EsAgente && (
+                <div className="mb-4 bg-amber-400/10 border border-amber-400/50 rounded-xl p-3 flex gap-3 items-center">
+                  <TriangleAlert className="w-6 h-6 text-amber-400 shrink-0" />
+                  <p className="text-amber-200 text-sm leading-tight">
+                    <strong>Aviso:</strong> Usted es agente de retención. Recuerde de cargar su planilla de retención de IVA (75%) después de pagar.
+                  </p>
+                </div>
+              )}
+
               <button onClick={handlePayPos} disabled={isProcessing}
                 className="w-full bg-emerald-500 text-white font-black py-6 rounded-2xl text-2xl active:scale-95 disabled:bg-slate-700 disabled:text-slate-500">
                 {isProcessing ? 'Procesando...' : 'Confirmar Pago'}
