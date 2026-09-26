@@ -31,9 +31,9 @@ export default function CajaPage() {
   
   // Impuestos y Retenciones
   const [ivaPercent, setIvaPercent] = useState<number>(0); // 0 o 0.16
-  const [retencionIVA, setRetencionIVA] = useState<number>(75); // 0, 75 o 100
+  const [retencionIVA, setRetencionIVA] = useState<number>(0); // 0, 75 o 100
   const [comprobanteRetencion, setComprobanteRetencion] = useState<string>('');
-  const [montoRetencionIVA, setMontoRetencionIVA] = useState<number>(0);
+  const [esAgenteRetencion, setEsAgenteRetencion] = useState<boolean>(false);
 
   // Debt State
   const [recibos, setRecibos] = useState<any[]>([]);
@@ -51,6 +51,8 @@ export default function CajaPage() {
   const [selectedCuotas, setSelectedCuotas] = useState<{convId: string, cuotaId: number}[]>([]);
   const [selectedServicios, setSelectedServicios] = useState<string[]>([]);
   const [totalBs, setTotalBs] = useState(0);
+  // Computed — always derived from totalBs × ivaPercent × retencionIVA%
+  const montoRetencionIVA = (totalBs * ivaPercent) * (retencionIVA / 100);
 
   // Payment State
   const [paymentMethod, setPaymentMethod] = useState<'Debito' | 'Transferencia' | 'Saldo a Favor'>('Debito');
@@ -488,8 +490,19 @@ export default function CajaPage() {
       // Calcular IVA inicial
       if (user.Clasificacion === 'Residencial') {
         setIvaPercent(0);
+        setRetencionIVA(0);
+        setEsAgenteRetencion(false);
       } else {
-        setIvaPercent(0.16); // 16% por defecto si no es residencial
+        setIvaPercent(0.16); // 16% para comerciales
+        // Detectar si es agente de retención
+        const esAgente = !!(inmuebles as any[]).find(
+          (inm: any) => (
+            inm.identidad === user.Identidad ||
+            inm.identidad === user.Identidad?.replace(/-/g, '')
+          ) && inm.agente_retencion === true
+        );
+        setEsAgenteRetencion(esAgente);
+        setRetencionIVA(esAgente ? 75 : 0);
       }
 
 
@@ -1687,9 +1700,14 @@ export default function CajaPage() {
               </div>
               
               <div className="flex justify-between items-center text-slate-600 mt-2">
-                <span>IVA ({ivaPercent * 100}%):</span>
+                <span>IVA ({ivaPercent * 100}%) Total:</span>
                 <span className="font-semibold">Bs. {formatBs(totalBs * ivaPercent)}</span>
               </div>
+              {esAgenteRetencion && ivaPercent > 0 && (
+                <div className="mt-1 inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded-full border border-amber-300">
+                  ⚠️ Agente de Retención — retiene 75% del IVA
+                </div>
+              )}
 
               {ivaPercent > 0 && (
                 <div className="mt-3 bg-slate-100 p-3 rounded border border-slate-200">
@@ -1700,7 +1718,7 @@ export default function CajaPage() {
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
                         setRetencionIVA(val);
-                        setMontoRetencionIVA((totalBs * ivaPercent) * (val / 100));
+                        if (val === 0) setComprobanteRetencion('');
                       }}
                       className="border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-emerald-500"
                     >

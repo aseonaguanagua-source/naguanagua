@@ -59,7 +59,13 @@ export default function KioskPage() {
   const [showBancamigaSim, setShowBancamigaSim] = useState(false);
 
   const isResidencialGlobal = foundUser?.Clasificacion?.toLowerCase().includes('residencial') ?? true;
-  const ivaCalculado = isResidencialGlobal ? 0 : (totalSel * 0.16);
+  const esAgenteGlobal = foundUser?.EsAgente ?? false;
+  // IVA total (16% sobre la deuda)
+  const ivaTotalCalculado = isResidencialGlobal ? 0 : (totalSel * 0.16);
+  // Retención: si es agente, retiene 75% del IVA (no lo paga al municipio, lo declara por planilla)
+  const ivaRetenidoCalculado = esAgenteGlobal ? ivaTotalCalculado * 0.75 : 0;
+  // Lo que realmente paga = base + 25% del IVA (o 100% si no es agente)
+  const ivaCalculado = ivaTotalCalculado - ivaRetenidoCalculado;
   const pagoTotalCalculado = totalSel + ivaCalculado;
 
   const getReciboMonto = (r: Recibo): number => {
@@ -299,10 +305,32 @@ export default function KioskPage() {
                   <span className="text-slate-400">Total Deuda ({monthsToPay} {monthsToPay === 1 ? 'mes' : 'meses'})</span>
                   <span className="text-white font-bold text-lg">Bs. {fmtBs(totalSel)}</span>
                 </div>
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-slate-400">IVA (16%)</span>
-                  <span className="text-white font-bold text-lg">Bs. {fmtBs(ivaCalculado)}</span>
-                </div>
+                {!isResidencialGlobal && (
+                  <>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-slate-400">IVA (16%) Total</span>
+                      <span className="text-white font-bold">Bs. {fmtBs(ivaTotalCalculado)}</span>
+                    </div>
+                    {esAgenteGlobal && (
+                      <>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-amber-400 text-sm">↳ IVA Retenido (75%) — sube planilla</span>
+                          <span className="text-amber-400 font-bold">- Bs. {fmtBs(ivaRetenidoCalculado)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mb-4">
+                          <span className="text-slate-400">IVA a Pagar (25%)</span>
+                          <span className="text-white font-bold text-lg">Bs. {fmtBs(ivaCalculado)}</span>
+                        </div>
+                      </>
+                    )}
+                    {!esAgenteGlobal && (
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="text-slate-400">IVA (16%)</span>
+                        <span className="text-white font-bold text-lg">Bs. {fmtBs(ivaCalculado)}</span>
+                      </div>
+                    )}
+                  </>
+                )}
                 <div className="flex justify-between items-center pt-4 border-t border-slate-700/50">
                   <span className="text-emerald-400 font-black text-xl">Pago Total</span>
                   <span className="text-emerald-400 font-black text-2xl">Bs. {fmtBs(pagoTotalCalculado)}</span>
