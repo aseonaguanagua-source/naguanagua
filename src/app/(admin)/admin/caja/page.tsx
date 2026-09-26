@@ -172,7 +172,12 @@ export default function CajaPage() {
       let totalMulta = 0;
       let totalCongelada = 0;
       userInms.forEach((inm: any) => {
-        totalDeudaMMV += parseFloat(inm.deuda_mmv || 0);
+        const d = parseFloat(inm.deuda_mmv || 0);
+        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+        if (d > 0) {
+          if (esRes) totalDeudaMMV += d * getFAR(inm.actividad_principal || '');
+          else totalDeudaMMV += d;
+        }
         totalCongelada += parseFloat(inm.deuda_congelada_bs || 0);
         totalMulta += parseFloat(inm.multa_bs || 0);
       });
@@ -1473,13 +1478,21 @@ export default function CajaPage() {
                 <span className="font-bold">Fórmula Aplicada:</span>{' '}
                 {(() => {
                   const userInms = inmuebles.filter((i: any) => i.identidad === foundUser.Identidad);
-                  const totalDeudaUCD = userInms.reduce((acc: number, inm: any) => acc + parseFloat(inm.deuda_mmv || 0), 0);
-                  if (totalDeudaUCD > 0) {
-                    const ucdMensual = totalDeudaUCD / 2;
+                  let totalMmv = 0;
+                  userInms.forEach((inm: any) => {
+                    const mmv = parseFloat(inm.mmv_mes || 0);
+                    const cant = parseFloat(inm.cant_inmuebles || 1);
+                    const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                    if (mmv > 0) {
+                      if (esRes) totalMmv += cant * mmv * getFAR(inm.actividad_principal || '');
+                      else totalMmv += cant * mmv;
+                    }
+                  });
+                  if (totalMmv > 0) {
                     return (
                       <>
-                        {ucdMensual.toFixed(2)} UCD (Tarifa Mensual) × {currentBcvRate.toFixed(2)} Bs/UCD (Tasa BCV) = {(ucdMensual * currentBcvRate).toFixed(2)} Bs Mensuales.
-                        <span className="block text-[9px] text-slate-400 mt-0.5">* La deuda total bimestral se obtiene multiplicando este monto por 2.</span>
+                        {totalMmv.toFixed(2)} UCD (Tarifa Mensual) × {currentBcvRate.toFixed(2)} Bs/UCD (Tasa BCV) = {(totalMmv * currentBcvRate).toFixed(2)} Bs Mensuales.
+                        <span className="block text-[9px] text-slate-400 mt-0.5">* El sistema cobra la deuda histórica utilizando el registro actualizado cargado en base de datos.</span>
                       </>
                     );
                   }
