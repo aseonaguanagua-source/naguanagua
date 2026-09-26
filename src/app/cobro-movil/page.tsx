@@ -57,6 +57,10 @@ export default function KioskPage() {
   const [payError, setPayError] = useState('');
   const [showBancamigaSim, setShowBancamigaSim] = useState(false);
 
+  const isResidencialGlobal = foundUser?.Clasificacion?.toLowerCase().includes('residencial') ?? true;
+  const ivaCalculado = isResidencialGlobal ? 0 : (totalSel * 0.16);
+  const pagoTotalCalculado = totalSel + ivaCalculado;
+
   const getReciboMonto = (r: Recibo): number => {
     if (r.estado === 'Abonado') return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     if (!tcmmv || tcmmv <= 0) return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
@@ -159,7 +163,7 @@ export default function KioskPage() {
     setIsProcessing(true); setPayError('');
     try {
       await supabase.from('pagos_reportados').insert({
-        identidad: foundUser?.Identidad, monto: totalSel,
+        identidad: foundUser?.Identidad, monto: pagoTotalCalculado,
         banco: method === 'Bancamiga' ? 'Bancamiga' : 'Punto de Venta',
         referencia: ref || `POS-${Date.now()}`, tipo: method, estado: 'Aprobado',
         detalles: JSON.stringify({ recibos: selectedRefs, origen: 'kiosco' })
@@ -172,7 +176,7 @@ export default function KioskPage() {
         if (dinero >= mFac) { await supabase.from('facturas').update({ estado: 'Pagado' }).eq('referencia', r); dinero -= mFac; }
         else if (dinero > 0) { await supabase.from('facturas').update({ monto: (mFac - dinero).toFixed(2), estado: 'Abonado' }).eq('referencia', r); dinero = 0; }
       }
-      logAudit('Cobro por Kiosco', { identidad: foundUser?.Identidad, contribuyente: foundUser?.Contribuyente, monto: totalSel, metodo: method }, 'COBRO');
+      logAudit('Cobro por Kiosco', { identidad: foundUser?.Identidad, contribuyente: foundUser?.Contribuyente, monto: pagoTotalCalculado, metodo: method }, 'COBRO');
       setShowBancamigaSim(false); setStep('success');
     } catch (err: any) { setPayError(err.message || 'Error al procesar el pago.'); }
     setIsProcessing(false);
@@ -283,11 +287,11 @@ export default function KioskPage() {
                 </div>
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-slate-400">IVA (16%)</span>
-                  <span className="text-white font-bold text-lg">Bs. 0,00</span>
+                  <span className="text-white font-bold text-lg">Bs. {fmtBs(ivaCalculado)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-4 border-t border-slate-700/50">
                   <span className="text-emerald-400 font-black text-xl">Pago Total</span>
-                  <span className="text-emerald-400 font-black text-2xl">Bs. {fmtBs(totalSel)}</span>
+                  <span className="text-emerald-400 font-black text-2xl">Bs. {fmtBs(pagoTotalCalculado)}</span>
                 </div>
               </div>
 
@@ -310,7 +314,7 @@ export default function KioskPage() {
               </div>
               <button onClick={() => setStep('pay')}
                 className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-6 rounded-2xl text-2xl mt-2 active:scale-95 transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20">
-                Pagar Bs. {fmtBs(totalSel)} <ArrowRight className="w-7 h-7" />
+                Pagar Bs. {fmtBs(pagoTotalCalculado)} <ArrowRight className="w-7 h-7" />
               </button>
             </div>
           )}
@@ -325,7 +329,7 @@ export default function KioskPage() {
           <h2 className="text-3xl font-black text-white mb-1">Método de Pago</h2>
           <p className="text-slate-400 mb-7">
             <strong className="text-white">{foundUser.Contribuyente}</strong> — cancelar{' '}
-            <strong className="text-emerald-400 text-xl">Bs. {fmtBs(totalSel)}</strong>{' '}
+            <strong className="text-emerald-400 text-xl">Bs. {fmtBs(pagoTotalCalculado)}</strong>{' '}
             ({monthsToPay} {monthsToPay===1?'mes':'meses'})
           </p>
           <div className="grid grid-cols-2 gap-4 mb-7">
@@ -343,7 +347,7 @@ export default function KioskPage() {
               <h3 className="text-xl font-black mb-4 text-white text-center">Instrucciones</h3>
               <ol className="list-decimal list-inside text-slate-300 space-y-3 mb-6 text-lg">
                 <li>Presente su tarjeta de débito en el Punto de Venta.</li>
-                <li>Cancele el monto exacto: <strong className="text-emerald-400">Bs. {fmtBs(totalSel)}</strong>.</li>
+                <li>Cancele el monto exacto: <strong className="text-emerald-400">Bs. {fmtBs(pagoTotalCalculado)}</strong>.</li>
                 <li>Una vez aprobado, ingrese el Nro. de Referencia del voucher:</li>
               </ol>
               <input type="tel" value={referencia} onChange={e => setReferencia(e.target.value)}
@@ -385,7 +389,7 @@ export default function KioskPage() {
             </div>
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-700">
               <span className="text-slate-400 text-lg">Monto Pagado</span>
-              <span className="text-white text-2xl font-black">Bs. {fmtBs(totalSel)}</span>
+              <span className="text-white text-2xl font-black">Bs. {fmtBs(pagoTotalCalculado)}</span>
             </div>
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-700">
               <span className="text-slate-400 text-lg">Períodos Saldados</span>
@@ -412,7 +416,7 @@ export default function KioskPage() {
             <div className="p-8">
               <div className="bg-blue-50 rounded-2xl p-5 text-center mb-6 border border-blue-100">
                 <div className="text-sm text-slate-500 font-bold uppercase">Monto a Cobrar</div>
-                <div className="text-4xl font-black text-slate-800 mt-1">Bs. {fmtBs(totalSel)}</div>
+                <div className="text-4xl font-black text-slate-800 mt-1">Bs. {fmtBs(pagoTotalCalculado)}</div>
                 <div className="text-slate-500 text-sm mt-1">{foundUser?.Contribuyente}</div>
               </div>
               <p className="text-center text-slate-400 text-sm mb-6">Esta pantalla simula la pasarela oficial de Bancamiga. La integración real requiere credenciales del banco.</p>
