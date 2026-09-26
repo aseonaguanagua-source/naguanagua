@@ -91,10 +91,11 @@ export default function KioskPage() {
     if (r.estado === 'Abonado') return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     if (!tcmmv || tcmmv <= 0) return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     if (r.referencia?.startsWith('RECIB-') || r.referencia === 'RECIB-DEUDA') {
-      let totalMonto = 0, totalCongelada = 0;
+      let totalMonto = 0, totalCongelada = 0, totalMulta = 0;
       userInms.forEach(i => { 
         const deuda = parseFloat(String(i.deuda_mmv || 0));
         totalCongelada += parseFloat(String(i.deuda_congelada_bs || 0));
+        totalMulta += parseFloat(String(i.multa_bs || 0));
         if (deuda > 0) {
           const esRes = (i.clasificacion || '').toLowerCase().includes('residencial');
           if (esRes) {
@@ -104,8 +105,8 @@ export default function KioskPage() {
           }
         }
       });
-      if (totalMonto > 0 || totalCongelada > 0) {
-        return parseFloat((totalMonto + totalCongelada).toFixed(2));
+      if (totalMonto > 0 || totalCongelada > 0 || totalMulta > 0) {
+        return parseFloat((totalMonto + totalCongelada + totalMulta).toFixed(2));
       }
     }
     if (r.referencia?.startsWith('CM-')) {

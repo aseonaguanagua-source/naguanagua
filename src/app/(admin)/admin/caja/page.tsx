@@ -157,13 +157,15 @@ export default function CajaPage() {
     // RECIB- = deuda acumulada de N meses → usar deuda_mmv del inmueble × tasa actual
     if (r.referencia?.startsWith('RECIB-')) {
       let totalDeudaMMV = 0;
+      let totalMulta = 0;
       let totalCongelada = 0;
       userInms.forEach((inm: any) => {
         totalDeudaMMV += parseFloat(inm.deuda_mmv || 0);
         totalCongelada += parseFloat(inm.deuda_congelada_bs || 0);
+        totalMulta += parseFloat(inm.multa_bs || 0);
       });
-      if (totalDeudaMMV > 0 || totalCongelada > 0) {
-        let baseMonto = (totalDeudaMMV * tasaActual) + totalCongelada;
+      if (totalDeudaMMV > 0 || totalCongelada > 0 || totalMulta > 0) {
+        let baseMonto = (totalDeudaMMV * tasaActual) + totalCongelada + totalMulta;
         let montoPendiente = 0;
         pagosPendientes.forEach((p: any) => {
           let det: any = {};

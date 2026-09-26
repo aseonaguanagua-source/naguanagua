@@ -76,9 +76,11 @@ export default function DondePagarPage() {
           if (f.referencia?.startsWith('RECIB-')) {
             let totalMonto = 0;
             let totalCongelada = 0;
+            let totalMulta = 0;
             misInmuebles.forEach((inm: any) => { 
               const deuda = parseFloat(inm.deuda_mmv || 0);
               totalCongelada += parseFloat(inm.deuda_congelada_bs || 0);
+              totalMulta += parseFloat(inm.multa_bs || 0);
               if (deuda > 0) {
                 const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
                 if (esRes) {
@@ -88,7 +90,7 @@ export default function DondePagarPage() {
                 }
               }
             });
-            if (totalMonto > 0 || totalCongelada > 0) baseMonto = totalMonto + totalCongelada;
+            if (totalMonto > 0 || totalCongelada > 0 || totalMulta > 0) baseMonto = totalMonto + totalCongelada + totalMulta;
           } else if (f.referencia?.startsWith('CM-')) {
             let totalMonto = 0;
             const targetInms = misInmuebles.filter((inm: any) => inm.inmueble && f.referencia.includes(inm.inmueble));
