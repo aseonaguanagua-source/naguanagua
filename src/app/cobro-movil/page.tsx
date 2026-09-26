@@ -98,9 +98,9 @@ export default function KioskPage() {
         if (deuda > 0) {
           const esRes = (i.clasificacion || '').toLowerCase().includes('residencial');
           if (esRes) {
-            totalMonto += deuda * 57 * getFAR(i.actividad_principal || '') * tcmmv;
+            totalMonto += deuda * getFAR(i.actividad_principal || '') * tcmmv;
           } else {
-            totalMonto += deuda * 57 * tcmmv;
+            totalMonto += deuda * tcmmv;
           }
         }
       });

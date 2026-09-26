@@ -82,9 +82,9 @@ export default function DondePagarPage() {
               if (deuda > 0) {
                 const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
                 if (esRes) {
-                  totalMonto += deuda * 57 * getFAR(inm.actividad_principal || '') * tcmmv;
+                  totalMonto += deuda * getFAR(inm.actividad_principal || '') * tcmmv;
                 } else {
-                  totalMonto += deuda * 57 * tcmmv;
+                  totalMonto += deuda * tcmmv;
                 }
               }
             });
