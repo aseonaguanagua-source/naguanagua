@@ -922,12 +922,25 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-blue-600 font-semibold">Total Documento</span>
-                <span className="text-blue-600 font-bold">{fmt(montoReportadoNum)}</span>
+                <span className="text-blue-600 font-bold">{fmt(montoReportadoNum + parseFloat(String(det.retencion_iva || 0)))}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-green-600 font-semibold">Total Retenciones</span>
-                <span className="text-green-600 font-bold">0,00</span>
-              </div>
+              {det.es_agente_retencion ? (
+                <>
+                  <div className="flex justify-between text-xs text-slate-500 ml-4">
+                    <span>IVA Total (16%)</span>
+                    <span>{fmt(parseFloat(String(det.iva_total || 0)))}</span>
+                  </div>
+                  <div className="flex justify-between text-sm ml-4">
+                    <span className="text-amber-600 font-semibold">Retención IVA (75%)</span>
+                    <span className="text-amber-600 font-bold">- {fmt(parseFloat(String(det.retencion_iva || 0)))}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-sm">
+                  <span className="text-green-600 font-semibold">Total Retenciones</span>
+                  <span className="text-green-600 font-bold">0,00</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm border-t pt-1 mt-1">
                 <span className="font-bold text-slate-800">Total a Pagar</span>
                 <span className="font-bold text-slate-800">{fmt(montoReportadoNum)}</span>
