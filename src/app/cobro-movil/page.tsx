@@ -100,9 +100,21 @@ export default function KioskPage() {
     if (!inmsDB || inmsDB.length === 0) { setSearchError('No encontrado. Verifique su Cédula o RIF.'); setIsSearching(false); return; }
 
     const p = inmsDB[0];
+    let nombreCont = p.contribuyente;
+    
+    // Si no tiene contribuyente en el inmueble, intentar buscar en facturas
+    if (!nombreCont) {
+      const { data: fNombre } = await supabase.from('facturas')
+        .select('contribuyente').eq('identidad', p.identidad)
+        .not('contribuyente', 'is', null).limit(1);
+      if (fNombre && fNombre.length > 0 && fNombre[0].contribuyente) {
+        nombreCont = fNombre[0].contribuyente;
+      }
+    }
+
     const user: Contribuyente = {
       Identidad: p.identidad,
-      Contribuyente: p.contribuyente || 'Sin nombre registrado',
+      Contribuyente: nombreCont || 'Cont. No Registrado',
       Direccion: p.direccion || '',
       Clasificacion: p.clasificacion || 'Residencial',
       Actividad: p.actividad_principal || ''
@@ -261,6 +273,37 @@ export default function KioskPage() {
                 </div>
                 <div className="text-5xl font-black text-white">Bs. {fmtBs(recibos.reduce((s,r) => s + getReciboMonto(r), 0))}</div>
               </div>
+
+              {/* DESGLOSE DE FACTURACIÓN */}
+              <div className="bg-slate-800 rounded-3xl p-6 border border-slate-700 text-sm">
+                <h4 className="font-bold mb-4 text-slate-300">Desglose de Tarifas:</h4>
+                {userInms.map(inm => {
+                  const mmv = parseFloat(String(inm.mmv_mes || 0));
+                  const cant = parseFloat(String(inm.cant_inmuebles || 1));
+                  const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                  if (mmv <= 0) return null;
+                  
+                  const factorNum = esRes ? 0.02673 : 0.128;
+                  const factorPct = esRes ? "2.673%" : "12.8%";
+                  const formulaStr = esRes 
+                    ? `F.O. (${mmv}) × 57 × UCD × ${factorNum}` 
+                    : `F.O. (${mmv}) × UCD × ${factorNum} (${factorPct})`;
+                  
+                  const subtotal = cant * mmv * (esRes ? 57 * factorNum : factorNum) * tcmmv;
+
+                  return (
+                    <div key={inm.id} className="mb-4 pb-4 border-b border-slate-700/50 last:border-0 last:mb-0 last:pb-0">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-emerald-400 font-bold">{inm.inmueble} {cant > 1 ? `(x${cant})` : ''}</span>
+                        <span className="text-white font-bold">Bs. {fmtBs(subtotal)} / mes</span>
+                      </div>
+                      <div className="text-slate-400 text-xs mb-1 font-mono">{formulaStr}</div>
+                      <div className="text-slate-500 text-xs leading-tight">{inm.actividad_principal || 'Residencial'}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div>
                 <h3 className="font-black text-xl mb-4 text-white">¿Cuántos meses deseas cancelar hoy?</h3>
                 <div className="grid grid-cols-3 gap-3">
