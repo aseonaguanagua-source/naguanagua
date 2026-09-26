@@ -116,6 +116,18 @@ export default function KioskPage() {
       }
     }
 
+    // Si aún no tiene nombre, buscar en la tabla oficial de contribuyentes
+    if (!nombreCont) {
+      const { data: cNombre } = await supabase.from('contribuyentes')
+        .select('nombre')
+        .or(`identidad.eq.${fullDoc},identidad.eq.${fullDocDash},identidad.eq.${idLimpio}`)
+        .not('nombre', 'is', null)
+        .limit(1);
+      if (cNombre && cNombre.length > 0 && cNombre[0].nombre) {
+        nombreCont = cNombre[0].nombre;
+      }
+    }
+
     const user: Contribuyente = {
       Identidad: p.identidad,
       Contribuyente: nombreCont || 'Cont. No Registrado',
