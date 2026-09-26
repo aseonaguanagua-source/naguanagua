@@ -2461,7 +2461,19 @@ function ContribuyentesPageContent() {
 
                     // Calcular deuda acumulada directamente del inmueble (puede existir sin facturas)
                     const deudaInmuebleBs = userInms.reduce((sum: number, inm: any) => {
-                      return sum + (parseFloat(inm.deuda_congelada_bs || 0) + (parseFloat(inm.deuda_mmv || 0) * tcmmv));
+                      const deuda = parseFloat(inm.deuda_mmv || 0);
+                      const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                      const multa = parseFloat(inm.multa_bs || 0);
+                      const congelada = parseFloat(inm.deuda_congelada_bs || 0);
+                      let calcDeuda = 0;
+                      if (deuda > 0) {
+                        if (esRes) {
+                          calcDeuda = deuda * getFAR(inm.actividad_principal || '') * tcmmv;
+                        } else {
+                          calcDeuda = deuda * tcmmv;
+                        }
+                      }
+                      return sum + congelada + calcDeuda + multa;
                     }, 0);
                     const tieneDeudaReal = deudaInmuebleBs > 0.01;
                     if (deudas.length === 0 && !tieneDeudaReal) {
@@ -2527,7 +2539,16 @@ function ContribuyentesPageContent() {
                                   <td className="p-2 font-mono text-xs">{inm.inmueble || inm.Inmueble}</td>
                                   <td className="p-2">{inm.tipo || inm.clasificacion || "Residencial"}</td>
                                   <td className="p-2 text-right">{parseFloat(inm.deuda_mmv || 0).toFixed(2)}</td>
-                                  <td className="p-2 text-right font-bold text-red-600">{(parseFloat(inm.deuda_congelada_bs || 0) + (parseFloat(inm.deuda_mmv || 0) * tcmmv)).toFixed(2)} Bs</td>
+                                  <td className="p-2 text-right font-bold text-red-600">{(
+                                      parseFloat(inm.deuda_congelada_bs || 0) + 
+                                      parseFloat(inm.multa_bs || 0) + 
+                                      (parseFloat(inm.deuda_mmv || 0) > 0 ? (
+                                        ((inm.clasificacion || '').toLowerCase().includes('residencial') ? 
+                                          parseFloat(inm.deuda_mmv || 0) * getFAR(inm.actividad_principal || '') * tcmmv 
+                                          : parseFloat(inm.deuda_mmv || 0) * tcmmv
+                                        )
+                                      ) : 0)
+                                    ).toFixed(2)} Bs</td>
                                 </tr>
                               ))}
                             </tbody>

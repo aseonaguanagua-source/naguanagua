@@ -154,6 +154,18 @@ export default function CajaPage() {
       (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
     );
 
+      const getFAR = (actividad: string) => {
+        const act = (actividad || "").toLowerCase();
+        if (act.includes("quinta (a)")) return 0.020366;
+        if (act.includes("apartamento (a)")) return 0.023723;
+        if (act.includes("quinta (b)")) return 0.016298;
+        if (act.includes("apartamento (b)")) return 0.018985;
+        if (act.includes("casa (c)")) return 0.014;
+        if (act.includes("apartamento (c)")) return 0.028839;
+        if (act.includes("casa (d)")) return 0.02673;
+        return 0.02673;
+      };
+
     // RECIB- = deuda acumulada de N meses → usar deuda_mmv del inmueble × tasa actual
     if (r.referencia?.startsWith('RECIB-')) {
       let totalDeudaMMV = 0;
@@ -193,17 +205,6 @@ export default function CajaPage() {
       // Fallback: si no hay match (contribuyente con 1 solo inmueble o ref sin código), usar todos
       if (targetInms.length === 0) targetInms = userInms;
 
-      const getFAR = (actividad: string) => {
-        const act = (actividad || "").toLowerCase();
-        if (act.includes("quinta (a)")) return 0.020366;
-        if (act.includes("apartamento (a)")) return 0.023723;
-        if (act.includes("quinta (b)")) return 0.016298;
-        if (act.includes("apartamento (b)")) return 0.018985;
-        if (act.includes("casa (c)")) return 0.014;
-        if (act.includes("apartamento (c)")) return 0.028839;
-        if (act.includes("casa (d)")) return 0.02673;
-        return 0.02673;
-      };
       let baseMonto = 0;
       targetInms.forEach((inm: any) => {
         const cant = parseFloat(String(inm.cant_inmuebles || 1));
