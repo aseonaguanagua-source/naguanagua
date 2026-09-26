@@ -24,15 +24,34 @@ interface Contribuyente { Contribuyente: string; Identidad: string; Direccion?: 
 
 const fmtBs = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// Fórmula oficial Ordenanza:
-//   Residencial: TR = F.O. × 57 × UCD × 0.02673
-//   Comercial:   TC = F.O. × UCD × 0.1280
+const getFAR = (actividad: string) => {
+  const act = (actividad || '').toLowerCase();
+  if (act.includes('quinta (a)')) return 0.020366;
+  if (act.includes('apartamento (a)')) return 0.023723;
+  if (act.includes('quinta (b)')) return 0.016298;
+  if (act.includes('apartamento (b)')) return 0.018985;
+  if (act.includes('casa (c)')) return 0.014;
+  if (act.includes('apartamento (c)')) return 0.028839;
+  if (act.includes('casa (d)')) return 0.02673;
+  return 0.02673; // default
+};
+
+// Fórmula oficial Ordenanza (UCD = tcmmv):
+//   Residencial: TR = F.O. × 57 × UCD × FAR
+//   Comercial:   TC = F.O. × 57 × UCD × FAC (mmv_mes ya contiene FO × FAC)
 const calcMontoMes = (inm: Inmueble, tcmmv: number): number => {
   const mmv = parseFloat(String(inm.mmv_mes || 0));
   const cant = parseFloat(String(inm.cant_inmuebles || 1));
   if (mmv <= 0 || tcmmv <= 0) return 0;
   const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-  return parseFloat((cant * mmv * (esRes ? 57 * 0.02673 : 0.128) * tcmmv).toFixed(2));
+  
+  if (esRes) {
+    const far = getFAR(inm.actividad_principal || '');
+    return parseFloat((cant * mmv * 57 * far * tcmmv).toFixed(2));
+  } else {
+    // Para comercial, mmv_mes en BD equivale a (F.O. * FAC). Solo multiplicamos por 57 * UCD
+    return parseFloat((cant * mmv * 57 * tcmmv).toFixed(2));
+  }
 };
 
 export default function KioskPage() {
@@ -72,11 +91,21 @@ export default function KioskPage() {
     if (r.estado === 'Abonado') return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     if (!tcmmv || tcmmv <= 0) return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     if (r.referencia?.startsWith('RECIB-') || r.referencia === 'RECIB-DEUDA') {
-      let totalMMV = 0, totalCongelada = 0;
-      userInms.forEach(i => { totalMMV += parseFloat(String(i.deuda_mmv || 0)); totalCongelada += parseFloat(String(i.deuda_congelada_bs || 0)); });
-      if (totalMMV > 0 || totalCongelada > 0) {
-        const esRes = userInms.some(i => (i.clasificacion || '').toLowerCase().includes('residencial'));
-        return parseFloat(((totalMMV * (esRes ? 57 * 0.02673 : 0.128) * tcmmv) + totalCongelada).toFixed(2));
+      let totalMonto = 0, totalCongelada = 0;
+      userInms.forEach(i => { 
+        const deuda = parseFloat(String(i.deuda_mmv || 0));
+        totalCongelada += parseFloat(String(i.deuda_congelada_bs || 0));
+        if (deuda > 0) {
+          const esRes = (i.clasificacion || '').toLowerCase().includes('residencial');
+          if (esRes) {
+            totalMonto += deuda * 57 * getFAR(i.actividad_principal || '') * tcmmv;
+          } else {
+            totalMonto += deuda * 57 * tcmmv;
+          }
+        }
+      });
+      if (totalMonto > 0 || totalCongelada > 0) {
+        return parseFloat((totalMonto + totalCongelada).toFixed(2));
       }
     }
     if (r.referencia?.startsWith('CM-')) {

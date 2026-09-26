@@ -191,31 +191,14 @@ export default function CajaPage() {
       // Fallback: si no hay match (contribuyente con 1 solo inmueble o ref sin código), usar todos
       if (targetInms.length === 0) targetInms = userInms;
 
-      const getFAR = (actividad: string) => {
-        const act = (actividad || "").toLowerCase();
-        if (act.includes("quinta (a)")) return 0.020366;
-        if (act.includes("apartamento (a)")) return 0.023723;
-        if (act.includes("quinta (b)")) return 0.016298;
-        if (act.includes("apartamento (b)")) return 0.018985;
-        if (act.includes("casa (c)")) return 0.014;
-        if (act.includes("apartamento (c)")) return 0.028839;
-        if (act.includes("casa (d)")) return 0.02673;
-        return 0.02673;
-      };
-      let baseMonto = 0;
+      let monthlyMMV = 0;
       targetInms.forEach((inm: any) => {
-        const cant = parseFloat(String(inm.cant_inmuebles || 1));
-        const mmv  = parseFloat(String(inm.mmv_mes || 0));
-        if (mmv > 0) {
-          const esRes = (inm.clasificacion || "").toLowerCase().includes("residencial");
-          if (esRes) {
-            baseMonto += cant * mmv * 57 * getFAR(inm.actividad_principal || "") * tasaActual;
-          } else {
-            baseMonto += cant * mmv * 57 * tasaActual;
-          }
-        }
+        const cant = parseFloat(inm.cant_inmuebles || 1);
+        const mmv  = parseFloat(inm.mmv_mes || 0);
+        if (mmv > 0) monthlyMMV += cant * mmv;
       });
-      if (baseMonto > 0) {
+      if (monthlyMMV > 0) {
+        let baseMonto = monthlyMMV * tasaActual;
         let montoPendiente = 0;
         pagosPendientes.forEach((p: any) => {
           let det: any = {};

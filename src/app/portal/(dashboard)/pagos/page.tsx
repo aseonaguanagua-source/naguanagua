@@ -60,27 +60,53 @@ export default function DondePagarPage() {
           return portalDoc && (id === docNorm || idFmt2 === docFmt || id === portalDoc.toUpperCase() || id === soloNum);
         });
 
+        const getFAR = (actividad: string) => {
+          const act = (actividad || '').toLowerCase();
+          if (act.includes('quinta (a)')) return 0.020366;
+          if (act.includes('apartamento (a)')) return 0.023723;
+          if (act.includes('quinta (b)')) return 0.016298;
+          if (act.includes('apartamento (b)')) return 0.018985;
+          if (act.includes('casa (c)')) return 0.014;
+          if (act.includes('apartamento (c)')) return 0.028839;
+          if (act.includes('casa (d)')) return 0.02673;
+          return 0.02673;
+        };
+
         if (tcmmv > 0) {
           if (f.referencia?.startsWith('RECIB-')) {
-            let totalDeudaMMV = 0;
+            let totalMonto = 0;
             let totalCongelada = 0;
-            misInmuebles.forEach((inm: any) => { totalDeudaMMV += parseFloat(inm.deuda_mmv || 0); totalCongelada += parseFloat(inm.deuda_congelada_bs || 0); });
-            if (totalDeudaMMV > 0 || totalCongelada > 0) baseMonto = (totalDeudaMMV * tcmmv) + totalCongelada;
+            misInmuebles.forEach((inm: any) => { 
+              const deuda = parseFloat(inm.deuda_mmv || 0);
+              totalCongelada += parseFloat(inm.deuda_congelada_bs || 0);
+              if (deuda > 0) {
+                const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                if (esRes) {
+                  totalMonto += deuda * 57 * getFAR(inm.actividad_principal || '') * tcmmv;
+                } else {
+                  totalMonto += deuda * 57 * tcmmv;
+                }
+              }
+            });
+            if (totalMonto > 0 || totalCongelada > 0) baseMonto = totalMonto + totalCongelada;
           } else if (f.referencia?.startsWith('CM-')) {
-            let monthlyMMV = 0;
-            const matchedInmueble = misInmuebles.find((inm: any) => inm.inmueble && f.referencia.includes(inm.inmueble));
-            if (matchedInmueble) {
-              const cant = parseFloat(matchedInmueble.cant_inmuebles || 1);
-              const mmv  = parseFloat(matchedInmueble.mmv_mes || 0);
-              if (mmv > 0) monthlyMMV = cant * mmv;
-            } else {
-              misInmuebles.forEach((inm: any) => {
-                const cant = parseFloat(inm.cant_inmuebles || 1);
-                const mmv  = parseFloat(inm.mmv_mes || 0);
-                if (mmv > 0) monthlyMMV += cant * mmv;
-              });
-            }
-            if (monthlyMMV > 0) baseMonto = monthlyMMV * tcmmv;
+            let totalMonto = 0;
+            const targetInms = misInmuebles.filter((inm: any) => inm.inmueble && f.referencia.includes(inm.inmueble));
+            const inmsToCalc = targetInms.length > 0 ? targetInms : misInmuebles;
+            
+            inmsToCalc.forEach((inm: any) => {
+              const cant = parseFloat(inm.cant_inmuebles || 1);
+              const mmv  = parseFloat(inm.mmv_mes || 0);
+              if (mmv > 0) {
+                const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                if (esRes) {
+                  totalMonto += cant * mmv * 57 * getFAR(inm.actividad_principal || '') * tcmmv;
+                } else {
+                  totalMonto += cant * mmv * 57 * tcmmv;
+                }
+              }
+            });
+            if (totalMonto > 0) baseMonto = totalMonto;
           }
         }
         
