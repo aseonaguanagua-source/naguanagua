@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Landmark, MapPin, User2, Building2 } from 'lucide-react';
+import { CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Landmark, MapPin, User2, Building2, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 
@@ -18,8 +18,9 @@ interface Inmueble {
   clasificacion?: string;
   direccion?: string;
   actividad_principal?: string;
+  agente_retencion?: boolean;
 }
-interface Contribuyente { Contribuyente: string; Identidad: string; Direccion?: string; Clasificacion?: string; Actividad?: string; }
+interface Contribuyente { Contribuyente: string; Identidad: string; Direccion?: string; Clasificacion?: string; Actividad?: string; EsAgente?: boolean; }
 
 const fmtBs = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -98,7 +99,7 @@ export default function KioskPage() {
     const fullDocDash = docType + '-' + idLimpio;
 
     const { data: inmsDB } = await supabase.from('inmuebles')
-      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal')
+      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion')
       .or(`identidad.eq.${fullDoc},identidad.eq.${fullDocDash},identidad.eq.${idLimpio}`);
 
     if (!inmsDB || inmsDB.length === 0) { setSearchError('No encontrado. Verifique su Cédula o RIF.'); setIsSearching(false); return; }
@@ -133,7 +134,8 @@ export default function KioskPage() {
       Contribuyente: nombreCont || 'Cont. No Registrado',
       Direccion: p.direccion || '',
       Clasificacion: p.clasificacion || 'Residencial',
-      Actividad: p.actividad_principal || ''
+      Actividad: p.actividad_principal || '',
+      EsAgente: (inmsDB as any[]).some(i => i.agente_retencion === true),
     };
     setFoundUser(user);
     setUserInms(inmsDB as Inmueble[]);
@@ -324,6 +326,20 @@ export default function KioskPage() {
                   )}
                 </div>
               </div>
+              {/* AVISO AGENTE DE RETENCIÓN */}
+              {foundUser?.EsAgente && (
+                <div className="flex items-start gap-4 bg-amber-400/20 border-2 border-amber-400 rounded-2xl px-5 py-4">
+                  <TriangleAlert className="w-8 h-8 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-amber-300 font-black text-lg leading-tight mb-1">
+                      Usted es Agente de Retención
+                    </div>
+                    <div className="text-amber-200 text-sm leading-relaxed">
+                      Recuerde que como Agente de Retención debe <strong>cargar su planilla de retención de IVA</strong> a través del portal web en <em>Soy Contribuyente → Retenciones IVA</em>, indicando el monto retenido correspondiente al <strong>75% del IVA</strong> de esta factura.
+                    </div>
+                  </div>
+                </div>
+              )}
               <button onClick={() => setStep('pay')}
                 className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-6 rounded-2xl text-2xl mt-2 active:scale-95 transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20">
                 Pagar Bs. {fmtBs(pagoTotalCalculado)} <ArrowRight className="w-7 h-7" />

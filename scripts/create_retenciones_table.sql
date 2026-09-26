@@ -28,22 +28,24 @@ CREATE TABLE IF NOT EXISTS public.retenciones_iva (
 CREATE INDEX IF NOT EXISTS idx_ret_identidad ON public.retenciones_iva(identidad);
 CREATE INDEX IF NOT EXISTS idx_ret_estado ON public.retenciones_iva(estado);
 
+-- RLS
+ALTER TABLE public.retenciones_iva ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Lectura admin" ON public.retenciones_iva;
+CREATE POLICY "Lectura admin" ON public.retenciones_iva FOR ALL USING (true);
+
 -- Storage bucket para PDFs (si no existe)
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('retenciones', 'retenciones', false)
 ON CONFLICT DO NOTHING;
 
--- Política para que solo usuarios autenticados puedan subir
-CREATE POLICY IF NOT EXISTS "Subir planillas" ON storage.objects
+-- Politicas de storage
+DROP POLICY IF EXISTS "Subir planillas" ON storage.objects;
+CREATE POLICY "Subir planillas" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'retenciones');
 
-CREATE POLICY IF NOT EXISTS "Ver planillas propias" ON storage.objects
+DROP POLICY IF EXISTS "Ver planillas" ON storage.objects;
+CREATE POLICY "Ver planillas" ON storage.objects
   FOR SELECT TO authenticated
   USING (bucket_id = 'retenciones');
-
--- RLS en retenciones_iva (opcional, permite todo desde service_role)
-ALTER TABLE public.retenciones_iva ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY IF NOT EXISTS "Lectura admin" ON public.retenciones_iva
-  FOR ALL USING (true);
