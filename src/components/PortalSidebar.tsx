@@ -4,10 +4,11 @@ import { usePathname } from 'next/navigation';
 import { 
   Home, Building2, FileText, CreditCard, History,
   Award, CalendarDays, MessageSquareWarning, Wrench,
-  ShieldCheck, SearchCheck, User as UserIcon, LogOut, Menu, X, TreePine
+  ShieldCheck, SearchCheck, User as UserIcon, LogOut, Menu, X, TreePine, Receipt
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 interface PortalSidebarProps {
   isOpen?: boolean;
@@ -37,6 +38,12 @@ const menuSections = [
     ]
   },
   {
+    title: 'FISCAL',
+    items: [
+      { name: 'Retenciones IVA', icon: Receipt, href: '/portal/retenciones', agenteOnly: true },
+    ]
+  },
+  {
     title: 'SERVICIOS',
     items: [
       { name: 'Horarios de Rutas', icon: CalendarDays, href: '/portal/rutas' },
@@ -63,10 +70,18 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
   const router = useRouter();
   const [user, setUser] = useState<string>('Contribuyente');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isAgente, setIsAgente] = useState(false);
 
   useEffect(() => {
     const portalUser = localStorage.getItem('portal_user');
     if (portalUser) setUser(portalUser);
+    const doc = localStorage.getItem('portal_doc') || localStorage.getItem('portal_codigo') || '';
+    if (doc) {
+      supabase.from('inmuebles').select('agente_retencion')
+        .or(`identidad.eq.${doc},identidad.eq.${doc.replace(/-/g,'')}`)
+        .eq('agente_retencion', true).limit(1)
+        .then(({ data }) => { if (data && data.length > 0) setIsAgente(true); });
+    }
   }, []);
 
   const handleLogout = () => {
@@ -91,13 +106,16 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
 
       {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        {menuSections.map((section, idx) => (
+        {menuSections.map((section, idx) => {
+          const visibleItems = section.items.filter((item: any) => !item.agenteOnly || isAgente);
+          if (visibleItems.length === 0) return null;
+          return (
           <div key={idx} className="mb-5">
             <h4 className="px-5 text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-widest">
               {section.title}
             </h4>
             <ul className="space-y-0.5">
-              {section.items.map((item) => {
+              {visibleItems.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <li key={item.name}>
@@ -119,7 +137,8 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Footer */}

@@ -2,10 +2,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   CheckCheck, RefreshCw, Filter, Landmark, Eye, Download, X,
-  Pencil, Mail, Building2
+  Pencil, Mail, Building2, Receipt
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
+import AdminRetenciones from '@/components/AdminRetenciones';
 
 type Pago = {
   id: string;
@@ -978,6 +979,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 // ─── PAGINA PRINCIPAL ────────────────────────────────────
 export default function ConciliacionPage() {
   const { inmuebles } = useAppContext();
+  const [activeTab, setActiveTab] = useState<'pagos' | 'retenciones'>('pagos');
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [loading, setLoading] = useState(false);
   const [filtros, setFiltros] = useState<Filtros>({
@@ -1073,51 +1075,74 @@ export default function ConciliacionPage() {
         <CheckCheck className="w-7 h-7 text-slate-700"/>
         <h1 className="text-2xl font-bold text-slate-800 uppercase tracking-wide">Conciliacion</h1>
       </div>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 rounded-t-xl">
-          <span className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2"><Filter size={15}/> Seleccione los Filtros</span>
-          <button onClick={fetchPagos} disabled={loading} className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50">
-            <Filter size={14}/> {loading ? 'Cargando...' : 'Aplicar Filtros'}
-          </button>
-        </div>
-        <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Rango de Fechas</label>
-            <div className="flex gap-1">
-              <input type="date" value={filtros.desde} onChange={e=>setFiltros(f=>({...f,desde:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400"/>
-              <input type="date" value={filtros.hasta} onChange={e=>setFiltros(f=>({...f,hasta:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400"/>
+
+      {/* TABS */}
+      <div className="flex gap-1 border-b border-slate-200 mb-4">
+        <button onClick={() => setActiveTab('pagos')}
+          className={`px-5 py-2.5 text-sm font-bold transition-all border-b-2 -mb-px ${
+            activeTab === 'pagos' ? 'border-cyan-500 text-cyan-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <span className="flex items-center gap-2"><Landmark size={15}/> Pagos Reportados</span>
+        </button>
+        <button onClick={() => setActiveTab('retenciones')}
+          className={`px-5 py-2.5 text-sm font-bold transition-all border-b-2 -mb-px ${
+            activeTab === 'retenciones' ? 'border-purple-500 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <span className="flex items-center gap-2"><Receipt size={15}/> Retenciones IVA</span>
+        </button>
+      </div>
+
+      {activeTab === 'retenciones' && <AdminRetenciones />}
+      {activeTab === 'pagos' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 rounded-t-xl">
+              <span className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2"><Filter size={15}/> Seleccione los Filtros</span>
+              <button onClick={fetchPagos} disabled={loading} className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50">
+                <Filter size={14}/> {loading ? 'Cargando...' : 'Aplicar Filtros'}
+              </button>
+            </div>
+            <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
+              <div className="lg:col-span-2">
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Rango de Fechas</label>
+                <div className="flex gap-1">
+                  <input type="date" value={filtros.desde} onChange={e=>setFiltros(f=>({...f,desde:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400"/>
+                  <input type="date" value={filtros.hasta} onChange={e=>setFiltros(f=>({...f,hasta:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400"/>
+                </div>
+              </div>
+              <div><label className="block text-xs font-semibold text-slate-500 mb-1">Estatus</label><select value={filtros.estatus} onChange={e=>setFiltros(f=>({...f,estatus:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{ESTATUS_LIST.map(s=><option key={s}>{s}</option>)}</select></div>
+              <div><label className="block text-xs font-semibold text-slate-500 mb-1">Banco Destino</label><select value={filtros.bancoDestino} onChange={e=>setFiltros(f=>({...f,bancoDestino:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{BANCOS_DESTINO.map(b=><option key={b}>{b}</option>)}</select></div>
+              <div><label className="block text-xs font-semibold text-slate-500 mb-1">Forma de pago</label><select value={filtros.formaPago} onChange={e=>setFiltros(f=>({...f,formaPago:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{FORMAS_PAGO.map(fp=><option key={fp}>{fp}</option>)}</select></div>
+              <div><label className="block text-xs font-semibold text-slate-500 mb-1">Referencia de Pago</label><input value={filtros.referencia} onChange={e=>setFiltros(f=>({...f,referencia:e.target.value}))} placeholder="Referencia..." className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
+              <div><label className="block text-xs font-semibold text-slate-500 mb-1">Monto</label><input value={filtros.monto} onChange={e=>setFiltros(f=>({...f,monto:e.target.value}))} placeholder="Monto exacto" type="number" className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
             </div>
           </div>
-          <div><label className="block text-xs font-semibold text-slate-500 mb-1">Estatus</label><select value={filtros.estatus} onChange={e=>setFiltros(f=>({...f,estatus:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{ESTATUS_LIST.map(s=><option key={s}>{s}</option>)}</select></div>
-          <div><label className="block text-xs font-semibold text-slate-500 mb-1">Banco Destino</label><select value={filtros.bancoDestino} onChange={e=>setFiltros(f=>({...f,bancoDestino:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{BANCOS_DESTINO.map(b=><option key={b}>{b}</option>)}</select></div>
-          <div><label className="block text-xs font-semibold text-slate-500 mb-1">Forma de pago</label><select value={filtros.formaPago} onChange={e=>setFiltros(f=>({...f,formaPago:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{FORMAS_PAGO.map(fp=><option key={fp}>{fp}</option>)}</select></div>
-          <div><label className="block text-xs font-semibold text-slate-500 mb-1">Referencia de Pago</label><input value={filtros.referencia} onChange={e=>setFiltros(f=>({...f,referencia:e.target.value}))} placeholder="Referencia..." className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
-          <div><label className="block text-xs font-semibold text-slate-500 mb-1">Monto</label><input value={filtros.monto} onChange={e=>setFiltros(f=>({...f,monto:e.target.value}))} placeholder="Monto exacto" type="number" className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
-        </div>
-      </div>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-slate-400"><RefreshCw size={24} className="animate-spin mr-3"/> Cargando pagos...</div>
-        ) : pagos.length === 0 ? (
-          <div className="text-center py-16 text-slate-400"><Building2 size={40} className="mx-auto mb-3 opacity-30"/><p>No se encontraron pagos. Aplique filtros y haga clic en "Aplicar Filtros".</p></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-100 border-b border-slate-300">
-                <tr>{['Contribuyente','Inmueble','Referencia','Reportado','Transaccion','Tipo','Banco Orig','Banco Dest','Estatus','Monto'].map(h=><th key={h} className="px-3 py-2 text-[11px] font-bold text-slate-600 uppercase tracking-wide">{h}</th>)}</tr>
-              </thead>
-              <tbody>{filas}</tbody>
-            </table>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {loading ? (
+              <div className="flex items-center justify-center py-16 text-slate-400"><RefreshCw size={24} className="animate-spin mr-3"/> Cargando pagos...</div>
+            ) : pagos.length === 0 ? (
+              <div className="text-center py-16 text-slate-400"><Building2 size={40} className="mx-auto mb-3 opacity-30"/><p>No se encontraron pagos. Aplique filtros y haga clic en &quot;Aplicar Filtros&quot;.</p></div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-100 border-b border-slate-300">
+                    <tr>{['Contribuyente','Inmueble','Referencia','Reportado','Transaccion','Tipo','Banco Orig','Banco Dest','Estatus','Monto'].map(h=><th key={h} className="px-3 py-2 text-[11px] font-bold text-slate-600 uppercase tracking-wide">{h}</th>)}</tr>
+                  </thead>
+                  <tbody>{filas}</tbody>
+                </table>
+              </div>
+            )}
+            {!loading && pagos.length > 0 && <div className="px-4 py-2 border-t border-slate-100 text-xs text-slate-400 bg-slate-50">{pagos.length} registro(s) encontrados</div>}
           </div>
-        )}
-        {!loading && pagos.length > 0 && <div className="px-4 py-2 border-t border-slate-100 text-xs text-slate-400 bg-slate-50">{pagos.length} registro(s) encontrados</div>}
-      </div>
-      {pagoSel && mode === 'conciliar' && <ModalConciliacion pago={pagoSel} onClose={cerrar} onSuccess={onSuccess}/>}
-      {pagoSel && mode === 'comprobante' && <ModalComprobante pago={pagoSel} onClose={cerrar}/>}
-      {pagoSel && mode === 'edoCuenta' && <ModalEstadoCuenta pago={pagoSel} onClose={cerrar}/>}
+          {pagoSel && mode === 'conciliar' && <ModalConciliacion pago={pagoSel} onClose={cerrar} onSuccess={onSuccess}/>}
+          {pagoSel && mode === 'comprobante' && <ModalComprobante pago={pagoSel} onClose={cerrar}/>}
+          {pagoSel && mode === 'edoCuenta' && <ModalEstadoCuenta pago={pagoSel} onClose={cerrar}/>}
+        </div>
+      )}
     </div>
   );
 }
+
 
 
 
