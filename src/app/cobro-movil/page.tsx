@@ -274,34 +274,21 @@ export default function KioskPage() {
                 <div className="text-5xl font-black text-white">Bs. {fmtBs(recibos.reduce((s,r) => s + getReciboMonto(r), 0))}</div>
               </div>
 
-              {/* DESGLOSE DE FACTURACIÓN */}
-              <div className="bg-slate-800 rounded-3xl p-6 border border-slate-700 text-sm">
-                <h4 className="font-bold mb-4 text-slate-300">Desglose de Tarifas:</h4>
-                {userInms.map(inm => {
-                  const mmv = parseFloat(String(inm.mmv_mes || 0));
-                  const cant = parseFloat(String(inm.cant_inmuebles || 1));
-                  const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-                  if (mmv <= 0) return null;
-                  
-                  const factorNum = esRes ? 0.02673 : 0.128;
-                  const factorPct = esRes ? "2.673%" : "12.8%";
-                  const formulaStr = esRes 
-                    ? `F.O. (${mmv}) × 57 × UCD × ${factorNum}` 
-                    : `F.O. (${mmv}) × UCD × ${factorNum} (${factorPct})`;
-                  
-                  const subtotal = cant * mmv * (esRes ? 57 * factorNum : factorNum) * tcmmv;
-
-                  return (
-                    <div key={inm.id} className="mb-4 pb-4 border-b border-slate-700/50 last:border-0 last:mb-0 last:pb-0">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-emerald-400 font-bold">{inm.inmueble} {cant > 1 ? `(x${cant})` : ''}</span>
-                        <span className="text-white font-bold">Bs. {fmtBs(subtotal)} / mes</span>
-                      </div>
-                      <div className="text-slate-400 text-xs mb-1 font-mono">{formulaStr}</div>
-                      <div className="text-slate-500 text-xs leading-tight">{inm.actividad_principal || 'Residencial'}</div>
-                    </div>
-                  );
-                })}
+              {/* RESUMEN DE PAGO */}
+              <div className="bg-slate-800 rounded-3xl p-6 border border-slate-700">
+                <h4 className="font-bold mb-4 text-slate-300 uppercase tracking-widest text-xs">Detalle a Pagar</h4>
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-slate-400">Total Deuda ({monthsToPay} {monthsToPay === 1 ? 'mes' : 'meses'})</span>
+                  <span className="text-white font-bold text-lg">Bs. {fmtBs(totalSel)}</span>
+                </div>
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-slate-400">IVA (16%)</span>
+                  <span className="text-white font-bold text-lg">Bs. 0,00</span>
+                </div>
+                <div className="flex justify-between items-center pt-4 border-t border-slate-700/50">
+                  <span className="text-emerald-400 font-black text-xl">Pago Total</span>
+                  <span className="text-emerald-400 font-black text-2xl">Bs. {fmtBs(totalSel)}</span>
+                </div>
               </div>
 
               <div>
