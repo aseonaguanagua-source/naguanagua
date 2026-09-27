@@ -1810,10 +1810,6 @@ export default function CajaPage() {
                 <span>Base Imponible Total:</span>
                 <span className="font-semibold">Bs. {formatBs(sumBase)}</span>
               </div>
-              <div className="flex justify-between items-center text-slate-500 text-xs mt-1">
-                <span>Equivalente por Mes:</span>
-                <span>Bs. {formatBs(totalBs / 2)}</span>
-              </div>
               
               <div className="flex justify-between items-center text-slate-600 mt-2">
                 <span>IVA (16%) Total:</span>
