@@ -584,10 +584,21 @@ export default function CajaPage() {
       if (s) total += parseFloat(s.monto || '0');
     });
     
-    setTotalBs(total);
-
     let sb = 0, siva = 0, smulta = 0;
     const tasaActualUse = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
+
+    if (isCondominio && condominioModo === 'Local') {
+      selectedHijos.forEach(id => {
+        const h = condominioHijos.find((ch: any) => ch.id === id);
+        if (h) {
+          const monto = (h.deuda_mmv || 0) * tasaActualUse;
+          total += monto;
+          sb += monto;
+        }
+      });
+    }
+
+    setTotalBs(total);
 
     selectedRecibos.forEach(ref => {
       if (ref.startsWith('RECIB-HIST-')) {
@@ -638,7 +649,7 @@ export default function CajaPage() {
     setSumIVA(siva);
     setSumMulta(smulta);
 
-  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser]);
+  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos]);
 
   const toggleRecibo = (ref: string) => {
     const sortedRecibos = [...recibos].sort((a: any, b: any) => {
@@ -2386,10 +2397,10 @@ export default function CajaPage() {
                           if (e.target.checked) {
                             const allIds = condominioHijos.map(h => h.id);
                             setSelectedHijos(allIds);
-                            setTotalBs(condominioHijos.reduce((acc, h) => acc + ((h.deuda_mmv || 0) * tcmmv), 0));
+                            // setTotalBs happens in useEffect
                           } else {
                             setSelectedHijos([]);
-                            setTotalBs(0);
+                            // setTotalBs(0) happens in useEffect
                           }
                         }} checked={selectedHijos.length === condominioHijos.length && condominioHijos.length > 0} className="w-4 h-4 accent-emerald-600 cursor-pointer" />
                       </th>
@@ -2413,8 +2424,7 @@ export default function CajaPage() {
                             if (e.target.checked) newSelected = [...selectedHijos, hijo.id];
                             else newSelected = selectedHijos.filter(id => id !== hijo.id);
                             setSelectedHijos(newSelected);
-                            const newTotal = condominioHijos.filter(h => newSelected.includes(h.id)).reduce((acc, h) => acc + ((h.deuda_mmv || 0) * tcmmv), 0);
-                            setTotalBs(newTotal);
+                            // newTotal is handled in useEffect
                           }} className="w-4 h-4 accent-emerald-600 cursor-pointer" />
                         </td>
                         <td className="py-2 px-3 align-top pt-2.5">
