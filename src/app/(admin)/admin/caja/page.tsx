@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
+import { calcularMensualidad } from '@/lib/calculos';
 
 const getFAR = (actividad: string) => {
   const act = (actividad || '').toLowerCase();
@@ -167,24 +168,16 @@ export default function CajaPage() {
     );
 
 
-    // RECIB- = deuda acumulada de N meses → usar deuda_mmv del inmueble × tasa actual
+    // RECIB- = deuda acumulada de N meses → calcular un mes usando nuevas tarifas + IVA + Multa
     if (r.referencia?.startsWith('RECIB-HIST-')) {
       const parts = r.referencia.split('-');
       const inmId = parts[2];
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
-        const meses = Math.max(1, parseInt(inm.meses_deuda || 1));
-        const d = parseFloat(inm.deuda_mmv || 0);
-        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-        let ucdTotal = 0;
-        if (d > 0) {
-          if (esRes) ucdTotal = d * getFAR(inm.actividad_principal || '');
-          else ucdTotal = d;
-        }
-        const congelada = parseFloat(inm.deuda_congelada_bs || 0);
-        const multa = parseFloat(inm.multa_bs || 0);
-        
-        const baseMonto = ((ucdTotal * tasaActual) + congelada + multa) / meses;
+        const baseMonto = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual);
+        const montoIVA = baseMonto * 0.16;
+        const montoMulta = baseMonto * 0.12;
+        const totalMes = baseMonto + montoIVA + montoMulta;
         
         let montoPendiente = 0;
         pagosPendientes.forEach((p: any) => {
@@ -196,7 +189,7 @@ export default function CajaPage() {
             if (refs.length > 0) montoPendiente += (montoPago / refs.length);
           }
         });
-        return String(Math.max(0, baseMonto - montoPendiente).toFixed(2));
+        return String(Math.max(0, totalMes - montoPendiente).toFixed(2));
       }
       return '0.00';
     } else if (r.referencia?.startsWith('RECIB-')) {
@@ -205,30 +198,24 @@ export default function CajaPage() {
     }
 
     // CM- = exactamente 1 mes del inmueble específico referenciado en la factura
-    // Usa el mismo matching que la UI: r.referencia.includes(inm.inmueble)
     if (r.referencia?.startsWith('CM-')) {
-      // Buscar el inmueble cuyo código está contenido en la referencia
       let targetInms = userInms.filter((inm: any) =>
         inm.inmueble && (r.referencia || '').includes(inm.inmueble)
       );
 
-      // Fallback: si no hay match (contribuyente con 1 solo inmueble o ref sin código), usar todos
       if (targetInms.length === 0) targetInms = userInms;
 
-      let baseMonto = 0;
+      let totalBase = 0;
       targetInms.forEach((inm: any) => {
-        const cant = parseFloat(String(inm.cant_inmuebles || 1));
-        const mmv  = parseFloat(String(inm.mmv_mes || 0));
-        if (mmv > 0) {
-          const esRes = (inm.clasificacion || "").toLowerCase().includes("residencial");
-          if (esRes) {
-            baseMonto += cant * mmv * 57 * getFAR(inm.actividad_principal || "") * tasaActual;
-          } else {
-            baseMonto += cant * mmv * 57 * tasaActual;
-          }
-        }
+        const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual);
+        totalBase += bm;
       });
-      if (baseMonto > 0) {
+      // CM is just base + IVA, no multa for current month? Actually let's assume current month CM has no multa.
+      // Wait, does it have IVA? Let's just return Base + IVA for now, or maybe the old logic which was BaseMonto.
+      // We will stick to Base + IVA for CM.
+      const totalConIva = totalBase + (totalBase * 0.16);
+
+      if (totalConIva > 0) {
         let montoPendiente = 0;
         pagosPendientes.forEach((p: any) => {
           let det: any = {};
@@ -239,7 +226,7 @@ export default function CajaPage() {
             if (refs.length > 0) montoPendiente += (montoPago / refs.length);
           }
         });
-        return String(Math.max(0, baseMonto - montoPendiente).toFixed(2));
+        return String(Math.max(0, totalConIva - montoPendiente).toFixed(2));
       }
     }
 
@@ -1055,14 +1042,27 @@ export default function CajaPage() {
             const grupos = Object.values(facturasPorInmueble);
             const recibosArray = grupos.map((grupo, idx) => {
               const inmGrupo = grupo.inm || primerInm;
-              const conceptosGrupo = grupo.refs.map((ref: string) => {
-                const f = recibos.find((r: any) => r.referencia === ref);
-                const montoF = f ? parseFloat(getReciboMonto(f) || '0') : 0;
-                return {
-                  descripcion: `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${getMesRec(f?.emision || '')}`,
-                  precioUnit: montoF,
-                  total: montoF
-                };
+              const conceptosGrupo: any[] = [];
+              grupo.refs.forEach((ref: string) => {
+                if (ref.startsWith('RECIB-HIST-')) {
+                  const pDet = pagosPendientes.find((p: any) => p.facturas && p.facturas[0]?.referencia === ref);
+                  if (pDet && pDet.facturas && pDet.facturas[0]) {
+                    const f = pDet.facturas[0];
+                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Base Imponible`, precioUnit: parseFloat(f.base), total: parseFloat(f.base) });
+                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - IVA (16%)`, precioUnit: parseFloat(f.iva), total: parseFloat(f.iva) });
+                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Multa (12%)`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
+                  } else {
+                     conceptosGrupo.push({ descripcion: `Deuda Histórica: ${ref}`, precioUnit: 0, total: 0 });
+                  }
+                } else {
+                  const f = recibos.find((r: any) => r.referencia === ref);
+                  const montoF = f ? parseFloat(getReciboMonto(f) || '0') : 0;
+                  conceptosGrupo.push({
+                    descripcion: `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${getMesRec(f?.emision || '')}`,
+                    precioUnit: montoF,
+                    total: montoF
+                  });
+                }
               });
               const totalGrupo = conceptosGrupo.reduce((s: number, c: any) => s + c.total, 0);
               const refNum = (grupo.refs[0] || '').split('-').pop()?.padStart(7, '0') || String(idx + 1).padStart(7, '0');
