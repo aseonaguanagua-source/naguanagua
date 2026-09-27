@@ -64,6 +64,9 @@ export default function CajaPage() {
   const [selectedCuotas, setSelectedCuotas] = useState<{convId: string, cuotaId: number}[]>([]);
   const [selectedServicios, setSelectedServicios] = useState<string[]>([]);
   const [totalBs, setTotalBs] = useState(0);
+  const [sumBase, setSumBase] = useState(0);
+  const [sumIVA, setSumIVA] = useState(0);
+  const [sumMulta, setSumMulta] = useState(0);
   // Computed — always derived from totalBs × ivaPercent × retencionIVA%
   const montoRetencionIVA = (totalBs * ivaPercent) * (retencionIVA / 100);
 
@@ -177,7 +180,9 @@ export default function CajaPage() {
         const baseMonto = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual);
         const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
         const montoIVA = esRes ? 0 : baseMonto * 0.16;
-        const montoMulta = baseMonto * (esRes ? 0.10 : 0.12);
+        const emision = r.emision ? new Date(r.emision) : new Date();
+        const isCurrentMonth = emision.getMonth() === new Date().getMonth() && emision.getFullYear() === new Date().getFullYear();
+        const montoMulta = isCurrentMonth ? 0 : baseMonto * (esRes ? 0.10 : 0.12);
         const totalMes = baseMonto + montoIVA + montoMulta;
         
         let montoPendiente = 0;
@@ -569,7 +574,59 @@ export default function CajaPage() {
     });
     
     setTotalBs(total);
-  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda]);
+
+    let sb = 0, siva = 0, smulta = 0;
+    const tasaActualUse = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
+
+    selectedRecibos.forEach(ref => {
+      if (ref.startsWith('RECIB-HIST-')) {
+        const parts = ref.split('-');
+        const inmId = parts[2];
+        const inm = (inmuebles || []).find((i) => i.inmueble === inmId);
+        if (inm) {
+          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse);
+          const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+          sb += bm;
+          siva += esRes ? 0 : bm * 0.16;
+          const f = recibos.find(r => r.referencia === ref);
+          const emision = f && f.emision ? new Date(f.emision) : new Date();
+          const isCurrentMonth = emision.getMonth() === new Date().getMonth() && emision.getFullYear() === new Date().getFullYear();
+          if (!isCurrentMonth) {
+            smulta += bm * (esRes ? 0.10 : 0.12);
+          }
+        }
+      } else if (ref.startsWith('CM-')) {
+        let targetInms = (inmuebles || []).filter(inm => inm.inmueble && ref.includes(inm.inmueble));
+        if (targetInms.length === 0) targetInms = (inmuebles || []).filter(i => i.identidad === foundUser?.Identidad);
+        targetInms.forEach(inm => {
+          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse);
+          const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+          sb += bm;
+          siva += esRes ? 0 : bm * 0.16;
+        });
+      } else {
+        const f = recibos.find(r => r.referencia === ref);
+        if (f) sb += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
+      }
+    });
+
+    selectedCuotas.forEach(sc => {
+      const c = cuotas.find(cq => cq.convId === sc.convId && cq.cuotaId === sc.cuotaId);
+      if (c) sb += parseFloat(c.monto || '0');
+    });
+    selectedServicios.forEach(ref => {
+      const s = serviciosEsp.find(ss => ss.referencia === ref);
+      if (s) { sb += parseFloat(s.monto || '0'); siva += parseFloat(s.monto || '0') * ivaPercent; }
+    });
+    selectedTalaPoda.forEach(ref => {
+      const s = talaPoda.find(ss => ss.referencia === ref);
+      if (s) { sb += parseFloat(s.monto || '0'); siva += parseFloat(s.monto || '0') * ivaPercent; }
+    });
+    setSumBase(sb);
+    setSumIVA(siva);
+    setSumMulta(smulta);
+
+  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser]);
 
   const toggleRecibo = (ref: string) => {
     const sortedRecibos = [...recibos].sort((a: any, b: any) => {
@@ -665,7 +722,9 @@ export default function CajaPage() {
     if (totalBs <= 0 && (!isCondominio || condominioModo === 'Abono')) return alert("Debe seleccionar al menos una deuda a pagar.");
     
     if (retencionIVA > 0 && !comprobanteRetencion.trim()) return alert("Debe ingresar el número de comprobante de retención de IVA.");
-    const totalConImpuestos = (totalBs + (totalBs * ivaPercent)) - montoRetencionIVA;
+    const calculatedTotalBs = sumBase + sumIVA + sumMulta;
+    const realMontoRetencionIVA = sumIVA * (retencionIVA / 100);
+    const totalConImpuestos = calculatedTotalBs - realMontoRetencionIVA;
     const maxSaldoUsable = foundUser?.SaldoFavor || 0;
     // Cuando el método de pago ES Saldo a Favor, el checkbox no aplica
     // (evita doble deducción: una por descuento + otra por el método)
@@ -1055,7 +1114,9 @@ export default function CajaPage() {
                       conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - IVA (16%)`, precioUnit: parseFloat(f.iva), total: parseFloat(f.iva) });
                     }
                     const porcentajeMulta = f.clasificacion.toLowerCase().includes('residencial') ? '10%' : '12%';
-                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Multa (${porcentajeMulta})`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
+                    if (parseFloat(f.multa) > 0) {
+                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Multa (${porcentajeMulta})`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
+                    }
                   } else {
                      conceptosGrupo.push({ descripcion: `Deuda Histórica: ${ref}`, precioUnit: 0, total: 0 });
                   }
@@ -1746,8 +1807,8 @@ export default function CajaPage() {
             
             <div className="space-y-2 mb-6 text-sm border-b border-slate-200 pb-4">
               <div className="flex justify-between items-center text-slate-600">
-                <span>Deuda Total (Bimestral) Seleccionada:</span>
-                <span className="font-semibold">Bs. {formatBs(totalBs)}</span>
+                <span>Base Imponible Total:</span>
+                <span className="font-semibold">Bs. {formatBs(sumBase)}</span>
               </div>
               <div className="flex justify-between items-center text-slate-500 text-xs mt-1">
                 <span>Equivalente por Mes:</span>
@@ -1755,8 +1816,12 @@ export default function CajaPage() {
               </div>
               
               <div className="flex justify-between items-center text-slate-600 mt-2">
-                <span>IVA ({ivaPercent * 100}%) Total:</span>
-                <span className="font-semibold">Bs. {formatBs(totalBs * ivaPercent)}</span>
+                <span>IVA (16%) Total:</span>
+                <span className="font-semibold">Bs. {formatBs(sumIVA)}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-600 mt-2">
+                <span>Multa Total:</span>
+                <span className="font-semibold text-rose-600">Bs. {formatBs(sumMulta)}</span>
               </div>
               {esAgenteRetencion && ivaPercent > 0 && (
                 <div className="mt-1 inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded-full border border-amber-300">
@@ -1785,7 +1850,7 @@ export default function CajaPage() {
                   {retencionIVA > 0 && (
                     <div className="flex justify-between items-center mt-2">
                       <span className="font-semibold text-slate-700">Monto Retenido:</span>
-                      <span className="text-red-600 font-bold">- Bs. {formatBs((totalBs * ivaPercent) * (retencionIVA / 100))}</span>
+                      <span className="text-red-600 font-bold">- Bs. {formatBs(sumIVA * (retencionIVA / 100))}</span>
                     </div>
                   )}
                   {retencionIVA > 0 && (
@@ -1805,12 +1870,12 @@ export default function CajaPage() {
               {useSaldoFavor && foundUser?.SaldoFavor > 0 && (
                 <div className="flex justify-between items-center text-emerald-600 font-medium mt-2">
                   <span>Saldo a Favor Aplicado:</span>
-                  <span>- Bs. {formatBs(Math.min((totalBs + (totalBs * ivaPercent)) - montoRetencionIVA, foundUser.SaldoFavor))}</span>
+                  <span>- Bs. {formatBs(Math.min((sumBase + sumIVA + sumMulta) - (sumIVA * (retencionIVA / 100)), foundUser.SaldoFavor))}</span>
                 </div>
               )}
               <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-200">
                 <span className="text-slate-800 font-bold text-base">Total Neto a Pagar:</span>
-                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(Math.max(0, ((totalBs + (totalBs * ivaPercent)) - montoRetencionIVA) - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)))}</span>
+                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(Math.max(0, ((sumBase + sumIVA + sumMulta) - (sumIVA * (retencionIVA / 100))) - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)))}</span>
               </div>
             </div>
 
