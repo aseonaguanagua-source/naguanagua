@@ -175,7 +175,8 @@ export default function CajaPage() {
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
         const baseMonto = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual);
-        const montoIVA = baseMonto * 0.16;
+        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+        const montoIVA = esRes ? 0 : baseMonto * 0.16;
         const montoMulta = baseMonto * 0.12;
         const totalMes = baseMonto + montoIVA + montoMulta;
         
@@ -213,7 +214,8 @@ export default function CajaPage() {
       // CM is just base + IVA, no multa for current month? Actually let's assume current month CM has no multa.
       // Wait, does it have IVA? Let's just return Base + IVA for now, or maybe the old logic which was BaseMonto.
       // We will stick to Base + IVA for CM.
-      const totalConIva = totalBase + (totalBase * 0.16);
+      const esRes = (targetInms[0]?.clasificacion || '').toLowerCase().includes('residencial');
+      const totalConIva = totalBase + (esRes ? 0 : (totalBase * 0.16));
 
       if (totalConIva > 0) {
         let montoPendiente = 0;

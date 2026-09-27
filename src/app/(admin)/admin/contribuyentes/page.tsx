@@ -2464,7 +2464,9 @@ function ContribuyentesPageContent() {
                     const deudaInmuebleBs = userInms.reduce((sum: number, inm: any) => {
                       const meses = Math.max(0, parseInt(inm.meses_deuda || 0));
                       const baseUnMes = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tcmmv);
-                      const totalUnMes = baseUnMes + (baseUnMes * 0.16) + (baseUnMes * 0.12);
+                      const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                      const iva = esRes ? 0 : (baseUnMes * 0.16);
+                      const totalUnMes = baseUnMes + iva + (baseUnMes * 0.12);
                       return sum + (totalUnMes * meses);
                     }, 0);
                     const tieneDeudaReal = deudaInmuebleBs > 0.01;
@@ -2534,7 +2536,9 @@ function ContribuyentesPageContent() {
                                   <td className="p-2 text-right font-bold text-red-600">{(() => {
                                       const meses = Math.max(0, parseInt(inm.meses_deuda || 0));
                                       const baseUnMes = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tcmmv);
-                                      const totalUnMes = baseUnMes + (baseUnMes * 0.16) + (baseUnMes * 0.12);
+                                      const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                      const iva = esRes ? 0 : (baseUnMes * 0.16);
+                      const totalUnMes = baseUnMes + iva + (baseUnMes * 0.12);
                                       return (totalUnMes * meses).toFixed(2);
                                     })()} Bs</td>
                                 </tr>
