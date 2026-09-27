@@ -166,9 +166,12 @@ export default function CajaPage() {
 
     // IMPORTANTE: usar freshInmuebles (frescos de Supabase) en vez de inmuebles del contexto React
     const sourceInms = freshInmuebles.length > 0 ? freshInmuebles : inmuebles;
-    const userInms = sourceInms.filter((i: any) =>
-      (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
-    );
+    const userInms = sourceInms.filter((i: any) => {
+      const fid = (foundUser.Identidad || '').replace(/-/g,'').toUpperCase();
+      if ((i.identidad || '').replace(/-/g,'').toUpperCase() === fid) return true;
+      if (freshInmuebles.length > 0) return true; // Si hay freshInmuebles, ya vienen filtrados con los hijos incluidos
+      return false;
+    });
 
 
     // RECIB- = deuda acumulada de N meses → calcular un mes usando nuevas tarifas + IVA + Multa
@@ -1665,11 +1668,12 @@ export default function CajaPage() {
                   <div className="space-y-4">
                     {Object.entries(
                       recibos.reduce((acc: any, r: any) => {
-                        const userInms = (inmuebles || []).filter((i: any) => {
+                        const userInms = (freshInmuebles.length > 0 ? freshInmuebles : (inmuebles || [])).filter((i: any) => {
                           if (!foundUser) return false;
-                          const id = (i.identidad || '').replace(/-/g,'').toUpperCase();
                           const fid = (foundUser.Identidad || '').replace(/-/g,'').toUpperCase();
-                          return id === fid;
+                          if ((i.identidad || '').replace(/-/g,'').toUpperCase() === fid) return true;
+                          if (freshInmuebles.length > 0) return true;
+                          return false;
                         });
                         let inmId = 'Facturación General';
                         let tipo = '';
