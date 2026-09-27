@@ -177,7 +177,7 @@ export default function CajaPage() {
         const baseMonto = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual);
         const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
         const montoIVA = esRes ? 0 : baseMonto * 0.16;
-        const montoMulta = baseMonto * 0.12;
+        const montoMulta = baseMonto * (esRes ? 0.10 : 0.12);
         const totalMes = baseMonto + montoIVA + montoMulta;
         
         let montoPendiente = 0;
@@ -1051,8 +1051,11 @@ export default function CajaPage() {
                   if (pDet && pDet.facturas && pDet.facturas[0]) {
                     const f = pDet.facturas[0];
                     conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Base Imponible`, precioUnit: parseFloat(f.base), total: parseFloat(f.base) });
-                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - IVA (16%)`, precioUnit: parseFloat(f.iva), total: parseFloat(f.iva) });
-                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Multa (12%)`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
+                    if (parseFloat(f.iva) > 0) {
+                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - IVA (16%)`, precioUnit: parseFloat(f.iva), total: parseFloat(f.iva) });
+                    }
+                    const porcentajeMulta = f.clasificacion.toLowerCase().includes('residencial') ? '10%' : '12%';
+                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Multa (${porcentajeMulta})`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
                   } else {
                      conceptosGrupo.push({ descripcion: `Deuda Histórica: ${ref}`, precioUnit: 0, total: 0 });
                   }

@@ -2466,7 +2466,8 @@ function ContribuyentesPageContent() {
                       const baseUnMes = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tcmmv);
                       const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
                       const iva = esRes ? 0 : (baseUnMes * 0.16);
-                      const totalUnMes = baseUnMes + iva + (baseUnMes * 0.12);
+                      const multa = baseUnMes * (esRes ? 0.10 : 0.12);
+                    const totalUnMes = baseUnMes + iva + multa;
                       return sum + (totalUnMes * meses);
                     }, 0);
                     const tieneDeudaReal = deudaInmuebleBs > 0.01;
@@ -2538,7 +2539,8 @@ function ContribuyentesPageContent() {
                                       const baseUnMes = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tcmmv);
                                       const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
                       const iva = esRes ? 0 : (baseUnMes * 0.16);
-                      const totalUnMes = baseUnMes + iva + (baseUnMes * 0.12);
+                      const multa = baseUnMes * (esRes ? 0.10 : 0.12);
+                    const totalUnMes = baseUnMes + iva + multa;
                                       return (totalUnMes * meses).toFixed(2);
                                     })()} Bs</td>
                                 </tr>
