@@ -181,8 +181,9 @@ export default function CajaPage() {
         const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
         const montoIVA = esRes ? 0 : baseMonto * 0.16;
         const emision = r.emision ? new Date(r.emision) : new Date();
-        const isCurrentMonth = emision.getMonth() === new Date().getMonth() && emision.getFullYear() === new Date().getFullYear();
-        const montoMulta = isCurrentMonth ? 0 : baseMonto * (esRes ? 0.10 : 0.12);
+        const today = new Date();
+        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+        const montoMulta = monthsDiff > 1 ? baseMonto * (esRes ? 0.10 : 0.12) : 0;
         const totalMes = baseMonto + montoIVA + montoMulta;
         
         let montoPendiente = 0;
@@ -590,8 +591,9 @@ export default function CajaPage() {
           siva += esRes ? 0 : bm * 0.16;
           const f = recibos.find(r => r.referencia === ref);
           const emision = f && f.emision ? new Date(f.emision) : new Date();
-          const isCurrentMonth = emision.getMonth() === new Date().getMonth() && emision.getFullYear() === new Date().getFullYear();
-          if (!isCurrentMonth) {
+          const today = new Date();
+          const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+          if (monthsDiff > 1) {
             smulta += bm * (esRes ? 0.10 : 0.12);
           }
         }

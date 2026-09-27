@@ -2498,9 +2498,9 @@ function ContribuyentesPageContent() {
                       const baseUnMes = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tcmmv);
                       const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
                       const iva = esRes ? 0 : (baseUnMes * 0.16);
-                      const multa = baseUnMes * (esRes ? 0.10 : 0.12);
-                    const totalUnMes = baseUnMes + iva + multa;
-                      return sum + (totalUnMes * meses);
+                      const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
+                      const mesesConMulta = Math.max(0, meses - 1);
+                      return sum + ( (baseUnMes + iva) * meses ) + (multaMes * mesesConMulta);
                     }, 0);
                     const tieneDeudaReal = deudaInmuebleBs > 0.01;
                     if (deudas.length === 0 && !tieneDeudaReal) {
@@ -2571,9 +2571,9 @@ function ContribuyentesPageContent() {
                                       const baseUnMes = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tcmmv);
                                       const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
                       const iva = esRes ? 0 : (baseUnMes * 0.16);
-                      const multa = baseUnMes * (esRes ? 0.10 : 0.12);
-                    const totalUnMes = baseUnMes + iva + multa;
-                                      return (totalUnMes * meses).toFixed(2);
+                      const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
+                      const mesesConMulta = Math.max(0, meses - 1);
+                                      return (( (baseUnMes + iva) * meses ) + (multaMes * mesesConMulta)).toFixed(2);
                                     })()} Bs</td>
                                 </tr>
                               ))}
