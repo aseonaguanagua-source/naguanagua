@@ -24,7 +24,11 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
   if (act.includes('(alta)')) nivel = 'ALTA';
   if (act.includes('(media)')) nivel = 'MEDIA';
   
-  const found = todasLasActividades.find(a => a.label.toLowerCase() === labelToSearch);
+  let found = todasLasActividades.find(a => a.label.toLowerCase() === labelToSearch);
+  if (!found) {
+    found = todasLasActividades.find(a => a.label.toLowerCase().includes(labelToSearch) || labelToSearch.includes(a.label.toLowerCase()));
+  }
+  
   if (found && found.factores) {
     const idx = nivel === 'BAJA' ? 0 : (nivel === 'MEDIA' ? 1 : 2);
     return found.factores[idx] || 0;
