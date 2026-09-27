@@ -416,8 +416,8 @@ export default function CajaPage() {
                   referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
                   identidad: user.Identidad,
                   contribuyente: user.Contribuyente,
-                  emision: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i)).toISOString(),
-                  vencimiento: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i)).toISOString(),
+                  emision: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i - 1)).toISOString(),
+                  vencimiento: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i - 1)).toISOString(),
                   estado: 'Pendiente',
                   monto: '0'
                 });
