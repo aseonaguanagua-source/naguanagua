@@ -156,7 +156,7 @@ export default function KioskPage() {
     const fullDocDash = docType + '-' + idLimpio;
 
     const { data: inmsDB } = await supabase.from('inmuebles')
-      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion')
+      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,condominio,multa_bs,meses_deuda,es_condominio')
       .or(`identidad.eq.${fullDoc},identidad.eq.${fullDocDash},identidad.eq.${idLimpio}`);
 
     if (!inmsDB || inmsDB.length === 0) { setSearchError('No encontrado. Verifique su Cédula o RIF.'); setIsSearching(false); return; }
@@ -203,7 +203,7 @@ export default function KioskPage() {
     if (isCondoByFlag || isCondoByName) {
       const { data: hijosByPattern } = await supabase
         .from('inmuebles')
-        .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion')
+        .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,condominio,multa_bs,meses_deuda,es_condominio')
         .ilike('clasificacion', `%HIJO_DE:${codCont}%`);
       if (hijosByPattern && hijosByPattern.length > 0) {
         // En naguanagua vieja, usualmente la clasificacion de los hijos tenia HIJO_DE:Cod_Padre
@@ -214,7 +214,7 @@ export default function KioskPage() {
         if (padrePrincipal) {
           const { data: hijosById } = await supabase
             .from('inmuebles')
-            .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,condominio,multa_bs,meses_deuda')
+            .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,condominio,multa_bs,meses_deuda,es_condominio')
             .ilike('clasificacion', `%HIJO_DE:${padrePrincipal.inmueble}%`);
           if (hijosById && hijosById.length > 0) {
             // merge sin duplicados
