@@ -400,14 +400,14 @@ export default function CajaPage() {
         ? (inmFresh || [])
         : inmuebles.filter((i: any) => (i.identidad || '').replace(/-/g,'').toUpperCase() === (user.Identidad || '').replace(/-/g,'').toUpperCase());
       if (combined.length === 0 && misInmuebles && misInmuebles.length > 0) {
-        const hasDeuda = misInmuebles.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0);
+        const hasDeuda = misInmuebles.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
         if (hasDeuda && !isCondominio) {
           misInmuebles.forEach((inm: any) => {
             const deudaMMV = parseFloat(inm.deuda_mmv || '0');
             const congelada = parseFloat(inm.deuda_congelada_bs || '0');
             const multa = parseFloat(inm.multa_bs || '0');
             const meses = parseInt(inm.meses_deuda || 1);
-            if (deudaMMV > 0 || congelada > 0 || multa > 0) {
+            if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
               const numMeses = Math.max(1, meses);
               // Generar un recibo dummy por cada mes de mora
               for (let i = 1; i <= numMeses; i++) {
