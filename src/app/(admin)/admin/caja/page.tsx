@@ -164,8 +164,8 @@ export default function CajaPage() {
       return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
     }
 
-    // IMPORTANTE: usar freshInmuebles (frescos de Supabase) en vez de inmuebles del contexto React
-    const sourceInms = freshInmuebles.length > 0 ? freshInmuebles : inmuebles;
+    // IMPORTANTE: usar freshInmuebles y condominioHijos
+    const sourceInms = freshInmuebles.length > 0 ? [...freshInmuebles, ...condominioHijos] : inmuebles;
     const userInms = sourceInms.filter((i: any) => {
       const fid = (foundUser.Identidad || '').replace(/-/g,'').toUpperCase();
       if ((i.identidad || '').replace(/-/g,'').toUpperCase() === fid) return true;
@@ -1675,7 +1675,7 @@ export default function CajaPage() {
                   <div className="space-y-4">
                     {Object.entries(
                       recibos.reduce((acc: any, r: any) => {
-                        const userInms = (freshInmuebles.length > 0 ? freshInmuebles : (inmuebles || [])).filter((i: any) => {
+                        const userInms = (freshInmuebles.length > 0 ? [...freshInmuebles, ...condominioHijos] : (inmuebles || [])).filter((i: any) => {
                           if (!foundUser) return false;
                           const fid = (foundUser.Identidad || '').replace(/-/g,'').toUpperCase();
                           if ((i.identidad || '').replace(/-/g,'').toUpperCase() === fid) return true;
