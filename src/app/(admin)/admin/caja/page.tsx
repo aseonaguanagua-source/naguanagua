@@ -341,10 +341,11 @@ export default function CajaPage() {
     if (user) {
       // Obtener TODOS los datos frescos del inmueble desde Supabase
       // Esto es crucial para que getReciboMonto calcule la deuda correctamente
+      const nakedId = cleanFullDoc.replace(/^[VEJPG]-?/i, '');
       const { data: inmFresh } = await supabase
         .from('inmuebles')
         .select('*')
-        .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc}`);
+        .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc},identidad.eq.${nakedId},identidad.eq.${user.Identidad.replace(/-/g,'')}`);
       
       // Guardar inmuebles frescos para que getReciboMonto los use
       setFreshInmuebles(inmFresh || []);
@@ -402,7 +403,13 @@ export default function CajaPage() {
       // Usar inmuebles frescos para evaluar si hay deuda
       const misInmuebles = (inmFresh || []).length > 0 
         ? (inmFresh || [])
-        : inmuebles.filter((i: any) => (i.identidad || '').replace(/-/g,'').toUpperCase() === (user.Identidad || '').replace(/-/g,'').toUpperCase());
+        : inmuebles.filter((i: any) => {
+            const ui = (user.Identidad || '').replace(/-/g,'').toUpperCase();
+            const ii = (i.identidad || '').replace(/-/g,'').toUpperCase();
+            const nakedUi = ui.replace(/^[VEJPG]/i, '');
+            const nakedIi = ii.replace(/^[VEJPG]/i, '');
+            return ui === ii || nakedUi === nakedIi;
+          });
       if (combined.length === 0 && misInmuebles && misInmuebles.length > 0) {
         const hasDeuda = misInmuebles.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
         if (hasDeuda && !isCondominio) {
