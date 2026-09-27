@@ -16,6 +16,7 @@ interface Inmueble {
   deuda_mmv?: string | number;
   deuda_congelada_bs?: string | number;
   multa_bs?: string | number;
+  meses_deuda?: string | number;
   clasificacion?: string;
   direccion?: string;
   actividad_principal?: string;
@@ -91,7 +92,26 @@ export default function KioskPage() {
   const getReciboMonto = (r: Recibo): number => {
     if (r.estado === 'Abonado') return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     if (!tcmmv || tcmmv <= 0) return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
-    if (r.referencia?.startsWith('RECIB-') || r.referencia === 'RECIB-DEUDA') {
+    if (r.referencia?.startsWith('RECIB-HIST-')) {
+      const parts = r.referencia.split('-');
+      const inmId = parts[2];
+      const inm = userInms.find((i: any) => i.inmueble === inmId);
+      if (inm) {
+        const meses = Math.max(1, parseInt(String(inm.meses_deuda || 1)));
+        const d = parseFloat(String(inm.deuda_mmv || 0));
+        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+        let ucdTotal = 0;
+        if (d > 0) {
+          if (esRes) ucdTotal = d * getFAR(inm.actividad_principal || '');
+          else ucdTotal = d;
+        }
+        const congelada = parseFloat(String(inm.deuda_congelada_bs || 0));
+        const multa = parseFloat(String(inm.multa_bs || 0));
+        
+        return parseFloat((((ucdTotal * tcmmv) + congelada + multa) / meses).toFixed(2));
+      }
+      return 0;
+    } else if (r.referencia?.startsWith('RECIB-') || r.referencia === 'RECIB-DEUDA') {
       let totalMonto = 0, totalCongelada = 0, totalMulta = 0;
       userInms.forEach(i => { 
         const deuda = parseFloat(String(i.deuda_mmv || 0));
