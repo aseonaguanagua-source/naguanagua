@@ -19,7 +19,7 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
 
   // Comercial
   // Parse something like "AREPERAS (ALTA)"
-  let labelToSearch = act.replace(/\(alta\)|\(media\)|\(baja\)/g, '').trim();
+  let labelToSearch = act.replace(/\(alta\)|\(media\)|\(baja\)/g, '').replace(/\[hijo_de:[^\]]+\]/g, '').replace(/\[hijo\]/g, '').replace(/\[condominio\]/g, '').trim();
   let nivel = 'BAJA'; // Default
   if (act.includes('(alta)')) nivel = 'ALTA';
   if (act.includes('(media)')) nivel = 'MEDIA';
@@ -31,10 +31,12 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
   
   if (found && found.factores) {
     const idx = nivel === 'BAJA' ? 0 : (nivel === 'MEDIA' ? 1 : 2);
-    return found.factores[idx] || 0;
+    // Terrenos y Servicios con factor 0 en el array causan En Verificacion
+    if (found.factores[idx] === 0) return 1.98;
+    return found.factores[idx] || 1.98;
   }
   
-  return 0; // Default if not found
+  return 1.98; // Default fallback for Comercial (matches lowest common rate) to prevent 0 division/verification loops
 };
 
 export const getFAR = (actividadFull: string) => {
