@@ -81,7 +81,7 @@ export default function Home() {
 
         /* ── CENTER ── */
         .center {
-          position: relative; z-index: 5;
+          position: relative; z-index: 20;
           flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
           padding: 52px 40px 60px;
         }
@@ -135,7 +135,7 @@ export default function Home() {
           box-shadow: 0 0 0 1px rgba(184,205,41,.65), 0 20px 50px rgba(0,0,0,.6), 0 0 40px rgba(184,205,41,.15);
         }
         .icon-bubble {
-          position: absolute; top: -40px;
+          position: absolute; top: -40px; left: 50%; transform: translateX(-50%);
           width: 80px; height: 80px; border-radius: 50%;
           background: linear-gradient(135deg, rgba(184,205,41,.28) 0%, rgba(93,177,48,.22) 100%);
           border: 2px solid rgba(184,205,41,.7);
@@ -163,18 +163,16 @@ export default function Home() {
           position: relative; width: 100%;
         }
         .func-dropdown-menu {
-          position: absolute; top: 100%; left: 0; right: 0; margin-top: 10px;
+          width: 100%; margin-top: 20px;
           background: rgba(10,30,20,.95); border: 1px solid rgba(184,205,41,.4);
           border-radius: 16px; overflow: hidden;
           box-shadow: 0 12px 40px rgba(0,0,0,.6);
-          backdrop-filter: blur(20px);
-          transform-origin: top;
           animation: dropdownAnim 0.2s ease forwards;
-          z-index: 50; display: flex; flex-direction: column;
+          display: flex; flex-direction: column;
         }
         @keyframes dropdownAnim {
-          from { opacity: 0; transform: translateY(-10px) scaleY(0.95); }
-          to { opacity: 1; transform: translateY(0) scaleY(1); }
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         .dropdown-item {
           padding: 16px 24px; color: #fff; text-decoration: none;
