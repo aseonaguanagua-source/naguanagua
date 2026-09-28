@@ -587,14 +587,25 @@ export default function CajaPage() {
     let sb = 0, siva = 0, smulta = 0;
     const tasaActualUse = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
 
-    if (isCondominio && condominioModo === 'Local') {
-      selectedHijos.forEach(id => {
-        const h = condominioHijos.find((ch: any) => ch.id === id);
-        if (h) {
-          const monto = (h.deuda_mmv || 0) * tasaActualUse;
-          total += monto;
-          sb += monto;
-        }
+    if (isCondominio) {
+      let hijosToProcess: any[] = [];
+      if (condominioModo === 'Local') {
+        hijosToProcess = condominioHijos.filter(h => selectedHijos.includes(h.id));
+      } else if (condominioModo === 'Total' || condominioModo === 'Abono') {
+        hijosToProcess = condominioHijos;
+      }
+      
+      hijosToProcess.forEach(h => {
+        const baseMonto = (h.deuda_mmv || 0) * tasaActualUse;
+        const esRes = (h.clasificacion || '').toLowerCase().includes('residencial');
+        const ivaLocal = esRes ? 0 : baseMonto * 0.16;
+        const mesesMora = parseInt(h.meses_deuda || '1');
+        const multaLocal = mesesMora > 1 ? baseMonto * (esRes ? 0.10 : 0.12) : 0;
+        
+        total += (baseMonto + ivaLocal + multaLocal);
+        sb += baseMonto;
+        siva += ivaLocal;
+        smulta += multaLocal;
       });
     }
 
@@ -2435,7 +2446,15 @@ export default function CajaPage() {
                           {hijo.actividad_principal ? hijo.actividad_principal.replace(/\[HIJO_DE:.*?\]\s*/g, '').replace('[CONDOMINIO]', '') : 'N/A'}
                         </td>
                         <td className="text-right py-2 px-3 align-top pt-2.5 text-emerald-700 font-bold whitespace-nowrap">
-                          {formatBs((hijo.deuda_mmv || 0) * tcmmv)}
+                          {(() => {
+                            const currentTasa = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
+                            const base = (hijo.deuda_mmv || 0) * currentTasa;
+                            const esRes = (hijo.clasificacion || '').toLowerCase().includes('residencial');
+                            const ivaLocal = esRes ? 0 : base * 0.16;
+                            const mesesMora = parseInt(hijo.meses_deuda || '1');
+                            const multaLocal = mesesMora > 1 ? base * (esRes ? 0.10 : 0.12) : 0;
+                            return formatBs(base + ivaLocal + multaLocal);
+                          })()}
                         </td>
                       </tr>
                     ))}
@@ -2487,16 +2506,11 @@ export default function CajaPage() {
               <button onClick={() => {
                 if (condominioModo === 'Local') {
                   setSelectedHijos([]);
-                  setTotalBs(0);
                 } else if (condominioModo === 'Total') {
                   const allIds = condominioHijos.map(h => h.id);
                   setSelectedHijos(allIds);
-                  const total = condominioHijos.reduce((acc, h) => acc + ((h.deuda_mmv || 0) * tcmmv), 0);
-                  setTotalBs(total);
                 } else if (condominioModo === 'Abono') {
                   setSelectedHijos([]);
-                  const total = condominioHijos.reduce((acc, h) => acc + ((h.deuda_mmv || 0) * tcmmv), 0);
-                  setTotalBs(total); // For abono, totalBs is total, but monto real will be lower
                 }
                 setIsCondominioModalOpen(false);
               }} className="bg-emerald-600 text-white px-4 py-2 rounded font-bold hover:bg-emerald-700">Aplicar Modalidad</button>
