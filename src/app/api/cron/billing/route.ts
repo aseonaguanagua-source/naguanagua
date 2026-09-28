@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     // ── PASO 1: Obtener todos los inmuebles activos de una sola vez ──
     const { data: inmuebles, error: inmueblesError } = await supabase
       .from('inmuebles')
-      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, clasificacion')
+      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, clasificacion, actividad_principal')
       .gt('mmv_mes', 0);
 
     if (inmueblesError) throw inmueblesError;
