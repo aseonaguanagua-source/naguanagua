@@ -386,7 +386,7 @@ export default function Home() {
           <div className="footer-logos">
             <img src={logos.global_rec} alt="Global Rec" className="footer-logo" />
             <div className="footer-divider" />
-            <img src={logos.instituto} alt="Instituto" className="footer-logo screen" />
+            <img src={logos.instituto} alt="Instituto" className="footer-logo rounded" />
           </div>
         </div>
 
