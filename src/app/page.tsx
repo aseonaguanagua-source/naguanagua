@@ -1,35 +1,25 @@
-﻿'use client';
+'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { logos } from '@/lib/logosBase64';
 
-type Mode = 'all' | 'contribuyente-only' | 'workers-only';
-
 export default function Home() {
-  const [mode, setMode] = useState<Mode>('all');
+  const [activeTab, setActiveTab] = useState<'contribuyente' | 'funcionario'>('contribuyente');
+  const [showDropdown, setShowDropdown] = useState(false);
 
+  // Close dropdown when clicking outside
   useEffect(() => {
-    const host = window.location.hostname;
-    if (host === 'aseonaguanaguaad.globalrecca.com') setMode('workers-only');
-    else if (host === 'aseonaguanagua.globalrecca.com') setMode('contribuyente-only');
+    const handleClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.func-dropdown-container')) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
   }, []);
-
-  const showContribuyente = mode === 'all' || mode === 'contribuyente-only';
-  const showWorkers       = mode === 'all' || mode === 'workers-only';
-
-  const DotRow = ({ label }: { label: string }) => (
-    <div style={{ display:'flex', alignItems:'center', gap:6, color:'#c8dc3a', fontWeight:600, fontSize:14, marginTop:'auto', paddingTop:20 }}>
-      {label}
-      <span style={{ display:'flex', alignItems:'center', gap:3, marginLeft:4 }}>
-        {[1,.75,.5,.3].map((o,i) => <span key={i} style={{ width:6, height:6, borderRadius:'50%', background:'#c8dc3a', opacity:o, display:'inline-block' }} />)}
-        <span style={{ fontSize:16, lineHeight:1, color:'#c8dc3a', marginLeft:2, fontWeight:900 }}>✦</span>
-      </span>
-    </div>
-  );
 
   return (
     <>
-      {/* ── Responsive styles ─────────────────────────────── */}
       <style>{`
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; }
@@ -84,9 +74,10 @@ export default function Home() {
         .header-right {
           flex: 1; background: #fff;
           display: flex; align-items: center; justify-content: center;
-          padding: 20px 32px;
+          padding: 20px 32px; gap: 20px; flex-wrap: wrap;
         }
-        .alcaldia-logo { height: 130px; width: auto; object-fit: contain; display: block; }
+        .alcaldia-logo { height: 90px; width: auto; object-fit: contain; display: block; }
+        .extra-logo { height: 70px; width: auto; object-fit: contain; display: block; }
 
         /* ── CENTER ── */
         .center {
@@ -95,7 +86,7 @@ export default function Home() {
           padding: 52px 40px 60px;
         }
         .section-title {
-          text-align: center; margin-bottom: 52px;
+          text-align: center; margin-bottom: 30px;
         }
         .glowing-title {
           margin: 0; font-size: clamp(32px, 5vw, 56px); font-weight: 800;
@@ -107,42 +98,97 @@ export default function Home() {
         .section-subtitle { margin: 10px 0 0; color: rgba(200,220,180,.7); font-size: 15px; font-weight: 400; letter-spacing: .4px; }
         .title-line { width: 60px; height: 2px; background: linear-gradient(90deg,transparent,#B8CD29,transparent); margin: 14px auto 0; }
 
-        /* ── CARDS ── */
-        .cards-grid {
-          display: grid;
-          gap: 28px;
-          width: 100%; max-width: 1080px; justify-content: center;
+        /* ── TOGGLE ── */
+        .toggle-container {
+          display: flex; background: rgba(15,50,35,.6); border-radius: 40px; padding: 6px;
+          border: 1px solid rgba(184,205,41,.3); margin-bottom: 40px;
+          box-shadow: 0 8px 32px rgba(0,0,0,.4);
+          backdrop-filter: blur(10px);
         }
-        .cards-grid-4 { grid-template-columns: repeat(4, minmax(200px, 280px)); }
-        .cards-grid-3 { grid-template-columns: repeat(3, minmax(240px, 340px)); }
-        .cards-grid-2 { grid-template-columns: repeat(2, minmax(260px, 380px)); }
-        .cards-grid-1 { grid-template-columns: minmax(300px, 420px); }
+        .toggle-btn {
+          padding: 12px 32px; border-radius: 34px; font-weight: 600; font-size: 16px;
+          cursor: pointer; transition: all 0.3s ease; border: none; background: transparent;
+          color: rgba(255,255,255,.6); font-family: Poppins, sans-serif;
+        }
+        .toggle-btn.active {
+          background: linear-gradient(135deg, #B8CD29 0%, #5DB130 100%);
+          color: #06120e; box-shadow: 0 4px 16px rgba(184,205,41,.4);
+        }
 
+        /* ── MAIN CARD ── */
+        .main-card-container {
+          width: 100%; max-width: 480px;
+        }
+        
         .card {
           display: flex; flex-direction: column; align-items: center; text-align: center;
-          text-decoration: none; border-radius: 20px; padding: 60px 28px 32px;
+          text-decoration: none; border-radius: 20px; padding: 50px 32px 40px;
           background: linear-gradient(155deg, rgba(30,80,55,.9) 0%, rgba(15,50,35,.95) 100%);
-          border: 1px solid rgba(184,205,41,.2);
-          box-shadow: 0 0 0 1px rgba(184,205,41,.2), 0 8px 32px rgba(0,0,0,.4);
+          border: 1px solid rgba(184,205,41,.4);
+          box-shadow: 0 0 0 1px rgba(184,205,41,.2), 0 12px 40px rgba(0,0,0,.5);
           backdrop-filter: blur(20px);
           transition: all .3s ease;
-          position: relative;
+          position: relative; width: 100%;
         }
-        .card:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 0 0 1px rgba(184,205,41,.65), 0 24px 60px rgba(0,0,0,.5), 0 0 40px rgba(184,205,41,.15);
-          border-color: rgba(184,205,41,.7);
+        .card.clickable:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 0 0 1px rgba(184,205,41,.65), 0 20px 50px rgba(0,0,0,.6), 0 0 40px rgba(184,205,41,.15);
         }
         .icon-bubble {
-          position: absolute; top: -36px;
-          width: 72px; height: 72px; border-radius: 50%;
+          position: absolute; top: -40px;
+          width: 80px; height: 80px; border-radius: 50%;
           background: linear-gradient(135deg, rgba(184,205,41,.28) 0%, rgba(93,177,48,.22) 100%);
           border: 2px solid rgba(184,205,41,.7);
           box-shadow: 0 0 24px rgba(184,205,41,.35), inset 0 1px 0 rgba(255,255,255,.1);
           display: flex; align-items: center; justify-content: center;
         }
-        .card-title { margin: 0 0 12px; color: #fff; font-size: 19px; line-height: 1.3; }
-        .card-desc { margin: 0; color: rgba(200,230,200,.65); font-size: 13px; line-height: 1.85; text-align: justify; font-weight: 400; }
+        .card-title { margin: 10px 0 16px; color: #fff; font-size: 26px; line-height: 1.3; }
+        .card-desc { margin: 0 0 30px 0; color: rgba(200,230,200,.75); font-size: 15px; line-height: 1.6; text-align: center; font-weight: 400; }
+
+        .btn-enter {
+          background: linear-gradient(135deg, #B8CD29 0%, #5DB130 100%);
+          color: #06120e; padding: 14px 40px; border-radius: 30px;
+          font-weight: 700; font-size: 16px; text-decoration: none;
+          box-shadow: 0 4px 16px rgba(184,205,41,.3);
+          transition: all 0.2s; border: none; cursor: pointer;
+          width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-enter:hover {
+          box-shadow: 0 6px 20px rgba(184,205,41,.5);
+          transform: scale(1.02);
+        }
+
+        /* ── DROPDOWN FUNCIONARIO ── */
+        .func-dropdown-container {
+          position: relative; width: 100%;
+        }
+        .func-dropdown-menu {
+          position: absolute; top: 100%; left: 0; right: 0; margin-top: 10px;
+          background: rgba(10,30,20,.95); border: 1px solid rgba(184,205,41,.4);
+          border-radius: 16px; overflow: hidden;
+          box-shadow: 0 12px 40px rgba(0,0,0,.6);
+          backdrop-filter: blur(20px);
+          transform-origin: top;
+          animation: dropdownAnim 0.2s ease forwards;
+          z-index: 50; display: flex; flex-direction: column;
+        }
+        @keyframes dropdownAnim {
+          from { opacity: 0; transform: translateY(-10px) scaleY(0.95); }
+          to { opacity: 1; transform: translateY(0) scaleY(1); }
+        }
+        .dropdown-item {
+          padding: 16px 24px; color: #fff; text-decoration: none;
+          display: flex; align-items: center; gap: 12px;
+          border-bottom: 1px solid rgba(255,255,255,.05);
+          transition: background 0.2s; font-weight: 500;
+        }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover { background: rgba(184,205,41,.15); }
+        .dropdown-icon {
+          width: 32px; height: 32px; border-radius: 8px;
+          background: rgba(184,205,41,.2); display: flex; align-items: center; justify-content: center;
+          color: #B8CD29;
+        }
 
         /* ── FOOTER ── */
         .footer { position: relative; z-index: 10; flex-shrink: 0; display: flex; border-top: 3px solid rgba(184,205,41,.5); }
@@ -180,18 +226,15 @@ export default function Home() {
           }
           .header-accent { display: none; }
           .header-title { font-size: clamp(20px, 6vw, 28px); text-align: center; }
-          .header-right { padding: 16px 24px; }
-          .alcaldia-logo { height: 90px; }
+          .header-right { padding: 16px 24px; flex-wrap: wrap; }
+          .alcaldia-logo { height: 70px; }
+          .extra-logo { height: 50px; }
 
           .center { padding: 36px 20px 44px; }
-          .section-title { margin-bottom: 40px; }
+          .section-title { margin-bottom: 30px; }
 
-          .cards-grid-4,
-          .cards-grid-3,
-          .cards-grid-2 { grid-template-columns: 1fr; max-width: 420px; }
-          .cards-grid-1 { grid-template-columns: 1fr; max-width: 420px; }
-
-          .card { padding: 56px 20px 28px; }
+          .card { padding: 46px 20px 30px; }
+          .card-title { font-size: 22px; }
 
           .footer { flex-direction: column; }
           .footer-isma { min-width: unset; width: 100%; border-right: none; border-bottom: 1px solid rgba(184,205,41,.25); padding: 20px; }
@@ -199,11 +242,6 @@ export default function Home() {
           .footer-logos { padding: 16px 24px; justify-content: center; gap: 16px; }
           .footer-logo { height: 46px; }
           .footer-divider { display: none; }
-        }
-
-        @media (max-width: 480px) {
-          .glowing-title { font-size: 30px; }
-          .header-title { font-size: 18px; }
         }
       `}</style>
 
@@ -228,84 +266,112 @@ export default function Home() {
           </div>
           <div className="header-right">
             <img src={logos.alcaldia} alt="Alcaldía del Municipio Naguanagua" className="alcaldia-logo" />
+            <img src={logos.global_rec} alt="Global Rec" className="extra-logo" style={{opacity:0.8}} />
+            <img src={logos.basura_cero} alt="Basura Cero" className="extra-logo" style={{opacity:0.8}} />
           </div>
         </div>
 
         {/* ══ CENTER ══ */}
         <div className="center">
           <div className="section-title">
-            <h2 className="glowing-title">Global Rec</h2>
-            <p className="section-subtitle">Seleccione su módulo para acceder al sistema.</p>
+            <h2 className="glowing-title">Bienvenido</h2>
+            <p className="section-subtitle">Seleccione su perfil para acceder al sistema.</p>
             <div className="title-line" />
           </div>
 
-          <div className={`cards-grid ${showContribuyente && showWorkers ? 'cards-grid-4' : showWorkers ? 'cards-grid-3' : 'cards-grid-1'}`}>
+          <div className="toggle-container">
+            <button 
+              className={`toggle-btn ${activeTab === 'contribuyente' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('contribuyente'); setShowDropdown(false); }}
+            >
+              Soy Contribuyente
+            </button>
+            <button 
+              className={`toggle-btn ${activeTab === 'funcionario' ? 'active' : ''}`}
+              onClick={() => setActiveTab('funcionario')}
+            >
+              Soy Funcionario
+            </button>
+          </div>
 
-            {showContribuyente && (
-              <Link href="/portal" className="card">
+          <div className="main-card-container">
+            {activeTab === 'contribuyente' && (
+              <Link href="/portal" className="card clickable">
                 <div className="icon-bubble">
-                  <svg width="34" height="34" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
+                  <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                   </svg>
                 </div>
                 <h3 className="card-title"><b style={{ fontWeight:800 }}>Soy</b>{' '}<span style={{ fontWeight:400 }}>Contribuyente</span></h3>
-                <p className="card-desc">Paga tus servicios, tramita solvencias y reporta incidencias de manera rápida y segura.</p>
-                <DotRow label="Ingresar al portal" />
+                <p className="card-desc">Paga tus servicios, tramita solvencias y reporta incidencias de manera rápida y segura en Naguanagua.</p>
+                <div className="btn-enter">
+                  Ingresar al Portal
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
+                </div>
               </Link>
             )}
 
-            {showWorkers && (
-              <Link href="/admin" className="card">
+            {activeTab === 'funcionario' && (
+              <div className="card func-dropdown-container">
                 <div className="icon-bubble">
-                  <svg width="34" height="34" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
+                  <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" />
                   </svg>
                 </div>
                 <h3 className="card-title"><b style={{ fontWeight:800 }}>Soy</b>{' '}<span style={{ fontWeight:400 }}>Funcionario</span></h3>
-                <p className="card-desc">Acceso el sistema administrativo para gestión de recaudación y reportes de aseo.</p>
-                <DotRow label="Acceder al Sistema" />
-              </Link>
-            )}
-
-            {showWorkers && (
-              <Link href="/cobro-movil" className="card">
-                <div className="icon-bubble">
-                  <svg width="34" height="34" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3m-3 3h3m-3 3h3" />
+                <p className="card-desc">Acceso al sistema administrativo interno. Por favor, seleccione su rol operativo.</p>
+                
+                <button 
+                  className="btn-enter" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDropdown(!showDropdown);
+                  }}
+                >
+                  Seleccionar Tipo de Funcionario
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" style={{ transform: showDropdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                   </svg>
-                </div>
-                <h3 className="card-title"><b style={{ fontWeight:800 }}>Cobrador</b>{' '}<span style={{ fontWeight:400 }}>Móvil</span></h3>
-                <p className="card-desc">Módulo móvil para cobro en campo. Busca contribuyentes, revisa deudas y procesa pagos.</p>
-                <DotRow label="Ingresar Móvil" />
-              </Link>
-            )}
+                </button>
 
-            {showWorkers && (
-              <Link href="/operador/login" className="card">
-                <div className="icon-bubble">
-                  <svg width="34" height="34" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                  </svg>
-                </div>
-                <h3 className="card-title"><b style={{ fontWeight:800 }}>Operador</b>{' '}<span style={{ fontWeight:400 }}>de Censo</span></h3>
-                <p className="card-desc">Módulo móvil exclusivo para trabajadores en jornada de empadronamiento de calle.</p>
-                <DotRow label="Ingresar Móvil" />
-              </Link>
+                {showDropdown && (
+                  <div className="func-dropdown-menu">
+                    <Link href="/admin" className="dropdown-item">
+                      <div className="dropdown-icon">
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" /></svg>
+                      </div>
+                      Administrador / Sistema
+                    </Link>
+                    <Link href="/admin/caja" className="dropdown-item">
+                      <div className="dropdown-icon">
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
+                      </div>
+                      Cajero
+                    </Link>
+                    <Link href="/presidencia/login" className="dropdown-item">
+                      <div className="dropdown-icon">
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+                      </div>
+                      Presidencia Ejecutiva
+                    </Link>
+                    <Link href="/cobro-movil" className="dropdown-item">
+                      <div className="dropdown-icon">
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3m-3 3h3m-3 3h3" /></svg>
+                      </div>
+                      Cobro Móvil
+                    </Link>
+                    <Link href="/operador/login" className="dropdown-item">
+                      <div className="dropdown-icon">
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
+                      </div>
+                      Operador de Censo
+                    </Link>
+                  </div>
+                )}
+              </div>
             )}
-
-            {showWorkers && (
-              <Link href="/presidencia/login" className="card">
-                <div className="icon-bubble">
-                  <svg width="34" height="34" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
-                  </svg>
-                </div>
-                <h3 className="card-title"><b style={{ fontWeight:800 }}>Presidencia</b>{' '}<span style={{ fontWeight:400 }}>Ejecutiva</span></h3>
-                <p className="card-desc">Panel ejecutivo en tiempo real. Consulta la recaudación del instituto desde cualquier dispositivo.</p>
-                <DotRow label="Ingresar" />
-              </Link>
-            )}
-
           </div>
         </div>
 
@@ -318,7 +384,7 @@ export default function Home() {
           <div className="footer-logos">
             <img src={logos.global_rec}   alt="Global Rec"   className="footer-logo" />
             <div className="footer-divider" />
-            <img src={logos.global_green} alt="Alcaldía de Naguanagua" className="footer-logo" />
+            <img src={logos.global_green} alt="Global Green" className="footer-logo" />
             <div className="footer-divider" />
             <img src={logos.basura_cero}  alt="Basura Cero"  className="footer-logo" />
           </div>
