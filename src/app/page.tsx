@@ -190,7 +190,7 @@ export default function Home() {
 
         /* ── FOOTER ── */
         .footer { position: relative; z-index: 10; flex-shrink: 0; display: flex; border-top: 3px solid rgba(184,205,41,.5); }
-        .footer-isma {
+        .footer-iamec {
           background: linear-gradient(135deg, #081a10 0%, #0f2d1e 100%);
           padding: 24px 48px;
           flex: 0 0 auto; min-width: 240px;
@@ -198,11 +198,11 @@ export default function Home() {
           border-right: 1px solid rgba(184,205,41,.25);
           position: relative; overflow: hidden;
         }
-        .footer-isma-glow {
+        .footer-iamec-glow {
           position: absolute; inset: 0;
           background: radial-gradient(ellipse at center, rgba(184,205,41,.12) 0%, transparent 70%);
         }
-        .isma-logo {
+        .iamec-logo {
           height: 80px; width: auto; object-fit: contain; position: relative; z-index: 1;
           filter: drop-shadow(0 0 14px rgba(184,205,41,.5)) brightness(1.15);
         }
@@ -235,8 +235,8 @@ export default function Home() {
           .card-title { font-size: 22px; }
 
           .footer { flex-direction: column; }
-          .footer-isma { min-width: unset; width: 100%; border-right: none; border-bottom: 1px solid rgba(184,205,41,.25); padding: 20px; }
-          .isma-logo { height: 64px; }
+          .footer-iamec { min-width: unset; width: 100%; border-right: none; border-bottom: 1px solid rgba(184,205,41,.25); padding: 20px; }
+          .iamec-logo { height: 64px; }
           .footer-logos { padding: 16px 24px; justify-content: center; gap: 16px; }
           .footer-logo { height: 46px; }
           .footer-divider { display: none; }
@@ -265,7 +265,7 @@ export default function Home() {
           <div className="header-right">
             <img src={logos.alcaldia} alt="Alcaldía del Municipio Naguanagua" className="alcaldia-logo" />
             <img src={logos.global_rec} alt="Global Rec" className="extra-logo" style={{opacity:0.8}} />
-            <img src={logos.basura_cero} alt="Basura Cero" className="extra-logo" style={{opacity:0.8}} />
+            
           </div>
         </div>
 
@@ -375,16 +375,18 @@ export default function Home() {
 
         {/* ══ FOOTER ══ */}
         <div className="footer">
-          <div className="footer-isma">
-            <div className="footer-isma-glow" />
-            <img src={logos.isma} alt="ISMA Naguanagua" className="isma-logo" />
+          <div className="footer-iamec">
+            <div className="footer-iamec-glow" />
+            <img src={logos.iamec} alt="IAMEC Naguanagua" className="iamec-logo" />
           </div>
           <div className="footer-logos">
-            <img src={logos.global_rec}   alt="Global Rec"   className="footer-logo" />
+            <img src={logos.global_rec} alt="Global Rec" className="footer-logo" />
             <div className="footer-divider" />
-            <img src={logos.global_green} alt="Global Green" className="footer-logo" />
+            <img src={logos.instituto} alt="Instituto" className="footer-logo" style={{borderRadius: "8px"}} />
             <div className="footer-divider" />
-            <img src={logos.basura_cero}  alt="Basura Cero"  className="footer-logo" />
+            
+            <div className="footer-divider" />
+            
           </div>
         </div>
 

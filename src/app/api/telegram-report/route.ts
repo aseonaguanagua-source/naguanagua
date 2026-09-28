@@ -102,7 +102,7 @@ async function generarReporte(request?: Request) {
     const ICON = turno === 'MEDIODÍA' ? '🌤️' : '🌆';
 
     const mensaje = [
-      `🏛️ <b>ISMA Naguanagua — Aseo Urbano Naguanagua</b>`,
+      `🏛️ <b>IAMEC Naguanagua — Aseo Urbano Naguanagua</b>`,
       `${ICON} <b>Reporte ${turno} | ${horaStr} VE</b>`,
       `📅 ${fechaFmt}`,
       ``,

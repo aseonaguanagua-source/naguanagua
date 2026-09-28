@@ -12,8 +12,8 @@ export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
     doc.setFillColor(230, 230, 230); // light gray
     doc.rect(0, 0, 210, 40, 'F');
     
-    // ISMA Naguanagua logo only
-    doc.addImage(logos.isma, 'JPEG', 15, 8, 45, 25);
+    // IAMEC Naguanagua logo only
+    doc.addImage(logos.iamec, 'PNG', 15, 8, 45, 25);
     
     // Header Text
     doc.setFontSize(22);

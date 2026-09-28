@@ -148,7 +148,7 @@ export default function PlanAccionPage() {
     const pageW = doc.internal.pageSize.width;
 
     if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 25, 25);
-    if (logos.isma) doc.addImage(logos.isma, 'PNG', pageW - 39, 10, 25, 25);
+    if (logos.iamec) doc.addImage(logos.iamec, 'PNG', pageW - 39, 10, 25, 25);
 
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');

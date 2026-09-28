@@ -549,8 +549,8 @@ function ContribuyentesPageContent() {
 
       const docNro = Math.floor(10000 + Math.random() * 90000);
 
-      // ── LOGO ISMA Naguanagua (solo ISMA Naguanagua, lado izquierdo) ──
-      try { doc.addImage(logos.isma, 'JPEG', 14, 8, 42, 22); } catch(e) {}
+      // ── LOGO IAMEC Naguanagua (solo IAMEC Naguanagua, lado izquierdo) ──
+      try { doc.addImage(logos.iamec, 'PNG', 14, 8, 42, 22); } catch(e) {}
 
       // ── TÍTULO ──
       doc.setFontSize(20);

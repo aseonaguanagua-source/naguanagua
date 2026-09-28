@@ -78,7 +78,7 @@ async function enviarCorreos(facturasGeneradas: any[]) {
 
       if (emailDestino && emailDestino.includes('@')) {
         await resend.emails.send({
-          from: 'ASEO Naguanagua <isma.naguanagua@globalgreenca.com>',
+          from: 'ASEO Naguanagua <iamec.naguanagua@globalgreenca.com>',
           to: emailDestino,
           subject: `Nueva Recibo Generada - ${f.referencia}`,
           html: emailHtml,

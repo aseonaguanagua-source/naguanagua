@@ -47,7 +47,7 @@ export async function generarMorososExcel(
 
   const today = new Date().toLocaleDateString('es-VE');
   const wsData = [
-    ['REPORTE DE MOROSOS — ISMA Naguanagua'],
+    ['REPORTE DE MOROSOS — IAMEC Naguanagua'],
     [`Fecha: ${today}  |  Tasa BCV: ${tcmmv ? tcmmv + ' Bs/EUR' : 'N/D'}  |  Total morosos: ${rows.length}`],
     [],
     ['N°','CÓDIGO','CONTRIBUYENTE','IDENTIDAD','CLASIFICACIÓN','FACTURAS PENDIENTES','PERÍODOS','DEUDA TOTAL (Bs)'],
@@ -114,7 +114,7 @@ export async function generarMorososPDF(
   doc.text('LISTA DE COBRANZAS', pageW / 2, 10, { align: 'center' });
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text('ISMA Naguanagua - Municipio Naguanagua', pageW / 2, 16, { align: 'center' });
+  doc.text('IAMEC Naguanagua - Municipio Naguanagua', pageW / 2, 16, { align: 'center' });
 
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(8);
@@ -167,6 +167,6 @@ export async function generarMorososPDF(
   const finalY = (doc as any).lastAutoTable.finalY + 5;
   doc.setFontSize(6.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(130, 130, 130);
   doc.text('* En rojo: 3 o mas meses pendientes.', 14, finalY);
-  doc.text('Sistema ISMA Naguanagua  |  ' + todayStr, pageW - 14, finalY, { align: 'right' });
+  doc.text('Sistema IAMEC Naguanagua  |  ' + todayStr, pageW - 14, finalY, { align: 'right' });
   doc.save('CobranzasMorosos_' + todayStr.replace(/\//g, '-') + '.pdf');
 }

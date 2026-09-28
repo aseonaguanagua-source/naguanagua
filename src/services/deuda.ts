@@ -3,7 +3,7 @@
  * 
  * Antes esta lógica vivía inline en caja/page.tsx (función getReciboMonto).
  * Al centralizarla aquí, cualquier módulo puede calcular la deuda de un
- * contribuyente con la misma fórmula.
+ * contribuyente con la miamec fórmula.
  */
 
 import type { Inmueble, Recibo, PagoReportado } from '@/types';

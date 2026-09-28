@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     // Send email using Resend
     if (process.env.RESEND_API_KEY) {
       await resend.emails.send({
-        from: 'Global Rec <isma.naguanagua@globalgreenca.com>',
+        from: 'Global Rec <iamec.naguanagua@globalgreenca.com>',
         to: user.correo_electronico,
         subject: 'Recuperación de Contraseña - Global Rec',
         html: emailHtml,

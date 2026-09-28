@@ -203,7 +203,7 @@ export default function EstadoCuentaPage() {
       const docNro = Math.floor(10000 + Math.random() * 90000);
 
       // ── LOGOS ──
-      try { doc.addImage(logos.isma, 'JPEG', 14, 10, 38, 20); } catch(e) {}
+      try { doc.addImage(logos.iamec, 'PNG', 14, 10, 38, 20); } catch(e) {}
 
       // ── TITLE ──
       doc.setFontSize(20);

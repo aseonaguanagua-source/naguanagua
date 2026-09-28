@@ -10,13 +10,13 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "ISMA Naguanagua",
+  title: "IAMEC Naguanagua",
   description: "Sistema Integral de Recaudación Tributaria Municipal para el Municipio Naguanagua.",
   openGraph: {
-    title: "ISMA Naguanagua",
+    title: "IAMEC Naguanagua",
     description: "Accede al Sistema Integral de Recaudación Tributaria Municipal del Municipio Naguanagua. Autogestión en línea para contribuyentes y operadores.",
     url: "https://aseonaguanagua.globalrecca.com",
-    siteName: "ISMA Naguanagua",
+    siteName: "IAMEC Naguanagua",
     locale: "es_VE",
     type: "website",
   }

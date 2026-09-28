@@ -24,8 +24,8 @@ export const generarCuadreCajaPDF = (
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   
-  if (logos.isma) {
-    doc.addImage(logos.isma, 'PNG', 40, 20, 110, 40);
+  if (logos.iamec) {
+    doc.addImage(logos.iamec, 'PNG', 40, 20, 110, 40);
   }
   
   doc.setFont('helvetica', 'bold');

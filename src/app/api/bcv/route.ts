@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   const sync = searchParams.get('sync') === 'true';
 
   if (sync) {
-    // @ts-expect-error - Next.js internal type mismatch
+    // @ts-expect-error - Next.js internal type miamectch
     revalidateTag('bcv-rate');
   }
 

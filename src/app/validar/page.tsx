@@ -61,7 +61,7 @@ function ValidarContent() {
         <div className="text-center mb-10">
           <div className="flex justify-center gap-4 mb-6">
             <div className="relative w-24 h-24">
-              <Image src="/logos/basura_cero.jpg" alt="Logo ISMA Naguanagua" fill className="object-contain" />
+              <Image src="/logos/basura_cero.jpg" alt="Logo IAMEC Naguanagua" fill className="object-contain" />
             </div>
             <div className="relative w-24 h-24">
               <Image src="/logos/global_rec.jpg" alt="Logo Global Rec" fill className="object-contain" />

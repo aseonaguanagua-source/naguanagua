@@ -55,11 +55,11 @@ export default function CorreosPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Nombre Remitente</label>
-            <input type="text" defaultValue="ISMA - NAGUANAGUA" autoComplete="off" className="w-full border border-slate-300 bg-slate-50 rounded px-3 py-2 text-sm text-slate-700 outline-none" />
+            <input type="text" defaultValue="IAMEC - NAGUANAGUA" autoComplete="off" className="w-full border border-slate-300 bg-slate-50 rounded px-3 py-2 text-sm text-slate-700 outline-none" />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Email Remitente</label>
-            <input type="email" defaultValue="isma.naguanagua@sirid.net" autoComplete="off" className="w-full border border-slate-300 bg-slate-50 rounded px-3 py-2 text-sm text-slate-700 outline-none" />
+            <input type="email" defaultValue="iamec.naguanagua@sirid.net" autoComplete="off" className="w-full border border-slate-300 bg-slate-50 rounded px-3 py-2 text-sm text-slate-700 outline-none" />
           </div>
         </div>
 

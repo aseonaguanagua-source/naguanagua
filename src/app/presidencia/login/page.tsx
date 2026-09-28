@@ -56,7 +56,7 @@ export default function PresidenciaLogin() {
           </svg>
         </div>
         <h1 style={{ color: '#B8CD29', fontSize: 22, fontWeight: 800, margin: 0 }}>Modulo Presidencia</h1>
-        <p style={{ color: 'rgba(200,230,200,.6)', fontSize: 13, margin: '4px 0 0' }}>ISMA Naguanagua - Municipio Naguanagua</p>
+        <p style={{ color: 'rgba(200,230,200,.6)', fontSize: 13, margin: '4px 0 0' }}>IAMEC Naguanagua - Municipio Naguanagua</p>
       </div>
 
       <form onSubmit={handleLogin} style={{

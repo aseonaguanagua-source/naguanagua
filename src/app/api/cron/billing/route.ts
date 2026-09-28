@@ -132,7 +132,7 @@ export async function GET(request: Request) {
         vencimiento:   vencimientoDate
       });
 
-      // Agregar al Set para evitar duplicados dentro de la misma ejecución
+      // Agregar al Set para evitar duplicados dentro de la miamec ejecución
       refsExistentes.add(refFactura);
       inmueblesAActualizar.push({ id: inm.id, nuevaDeudaMmv });
     }
