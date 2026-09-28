@@ -634,7 +634,11 @@ function ContribuyentesPageContent() {
         if (f.referencia?.startsWith('CM-') && tcmmv && tcmmv > 0) {
           const cant = parseFloat(inm.cant_inmuebles || 1);
           const mmv = parseFloat(inm.mmv_mes || 0);
-          if (mmv > 0) baseMonto = parseFloat((cant * mmv * tcmmv).toFixed(2));
+          if (mmv > 0) {
+            const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+            const ucdMult = esRes ? (57 * getFAR(inm.actividad_principal || '')) : (57 * 0.128);
+            baseMonto = parseFloat((cant * mmv * ucdMult * tcmmv).toFixed(2));
+          }
         }
         
         // Descontar pagos Por Verificar

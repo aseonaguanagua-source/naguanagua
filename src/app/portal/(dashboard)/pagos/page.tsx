@@ -101,11 +101,8 @@ export default function DondePagarPage() {
               const mmv  = parseFloat(inm.mmv_mes || 0);
               if (mmv > 0) {
                 const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-                if (esRes) {
-                  totalMonto += cant * mmv * 57 * getFAR(inm.actividad_principal || '') * tcmmv;
-                } else {
-                  totalMonto += cant * mmv * 57 * tcmmv;
-                }
+                const ucdMultiplicador = esRes ? (57 * getFAR(inm.actividad_principal || '')) : (57 * 0.128);
+                totalMonto += cant * mmv * ucdMultiplicador * tcmmv;
               }
             });
             if (totalMonto > 0) baseMonto = totalMonto;

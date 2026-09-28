@@ -40,9 +40,9 @@ const getFAR = (actividad: string) => {
 
 // Fórmula oficial Ordenanza (UCD = tcmmv):
 //   Residencial: TR = F.O. × 57 × UCD × FAR
-//   Comercial:   TC = F.O. × 57 × UCD × FAC (mmv_mes ya contiene FO × FAC)
+//   Comercial:   TC = F.O. × 57 × UCD × FAC (FAC = 0.1280)
 const calcMontoMes = (inm: Inmueble, tcmmv: number): number => {
-  const mmv = parseFloat(String(inm.mmv_mes || 0));
+  const mmv = parseFloat(String(inm.mmv_mes || 0)); // FO
   const cant = parseFloat(String(inm.cant_inmuebles || 1));
   if (mmv <= 0 || tcmmv <= 0) return 0;
   const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
@@ -51,8 +51,7 @@ const calcMontoMes = (inm: Inmueble, tcmmv: number): number => {
     const far = getFAR(inm.actividad_principal || '');
     return parseFloat((cant * mmv * 57 * far * tcmmv).toFixed(2));
   } else {
-    // Para comercial, mmv_mes en BD equivale a (F.O. * FAC). Solo multiplicamos por 57 * UCD
-    return parseFloat((cant * mmv * 57 * tcmmv).toFixed(2));
+    return parseFloat((cant * mmv * 57 * 0.128 * tcmmv).toFixed(2));
   }
 };
 

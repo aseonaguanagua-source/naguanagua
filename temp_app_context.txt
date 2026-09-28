@@ -1,0 +1,101 @@
+
+  const loadAllData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch recibos con paginación para superar el límite de 1000
+      let allFacturas: any[] = [];
+      let fetchMore = true;
+      let from = 0;
+      let step = 999;
+      while (fetchMore) {
+        const { data: chunk } = await supabase.from('facturas').select('*')
+          .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']) // Solo recibos activas - excluye Pagado/Anulado/Reversado
+          .range(from, from + step);
+        if (chunk && chunk.length > 0) {
+          allFacturas = [...allFacturas, ...chunk];
+          from += step + 1;
+        } else {
+          fetchMore = false;
+        }
+      }
+
+      let allInmuebles: any[] = [];
+      let apiCondominios: any[] = [];
+      try {
+        const fetchAllClient = async (table: string, select: string) => {
+          let all: any[] = [];
+          let from = 0;
+          const step = 999;
+          while (true) {
+            const { data } = await supabase.from(table).select(select).range(from, from + step);
+            if (data && data.length > 0) {
+              all = [...all, ...data];
+              from += step + 1;
+              if (data.length < step + 1) break;
+            } else {
+              break;
+            }
+          }
+          return all;
+        };
+        const [rawInmuebles, rawContribuyentes] = await Promise.all([
+          fetchAllClient('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,created_at'),
+          fetchAllClient('contribuyentes', '*')
+        ]);
+        const contribMap = new Map();
+        rawContribuyentes.forEach(c => contribMap.set(c.identidad, c));
+        allInmuebles = rawInmuebles.map(inm => ({
+          ...inm,
+          contribuyentes: contribMap.get(inm.identidad) || null
+        }));
+        apiCondominios = allInmuebles
+          .filter(i => i.es_condominio === true)
+          .map(inm => ({
+            id: inm.id,
+            codigo: inm.inmueble,
+            identidad: inm.identidad,
+            nombre: 'Condominio ' + inm.inmueble,
+            direccion: inm.direccion || '',
+            unidades: parseInt(inm.cant_inmuebles || '0'),
+            representante: contribMap.get(inm.identidad)?.nombre || 'N/A',
+            estado: inm.estado || 'Activo',
+            created_at: inm.created_at
+          }));
+      } catch (err) {
+        console.error('Error fetching fast data:', err);
+      }
+
+      const [
+        { data: dbInmuebles },
+        { data: dbPreRegistros },
+        { data: dbDocumentos },
+        { data: dbCertificados },
+        { data: dbCondominios },
+        { data: dbReclamos },
+        { data: dbConvenios },
+        { data: dbPreLiquidaciones },
+        { data: dbAuditLogs },
+        { data: dbConfig },
+        apiBcv
+      ] = await Promise.all([
+        Promise.resolve({ data: allInmuebles }),
+        supabase.from('pre_registros').select('*'),
+        supabase.from('documentos').select('*'),
+        supabase.from('certificados').select('*'),
+        Promise.resolve({ data: [] }), // Placeholder for dbCondominios to keep indices correct
+        supabase.from('reclamos').select('*'),
+        supabase.from('convenios').select('*'),
+        supabase.from('pre_liquidaciones').select('*'),
+        supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('sistema_config').select('*'),
+        fetch(`/api/bcv?t=${Date.now()}`, { cache: 'no-store' }).then(res => res.json()).catch(() => ({ tcmmv: 0 }))
+      ]);
+
+      let manualTcmmv = 0;
+      if (dbConfig && dbConfig.length > 0) {
+        manualTcmmv = parseFloat(dbConfig[0].tcmmv || '0');
+      }
+
+      const dbFacturas = allFacturas;
+      let semanalTcmmv = 0;

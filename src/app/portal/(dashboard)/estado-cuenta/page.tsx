@@ -4,6 +4,7 @@ import { Download, FileText, Building, Handshake, AlertCircle, CheckCircle2, Wre
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
+import { getFAR } from '@/lib/calculos';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
@@ -105,18 +106,18 @@ export default function EstadoCuentaPage() {
       let monthlyMMV = 0;
       const matchedInmueble = misInmuebles.find((inm: any) => inm.inmueble && r.referencia.includes(inm.inmueble));
       
-      if (matchedInmueble) {
-        const cant = parseFloat(matchedInmueble.cant_inmuebles || 1);
-        const mmv  = parseFloat(matchedInmueble.mmv_mes || 0);
-        if (mmv > 0) monthlyMMV = cant * mmv;
-      } else {
-        misInmuebles.forEach((inm: any) => {
-          const cant = parseFloat(inm.cant_inmuebles || 1);
-          const mmv  = parseFloat(inm.mmv_mes || 0);
-          if (mmv > 0) monthlyMMV += cant * mmv;
-        });
-      }
-      if (monthlyMMV > 0) baseMonto = monthlyMMV * tasaBcv;
+      const inmsToCalc = matchedInmueble ? [matchedInmueble] : misInmuebles;
+      let totalMonto = 0;
+      inmsToCalc.forEach((inm: any) => {
+        const cant = parseFloat(inm.cant_inmuebles || 1);
+        const mmv  = parseFloat(inm.mmv_mes || 0); // FO
+        if (mmv > 0) {
+          const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+          const ucdMultiplicador = esRes ? (57 * getFAR(inm.actividad_principal || '')) : (57 * 0.128);
+          totalMonto += cant * mmv * ucdMultiplicador * tasaBcv;
+        }
+      });
+      if (totalMonto > 0) baseMonto = totalMonto;
     }
 
     // AHORA restamos los pagos pendientes
