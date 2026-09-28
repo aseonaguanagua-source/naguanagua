@@ -120,6 +120,9 @@ export default function TarifasPage() {
             <Home className="w-4 h-4 text-slate-600" />
             <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">Tarifas Residenciales</h2>
           </div>
+          <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
+            Fórmula: TR = F.O. × UCD × FAR (donde UCD = 57 × Tasa BCV). Cálculos muestran el monto referencial usando FAR = 0.02673.
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 border-b border-slate-200">
@@ -132,7 +135,7 @@ export default function TarifasPage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredResidenciales.length > 0 ? (
                   filteredResidenciales.map((tipo, idx) => {
-                    const monto = (tipo.factor * rate).toFixed(2);
+                    const monto = (tipo.factor * 57 * rate * 0.02673).toFixed(2);
                     return (
                       <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
                         <td className="px-4 py-3 font-medium text-slate-700">{tipo.label}</td>
@@ -160,7 +163,7 @@ export default function TarifasPage() {
             <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">Tarifas Comerciales / Institucionales</h2>
           </div>
           <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
-            Los cálculos muestran el monto final en Bolívares (Factor UCD × Tasa BCV) para cada nivel de metraje.
+            Fórmula: TC = F.O. × UCD × FAC (donde UCD = 57 × Tasa BCV y FAC = 0.1280). No incluye 16% de IVA.
           </div>
           <div className="overflow-x-auto h-[600px] relative">
             <table className="w-full text-left text-xs text-slate-600 border-collapse">
@@ -183,10 +186,10 @@ export default function TarifasPage() {
                         {actividad.label}
                       </td>
                       {actividad.factores.map((factor, fIdx) => {
-                        const monto = (factor * rate).toFixed(2);
+                        const monto = (factor * 57 * rate * 0.1280).toFixed(2);
                         return (
                           <td key={fIdx} className="px-4 py-2 text-center border-r border-slate-100 group relative cursor-default">
-                            <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} UCD</div>
+                            <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} F.O.</div>
                             <div className="font-bold text-green-700">Bs. {monto}</div>
                           </td>
                         );
@@ -214,7 +217,7 @@ export default function TarifasPage() {
             <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">Tarifas Industriales</h2>
           </div>
           <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
-            Los cálculos muestran el monto final en Bolívares (Factor UCD × Tasa BCV) para cada nivel de metraje.
+            Fórmula: TC = F.O. × UCD × FAC (donde UCD = 57 × Tasa BCV y FAC = 0.1280). No incluye 16% de IVA.
           </div>
           <div className="overflow-x-auto h-[600px] relative">
             <table className="w-full text-left text-xs text-slate-600 border-collapse">
@@ -237,10 +240,10 @@ export default function TarifasPage() {
                         {actividad.label}
                       </td>
                       {actividad.factores.map((factor: any, fIdx: number) => {
-                        const monto = (factor * rate).toFixed(2);
+                        const monto = (factor * 57 * rate * 0.1280).toFixed(2);
                         return (
                           <td key={fIdx} className="px-4 py-2 text-center border-r border-slate-100 group relative cursor-default">
-                            <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} UCD</div>
+                            <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} F.O.</div>
                             <div className="font-bold text-green-700">Bs. {monto}</div>
                           </td>
                         );
