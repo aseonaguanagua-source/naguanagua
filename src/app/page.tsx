@@ -198,7 +198,7 @@ export default function Home() {
           padding: 24px 48px;
           flex: 0 0 auto; min-width: 240px;
           display: flex; flex-direction: column; align-items: center; justify-content: center;
-          border-right: 1px solid rgba(184,205,41,.25);
+          border-right: none;
           position: relative; overflow: hidden;
         }
         .footer-iamec-glow {
@@ -211,10 +211,9 @@ export default function Home() {
         }
         .footer-logos {
           flex: 1; background: transparent; padding: 20px 40px;
-          display: flex; align-items: center; justify-content: center; gap: 40px; flex-wrap: wrap;
+          display: flex; align-items: center; justify-content: space-around; gap: 30px; flex-wrap: wrap;
         }
         .footer-logo { height: 60px; width: auto; object-fit: contain; }
-        .footer-logo.invert { filter: brightness(0) invert(1); opacity: 0.9; }
         .footer-logo.screen { mix-blend-mode: screen; filter: drop-shadow(0 0 10px rgba(255,255,255,0.1)); }
         .footer-divider { width: 1px; height: 48px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
 
@@ -385,7 +384,7 @@ export default function Home() {
             <img src={logos.iamec} alt="IAMEC Naguanagua" className="iamec-logo" />
           </div>
           <div className="footer-logos">
-            <img src={logos.global_rec} alt="Global Rec" className="footer-logo invert" />
+            <img src={logos.global_rec} alt="Global Rec" className="footer-logo" />
             <div className="footer-divider" />
             <img src={logos.instituto} alt="Instituto" className="footer-logo screen" />
           </div>
