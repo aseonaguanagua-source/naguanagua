@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
+import { getFAR } from '@/lib/calculos';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -111,11 +112,12 @@ export async function GET(request: Request) {
       if (esUnicoLocal && identidadesConFacturaVieja.has(inm.identidad)) continue;
 
       // Fórmula oficial de la Ordenanza:
-      //   Residencial: TR = F.O. × UCD × FAR  (FAR = 0.02673)
+      //   Residencial: TR = F.O. × UCD × FAR  (donde FAR depende del tipo de vivienda)
       //   Comercial:   TC = F.O. × UCD × FAC  (FAC = 0.1280)
       // UCD = 57 * Euro BCV (tcmmv)
       const esResidencial = (inm.clasificacion || '').toLowerCase().includes('residencial');
-      const ucdMultiplicador = esResidencial ? (57 * 0.02673) : (57 * 0.128);
+      const currentFAR = getFAR(inm.actividad_principal || '');
+      const ucdMultiplicador = esResidencial ? (57 * currentFAR) : (57 * 0.128);
 
       const deudaAgregadaBs = parseFloat((cant * mmv * ucdMultiplicador * tcmmv).toFixed(2));
       const nuevaDeudaMmv   = (parseFloat(inm.deuda_mmv) || 0) + (cant * mmv * ucdMultiplicador);
