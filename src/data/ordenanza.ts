@@ -21,9 +21,9 @@ export const ordenanzaData = {
     {
         "label": "INMUEBLES DESOCUPADOS",
         "factores": [
-            0.2940,
-            0.2940,
-            0.2940
+            1.98,
+            1.98,
+            1.98
         ]
     },
     {
