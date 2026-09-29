@@ -348,15 +348,18 @@ export default function CajaPage() {
         .select('*')
         .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc},identidad.eq.${nakedId},identidad.eq.${user.Identidad.replace(/-/g,'')},condominio_padre_id.eq.${user.CodCont}`);
       
-      // Guardar inmuebles frescos para que getReciboMonto los use
-      setFreshInmuebles(inmFresh || []);
+      // Filtrar los inmuebles eliminados
+      const activeInmFresh = (inmFresh || []).filter((i: any) => i.estado !== 'Eliminado');
       
-      const saldoFavorFresh = (inmFresh || []).reduce(
+      // Guardar inmuebles frescos para que getReciboMonto los use
+      setFreshInmuebles(activeInmFresh);
+      
+      const saldoFavorFresh = activeInmFresh.reduce(
         (sum: number, i: any) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0), 0
       );
       
       // Calcular deuda total fresca
-      const deudaTotalFresh = (inmFresh || []).reduce(
+      const deudaTotalFresh = activeInmFresh.reduce(
         (sum: number, i: any) => {
           const currentBcvRate = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : tcmmv;
           return sum + (parseFloat(i.deuda_mmv || '0') * currentBcvRate) + parseFloat(i.deuda_congelada_bs || '0');
@@ -402,8 +405,8 @@ export default function CajaPage() {
       
       // Si no hay recibos, pero tiene inmuebles con deuda_mmv, inyectamos un recibo acumulado dinámico
       // Usar inmuebles frescos para evaluar si hay deuda
-      const misInmuebles = (inmFresh || []).length > 0 
-        ? (inmFresh || [])
+      const misInmuebles = activeInmFresh.length > 0 
+        ? activeInmFresh
         : inmuebles.filter((i: any) => {
             const ui = (user.Identidad || '').replace(/-/g,'').toUpperCase();
             const ii = (i.identidad || '').replace(/-/g,'').toUpperCase();
@@ -503,7 +506,7 @@ export default function CajaPage() {
 
       // Buscar si es un Condominio (Padre)
       // Usar el flag es_condominio de la migración, con fallback a detección por nombre
-      const isCondoByFlag = (inmFresh || []).some((i: any) => i.es_condominio === true);
+      const isCondoByFlag = activeInmFresh.some((i: any) => i.es_condominio === true);
       const isCondoByName = (user.Contribuyente || user.contribuyente || '').toLowerCase().includes('condominio') || (user.Actividad || user.actividad || '').toLowerCase().includes('condominio');
       const codCont = user.cod_cont || user.CodCont || user.Identidad || user.identidad;
       if (isCondoByFlag || isCondoByName) {
