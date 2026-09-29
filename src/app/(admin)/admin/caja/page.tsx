@@ -662,60 +662,113 @@ export default function CajaPage() {
 
   const toggleRecibo = (ref: string) => {
     const sortedRecibos = [...recibos].sort((a: any, b: any) => {
-      // Primero CM- luego RECIB- etc.
       const aIsCM = a.referencia?.startsWith('CM-');
       const bIsCM = b.referencia?.startsWith('CM-');
       if (!aIsCM && bIsCM) return -1;
       if (aIsCM && !bIsCM) return 1;
       return (a.emision || '').localeCompare(b.emision || '');
     });
+
+    const userInms = (freshInmuebles.length > 0 ? [...freshInmuebles, ...condominioHijos] : (inmuebles || [])).filter((i: any) => {
+      if (!foundUser) return false;
+      const fid = (foundUser.Identidad || '').replace(/-/g,'').toUpperCase();
+      if ((i.identidad || '').replace(/-/g,'').toUpperCase() === fid) return true;
+      if (freshInmuebles.length > 0) return true;
+      return false;
+    });
+
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter((x:string) => x.length > 3);
     
-    const currentIndex = sortedRecibos.findIndex(r => r.referencia === ref);
-    if (currentIndex === -1) return;
-    if (isItemPending(ref)) {
-      alert('Este recibo tiene un pago por transferencia asociado que está Por Verificar. Espere su aprobación (Conciliación) para pagar el restante (Pago Múltiple).');
+    const currentR = recibos.find(r => r.referencia === ref);
+    if (!currentR) return;
+    
+    const parts = ref.split('-');
+    let currentInmId = parts.length > 2 ? parts[2] : null;
+    if (ref.startsWith('CM-')) currentInmId = userInms.find(i => ref.includes(i.inmueble))?.inmueble;
+    
+    const currentInm = userInms.find(i => i.inmueble === currentInmId);
+    let refsToToggle = [ref];
+
+    // Auto-select recibos del mismo mes para el mismo local
+    if (currentInm && currentInm.direccion && userInms.length > 1) {
+      const w1 = normalize(currentInm.direccion);
+      const mismosLocales = userInms.filter((i: any) => {
+        if (!i.direccion) return false;
+        const w2 = normalize(i.direccion);
+        if (w1.length === 0 || w2.length === 0) return false;
+        const common = w1.filter(w => w2.includes(w)).length;
+        return (common / Math.min(w1.length, w2.length) > 0.75);
+      }).map(i => i.inmueble);
+
+      if (mismosLocales.length > 1) {
+        refsToToggle = recibos.filter((r: any) => {
+          if (r.emision !== currentR.emision) return false;
+          let rInmId = null;
+          if (r.referencia?.startsWith('RECIB-HIST-')) {
+            const p = r.referencia.split('-');
+            if (p.length > 2) rInmId = p[2];
+          } else if (r.referencia?.startsWith('CM-')) {
+            rInmId = userInms.find((i:any) => r.referencia.includes(i.inmueble))?.inmueble;
+          }
+          return rInmId && mismosLocales.includes(rInmId);
+        }).map(r => r.referencia);
+      }
+    }
+
+    // Comprobar pending
+    if (refsToToggle.some(r => isItemPending(r))) {
+      alert('Uno o más recibos del mismo local tienen un pago por transferencia asociado que está Por Verificar. Espere su aprobación (Conciliación).');
       return;
     }
 
     if (selectedRecibos.includes(ref)) {
-      // Deselecting: deselect this one and all subsequent ones del MISMO inmueble
-      const currentRef = sortedRecibos[currentIndex];
-      const refParts = (currentRef?.referencia || '').split('-');
-      const inmuebleId = refParts.length >= 3 ? `${refParts[1]}-${refParts[2]}` : null;
-
-      const toRemove = inmuebleId
-        ? sortedRecibos.slice(currentIndex).filter(r => (r.referencia || '').includes(inmuebleId)).map(r => r.referencia)
-        : sortedRecibos.slice(currentIndex).map(r => r.referencia);
+      // Deselecting
+      let toRemove = [...refsToToggle];
+      refsToToggle.forEach(tRef => {
+        const cIdx = sortedRecibos.findIndex(r => r.referencia === tRef);
+        if (cIdx !== -1) {
+          const refParts = tRef.split('-');
+          const inmuebleId = refParts.length >= 3 ? `${refParts[1]}-${refParts[2]}` : null;
+          if (inmuebleId) {
+            const subs = sortedRecibos.slice(cIdx).filter(r => (r.referencia || '').includes(inmuebleId)).map(r => r.referencia);
+            toRemove = [...toRemove, ...subs];
+          } else {
+            const subs = sortedRecibos.slice(cIdx).map(r => r.referencia);
+            toRemove = [...toRemove, ...subs];
+          }
+        }
+      });
       setSelectedRecibos(selectedRecibos.filter(r => !toRemove.includes(r)));
     } else {
-      // Selecting: verificar orden SOLO dentro del mismo inmueble
-      const currentRef = sortedRecibos[currentIndex];
-      const refParts = (currentRef?.referencia || '').split('-');
-      const inmuebleId = refParts.length >= 3 ? `${refParts[1]}-${refParts[2]}` : null;
-
-      if (inmuebleId) {
-        // Solo verificar facturas anteriores del MISMO inmueble
-        const previousSameInmueble = sortedRecibos
-          .slice(0, currentIndex)
-          .filter(r => (r.referencia || '').includes(inmuebleId))
-          .map(r => r.referencia);
-        const missingPrevious = previousSameInmueble.some(pr => !selectedRecibos.includes(pr) && !isItemPending(pr));
-
-        if (missingPrevious) {
-          alert('¡No se puede adelantar meses! Debe seleccionar y pagar las deudas más antiguas de este inmueble primero.');
-          return;
-        }
-      } else {
-        // Sin inmueble identificable: validación global (comportamiento original)
-        const previousRefs = sortedRecibos.slice(0, currentIndex).map(r => r.referencia);
-        const missingPrevious = previousRefs.some(pr => !selectedRecibos.includes(pr) && !isItemPending(pr));
-        if (missingPrevious) {
-          alert('¡No se puede adelantar meses! Debe seleccionar y pagar las deudas más antiguas primero.');
-          return;
+      // Selecting
+      for (const tRef of refsToToggle) {
+        const cIdx = sortedRecibos.findIndex(r => r.referencia === tRef);
+        if (cIdx !== -1) {
+          const refParts = tRef.split('-');
+          const inmuebleId = refParts.length >= 3 ? `${refParts[1]}-${refParts[2]}` : null;
+          if (inmuebleId) {
+            const previousSameInmueble = sortedRecibos
+              .slice(0, cIdx)
+              .filter(r => (r.referencia || '').includes(inmuebleId))
+              .map(r => r.referencia);
+            const missingPrevious = previousSameInmueble.some(pr => !selectedRecibos.includes(pr) && !refsToToggle.includes(pr) && !isItemPending(pr));
+            if (missingPrevious) {
+              alert('¡No se puede adelantar meses! Debe seleccionar y pagar las deudas más antiguas de este inmueble primero.');
+              return;
+            }
+          } else {
+            const previousRefs = sortedRecibos.slice(0, cIdx).map(r => r.referencia);
+            const missingPrevious = previousRefs.some(pr => !selectedRecibos.includes(pr) && !refsToToggle.includes(pr) && !isItemPending(pr));
+            if (missingPrevious) {
+              alert('¡No se puede adelantar meses! Debe seleccionar y pagar las deudas más antiguas primero.');
+              return;
+            }
+          }
         }
       }
-
-      setSelectedRecibos([...selectedRecibos, ref]);
+      const newSelected = [...selectedRecibos];
+      refsToToggle.forEach(tr => { if (!newSelected.includes(tr)) newSelected.push(tr); });
+      setSelectedRecibos(newSelected);
     }
   };
 
