@@ -2474,7 +2474,7 @@ function ContribuyentesPageContent() {
                         if (targetInm && tcmmv > 0) {
                           const cant = parseFloat(targetInm.cant_inmuebles || 1);
                           const mmv = parseFloat(targetInm.mmv_mes || 0);
-                          if (mmv > 0) base = parseFloat((cant * mmv * tcmmv).toFixed(2));
+                          if (mmv > 0) base = calcularMensualidad(targetInm.clasificacion || "", targetInm.actividad_principal || "", cant, tcmmv);
                         }
                       }
                       

@@ -35,7 +35,7 @@ export default function PorFacturarPage() {
       const proyecciones = validos.map((inv, index) => {
         const cant = parseInt(inv.cant_inmuebles || '0', 10);
         const mmv = parseFloat(inv.mmv_mes || '0');
-        const montoBase = cant * mmv * tcmmv;
+        const montoBase = calcularMensualidad(inv.clasificacion || "", inv.actividad_principal || "", cant, tcmmv);
 
         return {
           id_temp: `pre_${index}`,

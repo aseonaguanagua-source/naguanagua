@@ -134,17 +134,15 @@ export default function TarifasPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredResidenciales.length > 0 ? (
-                  filteredResidenciales.map((tipo, idx) => {
-                    let farEjemplo = 0.02673; // Default (Quintas Zona A)
-                    if (tipo.label.toLowerCase().includes('apartamento')) farEjemplo = 0.023723;
-                    if (tipo.label.toLowerCase().includes('casas')) farEjemplo = 0.02673; 
+                  filteredResidenciales.map((tipo: any, idx: number) => {
+                    const farEjemplo = tipo.far || 0.02673; 
 
                     const monto = (tipo.factor * 57 * rate * farEjemplo).toFixed(2);
                     return (
                       <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
                         <td className="px-4 py-3 font-medium text-slate-700">
                           {tipo.label} 
-                          <span className="block text-[10px] text-slate-400 font-normal mt-0.5">Monto de ejemplo calculando como Zona A (FAR = {farEjemplo})</span>
+                          <span className="block text-[10px] text-slate-400 font-normal mt-0.5">Calculado con FAR = {farEjemplo}</span>
                         </td>
                         <td className="px-4 py-3 text-center">{tipo.factor.toFixed(2)}</td>
                         <td className="px-4 py-3 text-right font-bold text-green-700 bg-green-50/30">Bs. {monto}</td>

@@ -1,10 +1,13 @@
 export const ordenanzaData = {
   clasificaciones: ['Residencial', 'Comercial/Institucional', 'Industrial', 'Otros'],
   tiposResidenciales: [
-    { label: 'Tipo I: Viviendas en zonas populares', factor: 0.50 },
-    { label: 'Tipo II: Casas', factor: 0.80 },
-    { label: 'Tipo III: Apartamentos', factor: 0.91 },
-    { label: 'Tipo IV: Penthouse, Town House, Quintas, Villas', factor: 1.06 }
+    { label: 'Quinta (Zona A)', factor: 1.06, far: 0.020366 },
+    { label: 'Apartamento (Zona A)', factor: 0.91, far: 0.023723 },
+    { label: 'Quinta (Zona B)', factor: 1.06, far: 0.016298 },
+    { label: 'Apartamento (Zona B)', factor: 0.91, far: 0.018985 },
+    { label: 'Casa (Zona C)', factor: 0.618, far: 0.014 },
+    { label: 'Apartamento (Zona C)', factor: 0.3, far: 0.028839 },
+    { label: 'Casa (Zona D)', factor: 0.22, far: 0.02673 }
   ],
   zonasResidenciales: [
     { label: 'ZONA A', factor: 1.0 },
