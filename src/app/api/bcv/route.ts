@@ -4,6 +4,7 @@ import * as cheerio from 'cheerio';
 import https from 'https';
 
 export async function GET(request: Request) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   const { searchParams } = new URL(request.url);
   const sync = searchParams.get('sync') === 'true';
 
