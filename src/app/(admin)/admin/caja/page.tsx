@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad } from '@/lib/calculos';
+import { calcularMensualidad, getFO } from '@/lib/calculos';
 
 const getFAR = (actividad: string) => {
   const act = (actividad || '').toLowerCase();
@@ -1605,11 +1605,11 @@ export default function CajaPage() {
                   return (
                     <div className="space-y-2">
                       {userInms.filter((i: any) => (i.inmueble || '').toLowerCase().includes((filterInm || '').toLowerCase())).map((inm: any, idx: number) => {
-                        const mmv = parseFloat(inm.mmv_mes || 0);
+                        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                        const mmv = (inm.mmv_mes && parseFloat(inm.mmv_mes) > 0) ? parseFloat(inm.mmv_mes) : getFO(inm.actividad_principal || '', esRes);
                         const cant = parseInt(inm.cant_inmuebles || 1);
                         if (mmv <= 0) return null;
                         
-                        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
                         const far = getFAR(inm.actividad_principal || '');
                         const formulaUCD = (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
                         const totalUCD = cant * formulaUCD;
