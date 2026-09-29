@@ -588,14 +588,8 @@ export default function CajaPage() {
     let sb = 0, siva = 0, smulta = 0;
     const tasaActualUse = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
 
-    if (isCondominio) {
-      let hijosToProcess: any[] = [];
-      if (condominioModo === 'Local') {
-        hijosToProcess = condominioHijos.filter(h => selectedHijos.includes(h.id));
-      } else if (condominioModo === 'Total' || condominioModo === 'Abono') {
-        hijosToProcess = condominioHijos;
-      }
-      
+    if (isCondominio && condominioModo === 'Abono') {
+      let hijosToProcess = condominioHijos;
       hijosToProcess.forEach(h => {
         const baseMonto = (h.deuda_mmv || 0) * tasaActualUse;
         const esRes = (h.clasificacion || '').toLowerCase().includes('residencial');
