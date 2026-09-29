@@ -219,7 +219,11 @@ export default function CajaPage() {
       targetInms.forEach((inm: any) => {
         const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual, parseFloat(inm.mmv_mes || "0"));
         const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-        totalConIva += bm + (esRes ? 0 : (bm * 0.16));
+        const emision = r.emision ? new Date(r.emision) : new Date();
+        const today = new Date();
+        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+        const multaLocal = monthsDiff > 1 ? bm * (esRes ? 0.10 : 0.12) : 0;
+        totalConIva += bm + (esRes ? 0 : (bm * 0.16)) + multaLocal;
       });
 
       if (totalConIva > 0) {
@@ -1646,55 +1650,7 @@ export default function CajaPage() {
                   <h3 className="font-bold text-slate-800">Recibos de Aseo Mensual</h3>
                   <span className="text-xs text-slate-500 font-medium">({recibos.length} pendiente{recibos.length !== 1 ? 's' : ''})</span>
                 </div>
-                {recibos.length > 1 && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2 py-1 rounded border border-emerald-200 transition-colors">
-                      <input 
-                        type="checkbox" 
-                        checked={
-                          (() => {
-                            const firstPendingIdx = recibos.findIndex((r: any) => isItemPending(r.referencia));
-                            const maxSelectable = firstPendingIdx === -1 ? recibos.length : firstPendingIdx;
-                            return selectedRecibos.length > 0 && selectedRecibos.length === maxSelectable;
-                          })()
-                        } 
-                        onChange={(e) => {
-                          const firstPendingIdx = recibos.findIndex((r: any) => isItemPending(r.referencia));
-                          const maxSelectable = firstPendingIdx === -1 ? recibos.length : firstPendingIdx;
-                          if (e.target.checked) setSelectedRecibos(recibos.slice(0, maxSelectable).map((r: any) => r.referencia));
-                          else setSelectedRecibos([]);
-                        }} 
-                        className="w-3 h-3 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
-                      />
-                      Seleccionar deuda completa
-                    </label>
-                    <button
-                      onClick={() => setSelectedRecibos([])}
-                      className="text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 px-2 py-1 rounded border border-slate-200 transition-colors"
-                    >
-                      Limpiar
-                    </button>
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-slate-500 font-semibold">Pagar</span>
-                      <select
-                        className="text-[10px] border border-slate-300 rounded px-1 py-0.5 focus:ring-1 focus:ring-emerald-500 outline-none"
-                        onChange={(e) => {
-                          const n = parseInt(e.target.value);
-                          const firstPendingIdx = recibos.findIndex((r: any) => isItemPending(r.referencia));
-                          const maxSelectable = firstPendingIdx === -1 ? recibos.length : firstPendingIdx;
-                          if (!isNaN(n) && n > 0) setSelectedRecibos(recibos.slice(0, Math.min(n, maxSelectable)).map((r: any) => r.referencia));
-                          else if (e.target.value === '') setSelectedRecibos([]);
-                        }}
-                        defaultValue=""
-                      >
-                        <option value="">N meses</option>
-                        {Array.from({ length: recibos.findIndex((r: any) => isItemPending(r.referencia)) === -1 ? recibos.length : recibos.findIndex((r: any) => isItemPending(r.referencia)) }, (_, i) => i + 1).map(n => (
-                          <option key={n} value={n}>{n} {n === 1 ? 'mes' : 'meses'}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
+
               </div>
               <div className="p-4 bg-slate-50 border-t border-slate-200">
                 {recibos.length === 0 ? (
@@ -1734,12 +1690,55 @@ export default function CajaPage() {
                       }, {})
                     ).map(([key, group]: [string, any]) => (
                       <div key={key} className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                        <div className="bg-slate-100/50 px-3 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                        <div className="bg-slate-100/50 px-3 py-2.5 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{group.id}</span>
                             <span className="text-[10px] text-slate-500 font-semibold">{[group.tipo, group.act].filter(Boolean).join(' • ')}</span>
                           </div>
-                          <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{group.items.length} recibos</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{group.items.length} recibos</span>
+                            {group.items.length > 1 && (
+                              <>
+                                <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2 py-1 rounded border border-emerald-200 transition-colors">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={
+                                      (() => {
+                                        const groupRefs = group.items.map((r: any) => r.referencia);
+                                        const pendingInGroup = group.items.findIndex((r: any) => isItemPending(r.referencia));
+                                        const maxSelectable = pendingInGroup === -1 ? group.items.length : pendingInGroup;
+                                        if (maxSelectable === 0) return false;
+                                        
+                                        // Check if all selectable items in this group are in selectedRecibos
+                                        const selectableRefs = group.items.slice(0, maxSelectable).map((r: any) => r.referencia);
+                                        return selectableRefs.every((ref: string) => selectedRecibos.includes(ref));
+                                      })()
+                                    } 
+                                    onChange={(e) => {
+                                      const pendingInGroup = group.items.findIndex((r: any) => isItemPending(r.referencia));
+                                      const maxSelectable = pendingInGroup === -1 ? group.items.length : pendingInGroup;
+                                      const selectableRefs = group.items.slice(0, maxSelectable).map((r: any) => r.referencia);
+                                      const otherSelected = selectedRecibos.filter((r: string) => !group.items.map((gi: any) => gi.referencia).includes(r));
+                                      
+                                      if (e.target.checked) setSelectedRecibos([...otherSelected, ...selectableRefs]);
+                                      else setSelectedRecibos(otherSelected);
+                                    }} 
+                                    className="w-3 h-3 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
+                                  />
+                                  Seleccionar todo
+                                </label>
+                                <button
+                                  onClick={() => {
+                                    const otherSelected = selectedRecibos.filter((r: string) => !group.items.map((gi: any) => gi.referencia).includes(r));
+                                    setSelectedRecibos(otherSelected);
+                                  }}
+                                  className="text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 px-2 py-1 rounded border border-slate-200 transition-colors"
+                                >
+                                  Limpiar
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                         <div className="p-2 space-y-2">
                           {group.items.map((r: any) => (
