@@ -97,6 +97,7 @@ export default function CajaPage() {
 
   // Historial de pagos de la sesión actual
   const [sessionPagos, setSessionPagos] = useState<any[]>([]);
+  const [filterInm, setFilterInm] = useState<string>('');
 
   // Recibo imprimible post-pago
   const [reciboData, setReciboData] = React.useState<any>(null);
@@ -1582,24 +1583,33 @@ export default function CajaPage() {
 
       {foundUser && (
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-4">
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row items-start justify-between gap-4">
+            <div className="flex-1 w-full overflow-hidden">
+              <div className="flex items-center gap-4 flex-wrap">
                 <h2 className="text-xl font-bold text-slate-800">{foundUser.Contribuyente}</h2>
                 <button onClick={() => setIsNotaModalOpen(true)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-full border border-slate-300 transition-colors">
                   + Agregar Saldo a Favor / Nota Manual
                 </button>
               </div>
               <p className="text-sm text-slate-500">{foundUser.Identidad} | Cód: {foundUser.cod_cont}</p>
-              <div className="mt-2 text-xs bg-slate-100 text-slate-600 px-3 py-2 rounded border border-slate-200 inline-block">
-                <span className="font-bold">Fórmula Aplicada:</span>{' '}
+              <div className="mt-2 text-xs bg-slate-100 text-slate-600 px-3 py-2 rounded border border-slate-200 w-full max-h-[400px] overflow-y-auto">
+                <div className="flex items-center justify-between mb-2 sticky top-0 bg-slate-100 z-10 py-1">
+                  <span className="font-bold">Fórmula Aplicada:</span>
+                  <input 
+                    type="text" 
+                    placeholder="Filtrar inmueble..." 
+                    value={filterInm}
+                    onChange={(e) => setFilterInm(e.target.value)}
+                    className="w-48 text-[10px] border border-slate-300 rounded px-2 py-1 outline-none focus:border-emerald-500"
+                  />
+                </div>
                 {(() => {
                   const userInms = inmuebles.filter((i: any) => i.identidad === foundUser.Identidad);
                   if (userInms.length === 0) return 'No hay inmuebles registrados.';
                   
                   return (
-                    <div className="space-y-2 mt-1">
-                      {userInms.map((inm: any, idx: number) => {
+                    <div className="space-y-2">
+                      {userInms.filter((i: any) => (i.inmueble || '').toLowerCase().includes((filterInm || '').toLowerCase())).map((inm: any, idx: number) => {
                         const mmv = parseFloat(inm.mmv_mes || 0);
                         const cant = parseInt(inm.cant_inmuebles || 1);
                         if (mmv <= 0) return null;
@@ -1727,16 +1737,16 @@ export default function CajaPage() {
                             <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{group.items.length} recibos</span>
                           </div>
                         </div>
-                        <div className="p-2 space-y-2">
+                        <div className="p-1.5 space-y-1">
                           {group.items.map((r: any) => (
-                            <label key={r.referencia} className={`flex items-center justify-between p-2.5 border rounded transition-colors ${selectedRecibos.includes(r.referencia) ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-400' : isItemPending(r.referencia) ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
+                            <label key={r.referencia} className={`flex items-center justify-between py-1.5 px-2 border rounded transition-colors ${selectedRecibos.includes(r.referencia) ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-400' : isItemPending(r.referencia) ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
                               <div className="flex items-center gap-3">
                                 <input type="checkbox" checked={selectedRecibos.includes(r.referencia)} disabled={isItemPending(r.referencia)} onChange={() => toggleRecibo(r.referencia)}
                                   className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
                                 />
                                 <div>
-                                  <p className="font-bold text-sm text-slate-700">{r.referencia}</p>
-                                  <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+                                  <p className="font-bold text-xs text-slate-700">{r.referencia}</p>
+                                  <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
                                     {(() => {
                                       const M = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
                                       if (!r.emision) return 'Sin fecha';
@@ -1747,7 +1757,7 @@ export default function CajaPage() {
                                 </div>
                               </div>
                               <div className="text-right">
-                                <span className="font-bold text-emerald-700 text-sm">
+                                <span className="font-bold text-emerald-700 text-xs">
                                   {isItemPending(r.referencia) ? 'En Verificación' : `Bs. ${formatBs(parseFloat(getReciboMonto(r) || '0'))}`}
                                 </span>
                               </div>
