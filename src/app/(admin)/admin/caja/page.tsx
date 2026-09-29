@@ -1744,9 +1744,13 @@ export default function CajaPage() {
                         } else {
                           if (userInms.length === 1) { inmId = userInms[0].inmueble; tipo = userInms[0].clasificacion || ''; act = userInms[0].actividad_principal || ''; }
                         }
-                        const key = `${inmId}|${tipo}|${act}`;
-                        if (!acc[key]) acc[key] = { items: [], id: inmId, tipo, act };
-                        acc[key].items.push(r);
+                        const hasMismoLocal = freshInmuebles.length > 1 && !freshInmuebles.some((i: any) => i.condominio_padre_id);
+                        const key = hasMismoLocal ? 'MISMO_LOCAL' : `${inmId}|${tipo}|${act}`;
+                        if (!acc[key]) {
+                          if (hasMismoLocal) acc[key] = { items: [], id: 'Varias Actividades', tipo: 'Comercial', act: 'Mismo Local' };
+                          else acc[key] = { items: [], id: inmId, tipo, act };
+                        }
+                        acc[key].items.push({ ...r, _inmId: inmId, _tipo: tipo, _act: act });
                         return acc;
                       }, {})
                     ).map(([key, group]: [string, any], _idx, arr) => (
@@ -1755,7 +1759,7 @@ export default function CajaPage() {
                           <div className="flex items-center gap-2">
                             <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{group.id}</span>
                             <span className="text-[10px] text-slate-500 font-semibold">{[group.tipo, group.act].filter(Boolean).join(' • ')}</span>
-                            {arr.length > 1 && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap">Mismo Local</span>}
+                            {key === 'MISMO_LOCAL' && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap">Mismo Local</span>}
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{group.items.length} recibos</span>
@@ -1770,7 +1774,12 @@ export default function CajaPage() {
                                 />
                                 <div>
                                   <p className="font-bold text-xs text-slate-700">{r.referencia}</p>
-                                  <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                                  <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1 mt-0.5">
+                                    {key === 'MISMO_LOCAL' && r._act && (
+                                      <span className="text-[9px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-1 rounded">
+                                        {r._inmId}: {r._act.replace(/\[HIJO\]/g,'').trim()}
+                                      </span>
+                                    )}
                                     {(() => {
                                       const M = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
                                       if (!r.emision) return 'Sin fecha';
