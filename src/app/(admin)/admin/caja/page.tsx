@@ -1622,6 +1622,7 @@ export default function CajaPage() {
                                 Inmueble {inm.inmueble || 'General'} ({cant} und):
                                 {(userInms.length > 1 && !inm.condominio_padre_id) && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Mismo Local</span>}
                               </span>
+                              {(() => {
                                 const propRecibos = recibos.filter((r: any) => {
                                   if (r.referencia?.startsWith('RECIB-HIST-')) return r.referencia.split('-')[2] === inm.inmueble;
                                   if (r.referencia?.startsWith('CM-')) return r.referencia.includes(inm.inmueble);
