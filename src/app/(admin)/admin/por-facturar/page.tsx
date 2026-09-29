@@ -40,7 +40,7 @@ export default function PorFacturarPage() {
 
         return {
           id_temp: `pre_${index}`,
-          referencia: `RECIB-${Math.floor(Math.random() * 1000000)}`,
+          referencia: `CM-${inv.inmueble}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`,
           identidad: inv.identidad,
           contribuyente: inv.contribuyente || inv.nombre || 'Desconocido',
           concepto: 'Mensualidad Aseo Urbano (Auto)',

@@ -215,16 +215,12 @@ export default function CajaPage() {
 
       if (targetInms.length === 0) targetInms = userInms;
 
-      let totalBase = 0;
+      let totalConIva = 0;
       targetInms.forEach((inm: any) => {
         const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual, parseFloat(inm.mmv_mes || "0"));
-        totalBase += bm;
+        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+        totalConIva += bm + (esRes ? 0 : (bm * 0.16));
       });
-      // CM is just base + IVA, no multa for current month? Actually let's assume current month CM has no multa.
-      // Wait, does it have IVA? Let's just return Base + IVA for now, or maybe the old logic which was BaseMonto.
-      // We will stick to Base + IVA for CM.
-      const esRes = (targetInms[0]?.clasificacion || '').toLowerCase().includes('residencial');
-      const totalConIva = totalBase + (esRes ? 0 : (totalBase * 0.16));
 
       if (totalConIva > 0) {
         let montoPendiente = 0;
@@ -1595,25 +1591,35 @@ export default function CajaPage() {
                 <span className="font-bold">Fórmula Aplicada:</span>{' '}
                 {(() => {
                   const userInms = inmuebles.filter((i: any) => i.identidad === foundUser.Identidad);
-                  let totalMmv = 0;
-                  userInms.forEach((inm: any) => {
-                    const mmv = parseFloat(inm.mmv_mes || 0);
-                    const cant = parseFloat(inm.cant_inmuebles || 1);
-                    const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-                    if (mmv > 0) {
-                      if (esRes) totalMmv += cant * mmv * getFAR(inm.actividad_principal || '');
-                      else totalMmv += cant * mmv;
-                    }
-                  });
-                  if (totalMmv > 0) {
-                    return (
-                      <>
-                        {totalMmv.toFixed(2)} UCD (Tarifa Mensual) × {currentBcvRate.toFixed(2)} Bs/UCD (Tasa BCV) = {(totalMmv * currentBcvRate).toFixed(2)} Bs Mensuales.
-                        <span className="block text-[9px] text-slate-400 mt-0.5">* El sistema cobra la deuda histórica utilizando el registro actualizado cargado en base de datos.</span>
-                      </>
-                    );
-                  }
-                  return 'El cálculo se realizó multiplicando la Tarifa UCD por la Tasa BCV vigente en la emisión.';
+                  if (userInms.length === 0) return 'No hay inmuebles registrados.';
+                  
+                  return (
+                    <div className="space-y-2 mt-1">
+                      {userInms.map((inm: any, idx: number) => {
+                        const mmv = parseFloat(inm.mmv_mes || 0);
+                        const cant = parseInt(inm.cant_inmuebles || 1);
+                        if (mmv <= 0) return null;
+                        
+                        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                        const far = getFAR(inm.actividad_principal || '');
+                        const formulaUCD = (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
+                        const totalUCD = cant * formulaUCD;
+                        const bsMensual = totalUCD * currentBcvRate;
+                        
+                        return (
+                          <div key={idx} className="border-b border-slate-200 pb-1 last:border-0 last:pb-0">
+                            <span className="font-semibold text-[10px] text-slate-700 block">
+                              Inmueble {inm.inmueble || 'General'} ({cant} und):
+                            </span>
+                            <span>FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : 0.1280} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {bsMensual.toFixed(2)} Bs/mes.</span>
+                          </div>
+                        );
+                      })}
+                      <span className="block text-[9px] text-slate-400 mt-1">
+                        * El sistema cobra la deuda utilizando el registro actualizado de cada inmueble.
+                      </span>
+                    </div>
+                  );
                 })()}
               </div>
             </div>
