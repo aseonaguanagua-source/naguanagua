@@ -55,18 +55,18 @@ export const calcularMensualidad = (
   clasificacion: string,
   actividadFull: string,
   cant: number,
-  tasaBCV: number
+  tasaBCV: number,
+  mmv_mes?: number // Make mmv_mes optional for backward compatibility, but prefer it
 ) => {
   const esRes = (clasificacion || '').toLowerCase().includes('residencial');
-  const fo = getFO(actividadFull, esRes);
+  
+  // Si nos pasan mmv_mes (que ya tiene los nietos sumados y ajustes manuales), lo usamos.
+  // Sino, hacemos fallback a getFO(actividadFull)
+  const fo = mmv_mes !== undefined && mmv_mes > 0 ? mmv_mes : getFO(actividadFull, esRes);
+  
   const far = esRes ? getFAR(actividadFull) : 1; // FAR only applies to Residencial
   
   // Formulas
-  // Residencial: F.O. * 57 * TasaBCV * FAR
-  // Comercial:   F.O. * 57 * TasaBCV * 0.1280
-  
-    // Residencial: F.O. * 57 * TasaBCV * FAR
-  // Comercial:   F.O. * TasaBCV * 0.1280 (1 UCD = 1 EURO = TasaBCV)
   // Residencial: F.O. * 57 * TasaBCV * FAR
   // Comercial:   F.O. * 57 * TasaBCV * 0.1280
   let baseCalculada = 0;

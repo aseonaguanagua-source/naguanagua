@@ -1,6 +1,8 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
+import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
+
 import { ordenanzaData } from '@/data/ordenanza';
 
 type AppState = {
@@ -423,30 +425,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const calcularMmvMes = (localOrData: any, config: any) => {
     let mmv = 0;
-    const clasificacion = localOrData.uso || localOrData.Clasificacion || 'Residencial';
+    const clasificacion = localOrData.uso || localOrData.Clasificacion || localOrData.clasificacion || 'Residencial';
     
     if (clasificacion === 'Residencial') {
-      const tipo = localOrData.tipoResidencia || localOrData.TipoResidencia;
+      const tipo = localOrData.tipoResidencia || localOrData.TipoResidencia || localOrData.tipo_residencia;
       // Búsqueda exacta primero, luego case-insensitive
       const tarifa = config.tiposResidenciales?.find((t: any) => t.label === tipo)
         || config.tiposResidenciales?.find((t: any) => t.label.toLowerCase().trim() === (tipo || '').toLowerCase().trim());
       if (tarifa) mmv = tarifa.factor;
     } else {
-      const act = localOrData.actividad || localOrData.ActividadComercial;
+      const act = localOrData.actividad || localOrData.ActividadComercial || localOrData.actividad_principal;
       // Búsqueda case-insensitive de actividad
       const tarifa = config.actividadesComerciales?.find((t: any) => t.label === act)
         || config.actividadesComerciales?.find((t: any) => t.label.toLowerCase().trim() === (act || '').toLowerCase().trim())
         || config.actividadesIndustriales?.find((t: any) => t.label === act)
         || config.actividadesIndustriales?.find((t: any) => t.label.toLowerCase().trim() === (act || '').toLowerCase().trim());
       
+      const nivel = localOrData.nivel || localOrData.NivelMetraje || localOrData.nivel_metraje;
+      const index = config.nivelesMetraje?.findIndex(
+        (n: string) => n.toLowerCase().trim() === (nivel || '').toLowerCase().trim()
+      ) ?? -1;
+      const safeIndex = index >= 0 ? index : 0;
+
       if (tarifa && tarifa.factores) {
-        const nivel = localOrData.nivel || localOrData.NivelMetraje;
-        // Búsqueda case-insensitive del nivel de generación
-        const index = config.nivelesMetraje?.findIndex(
-          (n: string) => n.toLowerCase().trim() === (nivel || '').toLowerCase().trim()
-        ) ?? -1;
-        const safeIndex = index >= 0 ? index : 0;
-        mmv = tarifa.factores[safeIndex] ?? tarifa.factores[0];
+        mmv += (tarifa.factores[safeIndex] ?? tarifa.factores[0]);
+      }
+
+      // Sumar MMV de las actividades adicionales (Nietos)
+      const nietosStr = localOrData.actividad_economica_id || localOrData.ActividadEconomicaId || localOrData.actividadesEconomicas;
+      if (nietosStr && String(nietosStr) !== '0') {
+        const nietos = String(nietosStr).split(',');
+        nietos.forEach(nId => {
+          // @ts-ignore
+          const nName = economicActivitiesBase[nId];
+          if (nName) {
+            const tarifaN = config.actividadesComerciales?.find((t: any) => t.label === nName)
+              || config.actividadesComerciales?.find((t: any) => t.label.toLowerCase().trim() === nName.toLowerCase().trim())
+              || config.actividadesIndustriales?.find((t: any) => t.label === nName)
+              || config.actividadesIndustriales?.find((t: any) => t.label.toLowerCase().trim() === nName.toLowerCase().trim());
+            if (tarifaN && tarifaN.factores) {
+              mmv += (tarifaN.factores[safeIndex] ?? tarifaN.factores[0]);
+            }
+          }
+        });
       }
     }
     return mmv;

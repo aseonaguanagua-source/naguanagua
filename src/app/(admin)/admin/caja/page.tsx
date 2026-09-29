@@ -180,7 +180,7 @@ export default function CajaPage() {
       const inmId = parts[2];
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
-        const baseMonto = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual);
+        const baseMonto = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual, parseFloat(inm.mmv_mes || "0"));
         const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
         const montoIVA = esRes ? 0 : baseMonto * 0.16;
         const emision = r.emision ? new Date(r.emision) : new Date();
@@ -217,7 +217,7 @@ export default function CajaPage() {
 
       let totalBase = 0;
       targetInms.forEach((inm: any) => {
-        const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual);
+        const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual, parseFloat(inm.mmv_mes || "0"));
         totalBase += bm;
       });
       // CM is just base + IVA, no multa for current month? Actually let's assume current month CM has no multa.
@@ -617,7 +617,7 @@ export default function CajaPage() {
         const inmId = parts[2];
         const inm = (inmuebles || []).find((i) => i.inmueble === inmId);
         if (inm) {
-          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse);
+          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse, parseFloat(inm.mmv_mes || "0"));
           const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
           sb += bm;
           siva += esRes ? 0 : bm * 0.16;
@@ -633,7 +633,7 @@ export default function CajaPage() {
         let targetInms = (inmuebles || []).filter(inm => inm.inmueble && ref.includes(inm.inmueble));
         if (targetInms.length === 0) targetInms = (inmuebles || []).filter(i => i.identidad === foundUser?.Identidad);
         targetInms.forEach(inm => {
-          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse);
+          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse, parseFloat(inm.mmv_mes || "0"));
           const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
           sb += bm;
           siva += esRes ? 0 : bm * 0.16;
