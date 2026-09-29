@@ -346,7 +346,7 @@ export default function CajaPage() {
       const { data: inmFresh } = await supabase
         .from('inmuebles')
         .select('*')
-        .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc},identidad.eq.${nakedId},identidad.eq.${user.Identidad.replace(/-/g,'')}`);
+        .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc},identidad.eq.${nakedId},identidad.eq.${user.Identidad.replace(/-/g,'')},condominio_padre_id.eq.${user.CodCont}`);
       
       // Guardar inmuebles frescos para que getReciboMonto los use
       setFreshInmuebles(inmFresh || []);
@@ -1598,7 +1598,8 @@ export default function CajaPage() {
                   />
                 </div>
                 {(() => {
-                  const userInms = inmuebles.filter((i: any) => i.identidad === foundUser.Identidad);
+                  const userCodCont = foundUser.CodCont || foundUser.cod_cont || foundUser.Identidad;
+                  const userInms = freshInmuebles.filter((i: any) => i.identidad === foundUser.Identidad || i.condominio_padre_id === userCodCont);
                   if (userInms.length === 0) return 'No hay inmuebles registrados.';
                   
                   return (
