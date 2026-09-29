@@ -535,7 +535,7 @@ export default function CajaPage() {
       }
       
       // Calcular IVA inicial
-      if (user.Clasificacion === 'Residencial') {
+      if ((user.Clasificacion || '').toLowerCase().includes('residencial')) {
         setIvaPercent(0);
         setRetencionIVA(0);
         setEsAgenteRetencion(false);

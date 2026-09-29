@@ -6,11 +6,11 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
   const act = (actividadFull || "").toLowerCase().trim();
   
   if (esResidencial) {
-    if (act.includes("quinta (a)") || act.includes("quinta (b)")) return 1.06;
-    if (act.includes("apartamento (a)") || act.includes("apartamento (b)")) return 0.91;
-    if (act.includes("casa (c)")) return 0.618;
-    if (act.includes("apartamento (c)")) return 0.3;
-    if (act.includes("casa (d)")) return 0.22;
+    if (act.includes("quinta (zona a)") || act.includes("quinta (zona b)")) return 1.06;
+    if (act.includes("apartamento (zona a)") || act.includes("apartamento (zona b)")) return 0.91;
+    if (act.includes("casa (zona c)")) return 0.618;
+    if (act.includes("apartamento (zona c)")) return 0.3;
+    if (act.includes("casa (zona d)")) return 0.22;
     // Default fallback
     if (act.includes("apartamento")) return 0.91;
     if (act.includes("quinta") || act.includes("villa") || act.includes("town house")) return 1.06;
@@ -41,13 +41,13 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
 
 export const getFAR = (actividadFull: string) => {
   const act = (actividadFull || "").toLowerCase().trim();
-  if (act.includes("quinta (a)")) return 0.020366;
-  if (act.includes("apartamento (a)")) return 0.023723;
-  if (act.includes("quinta (b)")) return 0.016298;
-  if (act.includes("apartamento (b)")) return 0.018985;
-  if (act.includes("casa (c)")) return 0.014;
-  if (act.includes("apartamento (c)")) return 0.028839;
-  if (act.includes("casa (d)")) return 0.02673;
+  if (act.includes("quinta (zona a)")) return 0.020366;
+  if (act.includes("apartamento (zona a)")) return 0.023723;
+  if (act.includes("quinta (zona b)")) return 0.016298;
+  if (act.includes("apartamento (zona b)")) return 0.018985;
+  if (act.includes("casa (zona c)")) return 0.014;
+  if (act.includes("apartamento (zona c)")) return 0.028839;
+  if (act.includes("casa (zona d)")) return 0.02673;
   return 0.02673;
 };
 
