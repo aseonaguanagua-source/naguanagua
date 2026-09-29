@@ -1611,10 +1611,38 @@ export default function CajaPage() {
                         const bsMensual = totalUCD * currentBcvRate;
                         
                         return (
-                          <div key={idx} className="border-b border-slate-200 pb-1 last:border-0 last:pb-0">
-                            <span className="font-semibold text-[10px] text-slate-700 block">
-                              Inmueble {inm.inmueble || 'General'} ({cant} und):
-                            </span>
+                          <div key={idx} className="border-b border-slate-200 pb-2 last:border-0 last:pb-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-semibold text-[10px] text-slate-700">
+                                Inmueble {inm.inmueble || 'General'} ({cant} und):
+                              </span>
+                              {(() => {
+                                const propRecibos = recibos.filter((r: any) => {
+                                  if (r.referencia?.startsWith('RECIB-HIST-')) return r.referencia.split('-')[2] === inm.inmueble;
+                                  if (r.referencia?.startsWith('CM-')) return r.referencia.includes(inm.inmueble);
+                                  return true;
+                                });
+                                if (propRecibos.length === 0) return null;
+                                const maxSelectable = propRecibos.length;
+                                const isAllSelected = maxSelectable > 0 && propRecibos.every((r: any) => selectedRecibos.includes(r.referencia));
+                                return (
+                                  <label className="flex items-center gap-1 cursor-pointer text-[9px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-1.5 py-0.5 rounded transition-colors">
+                                    <input 
+                                      type="checkbox"
+                                      checked={isAllSelected}
+                                      onChange={(e) => {
+                                        const selectableRefs = propRecibos.map((r: any) => r.referencia);
+                                        const otherSelected = selectedRecibos.filter((ref: string) => !selectableRefs.includes(ref));
+                                        if (e.target.checked) setSelectedRecibos([...otherSelected, ...selectableRefs]);
+                                        else setSelectedRecibos(otherSelected);
+                                      }}
+                                      className="w-2.5 h-2.5 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
+                                    />
+                                    Marcar Todo
+                                  </label>
+                                );
+                              })()}
+                            </div>
                             <span>FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : 0.1280} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {bsMensual.toFixed(2)} Bs/mes.</span>
                           </div>
                         );
@@ -1697,47 +1725,6 @@ export default function CajaPage() {
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{group.items.length} recibos</span>
-                            {group.items.length > 1 && (
-                              <>
-                                <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2 py-1 rounded border border-emerald-200 transition-colors">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={
-                                      (() => {
-                                        const groupRefs = group.items.map((r: any) => r.referencia);
-                                        const pendingInGroup = group.items.findIndex((r: any) => isItemPending(r.referencia));
-                                        const maxSelectable = pendingInGroup === -1 ? group.items.length : pendingInGroup;
-                                        if (maxSelectable === 0) return false;
-                                        
-                                        // Check if all selectable items in this group are in selectedRecibos
-                                        const selectableRefs = group.items.slice(0, maxSelectable).map((r: any) => r.referencia);
-                                        return selectableRefs.every((ref: string) => selectedRecibos.includes(ref));
-                                      })()
-                                    } 
-                                    onChange={(e) => {
-                                      const pendingInGroup = group.items.findIndex((r: any) => isItemPending(r.referencia));
-                                      const maxSelectable = pendingInGroup === -1 ? group.items.length : pendingInGroup;
-                                      const selectableRefs = group.items.slice(0, maxSelectable).map((r: any) => r.referencia);
-                                      const otherSelected = selectedRecibos.filter((r: string) => !group.items.map((gi: any) => gi.referencia).includes(r));
-                                      
-                                      if (e.target.checked) setSelectedRecibos([...otherSelected, ...selectableRefs]);
-                                      else setSelectedRecibos(otherSelected);
-                                    }} 
-                                    className="w-3 h-3 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
-                                  />
-                                  Seleccionar todo
-                                </label>
-                                <button
-                                  onClick={() => {
-                                    const otherSelected = selectedRecibos.filter((r: string) => !group.items.map((gi: any) => gi.referencia).includes(r));
-                                    setSelectedRecibos(otherSelected);
-                                  }}
-                                  className="text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 px-2 py-1 rounded border border-slate-200 transition-colors"
-                                >
-                                  Limpiar
-                                </button>
-                              </>
-                            )}
                           </div>
                         </div>
                         <div className="p-2 space-y-2">
