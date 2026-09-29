@@ -4,6 +4,7 @@ import { DataTable } from '@/components/DataTable';
 import { Clock, CheckSquare, FileSpreadsheet, Play, Mail, Loader2, Info } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
+import { calcularMensualidad } from '@/lib/calculos';
 
 export default function PorFacturarPage() {
   const { inmuebles, tcmmv, addAuditLog, setFacturas, recibos } = useAppContext();
