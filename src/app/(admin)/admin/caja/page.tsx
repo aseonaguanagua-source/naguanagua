@@ -1687,6 +1687,30 @@ export default function CajaPage() {
                   <h3 className="font-bold text-slate-800">Recibos de Aseo Mensual</h3>
                   <span className="text-xs text-slate-500 font-medium">({recibos.length} pendiente{recibos.length !== 1 ? 's' : ''})</span>
                 </div>
+                {(() => {
+                  const hasMismoLocal = freshInmuebles.length > 1 && !freshInmuebles.some((i: any) => i.condominio_padre_id);
+                  const pendingRecibos = recibos.filter((r: any) => !isItemPending(r.referencia));
+                  const isAllSelected = pendingRecibos.length > 0 && pendingRecibos.every((r: any) => selectedRecibos.includes(r.referencia));
+                  
+                  if (pendingRecibos.length < 2 || !hasMismoLocal) return null;
+                  
+                  return (
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold bg-amber-100 text-amber-800 hover:bg-amber-200 px-3 py-1.5 rounded-lg border border-amber-300 shadow-sm transition-colors select-none">
+                      <input 
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={(e) => {
+                          const selectableRefs = pendingRecibos.map((r: any) => r.referencia);
+                          const otherSelected = selectedRecibos.filter((ref: string) => !selectableRefs.includes(ref));
+                          if (e.target.checked) setSelectedRecibos([...otherSelected, ...selectableRefs]);
+                          else setSelectedRecibos(otherSelected);
+                        }}
+                        className="w-4 h-4 text-amber-600 rounded border-amber-400 focus:ring-amber-500"
+                      />
+                      <span>Marcar Ambas Actividades (Mismo Local)</span>
+                    </label>
+                  );
+                })()}
 
               </div>
               <div className="p-4 bg-slate-50 border-t border-slate-200">
