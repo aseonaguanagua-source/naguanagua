@@ -403,7 +403,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           clasificacion: data.Clasificacion || 'Residencial',
           actividad_principal: data.Clasificacion === 'Residencial' ? data.TipoResidencia : data.ActividadComercial,
           area: isComercial ? parseLevelToArea(data.NivelMetraje) : null,
-          mmv_mes: calcularMmvMes(data, ordenanzasConfig)
+          mmv_mes: calcularMmvMes(data, ordenanzasConfig),
+          agente_retencion: data.esAgenteRetencion === true
         })
         .eq('identidad', id);
         
@@ -490,7 +491,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             clasificacion: local.uso === 'Comercial' ? 'Comercial' : 'Residencial',
             actividad_principal: local.uso === 'Comercial' ? local.actividad : (local.tipoResidencia || 'No aplica'),
             inmueble: local.numeracion,
-            mmv_mes: calcularMmvMes(local, ordenanzasConfig)
+            mmv_mes: calcularMmvMes(local, ordenanzasConfig),
+            agente_retencion: data.esAgenteRetencion === true
           });
         });
       } else {
@@ -504,7 +506,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           clasificacion: data.Clasificacion || 'Residencial',
           actividad_principal: data.Clasificacion === 'Residencial' ? data.TipoResidencia : data.ActividadComercial,
           inmueble: 'Principal',
-          mmv_mes: calcularMmvMes(data, ordenanzasConfig)
+          mmv_mes: calcularMmvMes(data, ordenanzasConfig),
+          agente_retencion: data.esAgenteRetencion === true
         });
       }
       

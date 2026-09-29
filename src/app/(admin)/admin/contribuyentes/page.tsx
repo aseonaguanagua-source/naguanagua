@@ -966,7 +966,9 @@ function ContribuyentesPageContent() {
       isCondominio,
       cantidadInmuebles,
       locales,
-      Nota: ''
+      Nota: '',
+      
+      
     });
     setOriginalData({ ...row, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia });
     setEditingId(row.Identidad);
@@ -995,7 +997,9 @@ function ContribuyentesPageContent() {
       cantidadInmuebles: 0,
       locales: [],
       coordenadas: null,
-      Nota: ''
+      Nota: '',
+      
+      
     };
     setFormData(defaultData);
     setOriginalData(defaultData);
