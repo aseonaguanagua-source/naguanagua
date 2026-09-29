@@ -121,7 +121,7 @@ export default function TarifasPage() {
             <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">Tarifas Residenciales</h2>
           </div>
           <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
-            Fórmula: TR = F.O. × UCD × FAR (donde UCD = 57 × Tasa BCV). Cálculos muestran el monto referencial usando FAR = 0.02673. <strong className="text-emerald-700">Exento de IVA (0%).</strong>
+            Fórmula: TR = F.O. × UCD × FAR (donde UCD = 57 × Tasa BCV). <strong className="text-emerald-700">Exento de IVA (0%).</strong>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-600">
@@ -135,10 +135,17 @@ export default function TarifasPage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredResidenciales.length > 0 ? (
                   filteredResidenciales.map((tipo, idx) => {
-                    const monto = (tipo.factor * 57 * rate * 0.02673).toFixed(2);
+                    let farEjemplo = 0.02673; // Default (Quintas Zona A)
+                    if (tipo.label.toLowerCase().includes('apartamento')) farEjemplo = 0.023723;
+                    if (tipo.label.toLowerCase().includes('casas')) farEjemplo = 0.02673; 
+
+                    const monto = (tipo.factor * 57 * rate * farEjemplo).toFixed(2);
                     return (
                       <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-700">{tipo.label}</td>
+                        <td className="px-4 py-3 font-medium text-slate-700">
+                          {tipo.label} 
+                          <span className="block text-[10px] text-slate-400 font-normal mt-0.5">Monto de ejemplo calculando como Zona A (FAR = {farEjemplo})</span>
+                        </td>
                         <td className="px-4 py-3 text-center">{tipo.factor.toFixed(2)}</td>
                         <td className="px-4 py-3 text-right font-bold text-green-700 bg-green-50/30">Bs. {monto}</td>
                       </tr>
