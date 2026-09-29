@@ -121,7 +121,7 @@ export default function TarifasPage() {
             <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">Tarifas Residenciales</h2>
           </div>
           <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
-            Fórmula: TR = F.O. × UCD × FAR (donde UCD = 57 × Tasa BCV). Cálculos muestran el monto referencial usando FAR = 0.02673.
+            Fórmula: TR = F.O. × UCD × FAR (donde UCD = 57 × Tasa BCV). Cálculos muestran el monto referencial usando FAR = 0.02673. <strong className="text-emerald-700">Exento de IVA (0%).</strong>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-600">
