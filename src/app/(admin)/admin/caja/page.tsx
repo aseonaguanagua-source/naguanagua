@@ -1706,32 +1706,57 @@ export default function CajaPage() {
                         let inmId = 'Facturación General';
                         let tipo = '';
                         let act = '';
+                        let dir = '';
                         if (r.referencia?.startsWith('RECIB-HIST-')) {
                           const parts = r.referencia.split('-');
                           if (parts.length > 2) {
                             const match = userInms.find((i: any) => i.inmueble === parts[2]);
-                            if (match) { inmId = match.inmueble; tipo = match.clasificacion || ''; act = match.actividad_principal || ''; }
+                            if (match) { inmId = match.inmueble; tipo = match.clasificacion || ''; act = match.actividad_principal || ''; dir = match.direccion || ''; }
                             else inmId = parts[2];
                           }
                         } else if (r.referencia?.startsWith('CM-')) {
                           const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
-                          if (match) { inmId = match.inmueble; tipo = match.clasificacion || ''; act = match.actividad_principal || ''; }
+                          if (match) { inmId = match.inmueble; tipo = match.clasificacion || ''; act = match.actividad_principal || ''; dir = match.direccion || ''; }
                           else inmId = 'Acumulados';
                         } else {
-                          if (userInms.length === 1) { inmId = userInms[0].inmueble; tipo = userInms[0].clasificacion || ''; act = userInms[0].actividad_principal || ''; }
+                          if (userInms.length === 1) { inmId = userInms[0].inmueble; tipo = userInms[0].clasificacion || ''; act = userInms[0].actividad_principal || ''; dir = userInms[0].direccion || ''; }
                         }
-                        const key = `${inmId}|${tipo}|${act}`;
-                        if (!acc[key]) acc[key] = { items: [], id: inmId, tipo, act };
-                        acc[key].items.push(r);
+                        
+                        // Encontrar si pertenece a un grupo de direcciones similar
+                        let groupId = `${inmId}|${tipo}|${act}`;
+                        let isMismoLocal = false;
+                        if (dir && userInms.length > 1) {
+                          const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(x => x.length > 3);
+                          const w2 = normalize(dir);
+                          
+                          // Buscar si ya existe un grupo con dirección similar en el acumulador
+                          for (const k of Object.keys(acc)) {
+                            if (acc[k]._dir) {
+                              const w1 = normalize(acc[k]._dir);
+                              if (w1.length > 0 && w2.length > 0) {
+                                const common = w1.filter(w => w2.includes(w)).length;
+                                if (common / Math.min(w1.length, w2.length) > 0.75) {
+                                  groupId = k; // Agrupar con este local
+                                  isMismoLocal = true;
+                                  acc[k].isMismoLocal = true;
+                                  break;
+                                }
+                              }
+                            }
+                          }
+                        }
+
+                        if (!acc[groupId]) acc[groupId] = { items: [], id: inmId, tipo, act, _dir: dir, isMismoLocal: false };
+                        acc[groupId].items.push({ ...r, _inmId: inmId, _act: act });
                         return acc;
                       }, {})
-                    ).map(([key, group]: [string, any], _idx, arr) => (
+                    ).map(([key, group]: [string, any]) => (
                       <div key={key} className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
                         <div className="bg-slate-100/50 px-3 py-2.5 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{group.id}</span>
-                            <span className="text-[10px] text-slate-500 font-semibold">{[group.tipo, group.act].filter(Boolean).join(' • ')}</span>
-                            {arr.length > 1 && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap">Múltiples Inmuebles</span>}
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{group.isMismoLocal ? 'Varias Actividades' : group.id}</span>
+                            <span className="text-[10px] text-slate-500 font-semibold">{group.isMismoLocal ? 'Mismo Local' : [group.tipo, group.act].filter(Boolean).join(' • ')}</span>
+                            {group.isMismoLocal && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap">Mismo Local</span>}
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{group.items.length} recibos</span>
@@ -1746,7 +1771,12 @@ export default function CajaPage() {
                                 />
                                 <div>
                                   <p className="font-bold text-xs text-slate-700">{r.referencia}</p>
-                                  <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                                  <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1 mt-0.5">
+                                    {group.isMismoLocal && r._act && (
+                                      <span className="text-[9px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-1 rounded">
+                                        {r._inmId}: {r._act.replace(/\[HIJO\]/g,'').trim()}
+                                      </span>
+                                    )}
                                     {(() => {
                                       const M = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
                                       if (!r.emision) return 'Sin fecha';
