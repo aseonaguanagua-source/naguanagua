@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
@@ -7,19 +7,9 @@ import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR } from '@/lib/calculos';
+import { getUserInmuebles, getCajeroId, isSameLocal } from '@/lib/cajaHelpers';
 
-const getFAR = (actividad: string) => {
-  const act = (actividad || '').toLowerCase();
-  if (act.includes('quinta (a)')) return 0.020366;
-  if (act.includes('apartamento (a)')) return 0.023723;
-  if (act.includes('quinta (b)')) return 0.016298;
-  if (act.includes('apartamento (b)')) return 0.018985;
-  if (act.includes('casa (c)')) return 0.014;
-  if (act.includes('apartamento (c)')) return 0.028839;
-  if (act.includes('casa (d)')) return 0.02673;
-  return 0.02673;
-};
 
 export default function CajaPage() {
   const { inmuebles, convenios, contribuyentes, documentos, tcmmv, refreshData } = useAppContext();
@@ -165,14 +155,8 @@ export default function CajaPage() {
       return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
     }
 
-    // IMPORTANTE: usar freshInmuebles y condominioHijos
-    const sourceInms = freshInmuebles.length > 0 ? [...freshInmuebles, ...condominioHijos] : inmuebles;
-    const userInms = sourceInms.filter((i: any) => {
-      const fid = (foundUser.Identidad || '').replace(/-/g,'').toUpperCase();
-      if ((i.identidad || '').replace(/-/g,'').toUpperCase() === fid) return true;
-      if (freshInmuebles.length > 0) return true; // Si hay freshInmuebles, ya vienen filtrados con los hijos incluidos
-      return false;
-    });
+    // IMPORTANTE: usar freshInmuebles y condominioHijos (siempre frescos de Supabase)
+    const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
 
 
     // RECIB- = deuda acumulada de N meses → calcular un mes usando nuevas tarifas + IVA + Multa
@@ -181,7 +165,7 @@ export default function CajaPage() {
       const inmId = parts[2];
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
-        const baseMonto = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual, parseFloat(inm.mmv_mes || "0"));
+        const baseMonto = calcularMensualidad(String(inm.clasificacion || ''), String(inm.actividad_principal || ''), parseInt(String(inm.cant_inmuebles || 1)), tasaActual, parseFloat(String(inm.mmv_mes || '0')));
         const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
         const montoIVA = esRes ? 0 : baseMonto * 0.16;
         const emision = r.emision ? new Date(r.emision) : new Date();
@@ -660,58 +644,49 @@ export default function CajaPage() {
 
   }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos]);
 
-  const toggleRecibo = (ref: string) => {
-    const sortedRecibos = [...recibos].sort((a: any, b: any) => {
+  // ─── useMemo: evita re-sort en cada click del cajero (O-1) ──────────────────
+  const sortedRecibos = useMemo(() =>
+    [...recibos].sort((a: any, b: any) => {
       const aIsCM = a.referencia?.startsWith('CM-');
       const bIsCM = b.referencia?.startsWith('CM-');
       if (!aIsCM && bIsCM) return -1;
       if (aIsCM && !bIsCM) return 1;
       return (a.emision || '').localeCompare(b.emision || '');
-    });
+    }),
+  [recibos]);
 
-    const userInms = (freshInmuebles.length > 0 ? [...freshInmuebles, ...condominioHijos] : (inmuebles || [])).filter((i: any) => {
-      if (!foundUser) return false;
-      const fid = (foundUser.Identidad || '').replace(/-/g,'').toUpperCase();
-      if ((i.identidad || '').replace(/-/g,'').toUpperCase() === fid) return true;
-      if (freshInmuebles.length > 0) return true;
-      return false;
-    });
-
-    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter((x:string) => x.length > 3);
+  const toggleRecibo = (ref: string) => {
+    // ─── getUserInmuebles helper (I-1) ────────────────────────────────────────
+    const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
     
     const currentR = recibos.find(r => r.referencia === ref);
     if (!currentR) return;
     
     const parts = ref.split('-');
     let currentInmId = parts.length > 2 ? parts[2] : null;
-    if (ref.startsWith('CM-')) currentInmId = userInms.find(i => ref.includes(i.inmueble))?.inmueble;
+    if (ref.startsWith('CM-')) currentInmId = userInms.find((i: any) => ref.includes(i.inmueble))?.inmueble ?? null;
     
     const currentInm = userInms.find(i => i.inmueble === currentInmId);
     let refsToToggle = [ref];
 
-    // Auto-select recibos del mismo mes para el mismo local
+    // ─── Auto-select recibos del mismo mes para el mismo local (isSameLocal helper) ───
     if (currentInm && currentInm.direccion && userInms.length > 1) {
-      const w1 = normalize(currentInm.direccion);
-      const mismosLocales = userInms.filter((i: any) => {
-        if (!i.direccion) return false;
-        const w2 = normalize(i.direccion);
-        if (w1.length === 0 || w2.length === 0) return false;
-        const common = w1.filter(w => w2.includes(w)).length;
-        return (common / Math.min(w1.length, w2.length) > 0.75);
-      }).map(i => i.inmueble);
+      const mismosLocales = userInms
+        .filter((i: any) => i.direccion && isSameLocal(String(currentInm.direccion), String(i.direccion)))
+        .map((i: any) => i.inmueble);
 
       if (mismosLocales.length > 1) {
         refsToToggle = recibos.filter((r: any) => {
           if (r.emision !== currentR.emision) return false;
-          let rInmId = null;
+          let rInmId: string | null = null;
           if (r.referencia?.startsWith('RECIB-HIST-')) {
             const p = r.referencia.split('-');
             if (p.length > 2) rInmId = p[2];
           } else if (r.referencia?.startsWith('CM-')) {
-            rInmId = userInms.find((i:any) => r.referencia.includes(i.inmueble))?.inmueble;
+            rInmId = userInms.find((i: any) => r.referencia.includes(i.inmueble))?.inmueble ?? null;
           }
           return rInmId && mismosLocales.includes(rInmId);
-        }).map(r => r.referencia);
+        }).map((r: any) => r.referencia);
       }
     }
 
@@ -1031,9 +1006,7 @@ export default function CajaPage() {
           }
         }
 
-        const cajero = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || 'Administrador';
-        const letra = (typeof window !== 'undefined' ? localStorage.getItem('adminLetra') : null);
-        const cajero_id = letra && cajero !== 'Administrador' ? `${letra}-${cajero}` : cajero;
+        const cajero_id = getCajeroId();
 
         if (justificacionBcv) {
           await supabase.from('audit_logs').insert({
@@ -1159,9 +1132,7 @@ export default function CajaPage() {
         // ── RECIBO AUTOMÁTICO DESPUÉS DEL PAGO DÉBITO ──
         if (!esAbonoDebito) {
           try {
-            const cajeroRecibo = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || 'Administrador';
-            const letraRecibo = (typeof window !== 'undefined' ? localStorage.getItem('adminLetra') : null);
-            const cajero_id_recibo = letraRecibo && cajeroRecibo !== 'Administrador' ? `${letraRecibo}-${cajeroRecibo}` : cajeroRecibo;
+            const cajero_id_recibo = getCajeroId();
             const userInmsRec = (inmuebles as any[]).filter((i: any) =>
               (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
             );
@@ -1245,9 +1216,7 @@ export default function CajaPage() {
 
         
       } else {
-        const cajero = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || 'Administrador';
-        const letra = (typeof window !== 'undefined' ? localStorage.getItem('adminLetra') : null);
-        const cajero_id = letra && cajero !== 'Administrador' ? `${letra}-${cajero}` : cajero;
+        const cajero_id = getCajeroId();
 
         if (justificacionBcv) {
           await supabase.from('audit_logs').insert({
@@ -1749,13 +1718,7 @@ export default function CajaPage() {
                   <div className="space-y-4">
                     {Object.entries(
                       recibos.reduce((acc: any, r: any) => {
-                        const userInms = (freshInmuebles.length > 0 ? [...freshInmuebles, ...condominioHijos] : (inmuebles || [])).filter((i: any) => {
-                          if (!foundUser) return false;
-                          const fid = (foundUser.Identidad || '').replace(/-/g,'').toUpperCase();
-                          if ((i.identidad || '').replace(/-/g,'').toUpperCase() === fid) return true;
-                          if (freshInmuebles.length > 0) return true;
-                          return false;
-                        });
+                        const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
                         let inmId = 'Facturación General';
                         let tipo = '';
                         let act = '';
@@ -1764,15 +1727,15 @@ export default function CajaPage() {
                           const parts = r.referencia.split('-');
                           if (parts.length > 2) {
                             const match = userInms.find((i: any) => i.inmueble === parts[2]);
-                            if (match) { inmId = match.inmueble; tipo = match.clasificacion || ''; act = match.actividad_principal || ''; dir = match.direccion || ''; }
+                            if (match) { inmId = String(match.inmueble || ''); tipo = String(match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
                             else inmId = parts[2];
                           }
                         } else if (r.referencia?.startsWith('CM-')) {
                           const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
-                          if (match) { inmId = match.inmueble; tipo = match.clasificacion || ''; act = match.actividad_principal || ''; dir = match.direccion || ''; }
+                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
                           else inmId = 'Acumulados';
                         } else {
-                          if (userInms.length === 1) { inmId = userInms[0].inmueble; tipo = userInms[0].clasificacion || ''; act = userInms[0].actividad_principal || ''; dir = userInms[0].direccion || ''; }
+                          if (userInms.length === 1) { inmId = String(userInms[0].inmueble || ''); tipo = String(userInms[0].clasificacion || ''); act = String(userInms[0].actividad_principal || ''); dir = String(userInms[0].direccion || ''); }
                         }
                         
                         // Encontrar si pertenece a un grupo de direcciones similar
