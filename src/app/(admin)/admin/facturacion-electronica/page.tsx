@@ -6,9 +6,7 @@ import { FileText, Send, CheckCircle, AlertTriangle, ExternalLink, RefreshCw } f
 export default function FacturacionElectronicaPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [successLink, setSuccessLink] = useState<string | null>(
-    "https://democonsulta.thefactoryhka.com.ve/?doc=GhQVet4Fbe+vAHltz47VsoKrQ1NOzTmiOLp4jVe5oz4U01Z9FA/OdGcGnU9nU1co"
-  );
+  const [successLink, setSuccessLink] = useState<string | null>(null);
   
   const handleLoteMassivo = async () => {
     setIsProcessing(true);
@@ -88,7 +86,7 @@ export default function FacturacionElectronicaPage() {
             <p className="text-slate-600 text-sm mb-4">
               Aquí puedes visualizar la factura de prueba generada contra el entorno de <strong>Demo de The Factory HKA</strong> que fue exitosa.
             </p>
-            {successLink && (
+            {successLink ? (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
                   <a 
@@ -109,7 +107,6 @@ export default function FacturacionElectronicaPage() {
                   </button>
                 </div>
                 
-                {/* Intentamos incrustarlo para que se vea en el sistema. Nota: democonsulta a veces deniega iframe */}
                 <div className="w-full h-80 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 relative group">
                   <iframe 
                     src={successLink} 
@@ -117,10 +114,19 @@ export default function FacturacionElectronicaPage() {
                     title="Previsualización de Factura"
                   />
                   <div className="absolute inset-0 bg-slate-800/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    <p className="text-white text-sm px-6 text-center">Si The Factory HKA bloquea la previsualización directa (descarga forzada), usa el botón superior para abrirla en una pestaña nueva.</p>
+                    <p className="text-white text-sm px-6 text-center">Si The Factory HKA bloquea la previsualización directa, usa el botón superior para abrirla en una pestaña nueva.</p>
                   </div>
                 </div>
               </div>
+            ) : (
+              <button 
+                onClick={handleTestInvoice}
+                disabled={isTesting}
+                className="inline-flex items-center gap-2 bg-[#111827] hover:bg-slate-800 text-[#c8e64c] font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isTesting ? 'animate-spin' : ''}`} />
+                {isTesting ? 'Generando prueba...' : 'Generar Prueba con TFHKA'}
+              </button>
             )}
           </div>
           <div className="p-4 bg-yellow-50 border-t border-yellow-100 flex items-start gap-3">
