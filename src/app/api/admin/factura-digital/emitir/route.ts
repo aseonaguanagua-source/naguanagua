@@ -103,12 +103,29 @@ export async function POST(request: Request) {
 
     const docIdentificacion = identidad.replace(/[^A-Z0-9-]/gi, '');
     const primeraLetra = docIdentificacion.charAt(0).toUpperCase();
-    // Si el primer char no es letra válida (V/J/G/E/P), asumir V (persona natural)
-    const tipoId = /^[VJGEP]$/.test(primeraLetra) ? primeraLetra : 'V';
-    const numId  = /^[VJGEP]$/.test(primeraLetra)
-      ? docIdentificacion.substring(1).replace(/^-/, '')
-      : docIdentificacion;  // Cédula sin prefijo: usar número completo
 
+    let tipoId: string;
+    let numId: string;
+
+    if (/^[VJGEP]$/.test(primeraLetra)) {
+      // Identidad con prefijo explícito: V-12345678, J-12345678, etc.
+      tipoId = primeraLetra;
+      numId  = docIdentificacion.substring(1).replace(/^-/, '');
+    } else {
+      // Identidad sin prefijo (solo números) — detectar por nombre del contribuyente y tipo
+      const nombreContrib = (contribuyente || '').toUpperCase();
+      const tipoInmueble  = (propRef?.tipo || '').toUpperCase();
+
+      // Indicadores de persona jurídica (empresa)
+      const esJuridica = /\b(C\.A\.|S\.A\.|S\.R\.L\.|C\.P\.|C\.V\.|A\.C\.|COMPANIA|EMPRESA|INVERSIONES|INDUSTRIAS|CORPORACION|FUNDACION|ASOCIACION|COOPERATIVA|C\.A$|S\.A$)\b/.test(nombreContrib);
+      // Indicadores de persona extranjera (nombre no venezolano o FONDO)
+      const esExtranjero = /\b(FUND(O|ACION)?|INTERNATIONAL|AMERICAN|GLOBAL|LATIN|CORP\.|LLC|LTD|LIMITED)\b/.test(nombreContrib);
+
+      tipoId = esJuridica ? 'J'
+             : esExtranjero && !tipoInmueble.includes('RESIDENCIAL') ? 'E'
+             : 'V';
+      numId  = docIdentificacion; // número completo sin prefijo
+    }
 
     const subtotal   = totalGravado + totalExento;
     const totalAPagar = subtotal + totalIVA;
