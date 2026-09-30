@@ -9,6 +9,8 @@ import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, getFAR } from '@/lib/calculos';
 import { getUserInmuebles, getCajeroId, isSameLocal } from '@/lib/cajaHelpers';
+import { useCajaCalculations } from './hooks/useCajaCalculations';
+import { useCajaSelection } from './hooks/useCajaSelection';
 
 
 export default function CajaPage() {
@@ -138,97 +140,16 @@ export default function CajaPage() {
     return false;
   };
 
-    const getReciboMonto = (r: any) => {
-    // Si no hay usuario encontrado o no tenemos tcmmv, fallback al monto original
-    if (!foundUser) {
-      return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
-    }
-
-    if (r.estado === 'Abonado' || r.estado === 'Pagado') return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
-
-    // SIEMPRE usar una tasaActual: la personalizada o la del BCV global
-    const tasaActual = (customBcvRate && !isNaN(parseFloat(customBcvRate))) 
-        ? parseFloat(customBcvRate) 
-        : (tcmmv || 0);
-
-    if (tasaActual <= 0) {
-      return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
-    }
-
-    // IMPORTANTE: usar freshInmuebles y condominioHijos (siempre frescos de Supabase)
-    const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
-
-
-    // RECIB- = deuda acumulada de N meses → calcular un mes usando nuevas tarifas + IVA + Multa
-    if (r.referencia?.startsWith('RECIB-HIST-')) {
-      const parts = r.referencia.split('-');
-      const inmId = parts[2];
-      const inm = userInms.find((i: any) => i.inmueble === inmId);
-      if (inm) {
-        const baseMonto = calcularMensualidad(String(inm.clasificacion || ''), String(inm.actividad_principal || ''), parseInt(String(inm.cant_inmuebles || 1)), tasaActual, parseFloat(String(inm.mmv_mes || '0')));
-        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-        const montoIVA = esRes ? 0 : baseMonto * 0.16;
-        const emision = r.emision ? new Date(r.emision) : new Date();
-        const today = new Date();
-        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-        const montoMulta = monthsDiff > 1 ? baseMonto * (esRes ? 0.10 : 0.12) : 0;
-        const totalMes = baseMonto + montoIVA + montoMulta;
-        
-        let montoPendiente = 0;
-        pagosPendientes.forEach((p: any) => {
-          let det: any = {};
-          try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch (e) {}
-          const refs: string[] = det.recibos || [];
-          if (refs.includes(r.referencia)) {
-            const montoPago = parseFloat(String(p.monto || '0').replace(/[^0-9.]/g, '')) || 0;
-            if (refs.length > 0) montoPendiente += (montoPago / refs.length);
-          }
-        });
-        return String(Math.max(0, totalMes - montoPendiente).toFixed(2));
-      }
-      return '0.00';
-    } else if (r.referencia?.startsWith('RECIB-')) {
-      // Fallback for old RECIB-DEUDA or standard RECIB
-      return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
-    }
-
-    // CM- = exactamente 1 mes del inmueble específico referenciado en la factura
-    if (r.referencia?.startsWith('CM-')) {
-      let targetInms = userInms.filter((inm: any) =>
-        inm.inmueble && (r.referencia || '').includes(inm.inmueble)
-      );
-
-      if (targetInms.length === 0) targetInms = userInms;
-
-      let totalConIva = 0;
-      targetInms.forEach((inm: any) => {
-        const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActual, parseFloat(inm.mmv_mes || "0"));
-        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-        const emision = r.emision ? new Date(r.emision) : new Date();
-        const today = new Date();
-        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-        const multaLocal = monthsDiff > 1 ? bm * (esRes ? 0.10 : 0.12) : 0;
-        totalConIva += bm + (esRes ? 0 : (bm * 0.16)) + multaLocal;
-      });
-
-      if (totalConIva > 0) {
-        let montoPendiente = 0;
-        pagosPendientes.forEach((p: any) => {
-          let det: any = {};
-          try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch (e) {}
-          const refs: string[] = det.recibos || [];
-          if (refs.includes(r.referencia)) {
-            const montoPago = parseFloat(String(p.monto || '0').replace(/[^0-9.]/g, '')) || 0;
-            if (refs.length > 0) montoPendiente += (montoPago / refs.length);
-          }
-        });
-        return String(Math.max(0, totalConIva - montoPendiente).toFixed(2));
-      }
-    }
-
-    // Fallback genérico (para otros tipos de recibos que no sean CM- o RECIB- y no tengan cálculo UCD)
-    return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
-  };
+  // ─── useCajaCalculations hook (Fase 2) ────────────────────────────────────────
+  const { getReciboMonto } = useCajaCalculations({
+    foundUser,
+    customBcvRate,
+    tcmmv,
+    freshInmuebles,
+    condominioHijos,
+    inmuebles,
+    pagosPendientes,
+  });
 
 
   const bancosVenezuela = [
@@ -644,133 +565,23 @@ export default function CajaPage() {
 
   }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos]);
 
-  // ─── useMemo: evita re-sort en cada click del cajero (O-1) ──────────────────
-  const sortedRecibos = useMemo(() =>
-    [...recibos].sort((a: any, b: any) => {
-      const aIsCM = a.referencia?.startsWith('CM-');
-      const bIsCM = b.referencia?.startsWith('CM-');
-      if (!aIsCM && bIsCM) return -1;
-      if (aIsCM && !bIsCM) return 1;
-      return (a.emision || '').localeCompare(b.emision || '');
-    }),
-  [recibos]);
-
-  const toggleRecibo = (ref: string) => {
-    // ─── getUserInmuebles helper (I-1) ────────────────────────────────────────
-    const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
-    
-    const currentR = recibos.find(r => r.referencia === ref);
-    if (!currentR) return;
-    
-    const parts = ref.split('-');
-    let currentInmId = parts.length > 2 ? parts[2] : null;
-    if (ref.startsWith('CM-')) currentInmId = userInms.find((i: any) => ref.includes(i.inmueble))?.inmueble ?? null;
-    
-    const currentInm = userInms.find(i => i.inmueble === currentInmId);
-    let refsToToggle = [ref];
-
-    // ─── Auto-select recibos del mismo mes para el mismo local (isSameLocal helper) ───
-    if (currentInm && currentInm.direccion && userInms.length > 1) {
-      const mismosLocales = userInms
-        .filter((i: any) => i.direccion && isSameLocal(String(currentInm.direccion), String(i.direccion)))
-        .map((i: any) => i.inmueble);
-
-      if (mismosLocales.length > 1) {
-        refsToToggle = recibos.filter((r: any) => {
-          if (r.emision !== currentR.emision) return false;
-          let rInmId: string | null = null;
-          if (r.referencia?.startsWith('RECIB-HIST-')) {
-            const p = r.referencia.split('-');
-            if (p.length > 2) rInmId = p[2];
-          } else if (r.referencia?.startsWith('CM-')) {
-            rInmId = userInms.find((i: any) => r.referencia.includes(i.inmueble))?.inmueble ?? null;
-          }
-          return rInmId && mismosLocales.includes(rInmId);
-        }).map((r: any) => r.referencia);
-      }
-    }
-
-    // Comprobar pending
-    if (refsToToggle.some(r => isItemPending(r))) {
-      alert('Uno o más recibos del mismo local tienen un pago por transferencia asociado que está Por Verificar. Espere su aprobación (Conciliación).');
-      return;
-    }
-
-    if (selectedRecibos.includes(ref)) {
-      // Deselecting
-      let toRemove = [...refsToToggle];
-      refsToToggle.forEach(tRef => {
-        const cIdx = sortedRecibos.findIndex(r => r.referencia === tRef);
-        if (cIdx !== -1) {
-          const refParts = tRef.split('-');
-          const inmuebleId = refParts.length >= 3 ? `${refParts[1]}-${refParts[2]}` : null;
-          if (inmuebleId) {
-            const subs = sortedRecibos.slice(cIdx).filter(r => (r.referencia || '').includes(inmuebleId)).map(r => r.referencia);
-            toRemove = [...toRemove, ...subs];
-          } else {
-            const subs = sortedRecibos.slice(cIdx).map(r => r.referencia);
-            toRemove = [...toRemove, ...subs];
-          }
-        }
-      });
-      setSelectedRecibos(selectedRecibos.filter(r => !toRemove.includes(r)));
-    } else {
-      // Selecting
-      for (const tRef of refsToToggle) {
-        const cIdx = sortedRecibos.findIndex(r => r.referencia === tRef);
-        if (cIdx !== -1) {
-          const refParts = tRef.split('-');
-          const inmuebleId = refParts.length >= 3 ? `${refParts[1]}-${refParts[2]}` : null;
-          if (inmuebleId) {
-            const previousSameInmueble = sortedRecibos
-              .slice(0, cIdx)
-              .filter(r => (r.referencia || '').includes(inmuebleId))
-              .map(r => r.referencia);
-            const missingPrevious = previousSameInmueble.some(pr => !selectedRecibos.includes(pr) && !refsToToggle.includes(pr) && !isItemPending(pr));
-            if (missingPrevious) {
-              alert('¡No se puede adelantar meses! Debe seleccionar y pagar las deudas más antiguas de este inmueble primero.');
-              return;
-            }
-          } else {
-            const previousRefs = sortedRecibos.slice(0, cIdx).map(r => r.referencia);
-            const missingPrevious = previousRefs.some(pr => !selectedRecibos.includes(pr) && !refsToToggle.includes(pr) && !isItemPending(pr));
-            if (missingPrevious) {
-              alert('¡No se puede adelantar meses! Debe seleccionar y pagar las deudas más antiguas primero.');
-              return;
-            }
-          }
-        }
-      }
-      const newSelected = [...selectedRecibos];
-      refsToToggle.forEach(tr => { if (!newSelected.includes(tr)) newSelected.push(tr); });
-      setSelectedRecibos(newSelected);
-    }
-  };
-
-  const toggleCuota = (convId: string, cuotaId: number) => {
-    const exists = selectedCuotas.find(c => c.convId === convId && c.cuotaId === cuotaId);
-    if (exists) {
-      setSelectedCuotas(selectedCuotas.filter(c => !(c.convId === convId && c.cuotaId === cuotaId)));
-    } else {
-      setSelectedCuotas([...selectedCuotas, {convId, cuotaId}]);
-    }
-  };
-
-  const toggleServicio = (ref: string) => {
-    if (selectedServicios.includes(ref)) {
-      setSelectedServicios(selectedServicios.filter(r => r !== ref));
-    } else {
-      setSelectedServicios([...selectedServicios, ref]);
-    }
-  };
-
-  const toggleTalaPoda = (ref: string) => {
-    if (selectedTalaPoda.includes(ref)) {
-      setSelectedTalaPoda(selectedTalaPoda.filter(r => r !== ref));
-    } else {
-      setSelectedTalaPoda([...selectedTalaPoda, ref]);
-    }
-  };
+  // ─── useCajaSelection hook (Fase 2) ────────────────────────────────────────
+  const { sortedRecibos, toggleRecibo, toggleCuota, toggleServicio, toggleTalaPoda } = useCajaSelection({
+    recibos,
+    freshInmuebles,
+    condominioHijos,
+    inmuebles,
+    foundUser,
+    selectedRecibos,
+    setSelectedRecibos,
+    selectedCuotas,
+    setSelectedCuotas,
+    selectedServicios,
+    setSelectedServicios,
+    selectedTalaPoda,
+    setSelectedTalaPoda,
+    isItemPending,
+  });
 
   const fetchTasaHistorica = async () => {
     if (!selectedUcdDate) return;
