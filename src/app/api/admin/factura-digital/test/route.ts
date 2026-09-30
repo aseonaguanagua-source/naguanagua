@@ -9,14 +9,14 @@ export async function POST(request: Request) {
     
     // Formato de fecha AAAA-MM-DD
     const pad = (n: number) => String(n).padStart(2, '0');
-    const fechaFmt = `${fechaActual.getFullYear()}-${pad(fechaActual.getMonth()+1)}-${pad(fechaActual.getDate())}`;
+    const fechaFmt = `${pad(fechaActual.getDate())}/${pad(fechaActual.getMonth()+1)}/${fechaActual.getFullYear()}`;
 
     // Mock document
     const mockDocument = {
       Encabezado: {
         IdentificacionDocumento: {
           TipoDocumento: "01",
-          NumeroDocumento: `TEST${Math.floor(Math.random() * 10000)}`,
+          NumeroDocumento: String(Math.floor(Math.random() * 99999999)).padStart(8, '0'),
           TipoProveedor: null,
           TipoTransaccion: null,
           FechaEmision: fechaFmt,
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
           Direccion: "AVENIDA UNIVERSIDAD NAGUANAGUA",
           Ubigeo: null,
           Pais: "VE",
-          Notificar: "1",
+          Notificar: "SI",
           Telefono: [],
           Correo: [],
           OtrosEnvios: null

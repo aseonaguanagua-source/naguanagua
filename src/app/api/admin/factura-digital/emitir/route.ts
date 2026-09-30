@@ -148,7 +148,7 @@ export async function POST(request: Request) {
             Direccion: propRef?.direccion || "NAGUANAGUA",
             Ubigeo: null,
             Pais: "VE",
-            Notificar: "1", // 1 = Si
+            Notificar: "SI", // 1 = Si ya no es valido, requiere SI
             Telefono: [], // Could be added later if column exists
             Correo: [],   // Could be added later if column exists
             OtrosEnvios: null
