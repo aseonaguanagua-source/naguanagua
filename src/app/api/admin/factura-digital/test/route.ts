@@ -19,12 +19,12 @@ export async function POST(_request: Request) {
 
     // Datos del contribuyente comercial ficticio (datos de prueba para TFHKA Demo)
     const montoServicio = 850.00;   // Bs — monto del servicio de aseo
-    const montoMulta   = 120.00;   // Bs — multa por mora
+    const montoMulta   = 120.00;   // Bs — multa por mora (exenta de IVA)
     const ivaServicio  = montoServicio * 0.16;  // 136.00
-    const ivaMulta     = montoMulta * 0.16;     // 19.20
-    const totalGravado = montoServicio + montoMulta;              // 970.00
-    const totalIVA     = ivaServicio + ivaMulta;                  // 155.20
-    const totalAPagar  = totalGravado + totalIVA;                 // 1125.20
+    const totalGravado = montoServicio;          // Solo el servicio lleva IVA
+    const totalExento  = montoMulta;             // La multa es exenta
+    const totalIVA     = ivaServicio;            // 136.00
+    const totalAPagar  = totalGravado + totalExento + totalIVA;  // 1106.00
 
     const documentoElectronico = {
       Moneda: 'VES',
@@ -61,22 +61,28 @@ export async function POST(_request: Request) {
         Totales: {
           NroItems:               '2',
           MontoGravadoTotal:      totalGravado.toFixed(2),
-          MontoExentoTotal:       '0.00',
+          MontoExentoTotal:       totalExento.toFixed(2),
           MontoPercibidoTotal:    '0.00',
-          SubtotalAntesDescuento: totalGravado.toFixed(2),
+          SubtotalAntesDescuento: (totalGravado + totalExento).toFixed(2),
           TotalDescuento:         null,
           TotalRecargos:          null,
-          Subtotal:               totalGravado.toFixed(2),
+          Subtotal:               (totalGravado + totalExento).toFixed(2),
           TotalIVA:               totalIVA.toFixed(2),
           MontoTotalConIVA:       totalAPagar.toFixed(2),
           TotalAPagar:            totalAPagar.toFixed(2),
-          MontoEnLetras:          'MIL CIENTO VEINTICINCO BOLIVARES CON 20/100',
+          MontoEnLetras:          'MIL CIENTO SEIS BOLIVARES CON 00/100',
           ImpuestosSubtotal: [
             {
               CodigoTotalImp:   'G',
               AlicuotaImp:      '16.00',
               BaseImponibleImp: totalGravado.toFixed(2),
               ValorTotalImp:    totalIVA.toFixed(2),
+            },
+            {
+              CodigoTotalImp:   'E',
+              AlicuotaImp:      '00.00',
+              BaseImponibleImp: totalExento.toFixed(2),
+              ValorTotalImp:    '0.00',
             },
           ],
           FormasPago: [
@@ -131,10 +137,10 @@ export async function POST(_request: Request) {
           RecargoMonto:            '0',
           PrecioItem:              montoMulta.toFixed(2),
           PrecioAntesDescuento:    montoMulta.toFixed(2),
-          CodigoImpuesto:          'G',
-          TasaIVA:                 '16.00',
-          ValorIVA:                ivaMulta.toFixed(2),
-          ValorTotalItem:          (montoMulta + ivaMulta).toFixed(2),
+          CodigoImpuesto:          'E',   // Exento — la multa no lleva IVA
+          TasaIVA:                 '0.00',
+          ValorIVA:                '0.00',
+          ValorTotalItem:          montoMulta.toFixed(2),
           InfoAdicionalItem:       [],
           ListaItemOTI:            null,
         },
