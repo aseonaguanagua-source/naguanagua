@@ -36,9 +36,9 @@ export async function POST(request: Request) {
           Direccion: "AVENIDA UNIVERSIDAD NAGUANAGUA",
           Ubigeo: null,
           Pais: "VE",
-          Notificar: "NO",
+          Notificar: "SI",
           Telefono: [],
-          Correo: [],
+          Correo: ["aseonaguanagua@globalgreenca.com"],
           OtrosEnvios: null
         },
         SujetoRetenido: null,

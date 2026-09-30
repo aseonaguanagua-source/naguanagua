@@ -148,9 +148,9 @@ export async function POST(request: Request) {
             Direccion: propRef?.direccion || "NAGUANAGUA",
             Ubigeo: null,
             Pais: "VE",
-            Notificar: "NO", // Obligatorio NO si el array Correo está vacío
+            Notificar: "SI",
             Telefono: [], // Could be added later if column exists
-            Correo: [],   // Could be added later if column exists
+            Correo: ["aseonaguanagua@globalgreenca.com"],
             OtrosEnvios: null
           },
           SujetoRetenido: null,
