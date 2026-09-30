@@ -1,19 +1,14 @@
-import { NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { TheFactoryHKA } from '@/lib/thefactoryhka';
+import { TheFactoryHKA } from './src/lib/thefactoryhka';
 
-export async function POST(request: Request) {
-  try {
-    const fechaActual = new Date();
-    const horaStr = fechaActual.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
-    
-    // Formato de fecha AAAA-MM-DD
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const fechaFmt = `${pad(fechaActual.getDate())}/${pad(fechaActual.getMonth()+1)}/${fechaActual.getFullYear()}`;
+async function main() {
+  const valuesToTest = ["SI", "Si", "S", "true", "True", "TRUE", "yes", "Yes", "Y"];
+  const fechaActual = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const fechaFmt = `${pad(fechaActual.getDate())}/${pad(fechaActual.getMonth()+1)}/${fechaActual.getFullYear()}`;
+  const horaStr = fechaActual.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
 
-    // Mock document
+  for (const val of valuesToTest) {
     const mockDocument = {
-      Moneda: "VES",
       Encabezado: {
         IdentificacionDocumento: {
           TipoDocumento: "01",
@@ -28,6 +23,7 @@ export async function POST(request: Request) {
           Serie: "",
           Sucursal: "",
           TipoDeVenta: "Interna"
+          Moneda: "VES",
         },
         Vendedor: null,
         Comprador: {
@@ -37,7 +33,7 @@ export async function POST(request: Request) {
           Direccion: "AVENIDA UNIVERSIDAD NAGUANAGUA",
           Ubigeo: null,
           Pais: "VE",
-          Notificar: "Si",
+          Notificar: val,
           Telefono: [],
           Correo: ["aseonaguanagua@globalgreenca.com"],
           OtrosEnvios: null
@@ -71,7 +67,6 @@ export async function POST(request: Request) {
               Fecha: fechaFmt,
               Forma: "01",
               Monto: "116.00",
-              Moneda: "VES",
               TipoCambio: "0.0000"
             }
           ]
@@ -104,16 +99,16 @@ export async function POST(request: Request) {
       ]
     };
 
-    const tfhkaResponse = await TheFactoryHKA.emitirDocumento(mockDocument);
-    const url = tfhkaResponse.resultado?.imprentaDigital || null;
-
-    if (!url) {
-      return NextResponse.json({ error: 'La API de The Factory HKA no devolvió un enlace.' }, { status: 400 });
+    try {
+      const tfhkaResponse = await TheFactoryHKA.emitirDocumento(mockDocument);
+      console.log(`Success with value: ${val}`);
+      console.log(tfhkaResponse);
+      break;
+    } catch (e: any) {
+      console.log(`Failed with value: ${val}`);
+      console.log(e.message);
     }
-
-    return NextResponse.json({ success: true, url, raw: tfhkaResponse });
-  } catch (error: any) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+main();

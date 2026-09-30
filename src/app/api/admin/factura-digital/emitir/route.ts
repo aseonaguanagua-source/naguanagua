@@ -125,6 +125,7 @@ export async function POST(request: Request) {
 
     const jsonTFHKA = {
       documentoElectronico: {
+        Moneda: "VES",
         Encabezado: {
           IdentificacionDocumento: {
             TipoDocumento: "01", // Factura
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
             Direccion: propRef?.direccion || "NAGUANAGUA",
             Ubigeo: null,
             Pais: "VE",
-            Notificar: "SI",
+            Notificar: "Si",
             Telefono: [], // Could be added later if column exists
             Correo: ["aseonaguanagua@globalgreenca.com"],
             OtrosEnvios: null
