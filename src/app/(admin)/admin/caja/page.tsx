@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
@@ -12,6 +12,17 @@ import { getUserInmuebles, getCajeroId, isSameLocal } from '@/lib/cajaHelpers';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
 import { useCajaSelection } from './hooks/useCajaSelection';
+
+// ─ Constante de módulo: evita re-ordenar en cada render (fix A-4) ─
+const BANCOS_VENEZUELA = [
+  '100% Banco', 'Bancamiga', 'Bancaribe', 'Banco Activo', 'Banco Agrícola de Venezuela',
+  'Banco Bicentenario', 'Banco Caroní', 'Banco de Venezuela', 'Banco del Tesoro',
+  'Banco Exterior', 'Banco Mercantil', 'Banco Nacional de Crédito (BNC)', 'Banco Plaza',
+  'Banco Provincial', 'Banco Sofitasa', 'Banesco', 'Banplus', 'Bancrecer',
+  'Mi Banco', 'Banco Internacional (BIB)', 'Banco Venezolano de Crédito (BVC)',
+  'BanFanb', 'Bancovi', 'Instituto Municipal de Crédito Popular (IMCP)',
+  'Fondemi', 'Microfinanzas', 'Pagomovil BDV'
+].sort();
 
 
 export default function CajaPage() {
@@ -99,26 +110,37 @@ export default function CajaPage() {
   const [reciboDesde, setReciboDesde] = React.useState<string>('');   // 'YYYY-MM' e.g. '2026-07'
   const [reciboHasta, setReciboHasta] = React.useState<string>('');
 
-  // Notas de Crédito — carga directa desde Supabase
+  // Notas de Crédito — carga directa desde Supabase con cleanup anti-memory-leak (fix A-3)
   const [notasCredito, setNotasCredito] = useState<any[]>([]);
   const [isLoadingNotas, setIsLoadingNotas] = useState(false);
+  const fetchNotasCreditoAbortRef = useRef<AbortController | null>(null);
 
-  const fetchNotasCredito = async () => {
+  const fetchNotasCredito = useCallback(async () => {
+    // Cancelar fetch anterior si estaba en curso (evita setState en componente desmontado)
+    fetchNotasCreditoAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchNotasCreditoAbortRef.current = controller;
+
     setIsLoadingNotas(true);
     try {
       const { data, error } = await supabase
         .from('documentos')
-        .select('*')
+        .select('id,tipo,estado,identidad,contribuyente,detalles,created_at') // solo cols necesarias
         .eq('tipo', 'Nota de Credito')
-        .order('created_at', { ascending: false });
-      if (!error && data) setNotasCredito(data);
-    } catch(e) { console.error(e); }
-    setIsLoadingNotas(false);
-  };
+        .order('created_at', { ascending: false })
+        .abortSignal(controller.signal);
+      if (!error && data && !controller.signal.aborted) setNotasCredito(data);
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') console.error(e);
+    }
+    if (!controller.signal.aborted) setIsLoadingNotas(false);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'NotasCredito') fetchNotasCredito();
-  }, [activeTab]);
+    // Cleanup: cancelar si se desmonta el tab
+    return () => { fetchNotasCreditoAbortRef.current?.abort(); };
+  }, [activeTab, fetchNotasCredito]);
 
   // BCV Rate Override States
   const [showRateModal, setShowRateModal] = useState(false);
@@ -130,16 +152,6 @@ export default function CajaPage() {
   const [notaManualMonto, setNotaManualMonto] = useState('');
   const [notaManualRef, setNotaManualRef] = useState('');
   
-  const currentBcvRate = customBcvRate && !isNaN(parseFloat(customBcvRate)) ? parseFloat(customBcvRate) : tcmmv;
-
-  const isItemPending = (ref: string) => {
-    const f = recibos.find((r: any) => r.referencia === ref);
-    if (!f) return false;
-    const montoPendiente = parseFloat(getReciboMonto(f) || '0');
-    // Bloquear si el recibo está completamente cubierto por pagos 'Por Verificar'
-    if (montoPendiente <= 0 && f.estado !== 'Abonado' && f.estado !== 'Pagado') return true;
-    return false;
-  };
 
   // ─── useCajaCalculations hook (Fase 2) ────────────────────────────────────────
   const { getReciboMonto } = useCajaCalculations({
@@ -152,16 +164,39 @@ export default function CajaPage() {
     pagosPendientes,
   });
 
+  // Tasa efectiva activa (personalizada o BCV global)
+  const currentBcvRate = customBcvRate && !isNaN(parseFloat(customBcvRate)) ? parseFloat(customBcvRate) : tcmmv;
 
-  const bancosVenezuela = [
-    '100% Banco', 'Bancamiga', 'Bancaribe', 'Banco Activo', 'Banco Agrícola de Venezuela',
-    'Banco Bicentenario', 'Banco Caroní', 'Banco de Venezuela', 'Banco del Tesoro', 
-    'Banco Exterior', 'Banco Mercantil', 'Banco Nacional de Crédito (BNC)', 'Banco Plaza',
-    'Banco Provincial', 'Banco Sofitasa', 'Banesco', 'Banplus', 'Bancrecer',
-    'Mi Banco', 'Banco Internacional (BIB)', 'Banco Venezolano de Crédito (BVC)',
-    'BanFanb', 'Bancovi', 'Instituto Municipal de Crédito Popular (IMCP)',
-    'Fondemi', 'Microfinanzas', 'Pagomovil BDV'
-  ].sort();
+  // ─ Fix C-3: pendingRefsSet — O(1) lookup en lugar de O(n) find+recalc por render ─
+  // Mapeo ref → monto calculado para eliminar el doble recalc en isItemPending
+  const reciboMontoMap = useMemo(() => {
+    const map = new Map<string, number>();
+    recibos.forEach((r: any) => {
+      map.set(r.referencia, parseFloat(getReciboMonto(r) || '0'));
+    });
+    return map;
+  }, [recibos, getReciboMonto]);
+
+  // Set de referencias bloqueadas por pago en verificación: O(1) lookup
+  const pendingRefsSet = useMemo(() => {
+    const blocked = new Set<string>();
+    recibos.forEach((r: any) => {
+      const monto = reciboMontoMap.get(r.referencia) ?? 0;
+      if (monto <= 0 && r.estado !== 'Abonado' && r.estado !== 'Pagado') {
+        blocked.add(r.referencia);
+      }
+    });
+    return blocked;
+  }, [recibos, reciboMontoMap]);
+
+  // isItemPending: O(1) — solo consulta el Set precalculado
+  const isItemPending = useCallback(
+    (ref: string) => pendingRefsSet.has(ref),
+    [pendingRefsSet]
+  );
+
+  // bancosVenezuela movido a BANCOS_VENEZUELA (constante de módulo, fix A-4)
+
 
   const handleAuthorizeRateChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -470,27 +505,35 @@ export default function CajaPage() {
     setIsSearching(false);
   };
 
-  // Recalculate Total
+  // Recalculate Total — O(n) con Maps, antes era O(n²) con .find() anidados (fix C-4)
   useEffect(() => {
+    // ── Construir índices O(1) una sola vez por ejecución ────────────────────
+    const recibosMap = new Map<string, any>(recibos.map((r: any) => [r.referencia, r]));
+    const cuotasMap = new Map<string, any>(cuotas.map((c: any) => [`${c.convId}:${c.cuotaId}`, c]));
+    const serviciosMap = new Map<string, any>(serviciosEsp.map((s: any) => [s.referencia, s]));
+    const talaPodaMap = new Map<string, any>(talaPoda.map((s: any) => [s.referencia, s]));
+    const inmueblesMap = new Map<string, any>((inmuebles || []).map((i: any) => [i.inmueble, i]));
+
     let total = 0;
     
     selectedRecibos.forEach(ref => {
-      const f = recibos.find(r => r.referencia === ref);
-      if (f) total += parseFloat(getReciboMonto(f) || '0');
+      const f = recibosMap.get(ref);
+      // Reutiliza reciboMontoMap precalculado para evitar recalcular getReciboMonto
+      if (f) total += reciboMontoMap.get(ref) ?? parseFloat(getReciboMonto(f) || '0');
     });
     
     selectedCuotas.forEach(sc => {
-      const c = cuotas.find(cq => cq.convId === sc.convId && cq.cuotaId === sc.cuotaId);
+      const c = cuotasMap.get(`${sc.convId}:${sc.cuotaId}`);
       if (c) total += parseFloat(c.monto || '0');
     });
 
     selectedServicios.forEach(ref => {
-      const s = serviciosEsp.find(ss => ss.referencia === ref);
+      const s = serviciosMap.get(ref);
       if (s) total += parseFloat(s.monto || '0');
     });
 
     selectedTalaPoda.forEach(ref => {
-      const s = talaPoda.find(ss => ss.referencia === ref);
+      const s = talaPodaMap.get(ref);
       if (s) total += parseFloat(s.monto || '0');
     });
     
@@ -498,14 +541,12 @@ export default function CajaPage() {
     const tasaActualUse = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
 
     if (isCondominio && condominioModo === 'Abono') {
-      let hijosToProcess = condominioHijos;
-      hijosToProcess.forEach(h => {
+      condominioHijos.forEach(h => {
         const baseMonto = (h.deuda_mmv || 0) * tasaActualUse;
         const esRes = (h.clasificacion || '').toLowerCase().includes('residencial');
         const ivaLocal = esRes ? 0 : baseMonto * 0.16;
         const mesesMora = parseInt(h.meses_deuda || '1');
         const multaLocal = mesesMora > 1 ? baseMonto * (esRes ? 0.10 : 0.12) : 0;
-        
         total += (baseMonto + ivaLocal + multaLocal);
         sb += baseMonto;
         siva += ivaLocal;
@@ -518,53 +559,53 @@ export default function CajaPage() {
     selectedRecibos.forEach(ref => {
       if (ref.startsWith('RECIB-HIST-')) {
         const parts = ref.split('-');
-        const inmId = parts[2];
-        const inm = (inmuebles || []).find((i) => i.inmueble === inmId);
+        const inm = inmueblesMap.get(parts[2]);
         if (inm) {
-          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse, parseFloat(inm.mmv_mes || "0"));
+          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse, parseFloat(inm.mmv_mes || '0'));
           const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
           sb += bm;
           siva += esRes ? 0 : bm * 0.16;
-          const f = recibos.find(r => r.referencia === ref);
-          const emision = f && f.emision ? new Date(f.emision) : new Date();
+          const f = recibosMap.get(ref);
+          const emision = f?.emision ? new Date(f.emision) : new Date();
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-          if (monthsDiff > 1) {
-            smulta += bm * (esRes ? 0.10 : 0.12);
-          }
+          if (monthsDiff > 1) smulta += bm * (esRes ? 0.10 : 0.12);
         }
       } else if (ref.startsWith('CM-')) {
-        let targetInms = (inmuebles || []).filter(inm => inm.inmueble && ref.includes(inm.inmueble));
-        if (targetInms.length === 0) targetInms = (inmuebles || []).filter(i => i.identidad === foundUser?.Identidad);
-        targetInms.forEach(inm => {
-          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse, parseFloat(inm.mmv_mes || "0"));
+        // Filtrar inmuebles del ref — O(n) pero sobre fresh array pequeño
+        const userInmsLocal = (inmuebles || []).filter((inm: any) => inm.inmueble && ref.includes(inm.inmueble));
+        const targetInms = userInmsLocal.length > 0
+          ? userInmsLocal
+          : (inmuebles || []).filter((i: any) => i.identidad === foundUser?.Identidad);
+        targetInms.forEach((inm: any) => {
+          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse, parseFloat(inm.mmv_mes || '0'));
           const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
           sb += bm;
           siva += esRes ? 0 : bm * 0.16;
         });
       } else {
-        const f = recibos.find(r => r.referencia === ref);
+        const f = recibosMap.get(ref);
         if (f) sb += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
       }
     });
 
     selectedCuotas.forEach(sc => {
-      const c = cuotas.find(cq => cq.convId === sc.convId && cq.cuotaId === sc.cuotaId);
+      const c = cuotasMap.get(`${sc.convId}:${sc.cuotaId}`);
       if (c) sb += parseFloat(c.monto || '0');
     });
     selectedServicios.forEach(ref => {
-      const s = serviciosEsp.find(ss => ss.referencia === ref);
+      const s = serviciosMap.get(ref);
       if (s) { sb += parseFloat(s.monto || '0'); siva += parseFloat(s.monto || '0') * ivaPercent; }
     });
     selectedTalaPoda.forEach(ref => {
-      const s = talaPoda.find(ss => ss.referencia === ref);
+      const s = talaPodaMap.get(ref);
       if (s) { sb += parseFloat(s.monto || '0'); siva += parseFloat(s.monto || '0') * ivaPercent; }
     });
     setSumBase(sb);
     setSumIVA(siva);
     setSumMulta(smulta);
 
-  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos]);
+  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, reciboMontoMap, getReciboMonto]);
 
   // ─── useCajaSelection hook (Fase 2) ────────────────────────────────────────
   const { sortedRecibos, toggleRecibo, toggleCuota, toggleServicio, toggleTalaPoda } = useCajaSelection({
@@ -1877,7 +1918,7 @@ export default function CajaPage() {
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     >
                       <option value="" disabled>Seleccione un Banco...</option>
-                      {bancosVenezuela.map(b => (
+                      {BANCOS_VENEZUELA.map(b => (
                         <option key={b} value={b}>{b}</option>
                       ))}
                     </select>

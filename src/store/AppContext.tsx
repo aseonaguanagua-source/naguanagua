@@ -127,7 +127,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']) // Solo recibos activas - excluye Pagado/Anulado/Reversado
           .range(from, from + step);
         if (chunk && chunk.length > 0) {
-          allFacturas = [...allFacturas, ...chunk];
+          allFacturas.push(...chunk);
           from += step + 1;
         } else {
           fetchMore = false;
@@ -144,7 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           while (true) {
             const { data } = await supabase.from(table).select(select).range(from, from + step);
             if (data && data.length > 0) {
-              all = [...all, ...data];
+              all.push(...data);
               from += step + 1;
               if (data.length < step + 1) break;
             } else {
@@ -244,9 +244,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setTcmmv(currentTcmmv);
       
-      // Let's just fetch it normally since I can't guarantee arguments:
-      const { data: fetchAuditLogs } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
-      setAuditLogs(fetchAuditLogs || []);
+      // audit_logs ya se cargó con limit(200) dentro del Promise.all — no repetir
+      setAuditLogs(dbAuditLogs || []);
 
       if (dbInmuebles) {
         const mappedInmuebles = dbInmuebles.map((row: any) => ({
