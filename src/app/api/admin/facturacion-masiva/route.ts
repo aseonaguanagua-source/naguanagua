@@ -69,18 +69,28 @@ async function enviarCorreos(facturasGeneradas: any[]) {
         </div>
       `;
 
-      let emailDestino = null;
+      let emailDestinoReal = null;
       if (f.inmuebles && f.inmuebles.correo_electronico) {
-        emailDestino = f.inmuebles.correo_electronico;
+        emailDestinoReal = f.inmuebles.correo_electronico;
       } else if (f.inmuebles && Array.isArray(f.inmuebles) && f.inmuebles[0]?.correo_electronico) {
-        emailDestino = f.inmuebles[0].correo_electronico;
+        emailDestinoReal = f.inmuebles[0].correo_electronico;
       }
+
+      // MODO PRUEBA: si EMAIL_TEST_MODE=true, todos los correos van al correo de prueba
+      const modoTest = process.env.EMAIL_TEST_MODE === 'true';
+      const emailDestino = modoTest
+        ? 'aseonaguanagua@globalgreenca.com'
+        : emailDestinoReal;
+
+      const subjectFinal = modoTest
+        ? `[PRUEBA | Destinatario real: ${emailDestinoReal}] Nueva Recibo - ${f.referencia}`
+        : `Nueva Recibo Generada - ${f.referencia}`;
 
       if (emailDestino && emailDestino.includes('@')) {
         await resend.emails.send({
           from: 'ASEO Naguanagua <iamec.naguanagua@globalgreenca.com>',
           to: emailDestino,
-          subject: `Nueva Recibo Generada - ${f.referencia}`,
+          subject: subjectFinal,
           html: emailHtml,
         });
       }
