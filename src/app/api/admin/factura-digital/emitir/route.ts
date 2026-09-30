@@ -79,7 +79,6 @@ export async function POST(request: Request) {
         const codInm = ref.split('-').slice(2, -1).join('-');
         const inm = (inmsHist || []).find((i: any) => i.inmueble === codInm);
         let montoBase = parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
-        const montoMulta = parseFloat(String(inm?.multa_bs || '0'));
 
         // Condición de carrera: la caja limpia deuda_mmv ANTES de llamar a emitir.
         // Si el inmueble ya tiene deuda=0 pero montoTotal está disponible, usar montoTotal
@@ -87,7 +86,13 @@ export async function POST(request: Request) {
           montoBase = parseFloat(String(montoTotal));
         }
 
-        if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipo: 'HIST' });
+        // MULTA: calcular como % del base (NO usar multa_bs que es el total histórico acumulado)
+        // Residencial: 10%, Comercial/Industrial: 12%
+        const esResidencial = (inm?.tipo || '').toLowerCase().includes('residencial');
+        const pctMulta = esResidencial ? 0.10 : 0.12;
+        const montoMulta = parseFloat((montoBase * pctMulta).toFixed(2));
+
+        if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipoInm: inm?.tipo || '' });
       });
     }
 
@@ -295,16 +300,40 @@ export async function POST(request: Request) {
               },
             ],
             OtrosImpuestosSubtotal: null,
-            FormasPago: [
-              {
-                Descripcion: "Pago Movil",
+            // Formas de pago: usar datos reales de la caja
+            FormasPago: (() => {
+              const mapaForma: Record<string, {desc: string, codigo: string}> = {
+                'debito':       { desc: 'Tarjeta de Débito',      codigo: '03' },
+                'credito':      { desc: 'Tarjeta de Crédito',     codigo: '04' },
+                'transferencia':{ desc: 'Transferencia Bancaria', codigo: '05' },
+                'pagomovil':    { desc: 'Pago Móvil',             codigo: '02' },
+                'efectivo':     { desc: 'Efectivo',               codigo: '01' },
+                'cheque':       { desc: 'Cheque',                  codigo: '06' },
+              };
+              if (formasPago && formasPago.length > 0) {
+                return formasPago.map((fp: any) => {
+                  const key = (fp.descripcion || fp.forma || '').toLowerCase().replace(/\s+/g,'');
+                  const mapped = mapaForma[key] || { desc: fp.descripcion || 'Pago', codigo: fp.forma || '02' };
+                  return {
+                    Descripcion: mapped.desc,
+                    Fecha:       formatearFecha(fp.fecha || fechaActual.toISOString()),
+                    Forma:       mapped.codigo,
+                    Monto:       parseFloat(String(fp.monto || totalAPagar)).toFixed(2),
+                    Moneda:      'BSD',
+                    TipoCambio:  '0.0000',
+                  };
+                });
+              }
+              // Fallback
+              return [{
+                Descripcion: 'Pago Móvil',
                 Fecha:       formatearFecha(fechaActual.toISOString()),
-                Forma:       "02",
+                Forma:       '02',
                 Monto:       totalAPagar.toFixed(2),
-                Moneda:      "BSD",
-                TipoCambio:  "0.0000",
-              },
-            ],
+                Moneda:      'BSD',
+                TipoCambio:  '0.0000',
+              }];
+            })(),
             TotalIGTF:         null,
             TotalIGTF_VES:     null,
             MontoTotalOTI:     null,
@@ -317,7 +346,16 @@ export async function POST(request: Request) {
         DetallesItems:    detallesItems,
         DetallesRetencion: null,
         Viajes:            null,
-        InfoAdicional:     [],
+        InfoAdicional: [
+          // Actividad Económica (Licencia)
+          ...(propRef?.actividad_principal ? [{
+            nombre: 'LicenciaActividades',
+            valor:  propRef.actividad_principal,
+          }] : []),
+          // Banco y referencia del pago (si vienen en formasPago)
+          ...(formasPago?.[0]?.banco ? [{ nombre: 'Banco', valor: formasPago[0].banco }] : []),
+          ...(formasPago?.[0]?.referencia ? [{ nombre: 'Referencia', valor: formasPago[0].referencia }] : []),
+        ],
         GuiaDespacho:      null,
         Transporte:        null,
         EsLote:            null,
