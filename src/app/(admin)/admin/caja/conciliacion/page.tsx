@@ -645,20 +645,29 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
         
-        // Emitir Factura Digital The Factory HKA (Asíncrono)
+        // ── EMITIR FACTURA DIGITAL THE FACTORY HKA ──
+        // Se dispara automáticamente al APROBAR una transferencia en conciliación
         try {
           fetch('/api/admin/factura-digital/emitir', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              pagoId: pago.id,
-              recibos: recibos,
-              montos: { total: montoConciliadoNum },
+              pagoId:        pago.id,
+              recibos:       recibos,
+              montos:        { total: montoConciliadoNum },
+              montoTotal:    montoConciliadoNum,
               contribuyente: contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad,
-              identidad: pago.identidad
+              identidad:     pago.identidad,
+              formasPago: [{
+                descripcion: pago.tipo || 'Transferencia',
+                fecha:       new Date().toISOString(),
+                forma:       '03',   // 03 = Transferencia bancaria
+                monto:       montoConciliadoNum
+              }]
             })
-          }).catch(e => console.error("Error trigger factura digital:", e));
+          }).catch(e => console.error('Error trigger factura digital (conciliación):', e));
         } catch(e) {}
+
       }
       // Con Diferencia: agregar monto de diferencia como saldo a favor
       if (estatus === 'Con Diferencia' && montoConciliadoNum > 0) {
