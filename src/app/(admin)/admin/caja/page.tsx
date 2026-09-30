@@ -929,7 +929,7 @@ export default function CajaPage() {
             // Si hay RECIB-HIST de este inmueble específico o RECIB-DEUDA, limpiar deuda
             const esteInm = histRefs.some(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
             if (selectedRecibos.includes('RECIB-DEUDA') || esteInm) {
-              await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
+              await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', inm.id);
             }
           }
         }

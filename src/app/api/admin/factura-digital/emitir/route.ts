@@ -317,7 +317,7 @@ export async function POST(request: Request) {
                     Descripcion: mapped.desc,
                     Fecha:       formatearFecha(fp.fecha || fechaActual.toISOString()),
                     Forma:       mapped.codigo,
-                    Monto:       parseFloat(String(fp.monto || totalAPagar)).toFixed(2),
+                    Monto:       totalAPagar.toFixed(2),  // DEBE coincidir con TotalAPagar exactamente
                     Moneda:      'BSD',
                     TipoCambio:  '0.0000',
                   };
