@@ -890,24 +890,7 @@ export default function CajaPage() {
           throw new Error('No se pudo registrar el pago: ' + insertErr.message);
         }
 
-        // ── LIMPIAR DEUDA: RECIB-DEUDA o RECIB-HIST-* ──
-        const histRefs = selectedRecibos.filter(r => r.startsWith('RECIB-HIST-'));
-        if ((selectedRecibos.includes('RECIB-DEUDA') || histRefs.length > 0) && !esAbonoDebito) {
-          const sourceInms = freshInmuebles.length > 0 ? freshInmuebles : inmuebles;
-          const userInmsClean = sourceInms.filter((i: any) =>
-            (i.identidad || '').replace(/-/g,'').toUpperCase() === 
-            (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
-          );
-          for (const inm of userInmsClean) {
-            // Si hay RECIB-HIST de este inmueble específico o RECIB-DEUDA, limpiar deuda
-            const esteInm = histRefs.some(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
-            if (selectedRecibos.includes('RECIB-DEUDA') || esteInm) {
-              await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
-            }
-          }
-        }
-
-        // ── TFHKA FACTURACIÓN DIGITAL ──
+        // ── TFHKA FACTURACIÓN DIGITAL (antes de limpiar deuda para tener los montos) ──
         if (pagoId) {
           try {
             const tfhkaRes = await fetch('/api/admin/factura-digital/emitir', {
@@ -933,6 +916,24 @@ export default function CajaPage() {
             console.error('Error enviando a factura digital TFHKA', err);
           }
         }
+
+        // ── LIMPIAR DEUDA: RECIB-DEUDA o RECIB-HIST-* (después de emitir factura) ──
+        const histRefs = selectedRecibos.filter(r => r.startsWith('RECIB-HIST-'));
+        if ((selectedRecibos.includes('RECIB-DEUDA') || histRefs.length > 0) && !esAbonoDebito) {
+          const sourceInms = freshInmuebles.length > 0 ? freshInmuebles : inmuebles;
+          const userInmsClean = sourceInms.filter((i: any) =>
+            (i.identidad || '').replace(/-/g,'').toUpperCase() === 
+            (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
+          );
+          for (const inm of userInmsClean) {
+            // Si hay RECIB-HIST de este inmueble específico o RECIB-DEUDA, limpiar deuda
+            const esteInm = histRefs.some(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
+            if (selectedRecibos.includes('RECIB-DEUDA') || esteInm) {
+              await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
+            }
+          }
+        }
+
 
         if (esAbonoDebito) {
           (window as any).__lastPaymentAbono = { 

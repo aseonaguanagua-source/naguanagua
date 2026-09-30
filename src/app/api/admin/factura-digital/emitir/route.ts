@@ -69,17 +69,24 @@ export async function POST(request: Request) {
     const histItems: any[] = [];
     if (histRecibos.length > 0) {
       // Extraer códigos de inmueble de referencias: RECIB-HIST-{COD}-M{N}
-      const codigosInm = [...new Set(histRecibos.map((r: string) => r.split('-').slice(2, -1).join('-')))]; 
+      const codigosInm = [...new Set(histRecibos.map((r: string) => r.split('-').slice(2, -1).join('-')))];
       const { data: inmsHist } = await supabase
         .from('inmuebles')
         .select('inmueble, deuda_mmv, deuda_congelada_bs, multa_bs, tipo, actividad_principal')
         .in('inmueble', codigosInm);
-      
+
       histRecibos.forEach((ref: string) => {
         const codInm = ref.split('-').slice(2, -1).join('-');
         const inm = (inmsHist || []).find((i: any) => i.inmueble === codInm);
-        const montoBase = parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
+        let montoBase = parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
         const montoMulta = parseFloat(String(inm?.multa_bs || '0'));
+
+        // Condición de carrera: la caja limpia deuda_mmv ANTES de llamar a emitir.
+        // Si el inmueble ya tiene deuda=0 pero montoTotal está disponible, usar montoTotal
+        if (montoBase <= 0 && montoTotal && parseFloat(String(montoTotal)) > 0) {
+          montoBase = parseFloat(String(montoTotal));
+        }
+
         if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipo: 'HIST' });
       });
     }
