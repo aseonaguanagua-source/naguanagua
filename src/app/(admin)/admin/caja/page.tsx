@@ -899,7 +899,10 @@ export default function CajaPage() {
               body: JSON.stringify({
                 pagoId: pagoId,
                 recibos: selectedRecibos,
-                montos: [],
+                montos: selectedRecibos.reduce((acc: Record<string, number>, ref: string) => {
+                  acc[ref] = reciboMontoMap.get(ref) ?? 0;
+                  return acc;
+                }, {} as Record<string, number>),
                 contribuyente: foundUser.Contribuyente,
                 identidad: foundUser.Identidad,
                 montoTotal: montoReal,

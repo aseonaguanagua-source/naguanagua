@@ -23,10 +23,12 @@ export async function POST(request: Request) {
     }
 
     // --- BUSINESS RULE: Only emit invoices for Commercial properties ---
+    const idNaked = identidad.replace(/^[VJGEP]-?/i, '');
+    const idVariants = [identidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];
     const { data: userProps, error: propsErr } = await supabase
       .from('inmuebles')
       .select('tipo, actividad_principal, direccion')
-      .eq('identidad', identidad);
+      .in('identidad', idVariants);
 
     if (propsErr) {
       console.error("Props error:", propsErr);
@@ -78,12 +80,20 @@ export async function POST(request: Request) {
       histRecibos.forEach((ref: string) => {
         const codInm = ref.split('-').slice(2, -1).join('-');
         const inm = (inmsHist || []).find((i: any) => i.inmueble === codInm);
-        let montoBase = parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
+        
+        // Prioridad de montos:
+        // 1. montos[ref] del payload de la caja (precalculado, más confiable)
+        // 2. deuda_mmv del inmueble (si no se ha limpiado aún)
+        // 3. montoTotal como fallback
+        const montoCaja = montos && typeof montos === 'object' && montos[ref] ? parseFloat(String(montos[ref])) : 0;
+        let montoBase = montoCaja > 0
+          ? montoCaja
+          : parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
 
-        // Condición de carrera: la caja limpia deuda_mmv ANTES de llamar a emitir.
-        // Si el inmueble ya tiene deuda=0 pero montoTotal está disponible, usar montoTotal
+        // Fallback: si deuda ya fue limpiada y no hay monto de caja
         if (montoBase <= 0 && montoTotal && parseFloat(String(montoTotal)) > 0) {
-          montoBase = parseFloat(String(montoTotal));
+          // Dividir montoTotal entre la cantidad de recibos HIST
+          montoBase = parseFloat(String(montoTotal)) / histRecibos.length;
         }
 
         // MULTA: calcular como % del base (NO usar multa_bs que es el total histórico acumulado)
@@ -251,8 +261,8 @@ export async function POST(request: Request) {
             Moneda:                       "BSD",
             Anulado:                      false,
             TipoDePago:                   "Inmediato",
-            Serie:                        "",
-            Sucursal:                     "",
+            Serie:                        "CAJA-001",
+            Sucursal:                     "SEDE PRINCIPAL",
             TipoDeVenta:                  "Interna",
           },
           Vendedor: null,
