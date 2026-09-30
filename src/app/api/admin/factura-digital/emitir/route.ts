@@ -64,24 +64,44 @@ export async function POST(request: Request) {
 
     const { data: facturasBD } = await supabase.from('facturas').select('*').in('referencia', recibos);
 
+    // Para RECIB-HIST-*, buscar en inmuebles (no están en tabla facturas)
+    const histRecibos = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
+    const histItems: any[] = [];
+    if (histRecibos.length > 0) {
+      // Extraer códigos de inmueble de referencias: RECIB-HIST-{COD}-M{N}
+      const codigosInm = [...new Set(histRecibos.map((r: string) => r.split('-').slice(2, -1).join('-')))]; 
+      const { data: inmsHist } = await supabase
+        .from('inmuebles')
+        .select('inmueble, deuda_mmv, deuda_congelada_bs, multa_bs, tipo, actividad_principal')
+        .in('inmueble', codigosInm);
+      
+      histRecibos.forEach((ref: string) => {
+        const codInm = ref.split('-').slice(2, -1).join('-');
+        const inm = (inmsHist || []).find((i: any) => i.inmueble === codInm);
+        const montoBase = parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
+        const montoMulta = parseFloat(String(inm?.multa_bs || '0'));
+        if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipo: 'HIST' });
+      });
+    }
+
     let totalGravado = 0;
-    let totalExento = 0;
-    let totalIVA = 0;
+    let totalExento  = 0;
+    let totalIVA     = 0;
+    let lineaNum     = 0;
 
-    // All commercial invoice items carry 16% IVA (per TFHKA spec)
-    const detallesItems = (facturasBD || []).map((fac: any, idx: number) => {
+    // Items de facturas normales (16% IVA)
+    const itemsFacturas = (facturasBD || []).map((fac: any) => {
+      lineaNum++;
       const montoItem = parseFloat(String(fac.monto || '0').replace(/[^0-9.]/g, ''));
-      const valorIVA = parseFloat((montoItem * 0.16).toFixed(2));
-      const valorTotalItem = montoItem + valorIVA;
-      totalGravado += montoItem;
-      totalIVA += valorIVA;
-
+      const valorIVA  = parseFloat((montoItem * 0.16).toFixed(2));
+      totalGravado   += montoItem;
+      totalIVA       += valorIVA;
       return {
-        NumeroLinea:             String(idx + 1),
+        NumeroLinea:             String(lineaNum),
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             `Servicio de Aseo Urbano - Recibo ${fac.referencia}`,
+        Descripcion:             `Servicio de Aseo Urbano - ${fac.referencia}`,
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          montoItem.toFixed(2),
@@ -95,11 +115,78 @@ export async function POST(request: Request) {
         CodigoImpuesto:          "G",
         TasaIVA:                 "16",
         ValorIVA:                valorIVA.toFixed(2),
-        ValorTotalItem:          String(valorTotalItem),
+        ValorTotalItem:          String(parseFloat((montoItem + valorIVA).toFixed(2))),
         InfoAdicionalItem:       [],
         ListaItemOTI:            null,
       };
     });
+
+    // Items de deuda histórica (base con IVA 16%, multa Exenta)
+    const itemsHist = histItems.flatMap((h: any) => {
+      const items = [];
+      lineaNum++;
+      const valorIVAHist = parseFloat((h.montoBase * 0.16).toFixed(2));
+      totalGravado += h.montoBase;
+      totalIVA     += valorIVAHist;
+      items.push({
+        NumeroLinea:             String(lineaNum),
+        CodigoCIIU:              "0198",
+        CodigoPLU:               "ASEO001",
+        IndicadorBienoServicio:  "2",
+        Descripcion:             `Servicio de Aseo Urbano (Histórico) - ${h.ref}`,
+        Cantidad:                "1",
+        UnidadMedida:            "NIU",
+        PrecioUnitario:          h.montoBase.toFixed(2),
+        PrecioUnitarioDescuento: null,
+        MontoBonificacion:       null,
+        DescripcionBonificacion: null,
+        DescuentoMonto:          "0.00",
+        RecargoMonto:            "0",
+        PrecioItem:              h.montoBase.toFixed(2),
+        PrecioAntesDescuento:    h.montoBase.toFixed(2),
+        CodigoImpuesto:          "G",
+        TasaIVA:                 "16",
+        ValorIVA:                valorIVAHist.toFixed(2),
+        ValorTotalItem:          String(parseFloat((h.montoBase + valorIVAHist).toFixed(2))),
+        InfoAdicionalItem:       [],
+        ListaItemOTI:            null,
+      });
+      if (h.montoMulta > 0) {
+        lineaNum++;
+        totalExento += h.montoMulta;
+        items.push({
+          NumeroLinea:             String(lineaNum),
+          CodigoCIIU:              "0198",
+          CodigoPLU:               "MULT001",
+          IndicadorBienoServicio:  "2",
+          Descripcion:             `Multa por Mora - ${h.ref}`,
+          Cantidad:                "1",
+          UnidadMedida:            "NIU",
+          PrecioUnitario:          h.montoMulta.toFixed(2),
+          PrecioUnitarioDescuento: null,
+          MontoBonificacion:       null,
+          DescripcionBonificacion: null,
+          DescuentoMonto:          "0.00",
+          RecargoMonto:            "0",
+          PrecioItem:              h.montoMulta.toFixed(2),
+          PrecioAntesDescuento:    h.montoMulta.toFixed(2),
+          CodigoImpuesto:          "E",
+          TasaIVA:                 "0",
+          ValorIVA:                "0.00",
+          ValorTotalItem:          h.montoMulta.toFixed(2),
+          InfoAdicionalItem:       [],
+          ListaItemOTI:            null,
+        });
+      }
+      return items;
+    });
+
+    const detallesItems = [...itemsFacturas, ...itemsHist];
+
+    // Si no hay items, no emitir (nada que facturar)
+    if (detallesItems.length === 0) {
+      return NextResponse.json({ success: true, skipped: true, message: 'Sin items para facturar.' });
+    }
 
     const docIdentificacion = identidad.replace(/[^A-Z0-9-]/gi, '');
     const primeraLetra = docIdentificacion.charAt(0).toUpperCase();
@@ -135,7 +222,7 @@ export async function POST(request: Request) {
         Encabezado: {
           IdentificacionDocumento: {
             TipoDocumento:                "01",
-            NumeroDocumento:              `000000${pagoId}`.slice(-8),
+            NumeroDocumento:              String(Math.floor(Date.now() / 1000)).slice(-10),
             TipoProveedor:                null,
             TipoTransaccion:              null,
             NumeroPlanillaImportacion:    null,
