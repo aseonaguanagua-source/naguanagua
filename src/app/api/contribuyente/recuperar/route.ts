@@ -60,16 +60,24 @@ export async function POST(request: Request) {
       </div>
     `;
 
+    // MODO PRUEBA: redirigir al correo de prueba si EMAIL_TEST_MODE=true
+    const modoTest = process.env.EMAIL_TEST_MODE === 'true';
+    const destinoReal = user.correo_electronico;
+    const destinoEnvio = modoTest ? 'aseonaguanagua@globalgreenca.com' : destinoReal;
+    const subjectEnvio = modoTest
+      ? `[PRUEBA | Para: ${destinoReal}] Recuperación de Contraseña`
+      : 'Recuperación de Contraseña - Global Rec';
+
     // Send email using Resend
     if (process.env.RESEND_API_KEY) {
       await resend.emails.send({
         from: 'Global Rec <iamec.naguanagua@globalgreenca.com>',
-        to: user.correo_electronico,
-        subject: 'Recuperación de Contraseña - Global Rec',
+        to: destinoEnvio,
+        subject: subjectEnvio,
         html: emailHtml,
       });
     } else {
-      console.log('NO RESEND API KEY FOUND. Email would be sent to:', user.correo_electronico);
+      console.log('NO RESEND API KEY. Email would be sent to:', destinoEnvio);
       console.log('Reset URL:', resetUrl);
     }
 

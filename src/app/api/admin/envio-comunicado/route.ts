@@ -243,14 +243,21 @@ export async function POST(request: Request) {
     let enviados = 0, errores = 0;
     const erroresList: string[] = [];
 
+    // MODO PRUEBA: si EMAIL_TEST_MODE=true, todos los comunicados van a aseonaguanagua@globalgreenca.com
+    const modoTestComun = process.env.EMAIL_TEST_MODE === 'true';
+
     for (let i = 0; i < destinatarios.length; i += 10) {
       const lote = destinatarios.slice(i, i + 10);
       await Promise.all(lote.map(async (dest) => {
         try {
+          const destinoComun = modoTestComun ? 'aseonaguanagua@globalgreenca.com' : dest.correo;
+          const subjectComun = modoTestComun
+            ? `[PRUEBA | Para: ${dest.correo}] Comunicado Oficial - IAMEC Naguanagua`
+            : 'Comunicado Oficial - Renovacion de Plataforma Digital | IAMEC Naguanagua Municipio Naguanagua';
           await resend.emails.send({
             from: 'IAMEC Naguanagua <iamec.naguanagua@globalgreenca.com>',
-            to: [dest.correo],
-            subject: 'Comunicado Oficial - Renovacion de Plataforma Digital | IAMEC Naguanagua Municipio Naguanagua',
+            to: [destinoComun],
+            subject: subjectComun,
             html: buildHtml(dest.nombre),
           });
           enviados++;
