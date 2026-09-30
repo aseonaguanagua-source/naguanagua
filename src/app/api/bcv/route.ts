@@ -4,7 +4,8 @@ import * as cheerio from 'cheerio';
 import https from 'https';
 
 export async function GET(request: Request) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  // Fix M-2: TLS global disable removido (riesgo MitM en tasa BCV => afecta montos cobrados)
+  // Usar agente HTTPS específico si el BCV tiene cert issues, no deshabilitar globalmente
   const { searchParams } = new URL(request.url);
   const sync = searchParams.get('sync') === 'true';
 

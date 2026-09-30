@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import React, { useState, useEffect } from 'react';
 import { Lock, User, AlertCircle , Eye, EyeOff} from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -57,15 +57,10 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
     setIsAuthenticating(true);
     setError('');
 
-    if (username.toLowerCase() === 'dzara' && (password === 'dzara' || password === 'andministrador')) {
-      localStorage.setItem('admin_auth_andministrador', 'true');
-      localStorage.setItem('admin_user_data', JSON.stringify({ nombre: 'Administrador Sistema', rol: 'Administrador', usuario: 'dzara' }));
-      localStorage.setItem('adminUser', 'dzara');
-      setIsAuthenticated(true);
-      setIsAuthenticating(false);
-      logAudit('Login Exitoso (Master)', { usuario: 'dzara' }, 'SESION');
-      return;
-    }
+    // Fix C-1: Master password hardcodeado ELIMINADO del bundle público.
+    // Para acceso de superadmin: crear un registro en la tabla 'trabajadores' con
+    // usuario='dzara', clave (hasheada con bcrypt), rol='SuperAdmin', estado='Activo'.
+    // El login ahora pasa SIEMPRE por Supabase, nunca por comparación en cliente.
 
     try {
       const { data, error: dbError } = await supabase

@@ -39,7 +39,20 @@ async function fetchAllParallel(table: string, cols: string): Promise<any[]> {
   return all;
 }
 
-export async function GET() {
+// ─ Fix A-1: Autenticación por token secreto ─────────────────────────────────
+const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET;
+
+function verifyToken(request: Request): boolean {
+  if (!INTERNAL_API_SECRET) return false; // Si no está configurado, denegar todo
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  return token === INTERNAL_API_SECRET;
+}
+
+export async function GET(request: Request) {
+  if (!verifyToken(request)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
   try {
     // Fetch inmuebles y contribuyentes en paralelo, y dentro cada uno usa batches paralelos
     const [allInmuebles, allContribuyentes] = await Promise.all([

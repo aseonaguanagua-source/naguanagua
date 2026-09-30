@@ -31,8 +31,25 @@ async function enviarTelegram(msg: string): Promise<boolean> {
   } catch (e) { console.error('[Telegram] Error:', e); return false; }
 }
 
-export async function GET(request: Request) { return generarReporte(request); }
-export async function POST(request: Request) { return generarReporte(request); }
+// ─ Fix A-2: Solo Vercel Cron o admin con token puede disparar el reporte ─
+const CRON_SECRET = process.env.CRON_SECRET;
+
+function verifyCronToken(request: Request): boolean {
+  if (!CRON_SECRET) return false;
+  // Vercel Cron envía el header: Authorization: Bearer <CRON_SECRET>
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  return token === CRON_SECRET;
+}
+
+export async function GET(request: Request) {
+  if (!verifyCronToken(request)) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  return generarReporte(request);
+}
+export async function POST(request: Request) {
+  if (!verifyCronToken(request)) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  return generarReporte(request);
+}
 
 async function generarReporte(request?: Request) {
   try {
