@@ -262,7 +262,7 @@ export async function POST(request: Request) {
             Anulado:                      false,
             TipoDePago:                   "Inmediato",
             Serie:                        "CAJA-001",
-            Sucursal:                     "SEDE PRINCIPAL",
+            Sucursal:                     "",
             TipoDeVenta:                  "Interna",
           },
           Vendedor: null,
