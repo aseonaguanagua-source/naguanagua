@@ -102,8 +102,13 @@ export async function POST(request: Request) {
     });
 
     const docIdentificacion = identidad.replace(/[^A-Z0-9-]/gi, '');
-    const tipoId = docIdentificacion.charAt(0).toUpperCase();
-    const numId  = docIdentificacion.substring(1).replace(/^-/, '');
+    const primeraLetra = docIdentificacion.charAt(0).toUpperCase();
+    // Si el primer char no es letra válida (V/J/G/E/P), asumir V (persona natural)
+    const tipoId = /^[VJGEP]$/.test(primeraLetra) ? primeraLetra : 'V';
+    const numId  = /^[VJGEP]$/.test(primeraLetra)
+      ? docIdentificacion.substring(1).replace(/^-/, '')
+      : docIdentificacion;  // Cédula sin prefijo: usar número completo
+
 
     const subtotal   = totalGravado + totalExento;
     const totalAPagar = subtotal + totalIVA;
