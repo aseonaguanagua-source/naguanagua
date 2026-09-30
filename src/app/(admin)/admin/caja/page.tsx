@@ -75,7 +75,7 @@ export default function CajaPage() {
   const montoRetencionIVA = (totalBs * ivaPercent) * (retencionIVA / 100);
 
   // Payment State
-  const [paymentMethod, setPaymentMethod] = useState<'Debito' | 'Transferencia' | 'Saldo a Favor'>('Debito');
+  const [paymentMethod, setPaymentMethod] = useState<'Debito' | 'Transferencia' | 'Deposito' | 'Saldo a Favor'>('Debito');
   const [referenciaDebito, setReferenciaDebito] = useState('');
   const [montoDebito, setMontoDebito] = useState<string>(''); // Monto manual punto de venta
   const [banco, setBanco] = useState('Banco de Venezuela');
@@ -650,7 +650,7 @@ export default function CajaPage() {
     let esAbono = false;
     let montoReal = finalTotal;
     
-    const reqRef = ['Transferencia'].includes(paymentMethod);
+    const reqRef = ['Transferencia', 'Deposito'].includes(paymentMethod);
 
     if (reqRef) {
       if (!banco) return alert("Debe seleccionar el banco emisor.");
@@ -904,7 +904,7 @@ export default function CajaPage() {
                 identidad: foundUser.Identidad,
                 montoTotal: montoReal,
                 formasPago: [
-                  { descripcion: paymentMethod, fecha: new Date().toISOString(), forma: '01', monto: montoReal }
+                  { descripcion: paymentMethod, fecha: new Date().toISOString(), forma: paymentMethod === 'Debito' ? '03' : paymentMethod === 'Deposito' ? '05' : '05', banco: banco || undefined, referencia: reqRef ? referencia : referenciaDebito || undefined, monto: montoReal }
                 ]
               })
             });
@@ -1878,8 +1878,9 @@ export default function CajaPage() {
                   onChange={(e: any) => setPaymentMethod(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                 >
-                  <option value="Debito">Punto de Venta (TD/TC)</option>
+                  <option value="Debito">Punto de Venta (Débito / Crédito)</option>
                   <option value="Transferencia">Transferencia Bancaria</option>
+                  <option value="Deposito">Depósito Bancario</option>
                   {(foundUser?.SaldoFavor || 0) > 0 && (
                     <option value="Saldo a Favor">💳 Saldo a Favor (Bs. {formatBs(foundUser?.SaldoFavor || 0)})</option>
                   )}
@@ -1924,7 +1925,7 @@ export default function CajaPage() {
                     </div>
                   )}
 
-                  {['Transferencia'].includes(paymentMethod) && (
+                  {['Transferencia', 'Deposito'].includes(paymentMethod) && (
                 <div className="space-y-3 bg-white p-3 rounded border border-slate-200">
                   <label className="block">
                     <span className="text-xs font-semibold text-slate-600 mb-1 block">Fecha de Transacción</span>

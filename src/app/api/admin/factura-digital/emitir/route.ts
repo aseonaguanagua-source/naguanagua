@@ -306,14 +306,13 @@ export async function POST(request: Request) {
                 'debito':       { desc: 'Tarjeta de Débito',      codigo: '03' },
                 'credito':      { desc: 'Tarjeta de Crédito',     codigo: '04' },
                 'transferencia':{ desc: 'Transferencia Bancaria', codigo: '05' },
-                'pagomovil':    { desc: 'Pago Móvil',             codigo: '02' },
-                'efectivo':     { desc: 'Efectivo',               codigo: '01' },
-                'cheque':       { desc: 'Cheque',                  codigo: '06' },
+                'deposito':     { desc: 'Depósito Bancario',      codigo: '05' },
+                'depositobancario': { desc: 'Depósito Bancario',  codigo: '05' },
               };
               if (formasPago && formasPago.length > 0) {
                 return formasPago.map((fp: any) => {
-                  const key = (fp.descripcion || fp.forma || '').toLowerCase().replace(/\s+/g,'');
-                  const mapped = mapaForma[key] || { desc: fp.descripcion || 'Pago', codigo: fp.forma || '02' };
+                  const key = (fp.descripcion || fp.forma || '').toLowerCase().replace(/[\s_-]/g,'');
+                  const mapped = mapaForma[key] || { desc: fp.descripcion || 'Transferencia', codigo: fp.forma || '05' };
                   return {
                     Descripcion: mapped.desc,
                     Fecha:       formatearFecha(fp.fecha || fechaActual.toISOString()),
@@ -326,9 +325,9 @@ export async function POST(request: Request) {
               }
               // Fallback
               return [{
-                Descripcion: 'Pago Móvil',
+                Descripcion: 'Transferencia Bancaria',
                 Fecha:       formatearFecha(fechaActual.toISOString()),
-                Forma:       '02',
+                Forma:       '05',
                 Monto:       totalAPagar.toFixed(2),
                 Moneda:      'BSD',
                 TipoCambio:  '0.0000',
