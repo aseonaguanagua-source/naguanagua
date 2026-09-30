@@ -3,26 +3,20 @@ import MapWrapper from '@/components/MapWrapper';
 import { supabase } from '@/lib/supabase';
 import ManualBCVRateEditor from '@/components/ManualBCVRateEditor';
 import RecaudacionWidget from '@/components/RecaudacionWidget';
+import { getTasaBCV } from '@/services/bcv';
 
 export const dynamic = 'force-dynamic';
 
 async function getExchangeRates() {
   try {
-    const [usdRes, eurRes] = await Promise.all([
-      fetch('https://ve.dolarapi.com/v1/dolares/oficial', { next: { tags: ['bcv-rate'] } }),
-      fetch('https://ve.dolarapi.com/v1/euros/oficial', { next: { tags: ['bcv-rate'] } })
-    ]);
-    
-    if (!usdRes.ok || !eurRes.ok) throw new Error('API request failed');
-
-    const usd = await usdRes.json();
-    const eur = await eurRes.json();
+    const bcvData = await getTasaBCV();
+    if (!bcvData.success) throw new Error('API request failed');
     
     return {
-      usd: usd.promedio,
-      eur: eur.promedio,
-      tcmmv: eur.promedio,
-      fecha: new Date(eur.fechaActualizacion || usd.fechaActualizacion).toLocaleDateString('es-VE', {
+      usd: bcvData.usd,
+      eur: bcvData.euro,
+      tcmmv: bcvData.tcmmv,
+      fecha: new Date(bcvData.timestamp).toLocaleDateString('es-VE', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',

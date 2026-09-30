@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getFAR } from '@/lib/calculos';
+import { getTasaBCV } from '@/services/bcv';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -30,11 +31,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Obtener tasa UCD (EUR oficial)
-    const eurRes = await fetch('https://ve.dolarapi.com/v1/euros/oficial', { cache: 'no-store' });
-    if (!eurRes.ok) throw new Error('Error obteniendo tasa EUR/BCV');
-    const eurData = await eurRes.json();
-    const tcmmv: number = eurData.promedio;
+    // Obtener tasa UCD (EUR oficial) usando el mismo servicio que el resto del sistema
+    const bcvData = await getTasaBCV();
+    if (!bcvData.success) throw new Error('Error obteniendo tasa EUR/BCV');
+    const tcmmv: number = bcvData.tcmmv;
 
     // El cron corre el día 30 → genera recibos del MES SIGUIENTE
     const ahora = simDateStr ? new Date(simDateStr + 'T12:00:00') : new Date();

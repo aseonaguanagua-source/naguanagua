@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { getTasaBCV } from "@/services/bcv";
 
 function getISOWeek(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -15,15 +16,10 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
   try {
-    const [usdRes, eurRes] = await Promise.all([
-      fetch("https://ve.dolarapi.com/v1/dolares/oficial", { cache: "no-store" }),
-      fetch("https://ve.dolarapi.com/v1/euros/oficial", { cache: "no-store" })
-    ]);
-    if (!usdRes.ok || !eurRes.ok) throw new Error("Error obteniendo tasas");
-    const eurData = await eurRes.json();
-    const usdData = await usdRes.json();
-    const tcmmv = parseFloat(eurData?.promedio) || 0;
-    const tasa_usd = parseFloat(usdData?.promedio) || 0;
+    const bcvData = await getTasaBCV();
+    if (!bcvData.success) throw new Error("Error obteniendo tasas");
+    const tcmmv = parseFloat(String(bcvData?.tcmmv)) || 0;
+    const tasa_usd = parseFloat(String(bcvData?.usd)) || 0;
     if (tcmmv <= 0) return NextResponse.json({ error: "Tasa invalida", tcmmv }, { status: 422 });
 
     const ahora = new Date();

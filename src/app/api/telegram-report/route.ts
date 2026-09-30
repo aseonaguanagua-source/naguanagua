@@ -8,6 +8,7 @@
 // ============================================================
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
+import { getTasaBCV } from '@/services/bcv';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID   || '';
@@ -107,9 +108,8 @@ async function generarReporte(request?: Request) {
     // ── 5. Tasa BCV actual ──────────────────────────────────────
     let tasaBcv = 0;
     try {
-      const r = await fetch('https://ve.dolarapi.com/v1/euros/oficial', { cache: 'no-store' });
-      const d = await r.json();
-      tasaBcv = d.promedio || 0;
+      const bcvData = await getTasaBCV();
+      tasaBcv = bcvData?.tcmmv || 0;
     } catch(e) {}
 
     const fechaFmt = new Date(hoy + 'T12:00:00').toLocaleDateString('es-VE', {
