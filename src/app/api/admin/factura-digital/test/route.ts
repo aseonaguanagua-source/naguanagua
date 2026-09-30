@@ -12,34 +12,55 @@ function formatearFecha(isoString: string): string {
 
 export async function POST(_request: Request) {
   try {
-    // 1) Buscar un contribuyente COMERCIAL (identidad J o G) que tenga al menos un pago aprobado
-    const { data: pagosComerciales, error: pagErr } = await supabase
+    // 1) Buscar un pago con multa y contribuyente comercial (J/G) — progresivamente más flexible
+    let pago: any = null;
+
+    // Intento 1: J con multa
+    const { data: r1 } = await supabase
       .from('pagos_reportados')
-      .select('id, identidad, contribuyente, recibos, multa, monto_total, monto_usd, detalles')
-      .like('identidad', 'J%')
-      .eq('aprobado', true)
+      .select('id, identidad, contribuyente, recibos, multa, monto_total, monto_usd, detalles, aprobado')
+      .ilike('identidad', 'J%')
       .not('multa', 'is', null)
       .gt('multa', 0)
       .order('created_at', { ascending: false })
       .limit(1);
+    if (r1 && r1.length > 0) pago = r1[0];
 
-    if (pagErr || !pagosComerciales || pagosComerciales.length === 0) {
-      // Fallback: cualquier pago comercial aunque no tenga multa
-      const { data: fallback } = await supabase
+    // Intento 2: cualquier J aprobado
+    if (!pago) {
+      const { data: r2 } = await supabase
         .from('pagos_reportados')
-        .select('id, identidad, contribuyente, recibos, multa, monto_total, monto_usd, detalles')
-        .like('identidad', 'J%')
+        .select('id, identidad, contribuyente, recibos, multa, monto_total, monto_usd, detalles, aprobado')
+        .ilike('identidad', 'J%')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (r2 && r2.length > 0) pago = r2[0];
+    }
+
+    // Intento 3: cualquier pago aprobado
+    if (!pago) {
+      const { data: r3 } = await supabase
+        .from('pagos_reportados')
+        .select('id, identidad, contribuyente, recibos, multa, monto_total, monto_usd, detalles, aprobado')
         .eq('aprobado', true)
         .order('created_at', { ascending: false })
         .limit(1);
-
-      if (!fallback || fallback.length === 0) {
-        return NextResponse.json({ error: 'No se encontró ningún contribuyente comercial aprobado.' }, { status: 404 });
-      }
-      pagosComerciales?.push(...(fallback || []));
+      if (r3 && r3.length > 0) pago = r3[0];
     }
 
-    const pago = pagosComerciales![0];
+    // Intento 4: cualquier pago (sin filtros)
+    if (!pago) {
+      const { data: r4 } = await supabase
+        .from('pagos_reportados')
+        .select('id, identidad, contribuyente, recibos, multa, monto_total, monto_usd, detalles, aprobado')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (r4 && r4.length > 0) pago = r4[0];
+    }
+
+    if (!pago) {
+      return NextResponse.json({ error: 'No se encontró ningún pago en la base de datos.' }, { status: 404 });
+    }
     const recibos: string[] = Array.isArray(pago.recibos) ? pago.recibos : [];
 
     // 2) Buscar las facturas reales de esos recibos
