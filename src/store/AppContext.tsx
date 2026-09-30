@@ -30,6 +30,7 @@ type AppState = {
   setPreRegistros: React.Dispatch<React.SetStateAction<any[]>>;
   setFacturas: React.Dispatch<React.SetStateAction<any[]>>;
   refreshData: () => Promise<void>;
+  refreshUserData: (identidad: string) => Promise<void>;
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -355,6 +356,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await loadAllData();
   };
 
+  /**
+   * Refresca SOLO los inmuebles de un contribuyente específico en el estado global.
+   * Evita recargar todo el AppContext después de un pago en caja.
+   * 
+   * Uso: después de acreditar/descontar saldo a favor, llamar con la identidad
+   * del contribuyente pagado en lugar de refreshData() completo.
+   */
+  const refreshUserData = async (identidad: string) => {
+    try {
+      const idClean = (identidad || '').replace(/-/g, '').toUpperCase();
+      const { data: freshInms } = await supabase
+        .from('inmuebles')
+        .select('*')
+        .or(`identidad.eq.${identidad},identidad.eq.${idClean}`);
+
+      if (freshInms) {
+        setInmuebles(prev => [
+          ...prev.filter(i =>
+            (i.identidad || '').replace(/-/g, '').toUpperCase() !== idClean
+          ),
+          ...freshInms
+        ]);
+      }
+
+      // Refrescar también las facturas de este contribuyente
+      const { data: freshFacts } = await supabase
+        .from('facturas')
+        .select('*')
+        .in('estado', ['Pendiente', 'Abonado', 'Por Verificar'])
+        .or(`identidad.eq.${identidad},identidad.eq.${idClean}`);
+
+      if (freshFacts) {
+        setFacturas(prev => [
+          ...prev.filter(f =>
+            (f.identidad || '').replace(/-/g, '').toUpperCase() !== idClean
+          ),
+          ...freshFacts
+        ]);
+      }
+    } catch (error) {
+      console.error('Error en refreshUserData:', error);
+    }
+  };
+
   useEffect(() => {
     loadAllData();
   }, []);
@@ -595,7 +640,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addFactura,
       setPreRegistros,
       setFacturas,
-      refreshData
+      refreshData,
+      refreshUserData
     }}>
       {isLoading ? (
         <div className="fixed inset-0 bg-slate-900 z-[9999] flex flex-col items-center justify-center">

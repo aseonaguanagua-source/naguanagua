@@ -9,12 +9,13 @@ import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, getFAR } from '@/lib/calculos';
 import { getUserInmuebles, getCajeroId, isSameLocal } from '@/lib/cajaHelpers';
+import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
 import { useCajaSelection } from './hooks/useCajaSelection';
 
 
 export default function CajaPage() {
-  const { inmuebles, convenios, contribuyentes, documentos, tcmmv, refreshData } = useAppContext();
+  const { inmuebles, convenios, contribuyentes, documentos, tcmmv, refreshData, refreshUserData } = useAppContext();
   
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'Pagos' | 'NotasCredito'>('Pagos');
@@ -693,36 +694,23 @@ export default function CajaPage() {
             fecha_emision: new Date().toISOString()
           })
         }]);
-        const { data: userInmuebles } = await supabase.from('inmuebles').select('id, saldo_favor_bs').eq('identidad', foundUser.Identidad);
-        if (userInmuebles && userInmuebles.length > 0) {
-          const firstInmueble = userInmuebles[0];
-          const currentSaldo = parseFloat(firstInmueble.saldo_favor_bs || '0');
-          if (paymentMethod === 'Debito') {
-             await supabase.from('inmuebles').update({ saldo_favor_bs: currentSaldo + saldoAFavorNuevo }).eq('id', firstInmueble.id);
-          }
+        // ─ Acreditar nuevo Saldo a Favor (fix I-6: usa inmueble principal, no inmuebles[0]) ─
+        if (paymentMethod === 'Debito') {
+          const result = await acreditarSaldoFavor(foundUser.Identidad, saldoAFavorNuevo);
+          if (!result.ok) console.error('Error acreditando saldo:', result.error);
         }
       }
       
-      // Deduct used Saldo a Favor (via checkbox discount on other methods)
+      // ─ Descontar Saldo a Favor usado como descuento (fix I-6) ─
       if (descuentoSaldoFavor > 0) {
-        const { data: userInmuebles } = await supabase.from('inmuebles').select('id, saldo_favor_bs').eq('identidad', foundUser.Identidad);
-        if (userInmuebles && userInmuebles.length > 0) {
-          const firstInmueble = userInmuebles[0];
-          const currentSaldo = parseFloat(firstInmueble.saldo_favor_bs || '0');
-          const newSaldo = Math.max(0, currentSaldo - descuentoSaldoFavor);
-          await supabase.from('inmuebles').update({ saldo_favor_bs: newSaldo }).eq('id', firstInmueble.id);
-        }
+        const result = await descontarSaldoFavor(foundUser.Identidad, descuentoSaldoFavor);
+        if (!result.ok) console.error('Error descontando saldo:', result.error);
       }
 
-      // Deduct when the payment METHOD itself is Saldo a Favor
+      // ─ Pago con método Saldo a Favor: descontar el monto completo (fix I-6) ─
       if (paymentMethod === 'Saldo a Favor') {
-        const { data: userInmuebles } = await supabase.from('inmuebles').select('id, saldo_favor_bs').eq('identidad', foundUser.Identidad);
-        if (userInmuebles && userInmuebles.length > 0) {
-          const firstInmueble = userInmuebles[0];
-          const currentSaldo = parseFloat(firstInmueble.saldo_favor_bs || '0');
-          const newSaldo = Math.max(0, currentSaldo - montoReal);
-          await supabase.from('inmuebles').update({ saldo_favor_bs: newSaldo }).eq('id', firstInmueble.id);
-        }
+        const result = await descontarSaldoFavor(foundUser.Identidad, montoReal);
+        if (!result.ok) console.error('Error al pagar con Saldo a Favor:', result.error);
       }
 
       const isAutoAprobado = ['Debito', 'Saldo a Favor'].includes(paymentMethod);
@@ -1178,7 +1166,8 @@ export default function CajaPage() {
       // Refrescar datos del contribuyente sin salir de la pantalla
       setTimeout(async () => {
         setSuccessMsg('');
-        await refreshData();
+        // refreshUserData: refresca SOLO este contribuyente, evita recargar todo el sistema
+        await refreshUserData(foundUser?.Identidad || '');
         setSelectedRecibos([]);
         setSelectedCuotas([]);
         setSelectedServicios([]);
@@ -1217,13 +1206,10 @@ export default function CajaPage() {
           fecha_emision: new Date().toISOString()
         })
       }]);
-      
-      const { data: userInmuebles } = await supabase.from('inmuebles').select('id, saldo_favor_bs').eq('identidad', foundUser.Identidad);
-      if (userInmuebles && userInmuebles.length > 0) {
-        const firstInmueble = userInmuebles[0];
-        const currentSaldo = parseFloat(firstInmueble.saldo_favor_bs || '0');
-        await supabase.from('inmuebles').update({ saldo_favor_bs: currentSaldo + parseFloat(notaManualMonto) }).eq('id', firstInmueble.id);
-      }
+      // ─ Acreditar saldo a favor (fix I-6: usa inmueble principal) ─
+      const montoNota = parseFloat(notaManualMonto);
+      const result = await acreditarSaldoFavor(foundUser.Identidad, montoNota);
+      if (!result.ok) console.error('Error acreditando saldo en nota manual:', result.error);
       
       setSuccessMsg('Nota de crédito manual generada exitosamente.');
       setIsNotaModalOpen(false);
