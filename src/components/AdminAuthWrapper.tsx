@@ -4,40 +4,81 @@ import { Lock, User, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { logAudit } from '@/lib/audit';
 
 /**
- * AdminAuthWrapper — Fix A-3 (localStorage → httpOnly cookie)
+ * AdminAuthWrapper — optimizado para velocidad de navegación
  *
- * ANTES: Auth basada en localStorage.setItem('admin_auth_andministrador', 'true')
- *        → Cualquier XSS podía autenticarse sin contraseña.
- *        → Contraseña maestra 'dzara' hardcodeada en el bundle público.
+ * PROBLEMA ANTERIOR:
+ *   - fetch('/api/admin/session') bloqueaba el render en CADA navegación
+ *   - Mostraba spinner mientras esperaba respuesta del servidor
  *
- * AHORA:
- *   - Login  → POST /api/admin/login   (cookie httpOnly emitida por servidor)
- *   - Verify → GET  /api/admin/session (verifica cookie, sin exponer token al cliente)
- *   - Logout → POST /api/admin/logout  (borra cookie desde servidor)
- *
- * La cookie httpOnly es INACCESIBLE desde JavaScript del cliente.
- * El único vector de bypass sería un XSS + CSRF combinado, que SameSite=Lax mitiga.
- *
- * Retrocompatibilidad: adminUser sigue en localStorage SOLO para mostrar nombre
- * en la UI (no para tomar decisiones de autorización).
+ * SOLUCIÓN:
+ *   1. Cache en memoria (moduleSessionCache): si la sesión ya fue verificada
+ *      en esta pestaña, no volver a fetchear — render instantáneo.
+ *   2. Verificación optimista desde localStorage: si adminUser existe,
+ *      mostrar el contenido inmediatamente mientras se verifica en background.
+ *   3. Revalidación silenciosa: verifica la cookie en background sin spinner.
+ *   4. Expiración de cache: re-verifica si han pasado más de 5 minutos.
  */
 
+// Cache de sesión a nivel de módulo — persiste entre navegaciones sin perder estado
+let moduleSessionCache: {
+  valid: boolean;
+  usuario?: string;
+  nombre?: string;
+  rol?: string;
+  letra?: string;
+  ts: number; // timestamp de la última verificación
+} | null = null;
+
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos antes de re-verificar
+
 export default function AdminAuthWrapper({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [loading, setLoading] = useState(true);
+  // Estado optimista: si hay cache válida o adminUser en localStorage, arrancar autenticado
+  const getInitialAuth = () => {
+    if (typeof window === 'undefined') return false;
+    if (moduleSessionCache?.valid && Date.now() - moduleSessionCache.ts < CACHE_TTL) return true;
+    // Optimistic: si hay adminUser en localStorage, asumir válido mientras verificamos
+    return !!localStorage.getItem('adminUser');
+  };
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(getInitialAuth);
+  const [loading, setLoading] = useState<boolean>(() => {
+    // Solo mostrar spinner si no hay cache ni adminUser (primera carga limpia)
+    if (typeof window === 'undefined') return true;
+    if (moduleSessionCache?.valid) return false;
+    return !localStorage.getItem('adminUser');
+  });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Verificar sesión via cookie httpOnly al montar (Fix A-3)
+  // Verificar sesión via cookie httpOnly (Fix A-3)
   useEffect(() => {
+    // Si la cache es reciente, no re-verificar
+    if (moduleSessionCache?.valid && Date.now() - moduleSessionCache.ts < CACHE_TTL) {
+      setIsAuthenticated(true);
+      setLoading(false);
+      return;
+    }
+
+    // Verificación en background — no bloquea el render si ya hay adminUser
+    const hasOptimisticAuth = typeof window !== 'undefined' && !!localStorage.getItem('adminUser');
+
     fetch('/api/admin/session', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
         if (data.authenticated) {
-          // Almacenar solo datos de UI (no sensibles) en localStorage
+          // Actualizar cache en memoria
+          moduleSessionCache = {
+            valid: true,
+            usuario: data.usuario,
+            nombre: data.nombre,
+            rol: data.rol,
+            letra: data.letra || '',
+            ts: Date.now(),
+          };
+          // Actualizar localStorage con datos frescos
           if (typeof window !== 'undefined') {
             localStorage.setItem('adminUser', data.usuario);
             localStorage.setItem('adminLetra', data.letra || '');
@@ -48,23 +89,32 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
             }));
           }
           setIsAuthenticated(true);
+        } else {
+          // Cookie inválida o expirada — limpiar todo
+          moduleSessionCache = null;
+          if (typeof window !== 'undefined') {
+            ['admin_auth_andministrador', 'admin_user_data', 'adminUser', 'adminLetra', 'adminToken'].forEach(k =>
+              localStorage.removeItem(k)
+            );
+          }
+          setIsAuthenticated(false);
         }
       })
-      .catch(() => {}) // Sin cookie válida → mostrar login
+      .catch(() => {
+        // Error de red: si hay optimistic auth, mantener; si no, desautenticar
+        if (!hasOptimisticAuth) setIsAuthenticated(false);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, []); // Solo al montar, la cache evita re-fetch en cada navegación
 
   // Auto-logout por inactividad (7 minutos)
   useEffect(() => {
     if (!isAuthenticated) return;
 
     let timeoutId: NodeJS.Timeout;
-
     const resetTimer = () => {
       clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        handleLogout('Inactividad 7m');
-      }, 420_000);
+      timeoutId = setTimeout(() => handleLogout('Inactividad 7m'), 420_000);
     };
 
     const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
@@ -79,13 +129,12 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
 
   const handleLogout = useCallback(async (reason = 'Manual') => {
     logAudit(`Logout (${reason})`, {}, 'SESION');
-    // Borrar datos de UI
+    moduleSessionCache = null; // Limpiar cache de memoria
     if (typeof window !== 'undefined') {
       ['admin_auth_andministrador', 'admin_user_data', 'adminUser', 'adminLetra', 'adminToken'].forEach(k =>
         localStorage.removeItem(k)
       );
     }
-    // Invalidar cookie httpOnly desde el servidor
     await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
     setIsAuthenticated(false);
     window.location.href = '/admin';
@@ -112,7 +161,15 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
         return;
       }
 
-      // Guardar solo datos de UI (no sensibles)
+      // Guardar en cache y localStorage
+      moduleSessionCache = {
+        valid: true,
+        usuario: data.usuario,
+        nombre: data.nombre,
+        rol: data.rol,
+        letra: data.letra || '',
+        ts: Date.now(),
+      };
       if (typeof window !== 'undefined') {
         localStorage.setItem('adminUser', data.usuario);
         localStorage.setItem('adminLetra', data.letra || '');
@@ -133,6 +190,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
     }
   };
 
+  // Spinner solo en primera carga sin sesión previa
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
