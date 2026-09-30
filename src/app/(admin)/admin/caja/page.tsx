@@ -1576,31 +1576,26 @@ export default function CajaPage() {
                           if (userInms.length === 1) { inmId = String(userInms[0].inmueble || ''); tipo = String(userInms[0].clasificacion || ''); act = String(userInms[0].actividad_principal || ''); dir = String(userInms[0].direccion || ''); }
                         }
                         
-                        // Encontrar si pertenece a un grupo de direcciones similar
+                        // Agrupar actividades "N/A" por mes para usuarios con múltiples actividades
+                        const isNA = userInms.some((i: any) => (i.actividad_principal || '').toLowerCase().includes('n/a'));
+                        const hasMultiple = userInms.length > 1;
                         let groupId = `${inmId}|${tipo}|${act}`;
-                        let isMismoLocal = false;
-                        if (dir && userInms.length > 1) {
-                          const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(x => x.length > 3);
-                          const w2 = normalize(dir);
-                          
-                          // Buscar si ya existe un grupo con dirección similar en el acumulador
-                          for (const k of Object.keys(acc)) {
-                            if (acc[k]._dir) {
-                              const w1 = normalize(acc[k]._dir);
-                              if (w1.length > 0 && w2.length > 0) {
-                                const common = w1.filter(w => w2.includes(w)).length;
-                                if (common / Math.min(w1.length, w2.length) > 0.75) {
-                                  groupId = k; // Agrupar con este local
-                                  isMismoLocal = true;
-                                  acc[k].isMismoLocal = true;
-                                  break;
-                                }
-                              }
-                            }
-                          }
+                        let isVirtualMonth = false;
+                        if (isNA && hasMultiple) {
+                          groupId = r.emision || 'Sin fecha';
+                          isVirtualMonth = true;
                         }
 
-                        if (!acc[groupId]) acc[groupId] = { items: [], id: inmId, tipo, act, _dir: dir, isMismoLocal: false };
+                        if (!acc[groupId]) {
+                          acc[groupId] = { 
+                            items: [], 
+                            id: isVirtualMonth ? 'Varias Actividades' : inmId, 
+                            tipo: isVirtualMonth ? 'Múltiples' : tipo, 
+                            act: isVirtualMonth ? 'N/A' : act, 
+                            isVirtualMonth, 
+                            emision: r.emision 
+                          };
+                        }
                         acc[groupId].items.push({ ...r, _inmId: inmId, _act: act });
                         return acc;
                       }, {})
@@ -1608,45 +1603,70 @@ export default function CajaPage() {
                       <div key={key} className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
                         <div className="bg-slate-100/50 px-3 py-2.5 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{group.isMismoLocal ? 'Varias Actividades' : group.id}</span>
-                            <span className="text-[10px] text-slate-500 font-semibold">{group.isMismoLocal ? 'Mismo Local' : [group.tipo, group.act].filter(Boolean).join(' • ')}</span>
-                            {group.isMismoLocal && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap">Mismo Local</span>}
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{group.isVirtualMonth ? group.emision : group.id}</span>
+                            <span className="text-[10px] text-slate-500 font-semibold">{[group.tipo, group.act].filter(Boolean).join(' • ')}</span>
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{group.items.length} recibos</span>
                           </div>
                         </div>
                         <div className="p-1.5 space-y-1">
-                          {group.items.map((r: any) => (
-                            <label key={r.referencia} className={`flex items-center justify-between py-1.5 px-2 border rounded transition-colors ${selectedRecibos.includes(r.referencia) ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-400' : isItemPending(r.referencia) ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
+                          {group.isVirtualMonth ? (
+                            <label className={`flex items-center justify-between py-1.5 px-2 border rounded transition-colors ${group.items.every((r:any) => selectedRecibos.includes(r.referencia)) ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-400' : group.items.some((r:any) => isItemPending(r.referencia)) ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
                               <div className="flex items-center gap-3">
-                                <input type="checkbox" checked={selectedRecibos.includes(r.referencia)} disabled={isItemPending(r.referencia)} onChange={() => toggleRecibo(r.referencia)}
+                                <input type="checkbox" 
+                                  checked={group.items.every((r:any) => selectedRecibos.includes(r.referencia))} 
+                                  disabled={group.items.some((r:any) => isItemPending(r.referencia))} 
+                                  onChange={() => {
+                                    const allSelected = group.items.every((r:any) => selectedRecibos.includes(r.referencia));
+                                    if (allSelected) {
+                                      group.items.forEach((r:any) => { if (selectedRecibos.includes(r.referencia)) toggleRecibo(r.referencia); });
+                                    } else {
+                                      group.items.forEach((r:any) => { if (!selectedRecibos.includes(r.referencia)) toggleRecibo(r.referencia); });
+                                    }
+                                  }}
                                   className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
                                 />
                                 <div>
-                                  <p className="font-bold text-xs text-slate-700">{r.referencia}</p>
+                                  <p className="font-bold text-xs text-slate-700">Mes Consolidado - Todas las Actividades</p>
                                   <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1 mt-0.5">
-                                    {group.isMismoLocal && r._act && (
-                                      <span className="text-[9px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-1 rounded">
-                                        {r._inmId}: {r._act.replace(/\[HIJO\]/g,'').trim()}
-                                      </span>
-                                    )}
-                                    {(() => {
-                                      const M = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-                                      if (!r.emision) return 'Sin fecha';
-                                      const p = r.emision.split('-');
-                                      return p.length >= 2 ? `${M[parseInt(p[1])-1] || p[1]} ${p[0]}` : r.emision;
-                                    })()}
+                                    {group.items.length} Recibos incluidos
                                   </p>
                                 </div>
                               </div>
                               <div className="text-right">
                                 <span className="font-bold text-emerald-700 text-xs">
-                                  {isItemPending(r.referencia) ? 'En Verificación' : `Bs. ${formatBs(parseFloat(getReciboMonto(r) || '0'))}`}
+                                  {group.items.some((r:any) => isItemPending(r.referencia)) ? 'En Verificación' : `Bs. ${formatBs(group.items.reduce((sum:number, r:any) => sum + parseFloat(getReciboMonto(r) || '0'), 0))}`}
                                 </span>
                               </div>
                             </label>
-                          ))}
+                          ) : (
+                            group.items.map((r: any) => (
+                              <label key={r.referencia} className={`flex items-center justify-between py-1.5 px-2 border rounded transition-colors ${selectedRecibos.includes(r.referencia) ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-400' : isItemPending(r.referencia) ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
+                                <div className="flex items-center gap-3">
+                                  <input type="checkbox" checked={selectedRecibos.includes(r.referencia)} disabled={isItemPending(r.referencia)} onChange={() => toggleRecibo(r.referencia)}
+                                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                                  />
+                                  <div>
+                                    <p className="font-bold text-xs text-slate-700">{r.referencia}</p>
+                                    <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1 mt-0.5">
+                                      {(() => {
+                                        const M = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+                                        if (!r.emision) return 'Sin fecha';
+                                        const p = r.emision.split('-');
+                                        return p.length >= 2 ? `${M[parseInt(p[1])-1] || p[1]} ${p[0]}` : r.emision;
+                                      })()}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className="font-bold text-emerald-700 text-xs">
+                                    {isItemPending(r.referencia) ? 'En Verificación' : `Bs. ${formatBs(parseFloat(getReciboMonto(r) || '0'))}`}
+                                  </span>
+                                </div>
+                              </label>
+                            ))
+                          )}
                         </div>
                       </div>
                     ))}

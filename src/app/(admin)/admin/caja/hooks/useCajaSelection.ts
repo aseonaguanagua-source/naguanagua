@@ -76,32 +76,7 @@ export function useCajaSelection({
       const currentInm = userInms.find((i: any) => i.inmueble === currentInmId);
       let refsToToggle = [ref];
 
-      // ── Auto-selección: recibos del mismo mes para el mismo local ─────────────
-      if (currentInm && currentInm.direccion && userInms.length > 1) {
-        const mismosLocales = userInms
-          .filter(
-            (i: any) =>
-              i.direccion && isSameLocal(String(currentInm.direccion), String(i.direccion))
-          )
-          .map((i: any) => i.inmueble);
-
-        if (mismosLocales.length > 1) {
-          refsToToggle = recibos
-            .filter((r: any) => {
-              if (r.emision !== currentR.emision) return false;
-              let rInmId: string | null = null;
-              if (r.referencia?.startsWith('RECIB-HIST-')) {
-                const p = r.referencia.split('-');
-                if (p.length > 2) rInmId = p[2];
-              } else if (r.referencia?.startsWith('CM-')) {
-                rInmId =
-                  userInms.find((i: any) => r.referencia.includes(i.inmueble))?.inmueble ?? null;
-              }
-              return rInmId && mismosLocales.includes(rInmId);
-            })
-            .map((r: any) => r.referencia);
-        }
-      }
+      // Auto-selección: recibos del mismo mes para los mismos locales fue eliminada a petición del usuario.
 
       // Bloquear si alguno está Por Verificar
       if (refsToToggle.some((r) => isItemPending(r))) {
