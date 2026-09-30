@@ -224,7 +224,7 @@ export async function POST(request: Request) {
 
         nuevosDetalles.factura_digital = {
           emitida:          true,
-          url:              tfhkaResponse.resultado?.imprentaDigital || null,
+          url:              tfhkaResponse.resultado?.urlConsulta || null,
           numero_control:   tfhkaResponse.resultado?.numeroControl || "ERROR-CONTROL",
           numero_documento: tfhkaResponse.resultado?.numeroDocumento || "ERROR-DOC",
           fecha_emision:    new Date().toISOString(),
