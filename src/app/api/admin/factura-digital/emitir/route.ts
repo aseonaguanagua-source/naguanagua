@@ -125,19 +125,19 @@ export async function POST(request: Request) {
 
     const jsonTFHKA = {
       documentoElectronico: {
-        Moneda: "VES",
         Encabezado: {
           IdentificacionDocumento: {
             TipoDocumento: "01", // Factura
-            NumeroDocumento: `000000${pagoId}`.slice(-8), // Generado internamente si no se manda
+            NumeroDocumento: `000000${pagoId}`.slice(-8),
             TipoProveedor: null,
             TipoTransaccion: null,
             FechaEmision: formatearFecha(fechaActual.toISOString()),
             FechaVencimiento: formatearFecha(fechaActual.toISOString()),
             HoraEmision: horaStr,
+            Moneda: "VES",  // Va dentro de IdentificacionDocumento
             Anulado: false,
             TipoDePago: "Inmediato",
-            Serie: "", // Enviar vacío o "nulo" si no se usan series descentralizadas
+            Serie: "",
             Sucursal: "",
             TipoDeVenta: "Interna"
           },

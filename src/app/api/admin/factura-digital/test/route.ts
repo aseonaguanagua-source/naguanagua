@@ -27,7 +27,6 @@ export async function POST(_request: Request) {
     const totalAPagar  = totalGravado + totalExento + totalIVA;  // 1106.00
 
     const documentoElectronico = {
-      Moneda: 'VES',
       Encabezado: {
         IdentificacionDocumento: {
           TipoDocumento:    '01',  // Factura
@@ -37,6 +36,7 @@ export async function POST(_request: Request) {
           FechaEmision:     fechaFmt,
           FechaVencimiento: fechaFmt,
           HoraEmision:      horaStr,
+          Moneda:           'VES',  // Va dentro de IdentificacionDocumento
           Anulado:          false,
           TipoDePago:       'Inmediato',
           Serie:            '',

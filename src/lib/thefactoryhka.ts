@@ -53,12 +53,7 @@ export class TheFactoryHKA {
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
-        Moneda: documentoData.Moneda || 'VES',
-        documentoElectronico: (() => {
-          // Moneda va a nivel raíz del body, NO dentro de documentoElectronico
-          const { Moneda: _m, ...rest } = documentoData;
-          return rest;
-        })()
+        documentoElectronico: documentoData
       })
     });
 
