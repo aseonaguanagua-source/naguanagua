@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { ShieldCheck, Download, RefreshCw, Search, Filter, X, User, Calendar } from 'lucide-react';
@@ -13,7 +13,7 @@ const CAT_COLORS: Record<string, string> = {
   TRANSFERENCIA: 'bg-purple-100 text-purple-800',
   TASA:          'bg-amber-100 text-amber-800',
   CONTRIBUYENTE: 'bg-sky-100 text-sky-800',
-  RECIBO:       'bg-orange-100 text-orange-800',
+  RECIBO:        'bg-orange-100 text-orange-800',
   REPORTE:       'bg-slate-100 text-slate-700',
   CONFIGURACION: 'bg-red-100 text-red-800',
   CONVENIO:      'bg-indigo-100 text-indigo-800',
@@ -26,14 +26,24 @@ const parseDetalles = (raw: any): any => {
   return raw;
 };
 
+/**
+ * Lee la categoría del registro.
+ * Prioridad: columna directa `categoria` → fallback `detalles._categoria` (filas antiguas).
+ */
 const getCategoria = (log: any): string => {
+  if (log.categoria) return log.categoria;
   const det = parseDetalles(log.detalles);
-  return det._categoria || log.categoria || 'SISTEMA';
+  return det._categoria || 'SISTEMA';
 };
 
+/**
+ * Lee el módulo del registro.
+ * Prioridad: columna directa `modulo` → fallback `detalles._modulo` (filas antiguas).
+ */
 const getModulo = (log: any): string => {
+  if (log.modulo) return log.modulo;
   const det = parseDetalles(log.detalles);
-  return det._modulo || log.modulo || '';
+  return det._modulo || '';
 };
 
 export default function AuditoriaPage() {
@@ -57,17 +67,21 @@ export default function AuditoriaPage() {
       if (filterDateFrom) q = q.gte('created_at', filterDateFrom + 'T00:00:00');
       if (filterDateTo)   q = q.lte('created_at', filterDateTo + 'T23:59:59');
       if (filterUser)     q = q.eq('usuario', filterUser);
+      // Si la columna categoria existe, filtramos del lado servidor para mejor rendimiento
+      if (filterCat !== 'TODAS') q = (q as any).eq('categoria', filterCat);
       const { data } = await q;
       setLogs(data || []);
     } finally { setLoading(false); }
-  }, [filterDateFrom, filterDateTo, filterUser]);
+  }, [filterDateFrom, filterDateTo, filterUser, filterCat]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
-  // Client-side filtering (categoria stored in detalles._categoria)
+  // Filtrado cliente: búsqueda de texto libre + fallback de categoría para filas antiguas sin columna directa
   const filtered = logs.filter(l => {
-    const cat = getCategoria(l);
-    if (filterCat !== 'TODAS' && cat !== filterCat) return false;
+    // Categoría: aplicar filtro cliente solo si la fila no tiene columna `categoria` (filas legacy)
+    if (filterCat !== 'TODAS' && !l.categoria) {
+      if (getCategoria(l) !== filterCat) return false;
+    }
     if (search) {
       const s = search.toLowerCase();
       if (
@@ -88,7 +102,7 @@ export default function AuditoriaPage() {
         'Fecha':      new Date(l.created_at).toLocaleString('es-VE'),
         'Usuario':    l.usuario,
         'Categoria':  getCategoria(l),
-        'Modulo':     getModulo(l).replace('/admin/','').replace('/','') || '',
+        'Modulo':     (getModulo(l) || '').replace('/admin/','').replace('/','') || '',
         'Accion':     l.accion,
         'Identidad':  det.identidad || det.contribuyente || '',
         'Monto Bs':   det.monto_bs || '',
@@ -110,7 +124,7 @@ export default function AuditoriaPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-indigo-600" />
-            Auditoria del Sistema
+            Auditoría del Sistema
           </h1>
           <p className="text-slate-500 text-sm mt-0.5">Registro completo e inmutable de todas las actividades del personal.</p>
         </div>
@@ -189,7 +203,7 @@ export default function AuditoriaPage() {
         {loading ? (
           <div className="p-12 text-center text-slate-400">
             <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-indigo-300" />
-            <p>Cargando registros de auditoria...</p>
+            <p>Cargando registros de auditoría...</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -198,9 +212,9 @@ export default function AuditoriaPage() {
                 <tr>
                   <th className="px-4 py-3">Fecha y Hora</th>
                   <th className="px-4 py-3">Usuario</th>
-                  <th className="px-4 py-3">Categoria</th>
-                  <th className="px-4 py-3">Accion</th>
-                  <th className="px-4 py-3">Modulo</th>
+                  <th className="px-4 py-3">Categoría</th>
+                  <th className="px-4 py-3">Acción</th>
+                  <th className="px-4 py-3">Módulo</th>
                   <th className="px-4 py-3">Detalles Clave</th>
                 </tr>
               </thead>
@@ -264,13 +278,13 @@ export default function AuditoriaPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-slate-400 text-xs block mb-0.5">Fecha y Hora</span><span className="font-semibold">{new Date(selectedLog.created_at).toLocaleString('es-VE')}</span></div>
                 <div><span className="text-slate-400 text-xs block mb-0.5">Usuario</span><span className="font-bold text-indigo-700 text-base">{selectedLog.usuario}</span></div>
-                <div><span className="text-slate-400 text-xs block mb-0.5">Categoria</span>
+                <div><span className="text-slate-400 text-xs block mb-0.5">Categoría</span>
                   <span className={'px-2 py-0.5 rounded text-[11px] font-black ' + (CAT_COLORS[getCategoria(selectedLog)] || 'bg-gray-100')}>{getCategoria(selectedLog)}</span>
                 </div>
-                <div><span className="text-slate-400 text-xs block mb-0.5">Modulo</span><span className="font-mono text-xs text-slate-600">{getModulo(selectedLog) || '—'}</span></div>
+                <div><span className="text-slate-400 text-xs block mb-0.5">Módulo</span><span className="font-mono text-xs text-slate-600">{getModulo(selectedLog) || '—'}</span></div>
               </div>
               <div>
-                <span className="text-slate-400 text-xs block mb-1">Accion Registrada</span>
+                <span className="text-slate-400 text-xs block mb-1">Acción Registrada</span>
                 <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 font-semibold text-slate-800">{selectedLog.accion}</div>
               </div>
               <div>

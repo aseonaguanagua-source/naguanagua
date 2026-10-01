@@ -78,9 +78,9 @@ export default function PlanAccionPage() {
 
       // Cargar asignaciones de hoy
       const hoy = new Date().toISOString().split('T')[0];
-      const { data: audits } = await supabase.from('audit_logs')
+      const { data: audits } = await supabase.from('auditoria')
         .select('*')
-        .eq('accion', 'ASIGNACION_PLAN_ACCION')
+        .eq('accion', 'Asignacion Plan de Accion')
         .gte('created_at', hoy + 'T00:00:00Z');
       
       const asigMap: Record<string, string> = {};

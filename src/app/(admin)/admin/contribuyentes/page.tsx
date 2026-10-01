@@ -157,8 +157,15 @@ function ContribuyentesPageContent() {
         .from('facturas')
         .update({ estado: nuevoEstado })
         .eq('referencia', actionModal.recibo.referencia);
-      // Guardar motivo en audit_logs
-      try { await supabase.from('audit_logs').insert({ usuario: cajeroUser, accion: 'FACTURA_' + actionModal.type.toUpperCase(), detalles: 'Recibo ' + actionModal.recibo.referencia + ' - ' + nuevoEstado + '. Motivo: ' + actionNota.trim() }); } catch(_ae) {}
+      // Registrar en auditoria via logAudit
+      await logAudit(`Recibo ${actionModal.type}`, {
+        referencia: actionModal.recibo.referencia,
+        identidad: actionModal.recibo.contribuyente,
+        monto: actionModal.recibo.monto,
+        estado_nuevo: nuevoEstado,
+        motivo: actionNota.trim(),
+        cajero: cajeroUser,
+      }, 'RECIBO');
       if (actionModal.type === 'Reversar') {
         const montoPagado = parseFloat((actionModal.recibo.monto || '0').toString().replace(/[^\d.]/g, ''));
         if (montoPagado > 0) {
@@ -218,7 +225,7 @@ function ContribuyentesPageContent() {
       );
       
       alert(`Contribuyente ${type === 'Eliminar' ? 'eliminado' : 'desactivado'} exitosamente.`);
-      window.location.reload();
+      await refreshData();
     } catch (err: any) {
       alert(`Error procesando acción: ${err.message}`);
     } finally {
@@ -1153,7 +1160,7 @@ function ContribuyentesPageContent() {
         const montoBs = (deudaMMV * tasaOficial).toFixed(2);
         
         const facturaData = {
-          referencia: `RECIB-${Math.floor(Math.random() * 1000000)}`,
+          referencia: `RECIB-ADJ-${Date.now()}`,
           contribuyente: formData.Contribuyente,
           identidad: formData.Identidad,
           monto: montoBs,
@@ -1168,7 +1175,7 @@ function ContribuyentesPageContent() {
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 4000);
       setIsDebtModalOpen(false);
-      window.location.reload(); // Refresh to reflect context changes
+      await refreshData(); // Refrescar datos sin recargar toda la pagina
     } catch (e: any) {
       console.error(e);
       alert('Error ajustando la deuda: ' + e.message);
@@ -2084,9 +2091,17 @@ function ContribuyentesPageContent() {
       header: 'Acciones / Estatus',
       render: (row: any) => {
         // Mock data logic for indicators
-        const hasDebt = Math.random() > 0.5;
-        const debtAmount = hasDebt ? (Math.random() * 5000).toFixed(2) : '0.00';
-        const hasAgreement = Math.random() > 0.7;
+        // Deuda real del contribuyente
+        const pendFacturas = (recibos || []).filter((f: any) =>
+          (f.identidad || '').replace(/-/g,'') === (row.Identidad || '').replace(/-/g,'') &&
+          ['Pendiente','Abonado','Por Verificar'].includes(f.estado)
+        );
+        const hasDebt = pendFacturas.length > 0;
+        const debtAmount = pendFacturas.reduce((s: number, f: any) => s + parseFloat(String(f.monto || '0').replace(/[^\d.]/g,'')), 0).toFixed(2);
+        const hasAgreement = (convenios || []).some((conv: any) =>
+          (conv.identidad || '').replace(/-/g,'') === (row.Identidad || '').replace(/-/g,'') &&
+          conv.estado === 'Al D\xc3\xada'
+        );
 
         return (
           <div className="flex gap-2 items-center">

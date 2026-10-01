@@ -214,12 +214,13 @@ export default function CensoMobilePage() {
 
       if (error) throw error;
       
-      // Save historical tracker
-      await supabase.from('audit_logs').insert([{
-        user_id: operador,
-        action: 'NUEVO_CENSO',
-        details: `Censo móvil enviado - ${operador}`,
-        ip_address: 'Registrado por Sistema'
+      // Registrar en auditoria
+      await supabase.from('auditoria').insert([{
+        usuario: operador,
+        accion: 'Censo Movil Enviado',
+        categoria: 'SISTEMA',
+        modulo: '/operador/censo',
+        detalles: { _categoria: 'SISTEMA', _modulo: '/operador/censo', operador },
       }]);
 
       

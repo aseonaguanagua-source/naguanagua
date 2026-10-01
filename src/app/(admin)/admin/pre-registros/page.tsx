@@ -191,7 +191,7 @@ export default function PreRegistrosPage() {
     setIsProcessing(true);
     try {
       const deudaMMV = calculatedFactor * meses;
-      const codCont = `N-${Math.floor(Math.random() * 100000)}`;
+      const codCont = `N-${Date.now().toString().slice(-6)}`;
 
       // 1. Insert into inmuebles (one or multiple)
       const baseInmuebleData = {
@@ -203,7 +203,7 @@ export default function PreRegistrosPage() {
         direccion: rowToApprove.direccion_exacta
           ? `${rowToApprove.domicilio_fiscal || rowToApprove.direccion || ''} | Exacta: ${rowToApprove.direccion_exacta}`
           : (rowToApprove.domicilio_fiscal || rowToApprove.direccion || ''),
-        cod_cont: `N-${Math.floor(Math.random() * 100000)}`,
+        cod_cont: codCont,
         clasificacion: rowToApprove.tipo,
         actividad_principal: rowToApprove.actividad,
         inmueble: 'Principal',
@@ -241,7 +241,7 @@ export default function PreRegistrosPage() {
       // 2. Generate Recibo if debt > 0
       if (deudaMMV > 0) {
         const facturaData = {
-          referencia: `RECIB-${Math.floor(Math.random() * 1000000)}`,
+          referencia: `RECIB-PRE-${Date.now()}`,
           identidad: rowToApprove.identidad,
           contribuyente: rowToApprove.contribuyente,
           monto: (deudaMMV * (tcmmv || 1)).toFixed(2), // We store in Bs for the recibo

@@ -229,7 +229,14 @@ export default function EstadoCuentaPage() {
                   await supabase.from('facturas').update({ estado: 'Pagado' }).eq('id', f.id);
                 } else if (dineroDisponible > 0) {
                   const montoRestante = (montoFac - dineroDisponible).toFixed(2);
-                  await supabase.from('facturas').update({ estado: 'Pendiente', monto: `${montoRestante} Bs` }).eq('id', f.id);
+                  // Preservar monto original antes de reducirlo para permitir reverso y auditoria
+                  const montoOriginal = (f as any).monto_original || f.monto;
+                  await supabase.from('facturas').update({
+                    estado: 'Abonado',
+                    monto: `${montoRestante} Bs`,
+                    monto_original: montoOriginal,
+                    abono_aplicado: `${dineroDisponible.toFixed(2)} Bs`,
+                  }).eq('id', f.id);
                   dineroDisponible = 0;
                 } else {
                   await supabase.from('facturas').update({ estado: 'Pendiente' }).eq('id', f.id);
@@ -324,16 +331,19 @@ export default function EstadoCuentaPage() {
         const { data: userInmuebles } = await supabase.from('inmuebles').select('id, saldo_favor_bs').eq('identidad', pago.identidad);
         
         if (userInmuebles && userInmuebles.length > 0) {
-          // Add the total saldo_favor to the first property (or distribute it, but usually adding to the first is fine)
-          const firstInmueble = userInmuebles[0];
-          const newSaldo = parseFloat(firstInmueble.saldo_favor_bs || '0') + saldoFavor;
-          await supabase.from('inmuebles').update({ saldo_favor_bs: newSaldo }).eq('id', firstInmueble.id);
+          // Distribuir el saldo a favor equitativamente entre todos los inmuebles del contribuyente
+          const saldoPorInmueble = parseFloat((saldoFavor / userInmuebles.length).toFixed(2));
+          for (const inm of userInmuebles) {
+            const nuevoSaldo = parseFloat(inm.saldo_favor_bs || '0') + saldoPorInmueble;
+            await supabase.from('inmuebles').update({ saldo_favor_bs: nuevoSaldo }).eq('id', inm.id);
+          }
         }
       }
 
       logAudit(`Pago ${accion} (Estado Cuenta)`, { id: pago.id, monto: pago.monto, referencia: pago.referencia, banco: pago.banco, tipo: pago.tipo, identidad: pago.identidad }, 'TRANSFERENCIA');
       alert(`Pago ${accion.toLowerCase()}o exitosamente.`);
-      window.location.reload();
+      // Refrescar solo los datos necesarios sin recargar toda la pagina
+      await Promise.all([fetchFacturasDb(), fetchPagos(), fetchAbonos()]);
     } catch (e: any) {
       alert("Error: " + e.message);
     }
@@ -490,9 +500,10 @@ export default function EstadoCuentaPage() {
         }
       } catch {
         if (row.estado === 'Pagado') {
+          // No generar referencias falsas — mostrar estado honesto
           formaPagoStr = 'TRANSFERENCIA';
-          bancoReal = 'BANCO CONFIRMADO';
-          referenciaReal = Math.floor(Math.random() * 90000000 + 10000000).toString();
+          bancoReal = 'SIN INFORMACIÓN';
+          referenciaReal = 'SIN REFERENCIA';
         }
       }
     }
@@ -672,7 +683,7 @@ export default function EstadoCuentaPage() {
       total: montoUnitario * 6,
       formaPago: 'TRANSFERENCIA',
       banco: 'BANESCO',
-      referencia: Math.floor(Math.random() * 90000000 + 10000000).toString()
+      referencia: `PREV-${Date.now()}`
     });
   };
 
@@ -776,8 +787,7 @@ export default function EstadoCuentaPage() {
 
     alert(`Se han generado ${nuevasFacturas.length} recibos exitosamente.`);
     setIsGenerating(false);
-    // Idealmente har├¡amos un refetch del context aqu├¡, o se actualiza en tiempo real
-    window.location.reload();
+    await fetchFacturasDb();
   };
 
   const handleActionSubmit = async () => {
@@ -804,12 +814,20 @@ export default function EstadoCuentaPage() {
 
       if (error) throw error;
 
-      
-      try { await supabase.from('audit_logs').insert({ usuario: cajero, accion: `FACTURA_${actionModal.action.toUpperCase()}`, detalles: `Recibo ${actionModal.recibo.referencia} ${nuevoEstado.toLowerCase()}. Motivo: ${actionModal.nota}` }); } catch(ae) {}
-      
-      alert(`Recibo ${actionModal.action.toLowerCase()}a correctamente.`);
+      // Registrar en auditoria usando logAudit (reemplaza tabla legacy audit_logs)
+      await logAudit(`Recibo ${actionModal.action}`, {
+        referencia: actionModal.recibo.referencia,
+        contribuyente: actionModal.recibo.contribuyente,
+        identidad: actionModal.recibo.identidad,
+        monto: actionModal.recibo.monto,
+        estado_nuevo: nuevoEstado,
+        motivo: actionModal.nota,
+        cajero,
+      }, 'RECIBO');
+
+      alert(`Recibo ${actionModal.action.toLowerCase()}o correctamente.`);
       setActionModal({ isOpen: false, action: 'Anular', recibo: null, nota: '' });
-      window.location.reload()
+      fetchFacturasDb();
     } catch (e: any) {
       alert("Error: " + e.message);
     }

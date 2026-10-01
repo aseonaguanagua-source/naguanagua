@@ -167,12 +167,21 @@ export async function GET(request: Request) {
 
     const montoTotal = facturasNuevas.reduce((s: number, f: any) => s + f.monto, 0);
 
-    // Audit log
+    // Audit log en tabla auditoria (sistema unificado)
     try {
-      await supabase.from('audit_logs').insert({
-        usuario:  'Sistema (Cron)',
-        accion:   'FACTURACION_MENSUAL_AUTOMATICA',
-        detalles: `Período: ${mesFacturado}${modoTexto}. Procesados: ${facturasNuevas.length}. Omitidos: ${omitidos}. Monto total: Bs ${montoTotal.toFixed(2)}. Tasa UCD: ${tcmmv}`
+      await supabase.from('auditoria').insert({
+        usuario:   'Sistema (Cron)',
+        accion:    'Facturacion Mensual Automatica',
+        categoria: 'SISTEMA',
+        modulo:    '/api/cron/billing',
+        detalles: {
+          _categoria: 'SISTEMA',
+          periodo: mesFacturado,
+          procesados: facturasNuevas.length,
+          omitidos,
+          monto_total: montoTotal,
+          tasa_ucd: tcmmv,
+        }
       });
     } catch(e) {}
 
@@ -191,10 +200,15 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.error('Error en Cron Billing:', error);
     try {
-      await supabase.from('audit_logs').insert({
-        usuario:  'Sistema (Cron)',
-        accion:   'ERROR_FACTURACION_MENSUAL',
-        detalles: error.message || 'Error desconocido'
+      await supabase.from('auditoria').insert({
+        usuario:   'Sistema (Cron)',
+        accion:    'Error Facturacion Mensual',
+        categoria: 'SISTEMA',
+        modulo:    '/api/cron/billing',
+        detalles: {
+          _categoria: 'SISTEMA',
+          error: error.message || 'Error desconocido',
+        }
       });
     } catch(e) {}
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

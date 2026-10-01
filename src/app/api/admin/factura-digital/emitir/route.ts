@@ -452,7 +452,7 @@ export async function POST(request: Request) {
       nuevosDetalles.factura_digital = {
         emitida:          true,
         url:              "https://democonsulta.thefactoryhka.com.ve/?doc=GhQVet4Fbe+vAHltz47VsoKrQ1NOzTmiOLp4jVe5oz4U01Z9FA/OdGcGnU9nU1co",
-        numero_control:   `00-00000${Math.floor(Math.random() * 1000)}`,
+        numero_control:   `00-${(pagoId || '').replace(/-/g,'').slice(0,8).toUpperCase()}`,
         fecha_emision:    new Date().toISOString(),
         simulated:        true,
         payload_generado: jsonTFHKA,

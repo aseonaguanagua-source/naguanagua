@@ -201,7 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supabase.from('reclamos').select('*'),
         supabase.from('convenios').select('*'),
         supabase.from('pre_liquidaciones').select('*'),
-        supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('auditoria').select('*').order('created_at', { ascending: false }).limit(200),
         supabase.from('sistema_config').select('*'),
         fetch(`/api/bcv?t=${Date.now()}`, { cache: 'no-store' }).then(res => res.json()).catch(() => ({ tcmmv: 0 }))
       ]);
@@ -244,7 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setTcmmv(currentTcmmv);
       
-      // audit_logs ya se cargó con limit(200) dentro del Promise.all — no repetir
+      // auditoria ya se cargo con limit(200) dentro del Promise.all - no repetir
       setAuditLogs(dbAuditLogs || []);
 
       if (dbInmuebles) {
@@ -403,24 +403,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadAllData();
   }, []);
 
+  // addAuditLog: migrado a tabla 'auditoria' (sistema unificado)
   const addAuditLog = async (action: string, details: string) => {
     try {
       const user = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || 'Administrador';
       const letra = (typeof window !== 'undefined' ? localStorage.getItem('adminLetra') : null);
-      const user_id = letra && user !== 'Administrador' ? `${letra}-${user}` : user;
-      
-      const { error } = await supabase.from('audit_logs').insert([{
-        user_id,
-        action,
-        ip_address: 'Registrado por Sistema',
-        details
+      const usuario = letra && user !== 'Administrador' ? `${letra}-${user}` : user;
+      const modulo = (typeof window !== 'undefined') ? window.location.pathname : '';
+      await supabase.from('auditoria').insert([{
+        usuario,
+        accion: action,
+        categoria: 'SISTEMA',
+        modulo,
+        detalles: { _categoria: 'SISTEMA', _modulo: modulo, texto: details },
       }]);
-      if (error) console.error("Error logging audit:", error);
-      else {
-        // Refetch audit logs ideally, but we can just reload them in the component or rely on DB
-      }
     } catch (e) {
-      console.error(e);
+      console.error('addAuditLog error:', e);
     }
   };
 

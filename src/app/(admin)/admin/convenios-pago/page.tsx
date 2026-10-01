@@ -4,6 +4,7 @@ import { DataTable } from '@/components/DataTable';
 import { Handshake, FileEdit, Plus, X, Search, Upload } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
+import { logAudit } from '@/lib/audit';
 
 export default function ConveniosPagoPage() {
   const { convenios, inmuebles, recibos, tcmmv } = useAppContext();
@@ -226,17 +227,19 @@ export default function ConveniosPagoPage() {
         detalle_cuotas: JSON.stringify(listaCuotas)
       });
 
-      // Crear registro de auditoría
-      await supabase.from('audit').insert({
-        action: 'Creación de Convenio (Congelamiento)',
-        details: `Convenio ${nroConvenio} para ${foundUser.identidad}. Monto Congelado: ${totalFijado.toFixed(2)} Bs a Tasa: ${tcmmv}`,
-        user_email: 'Admin',
-        module: 'Convenios'
-      });
+      // Registrar en auditoria
+      await logAudit('Convenio de Pago Creado', {
+        nro_convenio: nroConvenio,
+        identidad: foundUser.identidad,
+        monto_congelado: totalFijado,
+        cuotas,
+        tasa_bcv: tcmmv,
+      }, 'CONVENIO');
 
       alert('Convenio creado exitosamente. La deuda ha sido congelada.');
       setIsModalOpen(false);
-      window.location.reload();
+      // Refrescar datos sin recargar toda la pagina
+      if (typeof refreshData === 'function') await refreshData();
       
     } catch (error) {
       console.error(error);

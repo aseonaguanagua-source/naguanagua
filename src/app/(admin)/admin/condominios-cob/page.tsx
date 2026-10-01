@@ -60,9 +60,14 @@ export default function CondominiosCOBPage() {
       }`}>{row.estado}</span>
     ) },
     { key: 'actions', header: 'Gestión / Estatus', render: (row: any) => {
-      const hasDebt = Math.random() > 0.5;
-      const debtAmount = hasDebt ? (Math.random() * 5000).toFixed(2) : '0.00';
-      const hasAgreement = Math.random() > 0.7;
+      // Deuda real: buscar recibos pendientes del condominio
+      const pendFacturas = (recibos || []).filter((f: any) =>
+        (f.identidad || '').replace(/-/g,'') === (row.identidad || '').replace(/-/g,'') &&
+        ['Pendiente','Abonado','Por Verificar'].includes(f.estado)
+      );
+      const hasDebt = pendFacturas.length > 0;
+      const debtAmount = pendFacturas.reduce((s: number, f: any) => s + parseFloat(String(f.monto || '0').replace(/[^\d.]/g,'')), 0).toFixed(2);
+      const hasAgreement = false; // convenios se muestran en la tabla de convenios
 
       return (
         <div className="flex gap-2 items-center">

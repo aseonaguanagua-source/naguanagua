@@ -26,10 +26,13 @@ export const logAudit = async (
       if (u) usuario = l ? `${l}-${u}` : u;
       modulo = window.location.pathname;
     }
-    // Guardar categoria y modulo DENTRO de detalles (columnas aun no creadas en la BD)
+    // Escribe categoria y modulo como columnas directas en la BD.
+    // También los guarda en detalles para compatibilidad con registros anteriores.
     await supabase.from('auditoria').insert([{
       usuario,
       accion,
+      categoria,
+      modulo,
       detalles: {
         ...detalles,
         _categoria: categoria,

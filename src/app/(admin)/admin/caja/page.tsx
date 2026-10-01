@@ -849,11 +849,11 @@ export default function CajaPage() {
         const cajero_id = getCajeroId();
 
         if (justificacionBcv) {
-          await supabase.from('audit_logs').insert({
-            usuario: cajero_id,
-            accion: 'CAMBIO_TASA_CAJA',
-            detalles: `Se aplicó tasa manual BCV: ${customBcvRate} para contribuyente ${foundUser.Identidad}. Motivo: ${justificacionBcv}`
-          });
+          logAudit('Tasa BCV Modificada en Caja (Debito)', {
+            identidad: foundUser.Identidad,
+            tasa_aplicada: customBcvRate,
+            justificacion: justificacionBcv,
+          }, 'TASA');
         }
 
         const pagoId = crypto.randomUUID();
@@ -1067,12 +1067,12 @@ export default function CajaPage() {
         const cajero_id = getCajeroId();
 
         if (justificacionBcv) {
-          await supabase.from('audit_logs').insert({
-            usuario: cajero_id,
-            accion: 'CAMBIO_TASA_CAJA',
-            detalles: `Se aplicó tasa manual BCV: ${customBcvRate} para contribuyente ${foundUser.Identidad} (En Verificación). Motivo: ${justificacionBcv}`
-          });
-        }
+          logAudit('Tasa BCV Modificada en Caja (Transferencia)', {
+            identidad: foundUser.Identidad,
+            tasa_aplicada: customBcvRate,
+            justificacion: justificacionBcv,
+          }, 'TASA');
+        }        }
 
         // Transferencia / PagoMovil -> Enviar a Verificación
         // Upload comprobante to Supabase Storage if present

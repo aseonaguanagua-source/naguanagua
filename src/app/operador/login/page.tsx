@@ -41,7 +41,7 @@ export default function OperadorLogin() {
     try {
       const { data, error: dbError } = await supabase
         .from('trabajadores')
-        .select('*')
+        .select('id, usuario, clave, rol, estado')
         .eq('usuario', usuario.trim())
         .eq('estado', 'Activo')
         .single();
@@ -52,7 +52,22 @@ export default function OperadorLogin() {
         return;
       }
 
-      if (data.clave === clave) {
+      // Soporte dual: bcrypt (migrado por primer login en Admin) o texto plano
+      const isHashed = data.clave?.startsWith('$2b$') || data.clave?.startsWith('$2a$');
+      let passwordValid = false;
+      if (isHashed) {
+        // Verificar via API (bcrypt no puede correr en el cliente)
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: usuario.trim(), password: clave }),
+        });
+        passwordValid = res.ok;
+      } else {
+        passwordValid = data.clave === clave;
+      }
+
+      if (passwordValid) {
         localStorage.setItem('operador_censo_auth', usuario.trim());
         localStorage.setItem('operador_user_data', JSON.stringify(data));
         router.push('/operador');
@@ -66,6 +81,7 @@ export default function OperadorLogin() {
       setIsAuthenticating(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 relative overflow-hidden">

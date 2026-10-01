@@ -62,9 +62,9 @@ export default function OperadorDashboard() {
     try {
       // Count all historical censuses sent by this operator from audit_logs
       const { count, error } = await supabase
-        .from('audit_logs')
+        .from('auditoria')
         .select('*', { count: 'exact', head: true })
-        .eq('action', 'NUEVO_CENSO')
+        .eq('accion', 'Censo Movil Enviado')
         .eq('user_id', opName);
         
       if (!error && count !== null) {

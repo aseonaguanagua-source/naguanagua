@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -17,9 +17,8 @@ export default function PresidenciaLogin() {
     try {
       const { data } = await supabase
         .from('trabajadores')
-        .select('id, nombre, rol, estado')
+        .select('id, usuario, nombre, rol, clave, estado')
         .eq('usuario', usuario.trim().toLowerCase())
-        .eq('clave', clave)
         .single();
 
       if (!data) { setError('Usuario o contrasena incorrectos.'); setLoading(false); return; }
@@ -28,6 +27,23 @@ export default function PresidenciaLogin() {
         setError('No tienes acceso a este modulo.'); setLoading(false); return;
       }
 
+      // Soporte dual: bcrypt (si fue migrado por admin login) o texto plano
+      let passwordValid = false;
+      const isHashed = data.clave?.startsWith('$2b$') || data.clave?.startsWith('$2a$');
+      if (isHashed) {
+        // Verificar via API para no exponer bcrypt al cliente
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: usuario.trim().toLowerCase(), password: clave }),
+        });
+        passwordValid = res.ok;
+      } else {
+        passwordValid = data.clave === clave;
+      }
+
+      if (!passwordValid) { setError('Contrasena incorrecta.'); setLoading(false); return; }
+
       sessionStorage.setItem('presidencia_auth', JSON.stringify({ nombre: data.nombre, ts: Date.now() }));
       router.push('/presidencia');
     } catch {
@@ -35,6 +51,7 @@ export default function PresidenciaLogin() {
       setLoading(false);
     }
   };
+
 
   return (
     <div style={{
