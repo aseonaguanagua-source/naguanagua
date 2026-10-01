@@ -1072,7 +1072,8 @@ export default function CajaPage() {
             tasa_aplicada: customBcvRate,
             justificacion: justificacionBcv,
           }, 'TASA');
-        }        }
+        }
+
 
         // Transferencia / PagoMovil -> Enviar a Verificación
         // Upload comprobante to Supabase Storage if present
