@@ -194,7 +194,7 @@ export default function PresidenciaDashboard() {
             background: 'rgba(184,205,41,.15)', border: '1px solid rgba(184,205,41,.3)',
             borderRadius: 10, padding: '7px 11px', color: '#B8CD29', cursor: 'pointer', fontSize: 11, fontWeight: 600
           }}>{loading ? '...' : '↻'}</button>
-          <button onClick={() => { sessionStorage.removeItem('presidencia_auth'); router.replace('/presidencia/login'); }}
+          <button onClick={() => { sessionStorage.removeItem('presidencia_auth'); router.replace('/'); }}
             style={{ background: 'rgba(220,38,38,.15)', border: '1px solid rgba(220,38,38,.3)', borderRadius: 10, padding: '7px 11px', color: '#fca5a5', cursor: 'pointer', fontSize: 11 }}>
             Salir
           </button>
