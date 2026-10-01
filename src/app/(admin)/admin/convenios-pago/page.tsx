@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 
 export default function ConveniosPagoPage() {
-  const { convenios, inmuebles, recibos, tcmmv } = useAppContext();
+  const { convenios, inmuebles, recibos, tcmmv, refreshData } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewCuotasModal, setViewCuotasModal] = useState<{isOpen: boolean, convenio: any}>({isOpen: false, convenio: null});
   const [searchDoc, setSearchDoc] = useState('');
