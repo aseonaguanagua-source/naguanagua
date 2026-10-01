@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -51,20 +51,21 @@ export default function PresidenciaDashboard() {
   const [lastUpdate, setLastUpdate] = useState('');
   const [showEur, setShowEur] = useState(false);
 
-  // Auth guard
+  // Auth guard desactivado — acceso directo sin login
   useEffect(() => {
     const auth = sessionStorage.getItem('presidencia_auth');
-    if (!auth) { router.replace('/presidencia/login'); return; }
-    try {
-      const d = JSON.parse(auth);
-      if (Date.now() - d.ts > 8 * 60 * 60 * 1000) {
-        sessionStorage.removeItem('presidencia_auth');
-        router.replace('/presidencia/login');
-        return;
-      }
-      setNombre(d.nombre || 'Presidente');
-    } catch { router.replace('/presidencia/login'); }
-  }, [router]);
+    if (!auth) {
+      // Auto-autenticar sin requerir login
+      sessionStorage.setItem('presidencia_auth', JSON.stringify({ nombre: 'Administrador', ts: Date.now() }));
+      setNombre('Administrador');
+    } else {
+      try {
+        const d = JSON.parse(auth);
+        setNombre(d.nombre || 'Administrador');
+      } catch { setNombre('Administrador'); }
+    }
+  }, []);
+
 
   // Load inmuebles and UCD once
   useEffect(() => {

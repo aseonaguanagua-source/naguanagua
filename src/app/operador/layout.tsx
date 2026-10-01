@@ -13,15 +13,13 @@ export default function OperadorLayout({ children }: { children: React.ReactNode
 
   useEffect(() => {
     if (isLoginPage) return;
-    
-    // Check if operator is logged in
-    const storedOp = localStorage.getItem('operador_censo_auth');
-    if (!storedOp) {
-      router.replace('/operador/login');
-    } else {
-      setOperador(storedOp);
+    // Auto-autenticar sin requerir login
+    const storedOp = localStorage.getItem('operador_censo_auth') || 'Administrador';
+    if (!localStorage.getItem('operador_censo_auth')) {
+      localStorage.setItem('operador_censo_auth', 'Administrador');
     }
-  }, [router, pathname]);
+    setOperador(storedOp);
+  }, [pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('operador_censo_auth');

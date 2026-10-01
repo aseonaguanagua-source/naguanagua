@@ -40,13 +40,10 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
     return !!localStorage.getItem('adminUser');
   };
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(getInitialAuth);
-  const [loading, setLoading] = useState<boolean>(() => {
-    // Solo mostrar spinner si no hay cache ni adminUser (primera carga limpia)
-    if (typeof window === 'undefined') return true;
-    if (moduleSessionCache?.valid) return false;
-    return !localStorage.getItem('adminUser');
-  });
+  // Acceso directo sin login — siempre autenticado
+  const [isAuthenticated] = useState(true);
+  const loading = false;
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
