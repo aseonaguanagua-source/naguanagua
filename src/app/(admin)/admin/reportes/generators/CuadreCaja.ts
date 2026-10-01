@@ -53,12 +53,14 @@ export const generarCuadreCajaPDF = (
 
   const debitos = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('DEBITO') || p.tipo === 'Punto de Venta');
   const transferencias = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('TRANSFERENCIA'));
+  const depositos = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('DEPOSITO') || p.tipo?.toUpperCase().includes('DEPÓSITO'));
   const saldosAFavor = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('SALDO'));
 
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalTransf = transferencias.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const totalDeposito = depositos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalGeneral = totalDebito + totalTransf + totalSaldo;
+  const totalGeneral = totalDebito + totalTransf + totalDeposito + totalSaldo;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
@@ -72,24 +74,27 @@ export const generarCuadreCajaPDF = (
   doc.text("Transferencias Conciliadas", 40, 170);
   doc.text(formatBs(totalTransf), pageWidth - 40, 170, { align: 'right' });
 
-  doc.text("Saldo a Favor", 40, 185);
-  doc.text(formatBs(totalSaldo), pageWidth - 40, 185, { align: 'right' });
+  doc.text("Depósitos Bancarios", 40, 185);
+  doc.text(formatBs(totalDeposito), pageWidth - 40, 185, { align: 'right' });
+
+  doc.text("Saldo a Favor", 40, 200);
+  doc.text(formatBs(totalSaldo), pageWidth - 40, 200, { align: 'right' });
 
   doc.setLineWidth(1);
-  doc.line(40, 195, pageWidth - 40, 195);
+  doc.line(40, 210, pageWidth - 40, 210);
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text("TOTAL GENERAL", 40, 210);
-  doc.text(formatBs(totalGeneral), pageWidth - 40, 210, { align: 'right' });
+  doc.text("TOTAL GENERAL", 40, 225);
+  doc.text(formatBs(totalGeneral), pageWidth - 40, 225, { align: 'right' });
 
   doc.setLineWidth(1.5);
-  doc.line(40, 220, pageWidth - 40, 220);
+  doc.line(40, 235, pageWidth - 40, 235);
 
   doc.setFontSize(12);
-  doc.text("DETALLE DE TRANSACCIONES", pageWidth / 2, 250, { align: 'center' });
+  doc.text("DETALLE DE TRANSACCIONES", pageWidth / 2, 265, { align: 'center' });
 
-  let startY = 270;
+  let startY = 285;
 
   const drawSubTable = (title: string, dataItems: any[], columns: string[], rowMapper: (p: any, cInfo: any) => any[], footerTotal: number, footerLabel: string) => {
     if (dataItems.length === 0) return;
@@ -171,13 +176,31 @@ export const generarCuadreCajaPDF = (
   );
 
   drawSubTable(
+    "DEPÓSITOS BANCARIOS", 
+    depositos, 
+    ["FECHA/HORA", "FECHA BCO", "TIPO", "CONTRIBUYENTE", "BANCO ORIGEN", "REFERENCIA", "BANCO DESTINO", "MONTO"],
+    (p, c) => [
+      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
+      'DEP',
+      (c.Contribuyente || p.identidad).substring(0,35),
+      (p.banco_origen || 'N/A').substring(0,15),
+      p.referencia || 'N/A',
+      (p.banco_destino || 'N/A').substring(0,15),
+      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ],
+    totalDeposito,
+    "Total Depósitos:"
+  );
+
+  drawSubTable(
     "SALDO A FAVOR APLICADO", 
     saldosAFavor, 
     ["FECHA/HORA", "TIPO", "CAJERO", "CONTRIBUYENTE", "APLICADO A NUMERO", "MONTO"],
     (p, c) => [
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
       p.tipo.substring(0,3).toUpperCase(),
-      "${cajeroNombre}",
+      cajeroNombre,
       c.Contribuyente || p.identidad,
       p.factura_ref || p.referencia || 'N/A',
       parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })

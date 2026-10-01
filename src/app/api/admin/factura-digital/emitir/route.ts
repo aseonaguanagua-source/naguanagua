@@ -3,7 +3,54 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
 
 function numeroALetras(monto: number): string {
-  return "MONTO EN LETRAS POR IMPLEMENTAR";
+  const unidades = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+  const decenas = ['', 'DIEZ', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
+  const especiales: Record<number, string> = {
+    11: 'ONCE', 12: 'DOCE', 13: 'TRECE', 14: 'CATORCE', 15: 'QUINCE',
+    16: 'DIECISEIS', 17: 'DIECISIETE', 18: 'DIECIOCHO', 19: 'DIECINUEVE',
+    21: 'VEINTIUN', 22: 'VEINTIDOS', 23: 'VEINTITRES', 24: 'VEINTICUATRO', 25: 'VEINTICINCO',
+    26: 'VEINTISEIS', 27: 'VEINTISIETE', 28: 'VEINTIOCHO', 29: 'VEINTINUEVE'
+  };
+  const centenas = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS'];
+
+  function convertirGrupo(n: number): string {
+    if (n === 0) return '';
+    if (n === 100) return 'CIEN';
+    if (especiales[n]) return especiales[n];
+    if (n < 10) return unidades[n];
+    if (n < 100) {
+      const d = Math.floor(n / 10);
+      const u = n % 10;
+      return u === 0 ? decenas[d] : `${decenas[d]} Y ${unidades[u]}`;
+    }
+    const c = Math.floor(n / 100);
+    const resto = n % 100;
+    return resto === 0 ? centenas[c] : `${centenas[c]} ${convertirGrupo(resto)}`;
+  }
+
+  const entero = Math.floor(Math.abs(monto));
+  const decimales = Math.round((Math.abs(monto) - entero) * 100);
+  
+  if (entero === 0) return `CERO BOLIVARES CON ${String(decimales).padStart(2, '0')}/100`;
+
+  let resultado = '';
+  const millones = Math.floor(entero / 1000000);
+  const miles = Math.floor((entero % 1000000) / 1000);
+  const resto = entero % 1000;
+
+  if (millones > 0) {
+    resultado += millones === 1 ? 'UN MILLON' : `${convertirGrupo(millones)} MILLONES`;
+    if (miles > 0 || resto > 0) resultado += ' ';
+  }
+  if (miles > 0) {
+    resultado += miles === 1 ? 'MIL' : `${convertirGrupo(miles)} MIL`;
+    if (resto > 0) resultado += ' ';
+  }
+  if (resto > 0) {
+    resultado += convertirGrupo(resto);
+  }
+
+  return `${resultado} BOLIVARES CON ${String(decimales).padStart(2, '0')}/100`;
 }
 
 function formatearFecha(isoString: string): string {

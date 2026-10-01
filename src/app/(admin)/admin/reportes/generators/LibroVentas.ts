@@ -10,66 +10,128 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Libro de Ventas');
 
-  sheet.mergeCells('A1:F1');
+  // Título
+  sheet.mergeCells('A1:M1');
   const titleCell = sheet.getCell('A1');
-  titleCell.value = `LIBRO DE VENTAS ${tipo.toUpperCase()}`;
+  titleCell.value = `Libro de Ventas - Desde ${fechaInicio} hasta ${fechaFin}`;
   titleCell.font = { name: 'Arial', size: 14, bold: true };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
-  
-  sheet.mergeCells('A2:F2');
-  const subtitleCell = sheet.getCell('A2');
-  subtitleCell.value = `Periodo: ${fechaInicio} - ${fechaFin}`;
-  subtitleCell.font = { name: 'Arial', size: 10 };
-  subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
-  sheet.columns = [
-    { header: 'Nº', key: 'num', width: 5 },
-    { header: 'Fecha', key: 'fecha', width: 15 },
-    { header: 'Recibo / Doc', key: 'recibo', width: 20 },
-    { header: 'Contribuyente', key: 'contribuyente', width: 40 },
-    { header: 'RIF / CI', key: 'rif', width: 20 },
-    { header: 'Monto (Bs)', key: 'monto', width: 20 }
+  // Fila vacía
+  sheet.addRow([]);
+  sheet.addRow([]);
+
+  // Headers (fila 4) — formato del Libro de Ventas real
+  const headers = [
+    'Fecha', 'N° RIF', 'Cliente', 'N° Factura', 'N° Control', 
+    'N° Nota de crédito', 'Tipo de transacción', 'Total Ventas incluyendo IVA',
+    'Ventas Internas no Gravadas', 'Base Imponible', '% de Alícuota', 'IVA', 'Monto Retenido'
   ];
-
-  sheet.getRow(4).values = ['Nº', 'Fecha', 'Recibo / Doc', 'Contribuyente', 'RIF / CI', 'Monto (Bs)'];
-  const headerRow = sheet.getRow(4);
+  const headerRow = sheet.addRow(headers);
   headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
   headerRow.eachCell(cell => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2980B9' } };
     cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-    cell.alignment = { horizontal: 'center' };
+    cell.alignment = { horizontal: 'center', wrapText: true };
   });
 
-  let totalMonto = 0;
-  pagosFiltrados.forEach((p, index) => {
+  // Anchos de columna
+  sheet.columns = [
+    { width: 14 }, // Fecha
+    { width: 16 }, // N° RIF
+    { width: 42 }, // Cliente
+    { width: 14 }, // N° Factura
+    { width: 14 }, // N° Control
+    { width: 16 }, // N° Nota crédito
+    { width: 8 },  // Tipo transacción
+    { width: 20 }, // Total Ventas con IVA
+    { width: 20 }, // Ventas no Gravadas
+    { width: 18 }, // Base Imponible
+    { width: 12 }, // % Alícuota
+    { width: 15 }, // IVA
+    { width: 16 }, // Monto Retenido
+  ];
+
+  let totalVentasIVA = 0;
+  let totalNoGravadas = 0;
+  let totalBase = 0;
+  let totalIVA = 0;
+  let totalRetenido = 0;
+
+  pagosFiltrados.forEach((p) => {
     const cInfo = contribuyentes.find((c: any) => c.Identidad === p.identidad);
     const monto = parseFloat(p.monto) || 0;
-    totalMonto += monto;
+    const det = typeof p.detalles === 'string' ? JSON.parse(p.detalles || '{}') : (p.detalles || {});
     
-    const row = sheet.addRow({
-      num: index + 1,
-      fecha: new Date(p.created_at).toLocaleDateString('es-VE'),
-      recibo: p.factura_ref || p.referencia || 'N/A',
-      contribuyente: cInfo ? cInfo.Contribuyente : p.identidad,
-      rif: p.identidad,
-      monto: monto
+    // Calcular IVA y base
+    const ivaPercent = det.iva_percent || 16;
+    const esExento = ivaPercent === 0;
+    const base = esExento ? 0 : parseFloat((monto / (1 + ivaPercent / 100)).toFixed(2));
+    const iva = esExento ? 0 : parseFloat((monto - base).toFixed(2));
+    const noGravadas = esExento ? monto : 0;
+    const retenido = parseFloat(det.monto_retencion_iva || 0);
+
+    // Datos de factura digital
+    const fd = det.factura_digital || {};
+    const nroFactura = fd.numero_documento || p.referencia || 'N/A';
+    const nroControl = fd.numero_control || '';
+
+    totalVentasIVA += (esExento ? 0 : monto);
+    totalNoGravadas += noGravadas;
+    totalBase += base;
+    totalIVA += iva;
+    totalRetenido += retenido;
+
+    const row = sheet.addRow([
+      new Date(p.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      p.identidad || '',
+      cInfo ? cInfo.Contribuyente : (p.identidad || ''),
+      nroFactura,
+      nroControl,
+      null, // Nota crédito
+      '01', // Tipo transacción (factura)
+      esExento ? 0 : monto,
+      noGravadas,
+      base,
+      esExento ? null : `${ivaPercent},00%`,
+      iva,
+      retenido,
+    ]);
+
+    // Formato numérico
+    [8, 9, 10, 12, 13].forEach(col => {
+      const cell = row.getCell(col);
+      if (typeof cell.value === 'number') cell.numFmt = '#,##0.00';
     });
 
-    row.getCell('monto').numFmt = '#,##0.00';
     row.eachCell(cell => {
       cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
     });
   });
 
-  const footerRow = sheet.addRow(['', '', '', '', 'TOTAL', totalMonto]);
-  footerRow.font = { bold: true };
-  footerRow.getCell(6).numFmt = '#,##0.00';
-  footerRow.eachCell(cell => {
+  // Fila vacía
+  sheet.addRow([]);
+
+  // Totales
+  const totalesRow = sheet.addRow([
+    'TOTALES:', null, null, null, null, null, null,
+    totalVentasIVA,
+    totalNoGravadas,
+    totalBase,
+    null,
+    totalIVA,
+    totalRetenido,
+  ]);
+  totalesRow.font = { bold: true };
+  [8, 9, 10, 12, 13].forEach(col => {
+    const cell = totalesRow.getCell(col);
+    if (typeof cell.value === 'number') cell.numFmt = '#,##0.00';
+  });
+  totalesRow.eachCell(cell => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
     cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
-  saveAs(new Blob([buffer]), `Libro_Ventas_${tipo}_${new Date().getTime()}.xlsx`);
+  saveAs(new Blob([buffer]), `Libro_Ventas_${fechaInicio}_${fechaFin}.xlsx`);
 };
