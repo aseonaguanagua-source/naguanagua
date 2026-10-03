@@ -75,24 +75,26 @@ export default function DondePagarPage() {
         if (tcmmv > 0) {
           if (f.referencia?.startsWith('RECIB-')) {
             let totalMonto = 0;
-            let totalCongelada = 0;
             let totalMulta = 0;
+            let totalIva = 0;
             misInmuebles.forEach((inm: any) => { 
               const deuda = parseFloat(inm.deuda_mmv || 0);
-              totalCongelada += parseFloat(inm.deuda_congelada_bs || 0);
-              totalMulta += parseFloat(inm.multa_bs || 0);
-              if (deuda > 0) {
-                const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-                if (esRes) {
-                  totalMonto += deuda * getFAR(inm.actividad_principal || '') * tcmmv;
-                } else {
-                  totalMonto += deuda * tcmmv;
-                }
+              const multa = parseFloat(inm.multa_bs || 0);
+              const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+              // deuda_mmv ya está en UCD/MMV limpia, no se multiplica por FAR
+              const baseInm = deuda * tcmmv;
+              totalMonto += baseInm;
+              totalMulta += multa;
+              if (!esRes) {
+                totalIva += baseInm * 0.16;
               }
             });
-            if (totalMonto > 0 || totalCongelada > 0 || totalMulta > 0) baseMonto = totalMonto + totalCongelada + totalMulta;
+            const esAgente = misInmuebles.some((i: any) => i.agente_retencion === true);
+            const ivaAPagar = esAgente ? totalIva * 0.25 : totalIva;
+            if (totalMonto > 0 || totalMulta > 0) baseMonto = totalMonto + totalMulta + ivaAPagar;
           } else if (f.referencia?.startsWith('CM-')) {
             let totalMonto = 0;
+            let totalIva = 0;
             const targetInms = misInmuebles.filter((inm: any) => inm.inmueble && f.referencia.includes(inm.inmueble));
             const inmsToCalc = targetInms.length > 0 ? targetInms : misInmuebles;
             
@@ -102,16 +104,20 @@ export default function DondePagarPage() {
               if (mmv > 0) {
                 const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
                 const ucdMultiplicador = esRes ? (57 * getFAR(inm.actividad_principal || '')) : (57 * 0.128);
-                totalMonto += cant * mmv * ucdMultiplicador * tcmmv;
+                const baseInm = cant * mmv * ucdMultiplicador * tcmmv;
+                totalMonto += baseInm;
+                if (!esRes) totalIva += baseInm * 0.16;
               }
             });
-            if (totalMonto > 0) baseMonto = totalMonto;
+            const esAgente = inmsToCalc.some((i: any) => i.agente_retencion === true);
+            const ivaAPagar = esAgente ? totalIva * 0.25 : totalIva;
+            if (totalMonto > 0) baseMonto = totalMonto + ivaAPagar;
           }
         }
         
         // Determinar si todos los inmuebles de este usuario son hijos de condominio SIN autorización de pago individual
         if (misInmuebles.length > 0) {
-          const todosHijos = misInmuebles.every((inm: any) => (inm.actividad_principal || '').includes('[HIJO_DE:'));
+          const todosHijos = misInmuebles.every((inm: any) => !!inm.condominio_padre_id);
           const esPagoIndividual = misInmuebles.some((inm: any) => (inm.actividad_principal || '').includes('PAGOS INDIVIDUALES'));
           if (todosHijos && !esPagoIndividual) {
             setBloqueadoPorCondominio(true);

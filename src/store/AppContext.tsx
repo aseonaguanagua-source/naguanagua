@@ -154,7 +154,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return all;
         };
         const [rawInmuebles, rawContribuyentes] = await Promise.all([
-          fetchAllClient('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,created_at'),
+          fetchAllClient('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,created_at'),
           fetchAllClient('contribuyentes', '*')
         ]);
         const contribMap = new Map();

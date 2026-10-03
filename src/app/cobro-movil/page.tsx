@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Landmark, MapPin, User2, Building2, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
@@ -80,17 +80,17 @@ export default function KioskPage() {
 
   const isResidencialGlobal = foundUser?.Clasificacion?.toLowerCase().includes('residencial') ?? true;
   const esAgenteGlobal = foundUser?.EsAgente ?? false;
-  // IVA total (16% sobre la deuda)
-  const ivaTotalCalculado = isResidencialGlobal ? 0 : (totalSel * 0.16);
-  // Retención: si es agente, retiene 75% del IVA (no lo paga al municipio, lo declara por planilla)
-  const ivaRetenidoCalculado = esAgenteGlobal ? ivaTotalCalculado * 0.75 : 0;
-  // Lo que realmente paga = base + 25% del IVA (o 100% si no es agente)
-  const ivaCalculado = ivaTotalCalculado - ivaRetenidoCalculado;
-  const pagoTotalCalculado = totalSel + ivaCalculado;
 
-  const getReciboMonto = (r: Recibo): number => {
-    if (r.estado === 'Abonado') return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
-    if (!tcmmv || tcmmv <= 0) return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
+  const getReciboDesglose = (r: Recibo): { base: number; multa: number; iva: number; total: number } => {
+    if (r.estado === 'Abonado') {
+      const m = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
+      return { base: m, multa: 0, iva: 0, total: m };
+    }
+    if (!tcmmv || tcmmv <= 0) {
+      const m = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
+      return { base: m, multa: 0, iva: 0, total: m };
+    }
+
     if (r.referencia?.startsWith('RECIB-HIST-')) {
       const parts = r.referencia.split('-');
       const inmId = parts[2];
@@ -99,50 +99,103 @@ export default function KioskPage() {
         const meses = Math.max(1, parseInt(String(inm.meses_deuda || 1)));
         const d = parseFloat(String(inm.deuda_mmv || 0));
         const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-        let ucdTotal = 0;
-        if (d > 0) {
-          if (esRes) ucdTotal = d * getFAR(inm.actividad_principal || '');
-          else ucdTotal = d;
-        }
-        const congelada = parseFloat(String(inm.deuda_congelada_bs || 0));
+        // deuda_mmv ya está en UCD/MMV limpia, no se multiplica por FAR de nuevo
+        const baseMes = parseFloat(((d * tcmmv) / meses).toFixed(2));
         const multa = parseFloat(String(inm.multa_bs || 0));
-        
-        return parseFloat((((ucdTotal * tcmmv) + congelada + multa) / meses).toFixed(2));
+        const multaMes = parseFloat((multa / meses).toFixed(2));
+        // IVA solo sobre la base del servicio comercial; multas exentas
+        const ivaMes = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
+        return {
+          base: baseMes,
+          multa: multaMes,
+          iva: ivaMes,
+          total: parseFloat((baseMes + multaMes + ivaMes).toFixed(2))
+        };
       }
-      return 0;
+      return { base: 0, multa: 0, iva: 0, total: 0 };
     } else if (r.referencia?.startsWith('RECIB-') || r.referencia === 'RECIB-DEUDA') {
-      let totalMonto = 0, totalCongelada = 0, totalMulta = 0;
-      userInms.forEach(i => { 
+      let totalBase = 0, totalMulta = 0, totalIva = 0;
+      userInms.forEach(i => {
         const deuda = parseFloat(String(i.deuda_mmv || 0));
-        totalCongelada += parseFloat(String(i.deuda_congelada_bs || 0));
-        totalMulta += parseFloat(String(i.multa_bs || 0));
-        if (deuda > 0) {
-          const esRes = (i.clasificacion || '').toLowerCase().includes('residencial');
-          if (esRes) {
-            totalMonto += deuda * getFAR(i.actividad_principal || '') * tcmmv;
-          } else {
-            totalMonto += deuda * tcmmv;
-          }
+        const multa = parseFloat(String(i.multa_bs || 0));
+        const esRes = (i.clasificacion || '').toLowerCase().includes('residencial');
+        // deuda_mmv ya es el valor consolidado en UCD/MMV
+        const baseInm = deuda * tcmmv;
+        totalBase += baseInm;
+        totalMulta += multa;
+        if (!esRes) {
+          totalIva += baseInm * 0.16;
         }
       });
-      if (totalMonto > 0 || totalCongelada > 0 || totalMulta > 0) {
-        return parseFloat((totalMonto + totalCongelada + totalMulta).toFixed(2));
-      }
-    }
-    if (r.referencia?.startsWith('CM-')) {
+      return {
+        base: parseFloat(totalBase.toFixed(2)),
+        multa: parseFloat(totalMulta.toFixed(2)),
+        iva: parseFloat(totalIva.toFixed(2)),
+        total: parseFloat((totalBase + totalMulta + totalIva).toFixed(2))
+      };
+    } else if (r.referencia?.startsWith('CM-')) {
       let tInms = userInms.filter(i => i.inmueble && r.referencia.includes(i.inmueble));
       if (tInms.length === 0) tInms = userInms;
-      const t = tInms.reduce((s, i) => s + calcMontoMes(i, tcmmv), 0);
-      if (t > 0) return parseFloat(t.toFixed(2));
+      let totalBase = 0, totalIva = 0;
+      tInms.forEach(i => {
+        const bm = calcMontoMes(i, tcmmv);
+        const esRes = (i.clasificacion || '').toLowerCase().includes('residencial');
+        totalBase += bm;
+        if (!esRes) totalIva += bm * 0.16;
+      });
+      return {
+        base: parseFloat(totalBase.toFixed(2)),
+        multa: 0,
+        iva: parseFloat(totalIva.toFixed(2)),
+        total: parseFloat((totalBase + totalIva).toFixed(2))
+      };
     }
-    return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
+    const m = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
+    return { base: m, multa: 0, iva: 0, total: m };
   };
+
+  const getReciboMonto = (r: Recibo): number => {
+    const d = getReciboDesglose(r);
+    // Para recibos en la lista individual, se muestra el valor base + multa (el IVA se desglosa en el total)
+    return parseFloat((d.base + d.multa).toFixed(2));
+  };
+
+  // Desglose consolidado de los recibos seleccionados
+  const desgloseSel = useMemo(() => {
+    let base = 0, multa = 0, iva = 0;
+    selectedRefs.forEach(ref => {
+      const r = recibos.find(x => x.referencia === ref);
+      if (r) {
+        const d = getReciboDesglose(r);
+        base += d.base;
+        multa += d.multa;
+        iva += d.iva;
+      }
+    });
+    return {
+      base: parseFloat(base.toFixed(2)),
+      multa: parseFloat(multa.toFixed(2)),
+      iva: isResidencialGlobal ? 0 : parseFloat(iva.toFixed(2))
+    };
+  }, [selectedRefs, recibos, userInms, tcmmv, isResidencialGlobal]);
+
+  // IVA total (16% EXCLUSIVAMENTE sobre la base imponible comercial; multas y residencial 0%)
+  const ivaTotalCalculado = desgloseSel.iva;
+  // Retención: si es agente de retención, retiene 75% del IVA (no lo paga al municipio, lo declara por planilla)
+  const ivaRetenidoCalculado = esAgenteGlobal ? parseFloat((ivaTotalCalculado * 0.75).toFixed(2)) : 0;
+  // Lo que realmente paga de IVA = 25% del IVA si es agente, o 100% si no lo es
+  const ivaCalculado = parseFloat((ivaTotalCalculado - ivaRetenidoCalculado).toFixed(2));
+  // Total a cancelar = Subtotal base + Multa (sin intereses) + IVA neto a pagar
+  const pagoTotalCalculado = parseFloat((desgloseSel.base + desgloseSel.multa + ivaCalculado).toFixed(2));
 
   useEffect(() => {
     if (recibos.length > 0) {
       const refs = recibos.slice(0, monthsToPay).map(r => r.referencia);
       setSelectedRefs(refs);
-      const t = refs.reduce((s, ref) => { const f = recibos.find(r => r.referencia === ref); return s + (f ? getReciboMonto(f) : 0); }, 0);
+      const t = refs.reduce((s, ref) => {
+        const f = recibos.find(r => r.referencia === ref);
+        return s + (f ? getReciboMonto(f) : 0);
+      }, 0);
       setTotalSel(parseFloat(t.toFixed(2)));
     }
   }, [monthsToPay, recibos, userInms, tcmmv]);
@@ -296,7 +349,27 @@ export default function KioskPage() {
       });
       let dinero = totalSel;
       for (const r of selectedRefs) {
-        if (r === 'RECIB-DEUDA') { for (const inm of userInms) { await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0 }).eq('id', inm.id); } break; }
+        if (r === 'RECIB-DEUDA') {
+          for (const inm of userInms) {
+            await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', inm.id);
+          }
+          break;
+        }
+        if (r.startsWith('RECIB-HIST-')) {
+          const parts = r.split('-');
+          const inmId = parts[2];
+          const inm = userInms.find((i: any) => i.inmueble === inmId);
+          if (inm) {
+            const meses = Math.max(1, parseInt(String(inm.meses_deuda || 1)));
+            const nuevoMeses = Math.max(0, meses - 1);
+            const d = parseFloat(String(inm.deuda_mmv || 0));
+            const m = parseFloat(String(inm.multa_bs || 0));
+            const nuevaDeuda = nuevoMeses === 0 ? 0 : parseFloat(((d * nuevoMeses) / meses).toFixed(6));
+            const nuevaMulta = nuevoMeses === 0 ? 0 : parseFloat(((m * nuevoMeses) / meses).toFixed(2));
+            await supabase.from('inmuebles').update({ deuda_mmv: nuevaDeuda, deuda_congelada_bs: 0, multa_bs: nuevaMulta, meses_deuda: nuevoMeses }).eq('id', inm.id);
+          }
+          continue;
+        }
         const fac = recibos.find(x => x.referencia === r); if (!fac) continue;
         const mFac = getReciboMonto(fac);
         if (dinero >= mFac) { await supabase.from('facturas').update({ estado: 'Pagado' }).eq('referencia', r); dinero -= mFac; }
@@ -464,14 +537,20 @@ export default function KioskPage() {
               {/* RESUMEN DE PAGO */}
               <div className="bg-slate-800 rounded-3xl p-6 border border-slate-700">
                 <h4 className="font-bold mb-4 text-slate-300 uppercase tracking-widest text-xs">Detalle a Pagar</h4>
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-slate-400">Total Deuda ({monthsToPay} {monthsToPay === 1 ? 'mes' : 'meses'})</span>
-                  <span className="text-white font-bold text-lg">Bs. {fmtBs(totalSel)}</span>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-slate-400">Subtotal Aseo ({monthsToPay} {monthsToPay === 1 ? 'mes' : 'meses'})</span>
+                  <span className="text-white font-bold text-lg">Bs. {fmtBs(desgloseSel.base)}</span>
                 </div>
+                {desgloseSel.multa > 0 && (
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-amber-400 text-sm">Multa por Mora (Exenta de IVA)</span>
+                    <span className="text-amber-400 font-bold">Bs. {fmtBs(desgloseSel.multa)}</span>
+                  </div>
+                )}
                 {!isResidencialGlobal && (
                   <>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-slate-400">IVA (16%) Total</span>
+                      <span className="text-slate-400">IVA (16%) Base Imponible</span>
                       <span className="text-white font-bold">Bs. {fmtBs(ivaTotalCalculado)}</span>
                     </div>
                     {esAgenteGlobal && (
@@ -480,15 +559,15 @@ export default function KioskPage() {
                           <span className="text-amber-400 text-sm">↳ IVA Retenido (75%) — sube planilla</span>
                           <span className="text-amber-400 font-bold">- Bs. {fmtBs(ivaRetenidoCalculado)}</span>
                         </div>
-                        <div className="flex justify-between items-center mb-4">
+                        <div className="flex justify-between items-center mb-3">
                           <span className="text-slate-400">IVA a Pagar (25%)</span>
                           <span className="text-white font-bold text-lg">Bs. {fmtBs(ivaCalculado)}</span>
                         </div>
                       </>
                     )}
                     {!esAgenteGlobal && (
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-slate-400">IVA (16%)</span>
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-slate-400">IVA a Pagar (16%)</span>
                         <span className="text-white font-bold text-lg">Bs. {fmtBs(ivaCalculado)}</span>
                       </div>
                     )}

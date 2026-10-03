@@ -370,24 +370,17 @@ export default function EstadoCuentaPage() {
           });
           if (monthlyMMV > 0) montoNumerico = parseFloat((monthlyMMV * tcmmv).toFixed(2));
         } else if (row.referencia.startsWith('RECIB-')) {
-          // RECIB- = deuda acumulada: (deuda_mmv × tcmmv) + deuda_congelada_bs
+          // RECIB- = deuda acumulada: (deuda_mmv × tcmmv) + multa_bs
           let totalDeudaMMV = 0;
-          let totalCongelada = 0;
           let totalMulta = 0;
           userInmsForCalc.forEach((inm: any) => {
             const deuda = parseFloat(inm.deuda_mmv || 0);
-            const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
             if (deuda > 0) {
-              if (esRes) {
-                totalDeudaMMV += deuda * getFAR(inm.actividad_principal || '');
-              } else {
-                totalDeudaMMV += deuda;
-              }
+              totalDeudaMMV += deuda;
             }
-            totalCongelada += parseFloat(inm.deuda_congelada_bs || 0);
             totalMulta += parseFloat(inm.multa_bs || 0);
           });
-          if (totalDeudaMMV > 0 || totalCongelada > 0 || totalMulta > 0) montoNumerico = parseFloat(((totalDeudaMMV * tcmmv) + totalCongelada + totalMulta).toFixed(2));
+          if (totalDeudaMMV > 0 || totalMulta > 0) montoNumerico = parseFloat(((totalDeudaMMV * tcmmv) + totalMulta).toFixed(2));
         }
       }
     }
@@ -597,19 +590,15 @@ export default function EstadoCuentaPage() {
                 if (mmv > 0) mF = parseFloat((mmv * tcmmv).toFixed(2));
               } else if (f.referencia?.startsWith('RECIB-')) {
                 let deuda = 0;
-                let congelada = 0;
                 let multa = 0;
                 userInmsForAll.forEach((inm: any) => { 
                   const d = parseFloat(inm.deuda_mmv || 0);
-                  const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
                   if (d > 0) {
-                    if (esRes) deuda += d * getFAR(inm.actividad_principal || '');
-                    else deuda += d;
+                    deuda += d;
                   }
-                  congelada += parseFloat(inm.deuda_congelada_bs || 0); 
                   multa += parseFloat(inm.multa_bs || 0);
                 });
-                if (deuda > 0 || congelada > 0 || multa > 0) mF = parseFloat(((deuda * tcmmv) + congelada + multa).toFixed(2));
+                if (deuda > 0 || multa > 0) mF = parseFloat(((deuda * tcmmv) + multa).toFixed(2));
               }
             }
             return {

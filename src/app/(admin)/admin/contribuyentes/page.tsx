@@ -687,11 +687,18 @@ function ContribuyentesPageContent() {
         resumenRows.push(['Monto Servicios Especiales Bs.', `Bs. ${totalServiciosBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`]);
       }
       
+      const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+      const baseRecoleccion = inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0);
+      const baseImponible = esRes ? 0 : baseRecoleccion;
+      const ivaBs = esRes ? 0 : baseImponible * 0.16;
+      const totalExento = esRes ? totalInm : (idx === 0 ? totalServiciosBs : 0);
+      const totalEstadoCuenta = baseImponible + ivaBs + totalExento;
+
       resumenRows.push(
-        ['Total Exento Bs.', `Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`],
-        ['Base Imponible Bs.', 'Bs. 0,00'],
-        ['IVA (16.00%) Bs.', 'Bs. 0,00'],
-        ['Total estado de cuenta Bs.', `Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`]
+        ['Total Exento Bs.', `Bs. ${totalExento.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`],
+        ['Base Imponible Bs.', `Bs. ${baseImponible.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`],
+        ['IVA (16.00%) Bs.', `Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`],
+        ['Total estado de cuenta Bs.', `Bs. ${totalEstadoCuenta.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`]
       );
 
       resumenRows.forEach(([label, value]) => {
@@ -710,7 +717,7 @@ function ContribuyentesPageContent() {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.text('TOTAL A PAGAR', 14, y);
-      doc.text(`Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`, 196, y, { align: 'right' });
+      doc.text(`Bs. ${totalEstadoCuenta.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`, 196, y, { align: 'right' });
       y += 2;
       doc.line(14, y, 196, y);
       y += 8;
