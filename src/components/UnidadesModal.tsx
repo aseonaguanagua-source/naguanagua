@@ -96,9 +96,11 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
   // Estado de cuenta por unidad
   const [showEstado, setShowEstado] = useState<number | null>(null);
 
+  const [busqueda, setBusqueda] = useState('');
+
   useEffect(() => {
     fetchUnidades();
-  }, [condominioId]);
+  }, [condominioId, condominioCodigoPadre, condominioIdentidad]);
 
   const fetchUnidades = async () => {
     setLoading(true);
@@ -108,35 +110,66 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
       .eq('condominio_id', condominioId)
       .order('id', { ascending: true });
       
-    const searchCodigo = condominioCodigoPadre || condominioIdentidad || '';
-    const { data: inms, error: e2 } = await supabase
-      .from('inmuebles')
-      .select('*, contribuyentes(*)')
-      .ilike('actividad_principal', `%[HIJO_DE:${searchCodigo}]%`);
+    const searchPadre = condominioCodigoPadre || '';
+    const searchRif = condominioIdentidad || '';
+
+    let inms: any[] = [];
+    try {
+      const filterParts: string[] = [];
+      if (searchPadre) {
+        filterParts.push(`condominio_padre_id.eq.${searchPadre}`);
+        filterParts.push(`actividad_principal.ilike.%[HIJO_DE:${searchPadre}]%`);
+      }
+      if (searchRif) {
+        filterParts.push(`condominio_padre_id.eq.${searchRif}`);
+        filterParts.push(`identidad.eq.${searchRif}`);
+      }
+
+      if (filterParts.length > 0) {
+        const { data: inmsData } = await supabase
+          .from('inmuebles')
+          .select('*')
+          .or(filterParts.join(','));
+        inms = (inmsData || []).filter((i: any) => i.inmueble !== searchPadre && i.inmueble !== searchRif);
+      }
+    } catch (err) {
+      console.error('Error fetching inmuebles hijos:', err);
+    }
       
     let combined = [...(ud || [])];
     
     if (inms && inms.length > 0) {
       const mappedInms = inms.map((inm: any) => {
-        const rawPropietario = inm.contribuyentes?.nombre || 'No asignado';
-        const isDesocupado = rawPropietario.toUpperCase().includes('DESOCUPAD');
+        const rawPropietario = inm.contribuyente || inm.contribuyentes?.nombre || 'No asignado';
+        const isDesocupado = (rawPropietario || '').toUpperCase().includes('DESOCUPAD') || (inm.actividad_principal || '').toUpperCase().includes('DESOCUPAD');
         
+        let numUnidad = inm.inmueble || '';
+        if (inm.direccion) {
+          const matchLoc = inm.direccion.match(/(?:LOCAL|LOCAL COMERCIAL|STAND|KIOSCO|APTO|NRO\.)\s+(?:NRO\.\s+)?([A-Z0-9\-]+)/i);
+          if (matchLoc && matchLoc[1]) {
+            numUnidad = `${matchLoc[1]} (${inm.inmueble})`;
+          }
+        }
+
         return {
           id: inm.id,
           condominio_id: condominioId,
-          numero_unidad: (inm.inmueble || '').replace(searchCodigo + '-', ''),
+          numero_unidad: numUnidad,
           codigo_ch: inm.inmueble,
-          propietario: isDesocupado ? 'Desocupado' : rawPropietario,
-          cedula_rif: isDesocupado ? '-' : inm.identidad,
-          telefono: inm.contribuyentes?.telefono || '',
-          correo: inm.contribuyentes?.email || '',
+          propietario: isDesocupado ? 'Desocupado / Vacante' : rawPropietario,
+          cedula_rif: isDesocupado ? '-' : (inm.identidad || '-'),
+          telefono: inm.telefono || '',
+          correo: inm.correo_electronico || '',
           ficha_catastral: '',
-          estado: inm.estado || 'Solvente',
+          estado: (parseInt(inm.meses_deuda || '0') > 0 || parseFloat(inm.deuda_mmv || '0') > 0) ? 'Con Deuda' : 'Solvente',
           ocupacion: isDesocupado ? 'Desocupada' : 'Ocupada',
           clave_acceso: '',
           es_migrado: true,
           actividad_economica_id: inm.actividad_economica_id,
-          tipo: inm.tipo || 'INDEPENDIENTE'
+          actividad: inm.actividad_principal || '',
+          meses_deuda: parseInt(inm.meses_deuda || '0'),
+          deuda_mmv: parseFloat(inm.deuda_mmv || '0'),
+          tipo: inm.tipo || 'COMERCIAL'
         };
       });
       combined = [...combined, ...mappedInms];
@@ -557,33 +590,58 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
 
           {/* List */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-700">Unidades Registradas ({unidades.length})</h3>
-              {unidades.some(u => !u.codigo_ch) && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!confirm('¿Asignar códigos CH a todas las unidades sin código? Esta acción guardará los códigos en la base de datos.')) return;
-                    const numCondo = condominioCodigoPadre
-                      ? (parseInt(condominioCodigoPadre.replace('C-','').replace(/^0+/,''), 10) || condominioId)
-                      : condominioId;
-                    let contador = 0;
-                    for (let i = 0; i < unidades.length; i++) {
-                      const u = unidades[i];
-                      if (!u.codigo_ch) {
-                        const cod = `CH-${numCondo}${String(i + 1).padStart(4, '0')}`;
-                        await supabase.from('unidades_condominio').update({ codigo_ch: cod }).eq('id', u.id);
-                        contador++;
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3">
+                <h3 className="text-sm font-semibold text-slate-700">Unidades Registradas ({unidades.length})</h3>
+                {busqueda && (
+                  <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">
+                    Filtrados: {unidades.filter(u => {
+                      const q = busqueda.toLowerCase();
+                      return (
+                        (u.numero_unidad || '').toLowerCase().includes(q) ||
+                        (u.codigo_ch || '').toLowerCase().includes(q) ||
+                        (u.propietario || '').toLowerCase().includes(q) ||
+                        (u.cedula_rif || '').toLowerCase().includes(q) ||
+                        (u.actividad || '').toLowerCase().includes(q)
+                      );
+                    }).length}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <input
+                  type="text"
+                  placeholder="Buscar local (A-23), RIF, tienda..."
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="px-3 py-1.5 border border-slate-300 rounded-md text-xs w-full sm:w-64 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+                {unidades.some(u => !u.codigo_ch) && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm('¿Asignar códigos CH a todas las unidades sin código? Esta acción guardará los códigos en la base de datos.')) return;
+                      const numCondo = condominioCodigoPadre
+                        ? (parseInt(condominioCodigoPadre.replace('C-','').replace(/^0+/,''), 10) || condominioId)
+                        : condominioId;
+                      let contador = 0;
+                      for (let i = 0; i < unidades.length; i++) {
+                        const u = unidades[i];
+                        if (!u.codigo_ch) {
+                          const cod = `CH-${numCondo}${String(i + 1).padStart(4, '0')}`;
+                          await supabase.from('unidades_condominio').update({ codigo_ch: cod }).eq('id', u.id);
+                          contador++;
+                        }
                       }
-                    }
-                    alert(`✅ Se asignaron ${contador} códigos CH correctamente.`);
-                    fetchUnidades();
-                  }}
-                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700"
-                >
-                  🔢 Asignar Códigos CH a Todas
-                </button>
-              )}
+                      alert(`✅ Se asignaron ${contador} códigos CH correctamente.`);
+                      fetchUnidades();
+                    }}
+                    className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 whitespace-nowrap"
+                  >
+                    🔢 Asignar Códigos CH
+                  </button>
+                )}
+              </div>
             </div>
             {loading ? (
               <div className="text-center py-8 text-slate-400 text-sm">Cargando unidades...</div>
@@ -609,7 +667,17 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {unidades.map((u) => {
+                    {unidades.filter(u => {
+                      if (!busqueda) return true;
+                      const q = busqueda.toLowerCase();
+                      return (
+                        (u.numero_unidad || '').toLowerCase().includes(q) ||
+                        (u.codigo_ch || '').toLowerCase().includes(q) ||
+                        (u.propietario || '').toLowerCase().includes(q) ||
+                        (u.cedula_rif || '').toLowerCase().includes(q) ||
+                        (u.actividad || '').toLowerCase().includes(q)
+                      );
+                    }).map((u) => {
                       const isUnitSolvent = !hasCondominioDebt; // Real debt check — manual estado cannot override
                       return (
                       <React.Fragment key={u.id}>

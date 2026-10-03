@@ -230,19 +230,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
         contribuyentes: contribMap.get(inm.identidad) || null
       }));
 
+      // Contar unidades/locales hijos vinculados por condominio_padre_id
+      const hijosCountMap = new Map<string, number>();
+      allInmuebles.forEach(i => {
+        if (i.condominio_padre_id) {
+          hijosCountMap.set(i.condominio_padre_id, (hijosCountMap.get(i.condominio_padre_id) || 0) + 1);
+        }
+      });
+
       const apiCondominios = allInmuebles
         .filter(i => i.es_condominio === true)
-        .map(inm => ({
-          id: inm.id,
-          codigo: inm.inmueble,
-          identidad: inm.identidad,
-          nombre: 'Condominio ' + inm.inmueble,
-          direccion: inm.direccion || '',
-          unidades: parseInt(inm.cant_inmuebles || '0'),
-          representante: contribMap.get(inm.identidad)?.nombre || 'N/A',
-          estado: inm.estado || 'Activo',
-          created_at: inm.created_at
-        }));
+        .map(inm => {
+          const numHijos = hijosCountMap.get(inm.inmueble) || 0;
+          const contribObj = contribMap.get(inm.identidad);
+          const rawNombre = contribObj?.nombre || inm.contribuyente || '';
+          const cleanNombre = rawNombre && !rawNombre.toUpperCase().includes('CONDOMINIO')
+            ? `${rawNombre} (${inm.inmueble})`
+            : `Condominio ${inm.inmueble}`;
+
+          return {
+            id: inm.id,
+            codigo: inm.inmueble,
+            identidad: inm.identidad,
+            nombre: cleanNombre,
+            direccion: inm.direccion || '',
+            unidades: numHijos > 0 ? numHijos : parseInt(inm.cant_inmuebles || '0'),
+            representante: contribObj?.nombre || inm.contribuyente || 'N/A',
+            estado: inm.estado || 'Activo',
+            created_at: inm.created_at
+          };
+        });
 
       const [
         { data: dbPreRegistros },

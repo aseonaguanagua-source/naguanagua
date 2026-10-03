@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
-import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X } from 'lucide-react';
+import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X, Building2, Store, Receipt, CheckSquare, Square, Filter, ChevronRight, DollarSign, Sparkles, AlertCircle, Coins } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
@@ -42,9 +42,10 @@ export default function CajaPage() {
   const [isCondominio, setIsCondominio] = useState(false);
   const [condominioHijos, setCondominioHijos] = useState<any[]>([]);
   const [condominioModo, setCondominioModo] = useState<'Total' | 'Local' | 'Abono'>('Total');
-  const [isCondominioModalOpen, setIsCondominioModalOpen] = useState(false);
   const [condominioSearch, setCondominioSearch] = useState("");
+  const [montoAbonoCondo, setMontoAbonoCondo] = useState("");
   const [selectedHijos, setSelectedHijos] = useState<string[]>([]);
+  const [filtroEstadoCondo, setFiltroEstadoCondo] = useState<'todos' | 'con_deuda'>('todos');
   
   // Impuestos y Retenciones
   const [ivaPercent, setIvaPercent] = useState<number>(0); // 0 o 0.16
@@ -166,6 +167,31 @@ export default function CajaPage() {
 
   // Tasa efectiva activa (personalizada o BCV global)
   const currentBcvRate = customBcvRate && !isNaN(parseFloat(customBcvRate)) ? parseFloat(customBcvRate) : tcmmv;
+
+  // ─ Helpers de Condominio ─
+  const getLocalLabel = useCallback((inm: any): string => {
+    const dir = inm?.direccion || '';
+    const startMatch = dir.match(/^\s*(?:[0-9]+\s+)+([A-Za-z0-9\-]+)/);
+    if (startMatch && startMatch[1].length <= 12) return `Local ${startMatch[1].toUpperCase()}`;
+    const match = dir.match(/(?:LOCAL\s*(?:COMERCIAL\s*)?(?:NRO\.?\s*)?([A-Za-z0-9\-]+)|([A-Z]\-[0-9]+))/i);
+    if (match) return `Local ${(match[1] || match[2]).toUpperCase()}`;
+    return inm?.inmueble ? `Inmueble ${inm.inmueble}` : (inm?.identidad || 'Local');
+  }, []);
+
+  const getHijoDebt = useCallback((hijo: any) => {
+    const currentTasa = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
+    const esRes = isResidencialInm(hijo);
+    const base = parseFloat(calcularMensualidad(hijo, currentTasa).toFixed(2));
+    const iva = esRes ? 0 : parseFloat((base * 0.16).toFixed(2));
+    const mesesMora = parseInt(hijo.meses_deuda || '1');
+    const multa = mesesMora > 0 ? parseFloat((base * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+    const total = base + iva + multa;
+    return { base, iva, mesesMora, multa, total, esRes };
+  }, [customBcvRate, tcmmv]);
+
+  const totalDeudaCondominio = useMemo(() => {
+    return condominioHijos.reduce((acc: number, h: any) => acc + getHijoDebt(h).total, 0);
+  }, [condominioHijos, getHijoDebt]);
 
   // ─ Fix C-3: pendingRefsSet — O(1) lookup en lugar de O(n) find+recalc por render ─
   // Mapeo ref → monto calculado para eliminar el doble recalc en isItemPending
@@ -455,32 +481,39 @@ export default function CajaPage() {
       setPagosPendientes(pagosPendData || []);
 
       // Buscar si es un Condominio (Padre)
-      // Usar el flag es_condominio de la migración, con fallback a detección por nombre
+      const parentCodes = activeInmFresh.map((i: any) => i.inmueble).filter(Boolean);
       const isCondoByFlag = activeInmFresh.some((i: any) => i.es_condominio === true);
       const isCondoByName = (user.Contribuyente || user.contribuyente || '').toLowerCase().includes('condominio') || (user.Actividad || user.actividad || '').toLowerCase().includes('condominio');
       const codCont = user.cod_cont || user.CodCont || user.Identidad || user.identidad;
-      if (isCondoByFlag || isCondoByName) {
-        // Primero buscar hijos por condominio_padre_id (nueva migración)
-        const { data: hijosById } = await supabase
-          .from('inmuebles')
-          .select('id, identidad, inmueble, tipo, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente')
-          .eq('condominio_padre_id', codCont);
-        
-        // Fallback: buscar por patrón antiguo [HIJO_DE:...]
-        let hijosData = hijosById;
-        if (!hijosData || hijosData.length === 0) {
-          const { data: hijosByPattern } = await supabase
-            .from('inmuebles')
-            .select('id, identidad, inmueble, tipo, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente')
-            .ilike('actividad_principal', `%[HIJO_DE:${codCont}]%`);
-          hijosData = hijosByPattern;
+
+      if (isCondoByFlag || isCondoByName || parentCodes.length > 0) {
+        const searchFilters: string[] = [];
+        parentCodes.forEach((c: string) => {
+          searchFilters.push(`condominio_padre_id.eq.${c}`);
+          searchFilters.push(`actividad_principal.ilike.%[HIJO_DE:${c}]%`);
+        });
+        if (codCont && !parentCodes.includes(codCont)) {
+          searchFilters.push(`condominio_padre_id.eq.${codCont}`);
+          searchFilters.push(`actividad_principal.ilike.%[HIJO_DE:${codCont}]%`);
         }
-        
+        if (user.Identidad && !searchFilters.some(s => s.includes(user.Identidad))) {
+          searchFilters.push(`condominio_padre_id.eq.${user.Identidad}`);
+        }
+
+        let hijosData: any[] = [];
+        if (searchFilters.length > 0) {
+          const { data: hijosById } = await supabase
+            .from('inmuebles')
+            .select('id, identidad, inmueble, tipo, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente, direccion, meses_deuda, cant_inmuebles')
+            .or(searchFilters.join(','));
+          hijosData = (hijosById || []).filter((h: any) => !parentCodes.includes(h.inmueble));
+        }
+
         if (hijosData && hijosData.length > 0) {
           setIsCondominio(true);
           setCondominioHijos(hijosData);
           setSelectedHijos(hijosData.map(h => h.id));
-          setIsCondominioModalOpen(true);
+          setCondominioModo('Total');
         } else {
           setIsCondominio(false);
           setCondominioHijos([]);
@@ -550,18 +583,28 @@ export default function CajaPage() {
     let sb = 0, siva = 0, smulta = 0;
     const tasaActualUse = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
 
-    if (isCondominio && condominioModo === 'Abono') {
-      condominioHijos.forEach(h => {
-        const esRes = isResidencialInm(h);
-        const baseMonto = parseFloat(calcularMensualidad(h, tasaActualUse).toFixed(2));
-        const ivaLocal = esRes ? 0 : parseFloat((baseMonto * 0.16).toFixed(2));
-        const mesesMora = parseInt(h.meses_deuda || '1');
-        const multaLocal = mesesMora > 0 ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
-        total += (baseMonto + ivaLocal + multaLocal);
-        sb += baseMonto;
-        siva += ivaLocal;
-        smulta += multaLocal;
-      });
+    if (isCondominio) {
+      if (condominioModo === 'Abono') {
+        const abonoVal = parseFloat(montoAbonoCondo) || 0;
+        total += abonoVal;
+        sb += abonoVal;
+      } else {
+        const hijosToSum = condominioModo === 'Local'
+          ? condominioHijos.filter(h => selectedHijos.includes(h.id))
+          : (condominioModo === 'Total' ? condominioHijos : []);
+
+        hijosToSum.forEach(h => {
+          const esRes = isResidencialInm(h);
+          const baseMonto = parseFloat(calcularMensualidad(h, tasaActualUse).toFixed(2));
+          const ivaLocal = esRes ? 0 : parseFloat((baseMonto * 0.16).toFixed(2));
+          const mesesMora = parseInt(h.meses_deuda || '1');
+          const multaLocal = mesesMora > 0 ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+          total += (baseMonto + ivaLocal + multaLocal);
+          sb += baseMonto;
+          siva += ivaLocal;
+          smulta += multaLocal;
+        });
+      }
     }
 
     setTotalBs(total);
@@ -628,7 +671,7 @@ export default function CajaPage() {
     setSumIVA(siva);
     setSumMulta(smulta);
 
-  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, reciboMontoMap, getReciboMonto]);
+  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, reciboMontoMap, getReciboMonto]);
 
   // ─── useCajaSelection hook (Fase 2) ────────────────────────────────────────
   const { sortedRecibos, toggleRecibo, toggleCuota, toggleServicio, toggleTalaPoda } = useCajaSelection({
@@ -655,7 +698,16 @@ export default function CajaPage() {
   };
 
   const handlePayment = async () => {
-    if (totalBs <= 0 && (!isCondominio || condominioModo === 'Abono')) return alert("Debe seleccionar al menos una deuda a pagar.");
+    const isAbonoCondo = isCondominio && condominioModo === 'Abono';
+    if (!isAbonoCondo && totalBs <= 0) {
+      if (isCondominio && condominioModo === 'Local') {
+        return alert("Debe seleccionar al menos un local comercial para realizar el cobro.");
+      }
+      return alert("Debe seleccionar al menos una deuda a pagar.");
+    }
+    if (isAbonoCondo && (parseFloat(montoAbonoCondo) <= 0 || isNaN(parseFloat(montoAbonoCondo)))) {
+      return alert("Debe ingresar un monto válido a abonar para el condominio.");
+    }
     
     if (retencionIVA > 0 && !comprobanteRetencion.trim()) return alert("Debe ingresar el número de comprobante de retención de IVA.");
     const calculatedTotalBs = sumBase + sumIVA + sumMulta;
@@ -670,8 +722,8 @@ export default function CajaPage() {
     const finalTotal = Math.max(0, totalConImpuestos - descuentoSaldoFavor);
     
     let saldoAFavorNuevo = 0;
-    let esAbono = false;
-    let montoReal = finalTotal;
+    let esAbono = isAbonoCondo;
+    let montoReal = isAbonoCondo ? parseFloat(montoAbonoCondo) : finalTotal;
     
     const reqRef = ['Transferencia', 'Deposito'].includes(paymentMethod);
 
@@ -905,7 +957,7 @@ export default function CajaPage() {
             iva_percent: ivaPercent,
             es_condominio: isCondominio,
             condominio_modo: condominioModo,
-            condominio_hijos_pagados: condominioModo === 'Local' ? selectedHijos : []
+            condominio_hijos_pagados: condominioModo === 'Local' ? selectedHijos : (condominioModo === 'Total' ? condominioHijos.map(h => h.id) : [])
           })
         });
         if (insertErr) {
@@ -964,14 +1016,59 @@ export default function CajaPage() {
           }
         }
 
+        // ── LIMPIAR DEUDA CONDOMINIO ──
+        if (isCondominio && !esAbonoDebito) {
+          if (condominioModo === 'Local' && selectedHijos.length > 0) {
+            await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).in('id', selectedHijos);
+          } else if (condominioModo === 'Total' && condominioHijos.length > 0) {
+            const allHijoIds = condominioHijos.map((h: any) => h.id);
+            await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).in('id', allHijoIds);
+            const parentClean = (freshInmuebles.length > 0 ? freshInmuebles : inmuebles).filter((i: any) =>
+              (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
+            );
+            for (const pi of parentClean) {
+              await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', pi.id);
+            }
+          }
+        }
 
         if (esAbonoDebito) {
           (window as any).__lastPaymentAbono = { 
             esAbono: true, 
             montoCancelado: montoReal, 
-            montoPendiente: Math.max(0, (foundUser.DeudaTotal || finalTotal) - montoReal),
+            montoPendiente: Math.max(0, (isCondominio ? totalDeudaCondominio : (foundUser.DeudaTotal || finalTotal)) - montoReal),
             tasaBcv: currentBcvRate
           };
+          try {
+            const cajero_id_recibo = getCajeroId();
+            const refNum = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
+            setReciboData({
+              reciboNo: refNum,
+              controlWeb: `WEB-${refNum}`,
+              fechaEmision: new Date().toISOString().split('T')[0],
+              codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
+              razonSocial: foundUser.Contribuyente || '',
+              domicilioFiscal: (foundUser.Direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
+              rifCi: foundUser.Identidad,
+              caja: cajero_id_recibo,
+              conceptos: [{
+                descripcion: `Abono Parcial a Deuda ${isCondominio ? 'Condominio' : ''}`,
+                precioUnit: montoReal,
+                total: montoReal
+              }],
+              subTotal: montoReal,
+              exento: montoReal,
+              iva: 0,
+              total: montoReal,
+              formaPago: 'PUNTO DE VENTA',
+              banco: 'Debito',
+              referencia: reqRef ? referencia : referenciaDebito,
+              tasaBcv: currentBcvRate || tcmmv || undefined,
+              esAbono: true,
+              montoCancelado: montoReal,
+              montoPendiente: Math.max(0, (isCondominio ? totalDeudaCondominio : (foundUser.DeudaTotal || finalTotal)) - montoReal),
+            });
+          } catch(e) {}
         } else {
           (window as any).__lastPaymentAbono = { esAbono: false, tasaBcv: currentBcvRate };
         }
@@ -1008,6 +1105,48 @@ export default function CajaPage() {
         if (!esAbonoDebito) {
           try {
             const cajero_id_recibo = getCajeroId();
+            if (isCondominio) {
+              const hijosPagados = condominioModo === 'Local'
+                ? condominioHijos.filter((h: any) => selectedHijos.includes(h.id))
+                : condominioHijos;
+
+              const conceptosCondo = hijosPagados.map((hijo: any) => {
+                const infoDebt = getHijoDebt(hijo);
+                const localDesc = getLocalLabel(hijo);
+                const nombreLocal = hijo.contribuyente ? ` - ${hijo.contribuyente}` : '';
+                return {
+                  descripcion: `Aseo Urbano - ${localDesc}${nombreLocal} (${hijo.inmueble || ''})`,
+                  precioUnit: infoDebt.total,
+                  total: infoDebt.total
+                };
+              });
+
+              const refNum = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
+              setReciboData({
+                reciboNo: refNum,
+                controlWeb: `WEB-${refNum}`,
+                fechaEmision: new Date().toISOString().split('T')[0],
+                codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
+                razonSocial: foundUser.Contribuyente || '',
+                domicilioFiscal: (foundUser.Direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
+                rifCi: foundUser.Identidad,
+                caja: cajero_id_recibo,
+                conceptos: conceptosCondo.length > 0 ? conceptosCondo : [{
+                  descripcion: `Cobro Consolidado Condominio (${condominioHijos.length} Unidades)`,
+                  precioUnit: montoReal,
+                  total: montoReal
+                }],
+                subTotal: sumBase || montoReal,
+                exento: 0,
+                iva: sumIVA,
+                total: montoReal,
+                formaPago: 'PUNTO DE VENTA',
+                banco: 'Debito',
+                referencia: reqRef ? referencia : referenciaDebito,
+                tasaBcv: currentBcvRate || tcmmv || undefined,
+                esAbono: false,
+              });
+            } else {
             const userInmsRec = (inmuebles as any[]).filter((i: any) =>
               (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
             );
@@ -1104,6 +1243,7 @@ export default function CajaPage() {
 
             // Si hay un solo grupo, mantener objeto simple para compatibilidad
             setReciboData(recibosArray.length === 1 ? recibosArray[0] : recibosArray);
+            }
           } catch(rErr) { console.warn('Error al generar recibo automático:', rErr); }
         }
 
@@ -1593,6 +1733,438 @@ export default function CajaPage() {
             {/* Listado de Deudas */}
             <div className="lg:col-span-2 space-y-6">
             
+            {/* ── CENTRO DE GESTIÓN Y COBRANZA DE CONDOMINIO ── */}
+            {isCondominio && (
+              <div className="bg-white rounded-xl shadow-md border-2 border-emerald-500/40 overflow-hidden transition-all">
+                {/* Encabezado Principal */}
+                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <div className="p-1.5 bg-emerald-500/20 border border-emerald-400/40 rounded-lg">
+                        <Building2 className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <h2 className="text-xl font-bold tracking-tight">Centro de Cobranza de Condominio</h2>
+                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                        {condominioHijos.length} Locales Registrados
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      Administre la facturación del condominio: seleccione pago consolidado de todo el centro, cobro por local individual o abono parcial.
+                    </p>
+                  </div>
+
+                  <div className="text-left sm:text-right bg-white/10 px-4 py-2.5 rounded-xl border border-white/10 backdrop-blur-sm self-stretch sm:self-auto flex sm:flex-col justify-between items-center sm:items-end">
+                    <span className="text-[11px] text-slate-300 uppercase font-bold tracking-wider">Deuda Total Condominio</span>
+                    <span className="text-xl font-black text-emerald-400">
+                      Bs. {formatBs(totalDeudaCondominio)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Selector de Modalidad (3 Pestañas / Tarjetas) */}
+                <div className="bg-slate-100 p-2.5 border-b border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {/* Opción 1: Consolidado Total */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCondominioModo('Total');
+                      setSelectedHijos(condominioHijos.map(h => h.id));
+                      setMontoAbonoCondo('');
+                    }}
+                    className={`p-3.5 rounded-xl flex flex-col text-left transition-all ${
+                      condominioModo === 'Total'
+                        ? 'bg-white text-emerald-900 shadow-md border-2 border-emerald-600 ring-2 ring-emerald-500/20'
+                        : 'bg-white/60 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className={`w-4 h-4 ${condominioModo === 'Total' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                        <span className="font-bold text-sm">1. Cobro Total Consolidado</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        {condominioHijos.length} Locales
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Factura las {condominioHijos.length} unidades juntas en un único cobro global.
+                    </p>
+                  </button>
+
+                  {/* Opción 2: Local Específico */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCondominioModo('Local');
+                      if (selectedHijos.length === condominioHijos.length) {
+                        setSelectedHijos([]);
+                      }
+                      setMontoAbonoCondo('');
+                    }}
+                    className={`p-3.5 rounded-xl flex flex-col text-left transition-all ${
+                      condominioModo === 'Local'
+                        ? 'bg-white text-emerald-900 shadow-md border-2 border-emerald-600 ring-2 ring-emerald-500/20'
+                        : 'bg-white/60 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <Store className={`w-4 h-4 ${condominioModo === 'Local' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                        <span className="font-bold text-sm">2. Cobro por Local / Unidad</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${selectedHijos.length > 0 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                        {selectedHijos.length} selecc.
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Seleccione 1 o varios locales específicos (búsqueda rápida por local o tienda).
+                    </p>
+                  </button>
+
+                  {/* Opción 3: Abono Parcial */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCondominioModo('Abono');
+                      setSelectedHijos([]);
+                    }}
+                    className={`p-3.5 rounded-xl flex flex-col text-left transition-all ${
+                      condominioModo === 'Abono'
+                        ? 'bg-white text-emerald-900 shadow-md border-2 border-emerald-600 ring-2 ring-emerald-500/20'
+                        : 'bg-white/60 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <Receipt className={`w-4 h-4 ${condominioModo === 'Abono' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                        <span className="font-bold text-sm">3. Pago por Abono Parcial</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                        Monto Libre
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Abonar un monto específico a cuenta para amortizar la deuda total.
+                    </p>
+                  </button>
+                </div>
+
+                {/* VISTA MODO 1: CONSOLIDADO TOTAL */}
+                {condominioModo === 'Total' && (
+                  <div className="p-6 bg-slate-50/60">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-600 text-white rounded-lg">
+                          <CheckCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-emerald-900 text-sm">Facturación de Todo el Condominio Activada</h4>
+                          <p className="text-xs text-emerald-700">
+                            Se han seleccionado automáticamente los {condominioHijos.length} locales comerciales de este condominio.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCondominioModo('Local')}
+                        className="text-xs bg-white text-emerald-800 border border-emerald-300 font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors whitespace-nowrap"
+                      >
+                        Ver o Cambiar a Locales Individuales →
+                      </button>
+                    </div>
+
+                    {/* Resumen Disgregado del Condominio */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                      <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Locales</span>
+                        <span className="text-lg font-black text-slate-800">{condominioHijos.length} und</span>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase block">Base Imponible</span>
+                        <span className="text-lg font-black text-slate-800">Bs. {formatBs(sumBase)}</span>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase block">IVA Comercial (16%)</span>
+                        <span className="text-lg font-black text-slate-800">Bs. {formatBs(sumIVA)}</span>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-emerald-300 bg-emerald-50/50 shadow-sm">
+                        <span className="text-[10px] font-bold text-emerald-800 uppercase block">Total Consolidado</span>
+                        <span className="text-lg font-black text-emerald-700">Bs. {formatBs(totalBs)}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-500 italic">
+                      💡 Proceda al panel lateral derecho "Resumen de Pago" para seleccionar el método de pago (Punto de Venta o Transferencia) y emitir el cobro consolidado.
+                    </p>
+                  </div>
+                )}
+
+                {/* VISTA MODO 2: COBRO POR LOCAL INDIVIDUAL */}
+                {condominioModo === 'Local' && (
+                  <div className="p-6">
+                    {/* Barra de Búsqueda y Filtros Rápidos */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4">
+                      <div className="relative flex-1">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Buscar por Local (ej. A-23), RIF, Nombre Comercial o Actividad..."
+                          value={condominioSearch}
+                          onChange={e => setCondominioSearch(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm"
+                        />
+                        {condominioSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setCondominioSearch('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filtered = condominioHijos.filter((h: any) => {
+                              if (!condominioSearch) return true;
+                              const q = condominioSearch.toLowerCase();
+                              return (h.inmueble || '').toLowerCase().includes(q) ||
+                                (h.identidad || '').toLowerCase().includes(q) ||
+                                (h.contribuyente || '').toLowerCase().includes(q) ||
+                                (h.direccion || '').toLowerCase().includes(q) ||
+                                (h.actividad_principal || '').toLowerCase().includes(q);
+                            });
+                            const ids = filtered.map((h: any) => h.id);
+                            setSelectedHijos(Array.from(new Set([...selectedHijos, ...ids])));
+                          }}
+                          className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 font-bold px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5"
+                        >
+                          <CheckSquare className="w-3.5 h-3.5" /> Seleccionar Filtrados
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedHijos([])}
+                          className="text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 font-bold px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5"
+                        >
+                          <Square className="w-3.5 h-3.5" /> Limpiar
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Indicador de Selección */}
+                    <div className="bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 mb-3 flex items-center justify-between text-xs">
+                      <span className="text-slate-600 font-medium">
+                        Mostrando <strong>{condominioHijos.filter((h: any) => {
+                          if (!condominioSearch) return true;
+                          const q = condominioSearch.toLowerCase();
+                          return (h.inmueble || '').toLowerCase().includes(q) ||
+                            (h.identidad || '').toLowerCase().includes(q) ||
+                            (h.contribuyente || '').toLowerCase().includes(q) ||
+                            (h.direccion || '').toLowerCase().includes(q) ||
+                            (h.actividad_principal || '').toLowerCase().includes(q);
+                        }).length}</strong> de <strong>{condominioHijos.length}</strong> locales
+                      </span>
+                      <span className="font-bold text-emerald-800">
+                        {selectedHijos.length} seleccionados • Subtotal: Bs. {formatBs(totalBs)}
+                      </span>
+                    </div>
+
+                    {/* Tabla Interactiva de Locales */}
+                    <div className="overflow-y-auto max-h-[460px] border border-slate-200 rounded-xl shadow-inner">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 sticky top-0 shadow-sm z-10 text-xs uppercase text-slate-600 tracking-wider">
+                          <tr className="border-b border-slate-200">
+                            <th className="py-2.5 px-3 w-10 text-left">
+                              <input
+                                type="checkbox"
+                                checked={selectedHijos.length === condominioHijos.length && condominioHijos.length > 0}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedHijos(condominioHijos.map(h => h.id));
+                                  } else {
+                                    setSelectedHijos([]);
+                                  }
+                                }}
+                                className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                              />
+                            </th>
+                            <th className="py-2.5 px-3 font-bold text-left">Local / Inmueble</th>
+                            <th className="py-2.5 px-3 font-bold text-left">Comercio / RIF</th>
+                            <th className="py-2.5 px-3 font-bold text-left hidden md:table-cell">Actividad Comercial</th>
+                            <th className="py-2.5 px-3 font-bold text-center">Mora</th>
+                            <th className="py-2.5 px-3 font-bold text-right">Monto a Cobrar</th>
+                            <th className="py-2.5 px-3 font-bold text-center">Acción Rápida</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {condominioHijos.filter((h: any) => {
+                            if (!condominioSearch) return true;
+                            const q = condominioSearch.toLowerCase();
+                            return (h.inmueble || '').toLowerCase().includes(q) ||
+                              (h.identidad || '').toLowerCase().includes(q) ||
+                              (h.contribuyente || '').toLowerCase().includes(q) ||
+                              (h.direccion || '').toLowerCase().includes(q) ||
+                              (h.actividad_principal || '').toLowerCase().includes(q);
+                          }).map((hijo: any) => {
+                            const infoDebt = getHijoDebt(hijo);
+                            const localLabel = getLocalLabel(hijo);
+                            const isChecked = selectedHijos.includes(hijo.id);
+
+                            return (
+                              <tr
+                                key={hijo.id}
+                                className={`transition-colors hover:bg-slate-50/80 ${
+                                  isChecked ? 'bg-emerald-50/50' : ''
+                                }`}
+                              >
+                                <td className="py-3 px-3 align-middle">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedHijos([...selectedHijos, hijo.id]);
+                                      } else {
+                                        setSelectedHijos(selectedHijos.filter(id => id !== hijo.id));
+                                      }
+                                    }}
+                                    className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-3 px-3 align-middle">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5">
+                                      <Store className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                      {localLabel}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {hijo.inmueble}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 align-middle">
+                                  <div className="flex flex-col">
+                                    <span className="font-semibold text-slate-700 text-xs truncate max-w-[200px]" title={hijo.contribuyente}>
+                                      {hijo.contribuyente || 'Contribuyente No Registrado'}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 font-mono">
+                                      {hijo.identidad || 'N/A'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 align-middle hidden md:table-cell text-xs text-slate-600 max-w-[220px]">
+                                  <span className="line-clamp-2" title={hijo.actividad_principal}>
+                                    {hijo.actividad_principal ? hijo.actividad_principal.replace(/\[HIJO_DE:.*?\]\s*/g, '').replace('[CONDOMINIO]', '') : 'N/A'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 align-middle text-center">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    infoDebt.mesesMora > 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-600'
+                                  }`}>
+                                    {infoDebt.mesesMora} mes{infoDebt.mesesMora !== 1 ? 'es' : ''}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 align-middle text-right">
+                                  <div className="flex flex-col items-end">
+                                    <span className="font-black text-emerald-700 text-sm">
+                                      Bs. {formatBs(infoDebt.total)}
+                                    </span>
+                                    <span className="text-[9px] text-slate-400">
+                                      Base: {formatBs(infoDebt.base)} + IVA: {formatBs(infoDebt.iva)}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 align-middle text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedHijos([hijo.id])}
+                                    className="text-[11px] font-bold bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-700 border border-slate-300 hover:border-emerald-600 px-2.5 py-1 rounded-lg transition-all"
+                                    title="Seleccionar únicamente este local para cobrarlo ya"
+                                  >
+                                    Cobrar Solo Este
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* VISTA MODO 3: PAGO POR ABONO PARCIAL */}
+                {condominioModo === 'Abono' && (
+                  <div className="p-6 bg-slate-50/60">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+                      <div className="p-2 bg-amber-600 text-white rounded-lg">
+                        <Coins className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-amber-900 text-sm">Modalidad de Abono Parcial</h4>
+                        <p className="text-xs text-amber-800 mt-0.5">
+                          Ingrese el monto en Bolívares que el condominio desea abonar a su saldo deudor. El pago amortizará la cuenta y generará un recibo oficial con el saldo restante.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Calculadora Comparativa */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">1. Deuda Total Actual</span>
+                        <span className="text-2xl font-black text-slate-800 my-2">Bs. {formatBs(totalDeudaCondominio)}</span>
+                        <span className="text-[11px] text-slate-400">Total acumulado de los {condominioHijos.length} locales</span>
+                      </div>
+
+                      <div className="bg-white p-4 rounded-xl border-2 border-emerald-500 shadow-sm flex flex-col justify-between">
+                        <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">2. Monto a Abonar Hoy (Bs) *</span>
+                        <div className="relative my-2">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">Bs.</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            placeholder="0.00"
+                            value={montoAbonoCondo}
+                            onChange={e => setMontoAbonoCondo(e.target.value)}
+                            className="w-full pl-10 pr-3 py-2 text-xl font-black text-emerald-700 border border-emerald-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        {/* Botones de Porcentaje Rápido */}
+                        <div className="flex gap-1.5 mt-1">
+                          {[0.25, 0.50, 0.75, 1.0].map((pct) => (
+                            <button
+                              key={pct}
+                              type="button"
+                              onClick={() => setMontoAbonoCondo((totalDeudaCondominio * pct).toFixed(2))}
+                              className="flex-1 text-[10px] font-bold bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 py-1 rounded border border-slate-200 transition-colors"
+                            >
+                              {pct * 100}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">3. Deuda Restante Proyectada</span>
+                        <span className="text-2xl font-black text-rose-600 my-2">
+                          Bs. {formatBs(Math.max(0, totalDeudaCondominio - (parseFloat(montoAbonoCondo) || 0)))}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {parseFloat(montoAbonoCondo) >= totalDeudaCondominio ? '¡Deuda cancelada en su totalidad!' : 'Quedará pendiente en la cuenta'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Recibos de Aseo Mensual */}
+            {(!isCondominio || recibos.length > 0) && (
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -1727,6 +2299,7 @@ export default function CajaPage() {
                 )}
               </div>
             </div>
+            )}
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-orange-50 px-4 py-3 border-b border-orange-200 flex items-center gap-2">
@@ -2071,7 +2644,7 @@ export default function CajaPage() {
 
             <button 
               onClick={handlePayment}
-              disabled={isProcessing || totalBs <= 0 && (!isCondominio || condominioModo === 'Abono')}
+              disabled={isProcessing || (!isCondominio && totalBs <= 0) || (isCondominio && condominioModo === 'Local' && selectedHijos.length === 0) || (isCondominio && condominioModo === 'Abono' && (!montoAbonoCondo || parseFloat(montoAbonoCondo) <= 0))}
               className="w-full bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-slate-900 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
               <CreditCard className="w-5 h-5" /> 
@@ -2340,140 +2913,6 @@ export default function CajaPage() {
                   ))
                 : <ReciboImprimible data={reciboData} />
               }
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── MODAL CONDOMINIO (NUEVO) ── */}
-      {/* ── SELECCION DE LOCALES CONDOMINIO ── */}
-          {isCondominio && condominioModo === 'Local' && (
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6 flex flex-col">
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-slate-200 pb-4 mb-4 gap-4">
-                <h3 className="font-bold text-slate-800 text-lg">Selección de Locales (Condominio)</h3>
-                <input 
-                  type="text" 
-                  placeholder="Buscar código, RIF o actividad..." 
-                  value={condominioSearch}
-                  onChange={e => setCondominioSearch(e.target.value)}
-                  className="border border-slate-300 rounded-md px-3 py-1.5 text-sm outline-none focus:border-emerald-500 w-full lg:w-[300px]"
-                />
-              </div>
-              <div className="overflow-y-auto max-h-[400px] border border-slate-200 rounded-md">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 sticky top-0 shadow-sm z-10">
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left py-2 px-3 w-10">
-                        <input type="checkbox" onChange={(e) => {
-                          if (e.target.checked) {
-                            const allIds = condominioHijos.map(h => h.id);
-                            setSelectedHijos(allIds);
-                            // setTotalBs happens in useEffect
-                          } else {
-                            setSelectedHijos([]);
-                            // setTotalBs(0) happens in useEffect
-                          }
-                        }} checked={selectedHijos.length === condominioHijos.length && condominioHijos.length > 0} className="w-4 h-4 accent-emerald-600 cursor-pointer" />
-                      </th>
-                      <th className="text-left py-2 px-3 font-semibold text-slate-600">Inmueble / Local</th>
-                      <th className="text-left py-2 px-3 font-semibold text-slate-600 hidden md:table-cell">Identidad / RIF</th>
-                      <th className="text-left py-2 px-3 font-semibold text-slate-600">Actividad Comercial</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-600">Deuda Bs</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {condominioHijos.filter((h: any) => 
-                      !condominioSearch || 
-                      (h.inmueble || '').toLowerCase().includes(condominioSearch.toLowerCase()) || 
-                      (h.identidad || '').toLowerCase().includes(condominioSearch.toLowerCase()) || 
-                      (h.actividad_principal || '').toLowerCase().includes(condominioSearch.toLowerCase())
-                    ).map((hijo: any) => (
-                      <tr key={hijo.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="py-2 px-3 align-top pt-3">
-                          <input type="checkbox" checked={selectedHijos.includes(hijo.id)} onChange={(e) => {
-                            let newSelected = [];
-                            if (e.target.checked) newSelected = [...selectedHijos, hijo.id];
-                            else newSelected = selectedHijos.filter(id => id !== hijo.id);
-                            setSelectedHijos(newSelected);
-                            // newTotal is handled in useEffect
-                          }} className="w-4 h-4 accent-emerald-600 cursor-pointer" />
-                        </td>
-                        <td className="py-2 px-3 align-top pt-2.5">
-                          <span className="font-semibold text-slate-700">{hijo.inmueble || hijo.identidad}</span>
-                        </td>
-                        <td className="py-2 px-3 align-top text-slate-500 pt-2.5 hidden md:table-cell">{hijo.identidad || 'N/A'}</td>
-                        <td className="py-2 px-3 align-top text-xs text-slate-500 pt-2.5" title={hijo.actividad_principal || 'N/A'}>
-                          {hijo.actividad_principal ? hijo.actividad_principal.replace(/\[HIJO_DE:.*?\]\s*/g, '').replace('[CONDOMINIO]', '') : 'N/A'}
-                        </td>
-                        <td className="text-right py-2 px-3 align-top pt-2.5 text-emerald-700 font-bold whitespace-nowrap">
-                          {(() => {
-                            const currentTasa = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
-                            const esRes = isResidencialInm(hijo);
-                            const base = parseFloat(calcularMensualidad(hijo, currentTasa).toFixed(2));
-                            const ivaLocal = esRes ? 0 : parseFloat((base * 0.16).toFixed(2));
-                            const mesesMora = parseInt(hijo.meses_deuda || '1');
-                            const multaLocal = mesesMora > 0 ? parseFloat((base * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
-                            return formatBs(base + ivaLocal + multaLocal);
-                          })()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-
-
-      {isCondominioModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center p-4 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-800">Modalidad de Pago - Condominio</h2>
-              <button onClick={() => setIsCondominioModalOpen(false)} className="text-slate-500 hover:text-slate-700">
-                <XCircle className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto">
-              <div className="flex gap-4 mb-6">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="modoCondo" checked={condominioModo === 'Total'} onChange={() => { setCondominioModo('Total'); setSelectedHijos(condominioHijos.map(h => h.id)); }} className="w-4 h-4 accent-emerald-600" />
-                  <span>Pago Total</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="modoCondo" checked={condominioModo === 'Local'} onChange={() => { setCondominioModo('Local'); setSelectedHijos([]); }} className="w-4 h-4 accent-emerald-600" />
-                  <span>Pago por Local</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="modoCondo" checked={condominioModo === 'Abono'} onChange={() => { setCondominioModo('Abono'); setSelectedHijos([]); }} className="w-4 h-4 accent-emerald-600" />
-                  <span>Abono General</span>
-                </label>
-              </div>
-
-              {condominioModo === 'Local' && (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded text-emerald-800 text-sm">
-                  Al confirmar, la lista de locales aparecerá en la pantalla principal de Caja para que pueda seleccionarlos y ver la suma total de deuda.
-                </div>
-              )}
-              {condominioModo === 'Abono' && (
-                <div className="p-4 bg-orange-50 border border-orange-200 rounded text-orange-800 text-sm">
-                  Al confirmar, podrá ingresar el monto del abono directamente en el método de pago (Punto de Venta o Transferencia).
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-slate-200 flex justify-end gap-3">
-              <button onClick={() => {
-                if (condominioModo === 'Local') {
-                  setSelectedHijos([]);
-                } else if (condominioModo === 'Total') {
-                  const allIds = condominioHijos.map(h => h.id);
-                  setSelectedHijos(allIds);
-                } else if (condominioModo === 'Abono') {
-                  setSelectedHijos([]);
-                }
-                setIsCondominioModalOpen(false);
-              }} className="bg-emerald-600 text-white px-4 py-2 rounded font-bold hover:bg-emerald-700">Aplicar Modalidad</button>
             </div>
           </div>
         </div>
