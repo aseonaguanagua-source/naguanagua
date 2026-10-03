@@ -6,7 +6,7 @@
  * Extraído de caja/page.tsx como parte de la Fase 2 de refactorización.
  */
 import { useCallback } from 'react';
-import { calcularMensualidad } from '@/lib/calculos';
+import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
 import { getUserInmuebles } from '@/lib/cajaHelpers';
 
 interface UseCajaCalculationsParams {
@@ -65,23 +65,39 @@ export function useCajaCalculations({
       const inmId = parts[2];
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
-        const baseMonto = calcularMensualidad(
-          String(inm.clasificacion || ''),
-          String(inm.actividad_principal || ''),
-          parseInt(String(inm.cant_inmuebles || 1)),
-          tasaActual,
-          parseFloat(String(inm.mmv_mes || '0'))
-        );
-        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-        const montoIVA = esRes ? 0 : baseMonto * 0.16;
+        const esRes = isResidencialInm(inm);
+        const meses = Math.max(1, parseInt(String(inm.meses_deuda || 1)));
+        const deudaMMV = parseFloat(String(inm.deuda_mmv || 0));
+
+        let baseMonto = 0;
+        if (deudaMMV > 0) {
+          // Deuda real sincronizada de BD distribuida equitativamente entre los meses
+          baseMonto = parseFloat(((deudaMMV * 57 * tasaActual) / meses).toFixed(2));
+        } else {
+          baseMonto = parseFloat(calcularMensualidad(inm, tasaActual).toFixed(2));
+        }
+
+        // TODO LO RESIDENCIAL ES ESTRICTAMENTE EXENTO DE IVA (0% IVA)
+        const montoIVA = esRes ? 0 : parseFloat((baseMonto * 0.16).toFixed(2));
+
         const emision = r.emision ? new Date(r.emision) : new Date();
         const today = new Date();
         const monthsDiff =
           (today.getFullYear() - emision.getFullYear()) * 12 +
           (today.getMonth() - emision.getMonth());
-        const montoMulta = monthsDiff > 1 ? baseMonto * (esRes ? 0.10 : 0.12) : 0;
-        const totalMes = baseMonto + montoIVA + montoMulta;
 
+        let montoMulta = 0;
+        const multaTotalBD = parseFloat(String(inm.multa_bs || 0));
+        if (multaTotalBD > 0) {
+          // Distribuir multa real de BD en los meses con mora (>1)
+          montoMulta = monthsDiff > 1
+            ? parseFloat((multaTotalBD / (meses > 1 ? meses - 1 : 1)).toFixed(2))
+            : 0;
+        } else {
+          montoMulta = monthsDiff > 1 ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        }
+
+        const totalMes = parseFloat((baseMonto + montoIVA + montoMulta).toFixed(2));
         const montoPendiente = _calcularMontoPendienteEnVuelo(r.referencia, pagosPendientes);
         return String(Math.max(0, totalMes - montoPendiente).toFixed(2));
       }
@@ -102,21 +118,16 @@ export function useCajaCalculations({
 
       let totalConIva = 0;
       targetInms.forEach((inm: any) => {
-        const bm = calcularMensualidad(
-          inm.clasificacion || '',
-          inm.actividad_principal || '',
-          parseInt(inm.cant_inmuebles || 1),
-          tasaActual,
-          parseFloat(inm.mmv_mes || '0')
-        );
-        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+        const esRes = isResidencialInm(inm);
+        const bm = parseFloat(calcularMensualidad(inm, tasaActual).toFixed(2));
         const emision = r.emision ? new Date(r.emision) : new Date();
         const today = new Date();
         const monthsDiff =
           (today.getFullYear() - emision.getFullYear()) * 12 +
           (today.getMonth() - emision.getMonth());
-        const multaLocal = monthsDiff > 1 ? bm * (esRes ? 0.10 : 0.12) : 0;
-        totalConIva += bm + (esRes ? 0 : bm * 0.16) + multaLocal;
+        const multaLocal = monthsDiff > 1 ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        const ivaLocal = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+        totalConIva += bm + ivaLocal + multaLocal;
       });
 
       if (totalConIva > 0) {

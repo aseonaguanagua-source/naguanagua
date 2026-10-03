@@ -18,6 +18,8 @@ export interface InmuebleBasic {
   deuda_congelada_bs?: string | number;
   saldo_favor_bs?: string | number;
   meses_deuda?: string | number;
+  tipo?: string;
+  multa_bs?: string | number;
   direccion?: string;
   estado?: string;
 }

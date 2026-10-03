@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
+import { isResidencialInm } from '@/lib/calculos';
 
 function numeroALetras(monto: number): string {
   const unidades = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
@@ -145,11 +146,11 @@ export async function POST(request: Request) {
 
         // MULTA: calcular como % del base (NO usar multa_bs que es el total histórico acumulado)
         // Residencial: 10%, Comercial/Industrial: 12%
-        const esResidencial = (inm?.tipo || '').toLowerCase().includes('residencial');
+        const esResidencial = isResidencialInm(inm);
         const pctMulta = esResidencial ? 0.10 : 0.12;
         const montoMulta = parseFloat((montoBase * pctMulta).toFixed(2));
 
-        if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipoInm: inm?.tipo || '' });
+        if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipoInm: inm?.tipo || '', esRes: esResidencial });
       });
     }
 
@@ -158,13 +159,18 @@ export async function POST(request: Request) {
     let totalIVA     = 0;
     let lineaNum     = 0;
 
-    // Items de facturas normales (16% IVA)
+    // Items de facturas normales (Residencial Exento 0%, Comercial 16% IVA)
     const itemsFacturas = (facturasBD || []).map((fac: any) => {
       lineaNum++;
+      const isRes = isResidencialInm(fac) || isResidencialInm({ actividad_principal: fac.concepto, tipo: fac.tipo });
       const montoItem = parseFloat(String(fac.monto || '0').replace(/[^0-9.]/g, ''));
-      const valorIVA  = parseFloat((montoItem * 0.16).toFixed(2));
-      totalGravado   += montoItem;
-      totalIVA       += valorIVA;
+      const valorIVA  = isRes ? 0 : parseFloat((montoItem * 0.16).toFixed(2));
+      if (isRes) {
+        totalExento += montoItem;
+      } else {
+        totalGravado += montoItem;
+        totalIVA     += valorIVA;
+      }
       return {
         NumeroLinea:             String(lineaNum),
         CodigoCIIU:              "0198",
@@ -181,8 +187,8 @@ export async function POST(request: Request) {
         RecargoMonto:            "0",
         PrecioItem:              montoItem.toFixed(2),
         PrecioAntesDescuento:    montoItem.toFixed(2),
-        CodigoImpuesto:          "G",
-        TasaIVA:                 "16",
+        CodigoImpuesto:          isRes ? "E" : "G",
+        TasaIVA:                 isRes ? "0" : "16",
         ValorIVA:                valorIVA.toFixed(2),
         ValorTotalItem:          String(parseFloat((montoItem + valorIVA).toFixed(2))),
         InfoAdicionalItem:       [],
@@ -190,13 +196,18 @@ export async function POST(request: Request) {
       };
     });
 
-    // Items de deuda histórica (base con IVA 16%, multa Exenta)
+    // Items de deuda histórica (Residencial Exento 0%, Comercial 16% IVA, Multas Exentas)
     const itemsHist = histItems.flatMap((h: any) => {
       const items = [];
       lineaNum++;
-      const valorIVAHist = parseFloat((h.montoBase * 0.16).toFixed(2));
-      totalGravado += h.montoBase;
-      totalIVA     += valorIVAHist;
+      const isRes = h.esRes;
+      const valorIVAHist = isRes ? 0 : parseFloat((h.montoBase * 0.16).toFixed(2));
+      if (isRes) {
+        totalExento += h.montoBase;
+      } else {
+        totalGravado += h.montoBase;
+        totalIVA     += valorIVAHist;
+      }
       items.push({
         NumeroLinea:             String(lineaNum),
         CodigoCIIU:              "0198",
@@ -213,8 +224,8 @@ export async function POST(request: Request) {
         RecargoMonto:            "0",
         PrecioItem:              h.montoBase.toFixed(2),
         PrecioAntesDescuento:    h.montoBase.toFixed(2),
-        CodigoImpuesto:          "G",
-        TasaIVA:                 "16",
+        CodigoImpuesto:          isRes ? "E" : "G",
+        TasaIVA:                 isRes ? "0" : "16",
         ValorIVA:                valorIVAHist.toFixed(2),
         ValorTotalItem:          String(parseFloat((h.montoBase + valorIVAHist).toFixed(2))),
         InfoAdicionalItem:       [],

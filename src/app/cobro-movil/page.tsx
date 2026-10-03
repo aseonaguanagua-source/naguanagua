@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Landmark, MapPin, User2, Building2, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
+import { isResidencialInm } from '@/lib/calculos';
 
 type Step = 'search' | 'account' | 'pay' | 'success';
 type PayMethod = 'Punto de Venta' | 'Bancamiga';
@@ -45,7 +46,7 @@ const calcMontoMes = (inm: Inmueble, tcmmv: number): number => {
   const mmv = parseFloat(String(inm.mmv_mes || 0)); // FO
   const cant = parseFloat(String(inm.cant_inmuebles || 1));
   if (mmv <= 0 || tcmmv <= 0) return 0;
-  const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+  const esRes = isResidencialInm(inm);
   
   if (esRes) {
     const far = getFAR(inm.actividad_principal || '');
@@ -78,7 +79,7 @@ export default function KioskPage() {
   const [payError, setPayError] = useState('');
   const [showBancamigaSim, setShowBancamigaSim] = useState(false);
 
-  const isResidencialGlobal = foundUser?.Clasificacion?.toLowerCase().includes('residencial') ?? true;
+  const isResidencialGlobal = isResidencialInm(foundUser);
   const esAgenteGlobal = foundUser?.EsAgente ?? false;
 
   const getReciboDesglose = (r: Recibo): { base: number; multa: number; iva: number; total: number } => {
@@ -98,9 +99,9 @@ export default function KioskPage() {
       if (inm) {
         const meses = Math.max(1, parseInt(String(inm.meses_deuda || 1)));
         const d = parseFloat(String(inm.deuda_mmv || 0));
-        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-        // deuda_mmv ya está en UCD/MMV limpia, no se multiplica por FAR de nuevo
-        const baseMes = parseFloat(((d * tcmmv) / meses).toFixed(2));
+        const esRes = isResidencialInm(inm);
+        // deuda_mmv ya está en UCD/MMV limpia (57 * tcmmv)
+        const baseMes = parseFloat(((d * 57 * tcmmv) / meses).toFixed(2));
         const multa = parseFloat(String(inm.multa_bs || 0));
         const multaMes = parseFloat((multa / meses).toFixed(2));
         // IVA solo sobre la base del servicio comercial; multas exentas
@@ -118,9 +119,8 @@ export default function KioskPage() {
       userInms.forEach(i => {
         const deuda = parseFloat(String(i.deuda_mmv || 0));
         const multa = parseFloat(String(i.multa_bs || 0));
-        const esRes = (i.clasificacion || '').toLowerCase().includes('residencial');
-        // deuda_mmv ya es el valor consolidado en UCD/MMV
-        const baseInm = deuda * tcmmv;
+        const esRes = isResidencialInm(i);
+        const baseInm = deuda * 57 * tcmmv;
         totalBase += baseInm;
         totalMulta += multa;
         if (!esRes) {
@@ -139,7 +139,7 @@ export default function KioskPage() {
       let totalBase = 0, totalIva = 0;
       tInms.forEach(i => {
         const bm = calcMontoMes(i, tcmmv);
-        const esRes = (i.clasificacion || '').toLowerCase().includes('residencial');
+        const esRes = isResidencialInm(i);
         totalBase += bm;
         if (!esRes) totalIva += bm * 0.16;
       });

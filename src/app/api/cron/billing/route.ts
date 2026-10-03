@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { getFAR } from '@/lib/calculos';
+import { getFAR, isResidencialInm } from '@/lib/calculos';
 import { getTasaBCV } from '@/services/bcv';
 
 export async function GET(request: Request) {
@@ -115,7 +115,7 @@ export async function GET(request: Request) {
       //   Residencial: TR = F.O. × UCD × FAR  (donde FAR depende del tipo de vivienda)
       //   Comercial:   TC = F.O. × UCD × FAC  (FAC = 0.1280)
       // UCD = 57 * Euro BCV (tcmmv)
-      const esResidencial = (inm.clasificacion || '').toLowerCase().includes('residencial');
+      const esResidencial = isResidencialInm(inm);
       const currentFAR = getFAR(inm.actividad_principal || '');
       const ucdMultiplicador = esResidencial ? (57 * currentFAR) : (57 * 0.128);
 

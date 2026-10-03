@@ -4,6 +4,7 @@ import { CreditCard, FileText, Upload, Send, Building, CheckSquare, AlertCircle,
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
+import { isResidencialInm } from '@/lib/calculos';
 
 type Metodo = 'transferencia' | '';
 
@@ -80,9 +81,8 @@ export default function DondePagarPage() {
             misInmuebles.forEach((inm: any) => { 
               const deuda = parseFloat(inm.deuda_mmv || 0);
               const multa = parseFloat(inm.multa_bs || 0);
-              const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-              // deuda_mmv ya está en UCD/MMV limpia, no se multiplica por FAR
-              const baseInm = deuda * tcmmv;
+              const esRes = isResidencialInm(inm);
+              const baseInm = deuda * 57 * tcmmv;
               totalMonto += baseInm;
               totalMulta += multa;
               if (!esRes) {
@@ -102,7 +102,7 @@ export default function DondePagarPage() {
               const cant = parseFloat(inm.cant_inmuebles || 1);
               const mmv  = parseFloat(inm.mmv_mes || 0);
               if (mmv > 0) {
-                const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                const esRes = isResidencialInm(inm);
                 const ucdMultiplicador = esRes ? (57 * getFAR(inm.actividad_principal || '')) : (57 * 0.128);
                 const baseInm = cant * mmv * ucdMultiplicador * tcmmv;
                 totalMonto += baseInm;

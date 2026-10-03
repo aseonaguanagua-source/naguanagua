@@ -24,7 +24,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO } from '@/lib/calculos';
+import { calcularMensualidad, getFO, isResidencialInm } from '@/lib/calculos';
 
 
 function ContribuyentesPageContent() {
@@ -263,8 +263,8 @@ function ContribuyentesPageContent() {
             // Formula oficial Ordenanza:
             //   Residencial: TR = F.O. x 57 x UCD x 0.02673
             //   Comercial:   TC = F.O. x UCD x 0.1280
-            const esResidencial = (clasificacion || '').toLowerCase().includes('residencial');
-            const ucdMult = esResidencial ? (57 * 0.02673) : 0.128;
+            const esResidencial = isResidencialInm(inm);
+            const ucdMult = esResidencial ? (57 * 0.02673) : (57 * 0.128);
             if (cant > 1) {
               for(let i=1; i<=cant; i++) {
                 desgloseLocales.push({
@@ -642,7 +642,7 @@ function ContribuyentesPageContent() {
           const cant = parseFloat(inm.cant_inmuebles || 1);
           const mmv = parseFloat(inm.mmv_mes || 0);
           if (mmv > 0) {
-            const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+            const esRes = isResidencialInm(inm);
             const ucdMult = esRes ? (57 * getFAR(inm.actividad_principal || '')) : (57 * 0.128);
             baseMonto = parseFloat((cant * mmv * ucdMult * tcmmv).toFixed(2));
           }
@@ -687,7 +687,7 @@ function ContribuyentesPageContent() {
         resumenRows.push(['Monto Servicios Especiales Bs.', `Bs. ${totalServiciosBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`]);
       }
       
-      const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+      const esRes = isResidencialInm(inm);
       const baseRecoleccion = inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0);
       const baseImponible = esRes ? 0 : baseRecoleccion;
       const ivaBs = esRes ? 0 : baseImponible * 0.16;
@@ -2525,8 +2525,8 @@ function ContribuyentesPageContent() {
                     // Calcular deuda acumulada directamente del inmueble (puede existir sin facturas)
                     const deudaInmuebleBs = userInms.reduce((sum: number, inm: any) => {
                       const meses = Math.max(0, parseInt(inm.meses_deuda || 0));
-                      const baseUnMes = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tcmmv, parseFloat(inm.mmv_mes || "0"));
-                      const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                      const esRes = isResidencialInm(inm);
+                      const baseUnMes = calcularMensualidad(inm, tcmmv);
                       const iva = esRes ? 0 : (baseUnMes * 0.16);
                       const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
                       const mesesConMulta = Math.max(0, meses - 1);
@@ -2598,11 +2598,11 @@ function ContribuyentesPageContent() {
                                   <td className="p-2 text-right">{parseFloat(inm.deuda_mmv || 0).toFixed(2)}</td>
                                   <td className="p-2 text-right font-bold text-red-600">{(() => {
                                       const meses = Math.max(0, parseInt(inm.meses_deuda || 0));
-                                      const baseUnMes = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tcmmv, parseFloat(inm.mmv_mes || "0"));
-                                      const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
-                      const iva = esRes ? 0 : (baseUnMes * 0.16);
-                      const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
-                      const mesesConMulta = Math.max(0, meses - 1);
+                                      const esRes = isResidencialInm(inm);
+                                      const baseUnMes = calcularMensualidad(inm, tcmmv);
+                                      const iva = esRes ? 0 : (baseUnMes * 0.16);
+                                      const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
+                                      const mesesConMulta = Math.max(0, meses - 1);
                                       return (( (baseUnMes + iva) * meses ) + (multaMes * mesesConMulta)).toFixed(2);
                                     })()} Bs</td>
                                 </tr>

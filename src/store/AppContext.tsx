@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
 
 import { ordenanzaData } from '@/data/ordenanza';
+import { isResidencialInm } from '@/lib/calculos';
 import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
 
 type AppState = {
@@ -302,7 +303,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         'Inmueble': row.inmueble || row.cod_cont,
         'Clasificacion': row.clasificacion || 'Residencial',
         'Tipo': 'Urbano',
-        'Saldo': (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * currentTcmmv)).toFixed(2),
+        'Saldo': (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * 57 * currentTcmmv)).toFixed(2),
         'DeudaMMV': parseFloat(row.deuda_mmv || 0),
         'DeudaCongelada': parseFloat(row.deuda_congelada_bs || 0),
         'Cant Inmuebles': 1,
@@ -315,19 +316,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const map = new Map();
       allInmuebles.forEach((row: any) => {
         if (row.identidad && !map.has(row.identidad)) {
-          let clase = row.clasificacion;
           const act = row.actividad_principal || '';
-          if (!clase) {
+          let clase = 'Residencial';
+          if (isResidencialInm(row)) {
             clase = 'Residencial';
-            if (ordenanzaData.actividadesIndustriales.some(a => a.label === act)) {
-              clase = 'Industrial';
-            } else if (ordenanzaData.actividadesComerciales.some(a => a.label === act)) {
-              clase = 'Comercial';
-            } else if (act && act !== 'No aplica') {
-              if (!act.toLowerCase().includes('condominio') && !act.toLowerCase().includes('residencial')) {
-                 clase = 'Comercial';
-              }
-            }
+          } else if ((row.tipo || '').toUpperCase().includes('COMERCIAL')) {
+            clase = 'Comercial';
+          } else if ((row.tipo || '').toUpperCase().includes('INDUSTRIAL')) {
+            clase = 'Industrial';
+          } else if (row.clasificacion && row.clasificacion !== 'Individual' && row.clasificacion !== 'Condominio') {
+            clase = row.clasificacion;
           }
 
           map.set(row.identidad, {
@@ -356,7 +354,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
             DeudaMMV: parseFloat(row.deuda_mmv || 0),
             DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
-            DeudaBs: (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * currentTcmmv)),
+            DeudaBs: (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * 57 * currentTcmmv)),
             MesesDeuda: parseInt(row.meses_deuda || '0'),
             Estado: row.estado || 'Activo',
             FechaRegistro: row.created_at || null
@@ -366,7 +364,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
           existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
           existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
-          existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * currentTcmmv));
+          existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * 57 * currentTcmmv));
           if (row.estado === 'Eliminado' || (row.estado === 'Inactivo' && existing.Estado !== 'Eliminado')) {
             existing.Estado = row.estado;
           }

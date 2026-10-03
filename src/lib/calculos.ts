@@ -2,6 +2,64 @@ import { ordenanzaData } from '@/data/ordenanza';
 
 const todasLasActividades = [...ordenanzaData.actividadesComerciales, ...(ordenanzaData.actividadesIndustriales || [])];
 
+/**
+ * Determina si un inmueble o registro es de uso RESIDENCIAL.
+ * Evalúa tipo, actividad_principal y clasificacion.
+ * En la BD Supabase / SIGYR:
+ * - `tipo` contiene 'RESIDENCIAL', 'COMERCIAL', 'INDUSTRIAL', etc.
+ * - `clasificacion` contiene 'Individual', 'Condominio', 'Otro'.
+ * - `actividad_principal` contiene 'CASA (ZONA D)', 'APARTAMENTO (ZONA A)', 'QUINTA', etc.
+ * Esta función garantiza que ningún residencial sea clasificado erróneamente como comercial.
+ */
+export const isResidencialInm = (item: any): boolean => {
+  if (!item) return false;
+  if (typeof item === 'string') {
+    const s = item.toUpperCase();
+    if (
+      s.includes('RESIDENCIAL') ||
+      s.includes('CASA') ||
+      s.includes('APARTAMENTO') ||
+      s.includes('QUINTA') ||
+      s.includes('TOWNHOUSE') ||
+      s.includes('TOWN HOUSE') ||
+      s.includes('ZONA A') ||
+      s.includes('ZONA B') ||
+      s.includes('ZONA C') ||
+      s.includes('ZONA D')
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  const tipo = String(item.tipo || item.Tipo || '').toUpperCase();
+  if (tipo.includes('RESIDENCIAL')) return true;
+  if (tipo.includes('COMERCIAL') || tipo.includes('INDUSTRIAL') || tipo.includes('GUBERNAMENTAL')) return false;
+
+  const act = String(item.actividad_principal || item.actividad || item['Actividad Principal'] || item.Actividad || '').toUpperCase();
+  if (
+    act.includes('CASA') ||
+    act.includes('APARTAMENTO') ||
+    act.includes('QUINTA') ||
+    act.includes('TOWNHOUSE') ||
+    act.includes('TOWN HOUSE') ||
+    act.includes('VILLA') ||
+    act.includes('RESIDENCIAL') ||
+    act.includes('ZONA A') ||
+    act.includes('ZONA B') ||
+    act.includes('ZONA C') ||
+    act.includes('ZONA D')
+  ) {
+    return true;
+  }
+
+  const clasif = String(item.clasificacion || item.Clasificacion || '').toUpperCase();
+  if (clasif.includes('RESIDENCIAL')) return true;
+  if (clasif.includes('COMERCIAL') || clasif.includes('INDUSTRIAL')) return false;
+
+  return false;
+};
+
 export const getFO = (actividadFull: string, esResidencial: boolean) => {
   const act = (actividadFull || "").toLowerCase().trim();
   
@@ -13,7 +71,7 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
     if (act.includes("casa (zona d)")) return 0.22;
     // Default fallback
     if (act.includes("apartamento")) return 0.91;
-    if (act.includes("quinta") || act.includes("villa") || act.includes("town house")) return 1.06;
+    if (act.includes("quinta") || act.includes("villa") || act.includes("town house") || act.includes("townhouse")) return 1.06;
     return 0.80; // Default Casa
   }
 
@@ -52,30 +110,50 @@ export const getFAR = (actividadFull: string) => {
 };
 
 export const calcularMensualidad = (
-  clasificacion: string,
-  actividadFull: string,
-  cant: number,
-  tasaBCV: number,
-  mmv_mes?: number // Make mmv_mes optional for backward compatibility, but prefer it
+  clasificacionOrInm: any,
+  actividadFull?: string | number,
+  cant?: number,
+  tasaBCV?: number,
+  mmv_mes?: number,
+  tipo?: string
 ) => {
-  const esRes = (clasificacion || '').toLowerCase().includes('residencial');
-  
-  // Si nos pasan mmv_mes (que ya tiene los nietos sumados y ajustes manuales), lo usamos.
-  // Sino, hacemos fallback a getFO(actividadFull)
-  const fo = mmv_mes !== undefined && mmv_mes > 0 ? mmv_mes : getFO(actividadFull, esRes);
-  
-  const far = esRes ? getFAR(actividadFull) : 1; // FAR only applies to Residencial
-  
+  let clasificacion = '';
+  let actividad = '';
+  let cantidad = 1;
+  let tasa = 0;
+  let mmv: number | undefined = undefined;
+  let esRes = false;
+
+  if (typeof clasificacionOrInm === 'object' && clasificacionOrInm !== null) {
+    const inm = clasificacionOrInm;
+    clasificacion = inm.clasificacion || inm.Clasificacion || '';
+    actividad = inm.actividad_principal || inm.actividad || '';
+    cantidad = parseInt(String(inm.cant_inmuebles || inm['Cant Inmuebles'] || 1));
+    tasa = typeof actividadFull === 'number' ? actividadFull : (tasaBCV || 0);
+    mmv = inm.mmv_mes ? parseFloat(String(inm.mmv_mes)) : undefined;
+    esRes = isResidencialInm(inm);
+  } else {
+    clasificacion = String(clasificacionOrInm || '');
+    actividad = String(actividadFull || '');
+    cantidad = cant || 1;
+    tasa = tasaBCV || 0;
+    mmv = mmv_mes;
+    esRes = isResidencialInm({ tipo, clasificacion, actividad_principal: actividad });
+  }
+
+  const fo = mmv !== undefined && mmv > 0 ? mmv : getFO(actividad, esRes);
+  const far = esRes ? getFAR(actividad) : 1; // FAR only applies to Residencial
+
   // Formulas
   // Residencial: F.O. * 57 * TasaBCV * FAR
   // Comercial:   F.O. * 57 * TasaBCV * 0.1280
   let baseCalculada = 0;
   if (esRes) {
-    baseCalculada = fo * 57 * tasaBCV * far;
+    baseCalculada = fo * 57 * tasa * far;
   } else {
-    baseCalculada = fo * 57 * tasaBCV * 0.1280;
+    baseCalculada = fo * 57 * tasa * 0.1280;
   }
-  
+
   // Multiplicamos por la cantidad de inmuebles
-  return (baseCalculada * Math.max(1, cant));
+  return baseCalculada * Math.max(1, cantidad);
 };

@@ -4,7 +4,7 @@ import { Download, FileText, Building, Handshake, AlertCircle, CheckCircle2, Wre
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
-import { getFAR } from '@/lib/calculos';
+import { getFAR, isResidencialInm } from '@/lib/calculos';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
@@ -112,7 +112,7 @@ export default function EstadoCuentaPage() {
         const cant = parseFloat(inm.cant_inmuebles || 1);
         const mmv  = parseFloat(inm.mmv_mes || 0); // FO
         if (mmv > 0) {
-          const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+          const esRes = isResidencialInm(inm);
           const ucdMultiplicador = esRes ? (57 * getFAR(inm.actividad_principal || '')) : (57 * 0.128);
           totalMonto += cant * mmv * ucdMultiplicador * tasaBcv;
         }

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm } from '@/lib/calculos';
 import { getUserInmuebles, getCajeroId, isSameLocal } from '@/lib/cajaHelpers';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
@@ -512,7 +512,8 @@ export default function CajaPage() {
     const cuotasMap = new Map<string, any>(cuotas.map((c: any) => [`${c.convId}:${c.cuotaId}`, c]));
     const serviciosMap = new Map<string, any>(serviciosEsp.map((s: any) => [s.referencia, s]));
     const talaPodaMap = new Map<string, any>(talaPoda.map((s: any) => [s.referencia, s]));
-    const inmueblesMap = new Map<string, any>((inmuebles || []).map((i: any) => [i.inmueble, i]));
+    const allInms = [...(inmuebles || []), ...(freshInmuebles || [])];
+    const inmueblesMap = new Map<string, any>(allInms.map((i: any) => [i.inmueble, i]));
 
     let total = 0;
     
@@ -542,8 +543,8 @@ export default function CajaPage() {
 
     if (isCondominio && condominioModo === 'Abono') {
       condominioHijos.forEach(h => {
-        const baseMonto = (h.deuda_mmv || 0) * tasaActualUse;
-        const esRes = (h.clasificacion || '').toLowerCase().includes('residencial');
+        const esRes = isResidencialInm(h);
+        const baseMonto = (h.deuda_mmv || 0) * 57 * tasaActualUse;
         const ivaLocal = esRes ? 0 : baseMonto * 0.16;
         const mesesMora = parseInt(h.meses_deuda || '1');
         const multaLocal = mesesMora > 1 ? baseMonto * (esRes ? 0.10 : 0.12) : 0;
@@ -561,27 +562,49 @@ export default function CajaPage() {
         const parts = ref.split('-');
         const inm = inmueblesMap.get(parts[2]);
         if (inm) {
-          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse, parseFloat(inm.mmv_mes || '0'));
-          const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+          const esRes = isResidencialInm(inm);
+          const meses = Math.max(1, parseInt(String(inm.meses_deuda || 1)));
+          const deudaMMV = parseFloat(String(inm.deuda_mmv || 0));
+
+          let bm = 0;
+          if (deudaMMV > 0) {
+            bm = parseFloat(((deudaMMV * 57 * tasaActualUse) / meses).toFixed(2));
+          } else {
+            bm = parseFloat(calcularMensualidad(inm, tasaActualUse).toFixed(2));
+          }
+
           sb += bm;
-          siva += esRes ? 0 : bm * 0.16;
+          // RESIDENCIAL ESTRICTAMENTE EXENTO DE IVA (0%)
+          siva += esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+
           const f = recibosMap.get(ref);
           const emision = f?.emision ? new Date(f.emision) : new Date();
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-          if (monthsDiff > 1) smulta += bm * (esRes ? 0.10 : 0.12);
+
+          const multaTotalBD = parseFloat(String(inm.multa_bs || 0));
+          if (multaTotalBD > 0) {
+            if (monthsDiff > 1) smulta += parseFloat((multaTotalBD / (meses > 1 ? meses - 1 : 1)).toFixed(2));
+          } else {
+            if (monthsDiff > 1) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
+          }
         }
       } else if (ref.startsWith('CM-')) {
-        // Filtrar inmuebles del ref — O(n) pero sobre fresh array pequeño
-        const userInmsLocal = (inmuebles || []).filter((inm: any) => inm.inmueble && ref.includes(inm.inmueble));
+        const allUserInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
+        const userInmsLocal = allUserInms.filter((inm: any) => inm.inmueble && ref.includes(inm.inmueble));
         const targetInms = userInmsLocal.length > 0
           ? userInmsLocal
-          : (inmuebles || []).filter((i: any) => i.identidad === foundUser?.Identidad);
+          : allUserInms.filter((i: any) => i.identidad === foundUser?.Identidad);
         targetInms.forEach((inm: any) => {
-          const bm = calcularMensualidad(inm.clasificacion || '', inm.actividad_principal || '', parseInt(inm.cant_inmuebles || 1), tasaActualUse, parseFloat(inm.mmv_mes || '0'));
-          const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+          const esRes = isResidencialInm(inm);
+          const bm = parseFloat(calcularMensualidad(inm, tasaActualUse).toFixed(2));
           sb += bm;
-          siva += esRes ? 0 : bm * 0.16;
+          siva += esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+          const f = recibosMap.get(ref);
+          const emision = f?.emision ? new Date(f.emision) : new Date();
+          const today = new Date();
+          const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+          if (monthsDiff > 1) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
         });
       } else {
         const f = recibosMap.get(ref);
@@ -1470,14 +1493,13 @@ export default function CajaPage() {
                   />
                 </div>
                 {(() => {
-                  const userCodCont = foundUser.CodCont || foundUser.cod_cont || foundUser.Identidad;
-                  const userInms = freshInmuebles.filter((i: any) => i.identidad === foundUser.Identidad || i.condominio_padre_id === userCodCont);
+                  const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
                   if (userInms.length === 0) return 'No hay inmuebles registrados.';
                   
                   return (
                     <div className="space-y-2">
                       {userInms.filter((i: any) => (i.inmueble || '').toLowerCase().includes((filterInm || '').toLowerCase())).map((inm: any, idx: number) => {
-                        const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                        const esRes = isResidencialInm(inm);
                         const mmv = (inm.mmv_mes && parseFloat(inm.mmv_mes) > 0) ? parseFloat(inm.mmv_mes) : getFO(inm.actividad_principal || '', esRes);
                         const cant = parseInt(inm.cant_inmuebles || 1);
                         if (mmv <= 0) return null;
@@ -1491,7 +1513,7 @@ export default function CajaPage() {
                           <div key={idx} className="border-b border-slate-200 pb-2 last:border-0 last:pb-0">
                             <div className="flex items-center justify-between mb-1">
                               <span className="font-semibold text-[10px] text-slate-700 flex items-center gap-2">
-                                Inmueble {inm.inmueble || 'General'} ({cant} und):
+                                Inmueble {inm.inmueble || 'General'} ({cant} und) - <span className={esRes ? "text-emerald-700 font-bold" : "text-blue-700 font-bold"}>{esRes ? "RESIDENCIAL (Exento 0% IVA)" : "COMERCIAL (16% IVA)"}</span>:
                                 {(userInms.length > 1 && !inm.condominio_padre_id) && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Múltiples Inmuebles</span>}
                               </span>
                               {(() => {
@@ -1521,7 +1543,7 @@ export default function CajaPage() {
                                 );
                               })()}
                             </div>
-                            <span>FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : 0.1280} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {bsMensual.toFixed(2)} Bs/mes.</span>
+                            <span>FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : '0.1280'} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {bsMensual.toFixed(2)} Bs/mes.</span>
                           </div>
                         );
                       })}
@@ -1574,15 +1596,15 @@ export default function CajaPage() {
                           const parts = r.referencia.split('-');
                           if (parts.length > 2) {
                             const match = userInms.find((i: any) => i.inmueble === parts[2]);
-                            if (match) { inmId = String(match.inmueble || ''); tipo = String(match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
+                            if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
                             else inmId = parts[2];
                           }
                         } else if (r.referencia?.startsWith('CM-')) {
                           const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
-                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
+                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
                           else inmId = 'Acumulados';
                         } else {
-                          if (userInms.length === 1) { inmId = String(userInms[0].inmueble || ''); tipo = String(userInms[0].clasificacion || ''); act = String(userInms[0].actividad_principal || ''); dir = String(userInms[0].direccion || ''); }
+                          if (userInms.length === 1) { inmId = String(userInms[0].inmueble || ''); tipo = String(userInms[0].tipo || userInms[0].clasificacion || ''); act = String(userInms[0].actividad_principal || ''); dir = String(userInms[0].direccion || ''); }
                         }
                         
                         // Agrupar actividades "N/A" por mes para usuarios con múltiples actividades
@@ -2364,8 +2386,8 @@ export default function CajaPage() {
                         <td className="text-right py-2 px-3 align-top pt-2.5 text-emerald-700 font-bold whitespace-nowrap">
                           {(() => {
                             const currentTasa = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
-                            const base = (hijo.deuda_mmv || 0) * currentTasa;
-                            const esRes = (hijo.clasificacion || '').toLowerCase().includes('residencial');
+                            const base = (hijo.deuda_mmv || 0) * 57 * currentTasa;
+                            const esRes = isResidencialInm(hijo);
                             const ivaLocal = esRes ? 0 : base * 0.16;
                             const mesesMora = parseInt(hijo.meses_deuda || '1');
                             const multaLocal = mesesMora > 1 ? base * (esRes ? 0.10 : 0.12) : 0;
