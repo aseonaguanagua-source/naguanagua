@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
 
 import { ordenanzaData } from '@/data/ordenanza';
+import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
 
 type AppState = {
   inmuebles: any[];
@@ -20,6 +21,7 @@ type AppState = {
   addCertificado: (cert: any) => void;
   tcmmv: number;
   isLoading: boolean;
+  cacheStatus: 'cached' | 'syncing' | 'fresh';
   setInmuebles: (inmuebles: any[]) => void;
   updateContribuyente: (id: string, data: any) => void;
   addContribuyente: (data: any) => void;
@@ -29,8 +31,9 @@ type AppState = {
   auditLogs: any[];
   setPreRegistros: React.Dispatch<React.SetStateAction<any[]>>;
   setFacturas: React.Dispatch<React.SetStateAction<any[]>>;
-  refreshData: () => Promise<void>;
+  refreshData: (forceFresh?: boolean) => Promise<void>;
   refreshUserData: (identidad: string) => Promise<void>;
+  clearLocalCache: () => Promise<void>;
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -43,6 +46,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [documentos, setDocumentos] = useState<any[]>([]);
   const [certificados, setCertificados] = useState<any[]>([]);
   const [condominios, setCondominios] = useState<any[]>([]);
+  const [cacheStatus, setCacheStatus] = useState<'cached' | 'syncing' | 'fresh'>('cached');
   const [reclamos, setReclamos] = useState<any[]>([]);
   const [convenios, setConvenios] = useState<any[]>([]);
   const [preLiquidaciones, setPreLiquidaciones] = useState<any[]>([]);
@@ -51,7 +55,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tcmmv, setTcmmv] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadAllData = async () => {
+  const loadAllData = async (forceFresh = false) => {
     try {
       setIsLoading(true);
       
@@ -85,7 +89,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setFacturas(userFacturas);
         setInmuebles(userInmuebles);
 
-
         let manualTcmmv = 0;
         let semanalTcmmv = 0;
         if (dbConfig) {
@@ -113,79 +116,137 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         setTcmmv(currentTcmmv);
         setIsLoading(false);
-        return; // Salimos de loadAllData temprano, ahorrando toda la carga masiva
+        return; // Salimos de loadAllData temprano para el portal
       }
 
-      
-      // Fetch recibos con paginación para superar el límite de 1000
+      // ======================================================================
+      // 1. CARGA INSTANTÁNEA DESDE INDEXEDDB (Caché local en el navegador)
+      // ======================================================================
+      if (!forceFresh && typeof window !== 'undefined') {
+        const cached = await getFromIndexedDB<any>('naguanagua_full_cache');
+        if (cached && cached.version === CURRENT_CACHE_VERSION && Array.isArray(cached.inmuebles) && cached.inmuebles.length > 0) {
+          // CARGA INSTANTÁNEA (< 50ms)
+          setInmuebles(cached.inmuebles);
+          setContribuyentes(cached.contribuyentes || []);
+          setCondominios(cached.condominios || []);
+          setFacturas(cached.facturas || []);
+          setPreRegistros(cached.preRegistros || []);
+          setDocumentos(cached.documentos || []);
+          setCertificados(cached.certificados || []);
+          setReclamos(cached.reclamos || []);
+          setConvenios(cached.convenios || []);
+          setPreLiquidaciones(cached.preLiquidaciones || []);
+          setAuditLogs(cached.auditLogs || []);
+          setTcmmv(cached.tcmmv || 0);
+          if (cached.ordenanzasConfig) setOrdenanzasConfig(cached.ordenanzasConfig);
+          setIsLoading(false);
+          setCacheStatus('cached');
+
+          // Revalidación ligera en segundo plano (tasa BCV y pre-registros) sin bloquear la pantalla
+          (async () => {
+            try {
+              const [{ data: dbCfg }, apiBcv, { data: dbPreReg }] = await Promise.all([
+                supabase.from('sistema_config').select('*'),
+                fetch(`/api/bcv?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ tcmmv: 0 })),
+                supabase.from('pre_registros').select('*')
+              ]);
+              if (apiBcv?.tcmmv && apiBcv.tcmmv !== cached.tcmmv) {
+                setTcmmv(apiBcv.tcmmv);
+              }
+              if (dbPreReg) setPreRegistros(dbPreReg);
+            } catch (err) {
+              // Silencioso en segundo plano
+            }
+          })();
+
+          return;
+        }
+      }
+
+      setCacheStatus('syncing');
+
+      // Helper concurrente para descargar páginas en paralelo (6 peticiones simultáneas)
+      const fetchAllClientParallel = async (table: string, select: string) => {
+        const { count, error: countErr } = await supabase.from(table).select('*', { count: 'exact', head: true });
+        if (countErr) console.error(`Error counting ${table}:`, countErr);
+        const total = count || 0;
+        if (total === 0) {
+          const { data } = await supabase.from(table).select(select).limit(1000);
+          return data || [];
+        }
+
+        const step = 1000;
+        const numBatches = Math.ceil(total / step);
+        const ranges = [];
+        for (let i = 0; i < numBatches; i++) {
+          ranges.push({ from: i * step, to: Math.min((i + 1) * step - 1, total - 1) });
+        }
+
+        const results: any[] = new Array(numBatches);
+        const CONCURRENCY = 6;
+        for (let i = 0; i < ranges.length; i += CONCURRENCY) {
+          const chunkRanges = ranges.slice(i, i + CONCURRENCY);
+          await Promise.all(
+            chunkRanges.map(async (r, idx) => {
+              const batchIndex = i + idx;
+              const { data, error } = await supabase.from(table).select(select).order('id').range(r.from, r.to);
+              if (error) console.error(`Error fetching chunk ${batchIndex} from ${table}:`, error);
+              results[batchIndex] = data || [];
+            })
+          );
+        }
+        return results.flat();
+      };
+
+      // Descarga de facturas activas
       let allFacturas: any[] = [];
       let fetchMore = true;
       let from = 0;
-      let step = 999;
+      const stepFacturas = 999;
       while (fetchMore) {
         const { data: chunk } = await supabase.from('facturas').select('*')
-          .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']) // Solo recibos activas - excluye Pagado/Anulado/Reversado
-          .range(from, from + step);
+          .in('estado', ['Pendiente', 'Abonado', 'Por Verificar'])
+          .range(from, from + stepFacturas);
         if (chunk && chunk.length > 0) {
           allFacturas.push(...chunk);
-          from += step + 1;
+          from += stepFacturas + 1;
         } else {
           fetchMore = false;
         }
       }
 
-      let allInmuebles: any[] = [];
-      let apiCondominios: any[] = [];
-      try {
-        const fetchAllClient = async (table: string, select: string) => {
-          let all: any[] = [];
-          let from = 0;
-          const step = 999;
-          while (true) {
-            const { data } = await supabase.from(table).select(select).range(from, from + step);
-            if (data && data.length > 0) {
-              all.push(...data);
-              from += step + 1;
-              if (data.length < step + 1) break;
-            } else {
-              break;
-            }
-          }
-          return all;
-        };
-        const [rawInmuebles, rawContribuyentes] = await Promise.all([
-          fetchAllClient('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,created_at'),
-          fetchAllClient('contribuyentes', '*')
-        ]);
-        const contribMap = new Map();
-        rawContribuyentes.forEach(c => contribMap.set(c.identidad, c));
-        allInmuebles = rawInmuebles.map(inm => ({
-          ...inm,
-          contribuyentes: contribMap.get(inm.identidad) || null
+      // Descarga concurrente de Inmuebles y Contribuyentes
+      const [rawInmuebles, rawContribuyentes] = await Promise.all([
+        fetchAllClientParallel('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,created_at'),
+        fetchAllClientParallel('contribuyentes', '*')
+      ]);
+
+      const contribMap = new Map();
+      rawContribuyentes.forEach(c => contribMap.set(c.identidad, c));
+
+      const allInmuebles = rawInmuebles.map(inm => ({
+        ...inm,
+        contribuyentes: contribMap.get(inm.identidad) || null
+      }));
+
+      const apiCondominios = allInmuebles
+        .filter(i => i.es_condominio === true)
+        .map(inm => ({
+          id: inm.id,
+          codigo: inm.inmueble,
+          identidad: inm.identidad,
+          nombre: 'Condominio ' + inm.inmueble,
+          direccion: inm.direccion || '',
+          unidades: parseInt(inm.cant_inmuebles || '0'),
+          representante: contribMap.get(inm.identidad)?.nombre || 'N/A',
+          estado: inm.estado || 'Activo',
+          created_at: inm.created_at
         }));
-        apiCondominios = allInmuebles
-          .filter(i => i.es_condominio === true)
-          .map(inm => ({
-            id: inm.id,
-            codigo: inm.inmueble,
-            identidad: inm.identidad,
-            nombre: 'Condominio ' + inm.inmueble,
-            direccion: inm.direccion || '',
-            unidades: parseInt(inm.cant_inmuebles || '0'),
-            representante: contribMap.get(inm.identidad)?.nombre || 'N/A',
-            estado: inm.estado || 'Activo',
-            created_at: inm.created_at
-          }));
-      } catch (err) {
-        console.error('Error fetching fast data:', err);
-      }
 
       const [
-        { data: dbInmuebles },
         { data: dbPreRegistros },
         { data: dbDocumentos },
         { data: dbCertificados },
-        { data: dbCondominios },
         { data: dbReclamos },
         { data: dbConvenios },
         { data: dbPreLiquidaciones },
@@ -193,11 +254,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { data: dbConfig },
         apiBcv
       ] = await Promise.all([
-        Promise.resolve({ data: allInmuebles }),
         supabase.from('pre_registros').select('*'),
         supabase.from('documentos').select('*'),
         supabase.from('certificados').select('*'),
-        Promise.resolve({ data: [] }), // Placeholder for dbCondominios to keep indices correct
         supabase.from('reclamos').select('*'),
         supabase.from('convenios').select('*'),
         supabase.from('pre_liquidaciones').select('*'),
@@ -207,29 +266,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ]);
 
       let manualTcmmv = 0;
-      if (dbConfig && dbConfig.length > 0) {
-        manualTcmmv = parseFloat(dbConfig[0].tcmmv || '0');
-      }
-
-      const dbFacturas = allFacturas;
       let semanalTcmmv = 0;
+      let ordenanzaConfigValue = ordenanzaData;
       if (dbConfig) {
         const ordenanza = dbConfig.find(c => c.id === 'tarifas_ordenanza');
         if (ordenanza && ordenanza.valor) {
-          setOrdenanzasConfig({ ...ordenanzaData, ...ordenanza.valor });
+          ordenanzaConfigValue = { ...ordenanzaData, ...ordenanza.valor };
+          setOrdenanzasConfig(ordenanzaConfigValue);
         }
-        
         const manual = dbConfig.find(c => c.id === 'tasa_bcv_manual');
         if (manual && manual.valor) manualTcmmv = parseFloat(manual.valor);
-        
         const semanal = dbConfig.find(c => c.id === 'tasa_bcv_semanal');
         if (semanal && semanal.valor) semanalTcmmv = parseFloat(semanal.valor);
       }
 
       const bcvData = apiBcv as any;
       let currentTcmmv = manualTcmmv > 0 ? manualTcmmv : (bcvData?.tcmmv > 0 ? bcvData.tcmmv : semanalTcmmv);
-
-      // Si aAon es 0 (por ejemplo si el API de Nextjs estA! caA-do en Amplify), intentamos directo desde el cliente
       if (currentTcmmv <= 0) {
         try {
           const eurRes = await fetch('https://ve.dolarapi.com/v1/euros/oficial');
@@ -243,106 +295,122 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       setTcmmv(currentTcmmv);
-      
-      // auditoria ya se cargo con limit(200) dentro del Promise.all - no repetir
       setAuditLogs(dbAuditLogs || []);
 
-      if (dbInmuebles) {
-        const mappedInmuebles = dbInmuebles.map((row: any) => ({
-          ...row,
-          'Inmueble': row.inmueble || row.cod_cont,
-          'Clasificacion': row.clasificacion || 'Residencial',
-          'Tipo': 'Urbano',
-          'Saldo': (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * currentTcmmv)).toFixed(2),
-          'DeudaMMV': parseFloat(row.deuda_mmv || 0),
-          'DeudaCongelada': parseFloat(row.deuda_congelada_bs || 0),
-          'Cant Inmuebles': 1,
-          'Actividad Principal': row.actividad || 'No aplica',
-          'Direccion': row.direccion
-        }));
-        setInmuebles(mappedInmuebles);
-        
-        setCondominios(apiCondominios);
-        
-        const map = new Map();
-        dbInmuebles.forEach((row: any) => {
-          if (row.identidad && !map.has(row.identidad)) {
-            let clase = row.clasificacion;
-            const act = row.actividad_principal || '';
-            
-            if (!clase) {
-              clase = 'Residencial';
-              if (ordenanzaData.actividadesIndustriales.some(a => a.label === act)) {
-                clase = 'Industrial';
-              } else if (ordenanzaData.actividadesComerciales.some(a => a.label === act)) {
-                clase = 'Comercial';
-              } else if (act && act !== 'No aplica') {
-                if (!act.toLowerCase().includes('condominio') && !act.toLowerCase().includes('residencial')) {
-                   clase = 'Comercial';
-                }
+      const mappedInmuebles = allInmuebles.map((row: any) => ({
+        ...row,
+        'Inmueble': row.inmueble || row.cod_cont,
+        'Clasificacion': row.clasificacion || 'Residencial',
+        'Tipo': 'Urbano',
+        'Saldo': (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * currentTcmmv)).toFixed(2),
+        'DeudaMMV': parseFloat(row.deuda_mmv || 0),
+        'DeudaCongelada': parseFloat(row.deuda_congelada_bs || 0),
+        'Cant Inmuebles': 1,
+        'Actividad Principal': row.actividad || 'No aplica',
+        'Direccion': row.direccion
+      }));
+      setInmuebles(mappedInmuebles);
+      setCondominios(apiCondominios);
+
+      const map = new Map();
+      allInmuebles.forEach((row: any) => {
+        if (row.identidad && !map.has(row.identidad)) {
+          let clase = row.clasificacion;
+          const act = row.actividad_principal || '';
+          if (!clase) {
+            clase = 'Residencial';
+            if (ordenanzaData.actividadesIndustriales.some(a => a.label === act)) {
+              clase = 'Industrial';
+            } else if (ordenanzaData.actividadesComerciales.some(a => a.label === act)) {
+              clase = 'Comercial';
+            } else if (act && act !== 'No aplica') {
+              if (!act.toLowerCase().includes('condominio') && !act.toLowerCase().includes('residencial')) {
+                 clase = 'Comercial';
               }
             }
+          }
 
-            map.set(row.identidad, {
-              Identidad: row.identidad,
-              Contribuyente: row.contribuyentes?.nombre || row.nombre || row.contribuyente || 'Sin Nombre',
-              Telefono: row.contribuyentes?.telefono || row.telefono || 'No registrado',
-              Correo: row.contribuyentes?.email || row.email || row.correo_electronico || row.correo || 'No registrado',
-              CodCont: row.inmueble || row.cod_cont,
-              cod_cont: row.inmueble || row.cod_cont,
-              Direccion: (function() {
-                if (act.includes('[HIJO_DE:')) {
-                  const match = act.match(/\[HIJO_DE:(.*?)\]/);
-                  if (match) {
-                    const padreUrb = match[1];
-                    const padre = dbInmuebles.find((i: any) => i.inmueble === padreUrb);
-                    if (padre && padre.direccion && padre.direccion !== '') {
-                      return padre.direccion;
-                    }
+          map.set(row.identidad, {
+            Identidad: row.identidad,
+            Contribuyente: row.contribuyentes?.nombre || row.nombre || row.contribuyente || 'Sin Nombre',
+            Telefono: row.contribuyentes?.telefono || row.telefono || 'No registrado',
+            Correo: row.contribuyentes?.email || row.email || row.correo_electronico || row.correo || 'No registrado',
+            CodCont: row.inmueble || row.cod_cont,
+            cod_cont: row.inmueble || row.cod_cont,
+            Direccion: (function() {
+              if (act.includes('[HIJO_DE:')) {
+                const match = act.match(/\[HIJO_DE:(.*?)\]/);
+                if (match) {
+                  const padreUrb = match[1];
+                  const padre = allInmuebles.find((i: any) => i.inmueble === padreUrb);
+                  if (padre && padre.direccion && padre.direccion !== '') {
+                    return padre.direccion;
                   }
                 }
-                return row.direccion || row.contribuyentes?.direccion || '';
-              })(),
-              Observaciones: row.contribuyentes?.observaciones || '',
-              Actividad: act || 'No aplica',
-              Clasificacion: clase,
-              SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
-              DeudaMMV: parseFloat(row.deuda_mmv || 0),
-              DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
-              DeudaBs: (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * currentTcmmv)),
-              MesesDeuda: parseInt(row.meses_deuda || '0'),
-              Estado: row.estado || 'Activo',
-              FechaRegistro: row.created_at || null
-            });
-          } else if (row.identidad && map.has(row.identidad)) {
-            // Si ya existe, sumar saldo a favor
-            const existing = map.get(row.identidad);
-            existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
-            existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
-            existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
-            existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * currentTcmmv));
-            // Mantener el estado más severo si hay múltiples (Eliminado > Inactivo > Activo)
-            if (row.estado === 'Eliminado' || (row.estado === 'Inactivo' && existing.Estado !== 'Eliminado')) {
-              existing.Estado = row.estado;
-            }
-            const cod = row.inmueble || row.cod_cont;
-            if (cod && !existing.CodCont.includes(cod)) {
-              existing.CodCont += " " + cod;
-            }
-            map.set(row.identidad, existing);
+              }
+              return row.direccion || row.contribuyentes?.direccion || '';
+            })(),
+            Observaciones: row.contribuyentes?.observaciones || '',
+            Actividad: act || 'No aplica',
+            Clasificacion: clase,
+            SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
+            DeudaMMV: parseFloat(row.deuda_mmv || 0),
+            DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
+            DeudaBs: (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * currentTcmmv)),
+            MesesDeuda: parseInt(row.meses_deuda || '0'),
+            Estado: row.estado || 'Activo',
+            FechaRegistro: row.created_at || null
+          });
+        } else if (row.identidad && map.has(row.identidad)) {
+          const existing = map.get(row.identidad);
+          existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
+          existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
+          existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
+          existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * currentTcmmv));
+          if (row.estado === 'Eliminado' || (row.estado === 'Inactivo' && existing.Estado !== 'Eliminado')) {
+            existing.Estado = row.estado;
           }
-        });
-        setContribuyentes(Array.from(map.values()));
-      }
+          const cod = row.inmueble || row.cod_cont;
+          if (cod && !existing.CodCont.includes(cod)) {
+            existing.CodCont += " " + cod;
+          }
+          map.set(row.identidad, existing);
+        }
+      });
+
+      const finalContribuyentes = Array.from(map.values());
+      setContribuyentes(finalContribuyentes);
 
       if (dbPreRegistros) setPreRegistros(dbPreRegistros);
-      if (dbFacturas) setFacturas(dbFacturas);
+      if (allFacturas) setFacturas(allFacturas);
       if (dbDocumentos) setDocumentos(dbDocumentos);
       if (dbCertificados) setCertificados(dbCertificados);
-      // Removed overwriting of setCondominios
       if (dbReclamos) setReclamos(dbReclamos);
       if (dbConvenios) setConvenios(dbConvenios);
       if (dbPreLiquidaciones) setPreLiquidaciones(dbPreLiquidaciones);
+
+      // Guardar en caché persistente IndexedDB para cargas instantáneas subsiguientes
+      if (typeof window !== 'undefined') {
+        await saveToIndexedDB('naguanagua_full_cache', {
+          version: CURRENT_CACHE_VERSION,
+          timestamp: Date.now(),
+          inmuebles: mappedInmuebles,
+          contribuyentes: finalContribuyentes,
+          condominios: apiCondominios,
+          facturas: allFacturas,
+          preRegistros: dbPreRegistros || [],
+          documentos: dbDocumentos || [],
+          certificados: dbCertificados || [],
+          reclamos: dbReclamos || [],
+          convenios: dbConvenios || [],
+          preLiquidaciones: dbPreLiquidaciones || [],
+          auditLogs: dbAuditLogs || [],
+          tcmmv: currentTcmmv,
+          ordenanzasConfig: ordenanzaConfigValue
+        });
+      }
+
+      setCacheStatus('fresh');
 
     } catch (error) {
       console.error("Error loading data from Supabase:", error);
@@ -351,8 +419,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshData = async () => {
-    await loadAllData();
+  const refreshData = async (forceFresh = false) => {
+    await loadAllData(forceFresh);
+  };
+
+  const clearLocalCache = async () => {
+    setIsLoading(true);
+    await clearAllIndexedDB();
+    await loadAllData(true);
   };
 
   /**
@@ -630,6 +704,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       auditLogs,
       tcmmv,
       isLoading,
+      cacheStatus,
       setInmuebles,
       updateContribuyente,
       addContribuyente,
@@ -638,7 +713,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPreRegistros,
       setFacturas,
       refreshData,
-      refreshUserData
+      refreshUserData,
+      clearLocalCache
     }}>
       {/* Barra de progreso discreta — no bloquea la UI (fix: pantalla negra entre módulos) */}
       {isLoading && (
