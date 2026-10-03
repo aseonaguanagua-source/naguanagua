@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Landmark, MapPin, User2, Building2, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
-import { isResidencialInm } from '@/lib/calculos';
+import { isResidencialInm, calcularMensualidad } from '@/lib/calculos';
 
 type Step = 'search' | 'account' | 'pay' | 'success';
 type PayMethod = 'Punto de Venta' | 'Bancamiga';
@@ -39,21 +39,9 @@ const getFAR = (actividad: string) => {
   return 0.02673; // default
 };
 
-// Fórmula oficial Ordenanza (UCD = tcmmv):
-//   Residencial: TR = F.O. × 57 × UCD × FAR
-//   Comercial:   TC = F.O. × 57 × UCD × FAC (FAC = 0.1280)
+// Tarifa mensual según Ordenanza
 const calcMontoMes = (inm: Inmueble, tcmmv: number): number => {
-  const mmv = parseFloat(String(inm.mmv_mes || 0)); // FO
-  const cant = parseFloat(String(inm.cant_inmuebles || 1));
-  if (mmv <= 0 || tcmmv <= 0) return 0;
-  const esRes = isResidencialInm(inm);
-  
-  if (esRes) {
-    const far = getFAR(inm.actividad_principal || '');
-    return parseFloat((cant * mmv * 57 * far * tcmmv).toFixed(2));
-  } else {
-    return parseFloat((cant * mmv * 57 * 0.128 * tcmmv).toFixed(2));
-  }
+  return parseFloat(calcularMensualidad(inm, tcmmv).toFixed(2));
 };
 
 export default function KioskPage() {
@@ -97,14 +85,15 @@ export default function KioskPage() {
       const inmId = parts[2];
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
-        const meses = Math.max(1, parseInt(String(inm.meses_deuda || 1)));
-        const d = parseFloat(String(inm.deuda_mmv || 0));
         const esRes = isResidencialInm(inm);
-        // deuda_mmv ya está en UCD/MMV limpia (57 * tcmmv)
-        const baseMes = parseFloat(((d * 57 * tcmmv) / meses).toFixed(2));
-        const multa = parseFloat(String(inm.multa_bs || 0));
-        const multaMes = parseFloat((multa / meses).toFixed(2));
-        // IVA solo sobre la base del servicio comercial; multas exentas
+        // Tarifa mensual según Ordenanza:
+        const baseMes = parseFloat(calcularMensualidad(inm, tcmmv).toFixed(2));
+        const emision = r.emision ? new Date(r.emision) : new Date();
+        const today = new Date();
+        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+        // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base
+        const multaMes = monthsDiff > 0 ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        // IVA solo sobre la base del servicio comercial; residencial exento 0%
         const ivaMes = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
         return {
           base: baseMes,
@@ -117,12 +106,13 @@ export default function KioskPage() {
     } else if (r.referencia?.startsWith('RECIB-') || r.referencia === 'RECIB-DEUDA') {
       let totalBase = 0, totalMulta = 0, totalIva = 0;
       userInms.forEach(i => {
-        const deuda = parseFloat(String(i.deuda_mmv || 0));
-        const multa = parseFloat(String(i.multa_bs || 0));
+        const meses = Math.max(1, parseInt(String(i.meses_deuda || 1)));
         const esRes = isResidencialInm(i);
-        const baseInm = deuda * 57 * tcmmv;
+        const baseMes = parseFloat(calcularMensualidad(i, tcmmv).toFixed(2));
+        const baseInm = baseMes * meses;
+        const multaInm = baseMes * (esRes ? 0.10 : 0.12) * Math.max(0, meses - 1);
         totalBase += baseInm;
-        totalMulta += multa;
+        totalMulta += multaInm;
         if (!esRes) {
           totalIva += baseInm * 0.16;
         }

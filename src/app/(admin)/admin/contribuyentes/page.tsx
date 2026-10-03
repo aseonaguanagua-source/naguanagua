@@ -2490,7 +2490,21 @@ function ContribuyentesPageContent() {
                     const getMontoActual = (f: any): number => {
                       if (f.estado === 'Abonado') return parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
                       let base = parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
-                      if (f.referencia?.startsWith('CM-')) {
+                      if (f.referencia?.startsWith('RECIB-HIST-')) {
+                        const parts = f.referencia.split('-');
+                        const inmId = parts[2];
+                        const matchedInm = userInms.find((inm: any) => inm.inmueble === inmId);
+                        if (matchedInm && tcmmv > 0) {
+                          const esRes = isResidencialInm(matchedInm);
+                          const bm = parseFloat(calcularMensualidad(matchedInm, tcmmv).toFixed(2));
+                          const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+                          const emision = f.emision ? new Date(f.emision) : new Date();
+                          const today = new Date();
+                          const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+                          const multa = monthsDiff > 0 ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                          base = bm + iva + multa;
+                        }
+                      } else if (f.referencia?.startsWith('CM-')) {
                         // Buscar el inmueble que corresponde a esta factura por código en la referencia
                         const matchedInm = userInms.find((inm: any) =>
                           (inm.inmueble && f.referencia.includes(inm.inmueble)) ||
@@ -2498,9 +2512,10 @@ function ContribuyentesPageContent() {
                         );
                         const targetInm = matchedInm || (userInms.length === 1 ? userInms[0] : null);
                         if (targetInm && tcmmv > 0) {
-                          const cant = parseFloat(targetInm.cant_inmuebles || 1);
-                          const mmv = parseFloat(targetInm.mmv_mes || 0);
-                          if (mmv > 0) base = calcularMensualidad(targetInm.clasificacion || "", targetInm.actividad_principal || "", cant, tcmmv, parseFloat(targetInm.mmv_mes || "0"));
+                          const esRes = isResidencialInm(targetInm);
+                          const bm = parseFloat(calcularMensualidad(targetInm, tcmmv).toFixed(2));
+                          const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+                          base = bm + iva;
                         }
                       }
                       

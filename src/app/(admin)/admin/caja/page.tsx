@@ -303,6 +303,15 @@ export default function CajaPage() {
       const deudaTotalFresh = activeInmFresh.reduce(
         (sum: number, i: any) => {
           const currentBcvRate = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : tcmmv;
+          const meses = Math.max(0, parseInt(i.meses_deuda || '0'));
+          if (meses > 0) {
+            const esRes = isResidencialInm(i);
+            const baseMes = calcularMensualidad(i, currentBcvRate);
+            const ivaMes = esRes ? 0 : baseMes * 0.16;
+            const multaMes = baseMes * (esRes ? 0.10 : 0.12);
+            const mesesConMulta = Math.max(0, meses - 1);
+            return sum + ((baseMes + ivaMes) * meses) + (multaMes * mesesConMulta);
+          }
           return sum + (parseFloat(i.deuda_mmv || '0') * currentBcvRate) + parseFloat(i.deuda_congelada_bs || '0');
         }, 0
       );
@@ -544,10 +553,10 @@ export default function CajaPage() {
     if (isCondominio && condominioModo === 'Abono') {
       condominioHijos.forEach(h => {
         const esRes = isResidencialInm(h);
-        const baseMonto = (h.deuda_mmv || 0) * 57 * tasaActualUse;
-        const ivaLocal = esRes ? 0 : baseMonto * 0.16;
+        const baseMonto = parseFloat(calcularMensualidad(h, tasaActualUse).toFixed(2));
+        const ivaLocal = esRes ? 0 : parseFloat((baseMonto * 0.16).toFixed(2));
         const mesesMora = parseInt(h.meses_deuda || '1');
-        const multaLocal = mesesMora > 1 ? baseMonto * (esRes ? 0.10 : 0.12) : 0;
+        const multaLocal = mesesMora > 0 ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
         total += (baseMonto + ivaLocal + multaLocal);
         sb += baseMonto;
         siva += ivaLocal;
@@ -563,15 +572,8 @@ export default function CajaPage() {
         const inm = inmueblesMap.get(parts[2]);
         if (inm) {
           const esRes = isResidencialInm(inm);
-          const meses = Math.max(1, parseInt(String(inm.meses_deuda || 1)));
-          const deudaMMV = parseFloat(String(inm.deuda_mmv || 0));
-
-          let bm = 0;
-          if (deudaMMV > 0) {
-            bm = parseFloat(((deudaMMV * 57 * tasaActualUse) / meses).toFixed(2));
-          } else {
-            bm = parseFloat(calcularMensualidad(inm, tasaActualUse).toFixed(2));
-          }
+          // Tarifa mensual fija según Ordenanza (coincide exactamente con Tarifas / Ordenanzas)
+          const bm = parseFloat(calcularMensualidad(inm, tasaActualUse).toFixed(2));
 
           sb += bm;
           // RESIDENCIAL ESTRICTAMENTE EXENTO DE IVA (0%)
@@ -582,11 +584,9 @@ export default function CajaPage() {
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
 
-          const multaTotalBD = parseFloat(String(inm.multa_bs || 0));
-          if (multaTotalBD > 0) {
-            if (monthsDiff > 1) smulta += parseFloat((multaTotalBD / (meses > 1 ? meses - 1 : 1)).toFixed(2));
-          } else {
-            if (monthsDiff > 1) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
+          // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base
+          if (monthsDiff > 0) {
+            smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
           }
         }
       } else if (ref.startsWith('CM-')) {
@@ -604,7 +604,7 @@ export default function CajaPage() {
           const emision = f?.emision ? new Date(f.emision) : new Date();
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-          if (monthsDiff > 1) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
+          if (monthsDiff > 0) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
         });
       } else {
         const f = recibosMap.get(ref);
@@ -952,10 +952,14 @@ export default function CajaPage() {
             (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
           );
           for (const inm of userInmsClean) {
-            // Si hay RECIB-HIST de este inmueble específico o RECIB-DEUDA, limpiar deuda
-            const esteInm = histRefs.some(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
-            if (selectedRecibos.includes('RECIB-DEUDA') || esteInm) {
+            // Si hay RECIB-HIST de este inmueble específico o RECIB-DEUDA, actualizar o limpiar deuda
+            const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
+            const numMesesInm = parseInt(String(inm.meses_deuda || 1));
+            if (selectedRecibos.includes('RECIB-DEUDA') || (histRefsThisInm.length >= numMesesInm)) {
               await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', inm.id);
+            } else if (histRefsThisInm.length > 0) {
+              const currentMeses = Math.max(0, numMesesInm - histRefsThisInm.length);
+              await supabase.from('inmuebles').update({ meses_deuda: currentMeses }).eq('id', inm.id);
             }
           }
         }
@@ -1045,7 +1049,25 @@ export default function CajaPage() {
                       conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Multa (${porcentajeMulta})`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
                     }
                   } else {
-                     conceptosGrupo.push({ descripcion: `Deuda Histórica: ${ref}`, precioUnit: 0, total: 0 });
+                    const parts = ref.split('-');
+                    const inmId = parts[2];
+                    const inm = userInmsRec.find((i: any) => i.inmueble === inmId) || inmuebles.find((i: any) => i.inmueble === inmId) || primerInm;
+                    const esRes = isResidencialInm(inm);
+                    const bm = parseFloat(calcularMensualidad(inm, currentBcvRate).toFixed(2));
+                    const f = recibos.find((r: any) => r.referencia === ref);
+                    const emision = f?.emision ? new Date(f.emision) : new Date();
+                    const today = new Date();
+                    const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+                    const multa = monthsDiff > 0 ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                    const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+                    const mesNum = parts[3]?.replace('M', '') || '1';
+                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Base Imponible`, precioUnit: bm, total: bm });
+                    if (iva > 0) {
+                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - IVA (16%)`, precioUnit: iva, total: iva });
+                    }
+                    if (multa > 0) {
+                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Multa (${esRes ? '10%' : '12%'})`, precioUnit: multa, total: multa });
+                    }
                   }
                 } else {
                   const f = recibos.find((r: any) => r.referencia === ref);
@@ -2386,11 +2408,11 @@ export default function CajaPage() {
                         <td className="text-right py-2 px-3 align-top pt-2.5 text-emerald-700 font-bold whitespace-nowrap">
                           {(() => {
                             const currentTasa = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
-                            const base = (hijo.deuda_mmv || 0) * 57 * currentTasa;
                             const esRes = isResidencialInm(hijo);
-                            const ivaLocal = esRes ? 0 : base * 0.16;
+                            const base = parseFloat(calcularMensualidad(hijo, currentTasa).toFixed(2));
+                            const ivaLocal = esRes ? 0 : parseFloat((base * 0.16).toFixed(2));
                             const mesesMora = parseInt(hijo.meses_deuda || '1');
-                            const multaLocal = mesesMora > 1 ? base * (esRes ? 0.10 : 0.12) : 0;
+                            const multaLocal = mesesMora > 0 ? parseFloat((base * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                             return formatBs(base + ivaLocal + multaLocal);
                           })()}
                         </td>

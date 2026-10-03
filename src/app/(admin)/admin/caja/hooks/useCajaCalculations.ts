@@ -66,16 +66,8 @@ export function useCajaCalculations({
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
         const esRes = isResidencialInm(inm);
-        const meses = Math.max(1, parseInt(String(inm.meses_deuda || 1)));
-        const deudaMMV = parseFloat(String(inm.deuda_mmv || 0));
-
-        let baseMonto = 0;
-        if (deudaMMV > 0) {
-          // Deuda real sincronizada de BD distribuida equitativamente entre los meses
-          baseMonto = parseFloat(((deudaMMV * 57 * tasaActual) / meses).toFixed(2));
-        } else {
-          baseMonto = parseFloat(calcularMensualidad(inm, tasaActual).toFixed(2));
-        }
+        // Tarifa mensual según Ordenanza (coincide exactamente con Tarifas / Ordenanzas)
+        const baseMonto = parseFloat(calcularMensualidad(inm, tasaActual).toFixed(2));
 
         // TODO LO RESIDENCIAL ES ESTRICTAMENTE EXENTO DE IVA (0% IVA)
         const montoIVA = esRes ? 0 : parseFloat((baseMonto * 0.16).toFixed(2));
@@ -86,16 +78,8 @@ export function useCajaCalculations({
           (today.getFullYear() - emision.getFullYear()) * 12 +
           (today.getMonth() - emision.getMonth());
 
-        let montoMulta = 0;
-        const multaTotalBD = parseFloat(String(inm.multa_bs || 0));
-        if (multaTotalBD > 0) {
-          // Distribuir multa real de BD en los meses con mora (>1)
-          montoMulta = monthsDiff > 1
-            ? parseFloat((multaTotalBD / (meses > 1 ? meses - 1 : 1)).toFixed(2))
-            : 0;
-        } else {
-          montoMulta = monthsDiff > 1 ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
-        }
+        // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base imponible
+        const montoMulta = monthsDiff > 0 ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
 
         const totalMes = parseFloat((baseMonto + montoIVA + montoMulta).toFixed(2));
         const montoPendiente = _calcularMontoPendienteEnVuelo(r.referencia, pagosPendientes);
@@ -125,7 +109,7 @@ export function useCajaCalculations({
         const monthsDiff =
           (today.getFullYear() - emision.getFullYear()) * 12 +
           (today.getMonth() - emision.getMonth());
-        const multaLocal = monthsDiff > 1 ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        const multaLocal = monthsDiff > 0 ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
         const ivaLocal = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
         totalConIva += bm + ivaLocal + multaLocal;
       });
