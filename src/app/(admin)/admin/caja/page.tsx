@@ -897,7 +897,7 @@ export default function CajaPage() {
           : (condominioModo === 'Total' ? condominioHijos : []);
 
         hijosToSum.forEach(h => {
-          const debtInfo = getHijoDebt(h, condominioModo === 'Total' ? Math.max(1, parseInt(h.meses_deuda || '1')) : undefined);
+          const debtInfo = getHijoDebt(h, condominioModo === 'Total' ? Math.max(0, parseInt(h.meses_deuda ?? '0')) : undefined);
           total += debtInfo.total;
           sb += debtInfo.base;
           siva += debtInfo.iva;
@@ -2195,14 +2195,24 @@ export default function CajaPage() {
                       {filteredClusters.map((cluster, cIdx) => {
                         const hasMultiple = cluster.inms.length > 1;
 
-                        // Recibos de todo el cluster
+                        // ¿Es un cluster residencial (condominio o conjunto) o un local comercial?
+                        const isResCluster = isCondominio ||
+                                             (foundUser?.Clasificacion || '').toLowerCase().includes('condominio') ||
+                                             (foundUser?.Tipo || '').toUpperCase().includes('RESIDENCIAL') ||
+                                             cluster.inms.filter((i: any) => (i.actividad_principal || '').toUpperCase() !== 'N/A').every((i: any) => isResidencialInm(i));
+
+                        // Recibos y IDs de todo el cluster
                         const clusterInmCodes = cluster.inms.map((i: any) => i.inmueble);
+                        const clusterInmIds = cluster.inms.map((i: any) => i.id).filter(Boolean);
                         const clusterRecibos = recibos.filter((r: any) => {
                           if (r.referencia?.startsWith('RECIB-HIST-')) return clusterInmCodes.includes(r.referencia.split('-')[2]);
                           if (r.referencia?.startsWith('CM-')) return clusterInmCodes.some((code: string) => r.referencia.includes(code));
                           return false;
                         });
-                        const isAllClusterSelected = clusterRecibos.length > 0 && clusterRecibos.every((r: any) => selectedRecibos.includes(r.referencia));
+
+                        const isAllClusterSelected = isResCluster
+                          ? (clusterInmIds.length > 0 && clusterInmIds.every((id: string) => selectedHijos.includes(id)))
+                          : (clusterRecibos.length > 0 && clusterRecibos.every((r: any) => selectedRecibos.includes(r.referencia)));
 
                         // Cálculo de tarifas de cada actividad dentro del cluster
                         let totalClusterUCD = 0;
@@ -2231,7 +2241,11 @@ export default function CajaPage() {
                             if (r.referencia?.startsWith('CM-')) return r.referencia.includes(inm.inmueble);
                             return false;
                           });
-                          const isActSelected = inmRecibos.length > 0 && inmRecibos.every((r: any) => selectedRecibos.includes(r.referencia));
+
+                          const isActSelected = isResCluster
+                            ? (inm.id ? selectedHijos.includes(inm.id) : false)
+                            : (inmRecibos.length > 0 && inmRecibos.every((r: any) => selectedRecibos.includes(r.referencia)));
+
                           if (isActSelected) {
                             selectedActivitiesCount++;
                           }
@@ -2248,12 +2262,6 @@ export default function CajaPage() {
                             isActSelected
                           };
                         });
-
-                        // ¿Es un cluster residencial (condominio o conjunto) o un local comercial?
-                        const isResCluster = isCondominio ||
-                                             (foundUser?.Clasificacion || '').toLowerCase().includes('condominio') ||
-                                             (foundUser?.Tipo || '').toUpperCase().includes('RESIDENCIAL') ||
-                                             cluster.inms.filter((i: any) => (i.actividad_principal || '').toUpperCase() !== 'N/A').every((i: any) => isResidencialInm(i));
 
                         // ¿Están las actividades de este local unificadas?
                         const isUnifiedSelected = hasMultiple && selectedActivitiesCount > 1;
@@ -2302,12 +2310,21 @@ export default function CajaPage() {
                                     type="checkbox"
                                     checked={isAllClusterSelected}
                                     onChange={(e) => {
-                                      const allClusterRefs = clusterRecibos.map((r: any) => r.referencia);
-                                      const otherSelected = selectedRecibos.filter((ref: string) => !allClusterRefs.includes(ref));
-                                      if (e.target.checked) {
-                                        setSelectedRecibos([...otherSelected, ...allClusterRefs]);
+                                      if (isResCluster) {
+                                        if (e.target.checked) {
+                                          setSelectedHijos(Array.from(new Set([...selectedHijos, ...clusterInmIds])));
+                                          setCondominioModo('Local');
+                                        } else {
+                                          setSelectedHijos(selectedHijos.filter(id => !clusterInmIds.includes(id)));
+                                        }
                                       } else {
-                                        setSelectedRecibos(otherSelected);
+                                        const allClusterRefs = clusterRecibos.map((r: any) => r.referencia);
+                                        const otherSelected = selectedRecibos.filter((ref: string) => !allClusterRefs.includes(ref));
+                                        if (e.target.checked) {
+                                          setSelectedRecibos([...otherSelected, ...allClusterRefs]);
+                                        } else {
+                                          setSelectedRecibos(otherSelected);
+                                        }
                                       }
                                     }}
                                     className="w-3.5 h-3.5 text-emerald-600 rounded border-white focus:ring-emerald-500"
@@ -2325,10 +2342,19 @@ export default function CajaPage() {
                                         type="checkbox"
                                         checked={isAllClusterSelected || isActSelected}
                                         onChange={(e) => {
-                                          const allClusterRefs = clusterRecibos.map((r: any) => r.referencia);
-                                          const otherSelected = selectedRecibos.filter((ref: string) => !allClusterRefs.includes(ref));
-                                          if (e.target.checked) setSelectedRecibos([...otherSelected, ...allClusterRefs]);
-                                          else setSelectedRecibos(otherSelected);
+                                          if (isResCluster) {
+                                            if (e.target.checked) {
+                                              if (inm.id) setSelectedHijos(Array.from(new Set([...selectedHijos, inm.id])));
+                                              setCondominioModo('Local');
+                                            } else {
+                                              setSelectedHijos(selectedHijos.filter(id => id !== inm.id));
+                                            }
+                                          } else {
+                                            const allClusterRefs = clusterRecibos.map((r: any) => r.referencia);
+                                            const otherSelected = selectedRecibos.filter((ref: string) => !allClusterRefs.includes(ref));
+                                            if (e.target.checked) setSelectedRecibos([...otherSelected, ...allClusterRefs]);
+                                            else setSelectedRecibos(otherSelected);
+                                          }
                                         }}
                                         className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
                                       />
@@ -2384,16 +2410,25 @@ export default function CajaPage() {
                                 Inmueble {inm.inmueble || 'General'} ({cant} und) - <span className={esRes ? "text-emerald-700 font-bold" : "text-blue-700 font-bold"}>{esRes ? "RESIDENCIAL (Exento 0% IVA)" : "COMERCIAL (16% IVA)"}</span>:
                                 {clustersList.length > 1 && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Inmueble Independiente</span>}
                               </span>
-                              {inmRecibos.length > 0 && (
+                              {(inmRecibos.length > 0 || esRes) && (
                                 <label className="flex items-center gap-1 cursor-pointer text-[9px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-1.5 py-0.5 rounded transition-colors">
                                   <input 
                                     type="checkbox"
                                     checked={isActSelected}
                                     onChange={(e) => {
-                                      const selectableRefs = inmRecibos.map((r: any) => r.referencia);
-                                      const otherSelected = selectedRecibos.filter((ref: string) => !selectableRefs.includes(ref));
-                                      if (e.target.checked) setSelectedRecibos([...otherSelected, ...selectableRefs]);
-                                      else setSelectedRecibos(otherSelected);
+                                      if (esRes) {
+                                        if (e.target.checked) {
+                                          if (inm.id) setSelectedHijos(Array.from(new Set([...selectedHijos, inm.id])));
+                                          setCondominioModo('Local');
+                                        } else {
+                                          setSelectedHijos(selectedHijos.filter(id => id !== inm.id));
+                                        }
+                                      } else {
+                                        const selectableRefs = inmRecibos.map((r: any) => r.referencia);
+                                        const otherSelected = selectedRecibos.filter((ref: string) => !selectableRefs.includes(ref));
+                                        if (e.target.checked) setSelectedRecibos([...otherSelected, ...selectableRefs]);
+                                        else setSelectedRecibos(otherSelected);
+                                      }
                                     }}
                                     className="w-2.5 h-2.5 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
                                   />
