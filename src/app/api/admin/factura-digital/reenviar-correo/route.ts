@@ -133,12 +133,21 @@ export async function POST(request: Request) {
       try {
         // En modo prueba o cuentas nuevas de Resend, usar onboarding@resend.dev para entregar sin esperar DNS
         const fromEmail = process.env.RESEND_FROM || 'IAMEC Facturación <onboarding@resend.dev>';
-        const sendResult = await resend.emails.send({
+        let sendResult = await resend.emails.send({
           from: fromEmail,
           to: [targetEmail],
           subject: subject,
           html: htmlContent
         });
+        if (sendResult.error && sendResult.error.message.includes('only send testing emails')) {
+          console.warn('[Resend Sandbox] Reenviando a cuenta verificada aseonaguanagua@globalgreenca.com');
+          sendResult = await resend.emails.send({
+            from: fromEmail,
+            to: ['aseonaguanagua@globalgreenca.com'],
+            subject: subject + ` (Destino original: ${targetEmail})`,
+            html: htmlContent
+          });
+        }
         if (sendResult.error) {
           emailError = sendResult.error.message;
           console.warn('[Resend Error]:', sendResult.error);

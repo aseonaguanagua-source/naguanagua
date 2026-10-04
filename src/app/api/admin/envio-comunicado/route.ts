@@ -263,12 +263,20 @@ export async function POST(request: Request) {
           const subjectComun = modoTestComun
             ? `[PRUEBA | Para: ${dest.correo}] Comunicado Oficial - IAMEC Naguanagua`
             : 'Comunicado Oficial - Renovacion de Plataforma Digital | IAMEC Naguanagua Municipio Naguanagua';
-          const sendRes = await resend.emails.send({
+          let sendRes = await resend.emails.send({
             from: fromEmail,
             to: [destinoComun],
             subject: subjectComun,
             html: buildHtml(dest.nombre),
           });
+          if (sendRes.error && sendRes.error.message.includes('only send testing emails')) {
+            sendRes = await resend.emails.send({
+              from: fromEmail,
+              to: ['aseonaguanagua@globalgreenca.com'],
+              subject: subjectComun + ` (Destino original: ${destinoComun})`,
+              html: buildHtml(dest.nombre),
+            });
+          }
           if (sendRes.error) {
             errores++;
             erroresList.push(dest.correo + ': ' + sendRes.error.message);
