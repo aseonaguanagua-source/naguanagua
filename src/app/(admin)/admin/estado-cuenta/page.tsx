@@ -652,7 +652,7 @@ export default function EstadoCuentaPage() {
       fechaEmision: new Date().toISOString().split('T')[0],
       codContribuyente: 'V-12345678',
       razonSocial: 'CONTRIBUYENTE DE PRUEBA (6 MESES)',
-      domicilioFiscal: "ZONA TUCACAS (SECTOR NO ESPECIFICADO)",
+      domicilioFiscal: "NAGUANAGUA, CARABOBO",
       rifCi: 'V-12345678',
       caja: "F-OMAR",
       conceptos: conceptos,

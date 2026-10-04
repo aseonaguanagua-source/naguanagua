@@ -5,22 +5,22 @@ import { Truck, Map, Edit, Check, X, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 const RUTAS_POR_DEFECTO = [
-  { id: 'LUN-1', nombre: 'Ruta #1', frecuencia: 'Lunes', sectores: 'Casco Central, Av. Silva, Iglesia, La Quinta. El Cañito y Marinas.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'LUN-2', nombre: 'Ruta #2', frecuencia: 'Lunes', sectores: 'Av. Libertador, Av. Hugo Chávez y Calles de Servicio.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'LUN-3', nombre: 'Ruta #3', frecuencia: 'Lunes', sectores: 'Carretera 1; Puente Izate Hasta el Elevado, Brisas del Mar, Km 60, Luxor (ambos sentidos).', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'MAR-1', nombre: 'Ruta #1', frecuencia: 'Martes', sectores: 'Boca de Aroa, Parque Jurásico, Carretera Nacional, Los Corales, Caribean al Elevado.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'MAR-2', nombre: 'Ruta #2', frecuencia: 'Martes', sectores: 'Las Delicias de Boca de Aroa (Todos los sectores).', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'MAR-3', nombre: 'Ruta #3', frecuencia: 'Martes', sectores: 'Granja El Tuque I.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'MIE-1', nombre: 'Ruta #1', frecuencia: 'Miércoles', sectores: 'Sanare y Buena Vista.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'MIE-2', nombre: 'Ruta #2', frecuencia: 'Miércoles', sectores: 'Morrocoy, Agua Salabra.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'MIE-3', nombre: 'Ruta #3', frecuencia: 'Miércoles', sectores: 'Av. Libertador y Calles de Servicio.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'JUE-1', nombre: 'Ruta #1', frecuencia: 'Jueves', sectores: 'Izate, Brisas del Mar 2, Federico Eeckhout (Naguanagua).', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'JUE-2', nombre: 'Ruta #2', frecuencia: 'Jueves', sectores: 'Ali Primera, Santa Rosa, 8 de Diciembre, Tucanica (Naguanagua).', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'JUE-3', nombre: 'Ruta #3', frecuencia: 'Jueves', sectores: 'Las Lapas, Felipito y Santa Bárbara.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'VIE-1', nombre: 'Ruta #1', frecuencia: 'Viernes', sectores: 'Pescadores, El tuque II, El Calvario, Altos de Nueva Naguanagua, José Laurencio Silva, Km3 (Naguanagua).', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'VIE-2', nombre: 'Ruta #2', frecuencia: 'Viernes', sectores: 'Coco Mango, Puerto Flechado, El Esfuerzo (Naguanagua).', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'SAB-1', nombre: 'Ruta #1', frecuencia: 'Sábado', sectores: 'Av. Libertador de Naguanagua, Av. Hugo Chavez y Calles de Servicio.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
-  { id: 'SAB-2', nombre: 'Ruta #2', frecuencia: 'Sábado', sectores: 'Carretera Boca de Aroa hasta Naguanagua.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' }
+  { id: 'LUN-1', nombre: 'Ruta #1', frecuencia: 'Lunes', sectores: 'Casco Central de Naguanagua, Av. Universidad, Calle Puerto Cabello, La Begoña.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'LUN-2', nombre: 'Ruta #2', frecuencia: 'Lunes', sectores: 'Urb. La Granja, Av. Salvador Feo La Cruz, C.C. La Granja, C.C. Cristal.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'LUN-3', nombre: 'Ruta #3', frecuencia: 'Lunes', sectores: 'Urb. Las Quintas (I, II y III), Capremco, Av. Valencia, Guayabal.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'MAR-1', nombre: 'Ruta #1', frecuencia: 'Martes', sectores: 'Urb. Mañongo, Palma Real, Piedras Pintadas, C.C. Sambil Naguanagua.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'MAR-2', nombre: 'Ruta #2', frecuencia: 'Martes', sectores: 'Tazajal, Los Guayabitos, Rotaria, Altos de Guere.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'MAR-3', nombre: 'Ruta #3', frecuencia: 'Martes', sectores: 'Tarapío, Brisas de Tarapío, San Teodoro, Barrio Unión.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'MIE-1', nombre: 'Ruta #1', frecuencia: 'Miércoles', sectores: 'Vivienda Rural de Bárbula, Colinas de Girardot, Guere.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'MIE-2', nombre: 'Ruta #2', frecuencia: 'Miércoles', sectores: 'Nueva Esparta, Santa Eduviges, Fundación Carabobo.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'MIE-3', nombre: 'Ruta #3', frecuencia: 'Miércoles', sectores: 'Av. Universidad Norte, Arco de Bárbula, Redoma de Guaparo.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'JUE-1', nombre: 'Ruta #1', frecuencia: 'Jueves', sectores: 'El Rincón, Los Mangos, Los Samanes, Sector El Salto.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'JUE-2', nombre: 'Ruta #2', frecuencia: 'Jueves', sectores: 'Carialinda, Lomas del Este Naguanagua, Monte Sión.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'JUE-3', nombre: 'Ruta #3', frecuencia: 'Jueves', sectores: 'La Entrada, Las Marías, Sector Girardot.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'VIE-1', nombre: 'Ruta #1', frecuencia: 'Viernes', sectores: 'Trincheras (Centro, Las Rosas, El Salto, Sector Termas).', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'VIE-2', nombre: 'Ruta #2', frecuencia: 'Viernes', sectores: 'Corredor Comercial Av. Universidad y Casco Histórico.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'SAB-1', nombre: 'Ruta #1', frecuencia: 'Sábado', sectores: 'Grandes Generadores Comerciales, Av. Feo La Cruz y C.C. Vía Veneto.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' },
+  { id: 'SAB-2', nombre: 'Ruta #2', frecuencia: 'Sábado', sectores: 'Operativo Especial de Mantenimiento y Aseo General Naguanagua.', chofer: 'Sin Asignar', vehiculo: 'N/A', estado: 'Activa' }
 ];
 
 export default function RutasCamionesPage() {

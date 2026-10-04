@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('trabajadores')
-      .select('id, usuario, clave, nombre, rol, letra, estado')
+      .select('id, usuario, clave, nombre, rol, letra, estado, permisos')
       .eq('usuario', username.trim())
       .eq('estado', 'Activo')
       .single();
@@ -77,6 +77,7 @@ export async function POST(request: Request) {
       nombre: data.nombre,
       rol: data.rol,
       letra: data.letra || '',
+      permisos: data.permisos || {},
     });
 
     response.headers.set('Set-Cookie', cookieValue);

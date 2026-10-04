@@ -134,7 +134,7 @@ export default async function AdminHome() {
             </div>
             <div className="rounded-lg border border-slate-200 overflow-hidden" style={{ height: '300px' }}>
               <MapWrapper 
-                position={{ lat: 10.795, lng: -68.318 }} 
+                position={{ lat: 10.2544, lng: -68.0116 }} 
                 readOnly={true} 
               />
             </div>
@@ -151,9 +151,9 @@ export default async function AdminHome() {
               <li className="flex items-start gap-3 text-sm text-slate-600">
                 <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
                 <div>
-                  Ordenanza Sobre la Gestión y Prestación del Servicio de Manejo integral de Residuos y Desechos Sólidos del Municipio.
-                  <a href="https://aseonaguanagua.sirid.net/ordenanza.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
-                    Clic aquí para Descargar
+                  Ordenanza Sobre la Gestión y Prestación del Servicio de Manejo integral de Residuos y Desechos Sólidos del Municipio Naguanagua.
+                  <a href="/admin/tarifas" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
+                    Consultar Ordenanza
                   </a>
                 </div>
               </li>
@@ -161,8 +161,8 @@ export default async function AdminHome() {
                 <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
                 <div>
                   Gaceta Municipal 19. Exoneración del 100% en multas, recargos e intereses correspondientes a los años 2024 y 2025.
-                  <a href="https://aseonaguanagua.sirid.net/gaceta_municipal.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
-                    Clic aquí para Descargar
+                  <a href="/admin/tarifas" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
+                    Ver Gaceta en Tarifas
                   </a>
                 </div>
               </li>
@@ -170,8 +170,8 @@ export default async function AdminHome() {
                 <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
                 <div>
                   Gaceta Municipal 23. Plan de Saneamiento y Regularización de Deudas para Conjuntos Residenciales (50% desc. capital).
-                  <a href="https://aseonaguanagua.sirid.net/gaceta23.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
-                    Clic aquí para Descargar
+                  <a href="/admin/tarifas" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
+                    Ver Gaceta en Tarifas
                   </a>
                 </div>
               </li>
@@ -179,8 +179,8 @@ export default async function AdminHome() {
                 <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
                 <div>
                   Gaceta Municipal 31. Plan de Saneamiento y Regularización de Deudas para Comercios e Industrias.
-                  <a href="https://aseonaguanagua.sirid.net/gaceta31.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
-                    Clic aquí para Descargar
+                  <a href="/admin/tarifas" className="text-blue-600 hover:underline ml-1 inline-flex items-center gap-1">
+                    Ver Gaceta en Tarifas
                   </a>
                 </div>
               </li>

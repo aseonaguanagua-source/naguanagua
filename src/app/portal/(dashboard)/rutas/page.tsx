@@ -9,47 +9,47 @@ export default function RutasPage() {
     { 
       dia: 'Lunes', 
       rutas: [
-        { id: 'Ruta #1', sectores: 'Casco Central, Av. Silva, Iglesia, La Quinta. El Cañito y Marinas.' },
-        { id: 'Ruta #2', sectores: 'Av. Libertador, Av. Hugo Chávez y Calles de Servicio.' },
-        { id: 'Ruta #3', sectores: 'Carretera 1; Puente Izate Hasta el Elevado, Brisas del Mar, Km 60, Luxor (ambos sentidos).' }
+        { id: 'Ruta #1', sectores: 'Casco Central de Naguanagua, Av. Universidad, Calle Puerto Cabello, La Begoña.' },
+        { id: 'Ruta #2', sectores: 'Urb. La Granja, Av. Salvador Feo La Cruz, C.C. La Granja, C.C. Cristal.' },
+        { id: 'Ruta #3', sectores: 'Urb. Las Quintas (I, II y III), Capremco, Av. Valencia, Guayabal.' }
       ]
     },
     {
       dia: 'Martes',
       rutas: [
-        { id: 'Ruta #1', sectores: 'Boca de Aroa, Parque Jurásico, Carretera Nacional, Los Corales, Caribean al Elevado.' },
-        { id: 'Ruta #2', sectores: 'Las Delicias de Boca de Aroa (Todos los sectores).' },
-        { id: 'Ruta #3', sectores: 'Granja El Tuque I.' }
+        { id: 'Ruta #1', sectores: 'Urb. Mañongo, Palma Real, Piedras Pintadas, C.C. Sambil Naguanagua.' },
+        { id: 'Ruta #2', sectores: 'Tazajal, Los Guayabitos, Rotaria, Altos de Guere.' },
+        { id: 'Ruta #3', sectores: 'Tarapío, Brisas de Tarapío, San Teodoro, Barrio Unión.' }
       ]
     },
     {
       dia: 'Miércoles',
       rutas: [
-        { id: 'Ruta #1', sectores: 'Sanare y Buena Vista.' },
-        { id: 'Ruta #2', sectores: 'Morrocoy, Agua Salabra.' },
-        { id: 'Ruta #3', sectores: 'Av. Libertador y Calles de Servicio.' }
+        { id: 'Ruta #1', sectores: 'Vivienda Rural de Bárbula, Colinas de Girardot, Guere.' },
+        { id: 'Ruta #2', sectores: 'Nueva Esparta, Santa Eduviges, Fundación Carabobo.' },
+        { id: 'Ruta #3', sectores: 'Av. Universidad Norte, Arco de Bárbula, Redoma de Guaparo.' }
       ]
     },
     {
       dia: 'Jueves',
       rutas: [
-        { id: 'Ruta #1', sectores: 'Izate, Brisas del Mar 2, Federico Eeckhout (Naguanagua).' },
-        { id: 'Ruta #2', sectores: 'Ali Primera, Santa Rosa, 8 de Diciembre, Tucanica (Naguanagua).' },
-        { id: 'Ruta #3', sectores: 'Las Lapas, Felipito y Santa Bárbara.' }
+        { id: 'Ruta #1', sectores: 'El Rincón, Los Mangos, Los Samanes, Sector El Salto.' },
+        { id: 'Ruta #2', sectores: 'Carialinda, Lomas del Este Naguanagua, Monte Sión.' },
+        { id: 'Ruta #3', sectores: 'La Entrada, Las Marías, Sector Girardot.' }
       ]
     },
     {
       dia: 'Viernes',
       rutas: [
-        { id: 'Ruta #1', sectores: 'Pescadores, El tuque II, El Calvario, Altos de Nueva Naguanagua, José Laurencio Silva, Km3 (Naguanagua).' },
-        { id: 'Ruta #2', sectores: 'Coco Mango, Puerto Flechado, El Esfuerzo (Naguanagua).' }
+        { id: 'Ruta #1', sectores: 'Trincheras (Centro, Las Rosas, El Salto, Sector Termas).' },
+        { id: 'Ruta #2', sectores: 'Corredor Comercial Av. Universidad y Casco Histórico.' }
       ]
     },
     {
       dia: 'Sábado',
       rutas: [
-        { id: 'Ruta #1', sectores: 'Av. Libertador de Naguanagua, Av. Hugo Chavez y Calles de Servicio.' },
-        { id: 'Ruta #2', sectores: 'Carretera Boca de Aroa hasta Naguanagua.' }
+        { id: 'Ruta #1', sectores: 'Grandes Generadores Comerciales, Av. Feo La Cruz y C.C. Vía Veneto.' },
+        { id: 'Ruta #2', sectores: 'Operativo Especial de Mantenimiento y Aseo General Naguanagua.' }
       ]
     }
   ];

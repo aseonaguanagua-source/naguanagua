@@ -37,8 +37,9 @@ function LocationMarker({ position, onLocationSelect, readOnly }: MapPickerProps
 }
 
 export default function MapPicker({ position, onLocationSelect, readOnly }: MapPickerProps) {
-  // Center roughly on Naguanagua, Falcón, Venezuela
-  const defaultCenter = { lat: 10.795, lng: -68.318 };
+  // Coordenadas oficiales de Naguanagua, Estado Carabobo, Venezuela (Casco Central / Av. Universidad)
+  const defaultCenter = { lat: 10.2544, lng: -68.0116 };
+
   
   return (
     <div className="h-[300px] w-full rounded border border-slate-300 overflow-hidden relative z-0 mt-2 mb-4">
