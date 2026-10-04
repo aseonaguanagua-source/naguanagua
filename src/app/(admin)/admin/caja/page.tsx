@@ -4,7 +4,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X, Building2, Store, Receipt, CheckSquare, Square, Filter, ChevronRight, DollarSign, Sparkles, AlertCircle, Coins } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
-import { formatBs } from '@/lib/formatCurrency';
+import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear } from '@/lib/formatCurrency';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, getFAR, isResidencialInm } from '@/lib/calculos';
@@ -409,24 +409,38 @@ export default function CajaPage() {
             return ui === ii || nakedUi === nakedIi;
           });
       if (combined.length === 0 && misInmuebles && misInmuebles.length > 0) {
-        const hasDeuda = misInmuebles.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
+        // Identificar si existen contenedores "N/A" que solo envuelven actividades nietos/hijos
+        const naParentCodes = misInmuebles
+          .filter((i: any) => 
+            (i.actividad_principal || '').trim().toUpperCase() === 'N/A' && 
+            (parseInt(i.cant_inmuebles || '0') > 0 || misInmuebles.some((c: any) => c.condominio_padre_id === i.inmueble))
+          )
+          .map((i: any) => i.inmueble);
+
+        // Los inmuebles cobrables son las actividades reales (excluyendo contenedores N/A)
+        const billableInms = misInmuebles.filter((i: any) => !naParentCodes.includes(i.inmueble));
+
+        const hasDeuda = billableInms.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
         if (hasDeuda && !isCondominio) {
-          misInmuebles.forEach((inm: any) => {
+          const now = new Date();
+          billableInms.forEach((inm: any) => {
             const deudaMMV = parseFloat(inm.deuda_mmv || '0');
             const congelada = parseFloat(inm.deuda_congelada_bs || '0');
             const multa = parseFloat(inm.multa_bs || '0');
             const meses = parseInt(inm.meses_deuda || 1);
             if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
               const numMeses = Math.max(1, meses);
-              // Generar un recibo dummy por cada mes de mora
+              // Generar un recibo dummy por cada mes de mora con fecha uniforme de calendario
               for (let i = 1; i <= numMeses; i++) {
+                const targetDate = new Date(now.getFullYear(), now.getMonth() - numMeses + i - 1, 1, 12, 0, 0);
+                const dateIso = targetDate.toISOString();
                 combined.push({
                   id: `dummy-hist-${inm.inmueble}-${i}`,
                   referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
                   identidad: user.Identidad,
                   contribuyente: user.Contribuyente,
-                  emision: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i - 1)).toISOString(),
-                  vencimiento: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i - 1)).toISOString(),
+                  emision: dateIso,
+                  vencimiento: dateIso,
                   estado: 'Pendiente',
                   monto: '0'
                 });
@@ -527,7 +541,17 @@ export default function CajaPage() {
           hijosData = (hijosById || []).filter((h: any) => !parentCodes.includes(h.inmueble));
         }
 
-        if (hijosData && hijosData.length > 0) {
+        // Un verdadero condominio tiene locales/apartamentos con diferentes contribuyentes/identidades.
+        // Si todos los hijos tienen la misma identidad que el usuario buscado, se trata de un local con múltiples actividades económicas ("nietos"), NO un condominio.
+        const distinctIdentidades = new Set(
+          hijosData
+            .map((h: any) => (h.identidad || '').replace(/^[VEJPG]-?/i, '').trim().toUpperCase())
+            .filter((id: string) => id.length > 0)
+        );
+        const userIdNaked = (user.Identidad || '').replace(/^[VEJPG]-?/i, '').trim().toUpperCase();
+        const esMultiplesActividades = distinctIdentidades.size <= 1 && (distinctIdentidades.has(userIdNaked) || distinctIdentidades.size === 0);
+
+        if (hijosData && hijosData.length > 0 && !esMultiplesActividades) {
           setIsCondominio(true);
           setCondominioHijos(hijosData);
           setSelectedHijos(hijosData.map(h => h.id));
@@ -982,19 +1006,30 @@ export default function CajaPage() {
         // ── TFHKA FACTURACIÓN DIGITAL (antes de limpiar deuda para tener los montos) ──
         if (pagoId) {
           try {
+            // Para condominios, se emite UNA SOLA factura digital al condominio padre, NO a los locales individuales
+            let digitalRecibos = [...selectedRecibos];
+            let digitalMontos = selectedRecibos.reduce((acc: Record<string, number>, ref: string) => {
+              acc[ref] = reciboMontoMap.get(ref) ?? 0;
+              return acc;
+            }, {} as Record<string, number>);
+
+            if (isCondominio) {
+              const refCondo = `CONDO-${foundUser.CodCont || foundUser.cod_cont || 'PADRE'}-${Date.now().toString().slice(-6)}`;
+              digitalRecibos = [refCondo];
+              digitalMontos = { [refCondo]: montoReal };
+            }
+
             const tfhkaRes = await fetch('/api/admin/factura-digital/emitir', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 pagoId: pagoId,
-                recibos: selectedRecibos,
-                montos: selectedRecibos.reduce((acc: Record<string, number>, ref: string) => {
-                  acc[ref] = reciboMontoMap.get(ref) ?? 0;
-                  return acc;
-                }, {} as Record<string, number>),
+                recibos: digitalRecibos,
+                montos: digitalMontos,
                 contribuyente: foundUser.Contribuyente,
                 identidad: foundUser.Identidad,
                 montoTotal: montoReal,
+                isCondominio: isCondominio,
                 formasPago: [
                   { descripcion: paymentMethod, fecha: new Date().toISOString(), forma: paymentMethod === 'Debito' ? '03' : paymentMethod === 'Deposito' ? '05' : '05', banco: banco || undefined, referencia: reqRef ? referencia : referenciaDebito || undefined, monto: montoReal }
                 ]
@@ -1669,7 +1704,23 @@ export default function CajaPage() {
                   + Agregar Saldo a Favor / Nota Manual
                 </button>
               </div>
-              <p className="text-sm text-slate-500">{foundUser.Identidad} | Cód: {foundUser.cod_cont}</p>
+              <div className="flex items-center gap-2 text-sm text-slate-500 flex-wrap mt-0.5">
+                <span className="font-semibold text-slate-700">{foundUser.Identidad}</span>
+                <span>•</span>
+                <span>Cód: {foundUser.cod_cont}</span>
+                {foundUser.Telefono && formatPhoneNumber(foundUser.Telefono) && (
+                  <>
+                    <span>•</span>
+                    <span className="text-slate-700 font-medium">📞 {formatPhoneNumber(foundUser.Telefono)}</span>
+                  </>
+                )}
+                {foundUser.Correo && !isFictitiousEmail(foundUser.Correo) && (
+                  <>
+                    <span>•</span>
+                    <span className="text-slate-700 font-medium">✉️ {foundUser.Correo}</span>
+                  </>
+                )}
+              </div>
               <div className="mt-2 text-xs bg-slate-100 text-slate-600 px-3 py-2 rounded border border-slate-200 w-full max-h-[400px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2 sticky top-0 bg-slate-100 z-10 py-1">
                   <span className="font-bold">Fórmula Aplicada:</span>
@@ -2253,100 +2304,147 @@ export default function CajaPage() {
                           if (userInms.length === 1) { inmId = String(userInms[0].inmueble || ''); tipo = String(userInms[0].tipo || userInms[0].clasificacion || ''); act = String(userInms[0].actividad_principal || ''); dir = String(userInms[0].direccion || ''); }
                         }
                         
-                        // Agrupar actividades "N/A" por mes para usuarios con múltiples actividades
-                        const isNA = userInms.some((i: any) => (i.actividad_principal || '').toLowerCase().includes('n/a'));
-                        const hasMultiple = userInms.length > 1;
+                        // Extraer clave uniforme de mes YYYY-MM a partir de r.emision
+                        let monthKey = '';
+                        if (r.emision) {
+                          const d = new Date(r.emision);
+                          if (!isNaN(d.getTime())) {
+                            monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                          } else {
+                            monthKey = String(r.emision).slice(0, 7);
+                          }
+                        }
+
+                        // Contar actividades económicas válidas (distintas a 'N/A')
+                        const billableUserInms = userInms.filter((i: any) => (i.actividad_principal || '').toUpperCase() !== 'N/A');
+                        const isMultiAct = billableUserInms.length > 1;
+
                         let groupId = `${inmId}|${tipo}|${act}`;
                         let isVirtualMonth = false;
-                        if (isNA && hasMultiple) {
-                          groupId = r.emision || 'Sin fecha';
+                        if (isMultiAct && monthKey) {
+                          groupId = `MES-${monthKey}`;
                           isVirtualMonth = true;
                         }
 
                         if (!acc[groupId]) {
                           acc[groupId] = { 
                             items: [], 
-                            id: isVirtualMonth ? 'Varias Actividades' : inmId, 
-                            tipo: isVirtualMonth ? 'Múltiples' : tipo, 
-                            act: isVirtualMonth ? 'N/A' : act, 
+                            id: isVirtualMonth ? formatMonthYear(r.emision) : inmId, 
+                            tipo: isVirtualMonth ? 'Local Comercial' : tipo, 
+                            act: isVirtualMonth ? `${billableUserInms.length} Actividades Económicas` : act, 
                             isVirtualMonth, 
-                            emision: r.emision 
+                            emision: r.emision,
+                            monthKey
                           };
                         }
-                        acc[groupId].items.push({ ...r, _inmId: inmId, _act: act });
+                        acc[groupId].items.push({ ...r, _inmId: inmId, _act: act, _tipo: tipo });
                         return acc;
                       }, {})
-                    ).map(([key, group]: [string, any]) => (
-                      <div key={key} className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                        <div className="bg-slate-100/50 px-3 py-2.5 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{group.isVirtualMonth ? group.emision : group.id}</span>
-                            <span className="text-[10px] text-slate-500 font-semibold">{[group.tipo, group.act].filter(Boolean).join(' • ')}</span>
+                    ).map(([key, group]: [string, any]) => {
+                      const totalMontoGrupo = group.items.reduce((sum: number, r: any) => sum + parseFloat(getReciboMonto(r) || '0'), 0);
+                      const allSelected = group.items.length > 0 && group.items.every((r: any) => selectedRecibos.includes(r.referencia));
+                      const anyPending = group.items.some((r: any) => isItemPending(r.referencia));
+
+                      return (
+                        <div key={key} className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                          <div className="bg-slate-100/50 px-3 py-2.5 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                                {group.isVirtualMonth ? formatMonthYear(group.emision) : group.id}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-semibold">
+                                {group.isVirtualMonth ? `${group.items.length} Actividades Consolidadas` : [group.tipo, group.act].filter(Boolean).join(' • ')}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                                {group.items.length} {group.isVirtualMonth ? 'actividades' : 'recibos'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{group.items.length} recibos</span>
-                          </div>
-                        </div>
-                        <div className="p-1.5 space-y-1">
-                          {group.isVirtualMonth ? (
-                            <label className={`flex items-center justify-between py-1.5 px-2 border rounded transition-colors ${group.items.every((r:any) => selectedRecibos.includes(r.referencia)) ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-400' : group.items.some((r:any) => isItemPending(r.referencia)) ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
-                              <div className="flex items-center gap-3">
-                                <input type="checkbox" 
-                                  checked={group.items.every((r:any) => selectedRecibos.includes(r.referencia))} 
-                                  disabled={group.items.some((r:any) => isItemPending(r.referencia))} 
-                                  onChange={() => {
-                                    const allSelected = group.items.every((r:any) => selectedRecibos.includes(r.referencia));
-                                    if (allSelected) {
-                                      group.items.forEach((r:any) => { if (selectedRecibos.includes(r.referencia)) toggleRecibo(r.referencia); });
-                                    } else {
-                                      group.items.forEach((r:any) => { if (!selectedRecibos.includes(r.referencia)) toggleRecibo(r.referencia); });
-                                    }
-                                  }}
-                                  className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
-                                />
-                                <div>
-                                  <p className="font-bold text-xs text-slate-700">Mes Consolidado - Todas las Actividades</p>
-                                  <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1 mt-0.5">
-                                    {group.items.length} Recibos incluidos
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span className="font-bold text-emerald-700 text-xs">
-                                  {group.items.some((r:any) => isItemPending(r.referencia)) ? 'En Verificación' : `Bs. ${formatBs(group.items.reduce((sum:number, r:any) => sum + parseFloat(getReciboMonto(r) || '0'), 0))}`}
-                                </span>
-                              </div>
-                            </label>
-                          ) : (
-                            group.items.map((r: any) => (
-                              <label key={r.referencia} className={`flex items-center justify-between py-1.5 px-2 border rounded transition-colors ${selectedRecibos.includes(r.referencia) ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-400' : isItemPending(r.referencia) ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
-                                <div className="flex items-center gap-3">
-                                  <input type="checkbox" checked={selectedRecibos.includes(r.referencia)} disabled={isItemPending(r.referencia)} onChange={() => toggleRecibo(r.referencia)}
-                                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
-                                  />
-                                  <div>
-                                    <p className="font-bold text-xs text-slate-700">{r.referencia}</p>
-                                    <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1 mt-0.5">
-                                      {(() => {
-                                        const M = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-                                        if (!r.emision) return 'Sin fecha';
-                                        const p = r.emision.split('-');
-                                        return p.length >= 2 ? `${M[parseInt(p[1])-1] || p[1]} ${p[0]}` : r.emision;
-                                      })()}
-                                    </p>
+                          <div className="p-2 space-y-1.5">
+                            {group.isVirtualMonth ? (
+                              <div className={`p-2.5 border rounded-lg transition-colors ${allSelected ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-400' : anyPending ? 'bg-slate-50 border-slate-200 opacity-60' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
+                                <div className="flex items-center justify-between">
+                                  <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={allSelected} 
+                                      disabled={anyPending} 
+                                      onChange={() => {
+                                        if (allSelected) {
+                                          group.items.forEach((r: any) => { if (selectedRecibos.includes(r.referencia)) toggleRecibo(r.referencia); });
+                                        } else {
+                                          group.items.forEach((r: any) => { if (!selectedRecibos.includes(r.referencia)) toggleRecibo(r.referencia); });
+                                        }
+                                      }}
+                                      className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                                    />
+                                    <div>
+                                      <p className="font-bold text-xs text-slate-800">
+                                        Mes Completo: {formatMonthYear(group.emision)}
+                                      </p>
+                                      <p className="text-[10px] font-medium text-slate-500">
+                                        Suma unificada del mes por todas las actividades del local ({group.items.length} actividades)
+                                      </p>
+                                    </div>
+                                  </label>
+                                  <div className="text-right pl-4">
+                                    <span className="font-extrabold text-emerald-700 text-sm">
+                                      {anyPending ? 'En Verificación' : `Bs. ${formatBs(totalMontoGrupo)}`}
+                                    </span>
                                   </div>
                                 </div>
-                                <div className="text-right">
-                                  <span className="font-bold text-emerald-700 text-xs">
-                                    {isItemPending(r.referencia) ? 'En Verificación' : `Bs. ${formatBs(parseFloat(getReciboMonto(r) || '0'))}`}
-                                  </span>
+
+                                {/* Desglose detallado de cada actividad comercial para este mes */}
+                                <div className="mt-2.5 pt-2 border-t border-slate-200/60 space-y-1.5 pl-7">
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                    Detalle del mes por actividad económica:
+                                  </div>
+                                  {group.items.map((r: any) => {
+                                    const montoAct = parseFloat(getReciboMonto(r) || '0');
+                                    return (
+                                      <div key={r.referencia} className="flex items-center justify-between text-xs bg-slate-50 border border-slate-100 rounded px-2.5 py-1.5">
+                                        <div className="flex items-center gap-2">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                          <span className="font-semibold text-slate-700">{r._act || 'Actividad Comercial'}</span>
+                                          <span className="text-[10px] font-mono text-slate-400">({r._inmId})</span>
+                                        </div>
+                                        <span className="font-bold text-slate-800 shrink-0">
+                                          Bs. {formatBs(montoAct)}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
-                              </label>
-                            ))
-                          )}
+                              </div>
+                            ) : (
+                              group.items.map((r: any) => (
+                                <label key={r.referencia} className={`flex items-center justify-between py-1.5 px-2 border rounded transition-colors ${selectedRecibos.includes(r.referencia) ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-400' : isItemPending(r.referencia) ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
+                                  <div className="flex items-center gap-3">
+                                    <input type="checkbox" checked={selectedRecibos.includes(r.referencia)} disabled={isItemPending(r.referencia)} onChange={() => toggleRecibo(r.referencia)}
+                                      className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                                    />
+                                    <div>
+                                      <p className="font-bold text-xs text-slate-700">{r.referencia}</p>
+                                      <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1 mt-0.5">
+                                        {formatMonthYear(r.emision)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="font-bold text-emerald-700 text-xs">
+                                      {isItemPending(r.referencia) ? 'En Verificación' : `Bs. ${formatBs(parseFloat(getReciboMonto(r) || '0'))}`}
+                                    </span>
+                                  </div>
+                                </label>
+                              ))
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
+
                   </div>
                 )}
               </div>

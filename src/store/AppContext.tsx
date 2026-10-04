@@ -6,6 +6,7 @@ import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
 import { ordenanzaData } from '@/data/ordenanza';
 import { isResidencialInm } from '@/lib/calculos';
 import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
+import { formatPhoneNumber, isFictitiousEmail } from '@/lib/formatters';
 
 type AppState = {
   inmuebles: any[];
@@ -345,11 +346,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
             clase = row.clasificacion;
           }
 
+          const rawTel = row.contribuyentes?.telefono || row.telefono;
+          const cleanTel = formatPhoneNumber(rawTel);
+          const rawEmail = row.contribuyentes?.email || row.email || row.correo_electronico || row.correo;
+          const cleanEmail = isFictitiousEmail(rawEmail) ? '' : (rawEmail || '').trim();
+
           map.set(row.identidad, {
             Identidad: row.identidad,
             Contribuyente: row.contribuyentes?.nombre || row.nombre || row.contribuyente || 'Sin Nombre',
-            Telefono: row.contribuyentes?.telefono || row.telefono || 'No registrado',
-            Correo: row.contribuyentes?.email || row.email || row.correo_electronico || row.correo || 'No registrado',
+            Telefono: cleanTel || 'No registrado',
+            Correo: cleanEmail || 'No registrado',
             CodCont: row.inmueble || row.cod_cont,
             cod_cont: row.inmueble || row.cod_cont,
             Direccion: (function() {

@@ -6,6 +6,7 @@ import QRCode from 'qrcode';
 import { useAppContext } from '@/store/AppContext';
 import { logos } from '@/lib/logosBase64';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
+import { formatPhoneNumber, isFictitiousEmail } from '@/lib/formatters';
 
 interface UnidadesModalProps {
   condominioId: number;
@@ -790,8 +791,8 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                               {u.cedula_rif && <div className="text-[10px] text-slate-500">C.I/RIF: {u.cedula_rif}</div>}
                             </td>
                             <td className="px-4 py-3 text-slate-500 text-xs">
-                              <div>{u.telefono || 'Sin Telf.'}</div>
-                              <div>{u.correo || 'Sin Correo'}</div>
+                              <div className="font-medium text-slate-700">{formatPhoneNumber(u.telefono) || 'Sin Telf.'}</div>
+                              <div className="text-[11px] text-slate-400">{!isFictitiousEmail(u.correo) ? u.correo : 'Sin Correo'}</div>
                             </td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex items-center px-2 py-1 text-[10px] font-bold uppercase rounded ${u.tipo === 'CONDOMINIO' ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700 border border-blue-100'}`}>

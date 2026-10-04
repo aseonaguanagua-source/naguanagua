@@ -13,6 +13,8 @@ export const dynamic = 'force-dynamic';
  * Busca por: identidad, inmueble, nombre del contribuyente.
  * Retorna inmuebles + datos del contribuyente fusionados.
  */
+import { formatPhoneNumber, isFictitiousEmail } from '@/lib/formatters';
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -46,11 +48,16 @@ export async function GET(request: Request) {
 
     // Construir contribuyente desde el primer inmueble
     const first = inmuebles[0];
+    const rawTel = first.telefono;
+    const cleanTel = formatPhoneNumber(rawTel);
+    const rawEmail = first.correo_electronico || first.correo;
+    const cleanEmail = isFictitiousEmail(rawEmail) ? '' : (rawEmail || '').trim();
+
     const contribuyente = {
       Identidad: first.identidad,
       Contribuyente: first.contribuyente || first.nombre || 'Sin Nombre',
-      Telefono: first.telefono || 'No registrado',
-      Correo: first.correo_electronico || first.correo || 'No registrado',
+      Telefono: cleanTel || 'No registrado',
+      Correo: cleanEmail || 'No registrado',
       CodCont: first.inmueble || first.cod_cont,
       cod_cont: first.inmueble || first.cod_cont,
       Direccion: first.direccion || '',

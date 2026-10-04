@@ -93,3 +93,5 @@ export const isSameLocal = (
   dir2: string,
   threshold = 0.75
 ): boolean => addressSimilarity(dir1, dir2) > threshold;
+
+export { formatPhoneNumber, isFictitiousEmail, formatMonthYear } from './formatters';

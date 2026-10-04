@@ -64,7 +64,7 @@ function formatearFecha(isoString: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { pagoId, recibos, montos, contribuyente, identidad, formasPago, montoTotal } = await request.json();
+    const { pagoId, recibos, montos, contribuyente, identidad, formasPago, montoTotal, isCondominio } = await request.json();
 
     if (!pagoId || !recibos || recibos.length === 0) {
       return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 });
@@ -95,8 +95,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fallback: J or G RIF → commercial
-    if (!isComercial && (identidad.startsWith('J') || identidad.startsWith('G') || identidad.startsWith('J-') || identidad.startsWith('G-'))) {
+    // Condominios o RIF J/G son entidades comerciales jurídicas para facturación digital
+    if (
+      !isComercial &&
+      (isCondominio ||
+        (contribuyente || '').toUpperCase().includes('CONDOMINIO') ||
+        (contribuyente || '').toUpperCase().includes('CENTRO COMERCIAL') ||
+        identidad.startsWith('J') ||
+        identidad.startsWith('G') ||
+        identidad.startsWith('J-') ||
+        identidad.startsWith('G-'))
+    ) {
       isComercial = true;
     }
 
@@ -261,7 +270,42 @@ export async function POST(request: Request) {
       return items;
     });
 
-    const detallesItems = [...itemsFacturas, ...itemsHist];
+    const condoRecibos = (recibos || []).filter((r: string) => r.startsWith('CONDO-'));
+    const itemsCondo: any[] = [];
+    if ((isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0) {
+      lineaNum++;
+      const totalNum = parseFloat(String(montoTotal || 0));
+      const base = parseFloat((totalNum / 1.16).toFixed(2));
+      const iva = parseFloat((totalNum - base).toFixed(2));
+      totalGravado += base;
+      totalIVA += iva;
+
+      itemsCondo.push({
+        NumeroLinea:             String(lineaNum),
+        CodigoCIIU:              "0198",
+        CodigoPLU:               "ASEO001",
+        IndicadorBienoServicio:  "2",
+        Descripcion:             `Servicio de Aseo Urbano - Condominio ${contribuyente || 'General'}`,
+        Cantidad:                "1",
+        UnidadMedida:            "NIU",
+        PrecioUnitario:          base.toFixed(2),
+        PrecioUnitarioDescuento: null,
+        MontoBonificacion:       null,
+        DescripcionBonificacion: null,
+        DescuentoMonto:          "0.00",
+        RecargoMonto:            "0",
+        PrecioItem:              base.toFixed(2),
+        PrecioAntesDescuento:    base.toFixed(2),
+        CodigoImpuesto:          "G",
+        TasaIVA:                 "16.00",
+        ValorIVA:                iva.toFixed(2),
+        ValorTotalItem:          totalNum.toFixed(2),
+        InfoAdicionalItem:       [],
+        ListaItemOTI:            null,
+      });
+    }
+
+    const detallesItems = [...itemsFacturas, ...itemsHist, ...itemsCondo];
 
     // Si no hay items, no emitir (nada que facturar)
     if (detallesItems.length === 0) {
