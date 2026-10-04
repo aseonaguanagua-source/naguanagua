@@ -96,8 +96,11 @@ export default function FacturacionElectronicaPage() {
         body: JSON.stringify({
           pagoId: selectedPagoForEmit.pagoId,
           recibos: selectedPagoForEmit.recibos && selectedPagoForEmit.recibos.length > 0 ? selectedPagoForEmit.recibos : [`REC-${selectedPagoForEmit.pagoId.slice(0, 6)}`],
-          montos: { total: total },
+          montos: { servicio: base, multa: multa, total: total },
           montoTotal: total,
+          montoServicio: base,
+          montoMulta: multa,
+          concepto: ajusteConcepto,
           contribuyente: selectedPagoForEmit.contribuyente,
           identidad: selectedPagoForEmit.identidad,
           formasPago: [{
@@ -112,8 +115,13 @@ export default function FacturacionElectronicaPage() {
       });
 
       const data = await res.json();
-      if (data.success && data.url) {
-        alert(`¡Factura Digital emitida exitosamente!\nNúmero de Control generado: ${data.url ? 'Disponible' : ''}`);
+      if (data.success && (data.url || data.skipped)) {
+        if (data.skipped) {
+          alert(`Aviso: ${data.message || 'Exento de factura fiscal'}`);
+          setSelectedPagoForEmit(null);
+          return;
+        }
+        alert(`¡Factura Digital emitida exitosamente!\nNúmero de Control generado.`);
         
         // Si se seleccionó enviar correo, disparar reenvío inmediato
         if (enviarCorreoAlEmitir && correoDestinoEmision) {
