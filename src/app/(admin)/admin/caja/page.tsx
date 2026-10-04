@@ -45,7 +45,7 @@ export default function CajaPage() {
   const [condominioSearch, setCondominioSearch] = useState("");
   const [montoAbonoCondo, setMontoAbonoCondo] = useState("");
   const [selectedHijos, setSelectedHijos] = useState<string[]>([]);
-  const [filtroEstadoCondo, setFiltroEstadoCondo] = useState<'todos' | 'con_deuda'>('todos');
+  const [hijosMesesAPagar, setHijosMesesAPagar] = useState<Record<string, number>>({});
   
   // Impuestos y Retenciones
   const [ivaPercent, setIvaPercent] = useState<number>(0); // 0 o 0.16
@@ -178,19 +178,37 @@ export default function CajaPage() {
     return inm?.inmueble ? `Inmueble ${inm.inmueble}` : (inm?.identidad || 'Local');
   }, []);
 
-  const getHijoDebt = useCallback((hijo: any) => {
+  const getHijoDebt = useCallback((hijo: any, customMeses?: number) => {
     const currentTasa = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
     const esRes = isResidencialInm(hijo);
-    const base = parseFloat(calcularMensualidad(hijo, currentTasa).toFixed(2));
-    const iva = esRes ? 0 : parseFloat((base * 0.16).toFixed(2));
-    const mesesMora = parseInt(hijo.meses_deuda || '1');
-    const multa = mesesMora > 0 ? parseFloat((base * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
-    const total = base + iva + multa;
-    return { base, iva, mesesMora, multa, total, esRes };
-  }, [customBcvRate, tcmmv]);
+    const baseMensual = parseFloat(calcularMensualidad(hijo, currentTasa).toFixed(2));
+    const ivaMensual = esRes ? 0 : parseFloat((baseMensual * 0.16).toFixed(2));
+    const mesesTotales = Math.max(1, parseInt(hijo?.meses_deuda || '1'));
+    const mesesAPagar = customMeses !== undefined ? customMeses : (hijosMesesAPagar[hijo?.id] ?? mesesTotales);
+
+    const base = parseFloat((baseMensual * mesesAPagar).toFixed(2));
+    const iva = esRes ? 0 : parseFloat((ivaMensual * mesesAPagar).toFixed(2));
+    // Multa mensual por mora: 10% residencial, 12% comercial sobre los meses adeudados vencidos
+    const porcentajeMulta = esRes ? 0.10 : 0.12;
+    const mesesConMora = Math.max(0, mesesAPagar - 1);
+    const multa = parseFloat((baseMensual * porcentajeMulta * (mesesTotales > 1 ? mesesConMora : 0)).toFixed(2));
+    const total = parseFloat((base + iva + multa).toFixed(2));
+
+    return {
+      baseMensual,
+      ivaMensual,
+      base,
+      iva,
+      mesesTotales,
+      mesesAPagar,
+      multa,
+      total,
+      esRes
+    };
+  }, [customBcvRate, tcmmv, hijosMesesAPagar]);
 
   const totalDeudaCondominio = useMemo(() => {
-    return condominioHijos.reduce((acc: number, h: any) => acc + getHijoDebt(h).total, 0);
+    return condominioHijos.reduce((acc: number, h: any) => acc + getHijoDebt(h, Math.max(1, parseInt(h.meses_deuda || '1'))).total, 0);
   }, [condominioHijos, getHijoDebt]);
 
   // ─ Fix C-3: pendingRefsSet — O(1) lookup en lugar de O(n) find+recalc por render ─
@@ -594,15 +612,11 @@ export default function CajaPage() {
           : (condominioModo === 'Total' ? condominioHijos : []);
 
         hijosToSum.forEach(h => {
-          const esRes = isResidencialInm(h);
-          const baseMonto = parseFloat(calcularMensualidad(h, tasaActualUse).toFixed(2));
-          const ivaLocal = esRes ? 0 : parseFloat((baseMonto * 0.16).toFixed(2));
-          const mesesMora = parseInt(h.meses_deuda || '1');
-          const multaLocal = mesesMora > 0 ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
-          total += (baseMonto + ivaLocal + multaLocal);
-          sb += baseMonto;
-          siva += ivaLocal;
-          smulta += multaLocal;
+          const debtInfo = getHijoDebt(h, condominioModo === 'Total' ? Math.max(1, parseInt(h.meses_deuda || '1')) : undefined);
+          total += debtInfo.total;
+          sb += debtInfo.base;
+          siva += debtInfo.iva;
+          smulta += debtInfo.multa;
         });
       }
     }
@@ -671,7 +685,7 @@ export default function CajaPage() {
     setSumIVA(siva);
     setSumMulta(smulta);
 
-  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, reciboMontoMap, getReciboMonto]);
+  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, hijosMesesAPagar, getHijoDebt, reciboMontoMap, getReciboMonto]);
 
   // ─── useCajaSelection hook (Fase 2) ────────────────────────────────────────
   const { sortedRecibos, toggleRecibo, toggleCuota, toggleServicio, toggleTalaPoda } = useCajaSelection({
@@ -1019,7 +1033,17 @@ export default function CajaPage() {
         // ── LIMPIAR DEUDA CONDOMINIO ──
         if (isCondominio && !esAbonoDebito) {
           if (condominioModo === 'Local' && selectedHijos.length > 0) {
-            await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).in('id', selectedHijos);
+            for (const hijoId of selectedHijos) {
+              const hijo = condominioHijos.find((h: any) => h.id === hijoId);
+              const mesesTotales = Math.max(1, parseInt(hijo?.meses_deuda || '1'));
+              const mesesPagados = hijosMesesAPagar[hijoId] ?? mesesTotales;
+              const mesesRestantes = Math.max(0, mesesTotales - mesesPagados);
+              if (mesesRestantes === 0) {
+                await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', hijoId);
+              } else {
+                await supabase.from('inmuebles').update({ meses_deuda: mesesRestantes }).eq('id', hijoId);
+              }
+            }
           } else if (condominioModo === 'Total' && condominioHijos.length > 0) {
             const allHijoIds = condominioHijos.map((h: any) => h.id);
             await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).in('id', allHijoIds);
@@ -1114,8 +1138,11 @@ export default function CajaPage() {
                 const infoDebt = getHijoDebt(hijo);
                 const localDesc = getLocalLabel(hijo);
                 const nombreLocal = hijo.contribuyente ? ` - ${hijo.contribuyente}` : '';
+                const descMeses = infoDebt.mesesTotales > 1
+                  ? ` [${infoDebt.mesesAPagar} mes${infoDebt.mesesAPagar !== 1 ? 'es' : ''} cancelado${infoDebt.mesesAPagar !== 1 ? 's' : ''}${infoDebt.mesesTotales > infoDebt.mesesAPagar ? ` • Restan ${infoDebt.mesesTotales - infoDebt.mesesAPagar}` : ' • Al día'}]`
+                  : '';
                 return {
-                  descripcion: `Aseo Urbano - ${localDesc}${nombreLocal} (${hijo.inmueble || ''})`,
+                  descripcion: `Aseo Urbano - ${localDesc}${nombreLocal}${descMeses} (${hijo.inmueble || ''})`,
                   precioUnit: infoDebt.total,
                   total: infoDebt.total
                 };
@@ -2061,11 +2088,34 @@ export default function CajaPage() {
                                   </span>
                                 </td>
                                 <td className="py-3 px-3 align-middle text-center">
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                    infoDebt.mesesMora > 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-600'
-                                  }`}>
-                                    {infoDebt.mesesMora} mes{infoDebt.mesesMora !== 1 ? 'es' : ''}
-                                  </span>
+                                  {infoDebt.mesesTotales > 1 ? (
+                                    <div className="flex flex-col items-center gap-1">
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">
+                                        Debe {infoDebt.mesesTotales} meses
+                                      </span>
+                                      <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                        <span className="text-[9px] text-slate-500 font-semibold">Pagar:</span>
+                                        <select
+                                          value={infoDebt.mesesAPagar}
+                                          onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            setHijosMesesAPagar(prev => ({ ...prev, [hijo.id]: val }));
+                                          }}
+                                          className="text-xs bg-white border border-slate-300 rounded px-1.5 py-0.5 font-bold text-emerald-800 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-xs"
+                                        >
+                                          {Array.from({ length: infoDebt.mesesTotales }, (_, idx) => idx + 1).map((m) => (
+                                            <option key={m} value={m}>
+                                              {m} {m === 1 ? 'mes' : 'meses'} {m === infoDebt.mesesTotales ? '(Todo)' : ''}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                      1 mes
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-3 px-3 align-middle text-right">
                                   <div className="flex flex-col items-end">
@@ -2073,7 +2123,9 @@ export default function CajaPage() {
                                       Bs. {formatBs(infoDebt.total)}
                                     </span>
                                     <span className="text-[9px] text-slate-400">
-                                      Base: {formatBs(infoDebt.base)} + IVA: {formatBs(infoDebt.iva)}
+                                      {infoDebt.mesesAPagar > 1 
+                                        ? `${infoDebt.mesesAPagar} meses • Base: ${formatBs(infoDebt.base)} + IVA: ${formatBs(infoDebt.iva)}`
+                                        : `Base: ${formatBs(infoDebt.base)} + IVA: ${formatBs(infoDebt.iva)}`}
                                     </span>
                                   </div>
                                 </td>
