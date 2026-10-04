@@ -4,7 +4,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { metodo, facturaIds, convenioIds, monto, referencia, banco, fecha, identidad } = body;
+    const { metodo, facturaIds, convenioIds, monto, referencia, banco, fecha, identidad, reciboRefs } = body;
 
     if (!identidad || !monto || !metodo) {
       return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 });
@@ -79,7 +79,8 @@ export async function POST(request: Request) {
     // Insertar en pagos_reportados para que aparezca en Conciliación Bancaria
     if (metodo === 'transferencia') {
       const { data: recibosData } = await supabase.from('facturas').select('referencia').in('id', facturaIds || []);
-      const recibosRefs = recibosData ? recibosData.map(r => r.referencia) : [];
+      const dbRefs = recibosData ? recibosData.map(r => r.referencia) : [];
+      const finalRecibos = Array.from(new Set([...(reciboRefs || []), ...dbRefs]));
       
       await supabase.from('pagos_reportados').insert({
         identidad: identidad,
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
         estado: 'Por Verificar',
         detalles: JSON.stringify({
           origen: 'Portal Web (Soy Contribuyente)',
-          recibos: recibosRefs,
+          recibos: finalRecibos,
           recibosIds: facturaIds,
           conveniosIds: convenioIds,
           fecha_transaccion: fechaPago

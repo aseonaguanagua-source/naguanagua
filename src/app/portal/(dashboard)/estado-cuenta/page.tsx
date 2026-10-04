@@ -4,7 +4,8 @@ import { Download, FileText, Building, Handshake, AlertCircle, CheckCircle2, Wre
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
-import { getFAR, isResidencialInm } from '@/lib/calculos';
+import { getFAR, isResidencialInm, calcularMensualidad } from '@/lib/calculos';
+import { getIdentidadVariants } from '@/lib/formatters';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
@@ -21,6 +22,8 @@ export default function EstadoCuentaPage() {
   const { inmuebles, recibos, contribuyentes, tcmmv } = useAppContext();
   const [portalDoc, setPortalDoc] = useState('');
   const tasaBcv = tcmmv || 0;
+  const [misInmueblesDb, setMisInmueblesDb] = useState<any[]>([]);
+  const [misFactDb, setMisFactDb] = useState<any[]>([]);
   const [cuotasData, setCuotasData] = useState<any[]>([]);
   const [serviciosEsp, setServiciosEsp] = useState<any[]>([]);
   const [pagosPorVerificar, setPagosPorVerificar] = useState<any[]>([]);
@@ -33,13 +36,93 @@ export default function EstadoCuentaPage() {
     const fetchAll = async () => {
       try {
         if (fullDoc) {
-          const idLimpio = fullDoc.replace(/-/g, '').toUpperCase();
-          const idFmt = idLimpio.charAt(0) + '-' + idLimpio.slice(1);
-          const soloNum = fullDoc.replace(/D/g, '');
+          const variants = getIdentidadVariants(fullDoc);
+          const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
-          // Convenios
+          // 1. Inmuebles
+          let { data: inmsDB } = await supabase
+            .from('inmuebles')
+            .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+            .or(orFilter);
+
+          let inmsFinal = inmsDB ? [...inmsDB] : [];
+          const isCondo = inmsFinal.some(i => i.es_condominio === true || (i.actividad_principal || '').toLowerCase().includes('condominio'));
+          if (isCondo) {
+            const condoCodes = inmsFinal.map(i => i.inmueble).filter(Boolean);
+            if (condoCodes.length > 0) {
+              const { data: hijos } = await supabase
+                .from('inmuebles')
+                .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+                .in('condominio_padre_id', condoCodes);
+              if (hijos && hijos.length > 0) {
+                const ids = new Set(inmsFinal.map(x => x.id));
+                hijos.forEach(h => { if (!ids.has(h.id)) inmsFinal.push(h); });
+              }
+            }
+          }
+
+          // Filtrar contenedores N/A que solo envuelven otras actividades (ej: URB033481)
+          const naParentCodes = inmsFinal
+            .filter((i: any) =>
+              (i.actividad_principal || '').trim().toUpperCase() === 'N/A' &&
+              (parseInt(i.cant_inmuebles || '0') > 0 || inmsFinal.some((c: any) => c.condominio_padre_id === i.inmueble))
+            )
+            .map((i: any) => i.inmueble);
+
+          const billableInms = inmsFinal.filter((i: any) => !naParentCodes.includes(i.inmueble));
+          const finalInms = billableInms.length > 0 ? billableInms : inmsFinal;
+          setMisInmueblesDb(finalInms);
+
+          // 2. Facturas
+          const { data: facturasDB } = await supabase
+            .from('facturas')
+            .select('*')
+            .or(orFilter)
+            .order('emision', { ascending: true });
+
+          let combined = facturasDB ? [...facturasDB] : [];
+
+          // Generar recibos dummy mensuales si no hay facturas reales (exactamente igual a Caja y Cobro Movil)
+          if (combined.length === 0 && finalInms.length > 0) {
+            const hasDeuda = finalInms.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
+            if (hasDeuda) {
+              const now = new Date();
+              finalInms.forEach((inm: any) => {
+                const deudaMMV = parseFloat(inm.deuda_mmv || '0');
+                const congelada = parseFloat(inm.deuda_congelada_bs || '0');
+                const multa = parseFloat(inm.multa_bs || '0');
+                const meses = parseInt(inm.meses_deuda || 1);
+                if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
+                  const numMeses = Math.max(1, meses);
+                  for (let i = 1; i <= numMeses; i++) {
+                    const targetDate = new Date(now.getFullYear(), now.getMonth() - numMeses + i - 1, 1, 12, 0, 0);
+                    combined.push({
+                      id: `dummy-hist-${inm.inmueble}-${i}`,
+                      referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
+                      identidad: fullDoc,
+                      contribuyente: inm.contribuyente || '',
+                      emision: targetDate.toISOString(),
+                      vencimiento: targetDate.toISOString(),
+                      estado: 'Pendiente',
+                      monto: '0'
+                    });
+                  }
+                }
+              });
+            }
+          }
+
+          combined.sort((a, b) => {
+            const aC = a.referencia?.startsWith('CM-'), bC = b.referencia?.startsWith('CM-');
+            if (!aC && bC) return -1; if (aC && !bC) return 1;
+            return (a.emision || '').localeCompare(b.emision || '');
+          });
+
+          setMisFactDb(combined);
+
+          // 3. Convenios
           const { data: convenios } = await supabase.from('convenios').select('*')
-            .or('identidad.eq.' + idFmt + ',identidad.eq.' + idLimpio + ',identidad.eq.' + fullDoc.toUpperCase() + ',identidad.eq.' + soloNum)
+            .or(orFilter)
             .in('estado', ['Al Día', 'Activo']);
           if (convenios) {
             const hoy = new Date().toISOString().split('T')[0];
@@ -56,16 +139,15 @@ export default function EstadoCuentaPage() {
             setCuotasData(cuotas);
           }
 
-          // Servicios Especiales pendientes
-          // Servicios Especiales (Todos para poder mostrar el historial también)
+          // 4. Servicios Especiales
           const { data: servs } = await supabase.from('servicios_especiales').select('*')
-            .or('identidad.eq.' + idFmt + ',identidad.eq.' + idLimpio + ',identidad.eq.' + fullDoc.toUpperCase() + ',identidad.eq.' + soloNum);
+            .or(orFilter);
           setServiciosEsp(servs || []);
 
-          // Pagos Por Verificar: mostrar al usuario que su pago está en proceso
+          // 5. Pagos Por Verificar
           const { data: pagosVerif } = await supabase.from('pagos_reportados')
             .select('referencia, monto, detalles, created_at')
-            .or('identidad.eq.' + idFmt + ',identidad.eq.' + idLimpio + ',identidad.eq.' + fullDoc.toUpperCase() + ',identidad.eq.' + soloNum)
+            .or(orFilter)
             .eq('estado', 'Por Verificar')
             .order('created_at', { ascending: false });
           setPagosPorVerificar(pagosVerif || []);
@@ -76,56 +158,64 @@ export default function EstadoCuentaPage() {
     fetchAll();
   }, []);
 
-  // Filtrar inmuebles del usuario
-  const docNorm = portalDoc.replace(/-/g, '').toUpperCase();
-  const docFmt = docNorm ? docNorm.charAt(0) + '-' + docNorm.slice(1) : '';
-  const soloNum = portalDoc.replace(/D/g, '');
+  // Filtrar inmuebles del usuario (priorizando los cargados directamente de DB)
+  const misInmuebles = useMemo(() => {
+    if (misInmueblesDb.length > 0) return misInmueblesDb;
+    const docNorm = portalDoc.replace(/-/g, '').toUpperCase();
+    const docFmt = docNorm ? docNorm.charAt(0) + '-' + docNorm.slice(1) : '';
+    const soloNum = portalDoc.replace(/\D/g, '');
+    return inmuebles.filter((inm: any) => {
+      const id = (inm.identidad || '').replace(/-/g, '').toUpperCase();
+      const idFmt2 = id.charAt(0) + '-' + id.slice(1);
+      return portalDoc && (id === docNorm || idFmt2 === docFmt || id === portalDoc.toUpperCase() || id === soloNum);
+    });
+  }, [misInmueblesDb, inmuebles, portalDoc]);
 
-  const misInmuebles = useMemo(() => inmuebles.filter((inm: any) => {
-    const id = (inm.identidad || '').replace(/-/g, '').toUpperCase();
-    const idFmt2 = id.charAt(0) + '-' + id.slice(1);
-    return portalDoc && (id === docNorm || idFmt2 === docFmt || id === portalDoc.toUpperCase() || id === soloNum);
-  }), [inmuebles, portalDoc, docNorm, docFmt, soloNum]);
-
-
-  const getReciboMonto = (r: any) => {
+  const getReciboMonto = (r: any): string => {
     if (r.estado === 'Abonado') return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
-    if (tasaBcv <= 0) return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
+    const inmsSource = misInmuebles;
+    const currentRate = tasaBcv > 0 ? tasaBcv : 1;
 
-    let baseMonto = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
-
-    // RECIB-
-    if (r.referencia?.startsWith('RECIB-')) {
+    let baseMonto = 0;
+    if (r.referencia?.startsWith('RECIB-HIST-')) {
+      const parts = r.referencia.split('-');
+      const inm = inmsSource.find((i: any) => i.inmueble === parts[2]);
+      if (inm) {
+        const esRes = isResidencialInm(inm);
+        const baseMes = parseFloat(calcularMensualidad(inm, currentRate).toFixed(2));
+        const emision = r.emision ? new Date(r.emision) : new Date();
+        const today = new Date();
+        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+        const multaMes = monthsDiff > 0 ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        const ivaMes = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
+        const ivaPagar = inm.agente_retencion ? ivaMes * 0.25 : ivaMes;
+        baseMonto = baseMes + multaMes + ivaPagar;
+      }
+    } else if (r.referencia?.startsWith('CM-')) {
+      const matched = inmsSource.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
+      const inm = matched || inmsSource[0];
+      if (inm) {
+        const esRes = isResidencialInm(inm);
+        const baseMes = parseFloat(calcularMensualidad(inm, currentRate).toFixed(2));
+        const ivaMes = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
+        const ivaPagar = inm.agente_retencion ? ivaMes * 0.25 : ivaMes;
+        baseMonto = baseMes + ivaPagar;
+      }
+    } else if (r.referencia?.startsWith('RECIB-')) {
       let totalDeudaMMV = 0;
       let totalCongelada = 0;
-      misInmuebles.forEach((inm: any) => { totalDeudaMMV += parseFloat(inm.deuda_mmv || 0); totalCongelada += parseFloat(inm.deuda_congelada_bs || 0); });
-      if (totalDeudaMMV > 0 || totalCongelada > 0) baseMonto = (totalDeudaMMV * tasaBcv) + totalCongelada;
-    }
-    // CM-
-    else if (r.referencia?.startsWith('CM-')) {
-      let monthlyMMV = 0;
-      const matchedInmueble = misInmuebles.find((inm: any) => inm.inmueble && r.referencia.includes(inm.inmueble));
-      
-      const inmsToCalc = matchedInmueble ? [matchedInmueble] : misInmuebles;
-      let totalMonto = 0;
-      inmsToCalc.forEach((inm: any) => {
-        const cant = parseFloat(inm.cant_inmuebles || 1);
-        const mmv  = parseFloat(inm.mmv_mes || 0); // FO
-        if (mmv > 0) {
-          const esRes = isResidencialInm(inm);
-          const ucdMultiplicador = esRes ? (57 * getFAR(inm.actividad_principal || '')) : (57 * 0.128);
-          totalMonto += cant * mmv * ucdMultiplicador * tasaBcv;
-        }
-      });
-      if (totalMonto > 0) baseMonto = totalMonto;
+      inmsSource.forEach((inm: any) => { totalDeudaMMV += parseFloat(inm.deuda_mmv || 0); totalCongelada += parseFloat(inm.deuda_congelada_bs || 0); });
+      if (totalDeudaMMV > 0 || totalCongelada > 0) baseMonto = (totalDeudaMMV * currentRate) + totalCongelada;
+    } else {
+      baseMonto = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     }
 
     // AHORA restamos los pagos pendientes
     let montoPendiente = 0;
     pagosPorVerificar.forEach((p) => {
-      let det = {};
+      let det: any = {};
       try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch (e) {}
-      const refs = (det as any).recibos || [];
+      const refs = det.recibos || [];
       if (refs.includes(r.referencia)) {
         const montoPago = parseFloat(String(p.monto || '0').replace(/[^0-9.]/g, '')) || 0;
         if (refs.length > 0) montoPendiente += (montoPago / refs.length);
@@ -135,15 +225,60 @@ export default function EstadoCuentaPage() {
     return String(Math.max(0, baseMonto - montoPendiente).toFixed(2));
   };
 
-  // Filtrar recibos del usuario
-  const misFact = useMemo(() => recibos.filter((f: any) => {
-    const ident = (f.identidad || '').replace(/-/g, '').toUpperCase();
-    const cont = (f.contribuyente || '').replace(/-/g, '').toUpperCase();
-    return portalDoc && (
-      ident === docNorm || ident.includes(soloNum) || 
-      cont === docNorm || cont.includes(soloNum)
-    );
-  }), [recibos, portalDoc, docNorm, soloNum]);
+  const getReciboBreakdown = (r: any) => {
+    const inmsSource = misInmuebles;
+    const currentRate = tasaBcv > 0 ? tasaBcv : 1;
+    let baseMes = 0;
+    let multaMes = 0;
+    let ivaMes = 0;
+    let totalMes = 0;
+
+    if (r.referencia?.startsWith('RECIB-HIST-')) {
+      const parts = r.referencia.split('-');
+      const inm = inmsSource.find((i: any) => i.inmueble === parts[2]);
+      if (inm) {
+        const esRes = isResidencialInm(inm);
+        baseMes = parseFloat(calcularMensualidad(inm, currentRate).toFixed(2));
+        const emision = r.emision ? new Date(r.emision) : new Date();
+        const today = new Date();
+        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+        multaMes = monthsDiff > 0 ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        const rawIva = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
+        ivaMes = inm.agente_retencion ? parseFloat((rawIva * 0.25).toFixed(2)) : rawIva;
+        totalMes = baseMes + multaMes + ivaMes;
+      }
+    } else if (r.referencia?.startsWith('CM-')) {
+      const matched = inmsSource.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
+      const inm = matched || inmsSource[0];
+      if (inm) {
+        const esRes = isResidencialInm(inm);
+        baseMes = parseFloat(calcularMensualidad(inm, currentRate).toFixed(2));
+        const rawIva = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
+        ivaMes = inm.agente_retencion ? parseFloat((rawIva * 0.25).toFixed(2)) : rawIva;
+        totalMes = baseMes + ivaMes;
+      }
+    } else {
+      totalMes = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
+      baseMes = totalMes;
+    }
+
+    return { baseMes, multaMes, ivaMes, totalMes };
+  };
+
+  // Filtrar recibos del usuario (priorizando DB)
+  const misFact = useMemo(() => {
+    if (misFactDb.length > 0) return misFactDb;
+    const docNorm = portalDoc.replace(/-/g, '').toUpperCase();
+    const soloNum = portalDoc.replace(/\D/g, '');
+    return recibos.filter((f: any) => {
+      const ident = (f.identidad || '').replace(/-/g, '').toUpperCase();
+      const cont = (f.contribuyente || '').replace(/-/g, '').toUpperCase();
+      return portalDoc && (
+        ident === docNorm || ident.includes(soloNum) || 
+        cont === docNorm || cont.includes(soloNum)
+      );
+    });
+  }, [misFactDb, recibos, portalDoc]);
 
   const pendientes = misFact.filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Abonado' || f.estado === 'Por Verificar').sort((a,b) => (a.emision || '').localeCompare(b.emision || ''));
   const pagadas = misFact.filter((f: any) => f.estado === 'Pagada' || f.estado === 'Pagado').sort((a,b) => (b.emision || '').localeCompare(a.emision || '')).slice(0, 10);
@@ -281,6 +416,10 @@ export default function EstadoCuentaPage() {
       // Get recibos for this specific inmueble
       const inmRecibos = pendientes.filter((f: any) => {
         if (!f.referencia) return true;
+        if (f.referencia.startsWith('RECIB-HIST-')) {
+          const parts = f.referencia.split('-');
+          return parts[2] === inm.inmueble || parts[2] === inm.cod_cont || parts[2] === (inm as any).Inmueble;
+        }
         if (f.referencia.startsWith('CM-')) {
           const match = f.referencia.match(/(I-\d+|C-\d+)/);
           if (match) {
@@ -292,15 +431,12 @@ export default function EstadoCuentaPage() {
       });
 
       const calcMonto = (f: any): number => {
-        if (f.estado === 'Abonado') return parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
-        if (f.referencia?.startsWith('CM-') && tasaBcv && tasaBcv > 0) {
-          const cant = parseFloat(inm.cant_inmuebles || 1);
-          const mmv = parseFloat(inm.mmv_mes || 0);
-          if (mmv > 0) return parseFloat((cant * mmv * tasaBcv).toFixed(2));
-        }
-        return parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
+        return parseFloat(getReciboMonto(f)) || 0;
       };
 
+      const sumBaseInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).baseMes, 0);
+      const sumMultaInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).multaMes, 0);
+      const sumIvaInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
       let totalInm = inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0);
       if (idx === 0) totalInm += totalServiciosBs;
 
@@ -310,20 +446,26 @@ export default function EstadoCuentaPage() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
 
-      const baseAseo = inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0);
       const resumenRows = [
         [`Períodos Calculados (${inmRecibos.length}):`, periodosLabel],
-        ['Monto Recolección Aseo Urbano Bs.', `Bs. ${baseAseo.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+        ['Monto Recolección Aseo Urbano Bs.', `Bs. ${sumBaseInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
       ];
+      if (sumMultaInm > 0) {
+        resumenRows.push(['Monto Interés / Multa por Mora Bs.', `Bs. ${sumMultaInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      }
       if (idx === 0 && totalServiciosBs > 0) {
         resumenRows.push(['Monto Servicios Especiales Bs.', `Bs. ${totalServiciosBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
       }
-      resumenRows.push(
-        ['Total Exento Bs.', `Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-        ['Base Imponible Bs.', 'Bs. 0,00'],
-        ['IVA (16.00%) Bs.', 'Bs. 0,00'],
-        ['Total estado de cuenta Bs.', `Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-      );
+      const esRes = isResidencialInm(inm);
+      if (esRes) {
+        resumenRows.push(['Total Exento Bs.', `Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      } else {
+        resumenRows.push(
+          ['Base Imponible Bs.', `Bs. ${sumBaseInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['IVA (16.00%) Bs.', `Bs. ${sumIvaInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+        );
+      }
+      resumenRows.push(['Total estado de cuenta Bs.', `Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
 
       resumenRows.forEach(([label, value]) => {
         doc.setFont('helvetica', 'normal');
@@ -353,14 +495,17 @@ export default function EstadoCuentaPage() {
       y += 4;
 
       const detalleRows = inmRecibos.map((f: any) => {
+        const b = getReciboBreakdown(f);
         const monto = calcMonto(f);
         const det = (inm as any).actividad_principal ? `Aseo ${(inm as any).actividad_principal}` : `Aseo ${((inm as any).tipo || (inm as any).clasificacion || "residencial").toLowerCase()}`;
         const periodoDate = f.emision ? f.emision.replace(/-/g, '-') : '—';
         return [
           periodoDate,
           det,
-          monto.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
-          '0,00', '0,00', '0,00',
+          b.baseMes.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
+          '0,00',
+          b.multaMes.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
+          b.ivaMes.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
           monto.toLocaleString('es-VE', { minimumFractionDigits: 2 })
         ];
       });

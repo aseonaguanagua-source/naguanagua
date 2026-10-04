@@ -237,8 +237,17 @@ export default function CajaPage() {
         blocked.add(r.referencia);
       }
     });
+    // Referencias reportadas en pagos_reportados con estado 'Por Verificar'
+    pagosPendientes.forEach((p: any) => {
+      let det: any = {};
+      try {
+        det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {});
+      } catch (_) {}
+      const refs: string[] = det.recibos || [];
+      refs.forEach(ref => blocked.add(ref));
+    });
     return blocked;
-  }, [recibos, reciboMontoMap]);
+  }, [recibos, reciboMontoMap, pagosPendientes]);
 
   // isItemPending: O(1) — solo consulta el Set precalculado
   const isItemPending = useCallback(

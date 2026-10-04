@@ -3,6 +3,7 @@ import { Save, Lock, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { getIdentidadVariants } from '@/lib/formatters';
 
 export default function DatosContribuyentePage() {
   const [userData, setUserData] = useState({
@@ -28,16 +29,22 @@ export default function DatosContribuyentePage() {
       const fullDoc = localStorage.getItem('portal_doc') || '';
       setUserData(prev => ({ ...prev, nombre, codigo, docType: fullDoc ? fullDoc.charAt(0) : 'V', docNum: fullDoc ? fullDoc.substring(1) : '' }));
       if (fullDoc) {
-        const idLimpio = fullDoc.replace(/-/g, '').toUpperCase();
-        const idFormateado = idLimpio.charAt(0) + '-' + idLimpio.slice(1);
-        const soloNumeros = fullDoc.replace(/D/g, '');
+        const variants = getIdentidadVariants(fullDoc);
+        const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
         const { data } = await supabase.from('inmuebles')
           .select('correo_electronico, telefono, direccion, actividad_principal')
-          .or('identidad.eq.' + idFormateado + ',identidad.eq.' + idLimpio + ',identidad.eq.' + fullDoc.toUpperCase() + ',identidad.eq.' + soloNumeros)
-          .order('id', { ascending: true }).limit(1);
+          .or(orFilter)
+          .order('id', { ascending: true });
         if (data && data.length > 0) {
-          const r = data[0];
-          setUserData(prev => ({ ...prev, email: r.correo_electronico || '', telefonoMovil: r.telefono || '', direccion: r.direccion || '', nombreComercial: r.actividad_principal || '', esCondominio: !!(r.actividad_principal?.toLowerCase().includes('condominio')) }));
+          const r = data.find(i => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') || data[0];
+          setUserData(prev => ({
+            ...prev,
+            email: r.correo_electronico || '',
+            telefonoMovil: r.telefono || '',
+            direccion: r.direccion || '',
+            nombreComercial: (r.actividad_principal && r.actividad_principal.trim().toUpperCase() !== 'N/A') ? r.actividad_principal : (prev.nombre || ''),
+            esCondominio: !!(r.actividad_principal?.toLowerCase().includes('condominio'))
+          }));
         }
       }
     };
@@ -49,11 +56,10 @@ export default function DatosContribuyentePage() {
     if (!fullDoc) return;
     setIsSaving(true); setMessage('');
     try {
-      const idLimpio = fullDoc.replace(/-/g, '').toUpperCase();
-      const idFormateado = idLimpio.charAt(0) + '-' + idLimpio.slice(1);
-      const soloNumeros = fullDoc.replace(/D/g, '');
+      const variants = getIdentidadVariants(fullDoc);
+      const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
       const { error } = await supabase.from('inmuebles').update({ correo_electronico: userData.email, telefono: userData.telefonoMovil, direccion: userData.direccion })
-        .or('identidad.eq.' + idFormateado + ',identidad.eq.' + idLimpio + ',identidad.eq.' + fullDoc.toUpperCase() + ',identidad.eq.' + soloNumeros);
+        .or(orFilter);
       if (error) throw error;
       setMessage('Datos actualizados correctamente');
       setTimeout(() => setMessage(''), 3000);
@@ -70,17 +76,17 @@ export default function DatosContribuyentePage() {
     setIsSavingClave(true);
     try {
       const fullDoc = localStorage.getItem('portal_doc') || '';
-      const idLimpio = fullDoc.replace(/-/g, '').toUpperCase();
-      const idFormateado = idLimpio.charAt(0) + '-' + idLimpio.slice(1);
+      const variants = getIdentidadVariants(fullDoc);
+      const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
       // Verificar clave actual
       const { data: check } = await supabase.from('inmuebles').select('clave_portal')
-        .or('identidad.eq.' + idFormateado + ',identidad.eq.' + idLimpio).limit(1).single();
+        .or(orFilter).limit(1).single();
       if (!check || check.clave_portal !== claveActual) {
         setClaveMsg({ type: 'err', txt: 'Clave actual incorrecta.' });
         setIsSavingClave(false); return;
       }
       const { error } = await supabase.from('inmuebles').update({ clave_portal: claveNueva })
-        .or('identidad.eq.' + idFormateado + ',identidad.eq.' + idLimpio);
+        .or(orFilter);
       if (error) throw error;
       setClaveMsg({ type: 'ok', txt: 'Clave actualizada exitosamente.' });
       setClaveActual(''); setClaveNueva(''); setClaveConfirm('');
