@@ -24,7 +24,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, isResidencialInm } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm } from '@/lib/calculos';
 import { isSameLocal, getShortAddress } from '@/lib/cajaHelpers';
 
 
@@ -3536,18 +3536,6 @@ function ContribuyentesPageContent() {
     </div>
   );
 }
-
-const getFAR = (actividad: string) => {
-  const act = (actividad || "").toLowerCase();
-  if (act.includes("quinta (a)")) return 0.020366;
-  if (act.includes("apartamento (a)")) return 0.023723;
-  if (act.includes("quinta (b)")) return 0.016298;
-  if (act.includes("apartamento (b)")) return 0.018985;
-  if (act.includes("casa (c)")) return 0.014;
-  if (act.includes("apartamento (c)")) return 0.028839;
-  if (act.includes("casa (d)")) return 0.02673;
-  return 0.02673;
-};
 
 export default function ContribuyentesPage() {
   return (

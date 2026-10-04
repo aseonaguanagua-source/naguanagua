@@ -62,18 +62,6 @@ interface LocalGroup {
 
 const fmtBs = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const getFAR = (actividad: string) => {
-  const act = (actividad || '').toLowerCase();
-  if (act.includes('quinta (a)')) return 0.020366;
-  if (act.includes('apartamento (a)')) return 0.023723;
-  if (act.includes('quinta (b)')) return 0.016298;
-  if (act.includes('apartamento (b)')) return 0.018985;
-  if (act.includes('casa (c)')) return 0.014;
-  if (act.includes('apartamento (c)')) return 0.028839;
-  if (act.includes('casa (d)')) return 0.02673;
-  return 0.02673; // default
-};
-
 // Tarifa mensual según Ordenanza
 const calcMontoMes = (inm: Inmueble, tcmmv: number): number => {
   return parseFloat(calcularMensualidad(inm, tcmmv).toFixed(2));

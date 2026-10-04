@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '@/store/AppContext';
 import { Calculator, Building, Home, Coins, Search, Filter } from 'lucide-react';
+import { getFAR } from '@/lib/calculos';
 
 export default function TarifasPage() {
   const { ordenanzasConfig: ordenanzaData } = useAppContext();
@@ -136,7 +137,7 @@ export default function TarifasPage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredResidenciales.length > 0 ? (
                   filteredResidenciales.map((tipo: any, idx: number) => {
-                    const farEjemplo = tipo.far || 0.020366; 
+                    const farEjemplo = getFAR(tipo.label); 
                     const monto = (tipo.factor * 57 * rate * farEjemplo).toFixed(2);
                     return (
                       <tr key={idx} className="hover:bg-blue-50/50 transition-colors">

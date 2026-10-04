@@ -96,7 +96,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (dbConfig) {
           const ordenanza = dbConfig.find(c => c.id === 'tarifas_ordenanza');
           if (ordenanza && ordenanza.valor) {
-            setOrdenanzasConfig({ ...ordenanzaData, ...ordenanza.valor });
+            setOrdenanzasConfig({ ...ordenanzaData, ...ordenanza.valor, tiposResidenciales: ordenanzaData.tiposResidenciales });
           }
           const manual = dbConfig.find(c => c.id === 'tasa_bcv_manual');
           if (manual && manual.valor) manualTcmmv = parseFloat(manual.valor);
@@ -140,7 +140,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setPreLiquidaciones(cached.preLiquidaciones || []);
           setAuditLogs(cached.auditLogs || []);
           setTcmmv(cached.tcmmv || 0);
-          if (cached.ordenanzasConfig) setOrdenanzasConfig(cached.ordenanzasConfig);
+          if (cached.ordenanzasConfig) {
+            setOrdenanzasConfig({ ...cached.ordenanzasConfig, tiposResidenciales: ordenanzaData.tiposResidenciales });
+          }
           setIsLoading(false);
           setCacheStatus('cached');
 
@@ -299,7 +301,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (dbConfig) {
         const ordenanza = dbConfig.find(c => c.id === 'tarifas_ordenanza');
         if (ordenanza && ordenanza.valor) {
-          ordenanzaConfigValue = { ...ordenanzaData, ...ordenanza.valor };
+          ordenanzaConfigValue = { ...ordenanzaData, ...ordenanza.valor, tiposResidenciales: ordenanzaData.tiposResidenciales };
           setOrdenanzasConfig(ordenanzaConfigValue);
         }
         const manual = dbConfig.find(c => c.id === 'tasa_bcv_manual');

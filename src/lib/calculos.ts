@@ -103,32 +103,33 @@ export const getFAR = (actividadFull: string) => {
   
   // Factor de Ajuste Residencial (FAR) según Tabla "A" de la Ordenanza Municipal de Naguanagua
   // ZONA A
-  if (act.includes("zona a") || act.includes("(zona a)")) {
+  if (act.includes("zona a") || act.includes("(zona a)") || act.includes("(a)") || act.endsWith(" a")) {
     if (act.includes("apartamento") || act.includes("apto")) return 0.023723;
     if (act.includes("casa")) return 0.026985;
     return 0.020366; // Quinta (Zona A)
   }
 
   // ZONA B
-  if (act.includes("zona b") || act.includes("(zona b)")) {
+  if (act.includes("zona b") || act.includes("(zona b)") || act.includes("(b)") || act.endsWith(" b")) {
     if (act.includes("apartamento") || act.includes("apto")) return 0.018985;
     if (act.includes("casa")) return 0.021595;
     return 0.016298; // Quinta (Zona B)
   }
 
   // ZONA C
-  if (act.includes("zona c") || act.includes("(zona c)")) {
+  if (act.includes("zona c") || act.includes("(zona c)") || act.includes("(c)") || act.endsWith(" c")) {
     if (act.includes("apartamento") || act.includes("apto")) return 0.028839;
     return 0.014000; // Casa (Zona C)
   }
 
   // ZONA D
-  if (act.includes("zona d") || act.includes("(zona d)")) {
+  if (act.includes("zona d") || act.includes("(zona d)") || act.includes("(d)") || act.endsWith(" d")) {
     return 0.026730; // Casa y/o Apartamento (Zona D)
   }
 
   // Fallbacks generales
   if (act.includes("apartamento") || act.includes("apto")) return 0.023723;
+  if (act.includes("casa")) return 0.026985;
   return 0.020366;
 };
 
