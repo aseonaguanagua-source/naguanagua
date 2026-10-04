@@ -175,14 +175,14 @@ export default function FacturacionElectronicaPage() {
       });
 
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.correoEnviado) {
         setEmailSuccessMsg(`Factura enviada exitosamente a ${customEmailDestino}`);
         setTimeout(() => {
           setSelectedPagoForEmail(null);
           setEmailSuccessMsg(null);
         }, 2000);
       } else {
-        alert('Error enviando correo: ' + (data.error || 'Fallo'));
+        alert(data.mensaje || 'Aviso: No se pudo entregar el correo.');
       }
     } catch (e: any) {
       alert('Error: ' + e.message);

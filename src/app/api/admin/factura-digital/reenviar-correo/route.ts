@@ -126,17 +126,29 @@ export async function POST(request: Request) {
     let emailSent = false;
     let emailError: string | null = null;
 
-    try {
-      await resend.emails.send({
-        from: 'IAMEC Facturación <iamec.naguanagua@globalgreenca.com>',
-        to: [targetEmail],
-        subject: subject,
-        html: htmlContent
-      });
-      emailSent = true;
-    } catch (sendErr: any) {
-      console.warn('Advertencia al enviar correo vía Resend:', sendErr.message);
-      emailError = sendErr.message;
+    if (!process.env.RESEND_API_KEY) {
+      emailError = 'No se ha configurado la variable RESEND_API_KEY en Vercel/.env.local';
+      console.warn('[Correo Factura]', emailError);
+    } else {
+      try {
+        // En modo prueba o cuentas nuevas de Resend, usar onboarding@resend.dev para entregar sin esperar DNS
+        const fromEmail = process.env.RESEND_FROM || 'IAMEC Facturación <onboarding@resend.dev>';
+        const sendResult = await resend.emails.send({
+          from: fromEmail,
+          to: [targetEmail],
+          subject: subject,
+          html: htmlContent
+        });
+        if (sendResult.error) {
+          emailError = sendResult.error.message;
+          console.warn('[Resend Error]:', sendResult.error);
+        } else {
+          emailSent = true;
+        }
+      } catch (sendErr: any) {
+        console.warn('Advertencia al enviar correo vía Resend:', sendErr.message);
+        emailError = sendErr.message;
+      }
     }
 
     // Registrar en auditoría de pago
@@ -164,7 +176,7 @@ export async function POST(request: Request) {
       correoEnviado: emailSent,
       mensaje: emailSent
         ? `Factura enviada exitosamente a ${targetEmail}`
-        : `Simulación de envío completada para ${targetEmail}`
+        : (emailError || `Simulación de envío completada para ${targetEmail}`)
     });
 
   } catch (err: any) {
