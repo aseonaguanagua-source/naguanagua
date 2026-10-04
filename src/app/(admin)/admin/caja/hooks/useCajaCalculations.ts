@@ -63,6 +63,7 @@ export function useCajaCalculations({
     if (r.referencia?.startsWith('RECIB-HIST-')) {
       const parts = r.referencia.split('-');
       const inmId = parts[2];
+      const mNum = parseInt(parts[3]?.replace('M', '') || '0');
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
         const esRes = isResidencialInm(inm);
@@ -72,14 +73,18 @@ export function useCajaCalculations({
         // TODO LO RESIDENCIAL ES ESTRICTAMENTE EXENTO DE IVA (0% IVA)
         const montoIVA = esRes ? 0 : parseFloat((baseMonto * 0.16).toFixed(2));
 
+        // REGLA OFICIAL: El último mes de la factura es SIN multa.
+        const totalMesesInm = Math.max(1, parseInt(String(inm.meses_deuda || '1')));
+        const isUltimoMes = mNum > 0 ? (mNum >= totalMesesInm) : false;
+
         const emision = r.emision ? new Date(r.emision) : new Date();
         const today = new Date();
         const monthsDiff =
           (today.getFullYear() - emision.getFullYear()) * 12 +
           (today.getMonth() - emision.getMonth());
 
-        // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base imponible
-        const montoMulta = monthsDiff > 0 ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        // Multa mensual por mora: solo para meses anteriores vencidos (el último mes va sin multa)
+        const montoMulta = (!isUltimoMes && monthsDiff > 0) ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
 
         const totalMes = parseFloat((baseMonto + montoIVA + montoMulta).toFixed(2));
         const montoPendiente = _calcularMontoPendienteEnVuelo(r.referencia, pagosPendientes);
@@ -109,7 +114,11 @@ export function useCajaCalculations({
         const monthsDiff =
           (today.getFullYear() - emision.getFullYear()) * 12 +
           (today.getMonth() - emision.getMonth());
-        const multaLocal = monthsDiff > 0 ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        
+        // El último mes de la factura no lleva multa
+        const isUltimoMes = monthsDiff <= 1;
+
+        const multaLocal = (!isUltimoMes && monthsDiff > 0) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
         const ivaLocal = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
         totalConIva += bm + ivaLocal + multaLocal;
       });

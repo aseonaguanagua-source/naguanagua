@@ -779,8 +779,13 @@ export default function CajaPage() {
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
 
-          // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base
-          if (monthsDiff > 0) {
+          // REGLA OFICIAL: El último mes de la factura es SIN multa.
+          const mNum = parseInt(parts[3]?.replace('M', '') || '0');
+          const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
+          const isUltimoMes = mNum > 0 ? (mNum >= totalMeses) : false;
+
+          // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base (excepto último mes)
+          if (!isUltimoMes && monthsDiff > 0) {
             smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
           }
         }
@@ -803,7 +808,11 @@ export default function CajaPage() {
           const emision = f?.emision ? new Date(f.emision) : new Date();
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-          if (monthsDiff > 0) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
+          const allCmForInm = (recibos || []).filter((rc: any) =>
+            rc.referencia?.startsWith('CM-') && (rc.referencia || '').includes(inm.inmueble || '')
+          );
+          const isUltimoMes = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === ref;
+          if (!isUltimoMes && monthsDiff > 0) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
         });
       } else {
         const f = recibosMap.get(ref);
@@ -1250,32 +1259,37 @@ export default function CajaPage() {
           try {
             const cajero_id_recibo = getCajeroId();
             const refNum = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
-            setReciboData({
-              reciboNo: refNum,
-              controlWeb: `WEB-${refNum}`,
-              fechaEmision: new Date().toISOString().split('T')[0],
-              codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
-              razonSocial: foundUser.Contribuyente || '',
-              domicilioFiscal: (foundUser.Direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
-              rifCi: foundUser.Identidad,
-              caja: cajero_id_recibo,
-              conceptos: [{
-                descripcion: `Abono Parcial a Deuda ${isCondominio ? 'Condominio' : ''}`,
-                precioUnit: montoReal,
-                total: montoReal
-              }],
-              subTotal: montoReal,
-              exento: montoReal,
-              iva: 0,
-              total: montoReal,
-              formaPago: 'PUNTO DE VENTA',
-              banco: 'Debito',
-              referencia: reqRef ? referencia : referenciaDebito,
-              tasaBcv: currentBcvRate || tcmmv || undefined,
-              esAbono: true,
-              montoCancelado: montoReal,
-              montoPendiente: Math.max(0, (isCondominio ? totalDeudaCondominio : (foundUser.DeudaTotal || finalTotal)) - montoReal),
-            });
+            const esContribResidencial = isResidencialInm(foundUser) || (freshInmuebles.length > 0 && freshInmuebles.every((i: any) => isResidencialInm(i)));
+            if (esContribResidencial) {
+              setReciboData({
+                reciboNo: refNum,
+                controlWeb: `WEB-${refNum}`,
+                fechaEmision: new Date().toISOString().split('T')[0],
+                codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
+                razonSocial: foundUser.Contribuyente || '',
+                domicilioFiscal: (foundUser.Direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
+                rifCi: foundUser.Identidad,
+                caja: cajero_id_recibo,
+                conceptos: [{
+                  descripcion: `Abono Parcial a Deuda ${isCondominio ? 'Condominio' : ''}`,
+                  precioUnit: montoReal,
+                  total: montoReal
+                }],
+                subTotal: montoReal,
+                exento: montoReal,
+                iva: 0,
+                total: montoReal,
+                formaPago: 'PUNTO DE VENTA',
+                banco: 'Debito',
+                referencia: reqRef ? referencia : referenciaDebito,
+                tasaBcv: currentBcvRate || tcmmv || undefined,
+                esAbono: true,
+                montoCancelado: montoReal,
+                montoPendiente: Math.max(0, (isCondominio ? totalDeudaCondominio : (foundUser.DeudaTotal || finalTotal)) - montoReal),
+              });
+            } else {
+              setReciboData(null);
+            }
           } catch(e) {}
         } else {
           (window as any).__lastPaymentAbono = { esAbono: false, tasaBcv: currentBcvRate };
@@ -1408,9 +1422,11 @@ export default function CajaPage() {
                     const emision = f?.emision ? new Date(f.emision) : new Date();
                     const today = new Date();
                     const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-                    const multa = monthsDiff > 0 ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                    const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
+                    const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
+                    const isUltimoMes = mesNum >= totalMeses;
+                    const multa = (!isUltimoMes && monthsDiff > 0) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                     const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
-                    const mesNum = parts[3]?.replace('M', '') || '1';
                     conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Base Imponible`, precioUnit: bm, total: bm });
                     if (iva > 0) {
                       conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - IVA (16%)`, precioUnit: iva, total: iva });
@@ -1452,8 +1468,14 @@ export default function CajaPage() {
               };
             });
 
-            // Si hay un solo grupo, mantener objeto simple para compatibilidad
-            setReciboData(recibosArray.length === 1 ? recibosArray[0] : recibosArray);
+            // A COMERCIAL NO SE LE IMPRIME NADA: TODO ES DIGITAL.
+            // ÚNICAMENTE SE IMPRIME RECIBO PARA RESIDENCIAL.
+            const esContribResidencial = isResidencialInm(foundUser) || (freshInmuebles.length > 0 && freshInmuebles.every((i: any) => isResidencialInm(i)));
+            if (esContribResidencial) {
+              setReciboData(recibosArray.length === 1 ? recibosArray[0] : recibosArray);
+            } else {
+              setReciboData(null);
+            }
             }
           } catch(rErr) { console.warn('Error al generar recibo automático:', rErr); }
         }

@@ -127,8 +127,14 @@ export default function KioskPage() {
         const emision = r.emision ? new Date(r.emision) : new Date();
         const today = new Date();
         const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-        // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base
-        const multaMes = monthsDiff > 0 ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        
+        // REGLA OFICIAL: El último mes de la factura es SIN multa.
+        const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
+        const totalMeses = Math.max(1, parseInt(String(inm.meses_deuda || '1')));
+        const isUltimoMes = mesNum >= totalMeses;
+
+        // Multa mensual por mora: solo para meses anteriores vencidos
+        const multaMes = (!isUltimoMes && monthsDiff > 0) ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
         // IVA solo sobre la base del servicio comercial; residencial exento 0%
         const ivaMes = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
         return {

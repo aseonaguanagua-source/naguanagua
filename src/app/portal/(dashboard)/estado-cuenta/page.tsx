@@ -186,7 +186,13 @@ export default function EstadoCuentaPage() {
         const emision = r.emision ? new Date(r.emision) : new Date();
         const today = new Date();
         const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-        const multaMes = monthsDiff > 0 ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        
+        // REGLA OFICIAL: El último mes de la factura es SIN multa.
+        const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
+        const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
+        const isUltimoMes = mesNum >= totalMeses;
+
+        const multaMes = (!isUltimoMes && monthsDiff > 0) ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
         const ivaMes = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
         const ivaPagar = inm.agente_retencion ? ivaMes * 0.25 : ivaMes;
         baseMonto = baseMes + multaMes + ivaPagar;
@@ -242,7 +248,13 @@ export default function EstadoCuentaPage() {
         const emision = r.emision ? new Date(r.emision) : new Date();
         const today = new Date();
         const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-        multaMes = monthsDiff > 0 ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+
+        // REGLA OFICIAL: El último mes de la factura es SIN multa.
+        const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
+        const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
+        const isUltimoMes = mesNum >= totalMeses;
+
+        multaMes = (!isUltimoMes && monthsDiff > 0) ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
         const rawIva = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
         ivaMes = inm.agente_retencion ? parseFloat((rawIva * 0.25).toFixed(2)) : rawIva;
         totalMes = baseMes + multaMes + ivaMes;

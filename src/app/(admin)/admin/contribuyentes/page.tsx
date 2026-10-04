@@ -251,80 +251,89 @@ function ContribuyentesPageContent() {
       const data = await res.json();
       
       let factorTotal = 0;
+      let totalMensualCalculado = 0;
       let leyenda = '';
+      let farAplicado = 0;
+      let esResidencialTotal = true;
       const desgloseLocales: any[] = [];
 
-      const misInmuebles = inmuebles.filter((i: any) => i.identidad === row.Identidad);
+      const idClean = (row.Identidad || '').replace(/-/g, '').toUpperCase();
+      const misInmuebles = inmuebles.filter((i: any) => 
+        (i.identidad || '').replace(/-/g, '').toUpperCase() === idClean
+      );
 
       if (misInmuebles.length > 0) {
         const isCondominio = misInmuebles.some((i: any) => (parseInt(i.cant_inmuebles) || 1) > 1);
         leyenda = isCondominio ? `Condominio / Complejo Residencial` : misInmuebles.map((i: any) => i.actividad_principal || 'Residencial').join(', ');
         
         misInmuebles.forEach((inm: any) => {
-          const localFactor = parseFloat(inm.mmv_mes) || 0;
+          const esRes = isResidencialInm(inm);
+          if (!esRes) esResidencialTotal = false;
+
+          const localFactor = (inm.mmv_mes && parseFloat(inm.mmv_mes) > 0)
+            ? parseFloat(inm.mmv_mes)
+            : getFO(inm.actividad_principal || '', esRes);
           const cant = parseInt(inm.cant_inmuebles) || 1;
-          const metraje = inm.area || inm.area_operativa || 'N/A';
-          const actividad = inm.actividad_principal || 'No especificada';
-          const clasificacion = inm.clasificacion || inm.tipo || 'Residencial';
-          
-          const conceptoTexto = `${actividad} | Nivel: ${metraje} m² | ${clasificacion}`;
-          
+          const far = esRes ? getFAR(inm.actividad_principal || '') : 0.1280;
+          farAplicado = far;
+
           factorTotal += (localFactor * cant);
-          
-          if (localFactor > 0) {
-            // Formula oficial Ordenanza:
-            //   Residencial: TR = F.O. x 57 x UCD x 0.02673
-            //   Comercial:   TC = F.O. x UCD x 0.1280
-            const esResidencial = isResidencialInm(inm);
-            const ucdMult = esResidencial ? (57 * 0.02673) : (57 * 0.128);
-            if (cant > 1) {
-              for(let i=1; i<=cant; i++) {
-                desgloseLocales.push({
-                  numeracion: `Local/Inmueble Múltiple - Unidad ${i}`,
-                  leyenda: `Base calculada sobre código ordenanza`,
-                  factor: localFactor,
-                  montoBs: (Math.trunc((localFactor * ucdMult * data.tcmmv) * 100) / 100).toFixed(2)
-                });
-              }
-            } else {
+
+          // Tarifa mensual oficial según Ordenanza
+          const montoTotalInm = calcularMensualidad(inm, data.tcmmv);
+          const montoUnidad = montoTotalInm / Math.max(1, cant);
+          const ivaInm = esRes ? 0 : (montoTotalInm * 0.16);
+          totalMensualCalculado += (montoTotalInm + ivaInm);
+
+          if (cant > 1) {
+            for(let i=1; i<=cant; i++) {
               desgloseLocales.push({
-                numeracion: `Inmueble/Local`,
-                leyenda: `Base calculada sobre código ordenanza`,
+                numeracion: `${inm.inmueble || 'Inmueble'} - Unidad ${i}`,
+                leyenda: inm.actividad_principal || (esRes ? 'Residencial' : 'Comercial'),
                 factor: localFactor,
-                montoBs: (Math.trunc((localFactor * ucdMult * data.tcmmv) * 100) / 100).toFixed(2)
+                montoBs: (Math.trunc(montoUnidad * 100) / 100).toFixed(2)
               });
             }
+          } else {
+            desgloseLocales.push({
+              numeracion: inm.inmueble || 'Inmueble/Local',
+              leyenda: inm.actividad_principal || (esRes ? 'Residencial' : 'Comercial'),
+              factor: localFactor,
+              montoBs: (Math.trunc(montoTotalInm * 100) / 100).toFixed(2)
+            });
           }
         });
-      }
-      
-      if (factorTotal === 0) {
+      } else {
         const rowClasificacion = row.Clasificacion || row.tipo || 'Residencial';
         const rowTipoResidencia = row.TipoResidencia || row.Actividad || row.actividad || '';
-        const rowActividadComercial = row.ActividadComercial || row.Actividad || row.actividad || '';
-        const rowNivelMetraje = row.NivelMetraje || row.codigo || '';
-
-        if (rowClasificacion === 'Residencial') {
-          const tipo = ordenanzaData.tiposResidenciales.find(t => t.label === rowTipoResidencia);
-          if (tipo) {
-            factorTotal = tipo.factor;
-            leyenda = `Clasificador de Tasa Residencial: ${tipo.label}`;
-          }
-        } else {
-          const act = todasLasActividades.find(a => a.label === rowActividadComercial);
-          const nivelIndex = Math.max(0, ordenanzaData.nivelesMetraje.indexOf(rowNivelMetraje));
-          if (act) {
-            factorTotal = act.factores[nivelIndex];
-            leyenda = `Tasa Com/Ind: ${act.label} (Nivel: ${rowNivelMetraje || '1 (0-50m2)'})`;
-          }
-        }
+        const esRes = isResidencialInm({ tipo: rowClasificacion, actividad_principal: rowTipoResidencia });
+        esResidencialTotal = esRes;
+        const fo = getFO(rowTipoResidencia, esRes);
+        const far = esRes ? getFAR(rowTipoResidencia) : 0.1280;
+        farAplicado = far;
+        factorTotal = fo;
+        leyenda = rowTipoResidencia || (esRes ? 'Residencial' : 'Comercial');
+        const base = calcularMensualidad({ tipo: rowClasificacion, actividad_principal: rowTipoResidencia, mmv_mes: fo }, data.tcmmv);
+        const iva = esRes ? 0 : (base * 0.16);
+        totalMensualCalculado = base + iva;
+        desgloseLocales.push({
+          numeracion: 'Inmueble/Local',
+          leyenda: leyenda,
+          factor: fo,
+          montoBs: totalMensualCalculado.toFixed(2)
+        });
       }
 
-      const rawTotal = factorTotal * data.tcmmv;
-      const totalTruncado = (Math.trunc(rawTotal * 100) / 100).toFixed(2);
+      const totalTruncado = (Math.trunc(totalMensualCalculado * 100) / 100).toFixed(2);
+      const formulaStr = esResidencialTotal
+        ? `${factorTotal.toFixed(2)} × 57 × ${farAplicado} × ${Number(data.tcmmv).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:4})} Bs (Exento de IVA)`
+        : `${factorTotal.toFixed(2)} × 57 × 0.1280 × ${Number(data.tcmmv).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:4})} Bs (+ 16% IVA)`;
 
       return {
         factor: factorTotal,
+        far: farAplicado,
+        esResidencial: esResidencialTotal,
+        formulaTexto: formulaStr,
         leyenda,
         totalBs: totalTruncado,
         fuente: data.source,
@@ -2471,14 +2480,21 @@ function ContribuyentesPageContent() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600 bg-white p-3 border border-slate-100 rounded">
                     <div>
                       <p className="mb-1"><span className="font-semibold text-slate-700">Clasificación:</span> {viewCalculo.leyenda}</p>
-                      <p className="mb-1"><span className="font-semibold text-slate-700">Factor Ordenanza (F.O.):</span> {viewCalculo.factor}</p>
+                      <p className="mb-1"><span className="font-semibold text-slate-700">Factor Ordenanza (F.O.):</span> {Number(viewCalculo.factor).toFixed(2)}</p>
                     </div>
                     <div>
                       <p className="mb-1"><span className="font-semibold text-slate-700">Tasa de Cambio Oficial:</span> {Number(viewCalculo.tasaBcv || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:4})} Bs</p>
+                      {viewCalculo.esResidencial && (
+                        <p className="mb-1 text-xs text-emerald-700 font-bold">Exento de IVA (0%)</p>
+                      )}
                     </div>
-                    <div className="md:col-span-2 pt-2 border-t border-slate-100 flex justify-between items-center">
-                      <p className="text-xs font-medium">Fórmula: {viewCalculo.factor} × {Number(viewCalculo.tasaBcv || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:4})} Bs</p>
-                      <p className="text-lg font-bold text-green-700">Total Mensual: Bs. {Number(viewCalculo.totalBs || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</p>
+                    <div className="md:col-span-2 pt-2 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <p className="text-xs font-medium text-slate-600">
+                        Fórmula: <span className="font-mono text-slate-800">{viewCalculo.formulaTexto || `${viewCalculo.factor} × ${Number(viewCalculo.tasaBcv || 0).toFixed(2)} Bs`}</span>
+                      </p>
+                      <p className="text-lg font-black text-emerald-700">
+                        Total Mensual: Bs. {Number(viewCalculo.totalBs || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}
+                      </p>
                     </div>
                   </div>
                   
@@ -2547,15 +2563,22 @@ function ContribuyentesPageContent() {
                       if (f.referencia?.startsWith('RECIB-HIST-')) {
                         const parts = f.referencia.split('-');
                         const inmId = parts[2];
+                        const mNum = parseInt(parts[3]?.replace('M', '') || '0');
                         const matchedInm = userInms.find((inm: any) => inm.inmueble === inmId);
                         if (matchedInm && tcmmv > 0) {
                           const esRes = isResidencialInm(matchedInm);
                           const bm = parseFloat(calcularMensualidad(matchedInm, tcmmv).toFixed(2));
                           const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+                          
+                          // REGLA OFICIAL: El último mes de la factura es SIN multa.
+                          // Solo los meses anteriores acumulan recargo por mora (10% res / 12% com).
+                          const totalMeses = Math.max(1, parseInt(matchedInm.meses_deuda || '1'));
+                          const isUltimoMes = mNum > 0 ? (mNum >= totalMeses) : false;
+
                           const emision = f.emision ? new Date(f.emision) : new Date();
                           const today = new Date();
                           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-                          const multa = monthsDiff > 0 ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                          const multa = (!isUltimoMes && monthsDiff > 0) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                           base = bm + iva + multa;
                         }
                       } else if (f.referencia?.startsWith('CM-')) {
@@ -2569,7 +2592,19 @@ function ContribuyentesPageContent() {
                           const esRes = isResidencialInm(targetInm);
                           const bm = parseFloat(calcularMensualidad(targetInm, tcmmv).toFixed(2));
                           const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
-                          base = bm + iva;
+                          
+                          // Verificar si es el último mes facturado
+                          const allCmForInm = deudas.filter((d: any) =>
+                            d.referencia?.startsWith('CM-') &&
+                            ((targetInm.inmueble && d.referencia.includes(targetInm.inmueble)) || (targetInm.cod_cont && d.referencia.includes(targetInm.cod_cont)))
+                          );
+                          const isUltimoCm = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === f.referencia;
+
+                          const emision = f.emision ? new Date(f.emision) : new Date();
+                          const today = new Date();
+                          const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+                          const multa = (!isUltimoCm && monthsDiff > 0) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                          base = bm + iva + multa;
                         }
                       }
                       
