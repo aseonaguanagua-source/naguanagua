@@ -2150,9 +2150,10 @@ export default function CajaPage() {
                         const activitiesCalc = cluster.inms.map((inm: any) => {
                           const esRes = isResidencialInm(inm);
                           const mmvRaw = parseFloat(inm.mmv_mes || '0');
+                          const foOficial = getFO(inm.actividad_principal || '', esRes);
                           const mmv = esRes
-                            ? (mmvRaw >= 0.22 && mmvRaw <= 1.50 ? mmvRaw : getFO(inm.actividad_principal || '', true))
-                            : (mmvRaw >= 1.00 ? mmvRaw : getFO(inm.actividad_principal || '', false));
+                            ? (mmvRaw >= 0.22 && mmvRaw <= 1.50 ? mmvRaw : foOficial)
+                            : (foOficial && foOficial > 1.00 ? foOficial : (mmvRaw > 1.00 ? mmvRaw : 1.98));
                           const cant = parseInt(inm.cant_inmuebles || 1);
                           const far = getFAR(inm.actividad_principal || '');
                           const formulaUCD = (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
@@ -2280,7 +2281,7 @@ export default function CajaPage() {
                                       </span>
                                     </div>
                                     <span className="text-[10px] font-medium text-slate-600 font-mono">
-                                      FO: {mmv.toFixed(4)} {isResCluster ? `| FAR: ${far.toFixed(4)} ` : ''}| {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = <strong className="text-slate-900">{bsMensual.toFixed(2)} Bs/mes</strong> {isResCluster ? '(Exento)' : ''}
+                                      FO: {mmv.toFixed(4)} {isResCluster ? `| FAR: ${far.toFixed(4)} ` : ''}| {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = <strong className="text-slate-900">{formatBs(bsMensual)} Bs/mes</strong> {isResCluster ? '(Exento)' : <span className="text-blue-700 font-bold ml-1">(con IVA: Bs. {formatBs(bsMensual * 1.16)})</span>}
                                     </span>
                                   </div>
                                 ))}
@@ -2294,14 +2295,14 @@ export default function CajaPage() {
                                   </span>
                                   <p className="text-[10px] text-slate-500 mt-0.5">
                                     {isResCluster 
-                                      ? `${cluster.inms.length} Unidades Residenciales a ${activitiesCalc[0]?.bsMensual.toFixed(2)} Bs c/u (Exento de IVA)`
-                                      : activitiesCalc.map(a => `${a.inm.actividad_principal?.split(' ')[0] || 'Actividad'}: ${a.bsMensual.toFixed(2)} Bs`).join(' + ')
+                                      ? `${cluster.inms.length} Unidades Residenciales a ${formatBs(activitiesCalc[0]?.bsMensual || 0)} Bs c/u (Exento de IVA)`
+                                      : activitiesCalc.map(a => `${a.inm.actividad_principal?.split(' ')[0] || 'Actividad'}: ${formatBs(a.bsMensual * 1.16)} Bs`).join(' + ')
                                     }
                                   </p>
                                 </div>
                                 <div className="text-right">
                                   <span className="font-black text-emerald-800 text-sm">
-                                    {totalClusterUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = Bs. {formatBs(totalClusterBs)} / mes {isResCluster ? '(Exento)' : ''}
+                                    {totalClusterUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = Bs. {formatBs(totalClusterBs)} / mes {isResCluster ? '(Exento)' : `| con IVA: Bs. ${formatBs(totalClusterBs * 1.16)}`}
                                   </span>
                                 </div>
                               </div>
@@ -2338,7 +2339,7 @@ export default function CajaPage() {
                                 </label>
                               )}
                             </div>
-                            <span className="text-[10px] text-slate-600">FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : '0.1280'} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {bsMensual.toFixed(2)} Bs/mes.</span>
+                            <span className="text-[10px] text-slate-600">FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : '0.1280'} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {formatBs(bsMensual)} Bs/mes {esRes ? '(Exento)' : `+ IVA = Bs. ${formatBs(bsMensual * 1.16)}`}.</span>
                           </div>
                         );
                       })}

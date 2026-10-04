@@ -188,17 +188,17 @@ export const calcularMensualidad = (
     }
   } else {
     // Comercial / Industrial / Institucional:
-    // Todos los Factores de Ordenanza F.O. según Tabla "B" son >= 1.00.
-    // Si mmv en BD es >= 1.00, se respeta el factor explícito almacenado.
-    // Si mmv en BD es < 1.00 (fracción pre-dividida en migraciones anteriores) o undefined,
-    // se resuelve directamente mediante getFO(actividad, false) que contiene la Tabla B oficial.
-    if (mmv !== undefined && mmv >= 1.00) {
+    // Todos los Factores de Ordenanza F.O. según Tabla "B" de la Ordenanza Municipal de Naguanagua
+    // deben resolverse prioritariamente mediante getFO(actividad, false).
+    // Si mmv en BD es 1.00 (valor dummy residual de importación) o < 1.54 (no existe F.O. comercial menor a 1.54),
+    // se aplica el F.O. oficial de la Ordenanza (ej: Depósitos Alta = 22.49).
+    const foOficial = getFO(actividad, false);
+    if (foOficial && foOficial > 1.00) {
+      fo = foOficial;
+    } else if (mmv !== undefined && mmv > 1.00) {
       fo = mmv;
     } else {
-      fo = getFO(actividad, false);
-      if (fo < 1.00 && mmv !== undefined && mmv > 0) {
-        fo = parseFloat((mmv * 7.296).toFixed(2));
-      }
+      fo = 1.98;
     }
   }
 
