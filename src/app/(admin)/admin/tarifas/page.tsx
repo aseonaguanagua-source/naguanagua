@@ -127,31 +127,37 @@ export default function TarifasPage() {
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3 font-semibold text-slate-700">Clasificador</th>
-                  <th className="px-4 py-3 font-semibold text-center w-32">F.O.</th>
-                  <th className="px-4 py-3 font-semibold text-right w-40">Monto Mensual (Bs)</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">Clasificador / Tipo Residencial</th>
+                  <th className="px-4 py-3 font-semibold text-center w-28">F.O.</th>
+                  <th className="px-4 py-3 font-semibold text-center w-28">FAR Zonal</th>
+                  <th className="px-4 py-3 font-semibold text-right w-44">Monto Mensual (Bs)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredResidenciales.length > 0 ? (
                   filteredResidenciales.map((tipo: any, idx: number) => {
-                    const farEjemplo = tipo.far || 0.02673; 
-
+                    const farEjemplo = tipo.far || 0.020366; 
                     const monto = (tipo.factor * 57 * rate * farEjemplo).toFixed(2);
                     return (
                       <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-700">
+                        <td className="px-4 py-3 font-medium text-slate-800">
                           {tipo.label} 
-                          <span className="block text-[10px] text-slate-400 font-normal mt-0.5">Calculado con FAR = {farEjemplo}</span>
                         </td>
-                        <td className="px-4 py-3 text-center">{tipo.factor.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-green-700 bg-green-50/30">Bs. {monto}</td>
+                        <td className="px-4 py-3 text-center font-mono font-semibold text-slate-700">
+                          {tipo.factor.toFixed(tipo.factor === 0.618 ? 3 : 2)}
+                        </td>
+                        <td className="px-4 py-3 text-center font-mono text-xs text-slate-500 bg-slate-50/50">
+                          {farEjemplo}
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-emerald-800 bg-emerald-50/30 font-mono">
+                          Bs. {monto}
+                        </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={3} className="px-4 py-6 text-center text-slate-500">No se encontraron clasificaciones residenciales</td>
+                    <td colSpan={4} className="px-4 py-6 text-center text-slate-500">No se encontraron clasificaciones residenciales</td>
                   </tr>
                 )}
               </tbody>

@@ -66,11 +66,12 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
   if (esResidencial) {
     if (act.includes("quinta (zona a)") || act.includes("quinta (zona b)")) return 1.06;
     if (act.includes("apartamento (zona a)") || act.includes("apartamento (zona b)")) return 0.91;
+    if (act.includes("casa (zona a)") || act.includes("casa (zona b)")) return 0.80;
     if (act.includes("casa (zona c)")) return 0.618;
-    if (act.includes("apartamento (zona c)")) return 0.3;
-    if (act.includes("casa (zona d)")) return 0.22;
+    if (act.includes("apartamento (zona c)")) return 0.30;
+    if (act.includes("casa (zona d)") || act.includes("apartamento (zona d)")) return 0.22;
     // Default fallback
-    if (act.includes("apartamento")) return 0.91;
+    if (act.includes("apartamento") || act.includes("apto")) return 0.91;
     if (act.includes("quinta") || act.includes("villa") || act.includes("town house") || act.includes("townhouse")) return 1.06;
     return 0.80; // Default Casa
   }
@@ -99,14 +100,12 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
 
 export const getFAR = (actividadFull: string) => {
   const act = (actividadFull || "").toLowerCase().trim();
-  if (act.includes("quinta (zona a)")) return 0.020366;
-  if (act.includes("apartamento (zona a)")) return 0.023723;
-  if (act.includes("quinta (zona b)")) return 0.016298;
-  if (act.includes("apartamento (zona b)")) return 0.018985;
-  if (act.includes("casa (zona c)")) return 0.014;
-  if (act.includes("apartamento (zona c)")) return 0.028839;
-  if (act.includes("casa (zona d)")) return 0.02673;
-  return 0.02673;
+  // Factor de Ajuste Residencial (FAR) por Zona Catastral en Naguanagua
+  if (act.includes("zona a") || act.includes("(zona a)")) return 0.020366;
+  if (act.includes("zona b") || act.includes("(zona b)")) return 0.016298;
+  if (act.includes("zona c") || act.includes("(zona c)")) return 0.014000;
+  if (act.includes("zona d") || act.includes("(zona d)")) return 0.026730;
+  return 0.020366; // Fallback Zona A
 };
 
 export const calcularMensualidad = (
