@@ -14,7 +14,7 @@ export default function CorreosPage() {
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [totalContacts, setTotalContacts] = useState(35763);
 
-  // Enviar correo de prueba a davidzara66@gmail.com
+  // Enviar correo de prueba a aseonaguanagua@globalgreenca.com
   const handleSendTest = async () => {
     setIsSendingTest(true);
     setStatusMessage(null);
@@ -28,7 +28,7 @@ export default function CorreosPage() {
       if (data.success) {
         setStatusMessage({
           type: 'success',
-          text: `Correo de prueba despachado exitosamente a davidzara66@gmail.com.`
+          text: `Correo de prueba despachado exitosamente a aseonaguanagua@globalgreenca.com.`
         });
       } else {
         setStatusMessage({
@@ -182,7 +182,7 @@ export default function CorreosPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-800">Sistema de Envío Masivo de Correos</h1>
             <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-blue-300 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> Modo Prueba Activo: davidzara66@gmail.com
+              <ShieldCheck className="w-3.5 h-3.5" /> Modo Prueba Activo: aseonaguanagua@globalgreenca.com
             </span>
           </div>
           <p className="text-slate-500 mt-1">
@@ -264,7 +264,7 @@ export default function CorreosPage() {
                   {isSendingTest ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> Enviando prueba...</>
                   ) : (
-                    <><Eye className="w-4 h-4" /> Probar en davidzara66@gmail.com</>
+                    <><Eye className="w-4 h-4" /> Probar en aseonaguanagua@globalgreenca.com</>
                   )}
                 </button>
                 

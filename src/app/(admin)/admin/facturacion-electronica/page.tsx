@@ -30,11 +30,11 @@ export default function FacturacionElectronicaPage() {
   const [ajusteConcepto, setAjusteConcepto] = useState<string>('');
   const [isEmitting, setIsEmitting] = useState(false);
   const [enviarCorreoAlEmitir, setEnviarCorreoAlEmitir] = useState(true);
-  const [correoDestinoEmision, setCorreoDestinoEmision] = useState('davidzara66@gmail.com');
+  const [correoDestinoEmision, setCorreoDestinoEmision] = useState('aseonaguanagua@globalgreenca.com');
 
   // Modal de Reenvío de Correo
   const [selectedPagoForEmail, setSelectedPagoForEmail] = useState<any | null>(null);
-  const [customEmailDestino, setCustomEmailDestino] = useState('davidzara66@gmail.com');
+  const [customEmailDestino, setCustomEmailDestino] = useState('aseonaguanagua@globalgreenca.com');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
 
@@ -76,7 +76,7 @@ export default function FacturacionElectronicaPage() {
     setAjusteMontoServicio(baseEstimada);
     setAjusteMontoMulta('0.00');
     setAjusteConcepto(`Servicio de Aseo Urbano Comercial - ${getMesActual()}`);
-    setCorreoDestinoEmision('davidzara66@gmail.com');
+    setCorreoDestinoEmision('aseonaguanagua@globalgreenca.com');
     setEnviarCorreoAlEmitir(true);
   };
 
@@ -229,7 +229,7 @@ export default function FacturacionElectronicaPage() {
               <ShieldCheck className="w-3.5 h-3.5" /> TFHKA Conectado
             </span>
             <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-300">
-              Modo Pruebas: davidzara66@gmail.com
+              Modo Pruebas: aseonaguanagua@globalgreenca.com
             </span>
           </div>
           <p className="text-slate-500 mt-1">
@@ -452,7 +452,7 @@ export default function FacturacionElectronicaPage() {
                               <button
                                 onClick={() => {
                                   setSelectedPagoForEmail(pago);
-                                  setCustomEmailDestino('davidzara66@gmail.com');
+                                  setCustomEmailDestino('aseonaguanagua@globalgreenca.com');
                                 }}
                                 className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded flex items-center gap-1 border border-emerald-300"
                               >
@@ -596,7 +596,7 @@ export default function FacturacionElectronicaPage() {
                         type="email"
                         value={correoDestinoEmision}
                         onChange={e => setCorreoDestinoEmision(e.target.value)}
-                        placeholder="davidzara66@gmail.com"
+                        placeholder="aseonaguanagua@globalgreenca.com"
                         className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono bg-white"
                       />
                     </div>
@@ -662,7 +662,7 @@ export default function FacturacionElectronicaPage() {
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500"
                 />
                 <span className="text-[11px] text-slate-400 mt-1 block">
-                  Por defecto configurado en modo prueba a <strong>davidzara66@gmail.com</strong>
+                  Por defecto configurado en modo prueba a <strong>aseonaguanagua@globalgreenca.com</strong>
                 </span>
               </div>
 

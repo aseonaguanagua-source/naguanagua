@@ -215,7 +215,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const testMode: boolean = body.test !== false;
-    const testEmail = process.env.ADMIN_EMAIL || 'davidzara66@gmail.com';
+    const testEmail = process.env.TEST_EMAIL || process.env.ADMIN_EMAIL || 'aseonaguanagua@globalgreenca.com';
 
     let destinatarios: { nombre: string; correo: string }[] = [];
     if (testMode) {

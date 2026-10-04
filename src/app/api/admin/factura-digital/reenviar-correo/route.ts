@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     const { pagoId, correoDestino, facturaUrl, numeroControl, contribuyente, identidad, monto, fecha } = body;
 
     const testMode = process.env.EMAIL_TEST_MODE !== 'false';
-    const defaultTestEmail = process.env.TEST_EMAIL || 'davidzara66@gmail.com';
+    const defaultTestEmail = process.env.TEST_EMAIL || 'aseonaguanagua@globalgreenca.com';
 
     // Determinar destino: si está en modo prueba o se especificó correo destino
     const targetEmail = testMode ? defaultTestEmail : (correoDestino || defaultTestEmail);
