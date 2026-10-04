@@ -796,11 +796,11 @@ function ContribuyentesPageContent() {
       y += 5;
 
       if (cluster.isMultiActivity) {
-        const codigosList = cluster.inmuebles.map((i: any) => i.inmueble).filter(Boolean).join(', ');
+        const codigoPrincipal = cluster.inmuebles[0]?.condominio_padre_id || cluster.clusterId || cluster.inmuebles[0]?.inmueble || 'Principal';
         doc.setFont('helvetica', 'normal');
-        doc.text('Códigos Inmuebles:', 14, y);
+        doc.text('Código Inmueble:', 14, y);
         doc.setFont('helvetica', 'bold');
-        doc.text(codigosList, 45, y);
+        doc.text(codigoPrincipal, 42, y);
 
         doc.setFont('helvetica', 'normal');
         doc.text('Actividades:', 145, y);

@@ -43,14 +43,23 @@ export const getUserInmuebles = (
   foundUser: ContribuyenteBasic | null
 ): InmuebleBasic[] => {
   if (!foundUser) return [];
+
+  const isTrueCondo = 
+    ((foundUser as any).Contribuyente || '').toLowerCase().includes('condominio') ||
+    ((foundUser as any).Clasificacion || '').toLowerCase().includes('condominio') ||
+    (((foundUser as any).Tipo || '').toUpperCase().includes('RESIDENCIAL') && (foundUser as any).es_condominio);
+
   const source: InmuebleBasic[] =
     freshInmuebles.length > 0
-      ? [...freshInmuebles, ...condominioHijos]
+      ? (isTrueCondo ? [...freshInmuebles, ...condominioHijos] : freshInmuebles)
       : contextInmuebles || [];
-  const fid = (foundUser.Identidad || '').replace(/-/g, '').toUpperCase();
+
+  const fid = (foundUser.Identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
+
   return source.filter((i) => {
-    if (freshInmuebles.length > 0) return true;
-    return (i.identidad || '').replace(/-/g, '').toUpperCase() === fid;
+    if (isTrueCondo) return true;
+    const itemFid = (i.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
+    return itemFid === fid;
   });
 };
 
