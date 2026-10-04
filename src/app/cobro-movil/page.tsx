@@ -1,6 +1,10 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Landmark, MapPin, User2, Building2, TriangleAlert } from 'lucide-react';
+import { 
+  CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, 
+  Landmark, MapPin, User2, Building2, TriangleAlert, ChevronDown, ChevronUp,
+  CheckSquare2, Square
+} from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 import { isResidencialInm, calcularMensualidad } from '@/lib/calculos';
@@ -67,6 +71,7 @@ export default function KioskPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [payError, setPayError] = useState('');
   const [showBancamigaSim, setShowBancamigaSim] = useState(false);
+  const [expandedInms, setExpandedInms] = useState<Record<string, boolean>>({});
 
   const isResidencialGlobal = isResidencialInm(foundUser);
   const esAgenteGlobal = foundUser?.EsAgente ?? false;
@@ -180,16 +185,113 @@ export default function KioskPage() {
   const pagoTotalCalculado = parseFloat((desgloseSel.base + desgloseSel.multa + ivaCalculado).toFixed(2));
 
   useEffect(() => {
-    if (recibos.length > 0) {
-      const refs = recibos.slice(0, monthsToPay).map(r => r.referencia);
-      setSelectedRefs(refs);
-      const t = refs.reduce((s, ref) => {
-        const f = recibos.find(r => r.referencia === ref);
-        return s + (f ? getReciboMonto(f) : 0);
-      }, 0);
-      setTotalSel(parseFloat(t.toFixed(2)));
+    const t = selectedRefs.reduce((s, ref) => {
+      const f = recibos.find(r => r.referencia === ref);
+      return s + (f ? getReciboMonto(f) : 0);
+    }, 0);
+    setTotalSel(parseFloat(t.toFixed(2)));
+    setMonthsToPay(selectedRefs.length);
+  }, [selectedRefs, recibos, userInms, tcmmv]);
+
+  const toggleExpand = (inmId: string) => {
+    setExpandedInms(prev => ({ ...prev, [inmId]: !prev[inmId] }));
+  };
+
+  const toggleAllInmueble = (inmRefs: string[]) => {
+    const isAllSelected = inmRefs.length > 0 && inmRefs.every(ref => selectedRefs.includes(ref));
+    if (isAllSelected) {
+      setSelectedRefs(prev => prev.filter(ref => !inmRefs.includes(ref)));
+    } else {
+      setSelectedRefs(prev => Array.from(new Set([...prev, ...inmRefs])));
     }
-  }, [monthsToPay, recibos, userInms, tcmmv]);
+  };
+
+  const selectAllReceipts = () => {
+    setSelectedRefs(recibos.map(r => r.referencia));
+  };
+
+  const deselectAllReceipts = () => {
+    setSelectedRefs([]);
+  };
+
+  const toggleIndividualReceipt = (ref: string, inmItems: Recibo[]) => {
+    const isSelected = selectedRefs.includes(ref);
+    const refIndex = inmItems.findIndex(r => r.referencia === ref);
+    if (refIndex === -1) return;
+
+    if (isSelected) {
+      const toRemove = inmItems.slice(refIndex).map(r => r.referencia);
+      setSelectedRefs(prev => prev.filter(r => !toRemove.includes(r)));
+    } else {
+      const toAdd = inmItems.slice(0, refIndex + 1).map(r => r.referencia);
+      setSelectedRefs(prev => Array.from(new Set([...prev, ...toAdd])));
+    }
+  };
+
+  const formatPeriodo = (emision?: string) => {
+    const M = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+    if (!emision) return 'Sin fecha';
+    const p = emision.split('-');
+    return p.length >= 2 ? `${M[parseInt(p[1])-1] || p[1]} ${p[0]}` : emision;
+  };
+
+  const groupedInmuebles = useMemo(() => {
+    const map: Record<string, {
+      inmId: string;
+      tipo: string;
+      act: string;
+      direccion: string;
+      items: Recibo[];
+      totalBs: number;
+    }> = {};
+
+    recibos.forEach((r) => {
+      let inmId = 'Facturación General';
+      let tipo = '';
+      let act = '';
+      let direccion = '';
+
+      if (r.referencia?.startsWith('RECIB-HIST-')) {
+        const parts = r.referencia.split('-');
+        if (parts.length > 2) {
+          const match = userInms.find((i: any) => i.inmueble === parts[2]);
+          if (match) {
+            inmId = match.inmueble;
+            tipo = match.clasificacion || '';
+            act = match.actividad_principal || '';
+            direccion = match.direccion || '';
+          } else {
+            inmId = parts[2];
+          }
+        }
+      } else if (r.referencia?.startsWith('CM-')) {
+        const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
+        if (match) {
+          inmId = match.inmueble;
+          tipo = match.clasificacion || '';
+          act = match.actividad_principal || '';
+          direccion = match.direccion || '';
+        } else {
+          inmId = 'Acumulados';
+        }
+      } else {
+        if (userInms.length === 1) {
+          inmId = userInms[0].inmueble;
+          tipo = userInms[0].clasificacion || '';
+          act = userInms[0].actividad_principal || '';
+          direccion = userInms[0].direccion || '';
+        }
+      }
+
+      if (!map[inmId]) {
+        map[inmId] = { inmId, tipo, act, direccion, items: [], totalBs: 0 };
+      }
+      map[inmId].items.push(r);
+      map[inmId].totalBs += getReciboMonto(r);
+    });
+
+    return Object.values(map);
+  }, [recibos, userInms, getReciboMonto]);
 
   const handleSearch = async () => {
     if (!docNumber.trim()) return;
@@ -309,9 +411,19 @@ export default function KioskPage() {
         }
       }
     }
-    setUserInms(inmsFinal as Inmueble[]);
+    // Filtrar contenedores N/A que solo envuelven otras actividades (ej: URB033481)
+    const naParentCodes = inmsFinal
+      .filter((i: any) => 
+        (i.actividad_principal || '').trim().toUpperCase() === 'N/A' && 
+        (parseInt(i.cant_inmuebles || '0') > 0 || inmsFinal.some((c: any) => c.condominio_padre_id === i.inmueble))
+      )
+      .map((i: any) => i.inmueble);
 
-    const totalDeudaMMV = inmsFinal.reduce((s: number, i: any) => s + parseFloat(i.deuda_mmv || 0), 0);
+    const billableInms = inmsFinal.filter((i: any) => !naParentCodes.includes(i.inmueble));
+    const finalInmsToUse = billableInms.length > 0 ? billableInms : inmsFinal;
+    setUserInms(finalInmsToUse as Inmueble[]);
+
+    const totalDeudaMMV = finalInmsToUse.reduce((s: number, i: any) => s + parseFloat(i.deuda_mmv || 0), 0);
     const totalCongelada = inmsDB.reduce((s: number, i: any) => s + parseFloat(i.deuda_congelada_bs || 0), 0);
 
     const userVariants = getIdentidadVariants(p.identidad || user.Identidad);
@@ -333,10 +445,11 @@ export default function KioskPage() {
     const combined = [...(allUserFacturas || []), ...fallbackFacturas] as Recibo[];
     
     // Inyectar recibos dummy divididos por mes si no hay facturas reales
-    if (combined.length === 0 && inmsFinal && inmsFinal.length > 0) {
-      const hasDeuda = inmsFinal.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
+    if (combined.length === 0 && finalInmsToUse && finalInmsToUse.length > 0) {
+      const hasDeuda = finalInmsToUse.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
       if (hasDeuda) {
-        inmsFinal.forEach((inm: any) => {
+        const now = new Date();
+        finalInmsToUse.forEach((inm: any) => {
           const deudaMMV = parseFloat(inm.deuda_mmv || '0');
           const congelada = parseFloat(inm.deuda_congelada_bs || '0');
           const multa = parseFloat(inm.multa_bs || '0');
@@ -344,13 +457,14 @@ export default function KioskPage() {
           if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
             const numMeses = Math.max(1, meses);
             for (let i = 1; i <= numMeses; i++) {
+              const targetDate = new Date(now.getFullYear(), now.getMonth() - numMeses + i - 1, 1, 12, 0, 0);
               combined.push({
                 id: `dummy-hist-${inm.inmueble}-${i}`,
                 referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
                 identidad: user.Identidad,
                 contribuyente: user.Contribuyente,
-                emision: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i - 1)).toISOString(),
-                vencimiento: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i - 1)).toISOString(),
+                emision: targetDate.toISOString(),
+                vencimiento: targetDate.toISOString(),
                 estado: 'Pendiente',
                 monto: '0'
               } as Recibo);
@@ -365,7 +479,9 @@ export default function KioskPage() {
       return (a.emision || '').localeCompare(b.emision || '');
     });
     setRecibos(combined);
-    setMonthsToPay(combined.length > 0 ? 1 : 0);
+    setSelectedRefs(combined.map(r => r.referencia));
+    setMonthsToPay(combined.length);
+    setExpandedInms({});
     setStep('account');
     setIsSearching(false);
   };
@@ -502,132 +618,246 @@ export default function KioskPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-5">
-              <div className="bg-gradient-to-r from-red-900/40 to-orange-900/30 rounded-3xl p-6 border border-red-500/30 text-center">
-                <div className="text-red-300 font-bold uppercase text-sm tracking-widest mb-2">
+              {/* TARJETA DEUDA TOTAL */}
+              <div className="bg-gradient-to-r from-red-900/40 to-orange-900/30 rounded-3xl p-6 border border-red-500/30 text-center shadow-lg">
+                <div className="text-red-300 font-bold uppercase text-xs sm:text-sm tracking-widest mb-1">
                   Deuda Total — {recibos.length} {recibos.length === 1 ? 'período' : 'períodos'}
                 </div>
-                <div className="text-5xl font-black text-white">Bs. {fmtBs(recibos.reduce((s,r) => s + getReciboMonto(r), 0))}</div>
+                <div className="text-3xl sm:text-5xl font-black text-white">
+                  Bs. {fmtBs(recibos.reduce((s, r) => s + getReciboMonto(r), 0))}
+                </div>
               </div>
 
-              {/* DESGLOSE POR INMUEBLE */}
+              {/* BARRA DE ACCIÓN RÁPIDA */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-800/90 p-3.5 sm:p-4 rounded-2xl border border-slate-700/80 shadow-md">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-slate-300 font-bold text-xs sm:text-sm">Inmuebles:</span>
+                  <span className="bg-emerald-500/20 text-emerald-400 text-xs font-black px-2.5 py-0.5 rounded-full">
+                    {groupedInmuebles.length} {groupedInmuebles.length === 1 ? 'inmueble' : 'inmuebles'}
+                  </span>
+                  <span className="text-slate-400 text-xs font-medium">
+                    ({selectedRefs.length} de {recibos.length} seleccionados)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllReceipts}
+                    className="text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                  >
+                    ✓ Elegir Todo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deselectAllReceipts}
+                    className="text-xs font-bold bg-slate-700/60 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-600 px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                  >
+                    ✕ Limpiar
+                  </button>
+                </div>
+              </div>
+
+              {/* AGRUPACIÓN POR INMUEBLE CON ACORDEÓN DESPLEGABLE */}
               <div className="space-y-3">
-                {Object.entries(
-                  recibos.reduce((acc: any, r: any) => {
-                    let inmId = 'Facturación General';
-                    let tipo = '';
-                    let act = '';
-                    if (r.referencia?.startsWith('RECIB-HIST-')) {
-                      const parts = r.referencia.split('-');
-                      if (parts.length > 2) {
-                        const match = userInms.find((i: any) => i.inmueble === parts[2]);
-                        if (match) { inmId = match.inmueble; tipo = match.clasificacion || ''; act = match.actividad_principal || ''; }
-                        else inmId = parts[2];
-                      }
-                    } else if (r.referencia?.startsWith('CM-')) {
-                      const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
-                      if (match) { inmId = match.inmueble; tipo = match.clasificacion || ''; act = match.actividad_principal || ''; }
-                      else inmId = 'Acumulados';
-                    } else {
-                      if (userInms.length === 1) { inmId = userInms[0].inmueble; tipo = userInms[0].clasificacion || ''; act = userInms[0].actividad_principal || ''; }
-                    }
-                    const key = `${inmId}|${tipo}|${act}`;
-                    if (!acc[key]) acc[key] = { items: [], id: inmId, tipo, act };
-                    acc[key].items.push(r);
-                    return acc;
-                  }, {})
-                ).map(([key, group]: [string, any]) => (
-                  <div key={key} className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
-                    <div className="bg-slate-700/50 px-4 py-3 border-b border-slate-700 flex items-center justify-between">
-                      <div>
-                        <span className="text-emerald-400 font-bold text-sm">{group.id}</span>
-                        {group.tipo && <div className="text-xs text-slate-400 mt-0.5">{group.tipo} {group.act && `• ${group.act}`}</div>}
-                      </div>
-                      <span className="bg-slate-700 text-slate-300 text-xs font-bold px-3 py-1 rounded-full">{group.items.length} meses</span>
-                    </div>
-                    <div className="p-4 space-y-3">
-                      {group.items.map((r: any) => (
-                        <div key={r.referencia} className="flex justify-between items-center text-sm">
-                          <div>
-                            <div className="text-slate-300 font-medium">{r.referencia}</div>
-                            <div className="text-slate-500 text-xs mt-0.5">
-                              {(() => {
-                                const M = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-                                if (!r.emision) return 'Sin fecha';
-                                const p = r.emision.split('-');
-                                return p.length >= 2 ? `${M[parseInt(p[1])-1] || p[1]} ${p[0]}` : r.emision;
-                              })()}
+                {groupedInmuebles.map((group) => {
+                  const inmRefs = group.items.map((r) => r.referencia);
+                  const selectedCount = inmRefs.filter((ref) => selectedRefs.includes(ref)).length;
+                  const isAllSelected = inmRefs.length > 0 && selectedCount === inmRefs.length;
+                  const isPartiallySelected = selectedCount > 0 && !isAllSelected;
+                  const isExpanded = !!expandedInms[group.inmId];
+
+                  return (
+                    <div
+                      key={group.inmId}
+                      className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-md transition-all hover:border-slate-600"
+                    >
+                      {/* Cabecera del Inmueble */}
+                      <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-800">
+                        <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+                          {/* Opción para elegir todos los recibos de este inmueble */}
+                          <button
+                            type="button"
+                            onClick={() => toggleAllInmueble(inmRefs)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95 shrink-0 ${
+                              isAllSelected
+                                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30 ring-2 ring-emerald-400'
+                                : isPartiallySelected
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+                                : 'bg-slate-700/70 hover:bg-slate-700 text-slate-300 border border-slate-600'
+                            }`}
+                            title="Seleccionar o deseleccionar todos los recibos de este inmueble"
+                          >
+                            {isAllSelected ? (
+                              <CheckSquare2 className="w-4 h-4 text-white shrink-0" />
+                            ) : (
+                              <Square className="w-4 h-4 text-slate-400 shrink-0" />
+                            )}
+                            <span>
+                              {isAllSelected
+                                ? `Elegido (${inmRefs.length})`
+                                : isPartiallySelected
+                                ? `${selectedCount}/${inmRefs.length}`
+                                : `Elegir Todo (${inmRefs.length})`}
+                            </span>
+                          </button>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-emerald-400 font-black text-base tracking-wide">
+                                {group.inmId}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                group.tipo.toLowerCase().includes('residencial')
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : 'bg-blue-500/20 text-blue-400'
+                              }`}>
+                                {group.tipo || 'COMERCIAL'}
+                              </span>
+                              {group.act && (
+                                <span className="text-[10px] font-medium text-slate-300 bg-slate-700/80 px-2 py-0.5 rounded-full truncate max-w-[180px]" title={group.act}>
+                                  {group.act}
+                                </span>
+                              )}
+                            </div>
+                            {group.direccion && (
+                              <p className="text-[11px] text-slate-400 mt-1 line-clamp-1 flex items-center gap-1" title={group.direccion}>
+                                <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
+                                {group.direccion}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Monto del Inmueble y Botón para desplegar recibos */}
+                        <div className="flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-700/60 shrink-0">
+                          <div className="text-left md:text-right">
+                            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                              Deuda Inmueble
+                            </div>
+                            <div className="text-white font-black text-base sm:text-lg">
+                              Bs. {fmtBs(group.totalBs)}
                             </div>
                           </div>
-                          <div className="text-white font-bold">Bs. {fmtBs(getReciboMonto(r))}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
 
-              {/* RESUMEN DE PAGO */}
-              <div className="bg-slate-800 rounded-3xl p-6 border border-slate-700">
-                <h4 className="font-bold mb-4 text-slate-300 uppercase tracking-widest text-xs">Detalle a Pagar</h4>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-slate-400">Subtotal Aseo ({monthsToPay} {monthsToPay === 1 ? 'mes' : 'meses'})</span>
-                  <span className="text-white font-bold text-lg">Bs. {fmtBs(desgloseSel.base)}</span>
-                </div>
-                {desgloseSel.multa > 0 && (
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-amber-400 text-sm">Multa por Mora (Exenta de IVA)</span>
-                    <span className="text-amber-400 font-bold">Bs. {fmtBs(desgloseSel.multa)}</span>
-                  </div>
-                )}
-                {!isResidencialGlobal && (
-                  <>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-slate-400">IVA (16%) Base Imponible</span>
-                      <span className="text-white font-bold">Bs. {fmtBs(ivaTotalCalculado)}</span>
-                    </div>
-                    {esAgenteGlobal && (
-                      <>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-amber-400 text-sm">↳ IVA Retenido (75%) — sube planilla</span>
-                          <span className="text-amber-400 font-bold">- Bs. {fmtBs(ivaRetenidoCalculado)}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(group.inmId)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all border border-slate-600"
+                          >
+                            <span>{isExpanded ? 'Ocultar' : `Ver Recibos (${group.items.length})`}</span>
+                            {isExpanded ? <ChevronUp className="w-4 h-4 text-emerald-400" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
                         </div>
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="text-slate-400">IVA a Pagar (25%)</span>
-                          <span className="text-white font-bold text-lg">Bs. {fmtBs(ivaCalculado)}</span>
-                        </div>
-                      </>
-                    )}
-                    {!esAgenteGlobal && (
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-slate-400">IVA a Pagar (16%)</span>
-                        <span className="text-white font-bold text-lg">Bs. {fmtBs(ivaCalculado)}</span>
                       </div>
-                    )}
-                  </>
-                )}
-                <div className="flex justify-between items-center pt-4 border-t border-slate-700/50">
-                  <span className="text-emerald-400 font-black text-xl">Pago Total</span>
-                  <span className="text-emerald-400 font-black text-2xl">Bs. {fmtBs(pagoTotalCalculado)}</span>
-                </div>
+
+                      {/* Recibos desplegables (Solo se muestran al escoger/desplegar) */}
+                      {isExpanded && (
+                        <div className="p-3.5 bg-slate-900/70 border-t border-slate-700/80 space-y-2 max-h-[360px] overflow-y-auto">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                            <span>Desglose Mensual — Seleccione períodos específicos</span>
+                            <span className="text-emerald-400">{selectedCount} de {group.items.length} elegidos</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {group.items.map((r, rIdx) => {
+                              const isItemSel = selectedRefs.includes(r.referencia);
+                              return (
+                                <div
+                                  key={r.referencia}
+                                  onClick={() => toggleIndividualReceipt(r.referencia, group.items)}
+                                  className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
+                                    isItemSel
+                                      ? 'bg-emerald-500/15 border-emerald-500/60 ring-1 ring-emerald-500/30'
+                                      : 'bg-slate-800/60 hover:bg-slate-800 border-slate-700/60 text-slate-400'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isItemSel}
+                                      onChange={() => {}}
+                                      className="w-4 h-4 text-emerald-500 rounded cursor-pointer pointer-events-none shrink-0"
+                                    />
+                                    <div className="min-w-0">
+                                      <div className={`font-bold text-xs truncate ${isItemSel ? 'text-emerald-300' : 'text-slate-300'}`}>
+                                        Mes {rIdx + 1} — {formatPeriodo(r.emision)}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 font-mono truncate">
+                                        {r.referencia}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className={`font-extrabold text-xs shrink-0 pl-2 ${isItemSel ? 'text-white' : 'text-slate-400'}`}>
+                                    Bs. {fmtBs(getReciboMonto(r))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
-              <div>
-                <h3 className="font-black text-xl mb-4 text-white">¿Cuántos meses deseas cancelar hoy?</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {[...Array(Math.min(recibos.length, 6))].map((_, i) => (
-                    <button key={i} onClick={() => setMonthsToPay(i+1)}
-                      className={`py-5 rounded-2xl font-black text-xl border-2 transition-all active:scale-95 ${monthsToPay===i+1 ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-emerald-500/50'}`}>
-                      {i+1} {i===0 ? 'Mes' : 'Meses'}
-                    </button>
-                  ))}
-                  {recibos.length > 6 && (
-                    <button onClick={() => setMonthsToPay(recibos.length)}
-                      className={`py-5 rounded-2xl font-black text-xl border-2 transition-all col-span-3 active:scale-95 ${monthsToPay===recibos.length ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
-                      Cancelar Todo ({recibos.length} Meses)
-                    </button>
+              {/* DETALLE A PAGAR */}
+              <div className="bg-slate-800 rounded-3xl p-5 sm:p-6 border border-slate-700 shadow-md">
+                <div className="flex items-center justify-between mb-4 border-b border-slate-700/80 pb-3">
+                  <h4 className="font-bold text-slate-300 uppercase tracking-widest text-xs">
+                    Detalle a Pagar
+                  </h4>
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                    {selectedRefs.length} {selectedRefs.length === 1 ? 'período seleccionado' : 'períodos seleccionados'}
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Subtotal Aseo ({selectedRefs.length} {selectedRefs.length === 1 ? 'mes' : 'meses'})</span>
+                    <span className="text-white font-bold text-base">Bs. {fmtBs(desgloseSel.base)}</span>
+                  </div>
+                  {desgloseSel.multa > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-amber-400">Multa por Mora (Exenta de IVA)</span>
+                      <span className="text-amber-400 font-bold">Bs. {fmtBs(desgloseSel.multa)}</span>
+                    </div>
+                  )}
+                  {!isResidencialGlobal && (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">IVA (16%) Base Imponible</span>
+                        <span className="text-white font-bold">Bs. {fmtBs(ivaTotalCalculado)}</span>
+                      </div>
+                      {esAgenteGlobal && (
+                        <>
+                          <div className="flex justify-between items-center text-amber-400 text-xs sm:text-sm">
+                            <span>↳ IVA Retenido (75%) — sube planilla</span>
+                            <span className="font-bold">- Bs. {fmtBs(ivaRetenidoCalculado)}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400">IVA a Pagar (25%)</span>
+                            <span className="text-white font-bold text-base">Bs. {fmtBs(ivaCalculado)}</span>
+                          </div>
+                        </>
+                      )}
+                      {!esAgenteGlobal && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400">IVA a Pagar (16%)</span>
+                          <span className="text-white font-bold text-base">Bs. {fmtBs(ivaCalculado)}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
+
+                <div className="flex justify-between items-center pt-4 mt-4 border-t border-slate-700/80">
+                  <span className="text-emerald-400 font-black text-xl">Pago Total</span>
+                  <span className="text-emerald-400 font-black text-2xl sm:text-3xl">
+                    Bs. {fmtBs(pagoTotalCalculado)}
+                  </span>
+                </div>
               </div>
+
               {/* AVISO AGENTE DE RETENCIÓN */}
               {foundUser?.EsAgente && (
                 <div className="flex items-start gap-4 bg-amber-400/20 border-2 border-amber-400 rounded-2xl px-5 py-4">
@@ -642,9 +872,20 @@ export default function KioskPage() {
                   </div>
                 </div>
               )}
-              <button onClick={() => setStep('pay')}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-6 rounded-2xl text-2xl mt-2 active:scale-95 transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20">
-                Pagar Bs. {fmtBs(pagoTotalCalculado)} <ArrowRight className="w-7 h-7" />
+
+              {/* BOTÓN PAGAR */}
+              <button
+                onClick={() => setStep('pay')}
+                disabled={selectedRefs.length === 0}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black py-5 sm:py-6 rounded-2xl text-xl sm:text-2xl mt-1 active:scale-95 transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20"
+              >
+                {selectedRefs.length === 0 ? (
+                  'Seleccione al menos un período'
+                ) : (
+                  <>
+                    Pagar Bs. {fmtBs(pagoTotalCalculado)} <ArrowRight className="w-6 h-6 sm:w-7 sm:h-7" />
+                  </>
+                )}
               </button>
             </div>
           )}
