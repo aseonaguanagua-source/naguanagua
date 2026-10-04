@@ -426,8 +426,11 @@ export default function CajaPage() {
         (sum: number, i: any) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0), 0
       );
       
-      // Calcular deuda total fresca
-      const deudaTotalFresh = activeInmFresh.reduce(
+      // Calcular deuda total fresca (excluyendo contenedores N/A para evitar duplicar montos con sus actividades hijas)
+      const billableActiveInms = activeInmFresh.filter(
+        (i: any) => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A'
+      );
+      const deudaTotalFresh = billableActiveInms.reduce(
         (sum: number, i: any) => {
           const currentBcvRate = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : tcmmv;
           const meses = Math.max(0, parseInt(i.meses_deuda || '0'));
@@ -1153,6 +1156,25 @@ export default function CajaPage() {
             } else if (histRefsThisInm.length > 0) {
               const currentMeses = Math.max(0, numMesesInm - histRefsThisInm.length);
               await supabase.from('inmuebles').update({ meses_deuda: currentMeses }).eq('id', inm.id);
+            }
+          }
+
+          // Si algún inmueble pertenecía a un contenedor padre N/A (ej: URB033481), limpiar también el contenedor padre si sus hijos ya no tienen deuda
+          const parentCodesToSync = Array.from(new Set(userInmsClean.map((i: any) => i.condominio_padre_id).filter(Boolean)));
+          for (const pCode of parentCodesToSync) {
+            const parentInm = userInmsClean.find((i: any) => i.inmueble === pCode);
+            if (parentInm) {
+              const children = userInmsClean.filter((i: any) => i.condominio_padre_id === pCode);
+              const maxChildMonths = Math.max(0, ...children.map((c: any) => {
+                const childHistRefs = histRefs.filter(r => r.includes(`-${c.inmueble || c.codigo}-`));
+                const childMonths = parseInt(String(c.meses_deuda || 1));
+                return Math.max(0, childMonths - childHistRefs.length);
+              }));
+              if (maxChildMonths === 0 || selectedRecibos.includes('RECIB-DEUDA')) {
+                await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', parentInm.id);
+              } else {
+                await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths }).eq('id', parentInm.id);
+              }
             }
           }
         }
@@ -1886,60 +1908,239 @@ export default function CajaPage() {
                 {(() => {
                   const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
                   if (userInms.length === 0) return 'No hay inmuebles registrados.';
-                  
+
+                  // 1. Filtrar inmuebles contenedores "N/A" (no son actividades económicas facturables)
+                  const billableInms = userInms.filter((inm: any) => {
+                    const act = (inm.actividad_principal || '').trim().toUpperCase();
+                    if (act === 'N/A' || act === '') return false;
+                    return true;
+                  });
+
+                  if (billableInms.length === 0) return 'No hay actividades económicas facturables.';
+
+                  // 2. Agrupar por Local Físico (misma dirección / condominio_padre)
+                  const clustersMap = clusterInmueblesByLocal(billableInms);
+                  const clustersList: Array<{ localId: string; label: string; direccion: string; inms: any[] }> = [];
+                  const seenClusters = new Set<string>();
+
+                  billableInms.forEach((inm: any) => {
+                    const info = clustersMap.get(inm.inmueble);
+                    const clusterId = info?.localId || inm.inmueble;
+                    if (!seenClusters.has(clusterId)) {
+                      seenClusters.add(clusterId);
+                      const inmsInCluster = billableInms.filter((i: any) => {
+                        const iInfo = clustersMap.get(i.inmueble);
+                        return (iInfo?.localId || i.inmueble) === clusterId;
+                      });
+                      clustersList.push({
+                        localId: clusterId,
+                        label: info?.label || getShortAddress(inm.direccion),
+                        direccion: inm.direccion || '',
+                        inms: inmsInCluster
+                      });
+                    }
+                  });
+
+                  // Filtrar por texto de búsqueda si aplica
+                  const filteredClusters = clustersList.filter(c => {
+                    if (!filterInm) return true;
+                    const q = filterInm.toLowerCase();
+                    return c.localId.toLowerCase().includes(q) ||
+                           c.direccion.toLowerCase().includes(q) ||
+                           c.inms.some((i: any) => (i.inmueble || '').toLowerCase().includes(q) || (i.actividad_principal || '').toLowerCase().includes(q));
+                  });
+
                   return (
-                    <div className="space-y-2">
-                      {userInms.filter((i: any) => (i.inmueble || '').toLowerCase().includes((filterInm || '').toLowerCase())).map((inm: any, idx: number) => {
-                        const esRes = isResidencialInm(inm);
-                        const mmv = (inm.mmv_mes && parseFloat(inm.mmv_mes) > 0) ? parseFloat(inm.mmv_mes) : getFO(inm.actividad_principal || '', esRes);
-                        const cant = parseInt(inm.cant_inmuebles || 1);
-                        if (mmv <= 0) return null;
-                        
-                        const far = getFAR(inm.actividad_principal || '');
-                        const formulaUCD = (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
-                        const totalUCD = cant * formulaUCD;
-                        const bsMensual = totalUCD * currentBcvRate;
-                        
+                    <div className="space-y-3">
+                      {filteredClusters.map((cluster, cIdx) => {
+                        const hasMultiple = cluster.inms.length > 1;
+
+                        // Recibos de todo el cluster
+                        const clusterInmCodes = cluster.inms.map((i: any) => i.inmueble);
+                        const clusterRecibos = recibos.filter((r: any) => {
+                          if (r.referencia?.startsWith('RECIB-HIST-')) return clusterInmCodes.includes(r.referencia.split('-')[2]);
+                          if (r.referencia?.startsWith('CM-')) return clusterInmCodes.some((code: string) => r.referencia.includes(code));
+                          return false;
+                        });
+                        const isAllClusterSelected = clusterRecibos.length > 0 && clusterRecibos.every((r: any) => selectedRecibos.includes(r.referencia));
+
+                        // Cálculo de tarifas de cada actividad dentro del cluster
+                        let totalClusterUCD = 0;
+                        let totalClusterBs = 0;
+                        let selectedActivitiesCount = 0;
+
+                        const activitiesCalc = cluster.inms.map((inm: any) => {
+                          const esRes = isResidencialInm(inm);
+                          const mmv = (inm.mmv_mes && parseFloat(inm.mmv_mes) > 0) ? parseFloat(inm.mmv_mes) : getFO(inm.actividad_principal || '', esRes);
+                          const cant = parseInt(inm.cant_inmuebles || 1);
+                          const far = getFAR(inm.actividad_principal || '');
+                          const formulaUCD = (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
+                          const totalUCD = cant * formulaUCD;
+                          const bsMensual = totalUCD * currentBcvRate;
+
+                          totalClusterUCD += totalUCD;
+                          totalClusterBs += bsMensual;
+
+                          // Ver si esta actividad tiene sus recibos marcados
+                          const inmRecibos = clusterRecibos.filter((r: any) => {
+                            if (r.referencia?.startsWith('RECIB-HIST-')) return r.referencia.split('-')[2] === inm.inmueble;
+                            if (r.referencia?.startsWith('CM-')) return r.referencia.includes(inm.inmueble);
+                            return false;
+                          });
+                          const isActSelected = inmRecibos.length > 0 && inmRecibos.every((r: any) => selectedRecibos.includes(r.referencia));
+                          if (isActSelected) {
+                            selectedActivitiesCount++;
+                          }
+
+                          return {
+                            inm,
+                            esRes,
+                            mmv,
+                            cant,
+                            far,
+                            totalUCD,
+                            bsMensual,
+                            inmRecibos,
+                            isActSelected
+                          };
+                        });
+
+                        // ¿Están las actividades de este local unificadas?
+                        const isUnifiedSelected = hasMultiple && selectedActivitiesCount > 1;
+
+                        if (hasMultiple) {
+                          return (
+                            <div key={cIdx} className="bg-slate-50 border-2 border-emerald-500/40 rounded-xl p-3 shadow-sm transition-all">
+                              {/* Cabecera del Local Físico */}
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Store className="w-4 h-4 text-emerald-600" />
+                                    <span className="font-bold text-xs text-slate-800">
+                                      Local Comercial ({cluster.inms.length} Actividades Económicas):
+                                    </span>
+                                    <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                      COMERCIAL (16% IVA)
+                                    </span>
+                                    {isUnifiedSelected && (
+                                      <span className="bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                                        ✓ ACTIVIDADES UNIFICADAS
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1" title={cluster.direccion}>
+                                    📍 {cluster.direccion || cluster.label}
+                                  </p>
+                                </div>
+
+                                {/* Botón Marcar Todo el Local (Unifica las actividades) */}
+                                <label className="flex items-center gap-1.5 cursor-pointer text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg shadow-sm transition-all shrink-0">
+                                  <input 
+                                    type="checkbox"
+                                    checked={isAllClusterSelected}
+                                    onChange={(e) => {
+                                      const allClusterRefs = clusterRecibos.map((r: any) => r.referencia);
+                                      const otherSelected = selectedRecibos.filter((ref: string) => !allClusterRefs.includes(ref));
+                                      if (e.target.checked) {
+                                        setSelectedRecibos([...otherSelected, ...allClusterRefs]);
+                                      } else {
+                                        setSelectedRecibos(otherSelected);
+                                      }
+                                    }}
+                                    className="w-3.5 h-3.5 text-emerald-600 rounded border-white focus:ring-emerald-500"
+                                  />
+                                  Marcar Todo el Local (Unificado)
+                                </label>
+                              </div>
+
+                              {/* Listado de actividades individuales del local */}
+                              <div className="space-y-1.5 py-2">
+                                {activitiesCalc.map(({ inm, mmv, totalUCD, bsMensual, inmRecibos, isActSelected }, actIdx) => (
+                                  <div key={actIdx} className={`flex items-center justify-between text-[11px] p-2 rounded-lg border transition-all ${isAllClusterSelected || isActSelected ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-400/40' : 'bg-white border-slate-200'}`}>
+                                    <div className="flex items-center gap-2">
+                                      <input 
+                                        type="checkbox"
+                                        checked={isAllClusterSelected || isActSelected}
+                                        onChange={(e) => {
+                                          const allClusterRefs = clusterRecibos.map((r: any) => r.referencia);
+                                          const otherSelected = selectedRecibos.filter((ref: string) => !allClusterRefs.includes(ref));
+                                          if (e.target.checked) setSelectedRecibos([...otherSelected, ...allClusterRefs]);
+                                          else setSelectedRecibos(otherSelected);
+                                        }}
+                                        className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                                      />
+                                      <span className="font-bold text-slate-700">
+                                        Actividad {actIdx + 1}: {inm.actividad_principal || 'Comercial'}
+                                      </span>
+                                      <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1 py-0.2 rounded">
+                                        Cód: {inm.inmueble}
+                                      </span>
+                                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/90 px-1.5 py-0.5 rounded">
+                                        Unificada
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] font-medium text-slate-600 font-mono">
+                                      FO: {mmv.toFixed(4)} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = <strong className="text-slate-900">{bsMensual.toFixed(2)} Bs/mes</strong>
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Panel de Tarifa Mensual Unificada */}
+                              <div className={`p-2.5 rounded-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 ${isUnifiedSelected ? 'bg-gradient-to-r from-emerald-100 via-emerald-50 to-teal-100 border-emerald-400 shadow-sm' : 'bg-slate-100 border-slate-200'}`}>
+                                <div className="text-xs">
+                                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                                    ⚡ Tarifa Mensual Unificada del Local:
+                                  </span>
+                                  <p className="text-[10px] text-slate-500 mt-0.5">
+                                    {activitiesCalc.map(a => `${a.inm.actividad_principal?.split(' ')[0] || 'Actividad'}: ${a.bsMensual.toFixed(2)} Bs`).join(' + ')}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <span className="font-black text-emerald-800 text-sm">
+                                    {totalClusterUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = Bs. {formatBs(totalClusterBs)} / mes
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        // Local con una sola actividad independiente
+                        const single = activitiesCalc[0];
+                        if (!single) return null;
+                        const { inm, esRes, mmv, cant, far, totalUCD, bsMensual, inmRecibos, isActSelected } = single;
+
                         return (
-                          <div key={idx} className="border-b border-slate-200 pb-2 last:border-0 last:pb-0">
+                          <div key={cIdx} className="border-b border-slate-200 pb-2 last:border-0 last:pb-0">
                             <div className="flex items-center justify-between mb-1">
                               <span className="font-semibold text-[10px] text-slate-700 flex items-center gap-2">
                                 Inmueble {inm.inmueble || 'General'} ({cant} und) - <span className={esRes ? "text-emerald-700 font-bold" : "text-blue-700 font-bold"}>{esRes ? "RESIDENCIAL (Exento 0% IVA)" : "COMERCIAL (16% IVA)"}</span>:
-                                {(userInms.length > 1 && !inm.condominio_padre_id) && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Múltiples Inmuebles</span>}
+                                {clustersList.length > 1 && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Inmueble Independiente</span>}
                               </span>
-                              {(() => {
-                                const propRecibos = recibos.filter((r: any) => {
-                                  if (r.referencia?.startsWith('RECIB-HIST-')) return r.referencia.split('-')[2] === inm.inmueble;
-                                  if (r.referencia?.startsWith('CM-')) return r.referencia.includes(inm.inmueble);
-                                  return true;
-                                });
-                                if (propRecibos.length === 0) return null;
-                                const maxSelectable = propRecibos.length;
-                                const isAllSelected = maxSelectable > 0 && propRecibos.every((r: any) => selectedRecibos.includes(r.referencia));
-                                return (
-                                  <label className="flex items-center gap-1 cursor-pointer text-[9px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-1.5 py-0.5 rounded transition-colors">
-                                    <input 
-                                      type="checkbox"
-                                      checked={isAllSelected}
-                                      onChange={(e) => {
-                                        const selectableRefs = propRecibos.map((r: any) => r.referencia);
-                                        const otherSelected = selectedRecibos.filter((ref: string) => !selectableRefs.includes(ref));
-                                        if (e.target.checked) setSelectedRecibos([...otherSelected, ...selectableRefs]);
-                                        else setSelectedRecibos(otherSelected);
-                                      }}
-                                      className="w-2.5 h-2.5 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
-                                    />
-                                    Marcar Todo
-                                  </label>
-                                );
-                              })()}
+                              {inmRecibos.length > 0 && (
+                                <label className="flex items-center gap-1 cursor-pointer text-[9px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-1.5 py-0.5 rounded transition-colors">
+                                  <input 
+                                    type="checkbox"
+                                    checked={isActSelected}
+                                    onChange={(e) => {
+                                      const selectableRefs = inmRecibos.map((r: any) => r.referencia);
+                                      const otherSelected = selectedRecibos.filter((ref: string) => !selectableRefs.includes(ref));
+                                      if (e.target.checked) setSelectedRecibos([...otherSelected, ...selectableRefs]);
+                                      else setSelectedRecibos(otherSelected);
+                                    }}
+                                    className="w-2.5 h-2.5 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
+                                  />
+                                  Marcar Todo
+                                </label>
+                              )}
                             </div>
-                            <span>FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : '0.1280'} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {bsMensual.toFixed(2)} Bs/mes.</span>
+                            <span className="text-[10px] text-slate-600">FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : '0.1280'} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {bsMensual.toFixed(2)} Bs/mes.</span>
                           </div>
                         );
                       })}
                       <span className="block text-[9px] text-slate-400 mt-1">
-                        * El sistema cobra la deuda utilizando el registro actualizado de cada inmueble.
+                        * El sistema cobra la deuda utilizando el registro actualizado de cada inmueble. Las actividades económicas de un mismo local se unifican sumando una sola tarifa mensual.
                       </span>
                     </div>
                   );
@@ -2718,6 +2919,39 @@ export default function CajaPage() {
           <div className="bg-slate-50 rounded-lg shadow-sm border border-slate-200 p-6 h-fit sticky top-6">
             <h3 className="font-bold text-slate-800 text-lg mb-4 border-b border-slate-200 pb-2">Resumen de Pago</h3>
             
+            {/* Actividades Unificadas Badge en Resumen */}
+            {(() => {
+              const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
+              const billableInms = userInms.filter((i: any) => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A');
+              const clustersMap = clusterInmueblesByLocal(billableInms);
+              const selectedRefsThisUser = selectedRecibos.filter(r => r.startsWith('RECIB-HIST-'));
+              
+              // Ver si hay actividades seleccionadas que pertenezcan al mismo cluster
+              const selectedInmCodes = Array.from(new Set(selectedRefsThisUser.map(r => r.split('-')[2])));
+              const clusterCounts = new Map<string, string[]>();
+              selectedInmCodes.forEach(code => {
+                const cInfo = clustersMap.get(code);
+                const cid = cInfo?.localId || code;
+                if (!clusterCounts.has(cid)) clusterCounts.set(cid, []);
+                clusterCounts.get(cid)!.push(code);
+              });
+
+              const unifiedClusters = Array.from(clusterCounts.entries()).filter(([_, codes]) => codes.length > 1);
+              if (unifiedClusters.length === 0) return null;
+
+              return (
+                <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-2.5 mb-3 text-xs">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>Actividades Unificadas ({unifiedClusters.reduce((sum, [_, c]) => sum + c.length, 0)}):</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 mt-1 font-medium">
+                    {unifiedClusters.map(([_, codes]) => codes.join(' + ')).join(', ')} se cobran unificadas en un solo recibo mensual.
+                  </p>
+                </div>
+              );
+            })()}
+
             <div className="space-y-2 mb-6 text-sm border-b border-slate-200 pb-4">
               <div className="flex justify-between items-center text-slate-600">
                 <span>Base Imponible Total:</span>

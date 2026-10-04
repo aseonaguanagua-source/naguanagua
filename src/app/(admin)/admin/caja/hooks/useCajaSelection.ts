@@ -8,7 +8,7 @@
  * Extraído de caja/page.tsx como parte de la Fase 2 de refactorización.
  */
 import { useMemo, useCallback } from 'react';
-import { getUserInmuebles, isSameLocal } from '@/lib/cajaHelpers';
+import { getUserInmuebles, isSameLocal, clusterInmueblesByLocal } from '@/lib/cajaHelpers';
 
 interface UseCajaSelectionParams {
   recibos: any[];
@@ -76,7 +76,47 @@ export function useCajaSelection({
       const currentInm = userInms.find((i: any) => i.inmueble === currentInmId);
       let refsToToggle = [ref];
 
-      // Auto-selección: recibos del mismo mes para los mismos locales fue eliminada a petición del usuario.
+      // Unificar actividades económicas del mismo local físico al seleccionar:
+      // Si el inmueble pertenece a un cluster con múltiples actividades,
+      // todas las actividades del local para ese mismo mes se unifican y seleccionan juntas.
+      const billableInms = userInms.filter(
+        (i: any) => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A'
+      );
+      const clustersMap = clusterInmueblesByLocal(billableInms);
+      const clusterInfo = currentInmId ? clustersMap.get(currentInmId) : null;
+
+      if (clusterInfo && clusterInfo.count > 1) {
+        const peerInmCodes = billableInms
+          .filter(
+            (i: any) =>
+              (clustersMap.get(i.inmueble)?.localId || i.inmueble) === clusterInfo.localId
+          )
+          .map((i: any) => i.inmueble);
+
+        const currentEmision = currentR.emision
+          ? String(currentR.emision).slice(0, 7)
+          : '';
+        const mMatch = ref.match(/-M(\d+)$/);
+        const monthSuffix = mMatch ? mMatch[0] : null;
+
+        const companionRefs = recibos
+          .filter((r: any) => {
+            if (r.referencia === ref) return false;
+            const rParts = r.referencia.split('-');
+            const rInm =
+              rParts.length > 2
+                ? rParts[2]
+                : userInms.find((i: any) => r.referencia.includes(i.inmueble))?.inmueble ?? '';
+            if (!peerInmCodes.includes(rInm)) return false;
+
+            if (monthSuffix && r.referencia.endsWith(monthSuffix)) return true;
+            if (currentEmision && r.emision && String(r.emision).slice(0, 7) === currentEmision) return true;
+            return false;
+          })
+          .map((r: any) => r.referencia);
+
+        refsToToggle = Array.from(new Set([ref, ...companionRefs]));
+      }
 
       // Bloquear si alguno está Por Verificar
       if (refsToToggle.some((r) => isItemPending(r))) {
