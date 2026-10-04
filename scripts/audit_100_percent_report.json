@@ -1,0 +1,120 @@
+{
+  "auditoria_contribuyentes": {
+    "total_en_bd": 35762,
+    "total_auditados": 35762,
+    "distribucion_tipo": {
+      "naturales_venezolanos_V": 26390,
+      "pct_naturales": "73.79%",
+      "juridicos_empresas_J": 8716,
+      "pct_juridicos": "24.37%",
+      "extranjeros_E": 632,
+      "gubernamentales_G": 24,
+      "otros_sin_prefijo": 0
+    },
+    "calidad_contacto": {
+      "con_email_real": 17401,
+      "pct_email_real": "48.66%",
+      "con_email_ficticio": 176,
+      "sin_email": 18185,
+      "pct_sin_email": "50.85%",
+      "con_telefono_valido": 28316,
+      "pct_telefono_valido": "79.18%",
+      "sin_telefono": 7446,
+      "con_direccion_fiscal": 22481,
+      "pct_con_direccion": "62.86%",
+      "con_observaciones_historicas": 15358
+    },
+    "duplicados_detectados": 0,
+    "muestra_duplicados": []
+  },
+  "auditoria_inmuebles": {
+    "total_en_bd": 51414,
+    "total_auditados": 51414,
+    "distribucion_uso": {
+      "residenciales": 36369,
+      "pct_residenciales": "70.74%",
+      "comerciales": 15045,
+      "pct_comerciales": "29.26%",
+      "industriales": 0,
+      "pct_industriales": "0.00%",
+      "otros_mixtos_baldios": 0
+    },
+    "clasificacion_especial": {
+      "contenedores_padre_sigyr": 905,
+      "agentes_de_retencion_75iva": 5837,
+      "condominios_registrados": 1166
+    },
+    "vinculacion_contribuyente": {
+      "identidades_unicas_en_catastro": 35201,
+      "inmuebles_vinculados_a_contribuyente": 51414,
+      "inmuebles_sin_ficha_contribuyente": 0,
+      "pct_vinculacion": "100.00%"
+    },
+    "top_propietarios_por_inmuebles": [
+      [
+        "V000000000",
+        564
+      ],
+      [
+        "J300605930",
+        359
+      ],
+      [
+        "J301652240",
+        321
+      ],
+      [
+        "J302327172",
+        306
+      ],
+      [
+        "V123",
+        286
+      ],
+      [
+        "V3922063",
+        237
+      ],
+      [
+        "J314958925",
+        184
+      ],
+      [
+        "J307917725",
+        180
+      ],
+      [
+        "V0000",
+        125
+      ],
+      [
+        "J312705434",
+        111
+      ]
+    ]
+  },
+  "auditoria_pagos": {
+    "total_pagos_registrados": 10,
+    "monto_total_bs": 5221364.356408422,
+    "estados": {
+      "por_verificar": 0,
+      "aprobados": 10,
+      "rechazados": 0
+    },
+    "bancos_utilizados": {
+      "NO ESPECIFICADO": 10
+    },
+    "metodos_pago": {
+      "TRANSFERENCIA": 10
+    }
+  },
+  "trabajadores_sistema": [
+    {
+      "usuario": "dzara",
+      "nombre": "David Zara",
+      "rol": "Administrador",
+      "estado": "Activo",
+      "created_at": "2026-09-30T13:36:22.141794+00:00"
+    }
+  ]
+}

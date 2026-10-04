@@ -1,0 +1,47 @@
+{
+  "contribuyentes": {
+    "total": 35762,
+    "naturales_V": 13568,
+    "juridicos_J": 4075,
+    "gubernamentales_G": 13,
+    "extranjeros_E": 344,
+    "otros": 0,
+    "con_email_real": 8238,
+    "con_email_ficticio": 92,
+    "sin_email": 9670,
+    "con_telefono_valido": 14115,
+    "sin_telefono_valido": 3885,
+    "con_direccion_valida": 10754,
+    "sin_direccion_valida": 7246,
+    "con_observaciones_historicas": 7634,
+    "duplicados_normalizados": 0,
+    "sample_duplicados": []
+  },
+  "inmuebles": {
+    "total": 51414,
+    "residenciales": 0,
+    "comerciales": 0,
+    "industriales": 0,
+    "baldios": 0,
+    "otrosUsos": 0,
+    "contenedoresPadre": 0,
+    "conClavePortal": 0,
+    "inmueblesVinculadosAContribuyente": 0,
+    "inmueblesHuerfanos": 0,
+    "inmueblesSinIdentidad": 0,
+    "identidadesUnicasEnInmuebles": 0,
+    "topHolders": [],
+    "topSectores": []
+  },
+  "pagos": {
+    "totalTransacciones": 10,
+    "porVerificar": 0,
+    "aprobados": 10,
+    "rechazados": 0,
+    "totalBsReportado": 5221364.356408422,
+    "totalRecibosInvolucrados": 0
+  },
+  "trabajadores": {
+    "total": 1
+  }
+}
