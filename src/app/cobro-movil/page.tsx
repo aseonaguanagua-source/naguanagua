@@ -3,12 +3,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, 
   Landmark, MapPin, User2, Building2, TriangleAlert, ChevronDown, ChevronUp,
-  CheckSquare2, Square
+  CheckSquare2, Square, Store, Sparkles
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 import { isResidencialInm, calcularMensualidad } from '@/lib/calculos';
 import { getIdentidadVariants } from '@/lib/formatters';
+import { clusterInmueblesByLocal } from '@/lib/cajaHelpers';
 
 type Step = 'search' | 'account' | 'pay' | 'success';
 type PayMethod = 'Punto de Venta' | 'Bancamiga';
@@ -29,6 +30,35 @@ interface Inmueble {
   agente_retencion?: boolean;
 }
 interface Contribuyente { Contribuyente: string; Identidad: string; Direccion?: string; Clasificacion?: string; Actividad?: string; EsAgente?: boolean; }
+
+interface UnifiedMonthlyItem {
+  referencia: string;
+  inmId: string;
+  act: string;
+  montoBs: number;
+}
+
+interface UnifiedMonthlyGroup {
+  monthKey: string;
+  monthIndex: number;
+  emision?: string;
+  totalBs: number;
+  receiptRefs: string[];
+  receipts: UnifiedMonthlyItem[];
+}
+
+interface LocalGroup {
+  localId: string;
+  isUnified: boolean;
+  label: string;
+  direccion: string;
+  tipo: string;
+  inms: Inmueble[];
+  allReceiptRefs: string[];
+  totalBs: number;
+  monthlyGroups: UnifiedMonthlyGroup[];
+  singleItems: Recibo[];
+}
 
 const fmtBs = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -184,25 +214,235 @@ export default function KioskPage() {
   // Total a cancelar = Subtotal base + Multa (sin intereses) + IVA neto a pagar
   const pagoTotalCalculado = parseFloat((desgloseSel.base + desgloseSel.multa + ivaCalculado).toFixed(2));
 
+  const groupedLocals = useMemo((): LocalGroup[] => {
+    const getReceiptInmId = (r: Recibo): string => {
+      if (r.referencia?.startsWith('RECIB-HIST-')) {
+        const parts = r.referencia.split('-');
+        if (parts.length > 2) {
+          const match = userInms.find((i: any) => i.inmueble === parts[2]);
+          return match ? match.inmueble : parts[2];
+        }
+      } else if (r.referencia?.startsWith('CM-')) {
+        const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
+        if (match) return match.inmueble;
+      } else if (userInms.length === 1) {
+        return userInms[0].inmueble;
+      }
+      return 'GENERAL';
+    };
+
+    const clustersMap = clusterInmueblesByLocal(userInms as any);
+    const clusterOrder: string[] = [];
+    const clusterMapData: Record<string, {
+      localId: string;
+      label: string;
+      direccion: string;
+      tipo: string;
+      inms: Inmueble[];
+      receipts: Recibo[];
+    }> = {};
+
+    userInms.forEach((inm) => {
+      const cInfo = clustersMap.get(inm.inmueble);
+      const clusterId = cInfo?.localId || inm.inmueble;
+      if (!clusterMapData[clusterId]) {
+        clusterOrder.push(clusterId);
+        clusterMapData[clusterId] = {
+          localId: clusterId,
+          label: cInfo?.label || inm.inmueble,
+          direccion: cInfo?.direccion || inm.direccion || '',
+          tipo: inm.clasificacion || 'Comercial',
+          inms: [],
+          receipts: []
+        };
+      }
+      if (!clusterMapData[clusterId].inms.some((i) => i.inmueble === inm.inmueble)) {
+        clusterMapData[clusterId].inms.push(inm);
+      }
+      if (inm.direccion && (!clusterMapData[clusterId].direccion || clusterMapData[clusterId].direccion === '0 0')) {
+        clusterMapData[clusterId].direccion = inm.direccion;
+      }
+    });
+
+    recibos.forEach((r) => {
+      const inmId = getReceiptInmId(r);
+      const cInfo = clustersMap.get(inmId);
+      const clusterId = cInfo?.localId || inmId;
+
+      if (!clusterMapData[clusterId]) {
+        clusterOrder.push(clusterId);
+        const matchInm = userInms.find((i) => i.inmueble === inmId);
+        clusterMapData[clusterId] = {
+          localId: clusterId,
+          label: clusterId,
+          direccion: matchInm?.direccion || '',
+          tipo: matchInm?.clasificacion || 'Comercial',
+          inms: matchInm ? [matchInm] : [],
+          receipts: []
+        };
+      }
+      clusterMapData[clusterId].receipts.push(r);
+    });
+
+    return clusterOrder.map((clusterId) => {
+      const c = clusterMapData[clusterId];
+      const isUnified = c.inms.length > 1;
+      const allReceiptRefs = c.receipts.map((r) => r.referencia);
+      const totalBs = c.receipts.reduce((s, r) => s + getReciboMonto(r), 0);
+
+      if (!isUnified) {
+        return {
+          localId: c.localId,
+          isUnified: false,
+          label: c.label,
+          direccion: c.direccion,
+          tipo: c.tipo,
+          inms: c.inms,
+          allReceiptRefs,
+          totalBs: parseFloat(totalBs.toFixed(2)),
+          monthlyGroups: [],
+          singleItems: c.receipts
+        };
+      }
+
+      const monthMap: Record<string, {
+        monthKey: string;
+        emision?: string;
+        totalBs: number;
+        receiptRefs: string[];
+        receipts: UnifiedMonthlyItem[];
+      }> = {};
+      const monthKeysOrder: string[] = [];
+
+      c.receipts.forEach((r) => {
+        let mKey = '';
+        if (r.emision) {
+          const d = new Date(r.emision);
+          if (!isNaN(d.getTime())) {
+            mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          } else {
+            mKey = String(r.emision).slice(0, 7);
+          }
+        }
+        const mMatch = r.referencia?.match(/-M(\d+)$/);
+        if (!mKey && mMatch) {
+          mKey = `M-${mMatch[1]}`;
+        }
+        if (!mKey) {
+          mKey = r.referencia;
+        }
+
+        if (!monthMap[mKey]) {
+          monthKeysOrder.push(mKey);
+          monthMap[mKey] = {
+            monthKey: mKey,
+            emision: r.emision,
+            totalBs: 0,
+            receiptRefs: [],
+            receipts: []
+          };
+        }
+
+        const inmId = getReceiptInmId(r);
+        const inmMatch = c.inms.find((i) => i.inmueble === inmId);
+        const monto = getReciboMonto(r);
+
+        monthMap[mKey].totalBs += monto;
+        monthMap[mKey].receiptRefs.push(r.referencia);
+        monthMap[mKey].receipts.push({
+          referencia: r.referencia,
+          inmId,
+          act: inmMatch?.actividad_principal || 'Comercial',
+          montoBs: monto
+        });
+      });
+
+      const monthlyGroups: UnifiedMonthlyGroup[] = monthKeysOrder.map((key, idx) => ({
+        monthKey: key,
+        monthIndex: idx + 1,
+        emision: monthMap[key].emision,
+        totalBs: parseFloat(monthMap[key].totalBs.toFixed(2)),
+        receiptRefs: monthMap[key].receiptRefs,
+        receipts: monthMap[key].receipts
+      }));
+
+      return {
+        localId: c.localId,
+        isUnified: true,
+        label: c.label,
+        direccion: c.direccion,
+        tipo: 'Comercial',
+        inms: c.inms,
+        allReceiptRefs,
+        totalBs: parseFloat(totalBs.toFixed(2)),
+        monthlyGroups,
+        singleItems: []
+      };
+    });
+  }, [recibos, userInms, getReciboMonto]);
+
+  const totalMonthsSelected = useMemo(() => {
+    let count = 0;
+    groupedLocals.forEach((local) => {
+      if (local.isUnified) {
+        local.monthlyGroups.forEach((mg) => {
+          if (mg.receiptRefs.length > 0 && mg.receiptRefs.every((ref) => selectedRefs.includes(ref))) {
+            count++;
+          }
+        });
+      } else {
+        local.singleItems.forEach((r) => {
+          if (selectedRefs.includes(r.referencia)) {
+            count++;
+          }
+        });
+      }
+    });
+    return count;
+  }, [groupedLocals, selectedRefs]);
+
+  const totalPeriodsInDeuda = useMemo(() => {
+    return groupedLocals.reduce((sum, loc) => {
+      return sum + (loc.isUnified ? loc.monthlyGroups.length : loc.singleItems.length);
+    }, 0);
+  }, [groupedLocals]);
+
   useEffect(() => {
     const t = selectedRefs.reduce((s, ref) => {
       const f = recibos.find(r => r.referencia === ref);
       return s + (f ? getReciboMonto(f) : 0);
     }, 0);
     setTotalSel(parseFloat(t.toFixed(2)));
-    setMonthsToPay(selectedRefs.length);
-  }, [selectedRefs, recibos, userInms, tcmmv]);
+    setMonthsToPay(totalMonthsSelected);
+  }, [selectedRefs, recibos, userInms, tcmmv, totalMonthsSelected]);
 
-  const toggleExpand = (inmId: string) => {
-    setExpandedInms(prev => ({ ...prev, [inmId]: !prev[inmId] }));
+  const toggleExpand = (localId: string) => {
+    setExpandedInms(prev => ({ ...prev, [localId]: !prev[localId] }));
   };
 
-  const toggleAllInmueble = (inmRefs: string[]) => {
-    const isAllSelected = inmRefs.length > 0 && inmRefs.every(ref => selectedRefs.includes(ref));
+  const toggleAllLocal = (allRefs: string[]) => {
+    const isAllSelected = allRefs.length > 0 && allRefs.every(ref => selectedRefs.includes(ref));
     if (isAllSelected) {
-      setSelectedRefs(prev => prev.filter(ref => !inmRefs.includes(ref)));
+      setSelectedRefs(prev => prev.filter(ref => !allRefs.includes(ref)));
     } else {
-      setSelectedRefs(prev => Array.from(new Set([...prev, ...inmRefs])));
+      setSelectedRefs(prev => Array.from(new Set([...prev, ...allRefs])));
+    }
+  };
+
+  const toggleMonthlyGroup = (
+    mg: UnifiedMonthlyGroup,
+    monthlyGroups: UnifiedMonthlyGroup[]
+  ) => {
+    const isMgSelected = mg.receiptRefs.length > 0 && mg.receiptRefs.every(ref => selectedRefs.includes(ref));
+    const mgIndex = monthlyGroups.findIndex(g => g.monthKey === mg.monthKey);
+    if (mgIndex === -1) return;
+
+    if (isMgSelected) {
+      const toRemove = monthlyGroups.slice(mgIndex).flatMap(g => g.receiptRefs);
+      setSelectedRefs(prev => prev.filter(r => !toRemove.includes(r)));
+    } else {
+      const toAdd = monthlyGroups.slice(0, mgIndex + 1).flatMap(g => g.receiptRefs);
+      setSelectedRefs(prev => Array.from(new Set([...prev, ...toAdd])));
     }
   };
 
@@ -235,63 +475,6 @@ export default function KioskPage() {
     return p.length >= 2 ? `${M[parseInt(p[1])-1] || p[1]} ${p[0]}` : emision;
   };
 
-  const groupedInmuebles = useMemo(() => {
-    const map: Record<string, {
-      inmId: string;
-      tipo: string;
-      act: string;
-      direccion: string;
-      items: Recibo[];
-      totalBs: number;
-    }> = {};
-
-    recibos.forEach((r) => {
-      let inmId = 'Facturación General';
-      let tipo = '';
-      let act = '';
-      let direccion = '';
-
-      if (r.referencia?.startsWith('RECIB-HIST-')) {
-        const parts = r.referencia.split('-');
-        if (parts.length > 2) {
-          const match = userInms.find((i: any) => i.inmueble === parts[2]);
-          if (match) {
-            inmId = match.inmueble;
-            tipo = match.clasificacion || '';
-            act = match.actividad_principal || '';
-            direccion = match.direccion || '';
-          } else {
-            inmId = parts[2];
-          }
-        }
-      } else if (r.referencia?.startsWith('CM-')) {
-        const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
-        if (match) {
-          inmId = match.inmueble;
-          tipo = match.clasificacion || '';
-          act = match.actividad_principal || '';
-          direccion = match.direccion || '';
-        } else {
-          inmId = 'Acumulados';
-        }
-      } else {
-        if (userInms.length === 1) {
-          inmId = userInms[0].inmueble;
-          tipo = userInms[0].clasificacion || '';
-          act = userInms[0].actividad_principal || '';
-          direccion = userInms[0].direccion || '';
-        }
-      }
-
-      if (!map[inmId]) {
-        map[inmId] = { inmId, tipo, act, direccion, items: [], totalBs: 0 };
-      }
-      map[inmId].items.push(r);
-      map[inmId].totalBs += getReciboMonto(r);
-    });
-
-    return Object.values(map);
-  }, [recibos, userInms, getReciboMonto]);
 
   const handleSearch = async () => {
     if (!docNumber.trim()) return;
@@ -621,7 +804,7 @@ export default function KioskPage() {
               {/* TARJETA DEUDA TOTAL */}
               <div className="bg-gradient-to-r from-red-900/40 to-orange-900/30 rounded-3xl p-6 border border-red-500/30 text-center shadow-lg">
                 <div className="text-red-300 font-bold uppercase text-xs sm:text-sm tracking-widest mb-1">
-                  Deuda Total — {recibos.length} {recibos.length === 1 ? 'período' : 'períodos'}
+                  Deuda Total — {totalPeriodsInDeuda} {totalPeriodsInDeuda === 1 ? 'período mensual' : 'períodos mensuales'}
                 </div>
                 <div className="text-3xl sm:text-5xl font-black text-white">
                   Bs. {fmtBs(recibos.reduce((s, r) => s + getReciboMonto(r), 0))}
@@ -631,12 +814,12 @@ export default function KioskPage() {
               {/* BARRA DE ACCIÓN RÁPIDA */}
               <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-800/90 p-3.5 sm:p-4 rounded-2xl border border-slate-700/80 shadow-md">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-slate-300 font-bold text-xs sm:text-sm">Inmuebles:</span>
+                  <span className="text-slate-300 font-bold text-xs sm:text-sm">Locales / Inmuebles:</span>
                   <span className="bg-emerald-500/20 text-emerald-400 text-xs font-black px-2.5 py-0.5 rounded-full">
-                    {groupedInmuebles.length} {groupedInmuebles.length === 1 ? 'inmueble' : 'inmuebles'}
+                    {groupedLocals.length} {groupedLocals.length === 1 ? 'local' : 'locales'}
                   </span>
                   <span className="text-slate-400 text-xs font-medium">
-                    ({selectedRefs.length} de {recibos.length} seleccionados)
+                    ({totalMonthsSelected} de {totalPeriodsInDeuda} meses seleccionados)
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -657,27 +840,204 @@ export default function KioskPage() {
                 </div>
               </div>
 
-              {/* AGRUPACIÓN POR INMUEBLE CON ACORDEÓN DESPLEGABLE */}
+              {/* AGRUPACIÓN POR LOCAL / INMUEBLE CON ACORDEÓN DESPLEGABLE */}
               <div className="space-y-3">
-                {groupedInmuebles.map((group) => {
-                  const inmRefs = group.items.map((r) => r.referencia);
+                {groupedLocals.map((local) => {
+                  const isExpanded = !!expandedInms[local.localId];
+
+                  if (local.isUnified) {
+                    // LOCAL COMERCIAL UNIFICADO (Múltiples actividades económicas en el mismo local)
+                    const selectedMonthsCount = local.monthlyGroups.filter((mg) =>
+                      mg.receiptRefs.length > 0 && mg.receiptRefs.every((ref) => selectedRefs.includes(ref))
+                    ).length;
+                    const isAllSelected =
+                      local.allReceiptRefs.length > 0 &&
+                      local.allReceiptRefs.every((ref) => selectedRefs.includes(ref));
+                    const isPartiallySelected = selectedMonthsCount > 0 && !isAllSelected;
+
+                    return (
+                      <div
+                        key={local.localId}
+                        className="bg-slate-800 rounded-2xl border-2 border-emerald-500/40 overflow-hidden shadow-lg transition-all hover:border-emerald-500/60"
+                      >
+                        {/* Cabecera del Local Unificado */}
+                        <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-800/95">
+                          <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+                            {/* Botón para elegir todo el local unificado */}
+                            <button
+                              type="button"
+                              onClick={() => toggleAllLocal(local.allReceiptRefs)}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95 shrink-0 ${
+                                isAllSelected
+                                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30 ring-2 ring-emerald-400'
+                                  : isPartiallySelected
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+                                  : 'bg-slate-700/70 hover:bg-slate-700 text-slate-300 border border-slate-600'
+                              }`}
+                              title="Seleccionar o deseleccionar todos los meses de este local"
+                            >
+                              {isAllSelected ? (
+                                <CheckSquare2 className="w-4 h-4 text-white shrink-0" />
+                              ) : (
+                                <Square className="w-4 h-4 text-slate-400 shrink-0" />
+                              )}
+                              <span>
+                                {isAllSelected
+                                  ? `Elegido (${local.monthlyGroups.length})`
+                                  : isPartiallySelected
+                                  ? `${selectedMonthsCount}/${local.monthlyGroups.length}`
+                                  : `Elegir Todo (${local.monthlyGroups.length})`}
+                              </span>
+                            </button>
+
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full text-xs font-black">
+                                  <Store className="w-3.5 h-3.5" />
+                                  <span>Local Comercial Unificado</span>
+                                </div>
+                                <span className="bg-blue-500/20 text-blue-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                  COMERCIAL (16% IVA)
+                                </span>
+                                <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                                  {local.inms.length} Actividades Unificadas
+                                </span>
+                              </div>
+
+                              {/* Desglose de actividades económicas del local */}
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {local.inms.map((inm) => (
+                                  <span
+                                    key={inm.inmueble}
+                                    className="text-[11px] bg-slate-900/80 text-slate-300 px-2.5 py-0.5 rounded-lg border border-slate-700 flex items-center gap-1.5"
+                                  >
+                                    <strong className="text-emerald-400 font-mono">{inm.inmueble}</strong>
+                                    <span className="text-slate-600">•</span>
+                                    <span className="truncate max-w-[220px]" title={inm.actividad_principal}>
+                                      {inm.actividad_principal || 'Comercial'}
+                                    </span>
+                                  </span>
+                                ))}
+                              </div>
+
+                              {local.direccion && (
+                                <p className="text-[11px] text-slate-400 mt-1.5 line-clamp-1 flex items-center gap-1" title={local.direccion}>
+                                  <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
+                                  {local.direccion}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Monto del Local y Botón para desplegar recibos */}
+                          <div className="flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-700/60 shrink-0">
+                            <div className="text-left md:text-right">
+                              <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                Deuda Inmueble
+                              </div>
+                              <div className="text-white font-black text-base sm:text-lg">
+                                Bs. {fmtBs(local.totalBs)}
+                              </div>
+                              <div className="text-[10px] text-emerald-400 font-semibold">
+                                {local.monthlyGroups.length} meses consolidados
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => toggleExpand(local.localId)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all border border-slate-600"
+                            >
+                              <span>{isExpanded ? 'Ocultar' : `Ver Recibos (${local.monthlyGroups.length})`}</span>
+                              {isExpanded ? <ChevronUp className="w-4 h-4 text-emerald-400" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Recibos mensuales desplegables para el local unificado */}
+                        {isExpanded && (
+                          <div className="p-3.5 bg-slate-900/70 border-t border-slate-700/80 space-y-2 max-h-[380px] overflow-y-auto">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                              <span className="flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                                Desglose Mensual — Las {local.inms.length} actividades se pagan juntas por mes
+                              </span>
+                              <span className="text-emerald-400">
+                                {selectedMonthsCount} de {local.monthlyGroups.length} meses elegidos
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {local.monthlyGroups.map((mg) => {
+                                const isMgSelected =
+                                  mg.receiptRefs.length > 0 &&
+                                  mg.receiptRefs.every((ref) => selectedRefs.includes(ref));
+                                return (
+                                  <div
+                                    key={mg.monthKey}
+                                    onClick={() => toggleMonthlyGroup(mg, local.monthlyGroups)}
+                                    className={`flex flex-col justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
+                                      isMgSelected
+                                        ? 'bg-emerald-500/15 border-emerald-500/60 ring-1 ring-emerald-500/30'
+                                        : 'bg-slate-800/60 hover:bg-slate-800 border-slate-700/60 text-slate-400'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex items-start gap-2 min-w-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={isMgSelected}
+                                          onChange={() => {}}
+                                          className="w-4 h-4 text-emerald-500 rounded cursor-pointer pointer-events-none shrink-0 mt-0.5"
+                                        />
+                                        <div className="min-w-0">
+                                          <div className={`font-bold text-xs truncate ${isMgSelected ? 'text-emerald-300' : 'text-slate-300'}`}>
+                                            Mes {mg.monthIndex} — {formatPeriodo(mg.emision)}
+                                          </div>
+                                          <div className="text-[10px] text-slate-400 mt-1 space-y-0.5">
+                                            {mg.receipts.map((sub) => (
+                                              <div key={sub.referencia} className="flex items-center gap-1.5 truncate">
+                                                <span className="font-mono text-emerald-400/90 font-bold">{sub.inmId}:</span>
+                                                <span className="text-slate-300 truncate max-w-[120px]">{sub.act}</span>
+                                                <span className="text-slate-400 font-medium ml-1">Bs. {fmtBs(sub.montoBs)}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className={`font-extrabold text-xs shrink-0 pl-2 text-right ${isMgSelected ? 'text-white' : 'text-slate-400'}`}>
+                                        <div>Bs. {fmtBs(mg.totalBs)}</div>
+                                        <div className="text-[9px] text-emerald-400 font-semibold mt-0.5">Total Mes</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // INMUEBLE INDIVIDUAL (Sin otras actividades en el mismo local)
+                  const inmRefs = local.singleItems.map((r) => r.referencia);
                   const selectedCount = inmRefs.filter((ref) => selectedRefs.includes(ref)).length;
                   const isAllSelected = inmRefs.length > 0 && selectedCount === inmRefs.length;
                   const isPartiallySelected = selectedCount > 0 && !isAllSelected;
-                  const isExpanded = !!expandedInms[group.inmId];
+                  const singleInm = local.inms[0];
 
                   return (
                     <div
-                      key={group.inmId}
+                      key={local.localId}
                       className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-md transition-all hover:border-slate-600"
                     >
-                      {/* Cabecera del Inmueble */}
+                      {/* Cabecera del Inmueble Individual */}
                       <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-800">
                         <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
-                          {/* Opción para elegir todos los recibos de este inmueble */}
                           <button
                             type="button"
-                            onClick={() => toggleAllInmueble(inmRefs)}
+                            onClick={() => toggleAllLocal(inmRefs)}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-xs transition-all active:scale-95 shrink-0 ${
                               isAllSelected
                                 ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30 ring-2 ring-emerald-400'
@@ -704,66 +1064,65 @@ export default function KioskPage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-emerald-400 font-black text-base tracking-wide">
-                                {group.inmId}
+                                {local.localId}
                               </span>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                group.tipo.toLowerCase().includes('residencial')
+                                local.tipo.toLowerCase().includes('residencial')
                                   ? 'bg-emerald-500/20 text-emerald-400'
                                   : 'bg-blue-500/20 text-blue-400'
                               }`}>
-                                {group.tipo || 'COMERCIAL'}
+                                {local.tipo || 'COMERCIAL'}
                               </span>
-                              {group.act && (
-                                <span className="text-[10px] font-medium text-slate-300 bg-slate-700/80 px-2 py-0.5 rounded-full truncate max-w-[180px]" title={group.act}>
-                                  {group.act}
+                              {singleInm?.actividad_principal && (
+                                <span className="text-[10px] font-medium text-slate-300 bg-slate-700/80 px-2 py-0.5 rounded-full truncate max-w-[180px]" title={singleInm.actividad_principal}>
+                                  {singleInm.actividad_principal}
                                 </span>
                               )}
                             </div>
-                            {group.direccion && (
-                              <p className="text-[11px] text-slate-400 mt-1 line-clamp-1 flex items-center gap-1" title={group.direccion}>
+                            {local.direccion && (
+                              <p className="text-[11px] text-slate-400 mt-1 line-clamp-1 flex items-center gap-1" title={local.direccion}>
                                 <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
-                                {group.direccion}
+                                {local.direccion}
                               </p>
                             )}
                           </div>
                         </div>
 
-                        {/* Monto del Inmueble y Botón para desplegar recibos */}
                         <div className="flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-700/60 shrink-0">
                           <div className="text-left md:text-right">
                             <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
                               Deuda Inmueble
                             </div>
                             <div className="text-white font-black text-base sm:text-lg">
-                              Bs. {fmtBs(group.totalBs)}
+                              Bs. {fmtBs(local.totalBs)}
                             </div>
                           </div>
 
                           <button
                             type="button"
-                            onClick={() => toggleExpand(group.inmId)}
+                            onClick={() => toggleExpand(local.localId)}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all border border-slate-600"
                           >
-                            <span>{isExpanded ? 'Ocultar' : `Ver Recibos (${group.items.length})`}</span>
+                            <span>{isExpanded ? 'Ocultar' : `Ver Recibos (${local.singleItems.length})`}</span>
                             {isExpanded ? <ChevronUp className="w-4 h-4 text-emerald-400" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
                         </div>
                       </div>
 
-                      {/* Recibos desplegables (Solo se muestran al escoger/desplegar) */}
+                      {/* Recibos desplegables para inmueble individual */}
                       {isExpanded && (
                         <div className="p-3.5 bg-slate-900/70 border-t border-slate-700/80 space-y-2 max-h-[360px] overflow-y-auto">
                           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
                             <span>Desglose Mensual — Seleccione períodos específicos</span>
-                            <span className="text-emerald-400">{selectedCount} de {group.items.length} elegidos</span>
+                            <span className="text-emerald-400">{selectedCount} de {local.singleItems.length} elegidos</span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {group.items.map((r, rIdx) => {
+                            {local.singleItems.map((r, rIdx) => {
                               const isItemSel = selectedRefs.includes(r.referencia);
                               return (
                                 <div
                                   key={r.referencia}
-                                  onClick={() => toggleIndividualReceipt(r.referencia, group.items)}
+                                  onClick={() => toggleIndividualReceipt(r.referencia, local.singleItems)}
                                   className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
                                     isItemSel
                                       ? 'bg-emerald-500/15 border-emerald-500/60 ring-1 ring-emerald-500/30'
@@ -807,13 +1166,13 @@ export default function KioskPage() {
                     Detalle a Pagar
                   </h4>
                   <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                    {selectedRefs.length} {selectedRefs.length === 1 ? 'período seleccionado' : 'períodos seleccionados'}
+                    {totalMonthsSelected} {totalMonthsSelected === 1 ? 'mes seleccionado' : 'meses seleccionados'}
                   </span>
                 </div>
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Subtotal Aseo ({selectedRefs.length} {selectedRefs.length === 1 ? 'mes' : 'meses'})</span>
+                    <span className="text-slate-400">Subtotal Aseo ({totalMonthsSelected} {totalMonthsSelected === 1 ? 'mes' : 'meses'})</span>
                     <span className="text-white font-bold text-base">Bs. {fmtBs(desgloseSel.base)}</span>
                   </div>
                   {desgloseSel.multa > 0 && (
