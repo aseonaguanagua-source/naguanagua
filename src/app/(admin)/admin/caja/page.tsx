@@ -188,7 +188,8 @@ export default function CajaPage() {
 
   const getHijoDebt = useCallback((hijo: any, customMeses?: number) => {
     const currentTasa = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
-    const esRes = isResidencialInm(hijo);
+    // CRÍTICO: Si el condominio o el hijo es residencial, es 100% RESIDENCIAL (Exento 0% IVA)
+    const esRes = isResidencialInm(hijo) || isResidencialInm(foundUser) || (foundUser?.Tipo || '').toUpperCase().includes('RESIDENCIAL') || (foundUser?.Clasificacion || '').toLowerCase().includes('condominio');
     const baseMensual = parseFloat(calcularMensualidad(hijo, currentTasa).toFixed(2));
     const ivaMensual = esRes ? 0 : parseFloat((baseMensual * 0.16).toFixed(2));
     const mesesTotales = Math.max(1, parseInt(hijo?.meses_deuda || '1'));
@@ -213,11 +214,15 @@ export default function CajaPage() {
       total,
       esRes
     };
-  }, [customBcvRate, tcmmv, hijosMesesAPagar]);
+  }, [customBcvRate, tcmmv, hijosMesesAPagar, foundUser]);
 
   const totalDeudaCondominio = useMemo(() => {
-    return condominioHijos.reduce((acc: number, h: any) => acc + getHijoDebt(h, Math.max(1, parseInt(h.meses_deuda || '1'))).total, 0);
-  }, [condominioHijos, getHijoDebt]);
+    if (!isCondominio || condominioHijos.length === 0) return 0;
+    return condominioHijos.reduce((acc: number, h: any) => {
+      const meses = Math.max(1, parseInt(h.meses_deuda || '1'));
+      return acc + getHijoDebt(h, meses).total;
+    }, 0);
+  }, [isCondominio, condominioHijos, getHijoDebt]);
 
   // ─ Fix C-3: pendingRefsSet — O(1) lookup en lugar de O(n) find+recalc por render ─
   // Mapeo ref → monto calculado para eliminar el doble recalc en isItemPending
@@ -726,7 +731,7 @@ export default function CajaPage() {
         if (searchFilters.length > 0) {
           const { data: hijosById } = await supabase
             .from('inmuebles')
-            .select('id, identidad, inmueble, tipo, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente, direccion, meses_deuda, cant_inmuebles')
+            .select('id, identidad, inmueble, tipo, clasificacion, mmv_mes, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente, direccion, meses_deuda, cant_inmuebles')
             .or(searchFilters.join(','));
           hijosData = (hijosById || []).filter((h: any) => !parentCodes.includes(h.inmueble));
         }
