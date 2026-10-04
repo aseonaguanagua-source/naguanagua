@@ -246,6 +246,15 @@ export async function POST(request: Request) {
     // MODO PRUEBA: si EMAIL_TEST_MODE=true, todos los comunicados van a aseonaguanagua@globalgreenca.com
     const modoTestComun = process.env.EMAIL_TEST_MODE === 'true';
 
+    if (!process.env.RESEND_API_KEY) {
+      return NextResponse.json({
+        success: false,
+        error: 'No se ha configurado la variable RESEND_API_KEY en Vercel. Ve a Settings -> Environment Variables en Vercel y agrégala.'
+      }, { status: 400 });
+    }
+
+    const fromEmail = process.env.RESEND_FROM || 'IAMEC Naguanagua <onboarding@resend.dev>';
+
     for (let i = 0; i < destinatarios.length; i += 10) {
       const lote = destinatarios.slice(i, i + 10);
       await Promise.all(lote.map(async (dest) => {
@@ -254,13 +263,18 @@ export async function POST(request: Request) {
           const subjectComun = modoTestComun
             ? `[PRUEBA | Para: ${dest.correo}] Comunicado Oficial - IAMEC Naguanagua`
             : 'Comunicado Oficial - Renovacion de Plataforma Digital | IAMEC Naguanagua Municipio Naguanagua';
-          await resend.emails.send({
-            from: 'IAMEC Naguanagua <iamec.naguanagua@globalgreenca.com>',
+          const sendRes = await resend.emails.send({
+            from: fromEmail,
             to: [destinoComun],
             subject: subjectComun,
             html: buildHtml(dest.nombre),
           });
-          enviados++;
+          if (sendRes.error) {
+            errores++;
+            erroresList.push(dest.correo + ': ' + sendRes.error.message);
+          } else {
+            enviados++;
+          }
         } catch (err: any) {
           errores++;
           erroresList.push(dest.correo + ': ' + err.message);
@@ -268,6 +282,14 @@ export async function POST(request: Request) {
       }));
       if (i + 10 < destinatarios.length)
         await new Promise(r => setTimeout(r, 500));
+    }
+
+    if (enviados === 0 && errores > 0) {
+      return NextResponse.json({
+        success: false,
+        error: erroresList[0] || 'Error entregando el correo de prueba',
+        erroresList
+      }, { status: 500 });
     }
 
     return NextResponse.json({
