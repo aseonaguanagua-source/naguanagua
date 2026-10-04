@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   CreditCard, FileText, Upload, Send, Building, CheckSquare, 
   AlertCircle, CheckCircle2, MapPin, ArrowRightLeft, Store, 
-  ChevronDown, ChevronUp, CheckSquare2, Square, Sparkles
+  ChevronDown, ChevronUp, CheckSquare2, Square, Sparkles, ShieldCheck
 } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
@@ -865,6 +865,12 @@ export default function DondePagarPage() {
                               ) : (
                                 <span className="bg-blue-50 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-200">
                                   {group.tipo}
+                                </span>
+                              )}
+                              {group.inms.some((i: any) => i.agente_retencion === true) && (
+                                <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded flex items-center gap-1 border border-amber-300">
+                                  <ShieldCheck className="w-3 h-3 text-amber-600" />
+                                  Agente de Retención (75% IVA Retenido)
                                 </span>
                               )}
                             </div>

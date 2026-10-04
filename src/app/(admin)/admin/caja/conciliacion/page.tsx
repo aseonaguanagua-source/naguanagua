@@ -645,28 +645,33 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
         
-        // ── EMITIR FACTURA DIGITAL THE FACTORY HKA ──
-        // Se dispara automáticamente al APROBAR una transferencia en conciliación
+        // ── FACTURACIÓN DIGITAL THE FACTORY HKA (EN COLA PARA REVISIÓN / EMISIÓN MANUAL) ──
         try {
-          fetch('/api/admin/factura-digital/emitir', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              pagoId:        pago.id,
-              recibos:       recibos,
-              montos:        { total: montoConciliadoNum },
-              montoTotal:    montoConciliadoNum,
-              contribuyente: contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad,
-              identidad:     pago.identidad,
-              formasPago: [{
-                descripcion: pago.tipo || 'Transferencia',
-                fecha:       new Date().toISOString(),
-                forma:       '03',   // 03 = Transferencia bancaria
-                monto:       montoConciliadoNum
-              }]
-            })
-          }).catch(e => console.error('Error trigger factura digital (conciliación):', e));
-        } catch(e) {}
+          const { data: curPago } = await supabase.from('pagos_reportados').select('detalles').eq('id', pago.id).single();
+          let curDet = curPago?.detalles || {};
+          if (typeof curDet === 'string') {
+            try { curDet = JSON.parse(curDet); } catch(e) { curDet = {}; }
+          }
+          curDet.factura_digital = curDet.factura_digital || {
+            emitida: false,
+            pendiente: true,
+            preparada_at: new Date().toISOString()
+          };
+          curDet.recibos = recibos;
+          curDet.montos = { total: montoConciliadoNum };
+          curDet.montoTotal = montoConciliadoNum;
+          curDet.contribuyente = contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad;
+          curDet.identidad = pago.identidad;
+          curDet.formasPago = [{
+            descripcion: pago.tipo || 'Transferencia',
+            fecha:       new Date().toISOString(),
+            forma:       '03',   // 03 = Transferencia bancaria
+            monto:       montoConciliadoNum
+          }];
+          await supabase.from('pagos_reportados').update({ detalles: curDet }).eq('id', pago.id);
+        } catch(e) {
+          console.error('Error guardando datos para factura digital conciliada:', e);
+        }
 
       }
       // Con Diferencia: agregar monto de diferencia como saldo a favor

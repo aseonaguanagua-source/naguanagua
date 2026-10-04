@@ -188,7 +188,7 @@ export default function KioskPage() {
 
   // Desglose consolidado de los recibos seleccionados
   const desgloseSel = useMemo(() => {
-    let base = 0, multa = 0, iva = 0;
+    let base = 0, multa = 0, iva = 0, ivaRetenible = 0;
     selectedRefs.forEach(ref => {
       const r = recibos.find(x => x.referencia === ref);
       if (r) {
@@ -196,23 +196,37 @@ export default function KioskPage() {
         base += d.base;
         multa += d.multa;
         iva += d.iva;
+
+        // Identificar si el recibo pertenece a un inmueble que sea agente de retención
+        let matchedInm: any = null;
+        if (r.referencia?.startsWith('RECIB-HIST-')) {
+          const parts = r.referencia.split('-');
+          matchedInm = userInms.find((i: any) => i.inmueble === parts[2]);
+        } else if (r.referencia?.startsWith('CM-')) {
+          matchedInm = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
+        }
+        if (matchedInm && matchedInm.agente_retencion === true && !isResidencialInm(matchedInm)) {
+          ivaRetenible += d.iva;
+        }
       }
     });
     return {
       base: parseFloat(base.toFixed(2)),
       multa: parseFloat(multa.toFixed(2)),
-      iva: isResidencialGlobal ? 0 : parseFloat(iva.toFixed(2))
+      iva: isResidencialGlobal ? 0 : parseFloat(iva.toFixed(2)),
+      ivaRetenible: isResidencialGlobal ? 0 : parseFloat(ivaRetenible.toFixed(2))
     };
   }, [selectedRefs, recibos, userInms, tcmmv, isResidencialGlobal]);
 
   // IVA total (16% EXCLUSIVAMENTE sobre la base imponible comercial; multas y residencial 0%)
   const ivaTotalCalculado = desgloseSel.iva;
-  // Retención: si es agente de retención, retiene 75% del IVA (no lo paga al municipio, lo declara por planilla)
-  const ivaRetenidoCalculado = esAgenteGlobal ? parseFloat((ivaTotalCalculado * 0.75).toFixed(2)) : 0;
-  // Lo que realmente paga de IVA = 25% del IVA si es agente, o 100% si no lo es
+  // Retención: SOLO sobre el IVA de recibos de comercios formalmente calificados como agentes de retención
+  const ivaRetenidoCalculado = parseFloat((desgloseSel.ivaRetenible * 0.75).toFixed(2));
+  // Lo que realmente paga de IVA = resto del IVA a 100% y comercios de retención al 25%
   const ivaCalculado = parseFloat((ivaTotalCalculado - ivaRetenidoCalculado).toFixed(2));
   // Total a cancelar = Subtotal base + Multa (sin intereses) + IVA neto a pagar
   const pagoTotalCalculado = parseFloat((desgloseSel.base + desgloseSel.multa + ivaCalculado).toFixed(2));
+  const hasAgenteEnSeleccion = desgloseSel.ivaRetenible > 0;
 
   const groupedLocals = useMemo((): LocalGroup[] => {
     const getReceiptInmId = (r: Recibo): string => {
@@ -1187,19 +1201,18 @@ export default function KioskPage() {
                         <span className="text-slate-400">IVA (16%) Base Imponible</span>
                         <span className="text-white font-bold">Bs. {fmtBs(ivaTotalCalculado)}</span>
                       </div>
-                      {esAgenteGlobal && (
+                      {hasAgenteEnSeleccion ? (
                         <>
                           <div className="flex justify-between items-center text-amber-400 text-xs sm:text-sm">
-                            <span>↳ IVA Retenido (75%) — sube planilla</span>
+                            <span>↳ IVA Retenido (75% solo comercios autorizados)</span>
                             <span className="font-bold">- Bs. {fmtBs(ivaRetenidoCalculado)}</span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span className="text-slate-400">IVA a Pagar (25%)</span>
+                            <span className="text-slate-400">IVA a Pagar (Neto)</span>
                             <span className="text-white font-bold text-base">Bs. {fmtBs(ivaCalculado)}</span>
                           </div>
                         </>
-                      )}
-                      {!esAgenteGlobal && (
+                      ) : (
                         <div className="flex justify-between items-center">
                           <span className="text-slate-400">IVA a Pagar (16%)</span>
                           <span className="text-white font-bold text-base">Bs. {fmtBs(ivaCalculado)}</span>
@@ -1217,16 +1230,16 @@ export default function KioskPage() {
                 </div>
               </div>
 
-              {/* AVISO AGENTE DE RETENCIÓN */}
-              {foundUser?.EsAgente && (
+              {/* AVISO AGENTE DE RETENCIÓN — Solo si los recibos seleccionados incluyen comercios con agente_retencion === true */}
+              {hasAgenteEnSeleccion && (
                 <div className="flex items-start gap-4 bg-amber-400/20 border-2 border-amber-400 rounded-2xl px-5 py-4">
                   <TriangleAlert className="w-8 h-8 text-amber-400 shrink-0 mt-0.5" />
                   <div>
                     <div className="text-amber-300 font-black text-lg leading-tight mb-1">
-                      Usted es Agente de Retención
+                      Comercio Calificado como Agente de Retención
                     </div>
                     <div className="text-amber-200 text-sm leading-relaxed">
-                      Recuerde que como Agente de Retención debe <strong>cargar su planilla de retención de IVA</strong> a través del portal web en <em>Soy Contribuyente → Retenciones IVA</em>, indicando el monto retenido correspondiente al <strong>75% del IVA</strong> de esta factura.
+                      Este cobro incluye comercios autorizados donde se retuvo el <strong>75% del IVA</strong> por providencia del SENIAT. Recuerde cargar el comprobante correspondiente a través del portal web en <em>Soy Contribuyente → Retenciones IVA</em>.
                     </div>
                   </div>
                 </div>

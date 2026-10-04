@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
-import { FileText, Send, CheckCircle, AlertTriangle, ExternalLink, RefreshCw, Receipt } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  FileText, Send, CheckCircle, AlertTriangle, ExternalLink, 
+  RefreshCw, Receipt, Search, Mail, Filter, Eye, ShieldCheck, 
+  Sliders, ArrowUpRight, Check, X, Building
+} from 'lucide-react';
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -14,24 +18,172 @@ function getMesActual() {
 }
 
 export default function FacturacionElectronicaPage() {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isTesting, setIsTesting]       = useState(false);
-  const [successLink, setSuccessLink]   = useState<string | null>(null);
-  const [resumen, setResumen]           = useState<any>(null);
+  const [pagosList, setPagosList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterTab, setFilterTab] = useState<'todos' | 'pendientes' | 'emitidas'>('pendientes');
 
-  // Campos del formulario de prueba
-  const [montoServicio, setMontoServicio] = useState('850.00');
-  const [montoMulta,    setMontoMulta]    = useState('120.00');
-  const [mes,           setMes]           = useState(getMesActual());
+  // Modal de Ajuste y Emisión Manual
+  const [selectedPagoForEmit, setSelectedPagoForEmit] = useState<any | null>(null);
+  const [ajusteMontoServicio, setAjusteMontoServicio] = useState<string>('');
+  const [ajusteMontoMulta, setAjusteMontoMulta] = useState<string>('0');
+  const [ajusteConcepto, setAjusteConcepto] = useState<string>('');
+  const [isEmitting, setIsEmitting] = useState(false);
+  const [enviarCorreoAlEmitir, setEnviarCorreoAlEmitir] = useState(true);
+  const [correoDestinoEmision, setCorreoDestinoEmision] = useState('davidzara66@gmail.com');
 
-  const handleLoteMassivo = async () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      alert('Simulación: Lote enviado exitosamente');
-    }, 2000);
+  // Modal de Reenvío de Correo
+  const [selectedPagoForEmail, setSelectedPagoForEmail] = useState<any | null>(null);
+  const [customEmailDestino, setCustomEmailDestino] = useState('davidzara66@gmail.com');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
+
+  // Panel de Prueba Rápida con TFHKA
+  const [showDemoTester, setShowDemoTester] = useState(false);
+  const [montoServicioDemo, setMontoServicioDemo] = useState('850.00');
+  const [montoMultaDemo, setMontoMultaDemo] = useState('120.00');
+  const [mesDemo, setMesDemo] = useState(getMesActual());
+  const [isTesting, setIsTesting] = useState(false);
+  const [demoSuccessLink, setDemoSuccessLink] = useState<string | null>(null);
+  const [demoResumen, setDemoResumen] = useState<any>(null);
+
+  // Carga de pagos desde la API
+  const loadPagos = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/factura-digital/listar?filter=${filterTab}&q=${encodeURIComponent(searchTerm)}`);
+      const data = await res.json();
+      if (data.success) {
+        setPagosList(data.items || []);
+      }
+    } catch (e: any) {
+      console.error('Error cargando pagos para facturación digital:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filterTab, searchTerm]);
+
+  useEffect(() => {
+    loadPagos();
+  }, [loadPagos]);
+
+  // Abrir modal de revisión y emisión manual
+  const handleOpenEmitModal = (pago: any) => {
+    setSelectedPagoForEmit(pago);
+    const montoTotal = pago.monto || 0;
+    // Si tiene multa deducible o monto base estimado (monto / 1.16 si incluye IVA)
+    const baseEstimada = (montoTotal / 1.16).toFixed(2);
+    setAjusteMontoServicio(baseEstimada);
+    setAjusteMontoMulta('0.00');
+    setAjusteConcepto(`Servicio de Aseo Urbano Comercial - ${getMesActual()}`);
+    setCorreoDestinoEmision('davidzara66@gmail.com');
+    setEnviarCorreoAlEmitir(true);
   };
 
+  // Ejecutar emisión manual
+  const handleConfirmarEmision = async () => {
+    if (!selectedPagoForEmit) return;
+    setIsEmitting(true);
+    try {
+      const base = parseFloat(ajusteMontoServicio) || 0;
+      const multa = parseFloat(ajusteMontoMulta) || 0;
+      const iva = parseFloat((base * 0.16).toFixed(2));
+      const total = base + multa + iva;
+
+      const res = await fetch('/api/admin/factura-digital/emitir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagoId: selectedPagoForEmit.pagoId,
+          recibos: selectedPagoForEmit.recibos && selectedPagoForEmit.recibos.length > 0 ? selectedPagoForEmit.recibos : [`REC-${selectedPagoForEmit.pagoId.slice(0, 6)}`],
+          montos: { total: total },
+          montoTotal: total,
+          contribuyente: selectedPagoForEmit.contribuyente,
+          identidad: selectedPagoForEmit.identidad,
+          formasPago: [{
+            descripcion: selectedPagoForEmit.tipo || 'Transferencia',
+            fecha: new Date().toISOString(),
+            forma: '05',
+            monto: total
+          }],
+          enviarCorreo: enviarCorreoAlEmitir,
+          correoDestino: correoDestinoEmision
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.url) {
+        alert(`¡Factura Digital emitida exitosamente!\nNúmero de Control generado: ${data.url ? 'Disponible' : ''}`);
+        
+        // Si se seleccionó enviar correo, disparar reenvío inmediato
+        if (enviarCorreoAlEmitir && correoDestinoEmision) {
+          await fetch('/api/admin/factura-digital/reenviar-correo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pagoId: selectedPagoForEmit.pagoId,
+              correoDestino: correoDestinoEmision,
+              facturaUrl: data.url,
+              numeroControl: 'DOC-' + Date.now().toString().slice(-6),
+              contribuyente: selectedPagoForEmit.contribuyente,
+              identidad: selectedPagoForEmit.identidad,
+              monto: total,
+              fecha: new Date().toISOString()
+            })
+          });
+        }
+
+        setSelectedPagoForEmit(null);
+        loadPagos();
+      } else {
+        alert('Error al emitir factura: ' + (data.error || 'Respuesta no válida de TFHKA'));
+      }
+    } catch (e: any) {
+      alert('Error en conexión con el servicio de facturación: ' + e.message);
+    } finally {
+      setIsEmitting(false);
+    }
+  };
+
+  // Reenviar correo de factura emitida
+  const handleReenviarCorreo = async () => {
+    if (!selectedPagoForEmail) return;
+    setIsSendingEmail(true);
+    setEmailSuccessMsg(null);
+    try {
+      const res = await fetch('/api/admin/factura-digital/reenviar-correo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagoId: selectedPagoForEmail.pagoId,
+          correoDestino: customEmailDestino,
+          facturaUrl: selectedPagoForEmail.facturaUrl,
+          numeroControl: selectedPagoForEmail.numeroControl || 'N/A',
+          contribuyente: selectedPagoForEmail.contribuyente,
+          identidad: selectedPagoForEmail.identidad,
+          monto: selectedPagoForEmail.monto,
+          fecha: selectedPagoForEmail.created_at
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setEmailSuccessMsg(`Factura enviada exitosamente a ${customEmailDestino}`);
+        setTimeout(() => {
+          setSelectedPagoForEmail(null);
+          setEmailSuccessMsg(null);
+        }, 2000);
+      } else {
+        alert('Error enviando correo: ' + (data.error || 'Fallo'));
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  // Test directo libre de demo
   const handleTestInvoice = async () => {
     setIsTesting(true);
     try {
@@ -39,15 +191,15 @@ export default function FacturacionElectronicaPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          montoServicio: parseFloat(montoServicio) || 850,
-          montoMulta:    parseFloat(montoMulta)    || 0,
-          mes,
+          montoServicio: parseFloat(montoServicioDemo) || 850,
+          montoMulta: parseFloat(montoMultaDemo) || 0,
+          mes: mesDemo,
         }),
       });
       const data = await res.json();
       if (data.success && data.url) {
-        setSuccessLink(data.url);
-        setResumen(data.resumen || null);
+        setDemoSuccessLink(data.url);
+        setDemoResumen(data.resumen || null);
       } else {
         alert('Error generando prueba: ' + (data.error || 'URL no devuelta'));
       }
@@ -58,183 +210,488 @@ export default function FacturacionElectronicaPage() {
     }
   };
 
-  const monto  = parseFloat(montoServicio) || 0;
-  const multa  = parseFloat(montoMulta)    || 0;
-  const iva    = parseFloat((monto * 0.16).toFixed(2));
-  const total  = monto + multa + iva;
-
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {/* HEADER PRINCIPAL */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Facturación Electrónica (The Factory HKA)</h1>
-          <p className="text-slate-500 mt-1">Gestión y emisión masiva de facturas fiscales digitales.</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-800">Facturación Electrónica (The Factory HKA / SENIAT)</h1>
+            <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" /> TFHKA Conectado
+            </span>
+            <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-blue-300">
+              Modo Pruebas: davidzara66@gmail.com
+            </span>
+          </div>
+          <p className="text-slate-500 mt-1">
+            Control de emisión manual de facturas fiscales digitales. Revisa y ajusta los montos antes de enviar a la imprenta digital.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowDemoTester(!showDemoTester)}
+            className="border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            <Sliders className="w-4 h-4" />
+            {showDemoTester ? 'Ocultar Simulador Demo' : 'Generador Libre Demo'}
+          </button>
+          <button
+            onClick={loadPagos}
+            disabled={isLoading}
+            className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Sincronizar Pagos
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-
-        {/* Lote Masivo */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-          <div className="p-6 flex-1">
-            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center mb-4">
-              <Send className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Envío Masivo por Lote</h3>
-            <p className="text-slate-600 text-sm">
-              Inicia el proceso para emitir facturas digitales de todos los pagos que han sido <strong>aprobados</strong> y aún no se han enviado a la imprenta digital.
-            </p>
+      {/* PANEL DE SIMULACIÓN DEMO (COLAPSABLE) */}
+      {showDemoTester && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2 text-base">
+              <Receipt className="w-5 h-5 text-emerald-600" />
+              Simulador Directo contra Entorno Demo TFHKA
+            </h3>
+            <span className="text-xs text-slate-400">Ambiente de certificación</span>
           </div>
-          <div className="p-4 bg-slate-50 border-t border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Monto Base Servicio (Bs)</label>
+              <input
+                type="number"
+                value={montoServicioDemo}
+                onChange={e => setMontoServicioDemo(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Monto Multa Exenta (Bs)</label>
+              <input
+                type="number"
+                value={montoMultaDemo}
+                onChange={e => setMontoMultaDemo(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Mes a Facturar</label>
+              <input
+                type="text"
+                value={mesDemo}
+                onChange={e => setMesDemo(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+          <div className="flex justify-between items-center pt-2">
+            <p className="text-xs text-slate-500">
+              Total Calculado: <strong>Bs {((parseFloat(montoServicioDemo) || 0) * 1.16 + (parseFloat(montoMultaDemo) || 0)).toFixed(2)}</strong> (incluye 16% IVA)
+            </p>
             <button
-              onClick={handleLoteMassivo}
-              disabled={isProcessing}
-              className="w-full bg-[#111827] hover:bg-slate-800 text-[#c8e64c] font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              onClick={handleTestInvoice}
+              disabled={isTesting}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-5 py-2 rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
             >
-              {isProcessing ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-[#c8e64c] border-t-transparent rounded-full animate-spin" />
-                  Procesando Lote...
-                </>
-              ) : (
-                <>
-                  <FileText className="w-4 h-4" />
-                  Emitir Facturas Fiscales Lote
-                </>
-              )}
+              <RefreshCw className={`w-4 h-4 ${isTesting ? 'animate-spin' : ''}`} />
+              {isTesting ? 'Generando en TFHKA...' : 'Emitir Factura de Prueba'}
             </button>
           </div>
-        </div>
 
-        {/* Demo de Factura */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-          <div className="p-6 flex-1">
-            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mb-4">
-              <CheckCircle className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Demo de Factura Generada</h3>
-            <p className="text-slate-600 text-sm mb-4">
-              Genera una factura de prueba contra el entorno <strong>Demo de The Factory HKA</strong>.
-              El correo de notificación se envía a <span className="font-mono text-xs bg-slate-100 px-1 rounded">aseonaguanagua@globalgreenca.com</span>.
-            </p>
-
-            {/* Formulario de parámetros */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
+          {demoSuccessLink && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center justify-between mt-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Monto Servicio (Bs)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={montoServicio}
-                  onChange={e => setMontoServicio(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
+                <p className="text-sm font-semibold text-emerald-900">Factura de prueba generada con éxito</p>
+                <p className="text-xs text-emerald-700">{demoResumen?.montoEnLetras}</p>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Multa (Bs, sin IVA)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={montoMulta}
-                  onChange={e => setMontoMulta(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 mb-1">Mes Pagado</label>
-                <input
-                  type="text"
-                  value={mes}
-                  onChange={e => setMes(e.target.value)}
-                  placeholder="Ej: Octubre 2026"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-              </div>
-            </div>
-
-            {/* Desglose en tiempo real */}
-            <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 space-y-1 mb-4">
-              <div className="flex justify-between"><span>Servicio Aseo:</span><span className="font-mono">Bs {monto.toFixed(2)}</span></div>
-              <div className="flex justify-between text-blue-600"><span>IVA 16%:</span><span className="font-mono">Bs {iva.toFixed(2)}</span></div>
-              {multa > 0 && (
-                <div className="flex justify-between text-orange-600"><span>Multa (exenta):</span><span className="font-mono">Bs {multa.toFixed(2)}</span></div>
-              )}
-              <div className="flex justify-between font-bold text-slate-800 border-t border-slate-200 pt-1 mt-1">
-                <span>Total a Pagar:</span><span className="font-mono">Bs {total.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {successLink ? (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <a
-                    href={successLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-4 py-2 rounded-lg text-sm"
-                  >
-                    Abrir Factura <ExternalLink className="w-4 h-4" />
-                  </a>
-                  <button
-                    onClick={handleTestInvoice}
-                    disabled={isTesting}
-                    className="inline-flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200 font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isTesting ? 'animate-spin' : ''}`} />
-                    Nueva Prueba
-                  </button>
-                </div>
-
-                {/* Resumen de la factura emitida */}
-                {resumen && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs space-y-1">
-                    <p className="font-semibold text-green-800 flex items-center gap-1"><Receipt className="w-3 h-3" /> Factura emitida exitosamente</p>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-green-700 mt-1">
-                      <span>Contribuyente:</span><span className="font-medium">{resumen.contribuyente}</span>
-                      <span>Mes:</span><span className="font-medium">{resumen.mes}</span>
-                      <span>Servicio:</span><span className="font-mono">{resumen.servicio}</span>
-                      <span>IVA 16%:</span><span className="font-mono">{resumen.iva16}</span>
-                      {multa > 0 && <><span>Multa:</span><span className="font-mono">{resumen.multa}</span></>}
-                      <span className="font-bold">Total:</span><span className="font-mono font-bold">{resumen.totalAPagar}</span>
-                    </div>
-                    <p className="text-green-600 italic mt-1">{resumen.montoEnLetras}</p>
-                  </div>
-                )}
-
-                <div className="w-full h-72 border border-slate-200 rounded-lg overflow-hidden bg-slate-900 relative group">
-                  <iframe
-                    src={successLink}
-                    className="w-full h-full"
-                    title="Previsualización de Factura"
-                  />
-                  <div className="absolute inset-0 bg-slate-800/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    <p className="text-white text-sm px-6 text-center">Si The Factory HKA bloquea la previsualización directa, usa el botón superior para abrirla en una pestaña nueva.</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={handleTestInvoice}
-                disabled={isTesting}
-                className="inline-flex items-center gap-2 bg-[#111827] hover:bg-slate-800 text-[#c8e64c] font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50"
+              <a
+                href={demoSuccessLink}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-emerald-700 text-white px-4 py-2 rounded text-xs font-bold flex items-center gap-1 hover:bg-emerald-800"
               >
-                <RefreshCw className={`w-4 h-4 ${isTesting ? 'animate-spin' : ''}`} />
-                {isTesting ? 'Generando factura...' : 'Generar Prueba con TFHKA'}
-              </button>
-            )}
+                Abrir en TFHKA <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* BARRA DE BÚSQUEDA Y PESTAÑAS */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50">
+          {/* Pestañas */}
+          <div className="flex bg-slate-200 p-1 rounded-lg">
+            <button
+              onClick={() => setFilterTab('pendientes')}
+              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${
+                filterTab === 'pendientes' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Pendientes por Emitir
+            </button>
+            <button
+              onClick={() => setFilterTab('emitidas')}
+              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${
+                filterTab === 'emitidas' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Facturas Emitidas
+            </button>
+            <button
+              onClick={() => setFilterTab('todos')}
+              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${
+                filterTab === 'todos' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Todos los Pagos
+            </button>
           </div>
-          <div className="p-4 bg-yellow-50 border-t border-yellow-100 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
-            <p className="text-sm text-yellow-700">
-              Esta es una visualización de prueba. Para ver números de control oficiales, la cuenta de Naguanagua en el portal TFHKA debe tener asignado un rango de numeración.
-            </p>
+
+          {/* Buscador */}
+          <div className="relative w-full md:w-96">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Buscar por Cédula, RIF, Nombre o Recibo..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
           </div>
         </div>
 
+        {/* TABLA DE RESULTADOS */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="bg-slate-100 text-xs uppercase font-bold text-slate-700 border-b border-slate-200">
+              <tr>
+                <th className="py-3 px-4">C.I. / R.I.F.</th>
+                <th className="py-3 px-4">Razón Social / Nombre</th>
+                <th className="py-3 px-4">Monto Pagado (Bs)</th>
+                <th className="py-3 px-4">Tipo / Ref</th>
+                <th className="py-3 px-4">Fecha Pago</th>
+                <th className="py-3 px-4">Estatus Factura</th>
+                <th className="py-3 px-4 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-slate-400">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
+                    Cargando listado de pagos...
+                  </td>
+                </tr>
+              ) : pagosList.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-slate-400">
+                    No se encontraron pagos en esta categoría.
+                  </td>
+                </tr>
+              ) : (
+                pagosList.map((pago: any) => {
+                  return (
+                    <tr key={pago.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-800">
+                        {pago.identidad}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-slate-900">
+                        {pago.contribuyente}
+                        {pago.correo && (
+                          <span className="block text-xs text-slate-400 font-normal">{pago.correo}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-semibold text-slate-900">
+                        Bs {pago.monto.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 px-4 text-xs">
+                        <span className="font-semibold text-slate-700">{pago.tipo}</span>
+                        <span className="block text-slate-400 font-mono">Ref: {pago.referencia}</span>
+                      </td>
+                      <td className="py-3 px-4 text-xs text-slate-500">
+                        {new Date(pago.created_at).toLocaleDateString('es-VE')}
+                      </td>
+                      <td className="py-3 px-4">
+                        {pago.facturaEmitida ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <CheckCircle className="w-3.5 h-3.5" /> Emitida
+                            {pago.numeroControl && <span className="font-mono ml-1">({pago.numeroControl})</span>}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                            <AlertTriangle className="w-3.5 h-3.5" /> Pendiente Emisión
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {pago.facturaEmitida ? (
+                            <>
+                              {pago.facturaUrl && (
+                                <a
+                                  href={pago.facturaUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded flex items-center gap-1 border border-slate-200"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-blue-600" /> Ver Factura
+                                </a>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setSelectedPagoForEmail(pago);
+                                  setCustomEmailDestino('davidzara66@gmail.com');
+                                }}
+                                className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded flex items-center gap-1 border border-emerald-300"
+                              >
+                                <Mail className="w-3.5 h-3.5 text-emerald-600" /> Reenviar Correo
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenEmitModal(pago)}
+                              className="text-xs bg-slate-800 hover:bg-slate-700 text-white font-bold px-3 py-1.5 rounded flex items-center gap-1 shadow-sm"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-[#c8e64c]" /> Revisar y Emitir
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      {/* MODAL DE AJUSTE Y EMISIÓN MANUAL */}
+      {selectedPagoForEmit && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-slate-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-[#c8e64c]" />
+                <h3 className="font-bold text-base">Revisión y Ajuste Previo a Emisión Fiscal</h3>
+              </div>
+              <button onClick={() => setSelectedPagoForEmit(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-400 font-semibold block">Contribuyente</span>
+                  <span className="font-bold text-slate-800 text-sm">{selectedPagoForEmit.contribuyente}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-semibold block">R.I.F. / Cédula</span>
+                  <span className="font-bold text-slate-800 text-sm font-mono">{selectedPagoForEmit.identidad}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-semibold block">Monto Pagado Original</span>
+                  <span className="font-bold text-emerald-700 font-mono text-sm">
+                    Bs {selectedPagoForEmit.monto.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-semibold block">Forma de Pago</span>
+                  <span className="font-semibold text-slate-700">{selectedPagoForEmit.tipo}</span>
+                </div>
+              </div>
+
+              {/* CAMPOS DE AJUSTE */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Concepto Facturable</label>
+                  <input
+                    type="text"
+                    value={ajusteConcepto}
+                    onChange={e => setAjusteConcepto(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Monto Base Servicio (Bs)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ajusteMontoServicio}
+                      onChange={e => setAjusteMontoServicio(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Multa Exenta (Bs)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={ajusteMontoMulta}
+                      onChange={e => setAjusteMontoMulta(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* DESGLOSE FISCAL RESULTANTE */}
+                <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3 text-xs space-y-1">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Base Gravada (Servicio):</span>
+                    <span className="font-mono">Bs {(parseFloat(ajusteMontoServicio) || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-blue-700">
+                    <span>IVA (16% sobre servicio):</span>
+                    <span className="font-mono">Bs {((parseFloat(ajusteMontoServicio) || 0) * 0.16).toFixed(2)}</span>
+                  </div>
+                  {(parseFloat(ajusteMontoMulta) || 0) > 0 && (
+                    <div className="flex justify-between text-amber-700">
+                      <span>Multa Exenta de IVA:</span>
+                      <span className="font-mono">Bs {(parseFloat(ajusteMontoMulta) || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-slate-900 font-bold border-t border-emerald-200 pt-1 text-sm">
+                    <span>Total Factura Fiscal:</span>
+                    <span className="font-mono text-emerald-800">
+                      Bs {(
+                        (parseFloat(ajusteMontoServicio) || 0) * 1.16 +
+                        (parseFloat(ajusteMontoMulta) || 0)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* OPCIÓN DE ENVÍO DE CORREO */}
+                <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={enviarCorreoAlEmitir}
+                        onChange={e => setEnviarCorreoAlEmitir(e.target.checked)}
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                      />
+                      Enviar notificación por correo al emitir
+                    </label>
+                    <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">Prueba</span>
+                  </div>
+                  {enviarCorreoAlEmitir && (
+                    <div>
+                      <input
+                        type="email"
+                        value={correoDestinoEmision}
+                        onChange={e => setCorreoDestinoEmision(e.target.value)}
+                        placeholder="davidzara66@gmail.com"
+                        className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-100 border-t border-slate-200 flex justify-end gap-3">
+              <button
+                onClick={() => setSelectedPagoForEmit(null)}
+                className="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-200 font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarEmision}
+                disabled={isEmitting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2 rounded-lg text-sm flex items-center gap-2 shadow-sm disabled:opacity-50"
+              >
+                {isEmitting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Emitiendo a TFHKA...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Emitir Factura Digital
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE REENVÍO DE CORREO */}
+      {selectedPagoForEmail && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+            <div className="px-6 py-4 bg-emerald-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail className="w-5 h-5 text-emerald-200" />
+                <h3 className="font-bold text-base">Reenviar Factura por Correo</h3>
+              </div>
+              <button onClick={() => setSelectedPagoForEmail(null)} className="text-slate-300 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs space-y-1">
+                <p><strong>Contribuyente:</strong> {selectedPagoForEmail.contribuyente}</p>
+                <p><strong>Nro. Control:</strong> <span className="font-mono text-emerald-700 font-bold">{selectedPagoForEmail.numeroControl}</span></p>
+                <p><strong>Monto:</strong> <span className="font-mono font-bold">Bs {selectedPagoForEmail.monto.toFixed(2)}</span></p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Correo Electrónico Destino</label>
+                <input
+                  type="email"
+                  value={customEmailDestino}
+                  onChange={e => setCustomEmailDestino(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500"
+                />
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Por defecto configurado en modo prueba a <strong>davidzara66@gmail.com</strong>
+                </span>
+              </div>
+
+              {emailSuccessMsg && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold p-3 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  {emailSuccessMsg}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+              <button
+                onClick={() => setSelectedPagoForEmail(null)}
+                className="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-200 font-medium"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={handleReenviarCorreo}
+                disabled={isSendingEmail}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {isSendingEmail ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" /> Enviar Factura
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

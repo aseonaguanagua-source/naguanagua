@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Upload, FileText, CheckCircle2, AlertCircle, Clock, ChevronRight, Plus } from 'lucide-react';
+import { getIdentidadVariants } from '@/lib/formatters';
+import { Upload, FileText, CheckCircle2, AlertCircle, Clock, ChevronRight, Plus, ShieldAlert, Building2 } from 'lucide-react';
 
 interface Retencion {
   id: string;
@@ -26,12 +27,14 @@ const fmt = (n: number) =>
 export default function RetencionesDashboard() {
   const [identidad, setIdentidad] = useState('');
   const [isAgente, setIsAgente] = useState<boolean | null>(null);
+  const [agenteInmuebles, setAgenteInmuebles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [retenciones, setRetenciones] = useState<Retencion[]>([]);
   const [showForm, setShowForm] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
+    inmueble: '',
     numero_planilla: '',
     periodo: '',
     fecha_planilla: '',
@@ -51,15 +54,26 @@ export default function RetencionesDashboard() {
 
   const checkAgente = async (id: string) => {
     if (!id) { setIsAgente(false); setLoading(false); return; }
+    const variantes = getIdentidadVariants(id);
+    const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
     const { data } = await supabase
       .from('inmuebles')
-      .select('agente_retencion, contribuyente, codigo_inmueble')
-      .or(`identidad.eq.${id},identidad.eq.${id.replace(/-/g, '')}`)
-      .eq('agente_retencion', true)
-      .limit(1);
-    setIsAgente(!!(data && data.length > 0));
+      .select('id, inmueble, contribuyente, actividad_principal, direccion, agente_retencion')
+      .or(orFilter)
+      .eq('agente_retencion', true);
+
+    if (data && data.length > 0) {
+      setIsAgente(true);
+      setAgenteInmuebles(data);
+      if (data[0]?.inmueble) {
+        setForm(f => ({ ...f, inmueble: data[0].inmueble }));
+      }
+      loadRetenciones(id);
+    } else {
+      setIsAgente(false);
+      setAgenteInmuebles([]);
+    }
     setLoading(false);
-    if (data && data.length > 0) loadRetenciones(id);
   };
 
   const loadRetenciones = async (id: string) => {
@@ -76,8 +90,8 @@ export default function RetencionesDashboard() {
     : '0.00';
 
   const handleSubmit = async () => {
-    if (!form.numero_planilla || !form.periodo || !form.monto_base || !form.monto_iva || !form.codigo_retencion) {
-      setSaveMsg('⚠️ Complete todos los campos requeridos.');
+    if (!form.inmueble || !form.numero_planilla || !form.periodo || !form.monto_base || !form.monto_iva || !form.codigo_retencion) {
+      setSaveMsg('⚠️ Complete todos los campos requeridos, incluyendo el comercio retentor autorizado.');
       return;
     }
     setSaving(true);
@@ -103,6 +117,7 @@ export default function RetencionesDashboard() {
       const { error } = await supabase.from('retenciones_iva').insert({
         identidad,
         contribuyente: nombre,
+        codigo_inmueble: form.inmueble,
         numero_planilla: form.numero_planilla,
         periodo: form.periodo,
         fecha_planilla: form.fecha_planilla || null,
@@ -118,7 +133,7 @@ export default function RetencionesDashboard() {
 
       setSaveMsg('✅ Planilla enviada exitosamente. Será revisada por el equipo de administración.');
       setShowForm(false);
-      setForm({ numero_planilla: '', periodo: '', fecha_planilla: '', monto_base: '', monto_iva: '', codigo_retencion: '' });
+      setForm({ inmueble: agenteInmuebles[0]?.inmueble || '', numero_planilla: '', periodo: '', fecha_planilla: '', monto_base: '', monto_iva: '', codigo_retencion: '' });
       setPdfFile(null);
       loadRetenciones(identidad);
     } catch (e: any) {
@@ -147,11 +162,24 @@ export default function RetencionesDashboard() {
 
   if (!isAgente) return (
     <div className="max-w-lg mx-auto mt-16 text-center">
-      <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <FileText className="w-10 h-10 text-slate-400" />
+      <div className="w-20 h-20 bg-amber-50 border border-amber-200 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600 shadow-sm">
+        <ShieldAlert className="w-10 h-10" />
       </div>
-      <h2 className="text-xl font-bold text-slate-700 mb-2">Módulo no disponible</h2>
-      <p className="text-slate-500">Este módulo es exclusivo para contribuyentes designados como <strong>Agentes de Retención de IVA</strong>.</p>
+      <h2 className="text-xl font-bold text-slate-800 mb-2">Módulo Restringido</h2>
+      <p className="text-slate-600 text-sm leading-relaxed mb-5">
+        Este módulo está estrictamente reservado para contribuyentes y comercios calificados formalmente como <strong>Agentes de Retención de IVA</strong>.
+      </p>
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-xs text-slate-600 text-left space-y-2">
+        <p className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
+          <span>¿Su empresa es Sujeto Pasivo Especial del SENIAT?</span>
+        </p>
+        <p className="leading-relaxed">
+          Para que el sistema habilite la retención del 75% sobre sus facturas comerciales, debe consignar su <strong>Providencia Administrativa de Designación del SENIAT</strong> ante la Dirección de Hacienda Municipal de Naguanagua.
+        </p>
+        <p className="text-[11px] text-slate-400 pt-1">
+          Una vez validada por nuestros fiscales, sus locales comerciales quedarán habilitados automáticamente para descontar retenciones y cargar comprobantes.
+        </p>
+      </div>
     </div>
   );
 
@@ -161,7 +189,7 @@ export default function RetencionesDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-800">Retenciones de IVA</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Cargue sus comprobantes de retención (75% del IVA)</p>
+          <p className="text-slate-500 text-sm mt-0.5">Cargue sus comprobantes de retención (75% del IVA para comercios autorizados)</p>
         </div>
         <button
           onClick={() => { setShowForm(true); setSaveMsg(''); }}
@@ -181,7 +209,32 @@ export default function RetencionesDashboard() {
       {/* Form */}
       {showForm && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h3 className="font-black text-slate-800 text-lg mb-5">Nueva Planilla de Retención</h3>
+          <h3 className="font-black text-slate-800 text-lg mb-4">Nueva Planilla de Retención</h3>
+
+          {/* Selector de Comercio Retentor Autorizado */}
+          <div className="mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-emerald-600" />
+              Comercio / Inmueble Retentor Autorizado *
+            </label>
+            <select
+              value={form.inmueble}
+              onChange={e => setForm({ ...form, inmueble: e.target.value })}
+              className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-medium text-slate-800"
+              required
+            >
+              <option value="">-- Seleccione el comercio calificado --</option>
+              {agenteInmuebles.map((inm: any) => (
+                <option key={inm.id} value={inm.inmueble}>
+                  {inm.inmueble} — {inm.actividad_principal || 'Local Comercial'} ({inm.direccion})
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-500 mt-1.5">
+              Solo se muestran los comercios formalmente calificados con retención. Las viviendas y comercios no autorizados no admiten retención.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1.5">Nro. de Planilla SENIAT *</label>

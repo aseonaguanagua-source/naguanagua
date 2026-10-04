@@ -167,14 +167,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setCacheStatus('syncing');
 
-      // Helper concurrente para descargar páginas en paralelo (6 peticiones simultáneas)
+      // Helper concurrente para descargar páginas en paralelo (8 peticiones simultáneas)
       const fetchAllClientParallel = async (table: string, select: string) => {
-        const { count, error: countErr } = await supabase.from(table).select('*', { count: 'exact', head: true });
-        if (countErr) console.error(`Error counting ${table}:`, countErr);
-        const total = count || 0;
-        if (total === 0) {
-          const { data } = await supabase.from(table).select(select).limit(1000);
-          return data || [];
+        let total = 0;
+        try {
+          const { count, error: countErr } = await supabase.from(table).select('*', { count: 'planned', head: true });
+          if (!countErr && count && count > 0) total = count;
+        } catch (e) {}
+
+        if (!total) {
+          try {
+            const { count: estCount } = await supabase.from(table).select('*', { count: 'estimated', head: true });
+            if (estCount && estCount > 0) total = estCount;
+          } catch (e) {}
+        }
+
+        if (!total) {
+          total = table === 'inmuebles' ? 52000 : 36000;
         }
 
         const step = 1000;
@@ -185,13 +194,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
 
         const results: any[] = new Array(numBatches);
-        const CONCURRENCY = 6;
+        const CONCURRENCY = 8;
         for (let i = 0; i < ranges.length; i += CONCURRENCY) {
           const chunkRanges = ranges.slice(i, i + CONCURRENCY);
           await Promise.all(
             chunkRanges.map(async (r, idx) => {
               const batchIndex = i + idx;
-              const { data, error } = await supabase.from(table).select(select).order('id').range(r.from, r.to);
+              const { data, error } = await supabase.from(table).select(select).range(r.from, r.to);
               if (error) console.error(`Error fetching chunk ${batchIndex} from ${table}:`, error);
               results[batchIndex] = data || [];
             })
@@ -396,6 +405,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
             existing.CodCont += " " + cod;
           }
           map.set(row.identidad, existing);
+        }
+      });
+
+      // Asegurar inclusión de contribuyentes de la tabla 'contribuyentes' que no tengan inmuebles aún o sean recién registrados
+      rawContribuyentes.forEach((c: any) => {
+        if (c.identidad && !map.has(c.identidad)) {
+          const rawEmail = c.email || c.correo_electronico || c.correo;
+          const cleanEmail = isFictitiousEmail(rawEmail) ? '' : (rawEmail || '').trim();
+          map.set(c.identidad, {
+            Identidad: c.identidad,
+            Contribuyente: c.nombre || 'Sin Nombre',
+            Telefono: formatPhoneNumber(c.telefono) || 'No registrado',
+            Correo: cleanEmail || 'No registrado',
+            CodCont: c.identidad,
+            cod_cont: c.identidad,
+            Direccion: c.direccion || '',
+            Observaciones: c.observaciones || '',
+            Actividad: 'No aplica',
+            Clasificacion: 'Individual',
+            SaldoFavor: 0,
+            DeudaMMV: 0,
+            DeudaCongelada: 0,
+            DeudaBs: 0,
+            MesesDeuda: 0,
+            Estado: 'Activo',
+            FechaRegistro: c.created_at || null
+          });
         }
       });
 

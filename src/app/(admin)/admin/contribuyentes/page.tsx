@@ -3,7 +3,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
 import { useAppContext } from '@/store/AppContext';
-import { Users, Save, ArrowLeft, Plus, Building, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power } from 'lucide-react';
+import { Users, Save, ArrowLeft, Plus, Building, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import { ordenanzaData } from '@/data/ordenanza';
 import Select from 'react-select';
@@ -78,6 +78,18 @@ function ContribuyentesPageContent() {
   const [showWithNotes, setShowWithNotes] = useState(false);
   const [filteredContribuyentes, setFilteredContribuyentes] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncBD = async () => {
+    try {
+      setIsSyncing(true);
+      await refreshData(true);
+    } catch (err) {
+      console.error('Error sincronizando BD:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Documentos / Expediente digitalizado
   const [uploadDocs, setUploadDocs] = useState<{
@@ -125,13 +137,13 @@ function ContribuyentesPageContent() {
   useEffect(() => {
     let result = isShowingServerResults ? serverResults : contribuyentes;
     if (activeTab === 'Activos') {
-      result = result.filter(c => c.Estado !== 'Eliminado' && c.Estado !== 'Inactivo');
+      result = result.filter((c: any) => c.Estado !== 'Eliminado' && c.Estado !== 'Inactivo');
     } else {
-      result = result.filter(c => c.Estado === 'Eliminado' || c.Estado === 'Inactivo');
+      result = result.filter((c: any) => c.Estado === 'Eliminado' || c.Estado === 'Inactivo');
     }
     
     if (showWithNotes) {
-      result = result.filter(c => c.Observaciones && c.Observaciones.trim().length > 0);
+      result = result.filter((c: any) => c.Observaciones && c.Observaciones.trim().length > 0);
     }
     
     setFilteredContribuyentes(result);
@@ -183,7 +195,7 @@ function ContribuyentesPageContent() {
       }
       
       // Update local state
-      setFacturas(prev => prev.map(f => f.referencia === actionModal.recibo.referencia ? { ...f, estado: nuevoEstado } : f));
+      setFacturas((prev: any) => prev.map((f: any) => f.referencia === actionModal.recibo.referencia ? { ...f, estado: nuevoEstado } : f));
       
       setActionModal(null);
       setActionNota('');
@@ -242,13 +254,13 @@ function ContribuyentesPageContent() {
       let leyenda = '';
       const desgloseLocales: any[] = [];
 
-      const misInmuebles = inmuebles.filter(i => i.identidad === row.Identidad);
+      const misInmuebles = inmuebles.filter((i: any) => i.identidad === row.Identidad);
 
       if (misInmuebles.length > 0) {
-        const isCondominio = misInmuebles.some(i => (parseInt(i.cant_inmuebles) || 1) > 1);
-        leyenda = isCondominio ? `Condominio / Complejo Residencial` : misInmuebles.map(i => i.actividad_principal || 'Residencial').join(', ');
+        const isCondominio = misInmuebles.some((i: any) => (parseInt(i.cant_inmuebles) || 1) > 1);
+        leyenda = isCondominio ? `Condominio / Complejo Residencial` : misInmuebles.map((i: any) => i.actividad_principal || 'Residencial').join(', ');
         
-        misInmuebles.forEach(inm => {
+        misInmuebles.forEach((inm: any) => {
           const localFactor = parseFloat(inm.mmv_mes) || 0;
           const cant = parseInt(inm.cant_inmuebles) || 1;
           const metraje = inm.area || inm.area_operativa || 'N/A';
@@ -827,29 +839,62 @@ function ContribuyentesPageContent() {
     setIsShowingServerResults(true);
     try {
       const term = serverSearchTerm.trim();
-      const { data, error } = await supabase.from('inmuebles')
-        .select('*')
-        .or(`identidad.ilike.%${term}%,inmueble.ilike.%${term}%,contribuyente.ilike.%${term}%`)
-        .limit(50);
+      const [{ data: inmsData, error: inmsError }, { data: contsData, error: contsError }] = await Promise.all([
+        supabase.from('inmuebles')
+          .select('*')
+          .or(`identidad.ilike.%${term}%,inmueble.ilike.%${term}%,contribuyente.ilike.%${term}%`)
+          .limit(50),
+        supabase.from('contribuyentes')
+          .select('*')
+          .or(`identidad.ilike.%${term}%,nombre.ilike.%${term}%,email.ilike.%${term}%`)
+          .limit(50)
+      ]);
         
-      if (error) throw error;
+      if (inmsError) throw inmsError;
       
-      const mapped = (data || []).map((row: any) => ({
-          Identidad: row.identidad,
-          Contribuyente: row.contribuyente || row.nombre || 'Sin Nombre',
-          Telefono: row.telefono || 'No registrado',
-          Correo: row.email || row.correo_electronico || 'No registrado',
-          CodCont: row.inmueble || row.cod_cont,
-          cod_cont: row.inmueble || row.cod_cont,
-          Direccion: row.direccion || '',
-          Observaciones: '',
-          Actividad: row.actividad_principal || 'No aplica',
-          Clasificacion: row.clasificacion || 'Residencial',
-          SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
-          Estado: row.estado || 'Activo',
-          FechaRegistro: row.created_at || null
-      }));
-      setServerResults(mapped);
+      const mapResults = new Map();
+
+      (inmsData || []).forEach((row: any) => {
+        if (row.identidad && !mapResults.has(row.identidad)) {
+          mapResults.set(row.identidad, {
+            Identidad: row.identidad,
+            Contribuyente: row.contribuyente || row.nombre || 'Sin Nombre',
+            Telefono: row.telefono || 'No registrado',
+            Correo: row.email || row.correo_electronico || 'No registrado',
+            CodCont: row.inmueble || row.cod_cont,
+            cod_cont: row.inmueble || row.cod_cont,
+            Direccion: row.direccion || '',
+            Observaciones: '',
+            Actividad: row.actividad_principal || 'No aplica',
+            Clasificacion: row.clasificacion || 'Residencial',
+            SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
+            Estado: row.estado || 'Activo',
+            FechaRegistro: row.created_at || null
+          });
+        }
+      });
+
+      (contsData || []).forEach((c: any) => {
+        if (c.identidad && !mapResults.has(c.identidad)) {
+          mapResults.set(c.identidad, {
+            Identidad: c.identidad,
+            Contribuyente: c.nombre || 'Sin Nombre',
+            Telefono: c.telefono || 'No registrado',
+            Correo: c.email || 'No registrado',
+            CodCont: c.identidad,
+            cod_cont: c.identidad,
+            Direccion: c.direccion || '',
+            Observaciones: c.observaciones || '',
+            Actividad: 'No aplica',
+            Clasificacion: 'Individual',
+            SaldoFavor: 0,
+            Estado: 'Activo',
+            FechaRegistro: c.created_at || null
+          });
+        }
+      });
+
+      setServerResults(Array.from(mapResults.values()));
     } catch (e: any) {
       alert("Error en la busqueda: " + e.message);
     } finally {
@@ -947,7 +992,7 @@ function ContribuyentesPageContent() {
         autoClasificacion = 'Condominio';
         cantidadInmuebles = misInmuebles.length > 1 ? misInmuebles.length : (parseInt(misInmuebles[0].cant_inmuebles) || 1);
         
-        locales = misInmuebles.map((inm, idx) => ({
+        locales = misInmuebles.map((inm: any, idx: number) => ({
           id: `local-${idx}-${Date.now()}`,
           numeracion: inm.inmueble || `Inmueble ${idx + 1}`,
           uso: inm.clasificacion === 'Comercial' || inm.clasificacion === 'Industrial' ? 'Comercial' : 'Residencial',
@@ -2249,6 +2294,15 @@ function ContribuyentesPageContent() {
           })()}
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={handleSyncBD} 
+            disabled={isSyncing}
+            className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
+            title="Recargar datos frescos directamente desde la base de datos Supabase"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} /> 
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar BD'}
+          </button>
           <button onClick={exportarExcelContribuyentes} className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2 shadow-sm">
             <Download className="w-4 h-4" /> Exportar a Excel
           </button>

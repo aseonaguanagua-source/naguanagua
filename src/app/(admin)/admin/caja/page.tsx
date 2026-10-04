@@ -71,9 +71,10 @@ export default function CajaPage() {
   const [totalBs, setTotalBs] = useState(0);
   const [sumBase, setSumBase] = useState(0);
   const [sumIVA, setSumIVA] = useState(0);
+  const [sumIVARetencionable, setSumIVARetencionable] = useState(0);
   const [sumMulta, setSumMulta] = useState(0);
-  // Computed — always derived from totalBs × ivaPercent × retencionIVA%
-  const montoRetencionIVA = (totalBs * ivaPercent) * (retencionIVA / 100);
+  // Computed — estrictamente derivado del IVA de los comercios agentes de retención
+  const montoRetencionIVA = sumIVARetencionable * (retencionIVA / 100);
 
   // Payment State
   const [paymentMethod, setPaymentMethod] = useState<'Debito' | 'Transferencia' | 'Deposito' | 'Saldo a Favor'>('Debito');
@@ -682,7 +683,7 @@ export default function CajaPage() {
           ) && inm.agente_retencion === true
         );
         setEsAgenteRetencion(esAgente);
-        setRetencionIVA(esAgente ? 75 : 0);
+        setRetencionIVA(0);
       }
 
 
@@ -726,7 +727,7 @@ export default function CajaPage() {
       if (s) total += parseFloat(s.monto || '0');
     });
     
-    let sb = 0, siva = 0, smulta = 0;
+    let sb = 0, siva = 0, smulta = 0, sivaRetencionable = 0;
     const tasaActualUse = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
 
     if (isCondominio) {
@@ -745,6 +746,9 @@ export default function CajaPage() {
           sb += debtInfo.base;
           siva += debtInfo.iva;
           smulta += debtInfo.multa;
+          if (h.agente_retencion === true) {
+            sivaRetencionable += debtInfo.iva;
+          }
         });
       }
     }
@@ -762,7 +766,13 @@ export default function CajaPage() {
 
           sb += bm;
           // RESIDENCIAL ESTRICTAMENTE EXENTO DE IVA (0%)
-          siva += esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+          const ivaRecibo = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+          siva += ivaRecibo;
+
+          // SOLO aplicar retención a recibos de comercios que sean formalmente Agentes de Retención
+          if (!esRes && inm.agente_retencion === true) {
+            sivaRetencionable += ivaRecibo;
+          }
 
           const f = recibosMap.get(ref);
           const emision = f?.emision ? new Date(f.emision) : new Date();
@@ -784,7 +794,11 @@ export default function CajaPage() {
           const esRes = isResidencialInm(inm);
           const bm = parseFloat(calcularMensualidad(inm, tasaActualUse).toFixed(2));
           sb += bm;
-          siva += esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+          const ivaRecibo = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+          siva += ivaRecibo;
+          if (!esRes && inm.agente_retencion === true) {
+            sivaRetencionable += ivaRecibo;
+          }
           const f = recibosMap.get(ref);
           const emision = f?.emision ? new Date(f.emision) : new Date();
           const today = new Date();
@@ -812,6 +826,17 @@ export default function CajaPage() {
     setSumBase(sb);
     setSumIVA(siva);
     setSumMulta(smulta);
+    setSumIVARetencionable(sivaRetencionable);
+
+    // Ajuste dinámico de retención:
+    // Si hay IVA retenible, preconfigurar al 75% si estaba en 0.
+    // Si los conceptos seleccionados NO son de agentes de retención, forzar a 0%.
+    if (sivaRetencionable > 0) {
+      setRetencionIVA(prev => (prev === 0 ? 75 : prev));
+    } else {
+      setRetencionIVA(0);
+      setComprobanteRetencion('');
+    }
 
   }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, hijosMesesAPagar, getHijoDebt, reciboMontoMap, getReciboMonto]);
 
@@ -851,9 +876,9 @@ export default function CajaPage() {
       return alert("Debe ingresar un monto válido a abonar para el condominio.");
     }
     
-    if (retencionIVA > 0 && !comprobanteRetencion.trim()) return alert("Debe ingresar el número de comprobante de retención de IVA.");
+    if (sumIVARetencionable > 0 && retencionIVA > 0 && !comprobanteRetencion.trim()) return alert("Debe ingresar el número de comprobante de retención de IVA para los comercios autorizados.");
     const calculatedTotalBs = sumBase + sumIVA + sumMulta;
-    const realMontoRetencionIVA = sumIVA * (retencionIVA / 100);
+    const realMontoRetencionIVA = sumIVARetencionable * (retencionIVA / 100);
     const totalConImpuestos = calculatedTotalBs - realMontoRetencionIVA;
     const maxSaldoUsable = foundUser?.SaldoFavor || 0;
     // Cuando el método de pago ES Saldo a Favor, el checkbox no aplica
@@ -1123,28 +1148,29 @@ export default function CajaPage() {
               digitalMontos = { [refCondo]: montoReal };
             }
 
-            const tfhkaRes = await fetch('/api/admin/factura-digital/emitir', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                pagoId: pagoId,
-                recibos: digitalRecibos,
-                montos: digitalMontos,
-                contribuyente: foundUser.Contribuyente,
-                identidad: foundUser.Identidad,
-                montoTotal: montoReal,
-                isCondominio: isCondominio,
-                formasPago: [
-                  { descripcion: paymentMethod, fecha: new Date().toISOString(), forma: paymentMethod === 'Debito' ? '03' : paymentMethod === 'Deposito' ? '05' : '05', banco: banco || undefined, referencia: reqRef ? referencia : referenciaDebito || undefined, monto: montoReal }
-                ]
-              })
-            });
-            const tfhkaData = await tfhkaRes.json();
-            if (tfhkaData.url) {
-              window.open(tfhkaData.url, '_blank');
+            // Guardar detalles preparados para emisión manual controlada en el módulo de Facturación Electrónica
+            const { data: currentPago } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).single();
+            let currentDetalles: any = currentPago?.detalles || {};
+            if (typeof currentDetalles === 'string') {
+              try { currentDetalles = JSON.parse(currentDetalles); } catch(e) { currentDetalles = {}; }
             }
+            currentDetalles.factura_digital = currentDetalles.factura_digital || {
+              emitida: false,
+              pendiente: true,
+              preparada_at: new Date().toISOString()
+            };
+            currentDetalles.recibos = digitalRecibos;
+            currentDetalles.montos = digitalMontos;
+            currentDetalles.contribuyente = foundUser.Contribuyente;
+            currentDetalles.identidad = foundUser.Identidad;
+            currentDetalles.montoTotal = montoReal;
+            currentDetalles.isCondominio = isCondominio;
+            currentDetalles.formasPago = [
+              { descripcion: paymentMethod, fecha: new Date().toISOString(), forma: paymentMethod === 'Debito' ? '03' : paymentMethod === 'Deposito' ? '05' : '05', banco: banco || undefined, referencia: reqRef ? referencia : referenciaDebito || undefined, monto: montoReal }
+            ];
+            await supabase.from('pagos_reportados').update({ detalles: currentDetalles }).eq('id', pagoId);
           } catch(err) {
-            console.error('Error enviando a factura digital TFHKA', err);
+            console.error('Error guardando datos para factura digital', err);
           }
         }
 
@@ -2975,45 +3001,56 @@ export default function CajaPage() {
                 <span>Multa Total:</span>
                 <span className="font-semibold text-rose-600">Bs. {formatBs(sumMulta)}</span>
               </div>
-              {esAgenteRetencion && ivaPercent > 0 && (
-                <div className="mt-1 inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded-full border border-amber-300">
-                  ⚠️ Agente de Retención — retiene 75% del IVA
+              {sumIVARetencionable > 0 && (
+                <div className="mt-1 inline-flex items-center gap-1.5 bg-amber-100 text-amber-900 text-xs font-bold px-2.5 py-1 rounded-md border border-amber-300">
+                  <span>⚠️ Agente de Retención — Aplica retención sobre comercios autorizados (Bs. {formatBs(sumIVARetencionable)} de IVA)</span>
                 </div>
               )}
 
               {ivaPercent > 0 && (
                 <div className="mt-3 bg-slate-100 p-3 rounded border border-slate-200">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-semibold text-slate-700">Retención de IVA:</span>
-                    <select 
-                      value={retencionIVA} 
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        setRetencionIVA(val);
-                        if (val === 0) setComprobanteRetencion('');
-                      }}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-emerald-500"
-                    >
-                      <option value={0}>0% (Sin Retención)</option>
-                      <option value={75}>75%</option>
-                      <option value={100}>100%</option>
-                    </select>
-                  </div>
-                  {retencionIVA > 0 && (
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="font-semibold text-slate-700">Monto Retenido:</span>
-                      <span className="text-red-600 font-bold">- Bs. {formatBs(sumIVA * (retencionIVA / 100))}</span>
-                    </div>
-                  )}
-                  {retencionIVA > 0 && (
-                    <div className="mt-2">
-                      <input 
-                        type="text" 
-                        placeholder="N° Comprobante de Retención *" 
-                        value={comprobanteRetencion}
-                        onChange={e => setComprobanteRetencion(e.target.value)}
-                        className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-emerald-500"
-                      />
+                  {sumIVARetencionable > 0 ? (
+                    <>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-semibold text-slate-700 text-xs">Retención de IVA (Comercios Autorizados):</span>
+                        <select 
+                          value={retencionIVA} 
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            setRetencionIVA(val);
+                            if (val === 0) setComprobanteRetencion('');
+                          }}
+                          className="border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-emerald-500 bg-white"
+                        >
+                          <option value={75}>75% (Providencia SENIAT)</option>
+                          <option value={100}>100% (Exención Total)</option>
+                          <option value={0}>0% (Sin Retención)</option>
+                        </select>
+                      </div>
+                      {retencionIVA > 0 && (
+                        <div className="flex justify-between items-center mt-1 text-xs">
+                          <span className="font-semibold text-slate-700">Monto Retenido:</span>
+                          <span className="text-red-600 font-bold">- Bs. {formatBs(sumIVARetencionable * (retencionIVA / 100))}</span>
+                        </div>
+                      )}
+                      {retencionIVA > 0 && (
+                        <div className="mt-2">
+                          <input 
+                            type="text" 
+                            placeholder="N° Comprobante de Retención IVA SENIAT *" 
+                            value={comprobanteRetencion}
+                            onChange={e => setComprobanteRetencion(e.target.value)}
+                            className="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-emerald-500 font-mono"
+                            required
+                          />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-slate-500 text-xs flex items-center gap-1.5">
+                      <span className="font-medium">
+                        Retención de IVA no aplicable (Solo habilitada para comercios calificados como Agente de Retención).
+                      </span>
                     </div>
                   )}
                 </div>
@@ -3022,12 +3059,12 @@ export default function CajaPage() {
               {useSaldoFavor && foundUser?.SaldoFavor > 0 && (
                 <div className="flex justify-between items-center text-emerald-600 font-medium mt-2">
                   <span>Saldo a Favor Aplicado:</span>
-                  <span>- Bs. {formatBs(Math.min((sumBase + sumIVA + sumMulta) - (sumIVA * (retencionIVA / 100)), foundUser.SaldoFavor))}</span>
+                  <span>- Bs. {formatBs(Math.min((sumBase + sumIVA + sumMulta) - (sumIVARetencionable * (retencionIVA / 100)), foundUser.SaldoFavor))}</span>
                 </div>
               )}
               <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-200">
                 <span className="text-slate-800 font-bold text-base">Total Neto a Pagar:</span>
-                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(Math.max(0, ((sumBase + sumIVA + sumMulta) - (sumIVA * (retencionIVA / 100))) - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)))}</span>
+                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(Math.max(0, ((sumBase + sumIVA + sumMulta) - (sumIVARetencionable * (retencionIVA / 100))) - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)))}</span>
               </div>
             </div>
 
