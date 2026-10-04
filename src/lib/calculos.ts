@@ -100,12 +100,36 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
 
 export const getFAR = (actividadFull: string) => {
   const act = (actividadFull || "").toLowerCase().trim();
-  // Factor de Ajuste Residencial (FAR) por Zona Catastral en Naguanagua
-  if (act.includes("zona a") || act.includes("(zona a)")) return 0.020366;
-  if (act.includes("zona b") || act.includes("(zona b)")) return 0.016298;
-  if (act.includes("zona c") || act.includes("(zona c)")) return 0.014000;
-  if (act.includes("zona d") || act.includes("(zona d)")) return 0.026730;
-  return 0.020366; // Fallback Zona A
+  
+  // Factor de Ajuste Residencial (FAR) según Tabla "A" de la Ordenanza Municipal de Naguanagua
+  // ZONA A
+  if (act.includes("zona a") || act.includes("(zona a)")) {
+    if (act.includes("apartamento") || act.includes("apto")) return 0.023723;
+    if (act.includes("casa")) return 0.026985;
+    return 0.020366; // Quinta (Zona A)
+  }
+
+  // ZONA B
+  if (act.includes("zona b") || act.includes("(zona b)")) {
+    if (act.includes("apartamento") || act.includes("apto")) return 0.018985;
+    if (act.includes("casa")) return 0.021595;
+    return 0.016298; // Quinta (Zona B)
+  }
+
+  // ZONA C
+  if (act.includes("zona c") || act.includes("(zona c)")) {
+    if (act.includes("apartamento") || act.includes("apto")) return 0.028839;
+    return 0.014000; // Casa (Zona C)
+  }
+
+  // ZONA D
+  if (act.includes("zona d") || act.includes("(zona d)")) {
+    return 0.026730; // Casa y/o Apartamento (Zona D)
+  }
+
+  // Fallbacks generales
+  if (act.includes("apartamento") || act.includes("apto")) return 0.023723;
+  return 0.020366;
 };
 
 export const calcularMensualidad = (

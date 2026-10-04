@@ -2,13 +2,13 @@ export const ordenanzaData = {
   clasificaciones: ['Residencial', 'Comercial/Institucional', 'Industrial', 'Otros'],
   tiposResidenciales: [
     { label: 'Quinta (Zona A)', factor: 1.06, far: 0.020366 },
-    { label: 'Apartamento (Zona A)', factor: 0.91, far: 0.020366 },
-    { label: 'Casa (Zona A)', factor: 0.80, far: 0.020366 },
+    { label: 'Apartamento (Zona A)', factor: 0.91, far: 0.023723 },
+    { label: 'Casa (Zona A)', factor: 0.80, far: 0.026985 },
     { label: 'Quinta (Zona B)', factor: 1.06, far: 0.016298 },
-    { label: 'Apartamento (Zona B)', factor: 0.91, far: 0.016298 },
-    { label: 'Casa (Zona B)', factor: 0.80, far: 0.016298 },
+    { label: 'Apartamento (Zona B)', factor: 0.91, far: 0.018985 },
+    { label: 'Casa (Zona B)', factor: 0.80, far: 0.021595 },
     { label: 'Casa (Zona C)', factor: 0.618, far: 0.014000 },
-    { label: 'Apartamento (Zona C)', factor: 0.30, far: 0.014000 },
+    { label: 'Apartamento (Zona C)', factor: 0.30, far: 0.028839 },
     { label: 'Casa (Zona D)', factor: 0.22, far: 0.026730 },
     { label: 'Apartamento (Zona D)', factor: 0.22, far: 0.026730 }
   ],
