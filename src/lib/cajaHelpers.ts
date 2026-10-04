@@ -94,4 +94,79 @@ export const isSameLocal = (
   threshold = 0.75
 ): boolean => addressSimilarity(dir1, dir2) > threshold;
 
+export const getShortAddress = (addr?: string | null): string => {
+  if (!addr || addr.trim() === '0 0' || addr.trim() === '') return 'Local Principal';
+  let s = addr.replace(/^(\d+\s+)+/, '').trim();
+  if (s.length > 50) return s.slice(0, 48) + '...';
+  return s;
+};
+
+export interface LocalClusterInfo {
+  localId: string;
+  label: string;
+  direccion: string;
+  count: number;
+}
+
+/**
+ * Agrupa los inmuebles de un mismo contribuyente por local físico.
+ * Para que dos actividades pertenezcan al mismo local, deben tener:
+ * 1. Misma cédula/RIF (garantizado al ser del mismo contribuyente)
+ * 2. Y misma dirección física o mismo condominio_padre_id
+ */
+export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, LocalClusterInfo> {
+  const result = new Map<string, LocalClusterInfo>();
+  const clusters: Array<{ localId: string; label: string; direccion: string; inms: InmuebleBasic[] }> = [];
+
+  for (const inm of userInms) {
+    const rawDir = (inm.direccion || '').trim();
+    const padreId = (inm as any).condominio_padre_id;
+
+    // Buscar si ya pertenece a un cluster existente por mismo padre o misma dirección
+    const matchedCluster = clusters.find((c) => {
+      if (padreId && c.inms.some((i: any) => i.condominio_padre_id === padreId || i.inmueble === padreId)) {
+        return true;
+      }
+      if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
+        return isSameLocal(rawDir, c.direccion, 0.70);
+      }
+      return false;
+    });
+
+    if (matchedCluster) {
+      matchedCluster.inms.push(inm);
+      if ((!matchedCluster.direccion || matchedCluster.direccion === '0 0') && rawDir && rawDir !== '0 0') {
+        matchedCluster.direccion = rawDir;
+        matchedCluster.label = getShortAddress(rawDir);
+      }
+    } else {
+      const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Local');
+      clusters.push({
+        localId: inm.inmueble || `LOCAL-${clusters.length + 1}`,
+        label,
+        direccion: rawDir,
+        inms: [inm],
+      });
+    }
+  }
+
+  for (const cluster of clusters) {
+    const billableCount = cluster.inms.filter(
+      (i) => (i.actividad_principal || '').toUpperCase() !== 'N/A'
+    ).length;
+    for (const inm of cluster.inms) {
+      if (inm.inmueble) {
+        result.set(inm.inmueble, {
+          localId: cluster.localId,
+          label: cluster.label,
+          direccion: cluster.direccion,
+          count: billableCount,
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
 export { formatPhoneNumber, isFictitiousEmail, formatMonthYear } from './formatters';

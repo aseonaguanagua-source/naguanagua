@@ -8,7 +8,7 @@ import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear } from 
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, getFAR, isResidencialInm } from '@/lib/calculos';
-import { getUserInmuebles, getCajeroId, isSameLocal } from '@/lib/cajaHelpers';
+import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, getShortAddress } from '@/lib/cajaHelpers';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
 import { useCajaSelection } from './hooks/useCajaSelection';
@@ -2315,14 +2315,20 @@ export default function CajaPage() {
                           }
                         }
 
-                        // Contar actividades económicas válidas (distintas a 'N/A')
-                        const billableUserInms = userInms.filter((i: any) => (i.actividad_principal || '').toUpperCase() !== 'N/A');
-                        const isMultiAct = billableUserInms.length > 1;
+                        // Agrupar los inmuebles por local físico (misma cédula/RIF y misma dirección física)
+                        const localClusters = clusterInmueblesByLocal(userInms);
+                        const clusterInfo = localClusters.get(inmId);
+                        const localId = clusterInfo?.localId || inmId;
+                        const localLabel = clusterInfo?.label || getShortAddress(dir);
+                        const activitiesInThisLocal = clusterInfo?.count ?? 1;
+                        const hasMultipleActivitiesInThisLocal = activitiesInThisLocal > 1;
 
                         let groupId = `${inmId}|${tipo}|${act}`;
                         let isVirtualMonth = false;
-                        if (isMultiAct && monthKey) {
-                          groupId = `MES-${monthKey}`;
+
+                        // REGLA CLAVE: Las actividades económicas extras se unen a un local SOLO si tienen misma cédula/RIF Y misma dirección
+                        if (hasMultipleActivitiesInThisLocal && monthKey) {
+                          groupId = `LOCAL-${localId}-MES-${monthKey}`;
                           isVirtualMonth = true;
                         }
 
@@ -2330,14 +2336,15 @@ export default function CajaPage() {
                           acc[groupId] = { 
                             items: [], 
                             id: isVirtualMonth ? formatMonthYear(r.emision) : inmId, 
+                            localLabel: isVirtualMonth ? localLabel : '',
                             tipo: isVirtualMonth ? 'Local Comercial' : tipo, 
-                            act: isVirtualMonth ? `${billableUserInms.length} Actividades Económicas` : act, 
+                            act: isVirtualMonth ? `${activitiesInThisLocal} Actividades Económicas` : act, 
                             isVirtualMonth, 
                             emision: r.emision,
                             monthKey
                           };
                         }
-                        acc[groupId].items.push({ ...r, _inmId: inmId, _act: act, _tipo: tipo });
+                        acc[groupId].items.push({ ...r, _inmId: inmId, _act: act, _tipo: tipo, _dir: dir });
                         return acc;
                       }, {})
                     ).map(([key, group]: [string, any]) => {
@@ -2348,10 +2355,15 @@ export default function CajaPage() {
                       return (
                         <div key={key} className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
                           <div className="bg-slate-100/50 px-3 py-2.5 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                                 {group.isVirtualMonth ? formatMonthYear(group.emision) : group.id}
                               </span>
+                              {group.localLabel && (
+                                <span className="bg-blue-50 text-blue-800 text-[10px] font-semibold px-2 py-0.5 rounded border border-blue-200/60 max-w-[280px] truncate" title={group.localLabel}>
+                                  📍 {group.localLabel}
+                                </span>
+                              )}
                               <span className="text-[10px] text-slate-500 font-semibold">
                                 {group.isVirtualMonth ? `${group.items.length} Actividades Consolidadas` : [group.tipo, group.act].filter(Boolean).join(' • ')}
                               </span>
@@ -2385,7 +2397,7 @@ export default function CajaPage() {
                                         Mes Completo: {formatMonthYear(group.emision)}
                                       </p>
                                       <p className="text-[10px] font-medium text-slate-500">
-                                        Suma unificada del mes por todas las actividades del local ({group.items.length} actividades)
+                                        {group.localLabel ? `Local: ${group.localLabel} • ` : ''}Suma unificada del mes por todas las actividades de esta dirección ({group.items.length} actividades)
                                       </p>
                                     </div>
                                   </label>
