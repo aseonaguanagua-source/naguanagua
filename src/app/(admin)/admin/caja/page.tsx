@@ -192,8 +192,22 @@ export default function CajaPage() {
     const esRes = isResidencialInm(hijo) || isResidencialInm(foundUser) || (foundUser?.Tipo || '').toUpperCase().includes('RESIDENCIAL') || (foundUser?.Clasificacion || '').toLowerCase().includes('condominio');
     const baseMensual = parseFloat(calcularMensualidad(hijo, currentTasa).toFixed(2));
     const ivaMensual = esRes ? 0 : parseFloat((baseMensual * 0.16).toFixed(2));
-    const mesesTotales = Math.max(1, parseInt(hijo?.meses_deuda || '1'));
+    const mesesTotales = Math.max(0, parseInt(hijo?.meses_deuda ?? '0'));
     const mesesAPagar = customMeses !== undefined ? customMeses : (hijosMesesAPagar[hijo?.id] ?? mesesTotales);
+
+    if (mesesAPagar <= 0 || mesesTotales <= 0) {
+      return {
+        baseMensual,
+        ivaMensual,
+        base: 0,
+        iva: 0,
+        mesesTotales: 0,
+        mesesAPagar: 0,
+        multa: 0,
+        total: 0,
+        esRes
+      };
+    }
 
     const base = parseFloat((baseMensual * mesesAPagar).toFixed(2));
     const iva = esRes ? 0 : parseFloat((ivaMensual * mesesAPagar).toFixed(2));
@@ -219,7 +233,7 @@ export default function CajaPage() {
   const totalDeudaCondominio = useMemo(() => {
     if (!isCondominio || condominioHijos.length === 0) return 0;
     return condominioHijos.reduce((acc: number, h: any) => {
-      const meses = Math.max(1, parseInt(h.meses_deuda || '1'));
+      const meses = Math.max(0, parseInt(h.meses_deuda ?? '0'));
       return acc + getHijoDebt(h, meses).total;
     }, 0);
   }, [isCondominio, condominioHijos, getHijoDebt]);
@@ -463,11 +477,17 @@ export default function CajaPage() {
 
       // Obtener TODOS los datos frescos del inmueble desde Supabase
       const userIdentVariants = getIdentidadVariants(user.Identidad);
-      const orFilterInms = [
-        ...userIdentVariants.map(v => `identidad.eq.${v}`),
-        `condominio_padre_id.eq.${user.CodCont || user.cod_cont}`,
-        `condominio_padre_id.eq.${user.Identidad}`
-      ].filter(Boolean).join(',');
+      let orFilterInms = '';
+      if (isCodeFormat && (user.CodCont || user.cod_cont)) {
+        const specificCode = user.CodCont || user.cod_cont;
+        orFilterInms = `inmueble.eq.${specificCode},condominio_padre_id.eq.${specificCode}`;
+      } else {
+        orFilterInms = [
+          ...userIdentVariants.map(v => `identidad.eq.${v}`),
+          `condominio_padre_id.eq.${user.CodCont || user.cod_cont}`,
+          `condominio_padre_id.eq.${user.Identidad}`
+        ].filter(Boolean).join(',');
+      }
 
       const { data: inmFresh } = await supabase
         .from('inmuebles')
@@ -480,7 +500,7 @@ export default function CajaPage() {
       // Adoptar la Identidad real y actualizada desde los inmuebles frescos en base de datos
       if (activeInmFresh.length > 0 && activeInmFresh[0].identidad) {
         user.Identidad = activeInmFresh[0].identidad;
-        if (activeInmFresh[0].contribuyente) user.Contribuyente = activeInmFresh[0].contribuyente;
+        if (!isCodeFormat && activeInmFresh[0].contribuyente) user.Contribuyente = activeInmFresh[0].contribuyente;
       }
 
       // También consultar en contribuyentes para tener los datos oficiales más recientes
@@ -698,7 +718,9 @@ export default function CajaPage() {
       setPagosPendientes(pagosPendData || []);
 
       // Buscar si es un Condominio (Padre)
-      const parentCodes = activeInmFresh.map((i: any) => i.inmueble).filter(Boolean);
+      const parentCodes = (isCodeFormat && (user.CodCont || user.cod_cont))
+        ? [user.CodCont || user.cod_cont]
+        : activeInmFresh.map((i: any) => i.inmueble).filter(Boolean);
       const nombreContrib = (user.Contribuyente || user.contribuyente || '').toLowerCase();
       const isCondoByName = nombreContrib.includes('condominio') ||
                             nombreContrib.includes('conjunto') ||
