@@ -38,14 +38,31 @@ export default function PortalLogin() {
       return;
     }
 
+    const fullDoc = `${docType}${docNum}`;
+
     if (!clave) {
+      // Si no ingresó contraseña, verificar si califica para primer ingreso
+      try {
+        const res = await fetch(`/api/contribuyente/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identidad: fullDoc, clave: '', primerIngreso: true })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'setup_required') {
+          setIsSetupMode(true);
+          if (data.correo) setCorreo(data.correo);
+          if (data.telefono) setTelefono(data.telefono);
+          setIsLoading(false);
+          return;
+        }
+      } catch {}
       setError('Por favor ingrese su contraseña.');
       setIsLoading(false);
       return;
     }
 
     try {
-      const fullDoc = `${docType}${docNum}`;
       const res = await fetch(`/api/contribuyente/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,6 +74,9 @@ export default function PortalLogin() {
       if (res.ok) {
         if (data.status === 'setup_required') {
           setIsSetupMode(true);
+          if (data.correo) setCorreo(data.correo);
+          if (data.telefono) setTelefono(data.telefono);
+          setError(data.message || 'Actualización obligatoria de datos requerida para continuar.');
           setIsLoading(false);
           return;
         }
@@ -79,14 +99,26 @@ export default function PortalLogin() {
     setError('');
     setIsLoading(true);
 
-    if (clave !== confirmClave) {
-      setError('Las contraseñas no coinciden.');
+    if (!correo || !correo.includes('@') || !correo.includes('.')) {
+      setError('Por favor ingrese un correo electrónico válido.');
       setIsLoading(false);
       return;
     }
 
-    if (!correo) {
-      setError('El correo electrónico es obligatorio.');
+    if (!telefono || telefono.replace(/\D/g, '').length < 7) {
+      setError('Por favor ingrese un número de teléfono válido (mínimo 7 dígitos).');
+      setIsLoading(false);
+      return;
+    }
+
+    if (clave.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      setIsLoading(false);
+      return;
+    }
+
+    if (clave !== confirmClave) {
+      setError('Las contraseñas no coinciden.');
       setIsLoading(false);
       return;
     }
@@ -301,14 +333,29 @@ export default function PortalLogin() {
                 )}
               </button>
 
-              {/* Registrarse */}
+              {/* Registrarse y Primer Ingreso */}
               {!isSetupMode && (
-                <p className="text-center text-sm text-slate-500 mt-2">
-                  ¿No tienes una cuenta?{' '}
-                  <Link href="/portal/registro" className="text-slate-800 font-bold hover:underline">
-                    Regístrarse
-                  </Link>
-                </p>
+                <div className="text-center space-y-2.5 mt-3">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      if (!docNum || docNum.length < 5) {
+                        setError('Ingrese primero su Cédula o RIF en la casilla superior para activar su cuenta.');
+                        return;
+                      }
+                      handleLogin(e);
+                    }}
+                    className="text-xs text-emerald-800 font-bold hover:underline block w-full p-2 rounded-lg bg-emerald-50 border border-emerald-200"
+                  >
+                    ¿Primer ingreso? Haga clic aquí para registrar su correo, teléfono y contraseña
+                  </button>
+                  <p className="text-xs text-slate-500">
+                    ¿No estás censado en el municipio?{' '}
+                    <Link href="/portal/registro" className="text-slate-800 font-bold hover:underline">
+                      Pre-Registro Nuevo
+                    </Link>
+                  </p>
+                </div>
               )}
             </form>
           </div>

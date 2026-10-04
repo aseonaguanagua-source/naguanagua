@@ -4,6 +4,7 @@ import { CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Landmar
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 import { isResidencialInm, calcularMensualidad } from '@/lib/calculos';
+import { getIdentidadVariants } from '@/lib/formatters';
 
 type Step = 'search' | 'account' | 'pay' | 'success';
 type PayMethod = 'Punto de Venta' | 'Bancamiga';
@@ -193,17 +194,68 @@ export default function KioskPage() {
   const handleSearch = async () => {
     if (!docNumber.trim()) return;
     setIsSearching(true); setSearchError('');
-    const idLimpio = docNumber.replace(/-/g, '').toUpperCase();
-    const fullDoc = docType + idLimpio;
-    const fullDocDash = docType + '-' + idLimpio;
 
-    const { data: inmsDB } = await supabase.from('inmuebles')
-      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,condominio,multa_bs,meses_deuda,es_condominio')
-      .or(`identidad.eq.${fullDoc},identidad.eq.${fullDocDash},identidad.eq.${idLimpio}`);
+    // Extraer prefijo si fue escrito en el input (ej: J-075477308 o V075477308)
+    let activePrefix = docType;
+    let inputClean = docNumber.trim();
+    const prefixMatch = inputClean.match(/^([VEJPGvejpg])[-_\s]?(.*)$/);
+    if (prefixMatch) {
+      activePrefix = prefixMatch[1].toUpperCase();
+      inputClean = prefixMatch[2].trim();
+      setDocType(activePrefix);
+      setDocNumber(inputClean);
+    }
 
-    if (!inmsDB || inmsDB.length === 0) { setSearchError('No encontrado. Verifique su Cédula o RIF.'); setIsSearching(false); return; }
+    const variants = getIdentidadVariants(inputClean, activePrefix);
+    const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
+
+    // 1. Buscar en inmuebles con todas las variantes
+    let { data: inmsDB } = await supabase.from('inmuebles')
+      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+      .or(orFilter);
+
+    // 2. Si no se encontró por identidad directa, buscar por código de inmueble (ej: URB002290)
+    if (!inmsDB || inmsDB.length === 0) {
+      const { data: byInmCode } = await supabase.from('inmuebles')
+        .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+        .ilike('inmueble', `%${inputClean}%`)
+        .limit(10);
+      if (byInmCode && byInmCode.length > 0) inmsDB = byInmCode;
+    }
+
+    // 3. Si aún no se encontró, resolver identidad oficial en la tabla contribuyentes
+    if (!inmsDB || inmsDB.length === 0) {
+      const { data: cMatches } = await supabase.from('contribuyentes')
+        .select('*')
+        .or(orFilter)
+        .limit(1);
+
+      if (cMatches && cMatches.length > 0) {
+        const officialId = cMatches[0].identidad;
+        const cVariants = getIdentidadVariants(officialId);
+        const { data: inmsByContrib } = await supabase.from('inmuebles')
+          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+          .or(cVariants.map(v => `identidad.eq.${v}`).join(','));
+        if (inmsByContrib && inmsByContrib.length > 0) {
+          inmsDB = inmsByContrib;
+        }
+      }
+    }
+
+    if (!inmsDB || inmsDB.length === 0) {
+      setSearchError('No encontrado. Verifique su Cédula o RIF.');
+      setIsSearching(false);
+      return;
+    }
 
     const p = inmsDB[0];
+
+    // Sincronizar el prefijo visual en el dropdown si es distinto
+    if (p.identidad && /^[A-Z]-/i.test(p.identidad)) {
+      const detectedPrefix = p.identidad.charAt(0).toUpperCase();
+      if (detectedPrefix !== docType) setDocType(detectedPrefix);
+    }
+
     let nombreCont = p.contribuyente;
     
     // Si no tiene contribuyente en el inmueble, intentar buscar en facturas
@@ -220,7 +272,7 @@ export default function KioskPage() {
     if (!nombreCont) {
       const { data: cNombre } = await supabase.from('contribuyentes')
         .select('nombre')
-        .or(`identidad.eq.${fullDoc},identidad.eq.${fullDocDash},identidad.eq.${idLimpio}`)
+        .or(orFilter)
         .not('nombre', 'is', null)
         .limit(1);
       if (cNombre && cNombre.length > 0 && cNombre[0].nombre) {
@@ -239,32 +291,21 @@ export default function KioskPage() {
     setFoundUser(user);
 
     let inmsFinal = [...inmsDB];
-    const isCondoByFlag = inmsDB.some((i: any) => i.condominio === 'SI' || i.condominio === 'Si' || i.condominio === 'si');
+    const isCondoByFlag = inmsDB.some((i: any) => i.es_condominio === true);
     const isCondoByName = (user.Contribuyente || '').toLowerCase().includes('condominio') || (user.Actividad || '').toLowerCase().includes('condominio');
-    const codCont = p.identidad;
+
     if (isCondoByFlag || isCondoByName) {
-      const { data: hijosByPattern } = await supabase
-        .from('inmuebles')
-        .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,condominio,multa_bs,meses_deuda,es_condominio')
-        .ilike('clasificacion', `%HIJO_DE:${codCont}%`);
-      if (hijosByPattern && hijosByPattern.length > 0) {
-        // En naguanagua vieja, usualmente la clasificacion de los hijos tenia HIJO_DE:Cod_Padre
-        inmsFinal = [...inmsFinal, ...hijosByPattern];
-      } else {
-        // También intentar por el inmueble padre (usualmente condominios principales son hijos de SU PROPIO INMUEBLE)
-        const padrePrincipal = inmsDB.find((i: any) => i.condominio === 'SI' || i.condominio === 'Si');
-        if (padrePrincipal) {
-          const { data: hijosById } = await supabase
-            .from('inmuebles')
-            .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,condominio,multa_bs,meses_deuda,es_condominio')
-            .ilike('clasificacion', `%HIJO_DE:${padrePrincipal.inmueble}%`);
-          if (hijosById && hijosById.length > 0) {
-            // merge sin duplicados
-            const ids = new Set(inmsFinal.map(x => x.id));
-            hijosById.forEach(h => {
-              if (!ids.has(h.id)) inmsFinal.push(h);
-            });
-          }
+      const condoCodes = inmsDB.map((i: any) => i.inmueble).filter(Boolean);
+      if (condoCodes.length > 0) {
+        const { data: hijos } = await supabase
+          .from('inmuebles')
+          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+          .in('condominio_padre_id', condoCodes);
+        if (hijos && hijos.length > 0) {
+          const ids = new Set(inmsFinal.map(x => x.id));
+          hijos.forEach(h => {
+            if (!ids.has(h.id)) inmsFinal.push(h);
+          });
         }
       }
     }
@@ -273,11 +314,12 @@ export default function KioskPage() {
     const totalDeudaMMV = inmsFinal.reduce((s: number, i: any) => s + parseFloat(i.deuda_mmv || 0), 0);
     const totalCongelada = inmsDB.reduce((s: number, i: any) => s + parseFloat(i.deuda_congelada_bs || 0), 0);
 
-    const identidadClean = (p.identidad || '').replace(/-/g, '').toUpperCase();
+    const userVariants = getIdentidadVariants(p.identidad || user.Identidad);
+    const facturasOrFilter = userVariants.map(v => `identidad.eq.${v}`).join(',');
     const { data: allUserFacturas } = await supabase
       .from('facturas').select('referencia, emision, estado, monto, identidad')
       .in('estado', ['Pendiente', 'Por Verificar', 'Abonado'])
-      .or(`identidad.eq.${p.identidad},identidad.eq.${fullDoc},identidad.eq.${identidadClean}`)
+      .or(facturasOrFilter)
       .order('emision', { ascending: true });
 
     let fallbackFacturas: Recibo[] = [];

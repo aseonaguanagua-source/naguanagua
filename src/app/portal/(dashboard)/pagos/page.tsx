@@ -115,15 +115,20 @@ export default function DondePagarPage() {
           }
         }
         
-        // Determinar si todos los inmuebles de este usuario son hijos de condominio SIN autorización de pago individual
+        // Determinar si este recibo pertenece a un inmueble en condominio sin pago individual
+        const matchingInm = misInmuebles.find((inm: any) => inm.inmueble && f.referencia?.includes(inm.inmueble));
+        const isCondoUnit = matchingInm && (!!matchingInm.condominio_padre_id || (matchingInm.actividad_principal || '').includes('HIJO_DE:'));
+        const esPagoIndividual = matchingInm && (matchingInm.actividad_principal || '').includes('PAGOS INDIVIDUALES');
+        const bloqueadoCondominio = isCondoUnit && !esPagoIndividual;
+
+        // Solo bloquear la pantalla completa si TODOS los inmuebles son de condominio sin pago individual
         if (misInmuebles.length > 0) {
-          const todosHijos = misInmuebles.every((inm: any) => !!inm.condominio_padre_id);
-          const esPagoIndividual = misInmuebles.some((inm: any) => (inm.actividad_principal || '').includes('PAGOS INDIVIDUALES'));
-          if (todosHijos && !esPagoIndividual) {
-            setBloqueadoPorCondominio(true);
-          } else {
-            setBloqueadoPorCondominio(false);
-          }
+          const todosCondoBloqueados = misInmuebles.every((inm: any) => {
+            const isCondo = !!inm.condominio_padre_id || (inm.actividad_principal || '').includes('HIJO_DE:');
+            const isInd = (inm.actividad_principal || '').includes('PAGOS INDIVIDUALES');
+            return isCondo && !isInd;
+          });
+          setBloqueadoPorCondominio(todosCondoBloqueados);
         }
 
         let montoPendiente = 0;
@@ -145,7 +150,8 @@ export default function DondePagarPage() {
           concepto: `Recibo ${f.referencia} - ${f.emision}`,
           monto: finalMonto,
           seleccionado: false,
-          tipo: 'recibo'
+          tipo: 'recibo',
+          bloqueadoCondominio
         };
       });
 
@@ -334,27 +340,49 @@ export default function DondePagarPage() {
               </h2>
             </div>
             <div className="p-4 space-y-3">
-              {deudas.map((deuda) => (
-                <label key={deuda.id} className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${deuda.seleccionado ? 'border-amber-500 bg-amber-50/50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                  <div className="pt-0.5">
-                    <input 
-                      type="checkbox" 
-                      className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"
-                      checked={deuda.seleccionado}
-                      onChange={() => toggleDeuda(deuda.id)}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                      <span className="font-medium text-sm text-slate-700 block">{deuda.concepto}</span>
-                      <span className="font-bold text-sm text-slate-800 block whitespace-nowrap ml-2">Bs. {formatBs(deuda.monto)}</span>
+              {deudas.map((deuda) => {
+                const isCondoBlocked = deuda.bloqueadoCondominio === true;
+                return (
+                  <label 
+                    key={deuda.id} 
+                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                      isCondoBlocked 
+                        ? 'border-slate-200 bg-slate-100/70 opacity-75 cursor-not-allowed'
+                        : deuda.seleccionado 
+                          ? 'border-amber-500 bg-amber-50/50 cursor-pointer' 
+                          : 'border-slate-200 hover:bg-slate-50 cursor-pointer'
+                    }`}
+                  >
+                    <div className="pt-0.5">
+                      <input 
+                        type="checkbox" 
+                        disabled={isCondoBlocked}
+                        className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 disabled:opacity-40"
+                        checked={deuda.seleccionado && !isCondoBlocked}
+                        onChange={() => !isCondoBlocked && toggleDeuda(deuda.id)}
+                      />
                     </div>
-                    {deuda.tipo === 'convenio' && (
-                      <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold uppercase mt-1 inline-block">Convenio</span>
-                    )}
-                  </div>
-                </label>
-              ))}
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <span className="font-medium text-sm text-slate-700 block">{deuda.concepto}</span>
+                        <span className="font-bold text-sm text-slate-800 block whitespace-nowrap ml-2">Bs. {formatBs(deuda.monto)}</span>
+                      </div>
+                      {isCondoBlocked ? (
+                        <div className="mt-1">
+                          <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-black uppercase inline-block">
+                            Condominio Centralizado
+                          </span>
+                          <p className="text-[11px] text-amber-800 font-medium mt-0.5">
+                            Este inmueble se cancela a través del administrador del condominio.
+                          </p>
+                        </div>
+                      ) : deuda.tipo === 'convenio' ? (
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold uppercase mt-1 inline-block">Convenio</span>
+                      ) : null}
+                    </div>
+                  </label>
+                );
+              })}
               {deudas.length === 0 && (
                 <div className="text-center py-6 text-slate-500 text-sm">
                   No tiene deudas pendientes.

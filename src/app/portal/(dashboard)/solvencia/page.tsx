@@ -7,7 +7,7 @@ export default function SolvenciaPage() {
   const { recibos, inmuebles } = useAppContext();
   const [portalDoc, setPortalDoc] = useState('');
   const [contribuyenteNombre, setContribuyenteNombre] = useState('');
-  const [bloqueadoPorCondominio, setBloqueadoPorCondominio] = useState(false);
+  const [selectedInmId, setSelectedInmId] = useState<string>('');
 
   useEffect(() => {
     const doc = localStorage.getItem('portal_doc') || '';
@@ -28,25 +28,34 @@ export default function SolvenciaPage() {
     );
   }), [recibos, portalDoc, docNorm, soloNum]);
 
-  const pendientes = misFact.filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Abonado');
-  const isSolvente = pendientes.length === 0;
-
   const misInmuebles = useMemo(() => inmuebles.filter((inm: any) => {
     const id = (inm.identidad || '').replace(/-/g, '').toUpperCase();
     return portalDoc && (id === docNorm || (soloNum && id.includes(soloNum)));
   }), [inmuebles, portalDoc, docNorm, soloNum]);
 
   useEffect(() => {
-    if (misInmuebles.length > 0) {
-      const todosHijos = misInmuebles.every((inm: any) => (inm.actividad_principal || '').includes('[HIJO_DE:'));
-      const esPagoIndividual = misInmuebles.some((inm: any) => (inm.actividad_principal || '').includes('PAGOS INDIVIDUALES'));
-      if (todosHijos && !esPagoIndividual) {
-        setBloqueadoPorCondominio(true);
-      } else {
-        setBloqueadoPorCondominio(false);
-      }
+    if (misInmuebles.length > 0 && !selectedInmId) {
+      setSelectedInmId(misInmuebles[0].id || misInmuebles[0].inmueble);
     }
-  }, [misInmuebles]);
+  }, [misInmuebles, selectedInmId]);
+
+  const activeInm = misInmuebles.find((i: any) => (i.id || i.inmueble) === selectedInmId) || misInmuebles[0];
+  const isCondoUnit = activeInm && (!!activeInm.condominio_padre_id || (activeInm.actividad_principal || '').includes('HIJO_DE:'));
+  const esPagoIndividual = activeInm && (activeInm.actividad_principal || '').includes('PAGOS INDIVIDUALES');
+  const isBlockedByCondo = isCondoUnit && !esPagoIndividual;
+
+  // Filtrar facturas asociadas a este inmueble
+  const facturasInm = useMemo(() => {
+    if (!activeInm) return misFact;
+    const cod = activeInm.inmueble;
+    return misFact.filter((f: any) => {
+      if (!cod) return true;
+      return f.referencia?.includes(cod) || (!f.referencia?.startsWith('CM-') && !f.referencia?.startsWith('RECIB-HIST-'));
+    });
+  }, [misFact, activeInm]);
+
+  const pendientes = facturasInm.filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Abonado');
+  const isSolvente = pendientes.length === 0 && (parseInt(activeInm?.meses_deuda || '0') === 0) && (parseFloat(activeInm?.deuda_mmv || '0') <= 0);
 
   const hoy = new Date();
   const mesHoy = hoy.toLocaleDateString('es-VE', { month: 'long', year: 'numeric' }).toUpperCase();
@@ -61,45 +70,106 @@ export default function SolvenciaPage() {
     );
   }
 
-  if (bloqueadoPorCondominio) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 mt-10 bg-white rounded-lg shadow-sm border border-red-200 max-w-2xl mx-auto text-center">
-        <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold text-red-700 mb-2">Solvencia Gestionada por Condominio</h2>
-        <p className="text-slate-600 text-lg">
-          Su inmueble pertenece a un condominio registrado con esquema de <strong>pagos centralizados (Completos o por Abono)</strong>.
-          <br /><br />
-          Por favor, contacte al administrador del condominio para gestionar su solvencia. Solo el administrador tiene habilitada la emisión de solvencias en la plataforma para este conjunto.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-5 max-w-3xl mx-auto pb-12">
 
-      {/* Estado Banner */}
-      {!isSolvente ? (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-bold text-red-800">No puede obtener Certificado de Solvencia</h3>
-            <p className="text-sm text-red-700 mt-1">
-              Tiene <strong>{pendientes.length} recibo(s) pendiente(s)</strong> por pagar. 
-              Diríjase a la sección <strong>Estado de Cuenta</strong> para verificar sus pagos pendientes, 
-              o a las oficinas de Aseo Urbano para regularizar su situación.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-bold text-emerald-800">¡Contribuyente Solvente!</h3>
-            <p className="text-sm text-emerald-700 mt-0.5">No tiene recibos pendientes. Puede obtener su Certificado de Solvencia.</p>
+      {/* Selector de Inmuebles si tiene más de uno */}
+      {misInmuebles.length > 1 && (
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+            Seleccionar Inmueble para Solvencia:
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {misInmuebles.map((inm: any) => {
+              const isSelected = (inm.id || inm.inmueble) === (activeInm?.id || activeInm?.inmueble);
+              const isCondo = !!inm.condominio_padre_id || (inm.actividad_principal || '').includes('HIJO_DE:');
+              return (
+                <button
+                  key={inm.id || inm.inmueble}
+                  type="button"
+                  onClick={() => setSelectedInmId(inm.id || inm.inmueble)}
+                  className={`text-left p-3 rounded-xl border-2 transition-all ${
+                    isSelected 
+                      ? 'border-emerald-500 bg-emerald-50/50 shadow-sm' 
+                      : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-slate-800">{inm.inmueble}</span>
+                    {isCondo ? (
+                      <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">Condominio</span>
+                    ) : (
+                      <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">Independiente</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate mt-1">{inm.direccion || 'Sin dirección'}</p>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* Notificación si este inmueble pertenece a condominio centralizado */}
+      {isBlockedByCondo ? (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-8 text-center space-y-4 shadow-sm">
+          <AlertTriangle className="w-14 h-14 text-amber-600 mx-auto" />
+          <h2 className="text-xl font-black text-amber-900 tracking-tight">Solvencia Gestionada por Condominio</h2>
+          <p className="text-slate-700 text-sm max-w-lg mx-auto leading-relaxed">
+            El inmueble <strong>{activeInm?.inmueble}</strong> pertenece a un condominio registrado con esquema de pagos centralizados.
+          </p>
+          <div className="p-4 bg-amber-100/80 border border-amber-300 rounded-xl text-amber-950 font-black text-sm max-w-md mx-auto shadow-sm">
+            Solo diríjase al administrador del condominio para solicitar su solvencia.
+          </div>
+          <div className="bg-white border border-amber-200 rounded-xl p-5 max-w-md mx-auto text-left space-y-2 text-xs text-slate-700 shadow-sm">
+            <div className="font-black text-slate-500 uppercase tracking-wider text-[11px] border-b pb-1">
+              Consulta de Deuda del Inmueble
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Inmueble:</span>
+              <strong className="text-slate-800">{activeInm?.inmueble}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Dirección:</span>
+              <strong className="text-slate-800 text-right truncate max-w-[200px]">{activeInm?.direccion || 'N/A'}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Meses de deuda:</span>
+              <strong className={parseInt(activeInm?.meses_deuda || '0') > 0 ? "text-red-600 font-bold" : "text-emerald-600 font-bold"}>
+                {activeInm?.meses_deuda || 0} mes(es)
+              </strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Deuda calculada:</span>
+              <strong className="text-slate-900 font-bold">
+                {parseFloat(activeInm?.deuda_mmv || 0) > 0 ? `${activeInm.deuda_mmv} MMV` : 'Al día'}
+              </strong>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Estado Banner para Inmueble Independiente */}
+          {!isSolvente ? (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold text-red-800">No puede obtener Certificado de Solvencia</h3>
+                <p className="text-sm text-red-700 mt-1">
+                  El inmueble <strong>{activeInm?.inmueble}</strong> tiene recibos o meses pendientes por pagar. 
+                  Diríjase a la sección <strong>Donde Pagar</strong> para regularizar su deuda.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold text-emerald-800">¡Inmueble Solvente!</h3>
+                <p className="text-sm text-emerald-700 mt-0.5">El inmueble {activeInm?.inmueble} no tiene recibos pendientes. Puede imprimir su Certificado de Solvencia.</p>
+              </div>
+            </div>
+          )}
 
       {/* Certificado */}
       <div className={"bg-white rounded-xl shadow-lg border overflow-hidden relative " + (!isSolvente ? "border-red-200 opacity-60 pointer-events-none" : "border-slate-200")}>
@@ -202,6 +272,8 @@ export default function SolvenciaPage() {
             <Printer className="w-4 h-4" /> Imprimir Certificado
           </button>
         </div>
+      )}
+        </>
       )}
     </div>
   );

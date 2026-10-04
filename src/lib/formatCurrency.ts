@@ -1,1 +1,1 @@
-export { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear } from './formatters';
+export { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants } from './formatters';

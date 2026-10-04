@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * Busca por: identidad, inmueble, nombre del contribuyente.
  * Retorna inmuebles + datos del contribuyente fusionados.
  */
-import { formatPhoneNumber, isFictitiousEmail } from '@/lib/formatters';
+import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants } from '@/lib/formatters';
 
 export async function GET(request: Request) {
   try {
@@ -24,15 +24,36 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Búsqueda muy corta (mínimo 2 caracteres)' }, { status: 400 });
     }
 
-    const qClean = q.replace(/-/g, '').toUpperCase();
+    const variants = getIdentidadVariants(q);
+    const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
-    // Buscar por identidad exacta (más rápido)
+    // Buscar por variantes de identidad (tolerante a V/J/ceros/guiones)
     let { data: inmuebles } = await supabaseAdmin
       .from('inmuebles')
       .select('*')
-      .or(`identidad.eq.${q},identidad.eq.${qClean}`);
+      .or(orFilter);
 
-    // Fallback: buscar por nombre o código de inmueble
+    // Fallback 1: Si no se encontró por identidad en inmuebles, buscar en tabla oficial contribuyentes
+    if (!inmuebles || inmuebles.length === 0) {
+      const { data: cMatches } = await supabaseAdmin
+        .from('contribuyentes')
+        .select('*')
+        .or(orFilter)
+        .limit(1);
+
+      if (cMatches && cMatches.length > 0) {
+        const cVars = getIdentidadVariants(cMatches[0].identidad);
+        const { data: inmsByOfficial } = await supabaseAdmin
+          .from('inmuebles')
+          .select('*')
+          .or(cVars.map(v => `identidad.eq.${v}`).join(','));
+        if (inmsByOfficial && inmsByOfficial.length > 0) {
+          inmuebles = inmsByOfficial;
+        }
+      }
+    }
+
+    // Fallback 2: buscar por nombre o código de inmueble
     if (!inmuebles || inmuebles.length === 0) {
       const { data: byName } = await supabaseAdmin
         .from('inmuebles')

@@ -4,7 +4,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X, Building2, Store, Receipt, CheckSquare, Square, Filter, ChevronRight, DollarSign, Sparkles, AlertCircle, Coins } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
-import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear } from '@/lib/formatCurrency';
+import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants } from '@/lib/formatCurrency';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, getFAR, isResidencialInm } from '@/lib/calculos';
@@ -99,6 +99,13 @@ export default function CajaPage() {
   // Modal de Confirmación de Pago
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmPayload, setConfirmPayload] = useState<any>(null);
+
+  // Modal de Actualización de Contacto (Correo / Teléfono)
+  const [showUpdateContactModal, setShowUpdateContactModal] = useState(false);
+  const [contactModalEmail, setContactModalEmail] = useState('');
+  const [contactModalPhone, setContactModalPhone] = useState('');
+  const [isSavingContact, setIsSavingContact] = useState(false);
+  const [contactSaveError, setContactSaveError] = useState('');
 
   // Historial de pagos de la sesión actual
   const [sessionPagos, setSessionPagos] = useState<any[]>([]);
@@ -286,8 +293,19 @@ export default function CajaPage() {
     setPagosPendientes([]);
     setTotalBs(0);
 
-    const idLimpioSearch = docNumber.replace(/-/g, '').toUpperCase();
-    const cleanFullDoc = `${docType}${idLimpioSearch}`;
+    // Extraer prefijo si fue pegado o escrito en el input (ej: J-075477308 o V075477308)
+    let activePrefix = docType;
+    let inputClean = docNumber.trim();
+    const prefixMatch = inputClean.match(/^([VEJPGvejpg])[-_\s]?(.*)$/);
+    if (prefixMatch) {
+      activePrefix = prefixMatch[1].toUpperCase();
+      inputClean = prefixMatch[2].trim();
+      setDocType(activePrefix);
+      setDocNumber(inputClean);
+    }
+
+    const searchVariants = getIdentidadVariants(inputClean, activePrefix);
+    const searchVariantsSet = new Set(searchVariants.map(v => v.replace(/-/g, '').toUpperCase()));
 
     let user = contribuyentes.find((c: any) => {
       if (!c.Identidad) return false;
@@ -295,15 +313,16 @@ export default function CajaPage() {
       const codMatch = c.CodCont && c.CodCont.toUpperCase() === docNumber.toUpperCase();
       const codContMatch = c.cod_cont && c.cod_cont.toUpperCase() === docNumber.toUpperCase();
       const nombreMatch = c.Contribuyente && c.Contribuyente.toUpperCase().includes(docNumber.toUpperCase());
-      return idClean === cleanFullDoc || idClean === idLimpioSearch || codMatch || codContMatch || nombreMatch;
+      return searchVariantsSet.has(idClean) || codMatch || codContMatch || nombreMatch;
     });
 
-    // Fallback: usuario nuevo aprobado recientemente que aún no está en el contexto React
+    // Fallback: usuario nuevo aprobado recientemente o búsqueda directa en inmuebles/contribuyentes
     if (!user) {
+      const orFiltro = searchVariants.map(v => `identidad.eq.${v}`).join(',') + `,inmueble.ilike.%${docNumber}%,contribuyente.ilike.%${docNumber}%`;
       const { data: inmFallback } = await supabase
         .from('inmuebles')
         .select('*')
-        .or(`identidad.eq.${cleanFullDoc},identidad.eq.${idLimpioSearch},inmueble.ilike.%${docNumber}%,contribuyente.ilike.%${docNumber}%`)
+        .or(orFiltro)
         .limit(1)
         .maybeSingle();
 
@@ -321,20 +340,84 @@ export default function CajaPage() {
           SaldoFavor: parseFloat(inmFallback.saldo_favor_bs || '0'),
           Estado: inmFallback.estado || 'Activo'
         };
+      } else {
+        // Fallback 2: buscar en tabla contribuyentes directamente
+        const { data: contribFallback } = await supabase
+          .from('contribuyentes')
+          .select('*')
+          .or(searchVariants.map(v => `identidad.eq.${v}`).join(','))
+          .limit(1)
+          .maybeSingle();
+
+        if (contribFallback) {
+          user = {
+            Identidad: contribFallback.identidad,
+            Contribuyente: contribFallback.nombre,
+            Telefono: contribFallback.telefono || 'No registrado',
+            Correo: contribFallback.email || 'No registrado',
+            CodCont: contribFallback.identidad,
+            cod_cont: contribFallback.identidad,
+            Direccion: contribFallback.direccion,
+            Clasificacion: 'Comercial',
+            Actividad: '',
+            SaldoFavor: 0,
+            Estado: 'Activo'
+          };
+        }
       }
     }
     
     if (user) {
+      // Sincronizar el prefijo visual en el dropdown si es distinto
+      if (user.Identidad && /^[A-Z]-/i.test(user.Identidad)) {
+        const detectedPrefix = user.Identidad.charAt(0).toUpperCase();
+        if (detectedPrefix !== docType) setDocType(detectedPrefix);
+      }
+
       // Obtener TODOS los datos frescos del inmueble desde Supabase
-      // Esto es crucial para que getReciboMonto calcule la deuda correctamente
-      const nakedId = cleanFullDoc.replace(/^[VEJPG]-?/i, '');
+      const userIdentVariants = getIdentidadVariants(user.Identidad);
+      const orFilterInms = [
+        ...userIdentVariants.map(v => `identidad.eq.${v}`),
+        `condominio_padre_id.eq.${user.CodCont || user.cod_cont}`,
+        `condominio_padre_id.eq.${user.Identidad}`
+      ].filter(Boolean).join(',');
+
       const { data: inmFresh } = await supabase
         .from('inmuebles')
         .select('*')
-        .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc},identidad.eq.${nakedId},identidad.eq.${user.Identidad.replace(/-/g,'')},condominio_padre_id.eq.${user.CodCont}`);
+        .or(orFilterInms);
       
       // Filtrar los inmuebles eliminados
       const activeInmFresh = (inmFresh || []).filter((i: any) => i.estado !== 'Eliminado');
+
+      // Adoptar la Identidad real y actualizada desde los inmuebles frescos en base de datos
+      if (activeInmFresh.length > 0 && activeInmFresh[0].identidad) {
+        user.Identidad = activeInmFresh[0].identidad;
+        if (activeInmFresh[0].contribuyente) user.Contribuyente = activeInmFresh[0].contribuyente;
+      }
+
+      // También consultar en contribuyentes para tener los datos oficiales más recientes
+      const { data: freshContrib } = await supabase
+        .from('contribuyentes')
+        .select('*')
+        .or(userIdentVariants.map(v => `identidad.eq.${v}`).join(','))
+        .limit(1)
+        .maybeSingle();
+
+      if (freshContrib) {
+        user.Identidad = freshContrib.identidad || user.Identidad;
+        user.Contribuyente = freshContrib.nombre || user.Contribuyente;
+        const freshTel = formatPhoneNumber(freshContrib.telefono);
+        if (freshTel) user.Telefono = freshTel;
+        const freshEmail = freshContrib.email || freshContrib.correo_electronico;
+        user.Correo = isFictitiousEmail(freshEmail) ? '' : (freshEmail || user.Correo);
+      }
+
+      // Sincronizar el prefijo visual en el dropdown si es distinto
+      if (user.Identidad && /^[A-Z]-/i.test(user.Identidad)) {
+        const detectedPrefix = user.Identidad.charAt(0).toUpperCase();
+        if (detectedPrefix !== docType) setDocType(detectedPrefix);
+      }
       
       // Guardar inmuebles frescos para que getReciboMonto los use
       setFreshInmuebles(activeInmFresh);
@@ -361,15 +444,23 @@ export default function CajaPage() {
       );
       
       setFoundUser({ ...user, SaldoFavor: saldoFavorFresh, DeudaTotal: deudaTotalFresh });
+
+      // Verificar si el contribuyente carece de correo para solicitar actualización al cajero
+      const tieneCorreoValido = user.Correo && !isFictitiousEmail(user.Correo);
+      if (!tieneCorreoValido) {
+        setContactModalEmail('');
+        setContactModalPhone(user.Telefono && user.Telefono !== 'No registrado' ? user.Telefono : '');
+        setContactSaveError('');
+        setShowUpdateContactModal(true);
+      }
       
       // Consulta directa a Supabase: siempre fresca, incluye todas las CM- mensuales
-      // Incluye variantes de identidad (con/sin guión) + búsqueda por nombre (recibos antiguas sin identidad)
-      const identidadClean = (user.Identidad || '').replace(/-/g, '').toUpperCase();
+      const facturasOrFilter = userIdentVariants.map(v => `identidad.eq.${v}`).join(',');
       const { data: allUserFacturas } = await supabase
         .from('facturas')
         .select('*')
         .in('estado', ['Pendiente', 'Por Verificar', 'Abonado'])
-        .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc},identidad.eq.${identidadClean}`)
+        .or(facturasOrFilter)
         .order('emision', { ascending: true });
 
       // Fallback: buscar por nombre del contribuyente (cubre recibos con identidad en formato
@@ -463,9 +554,10 @@ export default function CajaPage() {
 
       
       // Load Convenios Cuotas
+      const userConvenioVariants = new Set(userIdentVariants.map(v => v.replace(/-/g, '').toUpperCase()));
       const userConvenios = convenios.filter((c: any) => {
         const idCleanConv = (c.identidad || '').replace(/-/g, '').toUpperCase();
-        return idCleanConv === cleanFullDoc && c.estado === 'Al Día';
+        return userConvenioVariants.has(idCleanConv) && c.estado === 'Al Día';
       });
       const pendingCuotas: any[] = [];
       userConvenios.forEach((conv: any) => {
@@ -490,7 +582,7 @@ export default function CajaPage() {
       const { data: servEsp } = await supabase
         .from('servicios_especiales')
         .select('*')
-        .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc}`)
+        .or(facturasOrFilter)
         .eq('estado', 'Pendiente');
       setServiciosEsp((servEsp || []).filter((s: any) => s.tipo !== 'tala_poda'));
 
@@ -498,7 +590,7 @@ export default function CajaPage() {
       const { data: talaData } = await supabase
         .from('servicios_especiales')
         .select('*')
-        .or(`identidad.eq.${user.Identidad},identidad.eq.${cleanFullDoc}`)
+        .or(facturasOrFilter)
         .eq('tipo', 'tala_poda')
         .eq('estado', 'Pendiente');
       setTalaPoda(talaData || []);
@@ -508,7 +600,7 @@ export default function CajaPage() {
       const { data: pagosPendData } = await supabase
         .from('pagos_reportados')
         .select('*')
-        .or('identidad.eq.' + user.Identidad + ',identidad.eq.' + cleanFullDoc)
+        .or(facturasOrFilter)
         .eq('estado', 'Por Verificar');
       setPagosPendientes(pagosPendData || []);
 
@@ -1516,6 +1608,65 @@ export default function CajaPage() {
       handleSearch(); // Refresh user data
     } catch (e: any) {
       alert('Error creando nota: ' + e.message);
+    }
+  };
+
+  const handleSaveContactModal = async () => {
+    if (!foundUser) return;
+    setContactSaveError('');
+
+    const cleanEmail = contactModalEmail.trim().toLowerCase();
+    const cleanPhone = formatPhoneNumber(contactModalPhone);
+
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setContactSaveError('Por favor ingrese un correo electrónico válido (ej. usuario@gmail.com).');
+      return;
+    }
+
+    if (isFictitiousEmail(cleanEmail)) {
+      setContactSaveError('El correo ingresado no es válido. No use correos ficticios o de prueba.');
+      return;
+    }
+
+    setIsSavingContact(true);
+    try {
+      const userIdentVariants = getIdentidadVariants(foundUser.Identidad);
+
+      // 1. Actualizar tabla contribuyentes
+      await supabase.from('contribuyentes')
+        .update({
+          email: cleanEmail,
+          telefono: cleanPhone || foundUser.Telefono || null
+        })
+        .or(userIdentVariants.map(v => `identidad.eq.${v}`).join(','));
+
+      // 2. Actualizar todos los inmuebles de este contribuyente
+      await supabase.from('inmuebles')
+        .update({
+          correo_electronico: cleanEmail,
+          telefono: cleanPhone || foundUser.Telefono || null
+        })
+        .or(userIdentVariants.map(v => `identidad.eq.${v}`).join(','));
+
+      // 3. Actualizar estado local de foundUser
+      setFoundUser((prev: any) => prev ? ({
+        ...prev,
+        Correo: cleanEmail,
+        Telefono: cleanPhone || prev.Telefono
+      }) : null);
+
+      // 4. Refrescar datos globales
+      await refreshUserData(foundUser.Identidad);
+
+      // 5. Cerrar modal y notificar éxito
+      setShowUpdateContactModal(false);
+      setSuccessMsg('Datos de contacto actualizados exitosamente.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err: any) {
+      console.error('Error al guardar datos de contacto:', err);
+      setContactSaveError('Error al guardar en el servidor. Intente de nuevo.');
+    } finally {
+      setIsSavingContact(false);
     }
   };
 
@@ -2939,6 +3090,89 @@ export default function CajaPage() {
               >
                 <CreditCard className="w-4 h-4" />
                 {isProcessing ? 'Procesando...' : 'Procesar Pago'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL ACTUALIZACIÓN DE DATOS DE CONTACTO (EMAIL / TELÉFONO) ── */}
+      {showUpdateContactModal && foundUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-5 text-white flex items-start gap-4">
+              <div className="p-2.5 bg-white/20 rounded-xl flex-shrink-0">
+                <AlertCircle className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-black tracking-tight">Actualizar Datos de Contacto</h3>
+                <p className="text-xs text-amber-100 mt-0.5">
+                  El contribuyente no posee un correo electrónico registrado en el sistema.
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 leading-relaxed">
+                <strong>{foundUser.Contribuyente}</strong> ({foundUser.Identidad})
+                <br />
+                Para emitir la <strong>factura digital SENIAT</strong> y enviar comprobantes de pago por correo, ingrese los datos de contacto actuales del contribuyente.
+              </div>
+
+              {contactSaveError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold p-3 rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{contactSaveError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                  <span>Correo Electrónico</span>
+                  <span className="text-red-500 font-black">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={contactModalEmail}
+                  onChange={e => setContactModalEmail(e.target.value)}
+                  placeholder="ejemplo@gmail.com"
+                  className="w-full border-2 border-slate-200 focus:border-emerald-500 focus:ring-0 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-800 placeholder-slate-400 outline-none transition-colors"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Número Telefónico (Opcional)
+                </label>
+                <input
+                  type="tel"
+                  value={contactModalPhone}
+                  onChange={e => setContactModalPhone(e.target.value)}
+                  placeholder="0412-1234567"
+                  className="w-full border-2 border-slate-200 focus:border-emerald-500 focus:ring-0 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-800 placeholder-slate-400 outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowUpdateContactModal(false)}
+                className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                Omitir por ahora
+              </button>
+              <button
+                type="button"
+                disabled={isSavingContact}
+                onClick={handleSaveContactModal}
+                className="px-5 py-2.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2"
+              >
+                {isSavingContact ? 'Guardando...' : 'Guardar y Actualizar'}
               </button>
             </div>
           </div>

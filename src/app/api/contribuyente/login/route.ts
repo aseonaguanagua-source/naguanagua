@@ -1,28 +1,22 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getIdentidadVariants, isFictitiousEmail } from "@/lib/formatters";
 
 export async function POST(request: Request) {
   try {
-    const { identidad, clave } = await request.json();
+    const { identidad, clave, primerIngreso } = await request.json();
 
     if (!identidad || identidad.length < 2) {
       return NextResponse.json({ error: "Identidad requerida" }, { status: 400 });
     }
 
-    // Normalizar: quitar guiones, uppercase -> "V12345678" o "191753720"
-    const idNorm = identidad.replace(/-/g, "").toUpperCase().trim();
-    // Solo agregar guion formateado si el primer caracter ES una letra (V, J, E, G, P, C)
-    const primeraEsLetra = /^[A-Z]/.test(idNorm);
-    const idFormateado = primeraEsLetra ? `${idNorm.charAt(0)}-${idNorm.slice(1)}` : null;
-    // Armar todas las variantes a buscar (sin duplicados)
-    const variantes = [idNorm, identidad.toUpperCase().trim()];
-    if (idFormateado) variantes.push(idFormateado);
-    const orFilter = [...new Set(variantes)].map(v => `identidad.eq.${v}`).join(',');
+    const variantes = getIdentidadVariants(identidad);
+    const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
 
-    // Buscar por todas las variantes de identidad
+    // Buscar en inmuebles
     const { data: records, error } = await supabase
       .from("inmuebles")
-      .select("contribuyente, cod_cont, clave_portal, identidad")
+      .select("contribuyente, cod_cont, clave_portal, identidad, correo_electronico, telefono")
       .or(orFilter)
       .limit(1);
 
@@ -31,33 +25,70 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Error de base de datos" }, { status: 500 });
     }
 
-    if (!records || records.length === 0) {
+    // También buscar en contribuyentes
+    const { data: contribRecs } = await supabase
+      .from("contribuyentes")
+      .select("nombre, identidad, email, telefono")
+      .or(orFilter)
+      .limit(1);
+
+    const contribRec = contribRecs && contribRecs.length > 0 ? contribRecs[0] : null;
+
+    if ((!records || records.length === 0) && !contribRec) {
       return NextResponse.json(
-        { error: "Usuario no registrado. Verifique el tipo y numero de cedula ingresado." },
+        { error: "Usuario no registrado. Verifique el tipo y número de cédula o RIF ingresado." },
         { status: 404 }
       );
     }
 
-    const user = records[0];
+    const user = records && records.length > 0 ? records[0] : {
+      contribuyente: contribRec?.nombre,
+      cod_cont: contribRec?.identidad,
+      clave_portal: null,
+      identidad: contribRec?.identidad,
+      correo_electronico: contribRec?.email,
+      telefono: contribRec?.telefono
+    };
 
-    // Si no tiene clave_portal asignada, requiere setup inicial
-    if (!user.clave_portal) {
+    // Si el usuario viene por botón "Primer Ingreso" o no tiene clave asignada
+    if (primerIngreso || !user.clave_portal) {
       return NextResponse.json({
         status: "setup_required",
         nombre: user.contribuyente,
-        codigo: user.cod_cont
+        codigo: user.cod_cont || user.identidad,
+        identidad: user.identidad,
+        message: "Primer ingreso: por favor actualice su correo, teléfono y configure su contraseña."
       });
     }
 
-    // Verificar contrasena
+    // Verificar contraseña
     if (user.clave_portal === clave) {
+      const email = user.correo_electronico || contribRec?.email;
+      const phone = user.telefono || contribRec?.telefono;
+      const hasValidEmail = email && !isFictitiousEmail(email);
+      const hasValidPhone = phone && String(phone).replace(/\D/g, '').length >= 7;
+
+      // Si le falta correo o teléfono válido, exigir actualización antes de avanzar
+      if (!hasValidEmail || !hasValidPhone) {
+        return NextResponse.json({
+          status: "setup_required",
+          nombre: user.contribuyente,
+          codigo: user.cod_cont || user.identidad,
+          identidad: user.identidad,
+          correo: hasValidEmail ? email : '',
+          telefono: hasValidPhone ? phone : '',
+          message: "Para continuar, debe actualizar su correo electrónico y número de teléfono."
+        });
+      }
+
       return NextResponse.json({
         status: "success",
         nombre: user.contribuyente,
-        codigo: user.cod_cont
+        codigo: user.cod_cont || user.identidad,
+        identidad: user.identidad
       });
     } else {
-      return NextResponse.json({ error: "Contrasena incorrecta" }, { status: 401 });
+      return NextResponse.json({ error: "Contraseña incorrecta" }, { status: 401 });
     }
 
   } catch {

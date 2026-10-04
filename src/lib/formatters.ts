@@ -138,3 +138,71 @@ export function formatMonthYear(dateStr?: string | null): string {
     return String(dateStr);
   }
 }
+
+/**
+ * Genera todas las variantes posibles de un documento/cédula/RIF
+ * para hacer búsquedas tolerantes a prefijos (V <-> J <-> G <-> E),
+ * guiones y ceros a la izquierda.
+ *
+ * Ej: "075477308" con prefijo "V" ->
+ *     V-075477308, V075477308, V-75477308, V75477308,
+ *     J-075477308, J075477308, J-75477308, J75477308,
+ *     G-075477308, G075477308, E-075477308, E075477308,
+ *     075477308, 75477308
+ */
+export function getIdentidadVariants(rawInput: string, defaultPrefix = 'V'): string[] {
+  if (!rawInput || !rawInput.trim()) return [];
+
+  let prefix = defaultPrefix.toUpperCase().trim();
+  let raw = rawInput.trim().toUpperCase();
+
+  // Si el usuario incluyó el prefijo dentro del texto escrito (ej: "J-075477308" o "J075477308")
+  const prefixMatch = raw.match(/^([VEJPG])[-_\s]?(.*)$/);
+  if (prefixMatch) {
+    prefix = prefixMatch[1];
+    raw = prefixMatch[2].trim();
+  }
+
+  // Quitar cualquier carácter no alfanumérico
+  const clean = raw.replace(/[^0-9A-Z]/g, '');
+  if (!clean) return [rawInput.trim().toUpperCase()];
+
+  const digits = clean.replace(/\D/g, '');
+  const noLeadingZeros = digits.replace(/^0+/, '');
+  const padded9 = digits ? digits.padStart(9, '0') : '';
+
+  const variants = new Set<string>();
+
+  // 1. Entradas directas
+  variants.add(rawInput.trim().toUpperCase());
+  variants.add(clean);
+
+  // 2. Prefijos a considerar: el prefijo principal primero, luego alternativas
+  const allPrefixes = [prefix];
+  if (prefix === 'V') allPrefixes.push('J', 'G', 'E');
+  else if (prefix === 'J') allPrefixes.push('V', 'G', 'E');
+  else if (prefix === 'G') allPrefixes.push('J', 'V');
+  else allPrefixes.push('V', 'J');
+
+  const numberForms = new Set<string>();
+  numberForms.add(clean);
+  if (digits) {
+    numberForms.add(digits);
+    if (noLeadingZeros) numberForms.add(noLeadingZeros);
+    if (padded9) numberForms.add(padded9);
+  }
+
+  for (const p of allPrefixes) {
+    for (const num of numberForms) {
+      variants.add(`${p}-${num}`);
+      variants.add(`${p}${num}`);
+    }
+  }
+
+  for (const num of numberForms) {
+    variants.add(num);
+  }
+
+  return Array.from(variants);
+}
+
