@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { Resend } from 'resend';
+import { getResendClient } from '@/lib/emailClient';
 import jwt from 'jsonwebtoken';
 
-const resend = new Resend(process.env.RESEND_API_KEY || 're_123456789');
+const resend = getResendClient();
 const JWT_SECRET = process.env.JWT_PRIVATE_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || (() => { throw new Error('JWT_PRIVATE_SECRET no configurado'); })();
 
 export async function POST(request: Request) {

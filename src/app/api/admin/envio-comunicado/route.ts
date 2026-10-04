@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { Resend } from 'resend';
+import { getResendClient, DEFAULT_RESEND_FROM } from '@/lib/emailClient';
 
 function buildHtml(nombre: string): string {
   const BASE = 'https://aseonaguanaguaad.globalrecca.com';
@@ -211,7 +211,7 @@ function buildHtml(nombre: string): string {
 }
 
 export async function POST(request: Request) {
-  const resend = new Resend(process.env.RESEND_API_KEY || 'dev-placeholder');
+  const resend = getResendClient();
   try {
     const body = await request.json().catch(() => ({}));
     const testMode: boolean = body.test !== false;
@@ -244,15 +244,7 @@ export async function POST(request: Request) {
     const erroresList: string[] = [];
 
     // MODO PRUEBA: si EMAIL_TEST_MODE=true, todos los comunicados van a aseonaguanagua@globalgreenca.com
-    const modoTestComun = process.env.EMAIL_TEST_MODE === 'true';
-
-    if (!process.env.RESEND_API_KEY) {
-      return NextResponse.json({
-        success: false,
-        error: 'No se ha configurado la variable RESEND_API_KEY en Vercel. Ve a Settings -> Environment Variables en Vercel y agrégala.'
-      }, { status: 400 });
-    }
-
+    const modoTestComun = process.env.EMAIL_TEST_MODE !== 'false';
     const fromEmail = process.env.RESEND_FROM || 'IAMEC Naguanagua <onboarding@resend.dev>';
 
     for (let i = 0; i < destinatarios.length; i += 10) {

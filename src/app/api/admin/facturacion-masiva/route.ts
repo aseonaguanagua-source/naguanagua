@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { Resend } from 'resend';
+import { getResendClient } from '@/lib/emailClient';
 
-const resend = new Resend(process.env.RESEND_API_KEY || 're_123456789');
+const resend = getResendClient();
 
 export async function POST(request: Request) {
   try {

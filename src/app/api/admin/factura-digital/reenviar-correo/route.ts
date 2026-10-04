@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { Resend } from 'resend';
+import { getResendClient, DEFAULT_RESEND_FROM } from '@/lib/emailClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,7 +94,7 @@ function buildFacturaEmailHtml(data: {
 }
 
 export async function POST(request: Request) {
-  const resend = new Resend(process.env.RESEND_API_KEY || 'dev-placeholder');
+  const resend = getResendClient();
 
   try {
     const body = await request.json();
@@ -126,13 +126,9 @@ export async function POST(request: Request) {
     let emailSent = false;
     let emailError: string | null = null;
 
-    if (!process.env.RESEND_API_KEY) {
-      emailError = 'No se ha configurado la variable RESEND_API_KEY en Vercel/.env.local';
-      console.warn('[Correo Factura]', emailError);
-    } else {
-      try {
-        // En modo prueba o cuentas nuevas de Resend, usar onboarding@resend.dev para entregar sin esperar DNS
-        const fromEmail = process.env.RESEND_FROM || 'IAMEC Facturación <onboarding@resend.dev>';
+    try {
+      // En modo prueba o cuentas nuevas de Resend, usar onboarding@resend.dev para entregar sin esperar DNS
+      const fromEmail = process.env.RESEND_FROM || 'IAMEC Facturación <onboarding@resend.dev>';
         let sendResult = await resend.emails.send({
           from: fromEmail,
           to: [targetEmail],
@@ -158,7 +154,6 @@ export async function POST(request: Request) {
         console.warn('Advertencia al enviar correo vía Resend:', sendErr.message);
         emailError = sendErr.message;
       }
-    }
 
     // Registrar en auditoría de pago
     if (pagoId) {
