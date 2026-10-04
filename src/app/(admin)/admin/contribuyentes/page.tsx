@@ -25,6 +25,7 @@ import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, isResidencialInm } from '@/lib/calculos';
+import { isSameLocal, getShortAddress } from '@/lib/cajaHelpers';
 
 
 function ContribuyentesPageContent() {
@@ -390,14 +391,17 @@ function ContribuyentesPageContent() {
                   const meses = parseInt(inm.meses_deuda || 0);
                   if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
                     const numMeses = Math.max(1, meses);
+                    const now = new Date();
                     for (let i = 1; i <= numMeses; i++) {
+                      const targetDate = new Date(now.getFullYear(), now.getMonth() - numMeses + i - 1, 1, 12, 0, 0);
+                      const dateIso = targetDate.toISOString();
                       combined.push({
                         id: `dummy-hist-${inm.inmueble}-${i}`,
                         referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
                         identidad: viewData.Identidad,
                         contribuyente: viewData.Contribuyente,
-                        emision: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i - 1)).toISOString(),
-                        vencimiento: new Date(new Date().setMonth(new Date().getMonth() - numMeses + i - 1)).toISOString(),
+                        emision: dateIso,
+                        vencimiento: dateIso,
                         estado: 'Pendiente',
                         monto: '0'
                       });
@@ -481,359 +485,620 @@ function ContribuyentesPageContent() {
 
     const idLimpio = (viewData.Identidad || '').replace(/-/g, '').toUpperCase();
 
-    // Consultar DIRECTAMENTE en Supabase para garantizar todos los meses
-    // (el array local `recibos` puede estar incompleto si no se recargó)
-    let deudas: any[] = [];
-    try {
-      const identidadOriginal = (viewData.Identidad || '').trim();
-      const identidadSinGuiones = idLimpio;
-      // OR multi-variante: con guiones, sin guiones y por nombre contribuyente
-      let orFiltros = [`identidad.eq.${identidadOriginal}`];
-      if (identidadSinGuiones !== identidadOriginal) orFiltros.push(`identidad.eq.${identidadSinGuiones}`);
+    // 1. Obtener facturas pendientes (priorizar viewFacturasDb o consultar DB)
+    let deudas: any[] = [...viewFacturasDb];
+    if (deudas.length === 0) {
+      try {
+        const identidadOriginal = (viewData.Identidad || '').trim();
+        const identidadSinGuiones = idLimpio;
+        let orFiltros = [`identidad.eq.${identidadOriginal}`];
+        if (identidadSinGuiones !== identidadOriginal) orFiltros.push(`identidad.eq.${identidadSinGuiones}`);
 
-      const { data: facturasDB } = await supabase
-        .from('facturas')
-        .select('*')
-        .or(orFiltros.join(','))
-        .in('estado', ['Pendiente', 'Abonado'])
-        .order('emision', { ascending: true });
-
-      if (facturasDB && facturasDB.length > 0) {
-        deudas = facturasDB;
-      } else {
-        // fallback por nombre de contribuyente si no hay match por identidad
-        const { data: fallback } = await supabase
+        const { data: facturasDB } = await supabase
           .from('facturas')
           .select('*')
-          .eq('contribuyente', viewData.Contribuyente || '')
-          .in('estado', ['Pendiente', 'Abonado'])
+          .or(orFiltros.join(','))
+          .in('estado', ['Pendiente', 'Por Verificar', 'Abonado'])
           .order('emision', { ascending: true });
-        if (fallback) deudas = fallback;
+
+        if (facturasDB && facturasDB.length > 0) {
+          deudas = facturasDB;
+        } else {
+          const { data: fallback } = await supabase
+            .from('facturas')
+            .select('*')
+            .eq('contribuyente', viewData.Contribuyente || '')
+            .in('estado', ['Pendiente', 'Por Verificar', 'Abonado'])
+            .order('emision', { ascending: true });
+          if (fallback) deudas = fallback;
+        }
+      } catch (e) {
+        deudas = (recibos || [])
+          .filter((f: any) => {
+            const fid = (f.identidad || f.contribuyente || '').replace(/-/g, '').toUpperCase();
+            return fid === idLimpio || fid === viewData.Identidad || f.contribuyente === viewData.Contribuyente;
+          })
+          .filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Por Verificar' || f.estado === 'Abonado');
       }
-    } catch (e) {
-      // Si falla la query, usar el store local como respaldo
-      deudas = (recibos || [])
-        .filter((f: any) => {
-          const fid = (f.identidad || f.contribuyente || '').replace(/-/g, '').toUpperCase();
-          return fid === idLimpio || fid === viewData.Identidad || f.contribuyente === viewData.Contribuyente;
-        })
-        .filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Abonado')
-        .sort((a: any, b: any) => new Date(a.emision).getTime() - new Date(b.emision).getTime());
     }
 
+    // 2. Inmuebles del contribuyente
     const inmueblesContribuyente = (inmuebles || []).filter((i: any) => {
       const iid = (i.identidad || '').replace(/-/g, '').toUpperCase();
       return iid === idLimpio || iid === viewData.Identidad;
     });
 
-    const getMesTexto = (fecha: string) => {
-      if (!fecha) return 'N/A';
-      const parts = fecha.split('-');
-      if (parts.length >= 2) {
-        const meses = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-        return `${meses[parseInt(parts[1]) - 1]}-${parts[0]}`;
-      }
-      return fecha;
-    };
-
-    const inmsToProcess = inmueblesContribuyente.length > 0
+    const userInms = inmueblesContribuyente.length > 0
       ? inmueblesContribuyente
-      : [{ inmueble: 'Principal', tipo: 'Residencial', cant_inmuebles: 1, area: '' }];
+      : [{ inmueble: 'Principal', tipo: 'Residencial', clasificacion: 'Individual', actividad_principal: 'CASA (ZONA A)', cant_inmuebles: 1, direccion: viewData.Direccion || '' }];
+
+    // Si deudas sigue vacío pero los inmuebles tienen meses_deuda registrados, generar períodos
+    if (deudas.length === 0) {
+      const now = new Date();
+      userInms.forEach((inm: any) => {
+        const meses = parseInt(String(inm.meses_deuda || 0), 10);
+        if (meses > 0) {
+          for (let i = 1; i <= meses; i++) {
+            const targetDate = new Date(now.getFullYear(), now.getMonth() - meses + i - 1, 1, 12, 0, 0);
+            deudas.push({
+              id: `dummy-hist-${inm.inmueble}-${i}`,
+              referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
+              identidad: viewData.Identidad,
+              contribuyente: viewData.Contribuyente,
+              emision: targetDate.toISOString(),
+              vencimiento: targetDate.toISOString(),
+              estado: 'Pendiente',
+              monto: '0'
+            });
+          }
+        }
+      });
+    }
+
+    deudas.sort((a: any, b: any) => new Date(a.emision || '1900-01-01').getTime() - new Date(b.emision || '1900-01-01').getTime());
+
+    // 3. Agrupación por Inmueble / Local Físico:
+    // - Inmuebles residenciales (casas/apartamentos) -> 1 cluster por inmueble (1 página cada uno)
+    // - Locales comerciales con 2 o más actividades económicas -> 1 cluster unificado (1 página compartida)
+    interface PropertyCluster {
+      clusterId: string;
+      tipo: 'COMERCIAL' | 'RESIDENCIAL' | 'INDUSTRIAL';
+      label: string;
+      direccion: string;
+      isMultiActivity: boolean;
+      inmuebles: any[];
+    }
+
+    const billable = userInms.filter((i: any) => {
+      const act = (i.actividad_principal || '').trim().toUpperCase();
+      return act !== 'N/A' && act !== '';
+    });
+    const candidates = billable.length > 0 ? billable : userInms;
+
+    const clusters: PropertyCluster[] = [];
+
+    for (const inm of candidates) {
+      const esRes = isResidencialInm(inm);
+
+      if (esRes) {
+        clusters.push({
+          clusterId: inm.inmueble || `RES-${clusters.length + 1}`,
+          tipo: 'RESIDENCIAL',
+          label: inm.actividad_principal || inm.clasificacion || 'Inmueble Residencial',
+          direccion: inm.direccion || viewData.Direccion || 'Naguanagua, Edo. Carabobo',
+          isMultiActivity: false,
+          inmuebles: [inm]
+        });
+        continue;
+      }
+
+      // Comercial / Industrial
+      const rawDir = (inm.direccion || '').trim();
+      const padreId = inm.condominio_padre_id;
+
+      const matched = clusters.find(c => {
+        if (c.tipo === 'RESIDENCIAL') return false;
+        if (padreId && c.inmuebles.some((ci: any) => ci.condominio_padre_id === padreId || ci.inmueble === padreId)) {
+          return true;
+        }
+        if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
+          if (rawDir.toLowerCase() === c.direccion.toLowerCase()) return true;
+          return isSameLocal(rawDir, c.direccion, 0.65);
+        }
+        if ((!rawDir || rawDir === '0 0') && (!c.direccion || c.direccion === '0 0')) {
+          return true;
+        }
+        return false;
+      });
+
+      if (matched) {
+        matched.inmuebles.push(inm);
+        matched.isMultiActivity = true;
+        if ((!matched.direccion || matched.direccion === '0 0') && rawDir && rawDir !== '0 0') {
+          matched.direccion = rawDir;
+          matched.label = getShortAddress(rawDir);
+        }
+      } else {
+        const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Local Comercial');
+        clusters.push({
+          clusterId: inm.inmueble || `COM-${clusters.length + 1}`,
+          tipo: (inm.tipo || 'COMERCIAL').toUpperCase().includes('IND') ? 'INDUSTRIAL' : 'COMERCIAL',
+          label,
+          direccion: rawDir || viewData.Direccion || 'Naguanagua, Edo. Carabobo',
+          isMultiActivity: false,
+          inmuebles: [inm]
+        });
+      }
+    }
+
+    clusters.forEach(c => {
+      if (c.tipo !== 'RESIDENCIAL' && c.inmuebles.length >= 2) {
+        c.isMultiActivity = true;
+      }
+    });
+
+    const clustersToRender = clusters.length > 0 ? clusters : [{
+      clusterId: 'Principal',
+      tipo: 'RESIDENCIAL' as const,
+      label: 'Inmueble Principal',
+      direccion: viewData.Direccion || 'Naguanagua',
+      isMultiActivity: false,
+      inmuebles: userInms
+    }];
+
+    const MESES_ABR = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+    const formatPeriodo = (fecha: string | Date | undefined): string => {
+      if (!fecha) return 'N/A';
+      const d = typeof fecha === 'string' ? new Date(fecha) : fecha;
+      if (!isNaN(d.getTime())) {
+        return `${MESES_ABR[d.getMonth()]}-${d.getFullYear()}`;
+      }
+      const parts = String(fecha).split('-');
+      if (parts.length >= 2) {
+        const m = parseInt(parts[1], 10);
+        return `${MESES_ABR[m - 1] || parts[1]}-${parts[0]}`;
+      }
+      return String(fecha);
+    };
 
     const today = new Date();
     const tasaVigente = today.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const cajero = typeof window !== 'undefined' ? (localStorage.getItem('adminUser') || 'Administrador') : 'Administrador';
 
-    // Si hay múltiples inmuebles → 1 PDF por inmueble (estados de cuenta separados)
-    // Si hay 1 solo inmueble → 1 PDF con todos los meses pendientes
-    // Función que filtra las recibos para cada inmueble por código en la referencia
-    const getFacturasParaInmueble = (inm: any, allDeudas: any[], totalInms: number): any[] => {
-      if (totalInms <= 1) return allDeudas;
-      return allDeudas.filter(f => {
-        if (!f.referencia) return true;
-        if (f.referencia.startsWith('CM-')) {
-          const match = f.referencia.match(/(I-\d+|C-\d+)/);
-          if (match) {
-            const refId = match[0];
-            return inm.inmueble === refId || inm.cod_cont === refId || (inm as any).Inmueble === refId;
-          }
-        }
-        return true;
-      });
-    };
-
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-    let pageAdded = false;
+    let pageCount = 0;
 
-    for (let idx = 0; idx < inmsToProcess.length; idx++) {
-      const inm = inmsToProcess[idx];
-      // Obtener recibos de este inmueble
-      const inmDeudas = getFacturasParaInmueble(inm, deudas, inmsToProcess.length);
-      // Si hay múltiples inmuebles y este no tiene recibos, skip
-      if (inmsToProcess.length > 1 && inmDeudas.length === 0) continue;
+    for (let clusterIdx = 0; clusterIdx < clustersToRender.length; clusterIdx++) {
+      const cluster = clustersToRender[clusterIdx];
+      const esRes = cluster.tipo === 'RESIDENCIAL';
 
-      if (pageAdded) doc.addPage();
-      pageAdded = true;
+      // Facturas asociadas a los inmuebles de este cluster
+      const clusterInmCodes = cluster.inmuebles.map((i: any) => (i.inmueble || '').toUpperCase()).filter(Boolean);
+      const clusterCodConts = cluster.inmuebles.map((i: any) => (i.cod_cont || '').toUpperCase()).filter(Boolean);
+
+      let clusterDeudas = deudas.filter((f: any) => {
+        if (!f.referencia) return true;
+        const ref = f.referencia.toUpperCase();
+        return clusterInmCodes.some((code: string) => ref.includes(code)) ||
+               clusterCodConts.some((cc: string) => ref.includes(cc));
+      });
+
+      if (clustersToRender.length === 1 && clusterDeudas.length === 0) {
+        clusterDeudas = deudas;
+      }
+
+      // Si no hay facturas pero hay meses de deuda en el inmueble
+      const maxInmMes = Math.max(0, ...cluster.inmuebles.map((i: any) => parseInt(String(i.meses_deuda || 0), 10)));
+      const numMesesTotal = Math.max(clusterDeudas.length, maxInmMes);
+
+      // Calcular montos mensuales base de este cluster
+      const baseMensualLocal = cluster.inmuebles.reduce((sum: number, inm: any) => {
+        return sum + calcularMensualidad(inm, tcmmv);
+      }, 0);
+      const ivaMensualLocal = esRes ? 0 : (baseMensualLocal * 0.16);
+      const totalMensualLocal = baseMensualLocal + ivaMensualLocal;
+
+      // REGLA OFICIAL: El último mes de la factura es SIN MULTA.
+      // Meses 1 a N-1 acumulan recargo por mora (10% residencial / 12% comercial).
+      // Mes N acumula 0 multa.
+      const mesesConMulta = Math.max(0, numMesesTotal - 1);
+      const moraTasa = esRes ? 0.10 : 0.12;
+      const multaMensualLocal = baseMensualLocal * moraTasa;
+
+      const subtotalBaseLocal = baseMensualLocal * numMesesTotal;
+      const subtotalIvaLocal = ivaMensualLocal * numMesesTotal;
+      const subtotalMultasLocal = multaMensualLocal * mesesConMulta;
+
+      const serviciosPendientes = (clusterIdx === 0)
+        ? viewServiciosEsp.filter((s: any) => s.estado !== 'Pagado')
+        : [];
+      const totalServiciosBs = serviciosPendientes.reduce((a: number, s: any) => a + (parseFloat(s.monto) || 0), 0);
+
+      const totalPagarLocal = subtotalBaseLocal + subtotalIvaLocal + subtotalMultasLocal + totalServiciosBs;
+
+      // Determinar fechas de período
+      let periodoDesde = 'N/A';
+      let periodoHasta = 'N/A';
+      let penultimoPeriodo = 'N/A';
+
+      if (clusterDeudas.length > 0) {
+        periodoDesde = formatPeriodo(clusterDeudas[0].emision);
+        periodoHasta = formatPeriodo(clusterDeudas[clusterDeudas.length - 1].emision);
+        if (clusterDeudas.length > 1) {
+          penultimoPeriodo = formatPeriodo(clusterDeudas[clusterDeudas.length - 2].emision);
+        }
+      } else if (numMesesTotal > 0) {
+        const dIni = new Date(today.getFullYear(), today.getMonth() - numMesesTotal + 1, 1);
+        const dFin = new Date(today.getFullYear(), today.getMonth(), 1);
+        const dPen = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        periodoDesde = formatPeriodo(dIni);
+        periodoHasta = formatPeriodo(dFin);
+        penultimoPeriodo = formatPeriodo(dPen);
+      }
+
+      // Si hay más de un cluster y este está 100% solvente y no es el único con deuda, omitir
+      if (clustersToRender.length > 1 && totalPagarLocal <= 0.01 && !clustersToRender.every(c => Math.max(0, ...c.inmuebles.map((i: any) => parseInt(i.meses_deuda || 0))) === 0)) {
+        continue;
+      }
+
+      if (pageCount > 0) doc.addPage();
+      pageCount++;
 
       const docNro = Math.floor(10000 + Math.random() * 90000);
 
-      // ── LOGO IAMEC Naguanagua (solo IAMEC Naguanagua, lado izquierdo) ──
+      // ── LOGO IAMEC Naguanagua (lado izquierdo) ──
       try { doc.addImage(logos.iamec, 'PNG', 14, 8, 42, 22); } catch(e) {}
 
       // ── TÍTULO ──
-      doc.setFontSize(20);
+      doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('ESTADO DE CUENTA', 105, 16, { align: 'center' });
-      doc.setFontSize(9);
+      doc.text('ESTADO DE CUENTA', 105, 15, { align: 'center' });
+
+      doc.setFontSize(8.5);
+      if (cluster.isMultiActivity) {
+        doc.setTextColor(30, 64, 175);
+        doc.text('LOCAL COMERCIAL UNIFICADO — MÚLTIPLES ACTIVIDADES ECONÓMICAS', 105, 20, { align: 'center' });
+      } else if (esRes) {
+        doc.setTextColor(5, 150, 105);
+        doc.text('USO RESIDENCIAL (EXENTO DE IVA)', 105, 20, { align: 'center' });
+      } else {
+        doc.setTextColor(71, 85, 105);
+        doc.text('USO COMERCIAL', 105, 20, { align: 'center' });
+      }
+
+      doc.setFontSize(8);
       doc.setTextColor(220, 38, 38);
-      doc.text(`TASA VIGENTE HASTA: ${tasaVigente}`, 105, 23, { align: 'center' });
+      doc.text(`TASA VIGENTE HASTA: ${tasaVigente}`, 105, 25, { align: 'center' });
       doc.setTextColor(0, 0, 0);
 
-      // ── LÍNEA ──
+      // ── METADATA & LÍNEA ──
       doc.setLineWidth(0.3);
-      doc.line(14, 36, 196, 36);
-
-      // ── GENERADO POR / NRO ──
-      doc.setFontSize(9);
+      doc.line(14, 28, 196, 28);
+      doc.setFontSize(7.5);
       doc.setFont('helvetica', 'italic');
-      doc.text(`Generado por: ${cajero}`, 14, 38);
+      doc.text(`Generado por: ${cajero}`, 14, 32);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Nro.: ${docNro}`, 196, 38, { align: 'right' });
+      doc.text(`Página ${clusterIdx + 1} de ${clustersToRender.length}   |   Nro.: ${docNro}`, 196, 32, { align: 'right' });
+      doc.line(14, 34, 196, 34);
 
-      // ── LÍNEA ──
-      doc.line(14, 41, 196, 41);
-
-      // ── DATOS DEL INMUEBLE ──
-      const uso = inm.clasificacion || inm.tipo || 'Residencial';
-      const area = inm.area ? `${inm.area} Mt2` : '—';
-      const codInm = inm.inmueble || 'Principal';
-
-      doc.setFontSize(9);
+      // ── DATOS DEL CONTRIBUYENTE Y LOCAL ──
+      let y = 39;
+      doc.setFontSize(8.5);
       doc.setFont('helvetica', 'normal');
-      doc.text('Código:', 14, 47);
+      doc.text('Contribuyente:', 14, y);
       doc.setFont('helvetica', 'bold');
-      doc.text(codInm, 30, 47);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Uso:', 65, 47);
-      doc.setFont('helvetica', 'bold');
-      doc.text(uso, 76, 47);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Área Operativa:', 115, 47);
-      doc.setFont('helvetica', 'bold');
-      doc.text(area, 142, 47);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Identidad:', 162, 47);
-      doc.setFont('helvetica', 'bold');
-      doc.text(viewData.Identidad, 180, 47);
+      doc.text(String(viewData.Contribuyente || '').slice(0, 48), 38, y);
 
-      // ── NOMBRE / RAZÓN SOCIAL ──
       doc.setFont('helvetica', 'normal');
-      doc.text('Nombre o Razón Social:', 14, 54);
+      doc.text('R.I.F. / C.I.:', 145, y);
       doc.setFont('helvetica', 'bold');
-      doc.text(viewData.Contribuyente || '', 62, 54);
+      doc.text(viewData.Identidad || '', 165, y);
+      y += 5;
 
-      // ── DIRECCIÓN ──
+      if (cluster.isMultiActivity) {
+        const codigosList = cluster.inmuebles.map((i: any) => i.inmueble).filter(Boolean).join(', ');
+        doc.setFont('helvetica', 'normal');
+        doc.text('Códigos Inmuebles:', 14, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(codigosList, 45, y);
+
+        doc.setFont('helvetica', 'normal');
+        doc.text('Actividades:', 145, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${cluster.inmuebles.length} Actividades`, 165, y);
+        y += 5;
+      } else {
+        const inmSingle = cluster.inmuebles[0];
+        doc.setFont('helvetica', 'normal');
+        doc.text('Código Inmueble:', 14, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(inmSingle.inmueble || 'Principal', 40, y);
+
+        doc.setFont('helvetica', 'normal');
+        doc.text('Uso / Clasificación:', 95, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(inmSingle.actividad_principal || inmSingle.clasificacion || inmSingle.tipo || '').slice(0, 36), 125, y);
+        y += 5;
+      }
+
+      const dirStr = cluster.direccion || viewData.Direccion || 'Naguanagua, Edo. Carabobo';
+      const splitDir = doc.splitTextToSize(`Dirección Local/Inmueble: ${dirStr}`, 182);
       doc.setFont('helvetica', 'normal');
-      const dirInm = inm.direccion || viewData.Direccion || '';
-      const splitDir = doc.splitTextToSize(`Dirección Inmueble: ${dirInm}`, 182);
-      doc.text(splitDir, 14, 60);
+      doc.text(splitDir, 14, y);
+      y += (splitDir.length * 4) + 2;
 
-      let y = 60 + splitDir.length * 5 + 4;
-
-      // ── LÍNEA ──
+      doc.setDrawColor(210, 210, 210);
       doc.line(14, y, 196, y);
-      y += 6;
+      doc.setDrawColor(0, 0, 0);
+      y += 4;
+
+      // ── TABLA DE ACTIVIDADES ECONÓMICAS (SI ES LOCAL CON 2 O MÁS ACTIVIDADES) ──
+      // "si son de un local que tenga 2 actividades economicas o mas tiene que ser en una hoja compartida
+      // del estado de cuenta y que detalle cada actividad economica"
+      if (cluster.isMultiActivity) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(30, 64, 175);
+        doc.text('DETALLE DE ACTIVIDADES ECONÓMICAS DEL LOCAL', 105, y, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        y += 2;
+
+        const actRows = cluster.inmuebles.map((inm: any) => {
+          const actName = inm.actividad_principal || 'Actividad Comercial';
+          const fo = inm.mmv_mes ? parseFloat(inm.mmv_mes) : getFO(actName, false);
+          const bMes = calcularMensualidad(inm, tcmmv);
+          const iMes = bMes * 0.16;
+          const tMes = bMes + iMes;
+          return [
+            inm.inmueble || '—',
+            actName,
+            fo.toFixed(2),
+            `Bs. ${bMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${iMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${tMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          ];
+        });
+
+        autoTable(doc, {
+          startY: y,
+          head: [['CÓDIGO', 'ACTIVIDAD ECONÓMICA', 'F.O.', 'BASE MES (Bs.)', 'IVA 16% (Bs.)', 'TOTAL MES (Bs.)']],
+          body: actRows,
+          foot: [[
+            'TOTAL MENSUAL UNIFICADO DEL LOCAL', '', '',
+            `Bs. ${baseMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${ivaMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${totalMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          ]],
+          theme: 'grid',
+          headStyles: {
+            fillColor: [239, 246, 255], textColor: [30, 64, 175],
+            fontStyle: 'bold', lineColor: [191, 219, 254], lineWidth: 0.2, halign: 'center', fontSize: 7.5
+          },
+          footStyles: {
+            fillColor: [241, 245, 249], textColor: [15, 23, 42],
+            fontStyle: 'bold', lineColor: [203, 213, 225], lineWidth: 0.2, fontSize: 7.5
+          },
+          styles: { fontSize: 7, cellPadding: 1.5 },
+          columnStyles: {
+            0: { cellWidth: 24, fontStyle: 'bold' },
+            1: { cellWidth: 70 },
+            2: { cellWidth: 16, halign: 'center' },
+            3: { cellWidth: 24, halign: 'right' },
+            4: { cellWidth: 24, halign: 'right' },
+            5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
+          }
+        });
+
+        y = (doc as any).lastAutoTable.finalY + 4;
+      }
 
       // ── ESTADO DE CUENTA RESUMIDO ──
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
+      doc.setFontSize(9);
       doc.text('ESTADO DE CUENTA RESUMIDO', 105, y, { align: 'center' });
       y += 2;
       doc.line(14, y, 196, y);
-      y += 6;
-
-      // Recibos filtradas para este inmueble específico
-      const inmRecibos = inmDeudas;
-
-      // Monto usando tcmmv para recibos CM- y descontando Por Verificar
-      const calcMonto = (f: any): number => {
-        if (f.estado === 'Abonado') return parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
-        let baseMonto = parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
-        if (f.referencia?.startsWith('CM-') && tcmmv && tcmmv > 0) {
-          const cant = parseFloat(inm.cant_inmuebles || 1);
-          const mmv = parseFloat(inm.mmv_mes || 0);
-          if (mmv > 0) {
-            const esRes = isResidencialInm(inm);
-            const ucdMult = esRes ? (57 * getFAR(inm.actividad_principal || '')) : (57 * 0.128);
-            baseMonto = parseFloat((cant * mmv * ucdMult * tcmmv).toFixed(2));
-          }
-        }
-        
-        // Descontar pagos Por Verificar
-        let montoPendiente = 0;
-        viewPagos.filter((p: any) => p.estado === 'Por Verificar').forEach((p: any) => {
-          let det: any = {};
-          try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch(e){}
-          const refs: string[] = det.recibos || [];
-          if (refs.includes(f.referencia)) {
-            const montoPago = parseFloat(String(p.monto || '0').replace(/[^\d.]/g, '')) || 0;
-            if (refs.length > 0) montoPendiente += (montoPago / refs.length);
-          }
-        });
-        
-        return Math.max(0, baseMonto - montoPendiente);
-      };
-
-      let totalInm = inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0);
-      
-      const serviciosPendientes = viewServiciosEsp.filter((s: any) => s.estado !== 'Pagado');
-      const totalServiciosBs = serviciosPendientes.reduce((a: number, s: any) => a + (parseFloat(s.monto) || 0), 0);
-      
-      if (idx === 0) {
-        totalInm += totalServiciosBs;
-      }
-      
-      const mesesArr = [...new Set(inmRecibos.map((f: any) => getMesTexto(f.emision)))];
-      const periodosLabel = mesesArr.join(', ') || '—';
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-
-      const resumenRows = [
-        [`Períodos Calculados (${inmRecibos.length}):`, periodosLabel],
-        ['Monto Recolección Aseo Urbano Bs.', `Bs. ${inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`],
-      ];
-      
-      if (idx === 0 && totalServiciosBs > 0) {
-        resumenRows.push(['Monto Servicios Especiales Bs.', `Bs. ${totalServiciosBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`]);
-      }
-      
-      const esRes = isResidencialInm(inm);
-      const baseRecoleccion = inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0);
-      const baseImponible = esRes ? 0 : baseRecoleccion;
-      const ivaBs = esRes ? 0 : baseImponible * 0.16;
-      const totalExento = esRes ? totalInm : (idx === 0 ? totalServiciosBs : 0);
-      const totalEstadoCuenta = baseImponible + ivaBs + totalExento;
-
-      resumenRows.push(
-        ['Total Exento Bs.', `Bs. ${totalExento.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`],
-        ['Base Imponible Bs.', `Bs. ${baseImponible.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`],
-        ['IVA (16.00%) Bs.', `Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`],
-        ['Total estado de cuenta Bs.', `Bs. ${totalEstadoCuenta.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`]
-      );
-
-      resumenRows.forEach(([label, value]) => {
-        doc.setFont('helvetica', 'normal');
-        doc.text(label, 14, y);
-        doc.setFont('helvetica', 'bold');
-        doc.text(value, 196, y, { align: 'right' });
-        y += 6;
-      });
-
-      // ── LÍNEA ──
-      doc.line(14, y, 196, y);
-      y += 6;
-
-      // ── TOTAL A PAGAR ──
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text('TOTAL A PAGAR', 14, y);
-      doc.text(`Bs. ${totalEstadoCuenta.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`, 196, y, { align: 'right' });
-      y += 2;
-      doc.line(14, y, 196, y);
-      y += 8;
-
-      // ── ESTADO DE CUENTA DETALLADO ──
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('ESTADO DE CUENTA DETALLADO', 105, y, { align: 'center' });
       y += 4;
 
-      const detalleRows = inmRecibos.map((f: any) => {
-        const monto = calcMonto(f);
-        const det = inm.actividad_principal
-          ? `Aseo ${inm.actividad_principal}`
-          : 'Aseo residencial';
-        return [
-          f.emision || '—',
-          det,
-          monto.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
-          '0,00', '0,00', '0,00',
-          monto.toLocaleString('es-VE', { minimumFractionDigits: 2 })
-        ];
+      const resumenRows: Array<[string, string]> = [
+        [`Períodos Calculados (${numMesesTotal} meses):`, numMesesTotal > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Solvente / Al Día'],
+        ['Monto Recolección Aseo Urbano Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      ];
+
+      if (clusterIdx === 0 && totalServiciosBs > 0) {
+        resumenRows.push(['Monto Servicios Especiales Bs.:', `Bs. ${totalServiciosBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      }
+
+      if (esRes) {
+        resumenRows.push(
+          ['Total Exento de IVA Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['Base Imponible Bs.:', 'Bs. 0,00'],
+          ['IVA (0.00%) Bs.:', 'Bs. 0,00'],
+          ['Recargos por Mora (10% - Último mes sin multa) Bs.:', `Bs. ${subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+        );
+      } else {
+        resumenRows.push(
+          ['Total Exento Bs.:', `Bs. ${(clusterIdx === 0 ? totalServiciosBs : 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['Base Imponible Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['IVA (16.00%) Bs.:', `Bs. ${subtotalIvaLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['Recargos por Mora (12% - Último mes sin multa) Bs.:', `Bs. ${subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+        );
+      }
+
+      resumenRows.push(['Total Estado de Cuenta Bs.:', `Bs. ${totalPagarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+
+      doc.setFontSize(8);
+      resumenRows.forEach(([lbl, val]) => {
+        doc.setFont('helvetica', 'normal');
+        doc.text(lbl, 14, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(val, 196, y, { align: 'right' });
+        y += 4.5;
       });
 
-      if (idx === 0 && serviciosPendientes.length > 0) {
+      doc.line(14, y, 196, y);
+      y += 5;
+
+      // ── TOTAL A PAGAR HIGHLIGHT ──
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 38, 38);
+      doc.text('TOTAL A PAGAR', 14, y);
+      doc.text(`Bs. ${totalPagarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, y, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      y += 2;
+      doc.line(14, y, 196, y);
+      y += 5;
+
+      // ── ESTADO DE CUENTA DETALLADO (COMPACTO PARA EVITAR LISTAS LARGAS) ──
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.text('ESTADO DE CUENTA DETALLADO', 105, y, { align: 'center' });
+      y += 3;
+
+      const detalleRows: any[] = [];
+
+      if (numMesesTotal === 0) {
+        detalleRows.push([
+          tasaVigente,
+          'Solvente — No posee períodos de mora pendientes',
+          '0,00', '0,00', '0,00', '0,00'
+        ]);
+      } else if (numMesesTotal <= 6) {
+        // Listar individualmente si son pocos meses
+        for (let i = 1; i <= numMesesTotal; i++) {
+          const isUltimo = (i === numMesesTotal);
+          const mesMora = isUltimo ? 0 : multaMensualLocal;
+          const mesTotal = baseMensualLocal + ivaMensualLocal + mesMora;
+          let labelMes = `Mes ${i}`;
+          if (clusterDeudas[i - 1]?.emision) {
+            labelMes = formatPeriodo(clusterDeudas[i - 1].emision);
+          } else {
+            const d = new Date(today.getFullYear(), today.getMonth() - numMesesTotal + i - 1, 1);
+            labelMes = formatPeriodo(d);
+          }
+
+          detalleRows.push([
+            labelMes,
+            isUltimo ? 'Aseo Urbano (Último período - Sin Multa)' : `Aseo Urbano (Mora ${esRes ? '10%' : '12%'})`,
+            baseMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            mesMora.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            ivaMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            mesTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          ]);
+        }
+      } else {
+        // "para que no salga esa lista tan larga":
+        // Consolidar período histórico (Meses 1 a N-1) y detallar el último mes sin multa
+        const histBase = baseMensualLocal * mesesConMulta;
+        const histMulta = multaMensualLocal * mesesConMulta;
+        const histIva = ivaMensualLocal * mesesConMulta;
+        const histTotal = histBase + histMulta + histIva;
+
+        const ultBase = baseMensualLocal;
+        const ultMulta = 0;
+        const ultIva = ivaMensualLocal;
+        const ultTotal = ultBase + ultIva;
+
+        detalleRows.push([
+          `${periodoDesde} a ${penultimoPeriodo}`,
+          `Período Acumulado (${mesesConMulta} Meses con Recargo por Mora)`,
+          histBase.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          histMulta.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          histIva.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          histTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        ]);
+
+        detalleRows.push([
+          periodoHasta,
+          'Último Período Facturado — EXONERADO DE MULTA',
+          ultBase.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          '0,00',
+          ultIva.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          ultTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        ]);
+      }
+
+      if (clusterIdx === 0 && serviciosPendientes.length > 0) {
         const TIPO_LABEL: any = { 'tala_poda': 'Tala y Poda', 'especial': 'Serv. Especial', 'visto_bueno': 'Visto Bueno', 'inspeccion': 'Inspección', 'extraordinario': 'Serv. Extraordinario' };
         serviciosPendientes.forEach((s: any) => {
-          const montoServicio = parseFloat(s.monto) || 0;
+          const mServ = parseFloat(s.monto) || 0;
           detalleRows.push([
-            s.fecha ? s.fecha.replace(/-/g, '-') : '—',
-            (TIPO_LABEL[s.tipo] || 'Serv. Especial') + ': ' + (s.descripcion || ''),
-            montoServicio.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
-            '0,00', '0,00', '0,00',
-            montoServicio.toLocaleString('es-VE', { minimumFractionDigits: 2 })
+            s.fecha ? formatPeriodo(s.fecha) : '—',
+            `${TIPO_LABEL[s.tipo] || 'Serv. Especial'}: ${s.descripcion || ''}`,
+            mServ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            '0,00', '0,00',
+            mServ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
           ]);
         });
       }
 
-      try {
-        autoTable(doc, {
-          startY: y,
-          head: [['PERIODO', 'DETALLE', 'RECOLECCIÓN', 'INT REC', 'MULTA', 'IVA', 'TOTAL BS']],
-          body: detalleRows,
-          theme: 'grid',
-          headStyles: {
-            fillColor: [255, 255, 255], textColor: [0, 0, 0],
-            fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.3, halign: 'center'
-          },
-          styles: { fontSize: 8, cellPadding: 2 },
-          columnStyles: {
-            0: { cellWidth: 25 },
-            1: { cellWidth: 48 },
-            2: { halign: 'right' },
-            3: { halign: 'right' },
-            4: { halign: 'right' },
-            5: { halign: 'right' },
-            6: { halign: 'right', fontStyle: 'bold' }
-          }
-        });
-        y = (doc as any).lastAutoTable.finalY + 8;
-      } catch(e) {}
+      autoTable(doc, {
+        startY: y,
+        head: [['PERÍODO', 'DETALLE / CONCEPTO', 'RECOLECCIÓN (Bs)', 'MORA / MULTA (Bs)', 'IVA (Bs)', 'TOTAL BS']],
+        body: detalleRows,
+        foot: [[
+          'TOTALES',
+          `${numMesesTotal} Meses Facturados`,
+          subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          subtotalIvaLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          totalPagarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        ]],
+        theme: 'grid',
+        headStyles: {
+          fillColor: [248, 250, 252], textColor: [15, 23, 42],
+          fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, halign: 'center', fontSize: 7.5
+        },
+        footStyles: {
+          fillColor: [241, 245, 249], textColor: [15, 23, 42],
+          fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, fontSize: 7.5
+        },
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        columnStyles: {
+          0: { cellWidth: 26, fontStyle: 'bold' },
+          1: { cellWidth: 64 },
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right' },
+          5: { halign: 'right', fontStyle: 'bold' }
+        }
+      });
+
+      y = (doc as any).lastAutoTable.finalY + 5;
 
       // ── INFORMACIÓN DE PAGO ──
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.text('INFORMACIÓN PARA PAGOS Y TRANSFERENCIAS', 105, y, { align: 'center' });
-      y += 4;
+      y += 2;
       doc.line(14, y, 196, y);
-      y += 5;
+      y += 4;
       doc.setFont('helvetica', 'normal');
-      doc.text('Banco:  BANESCO (0134)', 14, y);
-      y += 5;
-      doc.text('Cta:    01340415144151031715', 14, y);
-      y += 6;
+      doc.setFontSize(7.5);
+      doc.text('Banco: BANESCO (0134)   |   Cta. Corriente: 01340415144151031715', 14, y);
+      y += 3.5;
       doc.setFont('helvetica', 'italic');
-      doc.text('Pagos a nombre de: INST SOC MUN PARA EL AMBIENTE R.I.F.: G-200076739', 14, y);
-      // ── NOTA DE VIGENCIA DE TASA (PIE DE PÁGINA) ──
-      y += 10;
-      doc.setLineWidth(0.3);
+      doc.text('Beneficiario: INST SOC MUN PARA EL AMBIENTE (IAMEC)   |   R.I.F.: G-200076739', 14, y);
+      y += 4.5;
+
+      // ── AVISO DE VIGENCIA DE TASA ──
+      doc.setLineWidth(0.2);
       doc.setDrawColor(220, 38, 38);
       doc.line(14, y, 196, y);
-      y += 5;
+      y += 3.5;
       doc.setDrawColor(0, 0, 0);
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.setFont('helvetica', 'bolditalic');
       doc.setTextColor(220, 38, 38);
-      doc.text('IMPORTANTE: Los montos indicados en este estado de cuenta son validos UNICAMENTE para la fecha de emision del presente documento.', 105, y, { align: 'center' });
-      y += 5;
-      doc.text('La tasa de cambio BCV varia diariamente. Para cancelar en una fecha posterior, solicite un nuevo estado de cuenta actualizado.', 105, y, { align: 'center' });
+      doc.text('IMPORTANTE: Los montos indicados en este estado de cuenta son válidos ÚNICAMENTE para la fecha de emisión del presente documento.', 105, y, { align: 'center' });
+      y += 3.5;
+      doc.text('La tasa de cambio oficial BCV varía periódicamente. Para cancelar en fecha posterior, solicite un nuevo estado de cuenta actualizado.', 105, y, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
-    } // end for
+    } // fin loop clusters
 
-    // Save only ONCE for all inmuebles (as requested by user to prevent multi-downloads)
-    if (pageAdded) {
+    if (pageCount > 0) {
       doc.save(`Estado_Cuenta_${viewData.Identidad}_${Date.now()}.pdf`);
     }
   };
@@ -2720,13 +2985,23 @@ function ContribuyentesPageContent() {
 
                     return (
                       <div>
-                        <div className="p-4 bg-white border-b border-slate-100 flex justify-between items-center">
-                          <span className="font-semibold text-slate-600">Monto Total Adeudado:</span>
-                          <span className="text-xl font-black text-red-600">Bs. {totalBs.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                        <div className="p-4 bg-white border-b border-slate-100 flex flex-wrap justify-between items-center gap-2">
+                          <div>
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Monto Total Adeudado</span>
+                            <span className="text-xl font-black text-red-600">Bs. {totalBs.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-bold border border-slate-200">
+                              {deudas.length} {deudas.length === 1 ? 'período' : 'períodos'}
+                            </span>
+                            <span className="bg-emerald-50 text-emerald-700 text-xs px-2.5 py-1 rounded-full font-bold border border-emerald-200">
+                              Último mes sin multa
+                            </span>
+                          </div>
                         </div>
-                        <div className="bg-slate-50">
+                        <div className="bg-slate-50 max-h-[300px] overflow-y-auto border-t border-slate-200">
                           <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-100 text-slate-500 font-medium text-[10px] uppercase">
+                            <thead className="bg-slate-100 text-slate-500 font-medium text-[10px] uppercase sticky top-0 z-10 shadow-xs">
                               <tr>
                                 <th className="px-4 py-2">Referencia</th>
                                 <th className="px-4 py-2">Mes</th>
@@ -2743,11 +3018,18 @@ function ContribuyentesPageContent() {
                                   const parts = d.emision.split('-');
                                   if (parts.length >= 2) mesLabel = `${MESES[parseInt(parts[1])-1] || parts[1]} ${parts[0]}`;
                                 }
-                                const montoNum = parseFloat(String(d.monto || '0').replace(/[^\d.]/g, '')) || 0;
+                                const isUltimo = (idx === deudas.length - 1);
                                 return (
-                                  <tr key={idx} className="border-b border-slate-100 last:border-0 bg-white group">
+                                  <tr key={idx} className="border-b border-slate-100 last:border-0 bg-white group hover:bg-slate-50/80">
                                     <td className="px-4 py-2 font-medium text-slate-700 text-xs">{d.referencia}</td>
-                                    <td className="px-4 py-2 text-slate-700 font-semibold text-xs whitespace-nowrap">{mesLabel}</td>
+                                    <td className="px-4 py-2 text-slate-700 font-semibold text-xs whitespace-nowrap">
+                                      {mesLabel}
+                                      {isUltimo && (
+                                        <span className="ml-2 text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                          Sin Multa
+                                        </span>
+                                      )}
+                                    </td>
                                     <td className="px-4 py-2">
                                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${d.estado === 'Por Verificar' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                         {d.estado || 'Pendiente'}
@@ -2775,6 +3057,12 @@ function ContribuyentesPageContent() {
                             </tbody>
                           </table>
                         </div>
+                        {deudas.length > 8 && (
+                          <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-500 flex justify-between items-center">
+                            <span>Mostrando lista de {deudas.length} períodos. Desplace la tabla para ver todos los meses.</span>
+                            <span className="font-semibold text-slate-600">La exportación a PDF se genera de forma compacta y por inmueble</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
