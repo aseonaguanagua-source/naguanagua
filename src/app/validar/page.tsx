@@ -59,12 +59,12 @@ function ValidarContent() {
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-10">
-          <div className="flex justify-center gap-4 mb-6">
-            <div className="relative w-24 h-24">
-              <Image src="/logos/basura_cero.jpg" alt="Logo IAMEC Naguanagua" fill className="object-contain" />
+          <div className="flex justify-center items-center gap-6 mb-6">
+            <div className="relative w-24 h-20">
+              <Image src="/logos/alcaldia.png" alt="Alcaldía Bolivariana de Naguanagua" fill className="object-contain" />
             </div>
-            <div className="relative w-24 h-24">
-              <Image src="/logos/global_rec.jpg" alt="Logo Global Rec" fill className="object-contain" />
+            <div className="relative w-24 h-20">
+              <Image src="/logos/IAMEC.png" alt="Instituto Autónomo Municipal de Ecosocialismo (IAMEC)" fill className="object-contain" />
             </div>
           </div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight sm:text-4xl">

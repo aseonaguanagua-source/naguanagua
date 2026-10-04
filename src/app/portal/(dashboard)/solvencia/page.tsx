@@ -299,17 +299,12 @@ export default function SolvenciaPage() {
                   </p>
                 </div>
 
-                {/* Logo IAMEC y Global Rec Derecha */}
-                <div className="w-24 sm:w-28 flex-shrink-0 flex items-center justify-center gap-2">
+                {/* Logo IAMEC Derecha (Exclusivamente institucional) */}
+                <div className="w-24 sm:w-28 flex-shrink-0 flex items-center justify-end">
                   <img 
                     src="/logos/IAMEC.png" 
-                    alt="IAMEC" 
-                    className="max-h-16 max-w-[55px] object-contain"
-                  />
-                  <img 
-                    src="/logos/logo_global_rec.png" 
-                    alt="Global Rec" 
-                    className="max-h-14 max-w-[50px] object-contain"
+                    alt="Instituto Autónomo Municipal de Ecosocialismo - IAMEC" 
+                    className="max-h-20 max-w-[85px] object-contain"
                   />
                 </div>
               </div>

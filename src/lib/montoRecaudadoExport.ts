@@ -23,7 +23,7 @@ export const exportMontoRecaudadoExcel = async (
   };
 
   addLogo(logos.alcaldia, 0.5, 0.5, 150, 90);
-  addLogo(logos.global_rec, 7, 0.5, 120, 50);
+  addLogo(logos.iamec, 7, 0.5, 120, 50);
 
   for (let i = 0; i < 5; i++) {
     worksheet.addRow([]);

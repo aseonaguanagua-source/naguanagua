@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import React from 'react';
 import { formatBs } from '@/lib/formatCurrency';
 
@@ -159,23 +159,25 @@ function ReciboContenido({
       width: '100%',
     }}>
 
-      {/* ── ENCABEZADO ── */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom: B, padding:'3px 6px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+      {/* ── ENCABEZADO OFICIAL MUNICIPAL ── */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom: B, padding:'4px 8px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logos/global_rec.jpg" alt="" style={{ width:30, height:30, objectFit:'contain' }} />
+          <img src="/logos/alcaldia.png" alt="Alcaldía de Naguanagua" style={{ width:36, height:36, objectFit:'contain' }} />
           <div>
-            <div style={{ fontWeight:'bold', fontSize:8, lineHeight:1.2 }}>
-              INSTITUTO SOCIALISTA MUNICIPAL PARA EL AMBIENTE (I.S.M.A)
+            <div style={{ fontWeight:'bold', fontSize:8.5, lineHeight:1.2, color:'#064e3b' }}>
+              ALCALDÍA BOLIVARIANA DE NAGUANAGUA
             </div>
-            <div style={{ fontSize:7, lineHeight:1.2 }}>
-              AV LIBERTADOR CC GRILL NIVEL 01 OF 03 BARRIO LIBERTADOR TUCACAS FALCON 2054
+            <div style={{ fontWeight:'bold', fontSize:7.5, lineHeight:1.2 }}>
+              INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO (IAMEC)
             </div>
-            <div style={{ fontSize:7.5, fontWeight:'bold' }}>RIF: G-200076739</div>
+            <div style={{ fontSize:7, lineHeight:1.2, color:'#475569' }}>
+              ESTADO CARABOBO · RIF: G-20012028-2 · GESTIÓN INTEGRAL DE RESIDUOS
+            </div>
           </div>
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logos/basura_cero.jpg" alt="" style={{ width:60, height:22, objectFit:'contain' }} />
+        <img src="/logos/IAMEC.png" alt="IAMEC" style={{ width:50, height:28, objectFit:'contain' }} />
       </div>
 
       {/* ── TÍTULO ── */}

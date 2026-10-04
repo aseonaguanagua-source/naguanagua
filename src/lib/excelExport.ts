@@ -27,7 +27,6 @@ export const exportToExcelWithLogos = async (
 
   addLogo(logos.alcaldia, 0, 0, 100, 100);
   addLogo(logos.iamec, 2, 0, 100, 100);
-  addLogo(logos.global_rec, 4, 0, 100, 100);
   
 
   for (let i = 0; i < 6; i++) {
