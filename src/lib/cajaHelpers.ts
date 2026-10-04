@@ -56,6 +56,18 @@ export const getUserInmuebles = (
 
   const fid = (foundUser.Identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
 
+  // Si se buscó por código específico, filtrar estrictamente para devolver únicamente ese inmueble y sus hijos
+  const specificCode = (foundUser as any).CodCont || (foundUser as any).cod_cont;
+  const isSearchByCode = (foundUser as any).isSearchByCode;
+  if (isSearchByCode && specificCode) {
+    const sCode = String(specificCode).toUpperCase();
+    return source.filter((i) => {
+      const iCode = String(i.inmueble || '').toUpperCase();
+      const pCode = String((i as any).condominio_padre_id || '').toUpperCase();
+      return iCode === sCode || pCode === sCode;
+    });
+  }
+
   return source.filter((i) => {
     if (isTrueCondo) return true;
     const itemFid = (i.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();

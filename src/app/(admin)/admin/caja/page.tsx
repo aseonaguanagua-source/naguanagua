@@ -358,7 +358,8 @@ export default function CajaPage() {
         SaldoFavor: parseFloat(matchedInm.saldo_favor_bs || '0'),
         Estado: matchedInm.estado || 'Activo',
         condominio_padre_id: matchedInm.condominio_padre_id,
-        es_condominio: matchedInm.es_condominio
+        es_condominio: matchedInm.es_condominio,
+        isSearchByCode: true
       };
     }
 
@@ -386,7 +387,8 @@ export default function CajaPage() {
           SaldoFavor: parseFloat(inmDirect.saldo_favor_bs || '0'),
           Estado: inmDirect.estado || 'Activo',
           condominio_padre_id: inmDirect.condominio_padre_id,
-          es_condominio: inmDirect.es_condominio
+          es_condominio: inmDirect.es_condominio,
+          isSearchByCode: true
         };
       }
     }
@@ -596,7 +598,22 @@ export default function CajaPage() {
 
       // NO combinar con contexto React (puede estar desactualizado tras un pago)
       // Solo usar datos frescos de Supabase
-      const combined = [...(allUserFacturas || []), ...fallbackFacturas];
+      let combined = [...(allUserFacturas || []), ...fallbackFacturas];
+
+      // Si se buscó por código específico, aislar para que solo aparezcan facturas de ESTE inmueble o de sus hijos
+      if (isCodeFormat && (user.CodCont || user.cod_cont)) {
+        const specificCode = String(user.CodCont || user.cod_cont).toUpperCase();
+        const allowedCodes = new Set([
+          specificCode,
+          ...activeInmFresh.map((i: any) => String(i.inmueble || '').toUpperCase())
+        ]);
+        combined = combined.filter((f: any) => {
+          const fInm = String(f.inmueble || '').toUpperCase();
+          if (fInm && allowedCodes.has(fInm)) return true;
+          const ref = String(f.referencia || '').toUpperCase();
+          return Array.from(allowedCodes).some(code => ref.includes(code));
+        });
+      }
       
       // Si no hay recibos, pero tiene inmuebles con deuda_mmv, inyectamos un recibo acumulado dinámico
       // Usar inmuebles frescos para evaluar si hay deuda
@@ -670,7 +687,13 @@ export default function CajaPage() {
       const userConvenioVariants = new Set(userIdentVariants.map(v => v.replace(/-/g, '').toUpperCase()));
       const userConvenios = convenios.filter((c: any) => {
         const idCleanConv = (c.identidad || '').replace(/-/g, '').toUpperCase();
-        return userConvenioVariants.has(idCleanConv) && c.estado === 'Al Día';
+        const matchesUser = userConvenioVariants.has(idCleanConv) && c.estado === 'Al Día';
+        if (!matchesUser) return false;
+        if (isCodeFormat && (user.CodCont || user.cod_cont)) {
+          const specificCode = String(user.CodCont || user.cod_cont).toUpperCase();
+          if (c.inmueble && c.inmueble.toUpperCase() !== specificCode) return false;
+        }
+        return true;
       });
       const pendingCuotas: any[] = [];
       userConvenios.forEach((conv: any) => {
@@ -697,7 +720,16 @@ export default function CajaPage() {
         .select('*')
         .or(facturasOrFilter)
         .eq('estado', 'Pendiente');
-      setServiciosEsp((servEsp || []).filter((s: any) => s.tipo !== 'tala_poda'));
+      
+      const filteredServEsp = (servEsp || []).filter((s: any) => {
+        if (s.tipo === 'tala_poda') return false;
+        if (isCodeFormat && (user.CodCont || user.cod_cont)) {
+          const specificCode = String(user.CodCont || user.cod_cont).toUpperCase();
+          if (s.inmueble && s.inmueble.toUpperCase() !== specificCode) return false;
+        }
+        return true;
+      });
+      setServiciosEsp(filteredServEsp);
 
       // Cargar servicios de tala y poda pendientes
       const { data: talaData } = await supabase
@@ -706,7 +738,15 @@ export default function CajaPage() {
         .or(facturasOrFilter)
         .eq('tipo', 'tala_poda')
         .eq('estado', 'Pendiente');
-      setTalaPoda(talaData || []);
+      
+      const filteredTala = (talaData || []).filter((s: any) => {
+        if (isCodeFormat && (user.CodCont || user.cod_cont)) {
+          const specificCode = String(user.CodCont || user.cod_cont).toUpperCase();
+          if (s.inmueble && s.inmueble.toUpperCase() !== specificCode) return false;
+        }
+        return true;
+      });
+      setTalaPoda(filteredTala);
 
       // Cargar pagos pendientes de verificar para bloquear seleccion
       // Solo 'Por Verificar' bloquea — significa que ya hay una transferencia enviada esperando conciliación
