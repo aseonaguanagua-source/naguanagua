@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
+import { logAudit } from '@/lib/audit';
 import AdminRetenciones from '@/components/AdminRetenciones';
 
 type Pago = {
@@ -573,6 +574,26 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         created_at: new Date().toISOString() // Actualiza para los reportes diarios
       }).eq('id', pago.id);
       if (error) throw error;
+
+      // Auditoría: Registro de conciliación de pago
+      await logAudit(
+        `Pago ${estatus} en Conciliación Bancaria`,
+        {
+          pago_id: pago.id,
+          estatus,
+          identidad: pago.identidad,
+          contribuyente: contribInfo?.nombre || pago.contribuyente,
+          monto_conciliado: montoConciliado,
+          referencia_bancaria: pago.referencia,
+          banco_emisor: bancoEmisor,
+          banco_receptor: bancoReceptor,
+          recibos_afectados: recibos,
+          tasa_aplicada: tasaParaGuardar,
+          observaciones
+        },
+        'CONCILIACION',
+        estatus === 'Aprobado' ? 'ALTA' : 'CRITICA'
+      );
 
       // Aprobado: marcar recibos como Pagado o aplicar abono proporcional
       // Rechazado: devolver los recibos a Pendiente para que puedan pagarse en Caja

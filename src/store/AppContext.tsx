@@ -7,6 +7,7 @@ import { ordenanzaData } from '@/data/ordenanza';
 import { isResidencialInm } from '@/lib/calculos';
 import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
 import { formatPhoneNumber, isFictitiousEmail } from '@/lib/formatters';
+import { logAudit, AuditCategoria, AuditCriticidad } from '@/lib/audit';
 
 type AppState = {
   inmuebles: any[];
@@ -536,20 +537,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadAllData();
   }, []);
 
-  // addAuditLog: migrado a tabla 'auditoria' (sistema unificado)
+  // addAuditLog: integrado con sistema unificado de trazabilidad y auditoría
   const addAuditLog = async (action: string, details: string) => {
     try {
-      const user = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || 'Administrador';
-      const letra = (typeof window !== 'undefined' ? localStorage.getItem('adminLetra') : null);
-      const usuario = letra && user !== 'Administrador' ? `${letra}-${user}` : user;
-      const modulo = (typeof window !== 'undefined') ? window.location.pathname : '';
-      await supabase.from('auditoria').insert([{
-        usuario,
-        accion: action,
-        categoria: 'SISTEMA',
-        modulo,
-        detalles: { _categoria: 'SISTEMA', _modulo: modulo, texto: details },
-      }]);
+      let cat: AuditCategoria = 'SISTEMA';
+      let crit: AuditCriticidad = 'MEDIA';
+      const upper = action.toUpperCase();
+      if (upper.includes('CONTRIBUYENTE') || upper.includes('PREREGISTRO')) {
+        cat = 'CONTRIBUYENTE';
+        crit = (upper.includes('ELIMINAR') || upper.includes('DESACTIVAR')) ? 'CRITICA' : 'MEDIA';
+      } else if (upper.includes('FACTURA') || upper.includes('RECIBO') || upper.includes('FACTURACION')) {
+        cat = 'FACTURACION';
+        crit = upper.includes('MASIVA') ? 'ALTA' : 'MEDIA';
+      } else if (upper.includes('DEUDA') || upper.includes('AJUST')) {
+        cat = 'DEUDA';
+        crit = 'CRITICA';
+      } else if (upper.includes('CENSO')) {
+        cat = 'INMUEBLE';
+        crit = 'MEDIA';
+      }
+      
+      let parsedDetails: Record<string, any> = { texto: details };
+      try {
+        if (typeof details === 'string' && (details.startsWith('{') || details.startsWith('['))) {
+          parsedDetails = JSON.parse(details);
+        }
+      } catch (_) {}
+
+      await logAudit(action, parsedDetails, cat, crit);
     } catch (e) {
       console.error('addAuditLog error:', e);
     }

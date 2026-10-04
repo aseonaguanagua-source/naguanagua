@@ -557,6 +557,16 @@ export default function CajaPage() {
       
       setFoundUser({ ...user, SaldoFavor: saldoFavorFresh, DeudaTotal: deudaTotalFresh });
 
+      // Auditoría: Registro de consulta de contribuyente
+      logAudit('Consulta de Contribuyente en Caja', {
+        identidad: user.Identidad,
+        contribuyente: user.Contribuyente,
+        codigo_inmueble: user.CodCont || user.cod_cont,
+        deuda_total_bs: deudaTotalFresh,
+        saldo_favor_bs: saldoFavorFresh,
+        termino_busqueda: rawSearch
+      }, 'CAJA', 'BAJA');
+
       // Verificar si el contribuyente carece de correo para solicitar actualización al cajero
       const tieneCorreoValido = user.Correo && !isFictitiousEmail(user.Correo);
       if (!tieneCorreoValido) {
@@ -1834,6 +1844,14 @@ export default function CajaPage() {
       const result = await acreditarSaldoFavor(foundUser.Identidad, montoNota);
       if (!result.ok) console.error('Error acreditando saldo en nota manual:', result.error);
       
+      // Auditoría: Registro de Nota Manual de Crédito
+      await logAudit('Nota de Crédito / Saldo Manual Creado', {
+        identidad: foundUser.Identidad,
+        contribuyente: foundUser.Contribuyente,
+        monto_bs: montoNota,
+        referencia_origen: notaManualRef
+      }, 'CAJA', 'CRITICA');
+
       setSuccessMsg('Nota de crédito manual generada exitosamente.');
       setIsNotaModalOpen(false);
       setNotaManualMonto('');

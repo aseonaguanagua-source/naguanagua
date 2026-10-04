@@ -171,16 +171,21 @@ export async function GET(request: Request) {
     try {
       await supabase.from('auditoria').insert({
         usuario:   'Sistema (Cron)',
-        accion:    'Facturacion Mensual Automatica',
-        categoria: 'SISTEMA',
+        accion:    'Facturación Mensual Automática',
+        categoria: 'FACTURACION',
         modulo:    '/api/cron/billing',
         detalles: {
-          _categoria: 'SISTEMA',
+          criticidad: 'MEDIA',
+          _categoria: 'FACTURACION',
+          _modulo: '/api/cron/billing',
           periodo: mesFacturado,
           procesados: facturasNuevas.length,
           omitidos,
-          monto_total: montoTotal,
+          monto_total_bs: montoTotal,
           tasa_ucd: tcmmv,
+          _hora: new Date().toLocaleTimeString('es-VE'),
+          _fecha: new Date().toLocaleDateString('es-VE'),
+          _ts: new Date().toISOString()
         }
       });
     } catch(e) {}

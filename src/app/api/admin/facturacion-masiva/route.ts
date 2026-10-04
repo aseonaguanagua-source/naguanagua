@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getResendClient } from '@/lib/emailClient';
+import { logAuditServer } from '@/lib/audit';
 
 const resend = getResendClient();
 
@@ -22,6 +23,19 @@ export async function POST(request: Request) {
       console.error("Insert error:", error);
       return NextResponse.json({ error: 'Error al insertar recibos en la base de datos', details: error }, { status: 500 });
     }
+
+    // Registro de auditoría
+    await logAuditServer(
+      'Facturación Masiva Ejecutada',
+      {
+        total_recibos: recibos.length,
+        monto_total_bs: recibos.reduce((s: number, r: any) => s + (parseFloat(r.monto || '0') || 0), 0)
+      },
+      'FACTURACION',
+      'ALTA',
+      'Administrador (API)',
+      '/api/admin/facturacion-masiva'
+    );
 
     // Si todo salió bien, enviamos los correos en segundo plano
     enviarCorreos(result || []);
