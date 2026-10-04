@@ -198,10 +198,12 @@ export default function TarifasPage() {
                       </td>
                       {actividad.factores.map((factor, fIdx) => {
                         const monto = (factor * 57 * rate * 0.1280).toFixed(2);
+                        const montoIva = (factor * 57 * rate * 0.1280 * 1.16).toFixed(2);
                         return (
-                          <td key={fIdx} className="px-4 py-2 text-center border-r border-slate-100 group relative cursor-default">
+                          <td key={fIdx} className="px-3 py-2 text-center border-r border-slate-100 group relative cursor-default">
                             <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} F.O.</div>
-                            <div className="font-bold text-green-700">Bs. {monto}</div>
+                            <div className="text-xs font-semibold text-slate-800">Base: Bs. {monto}</div>
+                            <div className="text-[11px] font-bold text-emerald-700">Total + IVA: Bs. {montoIva}</div>
                           </td>
                         );
                       })}
@@ -228,7 +230,7 @@ export default function TarifasPage() {
             <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">Tarifas Industriales</h2>
           </div>
           <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
-            Fórmula: TC = F.O. × UCD × FAC (donde UCD = 57 × Tasa BCV y FAC = 0.1280). No incluye 16% de IVA.
+            Fórmula: TC = F.O. × UCD × FAC (donde UCD = 57 × Tasa BCV y FAC = 0.1280). + 16% de IVA sobre la base.
           </div>
           <div className="overflow-x-auto h-[600px] relative">
             <table className="w-full text-left text-xs text-slate-600 border-collapse">
@@ -252,10 +254,12 @@ export default function TarifasPage() {
                       </td>
                       {actividad.factores.map((factor: any, fIdx: number) => {
                         const monto = (factor * 57 * rate * 0.1280).toFixed(2);
+                        const montoIva = (factor * 57 * rate * 0.1280 * 1.16).toFixed(2);
                         return (
-                          <td key={fIdx} className="px-4 py-2 text-center border-r border-slate-100 group relative cursor-default">
+                          <td key={fIdx} className="px-3 py-2 text-center border-r border-slate-100 group relative cursor-default">
                             <div className="text-[10px] text-slate-400 mb-0.5">{factor.toFixed(2)} F.O.</div>
-                            <div className="font-bold text-green-700">Bs. {monto}</div>
+                            <div className="text-xs font-semibold text-slate-800">Base: Bs. {monto}</div>
+                            <div className="text-[11px] font-bold text-emerald-700">Total + IVA: Bs. {montoIva}</div>
                           </td>
                         );
                       })}

@@ -164,12 +164,31 @@ export const calcularMensualidad = (
     esRes = isResidencialInm({ tipo, clasificacion, actividad_principal: actividad });
   }
 
-  const fo = mmv !== undefined && mmv > 0 ? mmv : getFO(actividad, esRes);
-  const far = esRes ? getFAR(actividad) : 1; // FAR only applies to Residencial
+  let fo = 1.98;
+  if (esRes) {
+    // Residencial: F.O. oficial según Tabla "A" (rango 0.22 a 1.06)
+    fo = mmv !== undefined && mmv > 0 ? mmv : getFO(actividad, true);
+  } else {
+    // Comercial / Industrial / Institucional:
+    // Todos los Factores de Ordenanza F.O. según Tabla "B" son >= 1.00.
+    // Si mmv en BD es >= 1.00, se respeta el factor explícito almacenado.
+    // Si mmv en BD es < 1.00 (fracción pre-dividida en migraciones anteriores) o undefined,
+    // se resuelve directamente mediante getFO(actividad, false) que contiene la Tabla B oficial.
+    if (mmv !== undefined && mmv >= 1.00) {
+      fo = mmv;
+    } else {
+      fo = getFO(actividad, false);
+      if (fo < 1.00 && mmv !== undefined && mmv > 0) {
+        fo = parseFloat((mmv * 7.296).toFixed(2));
+      }
+    }
+  }
 
-  // Formulas
-  // Residencial: F.O. * 57 * TasaBCV * FAR
-  // Comercial:   F.O. * 57 * TasaBCV * 0.1280
+  const far = esRes ? getFAR(actividad) : 0.1280; // FAC = 0.1280 para Comercial/Industrial
+
+  // Fórmulas oficiales Art. 61 de la Ordenanza Municipal de Naguanagua:
+  // Residencial: TR = F.O. * 57 * TasaBCV * FAR
+  // Comercial:   TC = F.O. * 57 * TasaBCV * FAC (FAC = 0.1280)
   let baseCalculada = 0;
   if (esRes) {
     baseCalculada = fo * 57 * tasa * far;

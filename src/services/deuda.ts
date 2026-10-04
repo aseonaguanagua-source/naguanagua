@@ -8,11 +8,12 @@
 
 import type { Inmueble, Recibo, PagoReportado } from '@/types';
 import { parsePagoDetalles } from '@/types';
+import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
 
 /**
  * Calcula el monto en Bolívares de un recibo, considerando:
  * - Recibos RECIB-*: deuda acumulada (deuda_mmv × tasa)
- * - Recibos CM-*: 1 mes del inmueble específico (mmv_mes × tasa)
+ * - Recibos CM-*: 1 mes del inmueble específico según Ordenanza Municipal (+ 16% IVA si es comercial)
  * - Fallback: monto literal del recibo
  */
 export function calcularMontoRecibo(
@@ -50,23 +51,24 @@ export function calcularMontoRecibo(
     return parseFloat(String(recibo.monto || '0').replace(/[^\d.]/g, '')) || 0;
   }
 
-  // CM- = exactamente 1 mes del inmueble específico
+  // CM- = exactamente 1 mes del inmueble específico según Ordenanza
   if (recibo.referencia?.startsWith('CM-')) {
     let targetInms = userInms.filter((inm) =>
       inm.inmueble && (recibo.referencia || '').includes(inm.inmueble)
     );
     if (targetInms.length === 0) targetInms = userInms;
 
-    let monthlyMMV = 0;
+    let totalMesConIva = 0;
     targetInms.forEach((inm) => {
-      const cant = parseFloat(String(inm.cant_inmuebles || 1));
-      const mmv = parseFloat(String(inm.mmv_mes || 0));
-      if (mmv > 0) monthlyMMV += cant * mmv;
+      const esRes = isResidencialInm(inm);
+      const baseMonto = calcularMensualidad(inm, tasaBcv);
+      const iva = esRes ? 0 : baseMonto * 0.16;
+      totalMesConIva += baseMonto + iva;
     });
-    if (monthlyMMV > 0) {
-      const baseMonto = monthlyMMV * tasaBcv;
+
+    if (totalMesConIva > 0) {
       const montoPendiente = calcularMontoPendiente(recibo.referencia, pagosPendientes);
-      return Math.max(0, baseMonto - montoPendiente);
+      return Math.max(0, totalMesConIva - montoPendiente);
     }
   }
 

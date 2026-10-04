@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 import tarifasData from '@/data/tarifas.json';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
+import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
 
 const getFAR = (actividad: string) => {
   const act = (actividad || "").toLowerCase();
@@ -361,14 +362,15 @@ export default function EstadoCuentaPage() {
       );
       if (userInmsForCalc.length > 0) {
         if (row.referencia.startsWith('CM-')) {
-          // CM- = 1 mes: cant_inmuebles × mmv_mes × tcmmv
-          let monthlyMMV = 0;
+          // CM- = 1 mes según Ordenanza Municipal (+ 16% IVA para comercial)
+          let totalMesConIva = 0;
           userInmsForCalc.forEach((inm: any) => {
-            const cant = parseFloat(inm.cant_inmuebles || 1);
-            const mmv  = parseFloat(inm.mmv_mes || 0);
-            if (mmv > 0) monthlyMMV += cant * mmv;
+            const esRes = isResidencialInm(inm);
+            const base = calcularMensualidad(inm, tcmmv);
+            const iva = esRes ? 0 : base * 0.16;
+            totalMesConIva += base + iva;
           });
-          if (monthlyMMV > 0) montoNumerico = parseFloat((monthlyMMV * tcmmv).toFixed(2));
+          if (totalMesConIva > 0) montoNumerico = parseFloat(totalMesConIva.toFixed(2));
         } else if (row.referencia.startsWith('RECIB-')) {
           // RECIB- = deuda acumulada: (deuda_mmv × tcmmv) + multa_bs
           let totalDeudaMMV = 0;
