@@ -36,6 +36,18 @@ export const isResidencialInm = (item: any): boolean => {
   if (tipo.includes('RESIDENCIAL')) return true;
   if (tipo.includes('COMERCIAL') || tipo.includes('INDUSTRIAL') || tipo.includes('GUBERNAMENTAL')) return false;
 
+  const name = String(item.contribuyente || item.Contribuyente || item.nombre || '').toUpperCase();
+  if (
+    name.includes('CONJUNTO RESIDENCIAL') ||
+    name.includes('RESIDENCIAS') ||
+    name.includes('RES.') ||
+    name.includes('EDIFICIO')
+  ) {
+    if (!name.includes('CENTRO COMERCIAL') && !name.includes('C.C.')) {
+      return true;
+    }
+  }
+
   const act = String(item.actividad_principal || item.actividad || item['Actividad Principal'] || item.Actividad || '').toUpperCase();
   if (
     act.includes('CASA') ||
@@ -168,7 +180,12 @@ export const calcularMensualidad = (
   let fo = 1.98;
   if (esRes) {
     // Residencial: F.O. oficial según Tabla "A" (rango 0.22 a 1.06)
-    fo = mmv !== undefined && mmv > 0 ? mmv : getFO(actividad, true);
+    // Si mmv en BD es menor a 0.22 (residuo corrupto como 0.021588) o mayor a 1.50, se calcula con getFO oficial
+    if (mmv !== undefined && mmv >= 0.22 && mmv <= 1.50) {
+      fo = mmv;
+    } else {
+      fo = getFO(actividad, true);
+    }
   } else {
     // Comercial / Industrial / Institucional:
     // Todos los Factores de Ordenanza F.O. según Tabla "B" son >= 1.00.

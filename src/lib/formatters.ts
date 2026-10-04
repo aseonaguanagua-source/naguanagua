@@ -158,16 +158,29 @@ export function getIdentidadVariants(rawInput: string, defaultPrefix = 'V'): str
 
   // Si el usuario incluyó el prefijo dentro del texto escrito (ej: "J-075477308" o "J075477308")
   const prefixMatch = raw.match(/^([VEJPG])[-_\s]?(.*)$/);
+  let remainder = raw;
   if (prefixMatch) {
     prefix = prefixMatch[1];
-    raw = prefixMatch[2].trim();
+    remainder = prefixMatch[2].trim();
   }
 
   // Quitar cualquier carácter no alfanumérico
   const clean = raw.replace(/[^0-9A-Z]/g, '');
   if (!clean) return [rawInput.trim().toUpperCase()];
 
-  const digits = clean.replace(/\D/g, '');
+  // CRÍTICO: Si el resto contiene letras (ej: "AURI000012", "URB035277", "INMUEBLE"),
+  // NO es un documento de identidad personal/jurídico (C.I./RIF).
+  // No se deben extraer dígitos ni generar variantes numéricas (como "V-12") para evitar colisiones.
+  const cleanRemainder = remainder.replace(/[^0-9A-Z]/g, '');
+  const isPureDigits = /^\d+$/.test(cleanRemainder);
+  if (!isPureDigits) {
+    const directVariants = new Set<string>();
+    directVariants.add(rawInput.trim().toUpperCase());
+    directVariants.add(clean);
+    return Array.from(directVariants);
+  }
+
+  const digits = cleanRemainder;
   const noLeadingZeros = digits.replace(/^0+/, '');
   const padded9 = digits ? digits.padStart(9, '0') : '';
 

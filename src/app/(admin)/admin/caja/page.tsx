@@ -306,73 +306,145 @@ export default function CajaPage() {
     // Extraer prefijo si fue pegado o escrito en el input (ej: J-075477308 o V075477308)
     let activePrefix = docType;
     let inputClean = docNumber.trim();
+    const rawSearch = inputClean.toUpperCase();
     const prefixMatch = inputClean.match(/^([VEJPGvejpg])[-_\s]?(.*)$/);
-    if (prefixMatch) {
+    if (prefixMatch && !rawSearch.startsWith('AURI') && !rawSearch.startsWith('URB')) {
       activePrefix = prefixMatch[1].toUpperCase();
       inputClean = prefixMatch[2].trim();
       setDocType(activePrefix);
       setDocNumber(inputClean);
     }
 
-    const searchVariants = getIdentidadVariants(inputClean, activePrefix);
-    const searchVariantsSet = new Set(searchVariants.map(v => v.replace(/-/g, '').toUpperCase()));
+    let user: any = null;
+    const isCodeFormat = /^(AURI|URB|[A-Z]{3,})\d+/i.test(rawSearch) || /^[A-Z]+\d+$/i.test(rawSearch);
 
-    let user = contribuyentes.find((c: any) => {
-      if (!c.Identidad) return false;
-      const idClean = String(c.Identidad).replace(/-/g, '').toUpperCase();
-      const codMatch = c.CodCont && c.CodCont.toUpperCase() === docNumber.toUpperCase();
-      const codContMatch = c.cod_cont && c.cod_cont.toUpperCase() === docNumber.toUpperCase();
-      const nombreMatch = c.Contribuyente && c.Contribuyente.toUpperCase().includes(docNumber.toUpperCase());
-      return searchVariantsSet.has(idClean) || codMatch || codContMatch || nombreMatch;
+    // 1. PRIORIDAD ABSOLUTA: Búsqueda exacta por Código de Inmueble (AURI..., URB...)
+    const matchedInm = (inmuebles || []).find((i: any) => {
+      const cod = (i.inmueble || i.Inmueble || i.cod_cont || '').trim().toUpperCase();
+      return cod === rawSearch || cod === inputClean.toUpperCase();
     });
 
-    // Fallback: usuario nuevo aprobado recientemente o búsqueda directa en inmuebles/contribuyentes
-    if (!user) {
-      const orFiltro = searchVariants.map(v => `identidad.eq.${v}`).join(',') + `,inmueble.ilike.%${docNumber}%,contribuyente.ilike.%${docNumber}%`;
-      const { data: inmFallback } = await supabase
+    if (matchedInm) {
+      user = {
+        Identidad: matchedInm.identidad,
+        Contribuyente: matchedInm.contribuyente || matchedInm.nombre || 'Sin Nombre',
+        Telefono: matchedInm.telefono || 'No registrado',
+        Correo: matchedInm.correo_electronico || matchedInm.correo || 'No registrado',
+        CodCont: matchedInm.inmueble || matchedInm.cod_cont,
+        cod_cont: matchedInm.inmueble || matchedInm.cod_cont,
+        Direccion: matchedInm.direccion,
+        Clasificacion: matchedInm.clasificacion || (matchedInm.es_condominio ? 'Condominio' : 'Individual'),
+        Tipo: matchedInm.tipo || 'RESIDENCIAL',
+        Actividad: matchedInm.actividad_principal || matchedInm.actividad || '',
+        SaldoFavor: parseFloat(matchedInm.saldo_favor_bs || '0'),
+        Estado: matchedInm.estado || 'Activo',
+        condominio_padre_id: matchedInm.condominio_padre_id,
+        es_condominio: matchedInm.es_condominio
+      };
+    }
+
+    // Si tiene formato de código y no estaba en memoria, buscar en Supabase por coincidencia exacta
+    if (!user && isCodeFormat) {
+      const { data: inmDirect } = await supabase
         .from('inmuebles')
         .select('*')
-        .or(orFiltro)
+        .ilike('inmueble', rawSearch)
         .limit(1)
         .maybeSingle();
 
-      if (inmFallback) {
+      if (inmDirect) {
         user = {
-          Identidad: inmFallback.identidad,
-          Contribuyente: inmFallback.contribuyente,
-          Telefono: inmFallback.telefono || 'No registrado',
-          Correo: inmFallback.correo_electronico || 'No registrado',
-          CodCont: inmFallback.inmueble || inmFallback.cod_cont,
-          cod_cont: inmFallback.inmueble || inmFallback.cod_cont,
-          Direccion: inmFallback.direccion,
-          Clasificacion: inmFallback.clasificacion || 'Residencial',
-          Actividad: inmFallback.actividad_principal || inmFallback.actividad || '',
-          SaldoFavor: parseFloat(inmFallback.saldo_favor_bs || '0'),
-          Estado: inmFallback.estado || 'Activo'
+          Identidad: inmDirect.identidad,
+          Contribuyente: inmDirect.contribuyente || inmDirect.nombre || 'Sin Nombre',
+          Telefono: inmDirect.telefono || 'No registrado',
+          Correo: inmDirect.correo_electronico || inmDirect.correo || 'No registrado',
+          CodCont: inmDirect.inmueble || inmDirect.cod_cont,
+          cod_cont: inmDirect.inmueble || inmDirect.cod_cont,
+          Direccion: inmDirect.direccion,
+          Clasificacion: inmDirect.clasificacion || (inmDirect.es_condominio ? 'Condominio' : 'Individual'),
+          Tipo: inmDirect.tipo || 'RESIDENCIAL',
+          Actividad: inmDirect.actividad_principal || inmDirect.actividad || '',
+          SaldoFavor: parseFloat(inmDirect.saldo_favor_bs || '0'),
+          Estado: inmDirect.estado || 'Activo',
+          condominio_padre_id: inmDirect.condominio_padre_id,
+          es_condominio: inmDirect.es_condominio
         };
-      } else {
-        // Fallback 2: buscar en tabla contribuyentes directamente
-        const { data: contribFallback } = await supabase
-          .from('contribuyentes')
+      }
+    }
+
+    // 2. Si no es búsqueda por código de inmueble, buscar por Cédula / RIF
+    if (!user) {
+      const searchVariants = getIdentidadVariants(inputClean, activePrefix);
+      const searchVariantsSet = new Set(searchVariants.map(v => v.replace(/-/g, '').toUpperCase()));
+
+      user = contribuyentes.find((c: any) => {
+        if (!c.Identidad) return false;
+        const idClean = String(c.Identidad).replace(/-/g, '').toUpperCase();
+        return searchVariantsSet.has(idClean);
+      });
+
+      // 3. Si no encontró por cédula, y se ingresó un nombre de más de 3 letras (no dígitos), buscar por nombre
+      if (!user && !/^\d+$/.test(inputClean) && inputClean.length >= 3) {
+        user = contribuyentes.find((c: any) => {
+          return c.Contribuyente && c.Contribuyente.toUpperCase().includes(rawSearch);
+        });
+      }
+
+      // Fallback a Supabase (búsqueda segura sin wildcards parciales de códigos)
+      if (!user) {
+        const orConditions = searchVariants.map(v => `identidad.eq.${v}`);
+        if (!/^\d+$/.test(inputClean) && inputClean.length >= 4) {
+          orConditions.push(`contribuyente.ilike.%${inputClean}%`);
+        }
+        
+        const { data: inmFallback } = await supabase
+          .from('inmuebles')
           .select('*')
-          .or(searchVariants.map(v => `identidad.eq.${v}`).join(','))
+          .or(orConditions.join(','))
           .limit(1)
           .maybeSingle();
 
-        if (contribFallback) {
+        if (inmFallback) {
           user = {
-            Identidad: contribFallback.identidad,
-            Contribuyente: contribFallback.nombre,
-            Telefono: contribFallback.telefono || 'No registrado',
-            Correo: contribFallback.email || 'No registrado',
-            CodCont: contribFallback.identidad,
-            cod_cont: contribFallback.identidad,
-            Direccion: contribFallback.direccion,
-            Clasificacion: 'Comercial',
-            Actividad: '',
-            SaldoFavor: 0,
-            Estado: 'Activo'
+            Identidad: inmFallback.identidad,
+            Contribuyente: inmFallback.contribuyente,
+            Telefono: inmFallback.telefono || 'No registrado',
+            Correo: inmFallback.correo_electronico || 'No registrado',
+            CodCont: inmFallback.inmueble || inmFallback.cod_cont,
+            cod_cont: inmFallback.inmueble || inmFallback.cod_cont,
+            Direccion: inmFallback.direccion,
+            Clasificacion: inmFallback.clasificacion || (inmFallback.es_condominio ? 'Condominio' : 'Individual'),
+            Tipo: inmFallback.tipo || 'RESIDENCIAL',
+            Actividad: inmFallback.actividad_principal || inmFallback.actividad || '',
+            SaldoFavor: parseFloat(inmFallback.saldo_favor_bs || '0'),
+            Estado: inmFallback.estado || 'Activo',
+            condominio_padre_id: inmFallback.condominio_padre_id,
+            es_condominio: inmFallback.es_condominio
           };
+        } else {
+          // Fallback 2: buscar en tabla contribuyentes directamente
+          const { data: contribFallback } = await supabase
+            .from('contribuyentes')
+            .select('*')
+            .or(searchVariants.map(v => `identidad.eq.${v}`).join(','))
+            .limit(1)
+            .maybeSingle();
+
+          if (contribFallback) {
+            user = {
+              Identidad: contribFallback.identidad,
+              Contribuyente: contribFallback.nombre,
+              Telefono: contribFallback.telefono || 'No registrado',
+              Correo: contribFallback.email || 'No registrado',
+              CodCont: contribFallback.identidad,
+              cod_cont: contribFallback.identidad,
+              Direccion: contribFallback.direccion,
+              Clasificacion: 'Comercial',
+              Actividad: '',
+              SaldoFavor: 0,
+              Estado: 'Activo'
+            };
+          }
         }
       }
     }
@@ -528,10 +600,13 @@ export default function CajaPage() {
         if (hasDeuda && !isCondominio) {
           const now = new Date();
           billableInms.forEach((inm: any) => {
+            // Si el inmueble es hijo/filial de un condominio, la deuda se factura a nivel del Condominio Padre
+            if (inm.condominio_padre_id) return;
+
             const deudaMMV = parseFloat(inm.deuda_mmv || '0');
             const congelada = parseFloat(inm.deuda_congelada_bs || '0');
             const multa = parseFloat(inm.multa_bs || '0');
-            const meses = parseInt(inm.meses_deuda || 1);
+            const meses = parseInt(inm.meses_deuda || 0);
             if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
               const numMeses = Math.max(1, meses);
               // Generar un recibo dummy por cada mes de mora con fecha uniforme de calendario
@@ -619,13 +694,18 @@ export default function CajaPage() {
 
       // Buscar si es un Condominio (Padre)
       const parentCodes = activeInmFresh.map((i: any) => i.inmueble).filter(Boolean);
-      const isCondoByName = (user.Contribuyente || user.contribuyente || '').toLowerCase().includes('condominio') || (user.Actividad || user.actividad || '').toLowerCase().includes('condominio');
+      const nombreContrib = (user.Contribuyente || user.contribuyente || '').toLowerCase();
+      const isCondoByName = nombreContrib.includes('condominio') ||
+                            nombreContrib.includes('conjunto') ||
+                            nombreContrib.includes('edificio') ||
+                            nombreContrib.includes('torre') ||
+                            nombreContrib.includes('residencia');
       const isCondoByClasif = (user.Clasificacion || user.clasificacion || '').toLowerCase().includes('condominio');
-      const isCondoByFlag = activeInmFresh.some((i: any) => i.es_condominio === true);
+      const isCondoByFlag = activeInmFresh.some((i: any) => i.es_condominio === true || parseInt(i.cant_inmuebles || '0') > 1);
       const isResidencialUser = isResidencialInm(user) || (user.Tipo || '').toUpperCase().includes('RESIDENCIAL') || activeInmFresh.some((i: any) => isResidencialInm(i));
 
       // Un contribuyente comercial ordinario (ej. AGROAPA C A) NO es un condominio aunque sus inmuebles tengan código padre
-      const isTrueCondoUser = isCondoByName || isCondoByClasif || (isCondoByFlag && isResidencialUser);
+      const isTrueCondoUser = isCondoByName || isCondoByClasif || (isCondoByFlag && isResidencialUser) || user.es_condominio === true;
       const codCont = user.cod_cont || user.CodCont || user.Identidad || user.identidad;
 
       if (isTrueCondoUser && parentCodes.length > 0) {
@@ -1959,6 +2039,34 @@ export default function CajaPage() {
                   </>
                 )}
               </div>
+
+              {foundUser.condominio_padre_id && (
+                <div className="mt-2.5 p-3 bg-sky-50 border border-sky-300 rounded-lg text-xs text-sky-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-sm">
+                  <div>
+                    <span className="font-bold flex items-center gap-1.5 text-sky-800">
+                      🏢 Inmueble Filial de Condominio:
+                    </span>
+                    <p className="text-[11px] text-sky-700 mt-0.5">
+                      Este inmueble pertenece al Condominio Padre <strong className="font-mono bg-sky-100 px-1 py-0.5 rounded">{foundUser.condominio_padre_id}</strong>.
+                      La solvencia y facturación del servicio de aseo se administra de forma centralizada con el Condominio.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setDocNumber(foundUser.condominio_padre_id);
+                      setDocType('J');
+                      setTimeout(() => {
+                        const btn = document.querySelector('button[data-testid="search-btn"]') as HTMLButtonElement;
+                        if (btn) btn.click();
+                      }, 50);
+                    }}
+                    className="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 transition-colors shadow-sm"
+                  >
+                    Ver Condominio ({foundUser.condominio_padre_id})
+                  </button>
+                </div>
+              )}
+
               <div className="mt-2 text-xs bg-slate-100 text-slate-600 px-3 py-2 rounded border border-slate-200 w-full max-h-[400px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2 sticky top-0 bg-slate-100 z-10 py-1">
                   <span className="font-bold">Fórmula Aplicada:</span>
@@ -2036,7 +2144,10 @@ export default function CajaPage() {
 
                         const activitiesCalc = cluster.inms.map((inm: any) => {
                           const esRes = isResidencialInm(inm);
-                          const mmv = (inm.mmv_mes && parseFloat(inm.mmv_mes) > 0) ? parseFloat(inm.mmv_mes) : getFO(inm.actividad_principal || '', esRes);
+                          const mmvRaw = parseFloat(inm.mmv_mes || '0');
+                          const mmv = esRes
+                            ? (mmvRaw >= 0.22 && mmvRaw <= 1.50 ? mmvRaw : getFO(inm.actividad_principal || '', true))
+                            : (mmvRaw >= 1.00 ? mmvRaw : getFO(inm.actividad_principal || '', false));
                           const cant = parseInt(inm.cant_inmuebles || 1);
                           const far = getFAR(inm.actividad_principal || '');
                           const formulaUCD = (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
@@ -2071,9 +2182,10 @@ export default function CajaPage() {
                         });
 
                         // ¿Es un cluster residencial (condominio o conjunto) o un local comercial?
-                        const isResCluster = cluster.inms.every((i: any) => isResidencialInm(i)) || 
+                        const isResCluster = isCondominio ||
+                                             (foundUser?.Clasificacion || '').toLowerCase().includes('condominio') ||
                                              (foundUser?.Tipo || '').toUpperCase().includes('RESIDENCIAL') ||
-                                             (foundUser?.Clasificacion || '').toLowerCase().includes('condominio');
+                                             cluster.inms.filter((i: any) => (i.actividad_principal || '').toUpperCase() !== 'N/A').every((i: any) => isResidencialInm(i));
 
                         // ¿Están las actividades de este local unificadas?
                         const isUnifiedSelected = hasMultiple && selectedActivitiesCount > 1;
