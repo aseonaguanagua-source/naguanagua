@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Building2, Search, MapPin, Store, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariants } from '@/lib/formatters';
+import { isResidencialInm } from '@/lib/calculos';
 
 interface InmuebleRow {
   id: string;
@@ -90,14 +91,17 @@ export default function InmueblesPage() {
         (inm.direccion || '').toLowerCase().includes(q) ||
         (inm.actividad_principal || '').toLowerCase().includes(q);
 
-      const clas = (inm.clasificacion || '').toLowerCase();
+      const esRes = isResidencialInm(inm);
       const matchUso = filterUso === 'Todos' ||
-        (filterUso === 'Residencial' && clas.includes('residencial')) ||
-        (filterUso === 'Comercial' && !clas.includes('residencial'));
+        (filterUso === 'Residencial' && esRes) ||
+        (filterUso === 'Comercial' && !esRes);
 
       return matchQ && matchUso;
     });
   }, [inmuebles, searchQuery, filterUso]);
+
+  const countRes = useMemo(() => inmuebles.filter(i => isResidencialInm(i)).length, [inmuebles]);
+  const countCom = useMemo(() => inmuebles.filter(i => !isResidencialInm(i)).length, [inmuebles]);
 
   return (
     <div className="space-y-6">
@@ -113,18 +117,22 @@ export default function InmueblesPage() {
           />
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          {['Todos', 'Comercial', 'Residencial'].map((uso) => (
+          {[
+            { id: 'Todos', label: `Todos (${inmuebles.length})` },
+            { id: 'Comercial', label: `Comercial (${countCom})` },
+            { id: 'Residencial', label: `Residencial (${countRes})` },
+          ].map((tab) => (
             <button
-              key={uso}
+              key={tab.id}
               type="button"
-              onClick={() => setFilterUso(uso)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                filterUso === uso
-                  ? 'bg-emerald-600 text-white shadow-sm'
+              onClick={() => setFilterUso(tab.id)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                filterUso === tab.id
+                  ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/20'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {uso}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -171,7 +179,7 @@ export default function InmueblesPage() {
                 </tr>
               ) : (
                 filtered.map((inm) => {
-                  const esRes = (inm.clasificacion || '').toLowerCase().includes('residencial');
+                  const esRes = isResidencialInm(inm);
                   const meses = parseInt(String(inm.meses_deuda || '0'), 10);
                   const tieneDeuda = meses > 0 || parseFloat(String(inm.deuda_mmv || '0')) > 0;
 
@@ -184,9 +192,11 @@ export default function InmueblesPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                          esRes ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                          esRes 
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                            : 'bg-blue-100 text-blue-800 border border-blue-200'
                         }`}>
-                          {inm.clasificacion || (esRes ? 'Residencial' : 'Comercial')}
+                          {esRes ? 'Residencial' : 'Comercial'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-slate-700 font-medium whitespace-normal max-w-[240px]">
