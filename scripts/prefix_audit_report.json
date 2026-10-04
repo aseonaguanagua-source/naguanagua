@@ -1,0 +1,299 @@
+{
+  "total_contribuyentes": 35762,
+  "total_inmuebles": 51414,
+  "inmuebles_v_to_j_count": 969,
+  "malformed_contribs_count": 1,
+  "malformed_contribs": [
+    {
+      "identidad": "V-",
+      "nombre": "DELGADO PELAYO VILMA CONSUELO",
+      "email": null,
+      "telefono": "02410"
+    }
+  ],
+  "malformed_inmuebles_count": 6,
+  "malformed_inmuebles": [
+    {
+      "id": "1b3dd777-03a2-41a8-aba1-1877b2d14a38",
+      "inmueble": "URB018934",
+      "identidad": "V-",
+      "contribuyente": "PAEZ FREDDY"
+    },
+    {
+      "id": "2b1012de-a865-4b4a-8b55-02fb59673747",
+      "inmueble": "URB024434",
+      "identidad": "V-",
+      "contribuyente": "CARRILL JARAMILLO MARIA VERONICA"
+    },
+    {
+      "id": "915cbe9a-3b04-4b53-9c77-1a98c3120191",
+      "inmueble": "URB024099",
+      "identidad": "V-",
+      "contribuyente": "DIAZ JOSE"
+    },
+    {
+      "id": "0ee2b6c2-56ff-49c1-a1f5-d217ff51edff",
+      "inmueble": "URB024453",
+      "identidad": "V-",
+      "contribuyente": "HERNANDEZ GONZALEZ WILMER JOSUE"
+    },
+    {
+      "id": "f0413403-2562-4c86-80ac-ea25bcecc601",
+      "inmueble": "URB024464",
+      "identidad": "V-",
+      "contribuyente": "MORAIMA MUJICA"
+    },
+    {
+      "id": "007052cc-29ed-4722-b30a-aa2620991175",
+      "inmueble": "URB018967",
+      "identidad": "V-",
+      "contribuyente": "GONZALEZ RAMON Y ENEDINA MORA DE GONZALEZ"
+    }
+  ],
+  "v_contribs_pure_corp_count": 24,
+  "v_contribs_pure_corp_samples": [
+    {
+      "identidad": "V-29603698",
+      "nombre": "RPHONES, C.A",
+      "email": "ROGERPEREZ660@gmail.com",
+      "telefono": " 04244344336"
+    },
+    {
+      "identidad": "V-27994969",
+      "nombre": "ALAIA'S COFFEE, C.A.",
+      "email": "HIAWATHAMARCANO@GMAIL.COM",
+      "telefono": "04144127733"
+    },
+    {
+      "identidad": "V-5747979",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENDIAL TRIPOLI GARDEN",
+      "email": "AGARCIAC15@GMAIL.COM",
+      "telefono": "024104143409699"
+    },
+    {
+      "identidad": "V-058253509",
+      "nombre": "INVERSIONES IRIS RUZO",
+      "email": null,
+      "telefono": "024104144394729"
+    },
+    {
+      "identidad": "V-43255522",
+      "nombre": "CONDOMINIO CONJ RESD LAS TINAJAS DE MANANTIAL",
+      "email": "xxxxdfff@gmail.com",
+      "telefono": "00000000000"
+    },
+    {
+      "identidad": "V-11681747",
+      "nombre": "BOHEMIA STUDIO C.A",
+      "email": "INVERSIONESCARANDRE@HOTMAIL.COM",
+      "telefono": " 04243114451"
+    },
+    {
+      "identidad": "V-50589204",
+      "nombre": "REFRIALFA NAGUANAGUA, C.A",
+      "email": "",
+      "telefono": "04122417233"
+    },
+    {
+      "identidad": "V-502304061",
+      "nombre": "FARY SHOP 26, C.A",
+      "email": "FARYSHOP26@GMAIL.COM",
+      "telefono": "04244932360"
+    },
+    {
+      "identidad": "V-40960089",
+      "nombre": "INVERSIONES AGRO VENEZUELA C. A",
+      "email": "ALAXANDERGONZALES1328@GMAIL.COM",
+      "telefono": "02432698180"
+    },
+    {
+      "identidad": "V-16400369",
+      "nombre": "GIRARDOT MARKET C.A",
+      "email": "SINCORRE@GMAIL.COM",
+      "telefono": "04141456231"
+    },
+    {
+      "identidad": "V-14056898",
+      "nombre": "MAIIASTYLE, C.A",
+      "email": "MJG1078@GMAIL.COM",
+      "telefono": "04144268784"
+    },
+    {
+      "identidad": "V-01584799",
+      "nombre": "CONSTRUCCIONES E INVERSIONES CARIBE, C.A",
+      "email": null,
+      "telefono": "02410"
+    },
+    {
+      "identidad": "V-070890832",
+      "nombre": "MILEN R ANDREYICH S (MILAN CAR. C.A.)",
+      "email": null,
+      "telefono": "0000000000"
+    },
+    {
+      "identidad": "V-234252220",
+      "nombre": "INVERSIONES OSVALDO DE LA CRUZ (DE LA CRUZ VASQUEZ, OSVALDO ANTONIO)",
+      "email": null,
+      "telefono": "(0241) 414-55-75 ( ) -"
+    },
+    {
+      "identidad": "V-1584799",
+      "nombre": "CONSTRUCCIONES E INVERSIONES CARIBE C.A",
+      "email": null,
+      "telefono": "0"
+    },
+    {
+      "identidad": "V-2942211",
+      "nombre": "DANIEL FRANCISCO CARDENAS BENITEZ Y URBANIZACION MAÑONGO, C.A.",
+      "email": null,
+      "telefono": "00000000"
+    },
+    {
+      "identidad": "V-1594656",
+      "nombre": "INVERSIONES INSOTI C.A",
+      "email": null,
+      "telefono": "0"
+    },
+    {
+      "identidad": "V-1594771",
+      "nombre": "INVERSIONES INSOTI C.A",
+      "email": null,
+      "telefono": "0"
+    },
+    {
+      "identidad": "V-1594750",
+      "nombre": "INVERSIONES INSOTI C.A",
+      "email": null,
+      "telefono": "0"
+    },
+    {
+      "identidad": "V-1594742",
+      "nombre": "INVERSIONES INSOTI C.A",
+      "email": null,
+      "telefono": "0"
+    }
+  ],
+  "v_inmuebles_pure_corp_no_j_count": 46,
+  "v_inmuebles_pure_corp_no_j_samples": [
+    {
+      "id": "ba0afdc6-c5a8-4454-a2c7-ad22d3bcb0b3",
+      "inmueble": "AURI004737",
+      "identidad": "V-1594695",
+      "contribuyente": "INVESIONES INSOTI C.A"
+    },
+    {
+      "id": "b358bde5-ed89-4268-8f16-be2c2004ee47",
+      "inmueble": "URB006590",
+      "identidad": "V-200054549",
+      "contribuyente": "FUNDACION CARABOBEÑA PARA EL DESARROLLO DEL DEPORTE"
+    },
+    {
+      "id": "f7e9d4c6-b235-42f8-bc46-fe03a8ac28be",
+      "inmueble": "URB006594",
+      "identidad": "V-200054549",
+      "contribuyente": "FUNDACION CARABOBEÑA PARA EL DESARROLLO DEL DEPORTE"
+    },
+    {
+      "id": "7c28a391-3843-40b8-bb3f-e26735855bc9",
+      "inmueble": "URB006588",
+      "identidad": "V-200054549",
+      "contribuyente": "FUNDACION CARABOBEÑA PARA EL DESARROLLO DEL DEPORTE"
+    },
+    {
+      "id": "8539160f-85c9-48a4-a43f-65d1bf374338",
+      "inmueble": "URB000461",
+      "identidad": "V-19352775",
+      "contribuyente": "INTECNOLOGY DIGITAL C.A"
+    },
+    {
+      "id": "1f4d342a-7fe0-47d2-aa8d-fd0f6a2c06ae",
+      "inmueble": "URB033857",
+      "identidad": "V-2505540",
+      "contribuyente": "CASA DE ORULA 2026, C.A."
+    },
+    {
+      "id": "a2a47ce2-a08b-4ce1-a8ad-2417dc626540",
+      "inmueble": "URB034235",
+      "identidad": "V-7235610",
+      "contribuyente": "ARVI PROTECCION INTEGRAL, C.A."
+    },
+    {
+      "id": "f7ecfa35-35bf-44d5-b2c4-023206ac1d6b",
+      "inmueble": "URB034319",
+      "identidad": "V-16400369",
+      "contribuyente": "GIRARDOT MARKET C.A"
+    },
+    {
+      "id": "32051de8-34c0-47e6-9b9a-9e86cd88f1ce",
+      "inmueble": "URB017778",
+      "identidad": "V-069142091",
+      "contribuyente": "INVERSIONES SC WART 023, C.A"
+    },
+    {
+      "id": "513deed5-8984-4518-ae76-71e43723dfef",
+      "inmueble": "AURI004738",
+      "identidad": "V-1594678",
+      "contribuyente": "INVERSIONES INSOTI C.A"
+    },
+    {
+      "id": "ae282a0a-0b02-4598-82f4-cb88c32fa77a",
+      "inmueble": "URB007034",
+      "identidad": "V-181681256",
+      "contribuyente": "MULTISERVICIOS MECANICO CHEO, C.A."
+    },
+    {
+      "id": "34e0eeec-f78a-4d10-98a0-00e344e52a59",
+      "inmueble": "AURI004733",
+      "identidad": "V-1594771",
+      "contribuyente": "INVERSIONES INSOTI C.A"
+    },
+    {
+      "id": "c469314a-ed1a-4d1e-890b-ae75d3ac4f5d",
+      "inmueble": "AURI004735",
+      "identidad": "V-1594742",
+      "contribuyente": "INVERSIONES INSOTI C.A"
+    },
+    {
+      "id": "6abbfb96-078c-4619-94d8-1573030e3061",
+      "inmueble": "URB002169",
+      "identidad": "V-070890832",
+      "contribuyente": "MILEN R ANDREYICH S (MILAN CAR. C.A.)"
+    },
+    {
+      "id": "da56ec00-a53b-4653-bf10-e37d340333d1",
+      "inmueble": "AURI004696",
+      "identidad": "V-1587550",
+      "contribuyente": "CONSTRUCCIONES E INV CARIBE C.A"
+    },
+    {
+      "id": "19b16def-85af-4480-b64f-56f121457b69",
+      "inmueble": "AURI009004",
+      "identidad": "V-6269651",
+      "contribuyente": "INVERSIONES MASSIMIR 2026, C.A."
+    },
+    {
+      "id": "15048f2f-e962-42af-9c78-d87acbbfdd2f",
+      "inmueble": "URB034441",
+      "identidad": "V-14056898",
+      "contribuyente": "MAIIASTYLE, C.A"
+    },
+    {
+      "id": "1604d9d1-5f2a-4280-8841-0dd4f5d7ff9a",
+      "inmueble": "URB016084",
+      "identidad": "V-11681747",
+      "contribuyente": "BOHEMIA STUDIO C.A"
+    },
+    {
+      "id": "25bbfe1d-075e-4ce4-9dc1-ce045126204c",
+      "inmueble": "AURI005140",
+      "identidad": "V-2942211",
+      "contribuyente": "DANIEL FRANCISCO CARDENAS BENITEZ  Y URBANIZACION MAÑONGO, C.A."
+    },
+    {
+      "id": "77fa208c-306f-4122-a37d-cf379e309041",
+      "inmueble": "AURI007678",
+      "identidad": "V-8980305",
+      "contribuyente": "MERVEQUIM C.A,"
+    }
+  ]
+}
