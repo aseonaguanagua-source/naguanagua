@@ -718,50 +718,39 @@ export default function EstadoCuentaPage() {
 
     setIsGenerating(true);
     
-    let noConfigurados: string[] = [];
     const nuevasFacturas = [];
     
-    // Obtener mes actual
+    // Obtener mes actual y periodo
     const fecha = new Date();
-    const emision = fecha.toISOString().split('T')[0];
-    fecha.setMonth(fecha.getMonth() + 1);
-    const vencimiento = fecha.toISOString().split('T')[0];
+    const mesMM = String(fecha.getMonth() + 1).padStart(2, '0');
+    const anioYYYY = String(fecha.getFullYear());
+    const periodoKey = `${mesMM}-${anioYYYY}`;
+    const emision = `${anioYYYY}-${mesMM}-01`;
+    const lastDayOfMonth = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0).getDate();
+    const vencimiento = `${anioYYYY}-${mesMM}-${String(lastDayOfMonth).padStart(2, '0')}`;
 
     for (let i = 0; i < inmuebles.length; i++) {
       const inm = inmuebles[i];
-      const actividad = inm.actividad_principal;
-      const clasificacion = inm.clasificacion || 'A';
-      
-      const tarifasPorActividad = (tarifasData as any)[actividad];
-      
-      if (!tarifasPorActividad) {
-        if (!noConfigurados.includes(actividad)) noConfigurados.push(actividad);
-        continue;
-      }
-      
-      const tarifaMMV = tarifasPorActividad[clasificacion] || tarifasPorActividad['A'];
-      const montoCalculado = (tarifaMMV * tcmmv).toFixed(2);
-      
+      if (!inm.inmueble || !inm.identidad) continue;
+
+      const baseCalculada = calcularMensualidad(inm, tcmmv);
+      if (baseCalculada <= 0) continue;
+
       nuevasFacturas.push({
-        referencia: `FAC-${Date.now().toString().slice(-6)}-${i}`,
+        referencia: `CM-${inm.inmueble}-${periodoKey}`,
         identidad: inm.identidad,
-        contribuyente: inm.contribuyente,
-        monto: `${montoCalculado} Bs`,
+        contribuyente: inm.contribuyente || inm.nombre || 'Desconocido',
+        monto: parseFloat(baseCalculada.toFixed(2)),
         emision: emision,
         vencimiento: vencimiento,
         estado: 'Pendiente'
       });
     }
 
-    if (noConfigurados.length > 0) {
-      alert(`Atenci├│n: Las siguientes actividades no est├ín en la ordenanza y no se facturaron:\n${noConfigurados.join(', ')}`);
-    }
-
-    // Insertar masivo (en lotes si es necesario, pero supabase acepta arrays grandes)
-    // Para simplificar enviamos de 500 en 500
-    for(let i=0; i<nuevasFacturas.length; i+=500){
-      const chunk = nuevasFacturas.slice(i, i+500);
-      await supabase.from('facturas').insert(chunk);
+    // Insertar masivo en lotes con upsert para evitar duplicar referencias
+    for (let i = 0; i < nuevasFacturas.length; i += 500) {
+      const chunk = nuevasFacturas.slice(i, i + 500);
+      await supabase.from('facturas').upsert(chunk, { onConflict: 'referencia', ignoreDuplicates: true });
     }
 
     alert(`Se han generado ${nuevasFacturas.length} recibos exitosamente.`);
