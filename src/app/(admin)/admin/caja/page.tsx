@@ -1030,39 +1030,32 @@ export default function CajaPage() {
       }
     }
 
+    // Agrupar recibos seleccionados por inmueble para cálculo acumulado exacto idéntico al Estado de Cuenta
+    const inmSelectedMap = new Map<string, { inm: any; totalMeses: number; mesesConMora: number }>();
+
     selectedRecibos.forEach(ref => {
       if (ref.startsWith('RECIB-HIST-')) {
         const parts = ref.split('-');
-        const inm = inmueblesMap.get(parts[2]);
+        const inmId = parts[2];
+        const inm = inmueblesMap.get(inmId);
         if (inm) {
-          const esRes = isResidencialInm(inm);
-          // Tarifa mensual fija según Ordenanza (coincide exactamente con Tarifas / Ordenanzas)
-          const bm = parseFloat(calcularMensualidad(inm, tasaActualUse).toFixed(2));
-
-          sb += bm;
-          // RESIDENCIAL ESTRICTAMENTE EXENTO DE IVA (0%)
-          const ivaRecibo = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
-          siva += ivaRecibo;
-
-          // SOLO aplicar retención a recibos de comercios que sean formalmente Agentes de Retención
-          if (!esRes && inm.agente_retencion === true) {
-            sivaRetencionable += ivaRecibo;
+          if (!inmSelectedMap.has(inmId)) {
+            inmSelectedMap.set(inmId, { inm, totalMeses: 0, mesesConMora: 0 });
           }
+          const item = inmSelectedMap.get(inmId)!;
+          item.totalMeses += 1;
 
           const f = recibosMap.get(ref);
           const emision = f?.emision ? new Date(f.emision) : new Date();
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-
-          // REGLA OFICIAL: El último mes de la factura es SIN multa. Septiembre se paga en octubre (monthsDiff <= 1 sin multa).
           const mNum = parseInt(parts[3]?.replace('M', '') || '0');
-          const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
-          const isUltimoMes = mNum > 0 ? (mNum >= totalMeses) : false;
-
+          const totalMesesDeuda = Math.max(1, parseInt(inm.meses_deuda || '1'));
+          const isUltimoMes = mNum > 0 ? (mNum >= totalMesesDeuda) : false;
           const esMesExon = isMesExoneradoMulta(inm.notas, emision);
-          // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base (solo meses anteriores a septiembre: monthsDiff > 1)
+
           if (!isUltimoMes && monthsDiff > 1 && !esMesExon) {
-            smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
+            item.mesesConMora += 1;
           }
         }
       } else if (ref.startsWith('CM-')) {
@@ -1071,15 +1064,15 @@ export default function CajaPage() {
         const targetInms = userInmsLocal.length > 0
           ? userInmsLocal
           : allUserInms.filter((i: any) => i.identidad === foundUser?.Identidad);
+
         targetInms.forEach((inm: any) => {
-          const esRes = isResidencialInm(inm);
-          const bm = parseFloat(calcularMensualidad(inm, tasaActualUse).toFixed(2));
-          sb += bm;
-          const ivaRecibo = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
-          siva += ivaRecibo;
-          if (!esRes && inm.agente_retencion === true) {
-            sivaRetencionable += ivaRecibo;
+          const inmId = inm.inmueble || 'general';
+          if (!inmSelectedMap.has(inmId)) {
+            inmSelectedMap.set(inmId, { inm, totalMeses: 0, mesesConMora: 0 });
           }
+          const item = inmSelectedMap.get(inmId)!;
+          item.totalMeses += 1;
+
           const f = recibosMap.get(ref);
           const emision = f?.emision ? new Date(f.emision) : new Date();
           const today = new Date();
@@ -1089,12 +1082,38 @@ export default function CajaPage() {
           );
           const isUltimoMes = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === ref || monthsDiff <= 1;
           const esMesExon = isMesExoneradoMulta(inm.notas, emision);
-          if (!isUltimoMes && monthsDiff > 1 && !esMesExon) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
+
+          if (!isUltimoMes && monthsDiff > 1 && !esMesExon) {
+            item.mesesConMora += 1;
+          }
         });
       } else {
         const f = recibosMap.get(ref);
         if (f) sb += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
       }
+    });
+
+    // Calcular exactamente igual a la fórmula oficial del Estado de Cuenta:
+    inmSelectedMap.forEach(({ inm, totalMeses, mesesConMora }) => {
+      const esRes = isResidencialInm(inm);
+      const bMes = calcularMensualidad(inm, tasaActualUse);
+      const tasaMora = esRes ? 0.10 : 0.12;
+
+      // Base total exactamente igual al Estado de Cuenta: bMes * meses
+      const baseInm = Math.round((bMes * totalMeses) * 100) / 100;
+      sb += baseInm;
+
+      // IVA: 0% residencial, 16% comercial
+      const ivaInm = esRes ? 0 : Math.round(((bMes * 0.16) * totalMeses) * 100) / 100;
+      siva += ivaInm;
+
+      if (!esRes && inm.agente_retencion === true) {
+        sivaRetencionable += ivaInm;
+      }
+
+      // Multa total exactamente igual al Estado de Cuenta: (bMes * tasaMora) * mesesConMora
+      const multaInm = Math.round(((bMes * tasaMora) * mesesConMora) * 100) / 100;
+      smulta += multaInm;
     });
 
     selectedCuotas.forEach(sc => {

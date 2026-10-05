@@ -67,13 +67,7 @@ export function useCajaCalculations({
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
         const esRes = isResidencialInm(inm);
-        // Tarifa mensual según Ordenanza (coincide exactamente con Tarifas / Ordenanzas)
-        const baseMonto = parseFloat(calcularMensualidad(inm, tasaActual).toFixed(2));
-
-        // TODO LO RESIDENCIAL ES ESTRICTAMENTE EXENTO DE IVA (0% IVA)
-        const montoIVA = esRes ? 0 : parseFloat((baseMonto * 0.16).toFixed(2));
-
-        // REGLA OFICIAL: El último mes de la factura es SIN multa.
+        const bMes = calcularMensualidad(inm, tasaActual);
         const totalMesesInm = Math.max(1, parseInt(String(inm.meses_deuda || '1')));
         const isUltimoMes = mNum > 0 ? (mNum >= totalMesesInm) : false;
 
@@ -84,12 +78,40 @@ export function useCajaCalculations({
           (today.getMonth() - emision.getMonth());
 
         const esMesExon = isMesExoneradoMulta((inm as any).notas, emision);
-
-        // Multa mensual por mora: se aplica 10% (res) o 12% (com) sobre el mes vencido, salvo exoneración
         const tieneMora = (!isUltimoMes && monthsDiff > 1 && !esMesExon);
-        const montoMulta = tieneMora ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
 
-        const totalMes = parseFloat((baseMonto + montoIVA + montoMulta).toFixed(2));
+        let totalMes = 0;
+        if (!tieneMora) {
+          // Último mes o mes exonerado: sin multa
+          const baseMonto = Math.round(bMes * 100) / 100;
+          const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16) * 100) / 100;
+          totalMes = baseMonto + montoIVA;
+        } else if (totalMesesInm > 1) {
+          // Período con mora: distribuido exactamente para que la suma total sea idéntica al Estado de Cuenta
+          const mesesConMora = Math.max(1, totalMesesInm - 1);
+          const tasaMora = esRes ? 0.10 : 0.12;
+
+          const baseTotalLocal = Math.round((bMes * totalMesesInm) * 100) / 100;
+          const ultMesBase = Math.round(bMes * 100) / 100;
+          const baseTotalMora = baseTotalLocal - ultMesBase;
+
+          const multaTotal = Math.round(((bMes * tasaMora) * mesesConMora) * 100) / 100;
+          const ivaTotal = esRes ? 0 : (Math.round(((bMes * 0.16) * totalMesesInm) * 100) / 100 - Math.round((bMes * 0.16) * 100) / 100);
+
+          const totalPeriodoMora = baseTotalMora + multaTotal + ivaTotal;
+          const baseCuota = Math.floor((totalPeriodoMora / mesesConMora) * 100) / 100;
+          const restoCentavos = Math.round((totalPeriodoMora - (baseCuota * mesesConMora)) * 100);
+
+          // Repartir los centavos sobrantes equitativamente entre los primeros meses
+          const cuotaMonto = (mNum <= restoCentavos) ? baseCuota + 0.01 : baseCuota;
+          totalMes = parseFloat(cuotaMonto.toFixed(2));
+        } else {
+          const baseMonto = Math.round(bMes * 100) / 100;
+          const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16) * 100) / 100;
+          const montoMulta = Math.round((baseMonto * (esRes ? 0.10 : 0.12)) * 100) / 100;
+          totalMes = baseMonto + montoIVA + montoMulta;
+        }
+
         const montoPendiente = _calcularMontoPendienteEnVuelo(r.referencia, pagosPendientes);
         return String(Math.max(0, totalMes - montoPendiente).toFixed(2));
       }
