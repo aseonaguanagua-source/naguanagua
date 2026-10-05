@@ -397,8 +397,12 @@ export default function TrabajadoresPage() {
       };
 
       if (formData.id) {
-        const { error } = await supabase.from('trabajadores').update(payload).eq('id', formData.id);
-        if (error) throw error;
+        let res = await supabase.from('trabajadores').update(payload).eq('id', formData.id);
+        if (res.error && (res.error.message?.includes('permisos') || res.error.code === '42703')) {
+          const { permisos: _, ...safePayload } = payload;
+          res = await supabase.from('trabajadores').update(safePayload).eq('id', formData.id);
+        }
+        if (res.error) throw res.error;
         await logAudit(
           `Modificación de Permisos y Datos de Trabajador: ${formData.nombre}`,
           { trabajador_usuario: formData.usuario, rol: formData.rol, letra: payload.letra },
@@ -406,8 +410,12 @@ export default function TrabajadoresPage() {
           'ALTA'
         );
       } else {
-        const { error } = await supabase.from('trabajadores').insert([payload]);
-        if (error) throw error;
+        let res = await supabase.from('trabajadores').insert([payload]);
+        if (res.error && (res.error.message?.includes('permisos') || res.error.code === '42703')) {
+          const { permisos: _, ...safePayload } = payload;
+          res = await supabase.from('trabajadores').insert([safePayload]);
+        }
+        if (res.error) throw res.error;
         await logAudit(
           `Creación de Nuevo Trabajador: ${formData.nombre}`,
           { trabajador_usuario: formData.usuario, rol: formData.rol, letra: payload.letra },

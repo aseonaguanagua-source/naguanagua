@@ -19,6 +19,28 @@ export default function Header() {
     }
   };
 
+  const [workerName, setWorkerName] = useState('Usuario Oficial');
+  const [workerRole, setWorkerRole] = useState('Personal Municipal');
+
+  useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('admin_user_data');
+        if (raw) {
+          const u = JSON.parse(raw);
+          setWorkerName(u.nombre || u.usuario || 'Usuario Oficial');
+          setWorkerRole(u.rol ? `${u.rol}${u.letra ? ` (Caja ${u.letra})` : ''}` : 'Funcionario');
+        } else {
+          const u = localStorage.getItem('adminUser');
+          if (u) {
+            setWorkerName(u);
+            setWorkerRole(u === 'dzara' ? 'Administrador' : 'Funcionario');
+          }
+        }
+      } catch {}
+    }
+  });
+
   return (
     <header className="h-16 bg-[#1e293b] sticky top-0 left-0 right-0 flex items-center justify-between px-6 z-40 border-b border-slate-700 shadow-md">
       <div className="flex items-center gap-6">
@@ -44,8 +66,8 @@ export default function Header() {
       </div>
       <div className="flex items-center gap-4 text-sm">
         <div className="text-right">
-          <div className="font-medium text-[#c8e64c]">Usuario Oficial</div>
-          <div className="text-xs text-slate-300">Última Conexión: Hoy</div>
+          <div className="font-bold text-[#c8e64c] text-xs">{workerName}</div>
+          <div className="text-[11px] text-slate-400">{workerRole}</div>
         </div>
         <button 
           onClick={() => {
