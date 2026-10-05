@@ -2385,10 +2385,10 @@ export default function CajaPage() {
                         const clusterRecibos = recibos.filter((r: any) => {
                           if (r.referencia?.startsWith('RECIB-HIST-')) return clusterInmCodes.includes(r.referencia.split('-')[2]);
                           if (r.referencia?.startsWith('CM-')) return clusterInmCodes.some((code: string) => r.referencia.includes(code));
-                          return false;
+                          return clusterInmCodes.some((code: string) => (r.referencia || '').includes(code));
                         });
 
-                        const isAllClusterSelected = isResCluster
+                        const isAllClusterSelected = isCondominio
                           ? (clusterInmIds.length > 0 && clusterInmIds.every((id: string) => selectedHijos.includes(id)))
                           : (clusterRecibos.length > 0 && clusterRecibos.every((r: any) => selectedRecibos.includes(r.referencia)));
 
@@ -2417,10 +2417,10 @@ export default function CajaPage() {
                           const inmRecibos = clusterRecibos.filter((r: any) => {
                             if (r.referencia?.startsWith('RECIB-HIST-')) return r.referencia.split('-')[2] === inm.inmueble;
                             if (r.referencia?.startsWith('CM-')) return r.referencia.includes(inm.inmueble);
-                            return false;
+                            return (r.referencia || '').includes(inm.inmueble);
                           });
 
-                          const isActSelected = isResCluster
+                          const isActSelected = isCondominio
                             ? (inm.id ? selectedHijos.includes(inm.id) : false)
                             : (inmRecibos.length > 0 && inmRecibos.every((r: any) => selectedRecibos.includes(r.referencia)));
 
@@ -2457,9 +2457,12 @@ export default function CajaPage() {
                                       <Store className="w-4 h-4 text-emerald-600" />
                                     )}
                                     <span className="font-bold text-xs text-slate-800">
-                                      {isResCluster 
-                                        ? `Condominio Residencial (${cluster.inms.length} Apartamentos / Unidades):`
-                                        : `Local Comercial (${cluster.inms.length} Actividades Económicas):`
+                                      {isCondominio 
+                                        ? `Condominio (${cluster.inms.length} Unidades):`
+                                        : (isResCluster
+                                            ? `Inmuebles Residenciales (${cluster.inms.length} Unidades):`
+                                            : `Local Comercial (${cluster.inms.length} Actividades Económicas):`
+                                          )
                                       }
                                     </span>
                                     {isResCluster ? (
@@ -2488,7 +2491,7 @@ export default function CajaPage() {
                                     type="checkbox"
                                     checked={isAllClusterSelected}
                                     onChange={(e) => {
-                                      if (isResCluster) {
+                                      if (isCondominio) {
                                         if (e.target.checked) {
                                           setSelectedHijos(Array.from(new Set([...selectedHijos, ...clusterInmIds])));
                                           setCondominioModo('Local');
@@ -2507,20 +2510,20 @@ export default function CajaPage() {
                                     }}
                                     className="w-3.5 h-3.5 text-emerald-600 rounded border-white focus:ring-emerald-500"
                                   />
-                                  {isResCluster ? 'Marcar Todo el Condominio' : 'Marcar Todo el Local (Unificado)'}
+                                  {isCondominio ? 'Marcar Todo el Condominio' : 'Marcar Todo'}
                                 </label>
                               </div>
 
                               {/* Listado de unidades / actividades */}
                               <div className="space-y-1.5 py-2 max-h-[300px] overflow-y-auto">
-                                {activitiesCalc.map(({ inm, mmv, far, totalUCD, bsMensual, isActSelected }, actIdx) => (
+                                {activitiesCalc.map(({ inm, mmv, far, totalUCD, bsMensual, inmRecibos, isActSelected }, actIdx) => (
                                   <div key={actIdx} className={`flex items-center justify-between text-[11px] p-2 rounded-lg border transition-all ${isAllClusterSelected || isActSelected ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-400/40' : 'bg-white border-slate-200'}`}>
                                     <div className="flex items-center gap-2">
                                       <input 
                                         type="checkbox"
                                         checked={isAllClusterSelected || isActSelected}
                                         onChange={(e) => {
-                                          if (isResCluster) {
+                                          if (isCondominio) {
                                             if (e.target.checked) {
                                               if (inm.id) setSelectedHijos(Array.from(new Set([...selectedHijos, inm.id])));
                                               setCondominioModo('Local');
@@ -2528,10 +2531,13 @@ export default function CajaPage() {
                                               setSelectedHijos(selectedHijos.filter(id => id !== inm.id));
                                             }
                                           } else {
-                                            const allClusterRefs = clusterRecibos.map((r: any) => r.referencia);
-                                            const otherSelected = selectedRecibos.filter((ref: string) => !allClusterRefs.includes(ref));
-                                            if (e.target.checked) setSelectedRecibos([...otherSelected, ...allClusterRefs]);
-                                            else setSelectedRecibos(otherSelected);
+                                            const thisInmRefs = inmRecibos.map((r: any) => r.referencia);
+                                            const otherSelected = selectedRecibos.filter((ref: string) => !thisInmRefs.includes(ref));
+                                            if (e.target.checked) {
+                                              setSelectedRecibos([...otherSelected, ...thisInmRefs]);
+                                            } else {
+                                              setSelectedRecibos(otherSelected);
+                                            }
                                           }
                                         }}
                                         className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
