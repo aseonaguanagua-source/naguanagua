@@ -687,16 +687,20 @@ export default function CajaPage() {
               const congelada = parseFloat(inm.deuda_congelada_bs || '0');
               if (multa > 0 || congelada > 0) {
                 const totalMulta = (multa + congelada).toFixed(2);
+                // Las multas solo aplican a períodos vencidos (hasta agosto).
+                // Septiembre se paga en octubre sin multa, y octubre aún no vence.
+                const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
                 combined.push({
                   id: `multa-${inm.inmueble}`,
                   referencia: `MULTA-${inm.inmueble}`,
                   identidad: user.Identidad,
                   contribuyente: user.Contribuyente,
-                  emision: now.toISOString(),
-                  vencimiento: now.toISOString(),
+                  emision: fechaMora.toISOString(),
+                  vencimiento: fechaMora.toISOString(),
                   estado: 'Pendiente',
                   monto: totalMulta,
-                  descripcion: `Multa Municipal - Local/Oficina (${inm.inmueble})`
+                  descripcion: `Multa Municipal - Local/Oficina (${inm.inmueble})`,
+                  descripcion_periodo: `MULTA POR MORA (HASTA ${formatMonthYear(fechaMora.toISOString())})`
                 });
               }
               return;
@@ -3534,7 +3538,9 @@ export default function CajaPage() {
                                     <div>
                                       <p className="font-bold text-xs text-slate-700">{r.referencia}</p>
                                       <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1 mt-0.5">
-                                        {formatMonthYear(r.emision)}
+                                        {r.referencia?.startsWith('MULTA-')
+                                          ? (r.descripcion_periodo || `MULTA POR MORA (HASTA ${formatMonthYear(r.emision)})`)
+                                          : formatMonthYear(r.emision)}
                                       </p>
                                     </div>
                                   </div>
