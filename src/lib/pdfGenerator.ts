@@ -137,45 +137,113 @@ export const generarSolvenciaPDF = async (
   addCertificadoToContext?: (cert: any) => void
 ) => {
   try {
+    const rawId = contribuyente.Identidad || contribuyente.identidad || '';
+    const cleanId = rawId.trim();
+    const idSinGuion = cleanId.replace(/-/g, '');
+
+    // 1. Verificación estricta en base de datos: Facturas pendientes
+    if (cleanId) {
+      const { data: facts } = await supabase
+        .from('facturas')
+        .select('id, referencia, estado, monto')
+        .or(`identidad.eq.${cleanId},identidad.eq.${idSinGuion}`)
+        .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
+
+      if (facts && facts.length > 0) {
+        const msg = `EMISIÓN DENEGADA: El contribuyente ${cleanId} posee ${facts.length} factura(s) pendiente(s) de pago. Debe estar 100% al día para emitir Solvencia.`;
+        alert(msg);
+        throw new Error(msg);
+      }
+
+      // 2. Verificación estricta en base de datos: Inmuebles con meses de deuda o saldo
+      const { data: inms } = await supabase
+        .from('inmuebles')
+        .select('inmueble, meses_deuda, deuda_mmv, deuda_congelada_bs, actividad_principal')
+        .or(`identidad.eq.${cleanId},identidad.eq.${idSinGuion}`);
+
+      if (inms && inms.length > 0) {
+        const inmsConMora = inms.filter((i: any) => {
+          const m = parseInt(String(i.meses_deuda || 0), 10);
+          const dMMV = parseFloat(String(i.deuda_mmv || 0));
+          const dCong = parseFloat(String(i.deuda_congelada_bs || 0));
+          return m > 0 || dMMV > 0 || dCong > 0;
+        });
+
+        if (inmsConMora.length > 0) {
+          const detInm = inmsConMora.map((i: any) => `${i.inmueble} (${i.meses_deuda} meses)`).join(', ');
+          const msg = `EMISIÓN DENEGADA: El contribuyente ${cleanId} posee deuda activa en los siguientes inmuebles: ${detInm}. No está solvente.`;
+          alert(msg);
+          throw new Error(msg);
+        }
+      }
+    }
+
     const fechaEmision = new Date();
     const fechaVencimiento = new Date(fechaEmision);
     fechaVencimiento.setDate(fechaVencimiento.getDate() + 30);
     
-    const codigoUnico = `SOL-${contribuyente.Identidad}-${Date.now().toString().slice(-6)}`;
+    const codigoUnico = `SOL-${cleanId}-${Date.now().toString().slice(-6)}`;
     
     const dbRecord = {
       codigo: codigoUnico,
-      contribuyente: contribuyente.Contribuyente,
-      identidad: contribuyente.Identidad,
+      contribuyente: contribuyente.Contribuyente || contribuyente.nombre || 'Contribuyente',
+      identidad: cleanId,
       tipo: 'Solvencia Municipal',
       emision: fechaEmision.toISOString(),
       vencimiento: fechaVencimiento.toISOString(),
       estado: 'Vigente'
     };
 
-    const { error } = await supabase.from('certificados').insert(dbRecord);
-    if (error) {
-      console.error("No se pudo registrar el certificado en la BD", error);
-    } else {
-      if (addCertificadoToContext) addCertificadoToContext(dbRecord);
-    }
+    try {
+      await supabase.from('certificados').insert(dbRecord);
+    } catch (_) {}
+    if (addCertificadoToContext) addCertificadoToContext(dbRecord);
 
     await dibujarYDescargarPDF({
       ...dbRecord,
       inmuebleSpec,
-      telefono: '+58 412-9030238',
-      codigoContribuyente: contribuyente.id || 'C-0000',
-      direccion: contribuyente.Direccion || 'Naguanagua Municipio Naguanagua'
+      telefono: contribuyente.Telefono || contribuyente.telefono || '+58 412-9030238',
+      codigoContribuyente: contribuyente.CodCont || contribuyente.id || 'C-0000',
+      direccion: contribuyente.Direccion || contribuyente.direccion || 'Naguanagua Municipio Naguanagua'
     });
 
     return dbRecord;
   } catch (e: any) {
-    alert("Error al generar PDF de Solvencia: " + e.message);
+    console.error("Error al generar PDF de Solvencia:", e);
     throw e;
   }
 };
 
 export const reimprimirSolvenciaPDF = async (certificadoRow: any) => {
+  const rawId = certificadoRow.identidad || '';
+  const cleanId = rawId.trim();
+  const idSinGuion = cleanId.replace(/-/g, '');
+
+  if (cleanId) {
+    const { data: facts } = await supabase
+      .from('facturas')
+      .select('id')
+      .or(`identidad.eq.${cleanId},identidad.eq.${idSinGuion}`)
+      .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
+
+    const { data: inms } = await supabase
+      .from('inmuebles')
+      .select('inmueble, meses_deuda, deuda_mmv, deuda_congelada_bs')
+      .or(`identidad.eq.${cleanId},identidad.eq.${idSinGuion}`);
+
+    const inmsConMora = inms?.filter((i: any) => {
+      const m = parseInt(String(i.meses_deuda || 0), 10);
+      const dMMV = parseFloat(String(i.deuda_mmv || 0));
+      const dCong = parseFloat(String(i.deuda_congelada_bs || 0));
+      return m > 0 || dMMV > 0 || dCong > 0;
+    });
+
+    if ((facts && facts.length > 0) || (inmsConMora && inmsConMora.length > 0)) {
+      alert(`REIMPRESIÓN BLOQUEADA: El contribuyente ${cleanId} actualmente posee deuda activa y ya no se encuentra solvente.`);
+      return;
+    }
+  }
+
   await dibujarYDescargarPDF({
     codigo: certificadoRow.codigo,
     contribuyente: certificadoRow.contribuyente,

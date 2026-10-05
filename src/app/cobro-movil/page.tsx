@@ -156,8 +156,9 @@ export default function KioskPage() {
         const baseMes = parseFloat(calcularMensualidad(i, tcmmv).toFixed(2));
         const baseInm = baseMes * meses;
         const k = Math.max(0, meses - 1);
-        const totalMesesMora = (k * (k + 1)) / 2;
-        const multaInm = baseMes * (esRes ? 0.10 : 0.12) * totalMesesMora;
+        const notasLower = ((i as any).notas || '').toLowerCase();
+        const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
+        const multaInm = isExonerado ? 0 : baseMes * (esRes ? 0.10 : 0.12) * k;
         totalBase += baseInm;
         totalMulta += multaInm;
         if (!esRes) {

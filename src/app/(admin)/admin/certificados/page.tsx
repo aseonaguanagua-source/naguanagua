@@ -35,22 +35,33 @@ export default function CertificadosPage() {
     });
     
     if (found) {
-      // Calcular deuda
+      const cleanIdent = (found.Identidad || '').replace(/-/g, '').toUpperCase();
+      
+      // Facturas pendientes
       const deudas = (recibos || [])
-        .filter((f: any) => f.identidad === found.Identidad)
-        .filter((f: any) => f.estado === 'Pendiente');
+        .filter((f: any) => (f.identidad || '').replace(/-/g, '').toUpperCase() === cleanIdent)
+        .filter((f: any) => ['Pendiente', 'Abonado', 'Por Verificar'].includes(f.estado));
       
-      const totalBs = deudas.reduce((acc: number, f: any) => acc + parseFloat(f.monto || '0'), 0);
+      const totalBs = deudas.reduce((acc: number, f: any) => acc + parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')), 0);
       
-      // Buscar inmuebles
-      const misInmuebles = (inmuebles || []).filter((i: any) => i.identidad === found.Identidad);
+      // Buscar inmuebles y verificar meses_deuda
+      const misInmuebles = (inmuebles || []).filter((i: any) => (i.identidad || '').replace(/-/g, '').toUpperCase() === cleanIdent);
+      const inmsConMora = misInmuebles.filter((i: any) =>
+        parseInt(String(i.meses_deuda || '0'), 10) > 0 ||
+        parseFloat(String(i.deuda_mmv || '0')) > 0 ||
+        parseFloat(String(i.deuda_congelada_bs || '0')) > 0
+      );
+      
+      const hasDebt = totalBs > 0 || inmsConMora.length > 0;
+      const totalMesesDeuda = inmsConMora.reduce((max: number, i: any) => Math.max(max, parseInt(String(i.meses_deuda || 0), 10)), 0);
+
       const isCondominio = (found.CantidadInmuebles && parseInt(found.CantidadInmuebles) > 1) || 
                            (found.Contribuyente && found.Contribuyente.toUpperCase().includes('CONDOMINIO'));
 
       setSearchResult({
         ...found,
-        hasDebt: totalBs > 0,
-        debtAmount: totalBs.toFixed(2),
+        hasDebt,
+        debtAmount: totalBs > 0 ? `Bs. ${totalBs.toFixed(2)}` : `${totalMesesDeuda} meses acumulados`,
         isCondominio,
         misInmuebles
       });
@@ -63,6 +74,10 @@ export default function CertificadosPage() {
 
   const handleDownload = async () => {
     if (!searchResult) return;
+    if (searchResult.hasDebt) {
+      alert("EMISIÓN DENEGADA: El contribuyente posee deudas activas o meses pendientes. No es posible generar una solvencia.");
+      return;
+    }
     await generarSolvenciaPDF(searchResult, selectedInmueble || 'general', addCertificado);
   };
 

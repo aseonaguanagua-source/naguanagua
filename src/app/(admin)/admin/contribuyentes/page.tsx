@@ -1347,6 +1347,25 @@ function ContribuyentesPageContent() {
   };
 
   const generarSolvenciaIndividual = async (contribuyente: any, inmuebleSpec: string) => {
+    const cleanId = (contribuyente.Identidad || '').replace(/-/g, '').toUpperCase();
+    const userInms = (inmuebles || []).filter((i: any) =>
+      (i.identidad || '').replace(/-/g, '').toUpperCase() === cleanId
+    );
+    const inmsConDeuda = userInms.filter((i: any) =>
+      parseInt(String(i.meses_deuda || '0'), 10) > 0 ||
+      parseFloat(String(i.deuda_mmv || '0')) > 0 ||
+      parseFloat(String(i.deuda_congelada_bs || '0')) > 0
+    );
+    const pendFacturas = (recibos || []).filter((f: any) =>
+      (f.identidad || '').replace(/-/g, '').toUpperCase() === cleanId &&
+      ['Pendiente', 'Abonado', 'Por Verificar'].includes(f.estado)
+    );
+
+    if (inmsConDeuda.length > 0 || pendFacturas.length > 0) {
+      alert(`ACCESO DENEGADO: El contribuyente ${contribuyente.Identidad} posee deudas activas o meses pendientes. No es posible emitir la Solvencia.`);
+      return;
+    }
+
     await generarSolvenciaPDF(contribuyente, inmuebleSpec, addCertificado);
   };
 
@@ -2633,17 +2652,34 @@ function ContribuyentesPageContent() {
       key: 'actions',
       header: 'Acciones / Estatus',
       render: (row: any) => {
-        // Mock data logic for indicators
-        // Deuda real del contribuyente
+        const cleanIdent = (row.Identidad || '').replace(/-/g,'').toUpperCase();
+
+        // 1. Facturas pendientes
         const pendFacturas = (recibos || []).filter((f: any) =>
-          (f.identidad || '').replace(/-/g,'') === (row.Identidad || '').replace(/-/g,'') &&
+          (f.identidad || '').replace(/-/g,'').toUpperCase() === cleanIdent &&
           ['Pendiente','Abonado','Por Verificar'].includes(f.estado)
         );
-        const hasDebt = pendFacturas.length > 0;
-        const debtAmount = pendFacturas.reduce((s: number, f: any) => s + parseFloat(String(f.monto || '0').replace(/[^\d.]/g,'')), 0).toFixed(2);
+        const debtFacturasAmount = pendFacturas.reduce((s: number, f: any) => s + parseFloat(String(f.monto || '0').replace(/[^\d.]/g,'')), 0);
+
+        // 2. Inmuebles asociados y verificación de mora en padrón
+        const userInms = (inmuebles || []).filter((i: any) =>
+          (i.identidad || '').replace(/-/g,'').toUpperCase() === cleanIdent
+        );
+        const inmsConMora = userInms.filter((i: any) =>
+          parseInt(String(i.meses_deuda || '0'), 10) > 0 ||
+          parseFloat(String(i.deuda_mmv || '0')) > 0 ||
+          parseFloat(String(i.deuda_congelada_bs || '0')) > 0
+        );
+
+        const hasDebt = pendFacturas.length > 0 || inmsConMora.length > 0;
+        const totalMesesDeuda = inmsConMora.reduce((max: number, i: any) => Math.max(max, parseInt(String(i.meses_deuda || 0), 10)), 0);
+        const debtDesc = pendFacturas.length > 0
+          ? `Deuda pendiente: Bs. ${debtFacturasAmount.toFixed(2)} (${pendFacturas.length} recibos)`
+          : `Deuda pendiente: ${totalMesesDeuda} meses acumulados`;
+
         const hasAgreement = (convenios || []).some((conv: any) =>
-          (conv.identidad || '').replace(/-/g,'') === (row.Identidad || '').replace(/-/g,'') &&
-          conv.estado === 'Al D\xc3\xada'
+          (conv.identidad || '').replace(/-/g,'').toUpperCase() === cleanIdent &&
+          conv.estado === 'Al Día'
         );
         const isCondo = Boolean(row.isCondominio || row.es_condominio || (row.unidadesCount && row.unidadesCount > 1));
 
@@ -2690,7 +2726,7 @@ function ContribuyentesPageContent() {
             {hasDebt ? (
               <button 
                 className="bg-red-50 text-red-600 p-1.5 rounded cursor-default"
-                title={`Deuda pendiente: Bs. ${debtAmount}`}
+                title={debtDesc}
               >
                 <DollarSign className="w-4 h-4" />
               </button>
@@ -3164,8 +3200,10 @@ function ContribuyentesPageContent() {
                           const emision = f.emision ? new Date(f.emision) : new Date();
                           const today = new Date();
                           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-                          const mesesMora = (!isUltimoMes && monthsDiff > 1) ? (monthsDiff - 1) : 0;
-                          const multa = parseFloat((bm * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
+                          const notasLower = (matchedInm.notas || '').toLowerCase();
+                          const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
+                          const tieneMora = (!isUltimoMes && monthsDiff > 1 && !isExonerado);
+                          const multa = tieneMora ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                           base = bm + iva + multa;
                         }
                       } else if (f.referencia?.startsWith('CM-')) {
@@ -3189,8 +3227,10 @@ function ContribuyentesPageContent() {
                           const today = new Date();
                           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
                           const isUltimoCm = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === f.referencia || monthsDiff <= 1;
-                          const mesesMora = (!isUltimoCm && monthsDiff > 1) ? (monthsDiff - 1) : 0;
-                          const multa = parseFloat((bm * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
+                          const notasLower = (targetInm.notas || '').toLowerCase();
+                          const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
+                          const tieneMora = (!isUltimoCm && monthsDiff > 1 && !isExonerado);
+                          const multa = tieneMora ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                           base = bm + iva + multa;
                         }
                       }
@@ -3219,10 +3259,12 @@ function ContribuyentesPageContent() {
                       const esRes = isResidencialInm(inm);
                       const baseUnMes = calcularMensualidad(inm, tcmmv);
                       const iva = esRes ? 0 : (baseUnMes * 0.16);
-                      const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
-                      const mesesConMulta = Math.max(0, meses - 1);
-                      const totalMesesMora = (mesesConMulta * (mesesConMulta + 1)) / 2;
-                      return sum + ( (baseUnMes + iva) * meses ) + (multaMes * totalMesesMora);
+                      const notasLower = (inm.notas || '').toLowerCase();
+                      const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
+                      const multaMes = isExonerado ? 0 : baseUnMes * (esRes ? 0.10 : 0.12);
+                      const mesesConMulta = isExonerado ? 0 : Math.max(0, meses - 1);
+                      const totalMulta = multaMes * mesesConMulta;
+                      return sum + ( (baseUnMes + iva) * meses ) + totalMulta;
                     }, 0);
                     const tieneDeudaReal = deudaInmuebleBs > 0.01;
                     if (deudas.length === 0 && !tieneDeudaReal) {
@@ -3300,12 +3342,13 @@ function ContribuyentesPageContent() {
                                   const baseUnMes = calcularMensualidad(inm, tcmmv);
                                   const base = baseUnMes * meses;
                                   const iva = esRes ? 0 : (base * 0.16);
-                                  const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
-                                  const mesesConMulta = Math.max(0, meses - 1);
-                                  const totalMesesMora = (mesesConMulta * (mesesConMulta + 1)) / 2;
-                                  const multaCalc = multaMes * totalMesesMora;
-                                  const multaGuardada = parseFloat(inm.multa_bs || '0');
-                                  const multa = meses <= 1 ? 0 : Math.max(multaCalc, multaGuardada);
+                                  const notasLower = (inm.notas || '').toLowerCase();
+                                  const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
+                                  const multaMes = isExonerado ? 0 : baseUnMes * (esRes ? 0.10 : 0.12);
+                                  const mesesConMulta = isExonerado ? 0 : Math.max(0, meses - 1);
+                                  const multaCalc = isExonerado ? 0 : (multaMes * mesesConMulta);
+                                  const multaGuardada = isExonerado ? 0 : parseFloat(inm.multa_bs || '0');
+                                  const multa = (meses <= 1 || isExonerado) ? 0 : Math.max(multaCalc, multaGuardada);
                                   const totalInm = base + iva + multa;
 
                                   const getLocalLabelItem = (item: any) => {
@@ -3416,12 +3459,13 @@ function ContribuyentesPageContent() {
                                     const baseUnMes = calcularMensualidad(inm, tcmmv);
                                     const base = baseUnMes * meses;
                                     const iva = esRes ? 0 : (base * 0.16);
-                                    const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
-                                    const mesesConMulta = Math.max(0, meses - 1);
-                                    const totalMesesMora = (mesesConMulta * (mesesConMulta + 1)) / 2;
-                                    const multaCalc = multaMes * totalMesesMora;
-                                    const multaGuardada = parseFloat(inm.multa_bs || '0');
-                                    const multa = meses <= 1 ? 0 : Math.max(multaCalc, multaGuardada);
+                                    const notasLower = (inm.notas || '').toLowerCase();
+                                    const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
+                                    const multaMes = isExonerado ? 0 : baseUnMes * (esRes ? 0.10 : 0.12);
+                                    const mesesConMulta = isExonerado ? 0 : Math.max(0, meses - 1);
+                                    const multaCalc = isExonerado ? 0 : (multaMes * mesesConMulta);
+                                    const multaGuardada = isExonerado ? 0 : parseFloat(inm.multa_bs || '0');
+                                    const multa = (meses <= 1 || isExonerado) ? 0 : Math.max(multaCalc, multaGuardada);
                                     const totalInm = base + iva + multa;
 
                                     const getLocalLabelItem = (item: any) => {
