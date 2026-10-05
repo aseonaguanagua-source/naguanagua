@@ -162,7 +162,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
           telefono: inm.telefono || '',
           correo: inm.correo_electronico || '',
           ficha_catastral: '',
-          estado: (parseInt(inm.meses_deuda || '0') > 0 || parseFloat(inm.deuda_mmv || '0') > 0) ? 'Con Deuda' : 'Solvente',
+          estado: (parseInt(inm.meses_deuda || '0') > 0 || parseFloat(inm.deuda_mmv || '0') > 0 || parseFloat(inm.multa_bs || '0') > 0) ? 'Con Deuda' : 'Solvente',
           ocupacion: isDesocupado ? 'Desocupada' : 'Ocupada',
           clave_acceso: '',
           es_migrado: true,
@@ -170,6 +170,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
           actividad: inm.actividad_principal || '',
           meses_deuda: parseInt(inm.meses_deuda || '0'),
           deuda_mmv: parseFloat(inm.deuda_mmv || '0'),
+          multa_bs: parseFloat(inm.multa_bs || '0'),
           tipo: inm.tipo || 'COMERCIAL'
         };
       });
@@ -659,6 +660,8 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                       <th className="px-4 py-3">Unidad</th>
                       <th className="px-4 py-3">Propietario / Cédula</th>
                       <th className="px-4 py-3">Contacto</th>
+                      <th className="px-4 py-3">Aseo Urbano</th>
+                      <th className="px-4 py-3">Multa (Oficina)</th>
                       <th className="px-4 py-3">Tipo</th>
                       <th className="px-4 py-3">Nietos</th>
                       <th className="px-4 py-3">Ficha</th>
@@ -724,6 +727,12 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                                 onChange={(e) => setEditForm({...editForm, correo: e.target.value})}
                                 className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 min-w-[100px]"
                               />
+                            </td>
+                            <td className="px-4 py-2">
+                              {/* Read-only edit mode for Aseo */}
+                            </td>
+                            <td className="px-4 py-2">
+                              {/* Read-only edit mode for Multa */}
                             </td>
                             <td className="px-4 py-2">
                               {/* Read-only edit mode for Tipo */}
@@ -794,6 +803,20 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                               <div className="font-medium text-slate-700">{formatPhoneNumber(u.telefono) || 'Sin Telf.'}</div>
                               <div className="text-[11px] text-slate-400">{!isFictitiousEmail(u.correo) ? u.correo : 'Sin Correo'}</div>
                             </td>
+                            <td className="px-4 py-3 text-xs">
+                              <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100" title="Aseo urbano facturado centralizado al Condominio Padre">
+                                Centralizado
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs">
+                              {parseFloat(u.multa_bs || '0') > 0 ? (
+                                <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded whitespace-nowrap shadow-2xs">
+                                  Bs. {parseFloat(u.multa_bs).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-slate-400 font-mono">Bs. 0,00</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex items-center px-2 py-1 text-[10px] font-bold uppercase rounded ${u.tipo === 'CONDOMINIO' ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700 border border-blue-100'}`}>
                                 {u.tipo || 'INDEPENDIENTE'}
@@ -837,6 +860,15 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                               >
                                 <FileText size={16} />
                               </button>
+                              {parseFloat(u.multa_bs || '0') > 0 && (
+                                <a
+                                  href={`/admin/caja?search=${encodeURIComponent(u.codigo_ch || u.cedula_rif || '')}`}
+                                  className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors mr-1 inline-flex items-center"
+                                  title={`Cobrar Multa de esta Oficina en Caja (Bs. ${parseFloat(u.multa_bs).toFixed(2)})`}
+                                >
+                                  <CreditCard size={16} />
+                                </a>
+                              )}
                               <button
                                 onClick={() => { setShowEstado(showEstado === u.id ? null : u.id); setShowCredencial(null); }}
                                 className={`p-1.5 rounded-lg transition-colors mr-1 ${showEstado === u.id ? 'bg-orange-100 text-orange-700' : 'text-orange-500 hover:bg-orange-50'}`}

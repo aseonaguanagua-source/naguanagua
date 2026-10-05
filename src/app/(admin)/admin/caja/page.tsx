@@ -652,8 +652,27 @@ export default function CajaPage() {
         if (hasDeuda && !isCondominio) {
           const now = new Date();
           billableInms.forEach((inm: any) => {
-            // Si el inmueble es hijo/filial de un condominio, la deuda se factura a nivel del Condominio Padre
-            if (inm.condominio_padre_id) return;
+            // Si el inmueble es hijo/filial de un condominio comercial:
+            // El aseo lo paga el condominio padre, pero las multas se pagan por la oficina individual
+            if (inm.condominio_padre_id) {
+              const multa = parseFloat(inm.multa_bs || '0');
+              const congelada = parseFloat(inm.deuda_congelada_bs || '0');
+              if (multa > 0 || congelada > 0) {
+                const totalMulta = (multa + congelada).toFixed(2);
+                combined.push({
+                  id: `multa-${inm.inmueble}`,
+                  referencia: `MULTA-${inm.inmueble}`,
+                  identidad: user.Identidad,
+                  contribuyente: user.Contribuyente,
+                  emision: now.toISOString(),
+                  vencimiento: now.toISOString(),
+                  estado: 'Pendiente',
+                  monto: totalMulta,
+                  descripcion: `Multa Municipal - Local/Oficina (${inm.inmueble})`
+                });
+              }
+              return;
+            }
 
             const deudaMMV = parseFloat(inm.deuda_mmv || '0');
             const congelada = parseFloat(inm.deuda_congelada_bs || '0');
@@ -1385,6 +1404,15 @@ export default function CajaPage() {
                 await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths }).eq('id', parentInm.id);
               }
             }
+          }
+        }
+
+        // ── LIMPIAR MULTAS DE OFICINA/LOCAL DE CONDOMINIO (MULTA-*) ──
+        const multaRefs = selectedRecibos.filter(r => r.startsWith('MULTA-'));
+        if (multaRefs.length > 0 && !esAbonoDebito) {
+          for (const mRef of multaRefs) {
+            const inmCode = mRef.replace('MULTA-', '');
+            await supabase.from('inmuebles').update({ multa_bs: 0, deuda_congelada_bs: 0 }).eq('inmueble', inmCode);
           }
         }
 

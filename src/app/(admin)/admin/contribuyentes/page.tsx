@@ -42,7 +42,7 @@ function ContribuyentesPageContent() {
   const [viewCalculo, setViewCalculo] = useState<any>(null);
   const [viewFacturasCM, setViewFacturasCM] = useState<any[]>([]);
   const [viewFacturasDb, setViewFacturasDb] = useState<any[]>([]); // recibos frescas desde Supabase
-  const [selectedCondominioModal, setSelectedCondominioModal] = useState<{ id: number, nombre: string, identidad: string } | null>(null);
+  const [selectedCondominioModal, setSelectedCondominioModal] = useState<{ id: number | string, nombre: string, identidad: string, codigoPadre?: string } | null>(null);
   const [viewServiciosEsp, setViewServiciosEsp] = useState<any[]>([]);
   const [viewPagos, setViewPagos] = useState<any[]>([]);
 
@@ -77,6 +77,7 @@ function ContribuyentesPageContent() {
   const [serverResults, setServerResults] = useState<any[]>([]);
   const [isShowingServerResults, setIsShowingServerResults] = useState(false);
   const [showWithNotes, setShowWithNotes] = useState(false);
+  const [groupCondoChildren, setGroupCondoChildren] = useState(true);
   const [filteredContribuyentes, setFilteredContribuyentes] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -147,8 +148,13 @@ function ContribuyentesPageContent() {
       result = result.filter((c: any) => c.Observaciones && c.Observaciones.trim().length > 0);
     }
     
+    // Si está activa la agrupación, ocultar los locales hijos independientes para no saturar la tabla
+    if (groupCondoChildren && !isShowingServerResults) {
+      result = result.filter((c: any) => !c.isCondoChild);
+    }
+
     setFilteredContribuyentes(result);
-  }, [activeTab, contribuyentes, showWithNotes, isShowingServerResults, serverResults]);
+  }, [activeTab, contribuyentes, showWithNotes, isShowingServerResults, serverResults, groupCondoChildren]);
 
   useEffect(() => {
     if (searchParams.get('action') === 'new') {
@@ -2402,11 +2408,29 @@ function ContribuyentesPageContent() {
         const rawCodes = (row.CodCont || row.cod_cont || '').trim().split(/\s+/).filter(Boolean);
         const mainCode = rawCodes[0] || row.cod_cont || 'N/A';
         const otherCount = rawCodes.length - 1;
+        const isCondo = Boolean(row.isCondominio || row.es_condominio);
+        const isChild = Boolean(row.isCondoChild);
 
         return (
           <div className="flex flex-col">
             <span className="font-bold text-slate-800 tracking-tight">{mainCode}</span>
-            {otherCount > 0 && (
+            {isCondo && (
+              <span 
+                className="text-[10px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded border border-purple-200 mt-0.5 inline-flex items-center gap-1 w-fit shadow-2xs"
+                title={`Condominio con ${row.unidadesCount || row.cant_inmuebles || 1} locales/unidades registradas`}
+              >
+                🏢 {row.unidadesCount || row.cant_inmuebles || 1} locales
+              </span>
+            )}
+            {isChild && (
+              <span 
+                className="text-[9px] bg-amber-50 text-amber-700 font-semibold px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 inline-block w-fit"
+                title={`Filial de: ${row.condominio_padre_nombre || row.condominio_padre_id}`}
+              >
+                Filial de {row.condominio_padre_id}
+              </span>
+            )}
+            {!isCondo && otherCount > 0 && (
               <span 
                 className="text-[10px] bg-blue-50 text-blue-700 font-semibold px-1.5 py-0.5 rounded border border-blue-200 mt-0.5 inline-block w-fit cursor-help shadow-2xs"
                 title={`Inmuebles vinculados: ${rawCodes.join(', ')}`}
@@ -2419,7 +2443,31 @@ function ContribuyentesPageContent() {
       }
     },
     { key: 'Identidad', header: 'R.I.F. / Cédula' },
-    { key: 'Contribuyente', header: 'Nombre / Razón Social' },
+    {
+      key: 'Contribuyente',
+      header: 'Nombre / Razón Social',
+      render: (row: any) => {
+        const isCondo = Boolean(row.isCondominio || row.es_condominio);
+        const isChild = Boolean(row.isCondoChild);
+        return (
+          <div>
+            <div className="font-medium text-slate-800 flex items-center gap-1.5 flex-wrap">
+              <span>{row.Contribuyente}</span>
+              {isCondo && (
+                <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full border border-purple-200">
+                  Condominio Padre
+                </span>
+              )}
+            </div>
+            {isChild && (
+              <div className="text-[10px] text-amber-700 flex items-center gap-1 mt-0.5 font-medium">
+                🏢 Local en: {row.condominio_padre_nombre || row.condominio_padre_id}
+              </div>
+            )}
+          </div>
+        );
+      }
+    },
     {
       key: 'FechaRegistro',
       header: 'Registro',
@@ -2442,11 +2490,20 @@ function ContribuyentesPageContent() {
       header: 'Clasificación',
       render: (row: any) => {
         const clase = row.Clasificacion || 'Residencial';
+        const isChild = Boolean(row.isCondoChild);
         const detalle = clase.includes('Comercial') ? row.ActividadComercial : (row.TipoResidencia || 'No asignado');
         return (
           <div className="flex flex-col">
-            <span className={`text-xs font-semibold ${clase === 'Residencial' ? 'text-emerald-600' : 'text-blue-600'}`}>{clase}</span>
+            <span className={`text-xs font-semibold ${clase === 'Residencial' ? 'text-emerald-600' : 'text-blue-600'}`}>
+              {clase} {isChild ? '(Filial)' : ''}
+            </span>
             <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{detalle}</span>
+            {isChild && row.isCommercialChild && (
+              <div className="text-[9px] text-slate-500 mt-0.5">
+                Aseo: <span className="text-blue-600 font-medium">Por Condominio</span>
+                {row.MultaBs > 0 && <span className="text-amber-700 font-bold ml-1">• Multa: Bs. {row.MultaBs.toFixed(2)}</span>}
+              </div>
+            )}
           </div>
         );
       }
@@ -2484,9 +2541,27 @@ function ContribuyentesPageContent() {
           (conv.identidad || '').replace(/-/g,'') === (row.Identidad || '').replace(/-/g,'') &&
           conv.estado === 'Al D\xc3\xada'
         );
+        const isCondo = Boolean(row.isCondominio || row.es_condominio || (row.unidadesCount && row.unidadesCount > 1));
 
         return (
           <div className="flex gap-2 items-center">
+            {isCondo && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedCondominioModal({
+                    id: row.id || 1,
+                    nombre: row.Contribuyente,
+                    identidad: row.Identidad,
+                    codigoPadre: (row.CodCont || row.cod_cont || '').trim().split(/\s+/)[0]
+                  });
+                }}
+                className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 p-1.5 rounded transition-colors"
+                title={`Ver las ${row.unidadesCount || row.cant_inmuebles || ''} Unidades / Locales del Condominio`}
+              >
+                <Building className="w-4 h-4" />
+              </button>
+            )}
             <button 
               onClick={() => { setViewData(row); setIsViewModalOpen(true); }}
               className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-1.5 rounded transition-colors"
@@ -2519,10 +2594,10 @@ function ContribuyentesPageContent() {
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  const isCondominio = (row.CantidadInmuebles && parseInt(row.CantidadInmuebles) > 1) || 
+                  const isCondoCheck = (row.CantidadInmuebles && parseInt(row.CantidadInmuebles) > 1) || 
                                        (row.Contribuyente && row.Contribuyente.toUpperCase().includes('CONDOMINIO'));
                   
-                  if (isCondominio) {
+                  if (isCondoCheck) {
                     // Open view modal to let them select specific unit
                     setViewData(row);
                     setIsViewModalOpen(true);
@@ -2677,17 +2752,35 @@ function ContribuyentesPageContent() {
           </button>
         </div>
         
-        <div className="flex items-center gap-2 mb-2">
-          <input 
-            type="checkbox" 
-            id="showNotesToggle"
-            checked={showWithNotes}
-            onChange={(e) => setShowWithNotes(e.target.checked)}
-            className="rounded border-amber-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-          />
-          <label htmlFor="showNotesToggle" className="text-sm font-medium text-amber-700 cursor-pointer select-none flex items-center gap-1">
-            Solo mostrar con Notas Históricas
-          </label>
+        <div className="flex items-center gap-4 mb-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <input 
+              type="checkbox" 
+              id="showNotesToggle"
+              checked={showWithNotes}
+              onChange={(e) => setShowWithNotes(e.target.checked)}
+              className="rounded border-amber-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+            />
+            <label htmlFor="showNotesToggle" className="text-sm font-medium text-amber-700 cursor-pointer select-none flex items-center gap-1">
+              Solo mostrar con Notas Históricas
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2 bg-indigo-50/70 border border-indigo-200/80 px-3 py-1 rounded-lg">
+            <input 
+              type="checkbox" 
+              id="groupCondoToggle"
+              checked={groupCondoChildren}
+              onChange={(e) => setGroupCondoChildren(e.target.checked)}
+              className="rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+            />
+            <label htmlFor="groupCondoToggle" className="text-xs font-semibold text-indigo-900 cursor-pointer select-none flex items-center gap-1.5">
+              <span>🏢 Agrupar filiales en Condominio Padre</span>
+              <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono">
+                {groupCondoChildren ? 'Ocultando locales hijos' : 'Mostrando todo'}
+              </span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -3650,9 +3743,10 @@ function ContribuyentesPageContent() {
       {selectedCondominioModal && (
         <UnidadesModal
           onClose={() => setSelectedCondominioModal(null)}
-          condominioId={selectedCondominioModal.id}
+          condominioId={typeof selectedCondominioModal.id === 'number' ? selectedCondominioModal.id : 1}
           condominioNombre={selectedCondominioModal.nombre}
           condominioIdentidad={selectedCondominioModal.identidad}
+          condominioCodigoPadre={selectedCondominioModal.codigoPadre}
         />
       )}
     </div>

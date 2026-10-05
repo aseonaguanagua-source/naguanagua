@@ -343,8 +343,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setInmuebles(mappedInmuebles);
       setCondominios(apiCondominios);
 
+      // Información del padre para condominios
+      const parentInfoMap = new Map<string, { nombre: string; isComercial: boolean }>();
+
+      allInmuebles.forEach((row: any) => {
+        const cod = row.inmueble || row.cod_cont;
+        const isCondo = Boolean(row.es_condominio || row.clasificacion === 'Condominio' || (row.cant_inmuebles && parseInt(row.cant_inmuebles) > 1));
+        if (cod && isCondo) {
+          const rawName = row.contribuyentes?.nombre || row.nombre || row.contribuyente || 'Condominio';
+          const isCom = (row.tipo || '').toUpperCase().includes('COMERCIAL') ||
+                        (row.clasificacion || '').toUpperCase().includes('COMERCIAL') ||
+                        rawName.toUpperCase().includes('COMERCIAL') ||
+                        rawName.toUpperCase().includes('C.C.');
+          parentInfoMap.set(cod, { nombre: rawName, isComercial: isCom });
+        }
+      });
+
       const map = new Map();
       allInmuebles.forEach((row: any) => {
+        const cod = row.inmueble || row.cod_cont;
+        const isCondoChild = Boolean(row.condominio_padre_id);
+        const pInfo = row.condominio_padre_id ? parentInfoMap.get(row.condominio_padre_id) : null;
+        const isCommercialChild = isCondoChild && (pInfo?.isComercial || (row.tipo || '').toUpperCase().includes('COMERCIAL'));
+        const isParentCondo = Boolean(row.es_condominio || row.clasificacion === 'Condominio' || (hijosCountMap.get(cod) || 0) > 0);
+        const childCount = hijosCountMap.get(cod) || parseInt(row.cant_inmuebles || '1') || 1;
+
+        // Regla Condominios Comerciales:
+        // Aseo urbano se paga separado por condominio (centralizado en el padre).
+        // Las multas se pagan por la oficina individual.
+        const rowDeudaMMV = isCommercialChild ? 0 : parseFloat(row.deuda_mmv || 0);
+        const rowMultaBs = isParentCondo ? 0 : parseFloat(row.multa_bs || 0);
+        const rowCongelada = parseFloat(row.deuda_congelada_bs || 0);
+        const rowDeudaBs = rowCongelada + rowMultaBs + (rowDeudaMMV * 57 * currentTcmmv);
+
         if (row.identidad && !map.has(row.identidad)) {
           const act = row.actividad_principal || '';
           let clase = 'Residencial';
@@ -364,12 +395,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const cleanEmail = isFictitiousEmail(rawEmail) ? '' : (rawEmail || '').trim();
 
           map.set(row.identidad, {
+            id: row.id,
             Identidad: row.identidad,
             Contribuyente: row.contribuyentes?.nombre || row.nombre || row.contribuyente || 'Sin Nombre',
             Telefono: cleanTel || 'No registrado',
             Correo: cleanEmail || 'No registrado',
-            CodCont: row.inmueble || row.cod_cont,
-            cod_cont: row.inmueble || row.cod_cont,
+            CodCont: cod,
+            cod_cont: cod,
             Direccion: (function() {
               if (act.includes('[HIJO_DE:')) {
                 const match = act.match(/\[HIJO_DE:(.*?)\]/);
@@ -387,19 +419,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
             Actividad: act || 'No aplica',
             Clasificacion: clase,
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
-            DeudaMMV: parseFloat(row.deuda_mmv || 0),
-            DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
-            DeudaBs: (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * 57 * currentTcmmv)),
+            DeudaMMV: rowDeudaMMV,
+            MultaBs: rowMultaBs,
+            DeudaCongelada: rowCongelada,
+            DeudaBs: rowDeudaBs,
             MesesDeuda: parseInt(row.meses_deuda || '0'),
             Estado: row.estado || 'Activo',
-            FechaRegistro: row.created_at || null
+            FechaRegistro: row.created_at || null,
+            isCondominio: isParentCondo,
+            es_condominio: isParentCondo,
+            cant_inmuebles: isParentCondo ? childCount : 1,
+            unidadesCount: isParentCondo ? childCount : 1,
+            isCondoChild: isCondoChild,
+            condominio_padre_id: row.condominio_padre_id || null,
+            condominio_padre_nombre: pInfo?.nombre || null,
+            isCommercialChild: isCommercialChild
           });
         } else if (row.identidad && map.has(row.identidad)) {
           const existing = map.get(row.identidad);
           existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
-          existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
-          existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
-          existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * 57 * currentTcmmv));
+          existing.DeudaMMV += rowDeudaMMV;
+          existing.DeudaCongelada += rowCongelada;
+          existing.MultaBs = (existing.MultaBs || 0) + rowMultaBs;
+          existing.DeudaBs = (existing.DeudaBs || 0) + rowDeudaBs;
+          if (isParentCondo) {
+            existing.isCondominio = true;
+            existing.es_condominio = true;
+            existing.cant_inmuebles = Math.max(existing.cant_inmuebles || 1, childCount);
+            existing.unidadesCount = Math.max(existing.unidadesCount || 1, childCount);
+          }
           const rowEstado = row.estado || 'Activo';
           if (rowEstado === 'Activo') {
             existing.Estado = 'Activo';
@@ -410,7 +458,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
               existing.Estado = 'Inactivo';
             }
           }
-          const cod = row.inmueble || row.cod_cont;
           if (cod && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
           }

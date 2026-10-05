@@ -67,7 +67,7 @@ export function useCajaSelection({
 
       // Identificar el inmueble del recibo tocado
       const parts = ref.split('-');
-      let currentInmId: string | null = parts.length > 2 ? parts[2] : null;
+      let currentInmId: string | null = parts.length > 2 ? parts[2] : (ref.startsWith('MULTA-') ? parts[1] : null);
       if (ref.startsWith('CM-')) {
         currentInmId =
           userInms.find((i: any) => ref.includes(i.inmueble))?.inmueble ?? null;
