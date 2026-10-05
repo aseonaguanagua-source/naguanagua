@@ -1157,6 +1157,52 @@ export default function CajaPage() {
     setIsProcessing(true);
     
     try {
+      // ── CONTROL DE CONCURRENCIA ATÓMICO (PREVENCIÓN DE COBRO DOBLE MULTI-OPERADOR) ──
+      const realReceiptsToCheck = selectedRecibos.filter(r => !r.startsWith('RECIB-HIST-') && !r.startsWith('dummy-'));
+      if (realReceiptsToCheck.length > 0) {
+        const { data: alreadyPaid } = await supabase
+          .from('facturas')
+          .select('referencia, estado')
+          .in('referencia', realReceiptsToCheck)
+          .in('estado', ['Pagado', 'Por Verificar']);
+
+        if (alreadyPaid && alreadyPaid.length > 0) {
+          const refs = alreadyPaid.map((f: any) => f.referencia).join(', ');
+          setIsProcessing(false);
+          alert(`⚠️ OPERACIÓN DETENIDA: El trámite/recibo (${refs}) acaba de ser procesado o pagado por otro operador en este instante. Se canceló automáticamente para evitar cobros dobles.`);
+          return;
+        }
+      }
+
+      // Si se están liquidando multas o deudas históricas de inmuebles, verificar que sigan teniendo deuda en BD
+      const histRefs = selectedRecibos.filter(r => r.startsWith('RECIB-HIST-') || r.startsWith('MULTA-'));
+      if (histRefs.length > 0 && !reqRef && !esAbono) {
+        const userInmCodes = (freshInmuebles.length > 0 ? freshInmuebles : inmuebles)
+          .filter((i: any) => (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase())
+          .map((i: any) => i.inmueble)
+          .filter(Boolean);
+
+        if (userInmCodes.length > 0) {
+          const { data: dbCheckInms } = await supabase
+            .from('inmuebles')
+            .select('inmueble, deuda_mmv, multa_bs, deuda_congelada_bs, meses_deuda')
+            .in('inmueble', userInmCodes);
+
+          const isAlreadyClean = dbCheckInms && dbCheckInms.length > 0 && dbCheckInms.every((i: any) =>
+            parseFloat(i.deuda_mmv || '0') <= 0 &&
+            parseFloat(i.multa_bs || '0') <= 0 &&
+            parseFloat(i.deuda_congelada_bs || '0') <= 0 &&
+            parseInt(i.meses_deuda || '0') <= 0
+          );
+
+          if (isAlreadyClean) {
+            setIsProcessing(false);
+            alert(`⚠️ ATENCIÓN: La deuda de este contribuyente ya fue cancelada en otro puesto de cobro hace unos instantes. No se realizó ningún cargo duplicado.`);
+            return;
+          }
+        }
+      }
+
       // Si hay saldo a favor nuevo, generar Nota de Crédito
       if (saldoAFavorNuevo > 0) {
         await supabase.from('documentos').insert([{

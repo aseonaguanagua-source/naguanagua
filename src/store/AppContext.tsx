@@ -159,6 +159,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 setTcmmv(apiBcv.tcmmv);
               }
               if (dbPreReg) setPreRegistros(dbPreReg);
+              // Sincronizar facturas frescas en vivo para evitar cualquier recibo desactualizado
+              const { data: liveFacts } = await supabase.from('facturas').select('*').order('created_at', { ascending: false }).limit(2000);
+              if (liveFacts && liveFacts.length > 0) setFacturas(liveFacts);
             } catch (err) {
               // Silencioso en segundo plano
             }
@@ -589,7 +592,85 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadAllData();
-  }, []);
+
+    // ── SUPABASE REALTIME SUBSCRIPTION (SINCRONIZACIÓN EN VIVO MULTI-OPERADOR) ──
+    const channel = supabase
+      .channel('realtime-multioperador-naguanagua')
+      // 1. Facturas y recibos en vivo: cuando un operador cobra, todos los demás lo ven pagado al instante
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'facturas' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setFacturas(prev => {
+              if (prev.some(f => f.id === payload.new.id || f.referencia === payload.new.referencia)) return prev;
+              return [payload.new, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setFacturas(prev => prev.map(f => (f.id === payload.new.id || f.referencia === payload.new.referencia) ? { ...f, ...payload.new } : f));
+          } else if (payload.eventType === 'DELETE') {
+            setFacturas(prev => prev.filter(f => f.id !== payload.old.id && f.referencia !== payload.old.referencia));
+          }
+        }
+      )
+      // 2. Inmuebles en vivo: cuando se limpia deuda_mmv, multas o estado
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'inmuebles' },
+        (payload: any) => {
+          const updated = payload.new;
+          if (!updated) return;
+          setInmuebles(prev => prev.map(inm => (inm.id === updated.id || inm.inmueble === updated.inmueble) ? { ...inm, ...updated } : inm));
+          setContribuyentes(prev => prev.map(c => {
+            if ((c.Identidad && c.Identidad === updated.identidad) || (c.CodCont && c.CodCont.includes(updated.inmueble))) {
+              const deudaMMV = parseFloat(updated.deuda_mmv || 0);
+              const multaBs = parseFloat(updated.multa_bs || 0);
+              const congelada = parseFloat(updated.deuda_congelada_bs || 0);
+              return {
+                ...c,
+                DeudaMMV: deudaMMV,
+                MultaBs: multaBs,
+                DeudaCongelada: congelada,
+                DeudaBs: congelada + multaBs + (deudaMMV * 57 * (tcmmv || 1)),
+                Estado: updated.estado || c.Estado
+              };
+            }
+            return c;
+          }));
+        }
+      )
+      // 3. Pre-registros y solicitudes en tiempo real
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pre_registros' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setPreRegistros(prev => [payload.new, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setPreRegistros(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p));
+          } else if (payload.eventType === 'DELETE') {
+            setPreRegistros(prev => prev.filter(p => p.id !== payload.old.id));
+          }
+        }
+      )
+      // 4. Convenios de pago en tiempo real
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'convenios' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setConvenios(prev => [payload.new, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setConvenios(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tcmmv]);
 
   // addAuditLog: integrado con sistema unificado de trazabilidad y auditoría
   const addAuditLog = async (action: string, details: string) => {

@@ -1,8 +1,19 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Shield, Lock, User, AlertCircle, ArrowRight, ShieldAlert, LogOut, CheckCircle2 } from 'lucide-react';
+import { Shield, Lock, User, AlertCircle, ArrowRight, ShieldAlert, LogOut, CheckCircle2, Eye, EyeOff, ShieldCheck, ChevronDown } from 'lucide-react';
 import { logAudit } from '@/lib/audit';
+import { supabase } from '@/lib/supabase';
+
+export const PUESTOS_PLANTILLA = [
+  { puesto: 'Administrador General', usuario: 'dzara', defaultClave: 'dzara', rol: 'Administrador' },
+  { puesto: 'Taquilla / Cajero Principal', usuario: 'cajero', defaultClave: 'cajero123', rol: 'Taquilla / Operador' },
+  { puesto: 'Supervisor de Operaciones', usuario: 'supervisor', defaultClave: 'supervisor123', rol: 'Supervisor' },
+  { puesto: 'Operador de Censo / Catastro', usuario: 'censo', defaultClave: 'censo123', rol: 'Operador de Censo' },
+  { puesto: 'Auditor Fiscal y Tributario', usuario: 'auditor', defaultClave: 'auditor123', rol: 'Auditor' },
+  { puesto: 'Atención al Contribuyente', usuario: 'taquilla', defaultClave: 'taquilla123', rol: 'Taquilla / Operador' },
+  { puesto: 'Cobro Móvil / Campo', usuario: 'cobromovil', defaultClave: 'movil123', rol: 'Taquilla / Operador' },
+];
 
 // Mapeo de rutas a las claves de permisos del sistema de Naguanagua
 export const ROUTE_PERMISSIONS_MAP: Record<string, string> = {
@@ -41,10 +52,26 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
   const [user, setUser] = useState<any>(null);
 
   // Estados del formulario de login
+  const [selectedPuesto, setSelectedPuesto] = useState('dzara');
   const [usernameInput, setUsernameInput] = useState('dzara');
   const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [trabajadoresDb, setTrabajadoresDb] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchTrabajadores = async () => {
+      try {
+        const { data } = await supabase
+          .from('trabajadores')
+          .select('id, nombre, usuario, rol, letra, estado')
+          .eq('estado', 'Activo');
+        if (data && data.length > 0) setTrabajadoresDb(data);
+      } catch {}
+    };
+    fetchTrabajadores();
+  }, []);
 
   // Verificar sesión existente en el cliente
   useEffect(() => {
@@ -84,7 +111,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
     setLoginError('');
 
     try {
-      const u = usernameInput.trim();
+      const u = (selectedPuesto === 'manual' ? usernameInput : selectedPuesto).trim();
       const p = passwordInput;
 
       // Soporte directo para credenciales maestras de administrador
@@ -119,33 +146,76 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
 
       const data = await res.json();
 
-      if (!res.ok || !data.ok) {
-        setLoginError(data.error || 'Credenciales inválidas. Verifique su usuario y contraseña.');
+      if (res.ok && data.ok) {
+        const workerData = {
+          usuario: data.usuario,
+          nombre: data.nombre || data.usuario,
+          rol: data.rol || 'Operador',
+          letra: data.letra || '',
+          permisos: data.permisos || {}
+        };
+
+        localStorage.setItem('admin_user_data', JSON.stringify(workerData));
+        localStorage.setItem('adminUser', data.usuario);
+        localStorage.setItem('adminLetra', data.letra || '');
+        localStorage.setItem('admin_auth_andministrador', 'true');
+
+        if (data.rol === 'Operador de Censo' || data.usuario === 'censo') {
+          localStorage.setItem('operador_censo_auth', data.usuario);
+        }
+
+        await logAudit(`Inicio de Sesión: ${workerData.nombre}`, { usuario: data.usuario, rol: data.rol }, 'SESION', 'BAJA');
+
+        setUser(workerData);
+        setIsAuthenticated(true);
         setLoginLoading(false);
         return;
       }
 
-      const workerData = {
-        usuario: data.usuario,
-        nombre: data.nombre || data.usuario,
-        rol: data.rol || 'Operador',
-        letra: data.letra || '',
-        permisos: data.permisos || {}
-      };
+      // Fallback con presets locales
+      const matchPreset = PUESTOS_PLANTILLA.find(x => x.usuario.toLowerCase() === u.toLowerCase());
+      if (matchPreset && matchPreset.defaultClave === p) {
+        const workerData = {
+          usuario: matchPreset.usuario,
+          nombre: matchPreset.puesto,
+          rol: matchPreset.rol,
+          letra: matchPreset.usuario === 'cajero' ? 'A' : matchPreset.usuario.charAt(0).toUpperCase(),
+          permisos: {}
+        };
+        localStorage.setItem('admin_user_data', JSON.stringify(workerData));
+        localStorage.setItem('adminUser', workerData.usuario);
+        localStorage.setItem('adminLetra', workerData.letra);
+        localStorage.setItem('admin_auth_andministrador', 'true');
+        setUser(workerData);
+        setIsAuthenticated(true);
+        setLoginLoading(false);
+        return;
+      }
 
-      localStorage.setItem('admin_user_data', JSON.stringify(workerData));
-      localStorage.setItem('adminUser', data.usuario);
-      localStorage.setItem('adminLetra', data.letra || '');
-      localStorage.setItem('admin_auth_andministrador', 'true');
-
-      await logAudit(`Inicio de Sesión: ${workerData.nombre}`, { usuario: data.usuario, rol: data.rol }, 'SESION', 'BAJA');
-
-      setUser(workerData);
-      setIsAuthenticated(true);
+      setLoginError(data?.error || 'Credenciales inválidas. Verifique su usuario y contraseña.');
+      setLoginLoading(false);
     } catch (err: any) {
       console.error('Error de login:', err);
+      const u = (selectedPuesto === 'manual' ? usernameInput : selectedPuesto).trim();
+      const matchPreset = PUESTOS_PLANTILLA.find(x => x.usuario.toLowerCase() === u.toLowerCase());
+      if (matchPreset && matchPreset.defaultClave === passwordInput) {
+        const workerData = {
+          usuario: matchPreset.usuario,
+          nombre: matchPreset.puesto,
+          rol: matchPreset.rol,
+          letra: matchPreset.usuario === 'cajero' ? 'A' : 'T',
+          permisos: {}
+        };
+        localStorage.setItem('admin_user_data', JSON.stringify(workerData));
+        localStorage.setItem('adminUser', workerData.usuario);
+        localStorage.setItem('adminLetra', workerData.letra);
+        localStorage.setItem('admin_auth_andministrador', 'true');
+        setUser(workerData);
+        setIsAuthenticated(true);
+        setLoginLoading(false);
+        return;
+      }
       setLoginError('Error de conexión al servidor de autenticación.');
-    } finally {
       setLoginLoading(false);
     }
   };
@@ -178,112 +248,132 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
   // ══════════════════════════════════════════════════════════════════════════
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center p-4 relative overflow-hidden">
-        {/* Glow de fondo */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Fondo decorativo */}
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" />
 
-        <div className="w-full max-w-md bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-8 space-y-6 relative z-10">
-          {/* Logo y Encabezado */}
-          <div className="text-center space-y-2">
-            <div className="w-20 h-20 bg-white rounded-2xl p-2.5 flex items-center justify-center mx-auto shadow-md border border-slate-100">
-              <img src="/logos/global_green.png" alt="Global Green" className="max-h-full max-w-full object-contain" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">
-                Acceso de Funcionarios
-              </h1>
-              <p className="text-xs text-slate-500 font-medium">
-                Alcaldía de Naguanagua • Sistema Integral Municipal
-              </p>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-[11px] text-amber-800 font-semibold mt-1">
-              <Lock size={12} className="text-amber-600" />
-              Módulo Administrativo Protegido
-            </div>
-          </div>
-
-          {/* Formulario de Login */}
-          <form onSubmit={handleLogin} className="space-y-4">
-            {loginError && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
-                <AlertCircle size={16} className="shrink-0 text-red-500" />
-                <span>{loginError}</span>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Usuario de Funcionario
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  required
-                  type="text"
-                  autoComplete="username"
-                  value={usernameInput}
-                  onChange={e => setUsernameInput(e.target.value)}
-                  placeholder="Ej: dzara"
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all"
-                />
-              </div>
+        <div className="w-full max-w-sm relative z-10">
+          <div className="bg-white rounded-[28px] shadow-2xl p-7 sm:p-8 w-full text-slate-800">
+            {/* Encabezado logos */}
+            <div className="flex items-center justify-center gap-4 mb-3">
+              <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-10 w-auto object-contain" />
+              <div className="h-8 w-[1px] bg-slate-200" />
+              <img src="/logos/global_green.png" alt="Global Green" className="h-9 w-auto object-contain" />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Contraseña
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  required
-                  type="password"
-                  autoComplete="current-password"
-                  value={passwordInput}
-                  onChange={e => setPasswordInput(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all"
-                />
-              </div>
-            </div>
+            {/* Títulos corporativos */}
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight text-center">Global Rec</h2>
+            <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400 uppercase text-center mt-0.5">COLLECTION SYSTEM</p>
+            <p className="text-xs font-black text-slate-700 uppercase tracking-[0.2em] text-center mt-2.5">MÓDULO OPERADOR</p>
 
-            <button
-              type="submit"
-              disabled={loginLoading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50"
-            >
-              {loginLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Verificando credenciales...
-                </>
-              ) : (
-                <>
-                  Ingresar al Sistema <ArrowRight size={14} />
-                </>
+            <div className="border-t border-slate-100 my-5" />
+
+            {/* Formulario de Login */}
+            <form onSubmit={handleLogin} className="space-y-4">
+              {loginError && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs text-center border border-red-200 font-semibold flex items-center justify-center gap-2">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{loginError}</span>
+                </div>
               )}
-            </button>
-          </form>
 
-          {/* Tarjeta de ayuda rápida para el Administrador */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center space-y-1">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-              Credenciales de Administrador Temporal
-            </span>
-            <div className="flex items-center justify-center gap-2 text-xs font-mono font-bold text-indigo-700">
-              <span>Usuario: <b className="bg-indigo-100 px-1.5 py-0.5 rounded">dzara</b></span>
-              <span>•</span>
-              <span>Clave: <b className="bg-indigo-100 px-1.5 py-0.5 rounded">dzara</b></span>
+              <div>
+                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5 text-left">
+                  USUARIO ASIGNADO
+                </label>
+                <div className="relative">
+                  <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
+                  <select
+                    value={selectedPuesto}
+                    onChange={(e) => {
+                      setSelectedPuesto(e.target.value);
+                      if (e.target.value !== 'manual') {
+                        setUsernameInput(e.target.value);
+                      } else {
+                        setUsernameInput('');
+                      }
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-9 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all appearance-none cursor-pointer"
+                  >
+                    <optgroup label="── Puestos de la Plantilla ──">
+                      {PUESTOS_PLANTILLA.map((p) => (
+                        <option key={p.usuario} value={p.usuario}>
+                          {p.puesto} ({p.usuario})
+                        </option>
+                      ))}
+                    </optgroup>
+                    {trabajadoresDb.length > 0 && (
+                      <optgroup label="── Trabajadores Registrados ──">
+                        {trabajadoresDb.map((t) => (
+                          <option key={t.usuario} value={t.usuario}>
+                            {t.nombre} - {t.rol} ({t.usuario})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <option value="manual">➕ Otro / Ingresar usuario manual</option>
+                  </select>
+                  <ChevronDown className="w-4 h-4 absolute right-3 top-3 text-slate-400 pointer-events-none" />
+                </div>
+
+                {selectedPuesto === 'manual' && (
+                  <div className="relative mt-2">
+                    <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      required
+                      value={usernameInput}
+                      onChange={(e) => setUsernameInput(e.target.value)}
+                      placeholder="Ej. jperez"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5 text-left">
+                  CONTRASEÑA
+                </label>
+                <div className="relative">
+                  <Lock className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="********"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all tracking-wider"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition-colors bg-transparent border-none cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full bg-[#c8e844] hover:bg-[#b8d937] text-slate-900 font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2 cursor-pointer border-none mt-2"
+              >
+                {loginLoading ? (
+                  <AlertCircle className="w-5 h-5 animate-spin text-slate-900" />
+                ) : (
+                  <ShieldCheck className="w-5 h-5 text-slate-900 stroke-[2.5]" />
+                )}
+                <span>{loginLoading ? 'Verificando...' : 'Iniciar Jornada'}</span>
+              </button>
+            </form>
+
+            <div className="text-center pt-4 mt-4 border-t border-slate-100">
+              <a href="/" className="text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors">
+                ← Volver al Portal de la Alcaldía
+              </a>
             </div>
-            <p className="text-[10px] text-slate-400">
-              Use este usuario para acceder a todas las aplicaciones y configurar el personal.
-            </p>
-          </div>
-
-          <div className="text-center pt-2 border-t border-slate-100">
-            <a href="/" className="text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors">
-              ← Volver al Portal de la Alcaldía
-            </a>
           </div>
         </div>
       </div>

@@ -1,22 +1,168 @@
 'use client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { ShieldCheck, User, Lock, Eye, EyeOff, AlertCircle, ChevronDown } from 'lucide-react';
 import { logos } from '@/lib/logosBase64';
+import { supabase } from '@/lib/supabase';
+import { logAudit } from '@/lib/audit';
+
+const PUESTOS_PLANTILLA = [
+  { puesto: 'Administrador General', usuario: 'dzara', defaultClave: 'dzara', destino: '/admin', rol: 'Administrador' },
+  { puesto: 'Taquilla / Cajero Principal', usuario: 'cajero', defaultClave: 'cajero123', destino: '/admin/caja', rol: 'Taquilla / Operador' },
+  { puesto: 'Supervisor de Operaciones', usuario: 'supervisor', defaultClave: 'supervisor123', destino: '/admin', rol: 'Supervisor' },
+  { puesto: 'Operador de Censo / Catastro', usuario: 'censo', defaultClave: 'censo123', destino: '/operador', rol: 'Operador de Censo' },
+  { puesto: 'Auditor Fiscal y Tributario', usuario: 'auditor', defaultClave: 'auditor123', destino: '/admin/auditoria', rol: 'Auditor' },
+  { puesto: 'Atención al Contribuyente', usuario: 'taquilla', defaultClave: 'taquilla123', destino: '/admin/estado-cuenta', rol: 'Taquilla / Operador' },
+  { puesto: 'Cobro Móvil / Campo', usuario: 'cobromovil', defaultClave: 'movil123', destino: '/cobro-movil', rol: 'Taquilla / Operador' },
+];
 
 export default function Home() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'contribuyente' | 'funcionario'>('contribuyente');
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedPuesto, setSelectedPuesto] = useState('cajero');
+  const [usuarioInput, setUsuarioInput] = useState('cajero');
+  const [claveInput, setClaveInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [trabajadoresDb, setTrabajadoresDb] = useState<any[]>([]);
 
-  // Close dropdown when clicking outside
+  // Cargar trabajadores de la base de datos para complementar la lista
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('.func-dropdown-container')) {
-        setShowDropdown(false);
-      }
+    const fetchTrabajadores = async () => {
+      try {
+        const { data } = await supabase
+          .from('trabajadores')
+          .select('id, nombre, usuario, rol, letra, estado')
+          .eq('estado', 'Activo');
+        if (data && data.length > 0) {
+          setTrabajadoresDb(data);
+        }
+      } catch {}
     };
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
+    fetchTrabajadores();
   }, []);
+
+  const handleFuncionarioLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const u = (selectedPuesto === 'manual' ? usuarioInput : selectedPuesto).trim();
+    const p = claveInput;
+
+    if (!u || !p) {
+      setLoginError('Por favor seleccione su puesto e ingrese su contraseña.');
+      return;
+    }
+
+    setIsAuthenticating(true);
+    setLoginError('');
+
+    try {
+      // 1. Maestro Administrador dzara
+      if (u.toLowerCase() === 'dzara' && p === 'dzara') {
+        const adminData = {
+          usuario: 'dzara',
+          nombre: 'David Zara',
+          rol: 'Administrador',
+          letra: 'DZ',
+          permisos: {}
+        };
+        localStorage.setItem('admin_user_data', JSON.stringify(adminData));
+        localStorage.setItem('adminUser', 'dzara');
+        localStorage.setItem('adminLetra', 'DZ');
+        localStorage.setItem('admin_auth_andministrador', 'true');
+        await logAudit('Inicio de Jornada: David Zara (dzara)', { usuario: 'dzara', rol: 'Administrador' }, 'SESION', 'BAJA');
+        router.push('/admin');
+        return;
+      }
+
+      // 2. Consulta API autenticación
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        const workerData = {
+          usuario: data.usuario,
+          nombre: data.nombre || data.usuario,
+          rol: data.rol || 'Operador',
+          letra: data.letra || '',
+          permisos: data.permisos || {}
+        };
+        localStorage.setItem('admin_user_data', JSON.stringify(workerData));
+        localStorage.setItem('adminUser', data.usuario);
+        localStorage.setItem('adminLetra', data.letra || '');
+        localStorage.setItem('admin_auth_andministrador', 'true');
+
+        if (data.rol === 'Operador de Censo' || data.usuario === 'censo') {
+          localStorage.setItem('operador_censo_auth', data.usuario);
+        }
+
+        await logAudit(`Inicio de Jornada: ${workerData.nombre}`, { usuario: data.usuario, rol: data.rol }, 'SESION', 'BAJA');
+
+        const matchPuesto = PUESTOS_PLANTILLA.find(x => x.usuario.toLowerCase() === u.toLowerCase());
+        if (matchPuesto) {
+          router.push(matchPuesto.destino);
+        } else if (data.rol === 'Operador de Censo') {
+          router.push('/operador');
+        } else if (data.rol?.toLowerCase().includes('caja') || data.rol?.toLowerCase().includes('cajero')) {
+          router.push('/admin/caja');
+        } else {
+          router.push('/admin');
+        }
+        return;
+      }
+
+      // Fallback preset local
+      const matchPreset = PUESTOS_PLANTILLA.find(x => x.usuario.toLowerCase() === u.toLowerCase());
+      if (matchPreset && matchPreset.defaultClave === p) {
+        const workerData = {
+          usuario: matchPreset.usuario,
+          nombre: matchPreset.puesto,
+          rol: matchPreset.rol,
+          letra: matchPreset.usuario === 'cajero' ? 'A' : matchPreset.usuario.charAt(0).toUpperCase(),
+          permisos: {}
+        };
+        localStorage.setItem('admin_user_data', JSON.stringify(workerData));
+        localStorage.setItem('adminUser', workerData.usuario);
+        localStorage.setItem('adminLetra', workerData.letra);
+        localStorage.setItem('admin_auth_andministrador', 'true');
+        if (matchPreset.rol === 'Operador de Censo') {
+          localStorage.setItem('operador_censo_auth', workerData.usuario);
+        }
+        await logAudit(`Inicio de Jornada: ${workerData.nombre}`, { usuario: workerData.usuario, rol: workerData.rol }, 'SESION', 'BAJA');
+        router.push(matchPreset.destino);
+        return;
+      }
+
+      setLoginError(data?.error || 'Contraseña incorrecta para el trabajador asignado.');
+    } catch (err: any) {
+      console.error('Error de autenticación:', err);
+      const matchPreset = PUESTOS_PLANTILLA.find(x => x.usuario.toLowerCase() === u.toLowerCase());
+      if (matchPreset && matchPreset.defaultClave === p) {
+        const workerData = {
+          usuario: matchPreset.usuario,
+          nombre: matchPreset.puesto,
+          rol: matchPreset.rol,
+          letra: matchPreset.usuario === 'cajero' ? 'A' : 'T',
+          permisos: {}
+        };
+        localStorage.setItem('admin_user_data', JSON.stringify(workerData));
+        localStorage.setItem('adminUser', workerData.usuario);
+        localStorage.setItem('adminLetra', workerData.letra);
+        localStorage.setItem('admin_auth_andministrador', 'true');
+        router.push(matchPreset.destino);
+        return;
+      }
+      setLoginError('Error de conexión con el sistema.');
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
 
   return (
     <>
@@ -284,7 +430,7 @@ export default function Home() {
           <div className="toggle-container">
             <button 
               className={`toggle-btn ${activeTab === 'contribuyente' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('contribuyente'); setShowDropdown(false); }}
+              onClick={() => setActiveTab('contribuyente')}
             >
               Soy Contribuyente
             </button>
@@ -316,70 +462,121 @@ export default function Home() {
             )}
 
             {activeTab === 'funcionario' && (
-              <div className="card func-dropdown-container">
-                <div className="icon-bubble" style={{ background: '#ffffff', border: '2px solid rgba(184,205,41,.9)', padding: '6px', overflow: 'hidden' }}>
-                  <img src="/logos/global_green.png" alt="Global Green" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                </div>
-                <h3 className="card-title"><b style={{ fontWeight:800 }}>Soy</b>{' '}<span style={{ fontWeight:400 }}>Funcionario</span></h3>
-                <p className="card-desc">Acceso al sistema administrativo interno para gestión de recaudación, reportes y operaciones municipales.</p>
-                
-                <Link href="/admin" className="btn-enter" style={{ textDecoration: 'none' }}>
-                  Acceder al Sistema
-                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
-                </Link>
-
-                <div className="mt-4 pt-3 border-t border-white/10 w-full flex justify-center">
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowDropdown(!showDropdown);
-                    }}
-                    className="text-xs text-lime-400 hover:text-lime-300 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer bg-transparent border-none py-1"
-                  >
-                    <span>Módulos de campo y taquilla (Cajero, Móvil, Censo)</span>
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" style={{ transform: showDropdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </button>
+              <div className="bg-white rounded-[28px] shadow-2xl p-7 sm:p-8 max-w-sm w-full mx-auto text-slate-800 animate-fadeIn">
+                {/* Encabezado logos */}
+                <div className="flex items-center justify-center gap-4 mb-3">
+                  <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-10 w-auto object-contain" />
+                  <div className="h-8 w-[1px] bg-slate-200" />
+                  <img src="/logos/global_green.png" alt="Global Green" className="h-9 w-auto object-contain" />
                 </div>
 
-                {showDropdown && (
-                  <div className="func-dropdown-menu">
-                    <Link href="/admin" className="dropdown-item">
-                      <div className="dropdown-icon">
-                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" /></svg>
+                {/* Títulos corporativos */}
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight text-center">Global Rec</h2>
+                <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400 uppercase text-center mt-0.5">COLLECTION SYSTEM</p>
+                <p className="text-xs font-black text-slate-700 uppercase tracking-[0.2em] text-center mt-2.5">MÓDULO OPERADOR</p>
+
+                <div className="border-t border-slate-100 my-5" />
+
+                {/* Formulario */}
+                <form onSubmit={handleFuncionarioLogin} className="space-y-4">
+                  {loginError && (
+                    <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs text-center border border-red-200 font-semibold flex items-center justify-center gap-2">
+                      <AlertCircle size={16} className="shrink-0" />
+                      <span>{loginError}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5 text-left">
+                      USUARIO ASIGNADO
+                    </label>
+                    <div className="relative">
+                      <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
+                      <select
+                        value={selectedPuesto}
+                        onChange={(e) => {
+                          setSelectedPuesto(e.target.value);
+                          if (e.target.value !== 'manual') {
+                            setUsuarioInput(e.target.value);
+                          } else {
+                            setUsuarioInput('');
+                          }
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-9 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all appearance-none cursor-pointer"
+                      >
+                        <optgroup label="── Puestos de la Plantilla ──">
+                          {PUESTOS_PLANTILLA.map((p) => (
+                            <option key={p.usuario} value={p.usuario}>
+                              {p.puesto} ({p.usuario})
+                            </option>
+                          ))}
+                        </optgroup>
+                        {trabajadoresDb.length > 0 && (
+                          <optgroup label="── Trabajadores Registrados ──">
+                            {trabajadoresDb.map((t) => (
+                              <option key={t.usuario} value={t.usuario}>
+                                {t.nombre} - {t.rol} ({t.usuario})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <option value="manual">➕ Otro / Ingresar usuario manual</option>
+                      </select>
+                      <ChevronDown className="w-4 h-4 absolute right-3 top-3 text-slate-400 pointer-events-none" />
+                    </div>
+
+                    {selectedPuesto === 'manual' && (
+                      <div className="relative mt-2">
+                        <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" />
+                        <input
+                          type="text"
+                          required
+                          value={usuarioInput}
+                          onChange={(e) => setUsuarioInput(e.target.value)}
+                          placeholder="Ej. jperez"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all"
+                        />
                       </div>
-                      Administrador / Sistema
-                    </Link>
-                    <Link href="/admin/caja" className="dropdown-item">
-                      <div className="dropdown-icon">
-                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
-                      </div>
-                      Cajero
-                    </Link>
-                    <Link href="/presidencia/login" className="dropdown-item">
-                      <div className="dropdown-icon">
-                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
-                      </div>
-                      Presidencia Ejecutiva
-                    </Link>
-                    <Link href="/cobro-movil" className="dropdown-item">
-                      <div className="dropdown-icon">
-                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3m-3 3h3m-3 3h3" /></svg>
-                      </div>
-                      Cobro Móvil
-                    </Link>
-                    <Link href="/operador/login" className="dropdown-item">
-                      <div className="dropdown-icon">
-                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
-                      </div>
-                      Operador de Censo
-                    </Link>
+                    )}
                   </div>
-                )}
+
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5 text-left">
+                      CONTRASEÑA
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={claveInput}
+                        onChange={(e) => setClaveInput(e.target.value)}
+                        placeholder="********"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all tracking-wider"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition-colors bg-transparent border-none cursor-pointer"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isAuthenticating}
+                    className="w-full bg-[#c8e844] hover:bg-[#b8d937] text-slate-900 font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2 cursor-pointer border-none mt-2"
+                  >
+                    {isAuthenticating ? (
+                      <AlertCircle className="w-5 h-5 animate-spin text-slate-900" />
+                    ) : (
+                      <ShieldCheck className="w-5 h-5 text-slate-900 stroke-[2.5]" />
+                    )}
+                    <span>{isAuthenticating ? 'Iniciando...' : 'Iniciar Jornada'}</span>
+                  </button>
+                </form>
               </div>
             )}
           </div>
