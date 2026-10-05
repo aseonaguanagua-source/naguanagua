@@ -175,7 +175,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, onBac
                         <td style={S.td}>{fmtDT(p.created_at)}</td>
                         <td style={S.td}>{det.fecha_banco || '-'}</td>
                         <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td>
-                        <td style={S.td}>{det.fecha_banco ? fmtDate(det.fecha_banco) : 'NO FACTURADO'}</td>
+                        <td style={S.td}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
                         <td style={S.td}>{det.cajero || '-'}</td>
                         <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad}-{p.contribuyente}</td>
                         <td style={S.td}>{recs[0] || '-'}</td>

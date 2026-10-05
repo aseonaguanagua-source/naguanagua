@@ -163,7 +163,7 @@ export const generarCuadreCajaPDF = (
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
       new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
       p.tipo.substring(0,3).toUpperCase(),
-      "NO FACTURADO",
+      ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO"),
       p.referencia_bancaria || p.referencia || 'N/A',
       (p.banco_origen || 'N/A').substring(0,15),
       p.referencia || 'N/A',

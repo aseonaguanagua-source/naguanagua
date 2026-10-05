@@ -206,7 +206,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             const conc = p.estado === 'Aprobado' || p.estado === 'Con Diferencia';
             return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
               <td style={S.td}>{i + 1}</td>
-              {showDT ? <><td style={S.td}>{fmtDT(p.created_at)}</td><td style={S.td}>{det.fecha_banco || '-'}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{det.fecha_banco ? fmtDate(det.fecha_banco) : 'NO FACTURADO'}</td></>
+              {showDT ? <><td style={S.td}>{fmtDT(p.created_at)}</td><td style={S.td}>{det.fecha_banco || '-'}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td><td style={S.td}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td></>
                 : <><td style={S.td}>{conc ? <b style={{ color: '#1a7a1a' }}>{det.fecha_banco || fmtDate(p.created_at)}</b> : <span style={{ color: '#aaa' }}>-</span>}</td><td style={S.td}>{fmtDate(p.created_at)}</td><td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td></>}
               <td style={S.td}>{det.cajero || '-'}</td><td style={{ ...S.td, color: '#2a5298' }}>
                 <div style={{ fontWeight: 600 }}>{p.identidad}</div>

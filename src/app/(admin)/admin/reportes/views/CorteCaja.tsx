@@ -174,7 +174,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                           <td className={tdCls}>{fmtDateTime(p.created_at)}</td>
                           <td className={tdCls}>{det.fecha_banco || '-'}</td>
                           <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
-                          <td className={tdCls}>{det.fecha_banco ? fmtDate(det.fecha_banco) : 'NO FACTURADO'}</td>
+                          <td className={tdCls}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
                           <td className={tdCls}>{det.cajero || '-'}</td>
                           <td className={tdCls}>{p.identidad} - {p.contribuyente}</td>
                           <td className={tdCls}>{recibos[0] || '-'}</td>

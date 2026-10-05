@@ -1,4 +1,4 @@
-﻿import * as xlsx from 'xlsx';
+import * as xlsx from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -50,7 +50,7 @@ export async function generarMorososExcel(
     ['REPORTE DE MOROSOS — IAMEC Naguanagua'],
     [`Fecha: ${today}  |  Tasa BCV: ${tcmmv ? tcmmv + ' Bs/EUR' : 'N/D'}  |  Total morosos: ${rows.length}`],
     [],
-    ['N°','CÓDIGO','CONTRIBUYENTE','IDENTIDAD','CLASIFICACIÓN','FACTURAS PENDIENTES','PERÍODOS','DEUDA TOTAL (Bs)'],
+    ['N°','CÓDIGO','CONTRIBUYENTE','IDENTIDAD','CLASIFICACIÓN','RECIBOS PENDIENTES','PERÍODOS','DEUDA TOTAL (Bs)'],
     ...rows.map((r, i) => [i+1, r.cod_cont, r.contribuyente, r.identidad, r.clasificacion, r.mesesPendientes, r.periodos,
       r.totalDeudaBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })]),
     [],
@@ -127,7 +127,7 @@ export async function generarMorososPDF(
   autoTable(doc, {
     startY: 33,
     margin: { left: 10, right: 10 },
-    head: [['N', 'CONTRIBUYENTE / RAZON SOCIAL', 'IDENTIDAD', 'TELEFONO', 'FACTURAS', 'DEUDA (Bs)']],
+    head: [['N', 'CONTRIBUYENTE / RAZON SOCIAL', 'IDENTIDAD', 'TELEFONO', 'RECIBOS', 'DEUDA (Bs)']],
     body: rows.map((r, i) => [
       i + 1,
       r.contribuyente,

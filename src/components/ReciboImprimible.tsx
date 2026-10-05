@@ -47,6 +47,8 @@ function normalizarFormaPago(fp: string): 'PUNTO_VENTA' | 'TRANSFERENCIA' | 'EFE
 
 // Hoja Letter Portrait: 216mm x 279mm
 // Márgenes 5mm → área útil: 206mm x 269mm
+// Hoja Letter Portrait: 216mm x 279mm
+// Márgenes 5mm → área útil: 206mm x 269mm
 // Media hoja (superior): 206mm x 134mm
 const HALF_WIDTH = '206mm';
 const HALF_HEIGHT = '134mm';
@@ -63,57 +65,78 @@ export function ReciboImprimible({ data }: { data: ReciboProps }) {
             size: Letter portrait;
             margin: 5mm;
           }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
           body * { visibility: hidden; }
           .recibo-print-area, .recibo-print-area * { visibility: visible; }
           .recibo-print-area {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: ${HALF_WIDTH};
-            max-height: ${HALF_HEIGHT};
-            overflow: hidden;
+            position: relative !important;
+            display: block !important;
+            top: auto !important;
+            left: auto !important;
+            width: 100% !important;
+            max-width: ${HALF_WIDTH} !important;
+            min-height: auto !important;
+            max-height: none !important;
+            height: auto !important;
+            overflow: visible !important;
+            page-break-inside: auto !important;
+            page-break-after: auto !important;
+            margin-bottom: 6mm !important;
+          }
+          .recibo-print-area table {
+            page-break-inside: auto !important;
+          }
+          .recibo-print-area tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto !important;
+          }
+          .recibo-preview-wrapper {
+            display: none !important;
           }
         }
 
-        /* Vista previa en pantalla: media hoja vertical (portrait) */
+        /* Vista previa en pantalla */
         .recibo-preview-wrapper {
           width: 100%;
           overflow-x: auto;
         }
         .recibo-sheet-preview {
-          /* Simulamos la media hoja portrait: 206mm x 134mm aprox */
-          width: 560px;
+          width: 580px;
           border: 2px dashed #94a3b8;
           background: #f8fafc;
-          padding: 4px;
+          padding: 6px;
           position: relative;
+          min-height: auto;
         }
         .recibo-cut-line {
-          position: absolute;
-          left: 0; right: 0; bottom: 0;
+          margin-top: 10px;
           height: 2px;
           background: repeating-linear-gradient(to right, #64748b 0, #64748b 6px, transparent 6px, transparent 12px);
+          position: relative;
         }
         .recibo-cut-label {
-          position: absolute;
-          bottom: -18px;
-          left: 50%;
-          transform: translateX(-50%);
+          text-align: center;
           font-size: 10px;
           color: #64748b;
-          white-space: nowrap;
           font-family: Arial, sans-serif;
+          margin-top: 2px;
         }
-        /* Ocultar el area de impresion duplicada en pantalla */
+        /* Ocultar el area de impresion en pantalla para evitar duplicados */
         .recibo-print-area {
           display: none;
         }
         @media print {
           .recibo-print-area {
-            display: block;
+            display: block !important;
           }
           .recibo-preview-wrapper {
-            display: none;
+            display: none !important;
           }
         }
       `}</style>
@@ -122,13 +145,13 @@ export function ReciboImprimible({ data }: { data: ReciboProps }) {
       <div className="recibo-preview-wrapper">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <span style={{ fontSize: 11, color: '#64748b', fontFamily: 'Arial,sans-serif' }}>
-            📄 Vista previa — Media hoja Letter portrait (206mm × 134mm) · La mitad inferior queda libre
+            📄 Vista previa del Recibo de Cobro (Aseo Urbano Residencial)
           </span>
         </div>
         <div className="recibo-sheet-preview">
           <ReciboContenido data={data} fpNorm={fpNorm} totalPagado={totalPagado} />
           <div className="recibo-cut-line" />
-          <div className="recibo-cut-label">✂ cortar</div>
+          <div className="recibo-cut-label">✂ cortar al finalizar</div>
         </div>
       </div>
 
@@ -148,15 +171,26 @@ function ReciboContenido({
   totalPagado: number;
 }) {
   const B = '1px solid #000';
-  const cell = { padding: '2px 5px', borderRight: B, borderBottom: '1px solid #eee', fontSize: 8.5 } as React.CSSProperties;
+  const numConceptos = data.conceptos?.length || 0;
+  const isCompact = numConceptos > 5;
+  const isUltraCompact = numConceptos > 10;
+
+  const baseFontSize = isUltraCompact ? 7.5 : (isCompact ? 8 : 8.5);
+  const cellPadding = isUltraCompact ? '1px 3px' : (isCompact ? '1.5px 4px' : '2px 5px');
+
+  const cell = {
+    padding: cellPadding,
+    borderRight: B,
+    borderBottom: '1px solid #eee',
+    fontSize: baseFontSize
+  } as React.CSSProperties;
 
   return (
     <div style={{
       background: '#fff', color: '#000', border: B,
-      fontFamily: 'Arial, sans-serif', fontSize: 8.5,
-      /* En pantalla ocupa todo el .recibo-sheet-preview;
-         en impresión el wrapper ya está a 134mm */
+      fontFamily: 'Arial, sans-serif', fontSize: baseFontSize,
       width: '100%',
+      boxSizing: 'border-box'
     }}>
 
       {/* ── ENCABEZADO OFICIAL MUNICIPAL ── */}
@@ -180,17 +214,15 @@ function ReciboContenido({
         <img src="/logos/IAMEC.png" alt="IAMEC" style={{ width:50, height:28, objectFit:'contain' }} />
       </div>
 
-      {/* ── TÍTULO ── */}
-      <div style={{ textAlign:'center', fontWeight:'bold', fontSize:9.5, letterSpacing:'0.05em', borderBottom: B, padding:'2px 0' }}>
+      {/* ── TÍTULO (EN RESIDENCIAL SIEMPRE ES RECIBO DE COBRO) ── */}
+      <div style={{ textAlign:'center', fontWeight:'bold', fontSize:9.5, letterSpacing:'0.05em', borderBottom: B, padding:'2.5px 0', background: '#f8fafc' }}>
         {data.esAbono 
           ? 'RECIBO DE ABONO / PAGO PARCIAL' 
-          : ((data.tipoContribuyente && data.tipoContribuyente.toLowerCase().includes('residencial')) || (data.codContribuyente && data.codContribuyente.startsWith('AURI'))
-              ? 'RECIBO DE COBRO' 
-              : 'FACTURA DE ASEO URBANO')}
+          : 'RECIBO DE COBRO - ASEO URBANO'}
       </div>
 
       {/* ── DATOS CONTRIBUYENTE + Nro ── */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 80px', borderBottom: B }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 85px', borderBottom: B }}>
         <div style={{ padding:'3px 6px', borderRight: B, lineHeight:1.55 }}>
           <div style={{ fontSize:8 }}>
             <strong>Fecha de Emisión:</strong> {data.fechaEmision}
@@ -203,12 +235,12 @@ function ReciboContenido({
         </div>
         <div style={{ padding:'3px 5px', fontSize:8, lineHeight:1.7 }}>
           <div><strong>RECIBO N°</strong></div>
-          <div>{data.reciboNo}</div>
+          <div style={{ fontWeight: 'bold' }}>{data.reciboNo}</div>
           {data.controlWeb && (
             <><div style={{ marginTop:2 }}><strong>N°WEB</strong></div><div style={{ fontSize:7 }}>{data.controlWeb}</div></>
           )}
           <div style={{ marginTop:2 }}><strong>CAJERO:</strong></div>
-          <div style={{ fontSize:7 }}>{data.caja}</div>
+          <div style={{ fontSize:7.5 }}>{data.caja}</div>
         </div>
       </div>
 
@@ -218,12 +250,12 @@ function ReciboContenido({
           <tr style={{ borderBottom: B }}>
             <th style={{ ...cell, textAlign:'left', width:'55%', borderBottom:'none', fontWeight:'bold' }}>CONCEPTO</th>
             <th style={{ ...cell, textAlign:'right', width:'22%', borderBottom:'none', fontWeight:'bold' }}>PRECIO UNIT</th>
-            <th style={{ padding:'2px 5px', textAlign:'right', width:'23%', fontWeight:'bold', fontSize:8.5 }}>TOTAL</th>
+            <th style={{ padding: cellPadding, textAlign:'right', width:'23%', fontWeight:'bold', fontSize: baseFontSize }}>TOTAL</th>
           </tr>
           <tr style={{ borderBottom: B, background:'#f1f5f9' }}>
             <td style={{ ...cell, borderBottom: B }}></td>
             <td style={{ ...cell, textAlign:'center', fontWeight:'bold', borderBottom: B }}>Bs.</td>
-            <td style={{ padding:'2px 5px', textAlign:'center', fontWeight:'bold', borderBottom: B, fontSize:8.5 }}>Bs.</td>
+            <td style={{ padding: cellPadding, textAlign:'center', fontWeight:'bold', borderBottom: B, fontSize: baseFontSize }}>Bs.</td>
           </tr>
         </thead>
         <tbody>
@@ -231,10 +263,10 @@ function ReciboContenido({
             <tr key={i}>
               <td style={{ ...cell, textAlign:'left' }}>{c.descripcion}</td>
               <td style={{ ...cell, textAlign:'right' }}>Bs. {formatBs(c.precioUnit)}</td>
-              <td style={{ padding:'2px 5px', textAlign:'right', borderBottom:'1px solid #eee', fontSize:8.5 }}>Bs. {formatBs(c.total)}</td>
+              <td style={{ padding: cellPadding, textAlign:'right', borderBottom:'1px solid #eee', fontSize: baseFontSize }}>Bs. {formatBs(c.total)}</td>
             </tr>
           ))}
-          <tr style={{ height:8 }}>
+          <tr style={{ height:4 }}>
             <td style={{ borderRight: B }}></td>
             <td style={{ borderRight: B }}></td>
             <td></td>

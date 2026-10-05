@@ -1712,6 +1712,7 @@ export default function CajaPage() {
                 banco: 'Debito',
                 referencia: reqRef ? referencia : referenciaDebito,
                 tasaBcv: currentBcvRate || tcmmv || undefined,
+                tipoContribuyente: 'Residencial',
               };
             });
 
