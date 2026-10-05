@@ -115,10 +115,10 @@ var TheFactoryHKA = /** @class */ (function () {
             });
         });
     };
-    TheFactoryHKA.baseUrl = 'https://demoemisionv2.thefactoryhka.com.ve';
-    // En producción estas credenciales deben venir de variables de entorno
-    TheFactoryHKA.user = process.env.TFHKA_USER || 'sqovrqunrqjv_tfhka';
-    TheFactoryHKA.password = process.env.TFHKA_PASSWORD || 'UB!yb7U/r*/?';
+    TheFactoryHKA.baseUrl = process.env.TFHKA_URL || 'https://emision.thefactoryhka.com.ve';
+    // Credenciales oficiales de Producción
+    TheFactoryHKA.user = process.env.TFHKA_USER || 'dvktexcnjbjn_tfhka';
+    TheFactoryHKA.password = process.env.TFHKA_PASSWORD || 'Qf*ILuU;QG-Y';
     TheFactoryHKA.token = null;
     TheFactoryHKA.tokenExpiration = null;
     return TheFactoryHKA;

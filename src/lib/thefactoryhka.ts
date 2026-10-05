@@ -15,15 +15,15 @@ export interface TFHKAConfig {
 
 export class TheFactoryHKA {
   public static getBaseUrl(): string {
-    return process.env.TFHKA_URL?.trim() || 'https://demoemisionv2.thefactoryhka.com.ve';
+    return process.env.TFHKA_URL?.trim() || 'https://emision.thefactoryhka.com.ve';
   }
 
   public static getUser(): string {
-    return process.env.TFHKA_USER?.trim() || 'sqovrqunrqjv_tfhka';
+    return process.env.TFHKA_USER?.trim() || 'dvktexcnjbjn_tfhka';
   }
 
   public static getPassword(): string {
-    return process.env.TFHKA_PASSWORD?.trim() || 'UB!yb7U/r*/?';
+    return process.env.TFHKA_PASSWORD?.trim() || 'Qf*ILuU;QG-Y';
   }
 
   public static isEnabled(): boolean {
