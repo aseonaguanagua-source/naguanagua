@@ -55,54 +55,91 @@ export const generarCuadreCajaPDF = (
   doc.line(40, 105, pageWidth - 40, 105);
 
   const isDebitoPago = (p: any) => {
-    const t = String(p.tipo || '').toUpperCase();
-    return t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA';
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return (t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD');
+  };
+
+  const isCreditoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD');
+  };
+
+  const isDepositoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return !isCreditoPago(p) && !isDebitoPago(p) && (t.includes('DEPOSITO') || t.includes('DEPÓSITO'));
+  };
+
+  const isSaldoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('SALDO');
+  };
+
+  const isTransfPago = (p: any) => {
+    return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p);
   };
 
   const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
-  const transferencias = pagosFiltrados.filter(p => !isDebitoPago(p) && !String(p.tipo || '').toUpperCase().includes('DEPOSITO') && !String(p.tipo || '').toUpperCase().includes('SALDO'));
-  const depositos = pagosFiltrados.filter(p => String(p.tipo || '').toUpperCase().includes('DEPOSITO') || String(p.tipo || '').toUpperCase().includes('DEPÓSITO'));
-  const saldosAFavor = pagosFiltrados.filter(p => String(p.tipo || '').toUpperCase().includes('SALDO'));
+  const creditos = pagosFiltrados.filter(p => isCreditoPago(p));
+  const transferencias = pagosFiltrados.filter(p => isTransfPago(p));
+  const depositos = pagosFiltrados.filter(p => isDepositoPago(p));
+  const saldosAFavor = pagosFiltrados.filter(p => isSaldoPago(p));
 
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
+  const totalCredito = creditos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalDeposito = depositos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
-  const totalGeneral = totalDebito + totalTransf + totalDeposito + totalSaldo;
+  const totalGeneral = totalDebito + totalCredito + totalTransf + totalDeposito + totalSaldo;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.text("RESUMEN DE OPERACIONES", pageWidth / 2, 130, { align: 'center' });
 
+  let curResY = 150;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text("Debito", 40, 155);
-  doc.text(formatBs(totalDebito), pageWidth - 40, 155, { align: 'right' });
+  doc.text("Tarjeta de Débito (POS)", 40, curResY);
+  doc.text(formatBs(totalDebito), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 15;
 
-  doc.text("Transferencias Conciliadas", 40, 170);
-  doc.text(formatBs(totalTransf), pageWidth - 40, 170, { align: 'right' });
+  doc.text("Tarjeta de Crédito (POS - TMD / TVD)", 40, curResY);
+  doc.text(formatBs(totalCredito), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 15;
 
-  doc.text("Depósitos Bancarios", 40, 185);
-  doc.text(formatBs(totalDeposito), pageWidth - 40, 185, { align: 'right' });
+  doc.text("Transferencias Conciliadas", 40, curResY);
+  doc.text(formatBs(totalTransf), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 15;
 
-  doc.text("Saldo a Favor", 40, 200);
-  doc.text(formatBs(totalSaldo), pageWidth - 40, 200, { align: 'right' });
+  if (totalDeposito > 0 || depositos.length > 0) {
+    doc.text("Depósitos Bancarios", 40, curResY);
+    doc.text(formatBs(totalDeposito), pageWidth - 40, curResY, { align: 'right' });
+    curResY += 15;
+  }
+
+  if (totalSaldo > 0 || saldosAFavor.length > 0) {
+    doc.text("Saldo a Favor", 40, curResY);
+    doc.text(formatBs(totalSaldo), pageWidth - 40, curResY, { align: 'right' });
+    curResY += 15;
+  }
 
   doc.setLineWidth(1);
-  doc.line(40, 210, pageWidth - 40, 210);
-  
+  doc.line(40, curResY, pageWidth - 40, curResY);
+  curResY += 15;
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text("TOTAL GENERAL", 40, 225);
-  doc.text(formatBs(totalGeneral), pageWidth - 40, 225, { align: 'right' });
+  doc.text("TOTAL GENERAL", 40, curResY);
+  doc.text(formatBs(totalGeneral), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 10;
 
   doc.setLineWidth(1.5);
-  doc.line(40, 235, pageWidth - 40, 235);
+  doc.line(40, curResY, pageWidth - 40, curResY);
+  curResY += 25;
 
   doc.setFontSize(12);
-  doc.text("DETALLE DE TRANSACCIONES", pageWidth / 2, 265, { align: 'center' });
+  doc.text("DETALLE DE TRANSACCIONES", pageWidth / 2, curResY, { align: 'center' });
 
-  let startY = 285;
+  let startY = curResY + 20;
 
   const getNombreContribuyente = (p: any, c: any) => {
     return c?.Contribuyente || p.contribuyente || p.identidad || 'N/A';
@@ -165,6 +202,24 @@ export const generarCuadreCajaPDF = (
     ],
     totalDebito,
     "Total Debito:"
+  );
+
+  drawSubTable(
+    "TRANSACCIONES CON TARJETA DE CREDITO (TMD / TVD)", 
+    creditos, 
+    ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
+    (p, c) => [
+      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
+      String(getNombreContribuyente(p, c)).substring(0,35),
+      p.factura_ref || p.referencia || 'N/A', 
+      p.banco || p.banco_origen || 'N/A',
+      p.referencia || 'N/A',
+      '0390',
+      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ],
+    totalCredito,
+    "Total Credito:"
   );
 
   drawSubTable(

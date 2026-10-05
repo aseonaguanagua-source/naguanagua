@@ -25,8 +25,26 @@ function parseDet(p: any): any {
   if (typeof p.detalles === 'object') return p.detalles;
   try { return JSON.parse(p.detalles); } catch { return {}; }
 }
-function isDebito(p: any) { return p.tipo === 'Debito' || p.tipo === 'REC' || p.tipo === 'Punto de Venta'; }
-const FORMAS = ['Todas', 'Debito', 'Transferencia', 'Deposito', 'Cheque', 'Efectivo'];
+function isDebitoPago(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  return (t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD');
+}
+function isCreditoPago(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  return t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD');
+}
+function isDepositoPago(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  return !isCreditoPago(p) && !isDebitoPago(p) && (t.includes('DEPOSITO') || t.includes('DEPÓSITO'));
+}
+function isSaldoPago(p: any) {
+  return String(p.tipo || '').toUpperCase().includes('SALDO');
+}
+function isTransfPago(p: any) {
+  return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p);
+}
+
+const FORMAS = ['Todas', 'Tarjetas (Débito y Crédito)', 'Debito', 'Credito (TMD / TVD)', 'Transferencia', 'Deposito', 'Saldo a Favor'];
 
 export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contribuyentes = [], onBack }: Props) {
   const today = new Date().toISOString().slice(0, 10);
@@ -56,11 +74,15 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
         return false;
       }
       if (forma !== 'Todas') {
-        if (forma === 'Debito' && !isDebito(p)) return false;
-        if (forma === 'Transferencia' && isDebito(p)) return false;
+        if (forma === 'Tarjetas (Débito y Crédito)' && !isDebitoPago(p) && !isCreditoPago(p)) return false;
+        if (forma === 'Debito' && !isDebitoPago(p)) return false;
+        if (forma === 'Credito (TMD / TVD)' && !isCreditoPago(p)) return false;
+        if (forma === 'Transferencia' && !isTransfPago(p)) return false;
+        if (forma === 'Deposito' && !isDepositoPago(p)) return false;
+        if (forma === 'Saldo a Favor' && !isSaldoPago(p)) return false;
       }
-      // Solo conciliados si es transferencia
-      if (!isDebito(p) && p.estado !== 'Aprobado' && p.estado !== 'Con Diferencia') return false;
+      // Solo conciliados si es transferencia bancaria
+      if (isTransfPago(p) && p.estado !== 'Aprobado' && p.estado !== 'Con Diferencia') return false;
       return true;
     });
   };
@@ -70,11 +92,18 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
     return getFilteredPagos();
   }, [showReport, pagos, fecha, cajero, forma, isAdmin, currentUser]);
 
-  const debitos = pagosFiltrados.filter(p => isDebito(p));
-  const transferencias = pagosFiltrados.filter(p => !isDebito(p));
+  const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
+  const creditos = pagosFiltrados.filter(p => isCreditoPago(p));
+  const transferencias = pagosFiltrados.filter(p => isTransfPago(p));
+  const depositos = pagosFiltrados.filter(p => isDepositoPago(p));
+  const saldosAFavor = pagosFiltrados.filter(p => isSaldoPago(p));
+
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  const totalCredito = creditos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
-  const totalCuadre = totalDebito + totalTransf;
+  const totalDeposito = depositos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  const totalSaldo = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  const totalCuadre = totalDebito + totalCredito + totalTransf + totalDeposito + totalSaldo;
   const cajeroLabel = cajero ? cajero : (!isAdmin ? currentUser : 'Todos');
 
   const handleDescargarPDF = () => {
@@ -180,10 +209,13 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
               </button>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 200px', borderBottom: '1px solid #ccc' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 200px', borderBottom: '1px solid #ccc' }}>
             <div style={{ padding: '10px 14px', borderRight: '1px solid #ccc', fontSize: 13 }}>
-              <div><b>Debito Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDebito)}</span></div>
+              <div><b>Débito (POS) Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDebito)}</span></div>
+              <div style={{ marginTop: 4 }}><b>Crédito (TMD / TVD) Bs.:</b><span style={{ float: 'right', color: '#1e40af', fontWeight: 600 }}>{fmtBs(totalCredito)}</span></div>
               <div style={{ marginTop: 4 }}><b>Transferencia Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalTransf)}</span></div>
+              {totalDeposito > 0 && <div style={{ marginTop: 4 }}><b>Depósito Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDeposito)}</span></div>}
+              {totalSaldo > 0 && <div style={{ marginTop: 4 }}><b>Saldo a Favor Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalSaldo)}</span></div>}
             </div>
             <div style={{ padding: '10px 14px', borderRight: '1px solid #ccc', fontSize: 12 }}>
               <div><b>Fecha:</b> Desde {fecha} hasta {fecha}</div>
@@ -195,6 +227,43 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
               <div style={{ fontSize: 22, fontWeight: 900 }}>Bs. {fmtBs(totalCuadre)}</div>
             </div>
           </div>
+
+          {/* Tarjetas de Credito */}
+          {creditos.length > 0 && <>
+            <div style={{ ...S.secHdr, background: '#e0e7ff', color: '#1e3a8a' }}>TARJETA DE CRÉDITO (TMD / TVD)</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>{['#', 'Fecha/Hora', 'Tipo', 'Cajero', 'Contribuyente', 'Recibo', 'Banco', 'Aprobación / Ref', 'Monto']
+                    .map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {creditos.map((p, i) => {
+                    const det = parseDet(p); const recs: string[] = det.recibos || [];
+                    return (
+                      <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
+                        <td style={S.td}>{i + 1}</td>
+                        <td style={S.td}>{fmtDT(p.created_at)}</td>
+                        <td style={{ ...S.td, fontWeight: 700, color: '#1e40af' }}>{p.tipo}</td>
+                        <td style={S.td}>{det.cajero || '-'}</td>
+                        <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad}-{p.contribuyente}</td>
+                        <td style={S.td}>{recs[0] || p.referencia || '-'}</td>
+                        <td style={S.td}>{p.banco || '-'}</td>
+                        <td style={S.td}>{p.referencia || det.aprobacion || '-'}</td>
+                        <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmtBs(parseFloat(p.monto) || 0)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={8} style={S.tf}>Total Items Crédito: {creditos.length}</td>
+                    <td style={{ ...S.tf, textAlign: 'right', color: '#1e40af' }}>Total Crédito: {fmtBs(totalCredito)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </>}
 
           {/* Transferencias */}
           {transferencias.length > 0 && <>

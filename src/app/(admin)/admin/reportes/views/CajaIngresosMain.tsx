@@ -29,7 +29,17 @@ function parseDet(p: any): any {
   if (typeof p.detalles === 'object') return p.detalles;
   try { return JSON.parse(p.detalles); } catch { return {}; }
 }
-function isDebito(p: any) { return p.tipo === 'Debito' || p.tipo === 'REC' || p.tipo === 'Punto de Venta'; }
+function isDebito(p: any) { 
+  const t = String(p.tipo || '').toUpperCase().trim();
+  return (t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD');
+}
+function isCredito(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  return t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD');
+}
+function isTarjeta(p: any) {
+  return isDebito(p) || isCredito(p);
+}
 function getEstadoStyle(estado: string): React.CSSProperties {
   if (estado === 'Aprobado') return { color: '#1a7a1a', fontWeight: 700 };
   if (estado === 'Por Verificar') return { color: '#b45309', fontWeight: 700 };
@@ -103,8 +113,8 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         if (bd !== bancFilter) return false;
       }
       if (tipoFilter !== 'Todos') {
-        if (tipoFilter === 'REC' && !isDebito(p)) return false;
-        if (tipoFilter !== 'REC' && isDebito(p)) return false;
+        if (tipoFilter === 'REC' && !isTarjeta(p)) return false;
+        if (tipoFilter !== 'REC' && isTarjeta(p)) return false;
         if (tipoFilter !== 'REC' && p.tipo !== tipoFilter) return false;
       }
       return true;
@@ -125,10 +135,12 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     generarCorteCajaPDF(items, contribuyentes, fechaInicio, fechaFin, tasaEuro);
   };
   const debitos = pagosFiltrados.filter(p => isDebito(p));
-  const transferencias = pagosFiltrados.filter(p => !isDebito(p));
+  const creditos = pagosFiltrados.filter(p => isCredito(p));
+  const transferencias = pagosFiltrados.filter(p => !isTarjeta(p));
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  const totalCredito = creditos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
-  const totalIngresos = totalDebito + totalTransf;
+  const totalIngresos = totalDebito + totalCredito + totalTransf;
   const totalUSD = tcmmv > 0 ? totalIngresos / tcmmv : 0;
   const cajeroLabel = !isAdmin ? currentUser : selectedCajas.length === 0 ? 'Todos' : selectedCajas.join(', ');
   const totalPagos = pagos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
@@ -136,7 +148,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
 
   const libroRows = pagosFiltrados.map(p => {
     const det = parseDet(p); const recs: string[] = det.recibos || [];
-    return { fecha: p.created_at, rif: p.identidad, nombre: p.contribuyente, tipoDoc: isDebito(p) ? 'REC' : (p.tipo || 'AOC'), recibo: recs[0] || p.referencia || '-', total: parseFloat(p.monto) || 0 };
+    return { fecha: p.created_at, rif: p.identidad, nombre: p.contribuyente, tipoDoc: isTarjeta(p) ? 'REC' : (p.tipo || 'AOC'), recibo: recs[0] || p.referencia || '-', total: parseFloat(p.monto) || 0 };
   });
   const totalLibro = libroRows.reduce((s, r) => s + r.total, 0);
 
@@ -155,9 +167,10 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   };
 
   const SummaryBox = ({ title, isUSD }: { title: string; isUSD?: boolean }) => (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 240px', borderBottom: '1px solid #ccc' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 240px', borderBottom: '1px solid #ccc' }}>
       <div style={{ padding: '10px 14px', borderRight: '1px solid #ccc', fontSize: 13 }}>
-        <div><b>Debito Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDebito)}</span></div>
+        <div><b>Débito (POS) Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDebito)}</span></div>
+        <div style={{ marginTop: 4 }}><b>Crédito (TMD / TVD) Bs.:</b><span style={{ float: 'right', color: '#1e40af', fontWeight: 600 }}>{fmtBs(totalCredito)}</span></div>
         <div style={{ marginTop: 4 }}><b>Transferencia Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalTransf)}</span></div>
       </div>
       <div style={{ padding: '10px 14px', borderRight: '1px solid #ccc', fontSize: 12 }}>
@@ -224,6 +237,30 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmtBs(parseFloat(p.monto) || 0)}</td>
           </tr>); })}</tbody>
           <tfoot><tr><td colSpan={9} style={S.tf}>Total Items: {debitos.length}</td><td style={{ ...S.tf, textAlign: 'right' }}>Total Debito: {fmtBs(totalDebito)}</td></tr></tfoot>
+        </table>
+      </div>
+    </>}
+  </>);
+
+  const CreditoTable = ({ showDT }: { showDT?: boolean }) => (<>
+    {creditos.length > 0 && <>
+      <div style={{ ...S.secHdr, background: '#e0e7ff', color: '#1e3a8a' }}>TARJETA DE CRÉDITO (TMD / TVD)</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion / Ref','Lote','Estado','Monto'] : ['#','Fecha','Tipo','Operador','Contribuyente','Recibo','Banco','Aprobacion / Ref','Lote','Estado','Monto']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <tbody>{creditos.map((p, i) => { const det = parseDet(p); const recs: string[] = det.recibos || []; return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
+            <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
+            <td style={{ ...S.td, fontWeight: 700, color: '#1e40af' }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
+            <td style={{ ...S.td, color: '#2a5298' }}>
+              <div style={{ fontWeight: 600 }}>{p.identidad}</div>
+              <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribuyentes)}</div>
+            </td>
+            <td style={S.td}>{recs[0] || p.referencia || '-'}</td><td style={S.td}>{p.banco || '-'}</td>
+            <td style={S.td}>{p.referencia || det.aprobacion || '-'}</td><td style={S.td}>{det.lote || '-'}</td>
+            <td style={S.td}><span style={getEstadoStyle(p.estado)}>{p.estado || 'Aprobado'}</span></td>
+            <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmtBs(parseFloat(p.monto) || 0)}</td>
+          </tr>); })}</tbody>
+          <tfoot><tr><td colSpan={10} style={S.tf}>Total Items Crédito: {creditos.length}</td><td style={{ ...S.tf, textAlign: 'right', color: '#1e40af' }}>Total Crédito: {fmtBs(totalCredito)}</td></tr></tfoot>
         </table>
       </div>
     </>}
@@ -435,7 +472,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>REPORTE GENERAL DE INGRESOS<IconsTop showExcel /></div>
           <SummaryBox title="Total Ingresos" isUSD />
-          <DebitoTable /><TransfTable />
+          <DebitoTable /><CreditoTable /><TransfTable />
           <div style={S.secHdr}>RESUMEN FISCAL POR PERIODOS</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead><tr><th style={{ ...S.th, width: '80%' }}>Concepto / Agrupacion por Anos</th><th style={{ ...S.th, textAlign: 'right' }}>Monto Distribuido Bs.</th></tr></thead>
@@ -456,7 +493,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>RESUMEN DE CAJA<IconsTop /></div>
           <SummaryBox title="Total Caja" />
-          <TransfTable showDT /><DebitoTable showDT />
+          <DebitoTable showDT /><CreditoTable showDT /><TransfTable showDT />
           {pagosFiltrados.length === 0 && <EmptyMsg />}
         </div>
       )}
@@ -465,7 +502,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>REPORTE GENERAL DE INGRESOS<IconsTop /></div>
           <SummaryBox title="Total Ingresos" isUSD />
-          <DebitoTable /><TransfTable />
+          <DebitoTable /><CreditoTable /><TransfTable />
           {pagosFiltrados.length === 0 && <EmptyMsg />}
         </div>
       )}

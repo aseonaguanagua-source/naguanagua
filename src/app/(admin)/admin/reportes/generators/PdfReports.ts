@@ -88,50 +88,88 @@ export const generarCorteCajaPDF = (
   // ==============================
   // RESUMEN DE OPERACIONES
   // ==============================
-  const debitos = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('DEBITO') || p.tipo === 'Punto de Venta');
-  const transferencias = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('TRANSFERENCIA'));
-  // Asumiendo que hay un tipo "Saldo a Favor" o similar. Si no, lo dejamos vacío por ahora o deducimos de la data.
-  const saldosAFavor = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('SALDO'));
+  const isDebitoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return (t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD');
+  };
+
+  const isCreditoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD');
+  };
+
+  const isDepositoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return !isCreditoPago(p) && !isDebitoPago(p) && (t.includes('DEPOSITO') || t.includes('DEPÓSITO'));
+  };
+
+  const isSaldoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('SALDO');
+  };
+
+  const isTransfPago = (p: any) => {
+    return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p);
+  };
+
+  const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
+  const creditos = pagosFiltrados.filter(p => isCreditoPago(p));
+  const transferencias = pagosFiltrados.filter(p => isTransfPago(p));
+  const saldosAFavor = pagosFiltrados.filter(p => isSaldoPago(p));
 
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const totalCredito = creditos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalTransf = transferencias.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalGeneral = totalDebito + totalTransf + totalSaldo;
+  const totalGeneral = totalDebito + totalCredito + totalTransf + totalSaldo;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.text("RESUMEN DE OPERACIONES", pageWidth / 2, 130, { align: 'center' });
 
+  let curResY = 150;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text("Debito", 40, 155);
-  doc.text(formatBs(totalDebito), pageWidth - 40, 155, { align: 'right' });
+  doc.text("Tarjeta de Débito (POS)", 40, curResY);
+  doc.text(formatBs(totalDebito), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 15;
 
-  doc.text("TRANSFERENCIAS REGISTRADAS POR EL CAJERO", 40, 170);
-  doc.text(formatBs(totalTransf), pageWidth - 40, 170, { align: 'right' });
+  doc.text("Tarjeta de Crédito (POS - TMD / TVD)", 40, curResY);
+  doc.text(formatBs(totalCredito), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 15;
 
-  doc.text("Saldo a Favor", 40, 185);
-  doc.text(formatBs(totalSaldo), pageWidth - 40, 185, { align: 'right' });
+  doc.text("TRANSFERENCIAS REGISTRADAS POR EL CAJERO", 40, curResY);
+  doc.text(formatBs(totalTransf), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 15;
+
+  if (totalSaldo > 0 || saldosAFavor.length > 0) {
+    doc.text("Saldo a Favor", 40, curResY);
+    doc.text(formatBs(totalSaldo), pageWidth - 40, curResY, { align: 'right' });
+    curResY += 15;
+  }
 
   // Divider for total
   doc.setLineWidth(1);
-  doc.line(40, 195, pageWidth - 40, 195);
+  doc.line(40, curResY, pageWidth - 40, curResY);
+  curResY += 12;
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text("TOTAL GENERAL", 40, 210);
-  doc.text(formatBs(totalGeneral), pageWidth - 40, 210, { align: 'right' });
+  doc.text("TOTAL GENERAL", 40, curResY);
+  doc.text(formatBs(totalGeneral), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 8;
 
   doc.setLineWidth(1.5);
-  doc.line(40, 220, pageWidth - 40, 220);
+  doc.line(40, curResY, pageWidth - 40, curResY);
+  curResY += 20;
 
   // ==============================
   // DETALLE DE TRANSACCIONES
   // ==============================
   doc.setFontSize(12);
-  doc.text("DETALLE DE TRANSACCIONES", pageWidth / 2, 250, { align: 'center' });
+  doc.text("DETALLE DE TRANSACCIONES", pageWidth / 2, curResY, { align: 'center' });
 
-  let startY = 270;
+  let startY = curResY + 20;
 
   // Helper function to draw sub-tables
   const drawSubTable = (title: string, dataItems: any[], columns: string[], rowMapper: (p: any, cInfo: any) => any[], footerTotal: number, footerLabel: string) => {
@@ -196,7 +234,26 @@ export const generarCorteCajaPDF = (
     "Total Debito:"
   );
 
-  // 2. Transferencias
+  // 2. Crédito (TMD / TVD)
+  drawSubTable(
+    "TRANSACCIONES CON TARJETA DE CREDITO (TMD / TVD)", 
+    creditos, 
+    ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
+    (p, c) => [
+      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
+      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,35),
+      String(p.factura_ref || p.referencia || 'N/A'),
+      String(p.banco_origen || p.banco || 'N/A'),
+      String(p.referencia || 'N/A'),
+      '0390',
+      parseFloat(p.monto || '0').toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ],
+    totalCredito,
+    "Total Credito:"
+  );
+
+  // 3. Transferencias
   drawSubTable(
     "TRANSFERENCIAS REGISTRADAS POR EL CAJERO", 
     transferencias, 
@@ -309,40 +366,66 @@ export const generarIngresoBancarioPDF = (
   doc.setLineWidth(0.5);
   doc.line(40, 105, pageWidth - 40, 105);
 
-  const debitos = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('DEBITO') || p.tipo === 'Punto de Venta');
-  const transferencias = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('TRANSFERENCIA'));
+  const isDebitoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return (t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD');
+  };
+
+  const isCreditoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD');
+  };
+
+  const isTransfPago = (p: any) => {
+    return !isDebitoPago(p) && !isCreditoPago(p);
+  };
+
+  const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
+  const creditos = pagosFiltrados.filter(p => isCreditoPago(p));
+  const transferencias = pagosFiltrados.filter(p => isTransfPago(p));
 
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const totalCredito = creditos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalTransf = transferencias.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalGeneral = totalDebito + totalTransf;
+  const totalGeneral = totalDebito + totalCredito + totalTransf;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.text("RESUMEN DE INGRESOS", pageWidth / 2, 130, { align: 'center' });
 
+  let curResY = 150;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text("Debito", 40, 155);
-  doc.text(formatBs(totalDebito), pageWidth - 40, 155, { align: 'right' });
+  doc.text("Tarjeta de Débito (POS)", 40, curResY);
+  doc.text(formatBs(totalDebito), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 15;
 
-  doc.text("Transferencias", 40, 170);
-  doc.text(formatBs(totalTransf), pageWidth - 40, 170, { align: 'right' });
+  doc.text("Tarjeta de Crédito (POS - TMD / TVD)", 40, curResY);
+  doc.text(formatBs(totalCredito), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 15;
+
+  doc.text("Transferencias Bancarias", 40, curResY);
+  doc.text(formatBs(totalTransf), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 15;
 
   doc.setLineWidth(1);
-  doc.line(40, 185, pageWidth - 40, 185);
+  doc.line(40, curResY, pageWidth - 40, curResY);
+  curResY += 12;
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text("TOTAL INGRESOS", 40, 200);
-  doc.text(formatBs(totalGeneral), pageWidth - 40, 200, { align: 'right' });
+  doc.text("TOTAL INGRESOS", 40, curResY);
+  doc.text(formatBs(totalGeneral), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 8;
 
   doc.setLineWidth(1.5);
-  doc.line(40, 210, pageWidth - 40, 210);
+  doc.line(40, curResY, pageWidth - 40, curResY);
+  curResY += 20;
 
   doc.setFontSize(12);
-  doc.text("DETALLE DE INGRESOS", pageWidth / 2, 240, { align: 'center' });
+  doc.text("DETALLE DE INGRESOS", pageWidth / 2, curResY, { align: 'center' });
 
-  let startY = 260;
+  let startY = curResY + 20;
 
   const drawSubTable = (title: string, dataItems: any[], columns: string[], rowMapper: (p: any, cInfo: any) => any[], footerTotal: number, footerLabel: string) => {
     if (dataItems.length === 0) return;
@@ -371,7 +454,7 @@ export const generarIngresoBancarioPDF = (
       columnStyles: { [columns.length - 1]: { halign: 'right' } }
     });
 
-    let currentY = (doc as any).lastAutoTable.finalY + 10;
+    let currentY = ((doc as any).lastAutoTable?.finalY || startY + 50) + 10;
     
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
@@ -386,12 +469,12 @@ export const generarIngresoBancarioPDF = (
   };
 
   drawSubTable(
-    "DEBITO", 
+    "TRANSACCIONES CON TARJETA DE DEBITO", 
     debitos, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
     (p, c) => [
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) || 'N/A',
-      p.tipo.substring(0,3).toUpperCase(),
+      String(p.tipo || 'DEB').substring(0,3).toUpperCase(),
       (c.Contribuyente || p.identidad).substring(0,40),
       p.factura_ref || p.referencia || 'N/A',
       p.banco_origen || 'BANESCO - 0134',
@@ -404,12 +487,30 @@ export const generarIngresoBancarioPDF = (
   );
 
   drawSubTable(
+    "TRANSACCIONES CON TARJETA DE CREDITO (TMD / TVD)", 
+    creditos, 
+    ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
+    (p, c) => [
+      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) || 'N/A',
+      String(p.tipo || 'TMD').substring(0,3).toUpperCase(),
+      (c.Contribuyente || p.identidad).substring(0,40),
+      p.factura_ref || p.referencia || 'N/A',
+      p.banco_origen || 'BANESCO - 0134',
+      p.referencia || 'N/A',
+      '0390',
+      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ],
+    totalCredito,
+    "Total Credito:"
+  );
+
+  drawSubTable(
     "TRANSFERENCIAS", 
     transferencias, 
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO ORIGEN", "REFERENCIA", "MONTO"],
     (p, c) => [
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) || 'N/A',
-      p.tipo.substring(0,3).toUpperCase(),
+      String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
       (c.Contribuyente || p.identidad).substring(0,40),
       p.factura_ref || p.referencia || 'N/A',
       (p.banco_origen || 'N/A').substring(0,20),
