@@ -41,6 +41,7 @@ function normalizarFormaPago(fp: string): 'PUNTO_VENTA' | 'TMD' | 'TVD' | 'TRANS
   const v = (fp || '').toLowerCase().trim();
   if (v.includes('tmd') || v.includes('master')) return 'TMD';
   if (v.includes('tvd') || v.includes('visa')) return 'TVD';
+  if (v.includes('credito')) return 'TMD';
   if (v.includes('debito') || v.includes('punto')) return 'PUNTO_VENTA';
   if (v.includes('transfer')) return 'TRANSFERENCIA';
   if (v.includes('efectivo') || v.includes('cash')) return 'EFECTIVO';
