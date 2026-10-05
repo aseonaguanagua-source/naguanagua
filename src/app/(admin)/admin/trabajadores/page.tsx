@@ -28,7 +28,8 @@ import {
   BarChart3,
   Mail,
   Lock,
-  Search
+  Search,
+  CheckCircle
 } from 'lucide-react';
 import { DataTable } from '@/components/DataTable';
 import { supabase } from '@/lib/supabase';
@@ -295,6 +296,7 @@ export default function TrabajadoresPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [searchTable, setSearchTable] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<'Todos' | 'Activos' | 'Inactivos'>('Todos');
 
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<any>(null);
@@ -318,6 +320,51 @@ export default function TrabajadoresPage() {
       setErrorMsg('Error al cargar trabajadores: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleEstado = async (worker: any, nuevoEstado: 'Activo' | 'Suspendido') => {
+    try {
+      // Si se va a activar y tiene letra asignada, validar que la letra no esté tomada por otro activo
+      if (nuevoEstado === 'Activo' && worker.letra && worker.letra.trim()) {
+        const { data: letraExistente } = await supabase
+          .from('trabajadores')
+          .select('id, nombre, letra')
+          .eq('letra', worker.letra.trim().toUpperCase())
+          .neq('id', worker.id)
+          .eq('estado', 'Activo')
+          .maybeSingle();
+
+        if (letraExistente) {
+          alert(`No se puede activar con la letra '${worker.letra}' porque ya está asignada al trabajador activo: ${letraExistente.nombre}. Debe editar y cambiar la letra primero.`);
+          return;
+        }
+      }
+
+      const { error } = await supabase
+        .from('trabajadores')
+        .update({ estado: nuevoEstado })
+        .eq('id', worker.id);
+
+      if (error) throw error;
+
+      await logAudit(
+        nuevoEstado === 'Activo' ? 'Activación de Trabajador' : 'Suspensión de Trabajador',
+        {
+          trabajador: worker.nombre,
+          usuario: worker.usuario,
+          nuevo_estado: nuevoEstado
+        },
+        'SEGURIDAD',
+        'ALTA'
+      );
+
+      setTrabajadores(prev =>
+        prev.map(t => (t.id === worker.id ? { ...t, estado: nuevoEstado } : t))
+      );
+      alert(`Trabajador ${worker.nombre} ${nuevoEstado === 'Activo' ? 'activado' : 'suspendido'} exitosamente.`);
+    } catch (err: any) {
+      alert(`Error al actualizar estado: ${err.message}`);
     }
   };
 
@@ -525,16 +572,23 @@ export default function TrabajadoresPage() {
 
   // Filtrado de tabla
   const filteredTrabajadores = useMemo(() => {
-    if (!searchTable.trim()) return trabajadores;
+    let list = trabajadores;
+    if (filtroEstado === 'Activos') {
+      list = list.filter(t => t.estado === 'Activo');
+    } else if (filtroEstado === 'Inactivos') {
+      list = list.filter(t => t.estado !== 'Activo');
+    }
+
+    if (!searchTable.trim()) return list;
     const s = searchTable.toLowerCase().trim();
-    return trabajadores.filter(t =>
+    return list.filter(t =>
       (t.nombre || '').toLowerCase().includes(s) ||
       (t.usuario || '').toLowerCase().includes(s) ||
       (t.cedula || '').toLowerCase().includes(s) ||
       (t.letra || '').toLowerCase().includes(s) ||
       (t.rol || '').toLowerCase().includes(s)
     );
-  }, [trabajadores, searchTable]);
+  }, [trabajadores, searchTable, filtroEstado]);
 
   const columns = [
     {
@@ -615,12 +669,31 @@ export default function TrabajadoresPage() {
       key: 'actions',
       header: 'Acciones',
       render: (row: any) => (
-        <button
-          onClick={() => handleEdit(row)}
-          className="text-xs font-bold bg-white hover:bg-indigo-600 text-slate-700 hover:text-white px-3 py-1 rounded border border-slate-300 hover:border-indigo-600 transition-colors shadow-2xs"
-        >
-          Editar Permisos
-        </button>
+        <div className="flex items-center gap-2">
+          {row.estado !== 'Activo' ? (
+            <button
+              onClick={() => handleToggleEstado(row, 'Activo')}
+              className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded transition-colors shadow-2xs flex items-center gap-1"
+              title="Activar usuario"
+            >
+              <CheckCircle className="w-3.5 h-3.5" /> Activar
+            </button>
+          ) : (
+            <button
+              onClick={() => handleToggleEstado(row, 'Suspendido')}
+              className="text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 px-2 py-1 rounded border border-rose-200 transition-colors"
+              title="Suspender usuario"
+            >
+              Suspender
+            </button>
+          )}
+          <button
+            onClick={() => handleEdit(row)}
+            className="text-xs font-bold bg-white hover:bg-indigo-600 text-slate-700 hover:text-white px-3 py-1 rounded border border-slate-300 hover:border-indigo-600 transition-colors shadow-2xs"
+          >
+            Editar Permisos
+          </button>
+        </div>
       )
     }
   ];
@@ -981,6 +1054,49 @@ export default function TrabajadoresPage() {
           {errorMsg}
         </div>
       )}
+
+      {/* Tabs de Filtro por Estado */}
+      <div className="flex items-center gap-2 border-b border-slate-200">
+        <button
+          onClick={() => setFiltroEstado('Todos')}
+          className={`pb-2.5 px-4 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
+            filtroEstado === 'Todos'
+              ? 'border-indigo-600 text-indigo-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>Todos</span>
+          <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+            {trabajadores.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setFiltroEstado('Activos')}
+          className={`pb-2.5 px-4 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
+            filtroEstado === 'Activos'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>Activos</span>
+          <span className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+            {trabajadores.filter(t => t.estado === 'Activo').length}
+          </span>
+        </button>
+        <button
+          onClick={() => setFiltroEstado('Inactivos')}
+          className={`pb-2.5 px-4 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
+            filtroEstado === 'Inactivos'
+              ? 'border-rose-600 text-rose-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>Inactivos / Suspendidos</span>
+          <span className="bg-rose-100 text-rose-700 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+            {trabajadores.filter(t => t.estado !== 'Activo').length}
+          </span>
+        </button>
+      </div>
 
       {/* Buscador de la tabla */}
       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">

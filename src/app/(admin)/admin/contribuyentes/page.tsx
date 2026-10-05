@@ -244,6 +244,40 @@ function ContribuyentesPageContent() {
     setStatusModal({ type: 'Eliminar', row });
   };
 
+  const handleReactivate = async (row: any) => {
+    if (!confirm(`¿Está seguro de reactivar y pasar a 'Activo' al contribuyente ${row.Contribuyente} (${row.Identidad})?`)) return;
+    try {
+      const { error: err1 } = await supabase
+        .from('inmuebles')
+        .update({ estado: 'Activo' })
+        .eq('identidad', row.Identidad);
+      if (err1) throw err1;
+
+      if (row.id) {
+        await supabase
+          .from('contribuyentes')
+          .update({ estado: 'Activo' })
+          .eq('identidad', row.Identidad);
+      }
+
+      await logAudit(
+        'Reactivación de Contribuyente',
+        {
+          identidad: row.Identidad,
+          contribuyente: row.Contribuyente,
+          nuevo_estado: 'Activo'
+        },
+        'CONTRIBUYENTE',
+        'ALTA'
+      );
+
+      alert(`Contribuyente ${row.Contribuyente} activado exitosamente.`);
+      await refreshData();
+    } catch (err: any) {
+      alert(`Error al activar contribuyente: ${err.message}`);
+    }
+  };
+
   const handleDeactivate = (row: any) => {
     setStatusModal({ type: 'Desactivar', row });
   };
@@ -2839,6 +2873,19 @@ function ContribuyentesPageContent() {
         }
         return <p className="text-[10px] text-slate-600 italic max-w-[250px] line-clamp-3">{motivo}</p>;
       }
+    },
+    {
+      key: 'acciones',
+      header: 'Acciones',
+      render: (row: any) => (
+        <button
+          onClick={() => handleReactivate(row)}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5"
+          title="Reactivar y habilitar al contribuyente"
+        >
+          <CheckCircle className="w-3.5 h-3.5" /> Activar Contribuyente
+        </button>
+      )
     }
   ];
 
