@@ -412,26 +412,39 @@ export default function CajaPage() {
         return searchVariantsSet.has(idClean);
       });
 
-      // 3. Si no encontró por cédula, y se ingresó un nombre de más de 3 letras (no dígitos), buscar por nombre
+      // 3. Si no encontró por cédula, y se ingresó un nombre de más de 2 letras (no dígitos), buscar por nombre
       if (!user && !/^\d+$/.test(inputClean) && inputClean.length >= 3) {
+        const searchWords = rawSearch.split(/\s+/).filter((w: string) => w.length >= 2);
         user = contribuyentes.find((c: any) => {
-          return c.Contribuyente && c.Contribuyente.toUpperCase().includes(rawSearch);
+          const cName = (c.Contribuyente || c.nombre || '').toUpperCase();
+          return searchWords.every((w: string) => cName.includes(w));
         });
       }
 
-      // Fallback a Supabase (búsqueda segura sin wildcards parciales de códigos)
+      // Fallback a Supabase (búsqueda segura por cédula o por palabras clave del nombre)
       if (!user) {
-        const orConditions = searchVariants.map(v => `identidad.eq.${v}`);
-        if (!/^\d+$/.test(inputClean) && inputClean.length >= 4) {
-          orConditions.push(`contribuyente.ilike.%${inputClean}%`);
+        const isNameSearch = !/^\d+$/.test(inputClean) && inputClean.length >= 3;
+        const searchWords = isNameSearch ? rawSearch.split(/\s+/).filter((w: string) => w.length >= 2) : [];
+
+        let inmFallback: any = null;
+
+        if (isNameSearch && searchWords.length > 0) {
+          let qInm = supabase.from('inmuebles').select('*');
+          for (const w of searchWords) {
+            qInm = qInm.ilike('contribuyente', `%${w}%`);
+          }
+          const { data: inmByName } = await qInm.limit(1).maybeSingle();
+          inmFallback = inmByName;
+        } else {
+          const orConditions = searchVariants.map(v => `identidad.eq.${v}`);
+          const { data: inmById } = await supabase
+            .from('inmuebles')
+            .select('*')
+            .or(orConditions.join(','))
+            .limit(1)
+            .maybeSingle();
+          inmFallback = inmById;
         }
-        
-        const { data: inmFallback } = await supabase
-          .from('inmuebles')
-          .select('*')
-          .or(orConditions.join(','))
-          .limit(1)
-          .maybeSingle();
 
         if (inmFallback) {
           user = {
@@ -451,13 +464,24 @@ export default function CajaPage() {
             es_condominio: inmFallback.es_condominio
           };
         } else {
-          // Fallback 2: buscar en tabla contribuyentes directamente
-          const { data: contribFallback } = await supabase
-            .from('contribuyentes')
-            .select('*')
-            .or(searchVariants.map(v => `identidad.eq.${v}`).join(','))
-            .limit(1)
-            .maybeSingle();
+          // Fallback 2: buscar en tabla contribuyentes directamente (por palabras del nombre o por cédula)
+          let contribFallback: any = null;
+          if (isNameSearch && searchWords.length > 0) {
+            let qC = supabase.from('contribuyentes').select('*');
+            for (const w of searchWords) {
+              qC = qC.ilike('nombre', `%${w}%`);
+            }
+            const { data: cByName } = await qC.limit(1).maybeSingle();
+            contribFallback = cByName;
+          } else {
+            const { data: cById } = await supabase
+              .from('contribuyentes')
+              .select('*')
+              .or(searchVariants.map(v => `identidad.eq.${v}`).join(','))
+              .limit(1)
+              .maybeSingle();
+            contribFallback = cById;
+          }
 
           if (contribFallback) {
             user = {
@@ -468,7 +492,7 @@ export default function CajaPage() {
               CodCont: contribFallback.identidad,
               cod_cont: contribFallback.identidad,
               Direccion: contribFallback.direccion,
-              Clasificacion: 'Comercial',
+              Clasificacion: 'Individual',
               Actividad: '',
               SaldoFavor: 0,
               Estado: 'Activo'
@@ -661,8 +685,9 @@ export default function CajaPage() {
           const now = new Date();
           billableInms.forEach((inm: any) => {
             // Si el inmueble es hijo/filial de un condominio comercial:
-            // El aseo lo paga el condominio padre, pero las multas se pagan por la oficina individual
-            if (inm.condominio_padre_id) {
+            // El aseo lo paga el condominio padre, pero las multas se pagan por la oficina individual.
+            // Para inmuebles residenciales (casas/quintas/aptos), cada unidad genera sus recibos mensuales individuales.
+            if (inm.condominio_padre_id && !isResidencialInm(inm)) {
               const multa = parseFloat(inm.multa_bs || '0');
               const congelada = parseFloat(inm.deuda_congelada_bs || '0');
               if (multa > 0 || congelada > 0) {
@@ -2260,7 +2285,7 @@ export default function CajaPage() {
                 )}
               </div>
 
-              {foundUser.condominio_padre_id && (
+              {foundUser.isSearchByCode && foundUser.condominio_padre_id && (
                 <div className="mt-2.5 p-3 bg-sky-50 border border-sky-300 rounded-lg text-xs text-sky-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-sm">
                   <div>
                     <span className="font-bold flex items-center gap-1.5 text-sky-800">
