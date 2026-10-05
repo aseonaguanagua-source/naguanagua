@@ -24,17 +24,12 @@ export default function ReciboDemoPage() {
         descripcion: 'Tasa por Servicio de Aseo Urbano y Domiciliario - Mes de Septiembre 2026 (Quinta Zona B)',
         precioUnit: 1198.44,
         total: 1198.44
-      },
-      {
-        descripcion: 'Mantenimiento del Sistema de Disposición Final y Relleno Sanitario',
-        precioUnit: 150.00,
-        total: 150.00
       }
     ],
-    subTotal: 1348.44,
-    exento: 0,
+    subTotal: 1198.44,
+    exento: 1198.44,
     iva: 0,
-    total: 1348.44,
+    total: 1198.44,
     formaPago: formaPago,
     banco: formaPago === 'Punto de Venta' ? 'BANESCO (PUNTO BANCARIO)' : 'BANCO DE VENEZUELA',
     referencia: '00984214',
@@ -45,7 +40,7 @@ export default function ReciboDemoPage() {
         formaPago: formaPago,
         banco: 'BANESCO',
         referencia: '00984214',
-        monto: 1348.44
+        monto: 1198.44
       }
     ]
   };
@@ -54,8 +49,8 @@ export default function ReciboDemoPage() {
     ...demoDataNormal,
     reciboNo: 'ABO-2026-001205',
     esAbono: true,
-    montoCancelado: 800.00,
-    montoPendiente: 548.44,
+    montoCancelado: 700.00,
+    montoPendiente: 498.44,
     formaPago: formaPago,
     historialPagos: [
       {
@@ -63,7 +58,7 @@ export default function ReciboDemoPage() {
         formaPago: formaPago,
         banco: 'BANESCO',
         referencia: '00984214',
-        monto: 800.00
+        monto: 700.00
       }
     ]
   };
