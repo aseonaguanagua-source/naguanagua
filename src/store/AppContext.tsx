@@ -925,12 +925,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshUserData,
       clearLocalCache
     }}>
-      {/* Barra de progreso discreta — no bloquea la UI (fix: pantalla negra entre módulos) */}
-      {isLoading && (
-        <div className="fixed top-0 left-0 right-0 z-[9999] h-1 bg-slate-200">
-          <div className="h-full bg-blue-500 animate-[progress_2s_ease-in-out_infinite]" style={{ width: '100%' }} />
-        </div>
-      )}
       {children}
     </AppContext.Provider>
   );

@@ -265,7 +265,7 @@ const ROL_PRESETS: Record<string, string[]> = {
     'descargar_pdf_ec',
     'ver_condominios',
     'cobro_masivo_condo',
-    'ver_conciliacion',
+    'ver_reportes',
     'ver_certificados',
     'emitir_solvencia',
   ],

@@ -107,6 +107,15 @@ export default function Sidebar() {
     if (item.href === '/admin/administrativo' || item.href.startsWith('/admin/administracion')) {
       return false;
     }
+
+    // Conciliación Bancaria NUNCA debe salir para personal de caja / taquilla
+    const isCajaWorker = user?.rol?.toLowerCase().includes('taquilla') || 
+                         user?.rol?.toLowerCase().includes('caja') || 
+                         user?.rol?.toLowerCase().includes('cajero') ||
+                         user?.usuario?.toLowerCase().includes('cajero');
+    if (item.href === '/admin/caja/conciliacion' && isCajaWorker) {
+      return false;
+    }
     if (item.href === '/admin') return true;
     const requiredList = ROUTE_PERMISSIONS_MAP[item.href];
     if (!requiredList || requiredList.length === 0) return false;

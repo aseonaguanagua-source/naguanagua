@@ -82,24 +82,31 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
             };
           }
 
-          // Si el usuario no es superadmin y sus permisos están vacíos en local, buscarlos en Supabase
+          // Sincronizar permisos actualizados de Supabase
           if (parsed && parsed.rol !== 'Administrador' && parsed.usuario !== 'dzara') {
-            if (!parsed.permisos || Object.keys(parsed.permisos).length === 0) {
-              try {
-                const { data: dbWorker } = await supabase
-                  .from('trabajadores')
-                  .select('permisos, rol, letra, nombre')
-                  .eq('usuario', parsed.usuario)
-                  .maybeSingle();
+            try {
+              const { data: dbWorker } = await supabase
+                .from('trabajadores')
+                .select('permisos, rol, letra, nombre')
+                .eq('usuario', parsed.usuario)
+                .maybeSingle();
 
-                if (dbWorker && dbWorker.permisos && Object.keys(dbWorker.permisos).length > 0) {
-                  parsed.permisos = dbWorker.permisos;
-                  parsed.rol = dbWorker.rol || parsed.rol;
-                  parsed.letra = dbWorker.letra || parsed.letra;
-                  localStorage.setItem('admin_user_data', JSON.stringify(parsed));
-                }
-              } catch {}
+              if (dbWorker) {
+                parsed.permisos = dbWorker.permisos || {};
+                parsed.rol = dbWorker.rol || parsed.rol;
+                parsed.letra = dbWorker.letra || parsed.letra;
+              }
+            } catch {}
+
+            const isCaja = parsed.rol?.toLowerCase().includes('taquilla') || 
+                           parsed.rol?.toLowerCase().includes('caja') || 
+                           parsed.usuario?.toLowerCase().includes('cajero');
+            if (isCaja && parsed.permisos) {
+              delete parsed.permisos.ver_conciliacion;
+              parsed.permisos.ver_caja = true;
+              parsed.permisos.ver_reportes = true;
             }
+            localStorage.setItem('admin_user_data', JSON.stringify(parsed));
           }
 
           setUser(parsed);
@@ -406,6 +413,43 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
     const requiredPermissionEntry = Object.entries(ROUTE_PERMISSIONS_MAP).find(([route]) =>
       pathname.startsWith(route)
     );
+
+    const isCajaWorker = user?.rol?.toLowerCase().includes('taquilla') || 
+                         user?.rol?.toLowerCase().includes('caja') || 
+                         user?.rol?.toLowerCase().includes('cajero') ||
+                         user?.usuario?.toLowerCase().includes('cajero');
+
+    if (pathname.startsWith('/admin/caja/conciliacion') && isCajaWorker) {
+      return (
+        <div className="p-8 max-w-2xl mx-auto my-12 bg-white rounded-2xl border border-amber-200 shadow-xl space-y-5 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+            <ShieldAlert size={36} />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-slate-800">
+              Acceso Restringido
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              El módulo de <b>Conciliación Bancaria</b> es exclusivo para Supervisores y el Administrador. El personal de caja y taquilla no tiene acceso a esta función.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => router.push('/admin/caja')}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+            >
+              Ir a Módulo de Caja
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+            >
+              <LogOut size={14} /> Cerrar Sesión
+            </button>
+          </div>
+        </div>
+      );
+    }
 
     if (requiredPermissionEntry) {
       const [matchedRoute, requiredList] = requiredPermissionEntry;
