@@ -9,11 +9,16 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      // Table may not exist yet
       console.error('Error fetching servicios:', error);
       return NextResponse.json([]);
     }
-    return NextResponse.json(data || []);
+
+    const enriched = (data || []).map((s: any) => ({
+      ...s,
+      origen: s.origen || (s.notas?.includes('[ORIGEN:contribuyente]') ? 'contribuyente' : 'funcionario')
+    }));
+
+    return NextResponse.json(enriched);
   } catch {
     return NextResponse.json([]);
   }
@@ -24,33 +29,52 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { tipo, identidad, contribuyente, descripcion, monto, fecha, notas, estado, referencia, origen } = body;
 
-    if (!identidad || !descripcion || !monto) {
-      return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 });
+    if (!identidad || !descripcion || monto === undefined || monto === null || isNaN(Number(monto))) {
+      return NextResponse.json({ error: 'Datos incompletos o monto inválido' }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const origenStr = origen || 'funcionario';
+    const originTag = `[ORIGEN:${origenStr}]`;
+    const finalNotas = notas ? (notas.includes('[ORIGEN:') ? notas : `${originTag} ${notas}`) : originTag;
+
+    const baseRow: any = {
+      tipo,
+      identidad,
+      contribuyente,
+      descripcion,
+      monto: parseFloat(monto),
+      fecha: fecha || new Date().toISOString().split('T')[0],
+      estado: estado || 'Pendiente',
+      referencia: referencia || `SRV-${Date.now()}`
+    };
+
+    // Intentar primero con la columna origen por si existe en el esquema
+    let result = await supabase
       .from('servicios_especiales')
-      .insert([{
-        tipo,
-        identidad,
-        contribuyente,
-        descripcion,
-        monto: parseFloat(monto),
-        fecha,
-        notas: notas || '',
-        estado: estado || 'Pendiente',
-        referencia: referencia || `SRV-${Date.now()}`,
-        origen: origen || 'funcionario'
-      }])
+      .insert([{ ...baseRow, notas: notas || '', origen: origenStr }])
       .select()
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error('Error inserting servicio:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    // Si falla porque no existe la columna origen en la tabla, insertar con notas conteniendo la etiqueta de origen
+    if (result.error && (result.error.message?.includes('origen') || result.error.code === 'PGRST204')) {
+      result = await supabase
+        .from('servicios_especiales')
+        .insert([{ ...baseRow, notas: finalNotas }])
+        .select()
+        .maybeSingle();
     }
 
-    return NextResponse.json(data);
+    if (result.error) {
+      console.error('Error inserting servicio:', result.error);
+      return NextResponse.json({ error: result.error.message }, { status: 500 });
+    }
+
+    const row = result.data ? {
+      ...result.data,
+      origen: result.data.origen || origenStr
+    } : null;
+
+    return NextResponse.json(row);
   } catch (err) {
     console.error('Error:', err);
     return NextResponse.json({ error: 'Error en servidor' }, { status: 500 });
@@ -69,7 +93,7 @@ export async function DELETE(request: Request) {
     const { error } = await supabase
       .from('servicios_especiales')
       .delete()
-      .eq('id', parseInt(id));
+      .eq('id', id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

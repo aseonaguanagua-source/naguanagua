@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useEffect } from 'react';
 import { Wrench, Search, Plus, Trash2, CheckCircle2, AlertCircle, FlaskConical, ClipboardCheck, ShieldCheck, X, RefreshCw, BookOpen, FileSpreadsheet, TreePine } from 'lucide-react';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
@@ -29,7 +29,7 @@ const TIPO_INFO = {
 };
 
 export default function ServiciosEspecialesPage() {
-  const { contribuyentes } = useAppContext();
+  const { contribuyentes, tcmmv: contextTcmmv } = useAppContext();
   const [tab, setTab] = useState<TipoServicio>('especial');
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,9 +38,20 @@ export default function ServiciosEspecialesPage() {
   const [msg, setMsg] = useState<{type: 'ok'|'error', text: string}|null>(null);
 
   // BCV rate
-  const [tcmmv, setTcmmv] = useState(0);
+  const [tcmmv, setTcmmv] = useState(contextTcmmv || 0);
   useEffect(() => {
-    fetch('/api/bcv').then(r => r.json()).then(d => { if (d?.tcmmv) setTcmmv(d.tcmmv); }).catch(() => {});
+    if (contextTcmmv && contextTcmmv > 0) {
+      setTcmmv(contextTcmmv);
+    }
+  }, [contextTcmmv]);
+
+  useEffect(() => {
+    fetch('/api/bcv')
+      .then(r => r.json())
+      .then(d => { 
+        if (d?.tcmmv && d.tcmmv > 0) setTcmmv(d.tcmmv); 
+      })
+      .catch(() => {});
   }, []);
 
   // Formulario
@@ -88,9 +99,21 @@ export default function ServiciosEspecialesPage() {
       );
       if (t) return { tcmv: t.tcmv, label: t.label };
     }
-    if (form.tipo === 'especial' && form.codigoServicio) {
-      const t = (ordenanzaData as any).serviciosEspeciales?.find((s: any) => s.codigo === form.codigoServicio);
-      if (t && t.tcmvBase > 0) return { tcmv: t.tcmvBase, label: t.label };
+    if (form.tipo === 'especial') {
+      if (form.codigoServicio) {
+        const t = (ordenanzaData as any).serviciosEspeciales?.find((s: any) => s.codigo === form.codigoServicio);
+        if (t && t.tcmvBase > 0) return { tcmv: t.tcmvBase, label: t.label };
+      }
+      if (form.camion) {
+        const factoresEspecial: Record<string, number> = {
+          '350': 80,
+          '600': 100,
+          '750': 120,
+          'compactador': 260
+        };
+        const ucd = factoresEspecial[form.camion] || 80;
+        return { tcmv: ucd, label: `Servicio Especial — Camión ${form.camion}` };
+      }
     }
     if (form.tipo === 'inspeccion' && form.tipoInspeccion) {
       const t = (ordenanzaData as any).inspeccionesTecnicas?.find((s: any) => s.codigo === form.tipoInspeccion);
@@ -128,8 +151,37 @@ export default function ServiciosEspecialesPage() {
     }
     return null;
   };
+
   const tarifaSugerida = getTarifaSugerida();
   const montoSugeridoBs = tarifaSugerida && tcmmv > 0 ? tarifaSugerida.tcmv * tcmmv : null;
+
+  // Auto-calcular monto automáticamente al seleccionar opciones
+  useEffect(() => {
+    const tarifa = getTarifaSugerida();
+    if (tarifa && tcmmv > 0) {
+      const bs = tarifa.tcmv * tcmmv;
+      setForm(prev => ({
+        ...prev,
+        monto: bs.toFixed(2),
+        descripcion: (!prev.descripcion.trim() || prev.descripcion.startsWith('Camión') || prev.descripcion.startsWith('Servicio') || prev.descripcion.startsWith('Tala'))
+          ? tarifa.label
+          : prev.descripcion
+      }));
+    }
+  }, [
+    form.tipo,
+    form.camion,
+    form.distancia,
+    form.codigoServicio,
+    form.tipoInspeccion,
+    form.tipoVistoBueno,
+    form.area,
+    form.habilitadoVB,
+    form.tipoPermiso,
+    form.alturaArbol,
+    form.unidadesArboreas,
+    tcmmv
+  ]);
 
   const filteredContrib = contribuyentes.filter((c: any) =>
     searchContrib.length > 1 && (
@@ -150,6 +202,7 @@ export default function ServiciosEspecialesPage() {
     if (!form.monto || isNaN(Number(form.monto))) { setMsg({ type: 'error', text: 'Ingrese un monto válido.' }); return; }
 
     setIsSubmitting(true);
+    setMsg(null);
     try {
       const res = await fetch('/api/admin/servicios-especiales', {
         method: 'POST',
@@ -163,28 +216,29 @@ export default function ServiciosEspecialesPage() {
           fecha: form.fecha,
           notas: form.notas,
           estado: 'Pendiente',
-          referencia: `SRV-${form.tipo.toUpperCase().slice(0,3)}-${Date.now()}`
+          referencia: `SRV-${form.tipo.toUpperCase().slice(0,3)}-${Date.now()}`,
+          origen: 'funcionario'
         })
       });
 
       if (res.ok) {
-        setMsg({ type: 'ok', text: 'Servicio registrado y notificado al contribuyente.' });
+        setMsg({ type: 'ok', text: 'Servicio registrado y notificado al contribuyente exitosamente.' });
         setShowModal(false);
         setForm({ tipo: 'especial', identidad: '', contribuyenteNombre: '', descripcion: '', monto: '', fecha: new Date().toISOString().split('T')[0], notas: '', camion: '', distancia: '', area: '', tipoVistoBueno: '', tipoInspeccion: '', codigoServicio: '', tipoPermiso: '', alturaArbol: '', unidadesArboreas: '1', habilitadoVB: false });
         setSearchContrib('');
         loadServicios();
       } else {
-        const d = await res.json();
+        const d = await res.json().catch(() => ({}));
         setMsg({ type: 'error', text: d.error || 'Error al guardar.' });
       }
     } catch {
-      setMsg({ type: 'error', text: 'Error de conexión.' });
+      setMsg({ type: 'error', text: 'Error de conexión con el servidor.' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (id?: number) => {
+  const handleDelete = async (id?: any) => {
     if (!id || !confirm('¿Eliminar este registro?')) return;
     await fetch(`/api/admin/servicios-especiales?id=${id}`, { method: 'DELETE' });
     loadServicios();
@@ -358,7 +412,7 @@ export default function ServiciosEspecialesPage() {
               {/* Tipo */}
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Tipo de Servicio *</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                   {(Object.keys(TIPO_INFO) as TipoServicio[]).map(t => {
                     const info = TIPO_INFO[t];
                     const Icon = info.icon;
@@ -366,13 +420,16 @@ export default function ServiciosEspecialesPage() {
                       <button
                         key={t}
                         type="button"
-                        onClick={() => setForm(prev => ({ ...prev, tipo: t }))}
-                        className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 text-xs font-semibold transition-all ${
-                          form.tipo === t ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                        onClick={() => {
+                          setForm(prev => ({ ...prev, tipo: t, camion: '', distancia: '' }));
+                          setMsg(null);
+                        }}
+                        className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${
+                          form.tipo === t ? 'border-purple-500 bg-purple-50 text-purple-700 shadow-sm' : 'border-slate-200 text-slate-500 hover:border-slate-300'
                         }`}
                       >
                         <Icon className="w-4 h-4" />
-                        <span className="text-center leading-tight">{info.label}</span>
+                        <span className="text-center leading-tight text-[11px]">{info.label}</span>
                       </button>
                     );
                   })}
@@ -549,18 +606,19 @@ export default function ServiciosEspecialesPage() {
 
               {/* Tarifa sugerida desde Ordenanza */}
               {tarifaSugerida && tcmmv > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center justify-between shadow-2xs">
                   <div>
-                    <p className="text-xs font-bold text-amber-800 uppercase flex items-center gap-1">
-                      <BookOpen className="w-3.5 h-3.5" /> Tarifa según Ordenanza
+                    <p className="text-xs font-bold text-emerald-800 uppercase flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Tarifa Calculada Automáticamente
                     </p>
-                    <p className="text-xs text-amber-700 mt-0.5">{tarifaSugerida.label} — {tarifaSugerida.tcmv} TCMV</p>
-                    <p className="text-sm font-black text-amber-900">Bs. {(montoSugeridoBs || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</p>
+                    <p className="text-xs text-emerald-700 mt-0.5 font-medium">{tarifaSugerida.label} — {tarifaSugerida.tcmv} TCMV × Bs. {tcmmv.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    <p className="text-base font-black text-emerald-950 mt-0.5">Bs. {(montoSugeridoBs || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</p>
                   </div>
                   <button type="button"
                     onClick={() => setForm(prev => ({ ...prev, monto: (montoSugeridoBs || 0).toFixed(2) }))}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition-colors">
-                    Aplicar
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-2xs"
+                    title="Restablecer al monto oficial de la ordenanza">
+                    Reaplicar
                   </button>
                 </div>
               )}

@@ -1760,6 +1760,8 @@ function ContribuyentesPageContent() {
         await updateContribuyente(editingId, dataToSave);
       }
       
+      setOriginalData(dataToSave);
+      await refreshUserData(editingId || dataToSave.Identidad);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err: any) {
@@ -2660,7 +2662,9 @@ function ContribuyentesPageContent() {
       render: (row: any) => {
         const clase = row.Clasificacion || 'Residencial';
         const isChild = Boolean(row.isCondoChild);
-        const detalle = clase.includes('Comercial') ? row.ActividadComercial : (row.TipoResidencia || 'No asignado');
+        const detalle = clase.includes('Comercial') 
+          ? (row.ActividadComercial || row.Actividad || row.actividad_principal || 'No asignado') 
+          : (row.TipoResidencia || row.Actividad || row.actividad_principal || 'No asignado');
         return (
           <div className="flex flex-col">
             <span className={`text-xs font-semibold ${clase === 'Residencial' ? 'text-emerald-600' : 'text-blue-600'}`}>

@@ -6,7 +6,7 @@ import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
 import { ordenanzaData } from '@/data/ordenanza';
 import { isResidencialInm } from '@/lib/calculos';
 import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
-import { formatPhoneNumber, isFictitiousEmail } from '@/lib/formatters';
+import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants } from '@/lib/formatters';
 import { logAudit, AuditCategoria, AuditCriticidad } from '@/lib/audit';
 
 type AppState = {
@@ -426,6 +426,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             })(),
             Observaciones: row.contribuyentes?.observaciones || '',
             Actividad: act || 'No aplica',
+            ActividadComercial: (clase.includes('Comercial') || clase === 'Industrial' || clase === 'Mixto') ? (act || '') : '',
+            TipoResidencia: clase === 'Residencial' ? (act || '') : '',
             Clasificacion: clase,
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
             DeudaMMV: rowDeudaMMV,
@@ -489,6 +491,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             Direccion: c.direccion || '',
             Observaciones: c.observaciones || '',
             Actividad: 'No aplica',
+            ActividadComercial: '',
+            TipoResidencia: '',
             Clasificacion: 'Individual',
             SaldoFavor: 0,
             DeudaMMV: 0,
@@ -759,6 +763,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateContribuyente = async (id: string, data: any) => {
     try {
       const notaToSave = data.Notas_Adicionales?.trim() || data.Nota?.trim() || null;
+      const cleanIdent = (id || '').replace(/-/g, '').toUpperCase();
+      const variants = getIdentidadVariants(id);
+      if (!variants.includes(id)) variants.push(id);
+      if (!variants.includes(cleanIdent)) variants.push(cleanIdent);
+      const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
       // 1. Actualizar datos en tabla contribuyentes
       try {
@@ -769,25 +778,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
           direccion: data.Direccion
         };
         if (notaToSave) {
-          const { data: curC } = await supabase.from('contribuyentes').select('observaciones').eq('identidad', id).maybeSingle();
+          const { data: curC } = await supabase.from('contribuyentes').select('observaciones').or(orFilter).limit(1).maybeSingle();
           const obsActual = curC?.observaciones || '';
           const newEntry = `${new Date().toLocaleDateString('es-VE')}: ${notaToSave}`;
           contribUpdate.observaciones = obsActual ? `${newEntry}\n---\n${obsActual}` : newEntry;
         }
-        await supabase.from('contribuyentes').update(contribUpdate).eq('identidad', id);
+        await supabase.from('contribuyentes').update(contribUpdate).or(orFilter);
       } catch (eCont) {
         console.warn('Advertencia al sincronizar contribuyente:', eCont);
       }
 
-      // 2. Actualizar datos en tabla inmuebles (sin campo inexistente area)
+      // 2. Determinar nueva clasificación y actividad económica
+      const nuevaClasificacion = data.Clasificacion || 'Residencial';
+      const nuevaActividad = nuevaClasificacion === 'Residencial' 
+        ? (data.TipoResidencia || 'No aplica') 
+        : (data.ActividadComercial || data.Actividad || 'No aplica');
+      const nuevoMmv = calcularMmvMes(data, ordenanzasConfig);
+
       const inmUpdate: any = {
         contribuyente: data.Contribuyente,
         telefono: data.Telefono,
         correo_electronico: data.Correo,
         direccion: data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion,
-        clasificacion: data.Clasificacion || 'Residencial',
-        actividad_principal: data.Clasificacion === 'Residencial' ? data.TipoResidencia : data.ActividadComercial,
-        mmv_mes: calcularMmvMes(data, ordenanzasConfig),
+        clasificacion: nuevaClasificacion,
+        actividad_principal: nuevaActividad,
+        mmv_mes: nuevoMmv,
         agente_retencion: data.esAgenteRetencion === true
       };
       if (notaToSave) {
@@ -798,16 +813,90 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (data.Inmueble && data.Inmueble !== 'Principal' && !String(data.Inmueble).startsWith('RES-') && !String(data.Inmueble).startsWith('COM-')) {
         q = q.eq('inmueble', data.Inmueble);
       } else {
-        q = q.eq('identidad', id);
+        q = q.or(orFilter);
       }
 
       const { error } = await q;
       if (error) throw error;
       
-      // Update local state immediately for better UX
-      setContribuyentes(prev => prev.map(c => c.Identidad === id ? { ...c, ...data } : c));
+      // Update local state immediately for both contribuyentes and inmuebles
+      setContribuyentes(prev => prev.map(c => {
+        const cClean = (c.Identidad || '').replace(/-/g, '').toUpperCase();
+        if (cClean === cleanIdent || variants.includes(c.Identidad)) {
+          return {
+            ...c,
+            ...data,
+            Clasificacion: nuevaClasificacion,
+            Actividad: nuevaActividad,
+            ActividadComercial: nuevaClasificacion !== 'Residencial' ? nuevaActividad : '',
+            TipoResidencia: nuevaClasificacion === 'Residencial' ? nuevaActividad : '',
+            Contribuyente: data.Contribuyente || c.Contribuyente,
+            Telefono: data.Telefono || c.Telefono,
+            Correo: data.Correo || c.Correo,
+            Direccion: data.Direccion || c.Direccion
+          };
+        }
+        return c;
+      }));
+
+      // Actualizar el estado de inmuebles en memoria y caché local
+      setInmuebles(prev => {
+        const next = prev.map(inm => {
+          const inmClean = (inm.identidad || '').replace(/-/g, '').toUpperCase();
+          const matchesInmueble = data.Inmueble && inm.inmueble === data.Inmueble;
+          const matchesIdentidad = inmClean === cleanIdent || variants.includes(inm.identidad);
+          
+          if (matchesInmueble || (!data.Inmueble && matchesIdentidad)) {
+            return {
+              ...inm,
+              contribuyente: data.Contribuyente || inm.contribuyente,
+              telefono: data.Telefono || inm.telefono,
+              correo_electronico: data.Correo || inm.correo_electronico,
+              direccion: inmUpdate.direccion || inm.direccion,
+              clasificacion: nuevaClasificacion,
+              actividad_principal: nuevaActividad,
+              mmv_mes: nuevoMmv,
+              agente_retencion: data.esAgenteRetencion === true
+            };
+          }
+          return inm;
+        });
+
+        // Actualizar en IndexedDB inmediatamente
+        try {
+          getFromIndexedDB<any>('naguanagua_full_cache').then(cached => {
+            if (cached) {
+              cached.inmuebles = next;
+              cached.contribuyentes = cached.contribuyentes?.map((c: any) => {
+                const cClean = (c.Identidad || '').replace(/-/g, '').toUpperCase();
+                if (cClean === cleanIdent || variants.includes(c.Identidad)) {
+                  return {
+                    ...c,
+                    ...data,
+                    Clasificacion: nuevaClasificacion,
+                    Actividad: nuevaActividad,
+                    ActividadComercial: nuevaClasificacion !== 'Residencial' ? nuevaActividad : '',
+                    TipoResidencia: nuevaClasificacion === 'Residencial' ? nuevaActividad : '',
+                    Contribuyente: data.Contribuyente || c.Contribuyente,
+                    Telefono: data.Telefono || c.Telefono,
+                    Correo: data.Correo || c.Correo,
+                    Direccion: data.Direccion || c.Direccion
+                  };
+                }
+                return c;
+              });
+              saveToIndexedDB('naguanagua_full_cache', cached).catch(() => {});
+            }
+          }).catch(() => {});
+        } catch (_) {}
+
+        return next;
+      });
       
-      let logMsg = `Se actualizaron los datos del contribuyente: ${data.Contribuyente} (Identidad: ${id})`;
+      // Sincronizar en segundo plano con refreshUserData
+      refreshUserData(id).catch(() => {});
+
+      let logMsg = `Se actualizaron los datos del contribuyente: ${data.Contribuyente} (Identidad: ${id}) | Clasificación: ${nuevaClasificacion} | Actividad: ${nuevaActividad}`;
       if (data.Nota?.trim()) logMsg += ` | Nota Simple: ${data.Nota}`;
       if (data.Notas_Adicionales?.trim()) logMsg += ` | Notas Adicionales: ${data.Notas_Adicionales}`;
       
@@ -870,26 +959,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addContribuyente = async (data: any) => {
     try {
-      const codCont = data.CodCont || `N-${Math.floor(Math.random() * 100000)}`;
+      const codCont = data.CodCont || `N-${Math.floor(10000 + Math.random() * 90000)}`;
       const rowsToInsert = [];
+      const timestampSeq = Date.now().toString().slice(-6);
       
       if (data.isCondominio && data.locales && data.locales.length > 0) {
-        data.locales.forEach((local: any) => {
+        data.locales.forEach((local: any, idx: number) => {
+          // Asignar código único si viene con valor por defecto
+          const safeInmueble = local.inmueble && local.inmueble !== 'Principal' && !local.inmueble.startsWith('Inmueble ')
+            ? local.inmueble
+            : `URB${timestampSeq}${String(idx + 1).padStart(2, '0')}`;
+
           rowsToInsert.push({
             identidad: data.Identidad,
             contribuyente: data.Contribuyente,
             telefono: data.Telefono,
             correo_electronico: data.Correo,
-            direccion: data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion,
+            direccion: data.DireccionExacta 
+              ? `${data.Direccion} | Local: ${local.numeracion || idx + 1} | Exacta: ${data.DireccionExacta}` 
+              : `${data.Direccion} | Local: ${local.numeracion || idx + 1}`,
             cod_cont: codCont,
             clasificacion: local.uso === 'Comercial' ? 'Comercial' : 'Residencial',
-            actividad_principal: local.uso === 'Comercial' ? local.actividad : (local.tipoResidencia || 'No aplica'),
-            inmueble: local.numeracion,
+            actividad_principal: local.uso === 'Comercial' ? (local.actividad || 'Actividad Comercial') : (local.tipoResidencia || 'No aplica'),
+            inmueble: safeInmueble,
             mmv_mes: calcularMmvMes(local, ordenanzasConfig),
-            agente_retencion: data.esAgenteRetencion === true
+            agente_retencion: data.esAgenteRetencion === true,
+            cant_inmuebles: data.locales.length
           });
         });
       } else {
+        const safeInmueble = data.Inmueble && data.Inmueble !== 'Principal'
+          ? data.Inmueble
+          : `URB099${Math.floor(1000 + Math.random() * 9000)}`;
+
         rowsToInsert.push({
           identidad: data.Identidad,
           contribuyente: data.Contribuyente,
@@ -898,19 +1000,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
           direccion: data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion,
           cod_cont: codCont,
           clasificacion: data.Clasificacion || 'Residencial',
-          actividad_principal: data.Clasificacion === 'Residencial' ? data.TipoResidencia : data.ActividadComercial,
-          inmueble: 'Principal',
+          actividad_principal: data.Clasificacion === 'Residencial' ? (data.TipoResidencia || 'Apartamento') : (data.ActividadComercial || 'Comercio General'),
+          inmueble: safeInmueble,
           mmv_mes: calcularMmvMes(data, ordenanzasConfig),
           agente_retencion: data.esAgenteRetencion === true
         });
       }
       
       const { error } = await supabase.from('inmuebles').insert(rowsToInsert);
-      
       if (error) throw error;
+
+      // Registrar también en tabla contribuyentes
+      try {
+        await supabase.from('contribuyentes').upsert([{
+          identidad: data.Identidad,
+          nombre: data.Contribuyente,
+          telefono: data.Telefono,
+          email: data.Correo,
+          direccion: data.Direccion,
+          observaciones: data.Notas_Adicionales || data.Nota || ''
+        }], { onConflict: 'identidad' });
+      } catch (_) {}
       
-      // Update local state
-      await loadAllData();
+      // Update local state and cache
+      await refreshData(true);
       await addAuditLog('NUEVO_CONTRIBUYENTE', `Se registró un nuevo contribuyente: ${data.Contribuyente} (Identidad: ${data.Identidad})`);
     } catch (e) {
       console.error("Error adding contribuyente to Supabase:", e);

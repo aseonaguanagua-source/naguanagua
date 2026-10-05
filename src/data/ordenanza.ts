@@ -1714,8 +1714,44 @@ export const ordenanzaData = {
     }
 ],
 actividadesIndustriales: [] as any[],
-  serviciosEspeciales: [] as any[],
-  inspeccionesTecnicas: [] as any[],
-  vistoBueno: [] as any[],
-  serviciosExtraordinarios: [] as any[]
+  serviciosExtraordinarios: [
+    // Tabla 3 — Servicios de Recolección Especial
+    // Camión: tipo | Distancia: menor/mayor a 20 Km | Tarifa en TCMV
+    { camion: '350', label: 'Camión 350 (< 20 Km)', distancia: 'menor', tcmv: 30 },
+    { camion: '350', label: 'Camión 350 (> 20 Km)', distancia: 'mayor', tcmv: 40 },
+    { camion: '600', label: 'Camión 600 (< 20 Km)', distancia: 'menor', tcmv: 50 },
+    { camion: '600', label: 'Camión 600 (> 20 Km)', distancia: 'mayor', tcmv: 60 },
+    { camion: '750', label: 'Camión 750 / Volteo (< 20 Km)', distancia: 'menor', tcmv: 70 },
+    { camion: '750', label: 'Camión 750 / Volteo (> 20 Km)', distancia: 'mayor', tcmv: 80 }
+  ],
+  serviciosEspeciales: [
+    // Tabla 4 — Servicios Especiales (tarifa base en TCMV)
+    { codigo: 'SE-01', label: 'Limpieza de terreno vacío (por m²)', tcmvBase: 0.5, unidad: 'm²' },
+    { codigo: 'SE-02', label: 'Recolección de desechos sólidos en playas', tcmvBase: 20, unidad: 'evento' },
+    { codigo: 'SE-03', label: 'Limpieza post-evento o festejo público', tcmvBase: 50, unidad: 'evento' },
+    { codigo: 'SE-04', label: 'Recolección industrial / empresarial (mensual)', tcmvBase: 100, unidad: 'mes' },
+    { codigo: 'SE-05', label: 'Servicio de barrido especial de vías', tcmvBase: 30, unidad: 'jornada' },
+    { codigo: 'SE-06', label: 'Desechos hospitalarios / biomédicos (mensual)', tcmvBase: 150, unidad: 'mes' },
+    { codigo: 'SE-07', label: 'Recolección de residuos de poda y jardinería', tcmvBase: 25, unidad: 'viaje' },
+    { codigo: 'SE-09', label: 'Permiso de Tala de Árbol (por árbol)', tcmvBase: 5, unidad: 'árbol' },
+    { codigo: 'SE-10', label: 'Permiso de Poda de Árbol / Raíces (por árbol)', tcmvBase: 3, unidad: 'árbol' },
+    { codigo: 'SE-11', label: 'Limpieza de quebradas / cauces (por m lineal)', tcmvBase: 1, unidad: 'm lineal' },
+    { codigo: 'SE-12', label: 'Disposición especial de escombros (por m³)', tcmvBase: 8, unidad: 'm³' },
+    { codigo: 'SE-08', label: 'Otro servicio especial (tarifa libre)', tcmvBase: 0, unidad: 'libre' }
+  ],
+  inspeccionesTecnicas: [
+    // Tabla 5 — Inspecciones y Certificaciones Ambientales
+    { codigo: 'IT-01', label: 'Inspección técnica general de establecimiento', tcmv: 3 },
+    { codigo: 'IT-02', label: 'Inspección de manejo de desechos peligrosos', tcmv: 5 },
+    { codigo: 'IT-03', label: 'Inspección de actividad industrial', tcmv: 8 },
+    { codigo: 'IT-04', label: 'Inspección de construcción o demolición', tcmv: 4 },
+    { codigo: 'IT-05', label: 'Inspección post-sanción / re-inspección', tcmv: 2 }
+  ],
+  vistoBueno: [
+    // Tabla 6 — Visto Bueno Ambiental (por m² del inmueble)
+    { codigo: 'VB-01', label: 'Nueva Actividad Económica (por m²)', tcmvPorM2: 0.5 },
+    { codigo: 'VB-02', label: 'Renovación de Actividad Económica (por m²)', tcmvPorM2: 0.3 },
+    { codigo: 'VB-03', label: 'Proyecto de Construcción (por m²)', tcmvPorM2: 0.8 },
+    { codigo: 'VB-04', label: 'Modificación / Ampliación (por m²)', tcmvPorM2: 0.4 }
+  ]
 };
