@@ -217,3 +217,30 @@ export const calcularMensualidad = (
   // Multiplicamos por la cantidad de inmuebles
   return baseCalculada * Math.max(1, cantidad);
 };
+
+/**
+ * Condominios especiales donde los usuarios pueden pagar de forma individual
+ * tanto sus meses de aseo como sus multas, a pesar de pertenecer a condominios comerciales:
+ * - URB014903: CONDOMINIO CENTRO CRISTAL
+ * - URB030783: CONDOMINIO CHIRIKAYEN
+ * - URB029866: CONDOMINIO HOSPITAL METROPOLITANO DEL NORTE
+ * - URB015503: CENTRO CIENTIFICO METROPOLITANO DEL NORTE
+ */
+export const CONDOMINIOS_PAGO_INDIVIDUAL = [
+  'URB014903',
+  'URB030783',
+  'URB029866',
+  'URB015503'
+];
+
+export const isCondominioPagoIndividual = (itemOrCode: any): boolean => {
+  if (!itemOrCode) return false;
+  let code = '';
+  if (typeof itemOrCode === 'string') {
+    code = itemOrCode;
+  } else {
+    code = itemOrCode.condominio_padre_id || itemOrCode.inmueble || itemOrCode.cod_cont || '';
+  }
+  const cleanCode = code.trim().toUpperCase();
+  return CONDOMINIOS_PAGO_INDIVIDUAL.includes(cleanCode);
+};

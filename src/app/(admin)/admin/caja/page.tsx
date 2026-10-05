@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants } from '@/lib/formatCurrency';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isCondominioPagoIndividual } from '@/lib/calculos';
 import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, getShortAddress } from '@/lib/cajaHelpers';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
@@ -679,10 +679,12 @@ export default function CajaPage() {
         if (hasDeuda && !isCondominio) {
           const now = new Date();
           billableInms.forEach((inm: any) => {
-            // Si el inmueble es hijo/filial de un condominio comercial:
+            const esCondoPagoInd = isCondominioPagoIndividual(inm);
+
+            // Si el inmueble es hijo/filial de un condominio comercial ORDINARIO:
             // El aseo lo paga el condominio padre, pero las multas se pagan por la oficina individual.
-            // Para inmuebles residenciales (casas/quintas/aptos), cada unidad genera sus recibos mensuales individuales.
-            if (inm.condominio_padre_id && !isResidencialInm(inm)) {
+            // EXCEPCIÓN: Condominios URB014903, URB030783, URB029866 y URB015503 permiten pagar aparte como individual tanto multa como sus meses.
+            if (inm.condominio_padre_id && !isResidencialInm(inm) && !esCondoPagoInd) {
               const multa = parseFloat(inm.multa_bs || '0');
               const congelada = parseFloat(inm.deuda_congelada_bs || '0');
               if (multa > 0 || congelada > 0) {
@@ -706,9 +708,29 @@ export default function CajaPage() {
               return;
             }
 
-            const deudaMMV = parseFloat(inm.deuda_mmv || '0');
-            const congelada = parseFloat(inm.deuda_congelada_bs || '0');
+            // Para condominios de pago individual o inmuebles directos:
+            // 1. Si tienen multa acumulada, generar recibo de multa separado para que puedan pagarlo aparte
             const multa = parseFloat(inm.multa_bs || '0');
+            const congelada = parseFloat(inm.deuda_congelada_bs || '0');
+            if (esCondoPagoInd && (multa > 0 || congelada > 0)) {
+              const totalMulta = (multa + congelada).toFixed(2);
+              const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
+              combined.push({
+                id: `multa-${inm.inmueble}`,
+                referencia: `MULTA-${inm.inmueble}`,
+                identidad: user.Identidad,
+                contribuyente: user.Contribuyente,
+                emision: fechaMora.toISOString(),
+                vencimiento: fechaMora.toISOString(),
+                estado: 'Pendiente',
+                monto: totalMulta,
+                descripcion: `Multa Municipal - Local/Oficina (${inm.inmueble})`,
+                descripcion_periodo: `MULTA POR MORA (HASTA ${formatMonthYear(fechaMora.toISOString())})`
+              });
+            }
+
+            // 2. Generar sus meses de aseo (RECIB-HIST-)
+            const deudaMMV = parseFloat(inm.deuda_mmv || '0');
             const meses = parseInt(inm.meses_deuda || 0);
             if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
               const numMeses = Math.max(1, meses);
@@ -2340,14 +2362,34 @@ export default function CajaPage() {
               </div>
 
               {foundUser.isSearchByCode && foundUser.condominio_padre_id && (
-                <div className="mt-2.5 p-3 bg-sky-50 border border-sky-300 rounded-lg text-xs text-sky-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-sm">
+                <div className={`mt-2.5 p-3 rounded-lg text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-sm border ${
+                  isCondominioPagoIndividual(foundUser.condominio_padre_id)
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                    : 'bg-sky-50 border-sky-300 text-sky-900'
+                }`}>
                   <div>
-                    <span className="font-bold flex items-center gap-1.5 text-sky-800">
+                    <span className={`font-bold flex items-center gap-1.5 ${
+                      isCondominioPagoIndividual(foundUser.condominio_padre_id) ? 'text-emerald-800' : 'text-sky-800'
+                    }`}>
                       🏢 Inmueble Filial de Condominio:
+                      {isCondominioPagoIndividual(foundUser.condominio_padre_id) && (
+                        <span className="bg-emerald-200 text-emerald-900 font-extrabold text-[10px] px-2 py-0.5 rounded-full uppercase">
+                          Habilitado para Pago Individual
+                        </span>
+                      )}
                     </span>
-                    <p className="text-[11px] text-sky-700 mt-0.5">
-                      Este inmueble pertenece al Condominio Padre <strong className="font-mono bg-sky-100 px-1 py-0.5 rounded">{foundUser.condominio_padre_id}</strong>.
-                      La solvencia y facturación del servicio de aseo se administra de forma centralizada con el Condominio.
+                    <p className={`text-[11px] mt-0.5 ${
+                      isCondominioPagoIndividual(foundUser.condominio_padre_id) ? 'text-emerald-700 font-medium' : 'text-sky-700'
+                    }`}>
+                      {isCondominioPagoIndividual(foundUser.condominio_padre_id) ? (
+                        <>
+                          Este inmueble pertenece al Condominio Padre <strong className="font-mono bg-emerald-100 px-1 py-0.5 rounded">{foundUser.condominio_padre_id}</strong>. Está autorizado por la administración tributaria para <strong>pagar de forma individual tanto sus meses de aseo como sus multas</strong>.
+                        </>
+                      ) : (
+                        <>
+                          Este inmueble pertenece al Condominio Padre <strong className="font-mono bg-sky-100 px-1 py-0.5 rounded">{foundUser.condominio_padre_id}</strong>. La solvencia y facturación del servicio de aseo se administra de forma centralizada con el Condominio.
+                        </>
+                      )}
                     </p>
                   </div>
                   <button
@@ -2359,7 +2401,11 @@ export default function CajaPage() {
                         if (btn) btn.click();
                       }, 50);
                     }}
-                    className="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 transition-colors shadow-sm"
+                    className={`font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 transition-colors shadow-sm text-white ${
+                      isCondominioPagoIndividual(foundUser.condominio_padre_id)
+                        ? 'bg-emerald-700 hover:bg-emerald-800'
+                        : 'bg-sky-600 hover:bg-sky-700'
+                    }`}
                   >
                     Ver Condominio ({foundUser.condominio_padre_id})
                   </button>

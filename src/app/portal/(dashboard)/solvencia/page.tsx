@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Award, Printer, AlertTriangle, CheckCircle2, RefreshCw, Building2, ShieldAlert, ShieldCheck, ArrowRight, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariants } from '@/lib/formatters';
+import { isCondominioPagoIndividual } from '@/lib/calculos';
 import Link from 'next/link';
 
 export default function SolvenciaPage() {
@@ -67,7 +68,7 @@ export default function SolvenciaPage() {
   }, [inmueblesList, selectedInmId]);
 
   const isCondoUnit = activeInm && (!!activeInm.condominio_padre_id || (activeInm.actividad_principal || '').includes('HIJO_DE:'));
-  const esPagoIndividual = activeInm && (activeInm.actividad_principal || '').includes('PAGOS INDIVIDUALES');
+  const esPagoIndividual = activeInm && ((activeInm.actividad_principal || '').includes('PAGOS INDIVIDUALES') || isCondominioPagoIndividual(activeInm));
   const isBlockedByCondo = isCondoUnit && !esPagoIndividual;
 
   // Facturas y deudas del inmueble seleccionado

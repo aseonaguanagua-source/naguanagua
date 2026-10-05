@@ -8,7 +8,7 @@ import {
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
-import { isResidencialInm, calcularMensualidad } from '@/lib/calculos';
+import { isResidencialInm, calcularMensualidad, isCondominioPagoIndividual } from '@/lib/calculos';
 import { getIdentidadVariants } from '@/lib/formatters';
 import { clusterInmueblesByLocal } from '@/lib/cajaHelpers';
 import { LISTA_BANCOS } from '@/lib/bancos';
@@ -158,7 +158,7 @@ export default function DondePagarPage() {
         if (billableInms.length > 0) {
           const todosCondoBloqueados = billableInms.every((inm: any) => {
             const isCondoUnit = !!inm.condominio_padre_id || (inm.actividad_principal || '').includes('HIJO_DE:');
-            const isInd = (inm.actividad_principal || '').includes('PAGOS INDIVIDUALES');
+            const isInd = (inm.actividad_principal || '').includes('PAGOS INDIVIDUALES') || isCondominioPagoIndividual(inm);
             return isCondoUnit && !isInd;
           });
           setBloqueadoPorCondominio(todosCondoBloqueados);
@@ -390,7 +390,7 @@ export default function DondePagarPage() {
           const inmId = getReceiptInmId(r);
           const inmMatch = c.inms.find((i) => i.inmueble === inmId) || userInms[0];
           const isCondoUnit = inmMatch && (!!inmMatch.condominio_padre_id || (inmMatch.actividad_principal || '').includes('HIJO_DE:'));
-          const esPagoIndividual = inmMatch && (inmMatch.actividad_principal || '').includes('PAGOS INDIVIDUALES');
+          const esPagoIndividual = inmMatch && ((inmMatch.actividad_principal || '').includes('PAGOS INDIVIDUALES') || isCondominioPagoIndividual(inmMatch));
           const bloqueadoCondo = isCondoUnit && !esPagoIndividual;
 
           return {
