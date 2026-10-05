@@ -1,5 +1,7 @@
 // Mapeo flexible de rutas a las claves de permisos del sistema de Naguanagua
 export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
+  '/admin/administrativo': ['solo_administrador'],
+  '/admin/administracion': ['solo_administrador'],
   '/admin/tarifas': ['ver_tarifas'],
   '/admin/censo': ['ver_censo', 'registrar_censo'],
   '/admin/contribuyentes': ['ver_contribuyentes', 'ver_contribuyentes_lectura', 'ver_caja', 'gestionar_pagos'],
@@ -15,6 +17,7 @@ export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
   '/admin/estado-cuenta': ['ver_estado_cuenta', 'descargar_pdf_ec', 'ver_caja'],
   '/admin/convenios-pago': ['ver_convenios'],
   '/admin/certificados': ['ver_certificados', 'emitir_solvencia', 'ver_caja'],
+  '/admin/historial-documentos': ['ver_reportes', 'ver_certificados'],
   '/admin/buzon': ['ver_buzon'],
   '/admin/denuncias': ['ver_denuncias'],
   '/admin/rutas': ['ver_rutas'],
@@ -23,5 +26,6 @@ export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
   '/admin/correos': ['ver_correos'],
   '/admin/trabajadores': ['gestionar_usuarios'],
   '/admin/auditoria': ['ver_auditoria'],
+  '/admin/plan-accion': ['ver_rutas', 'planificar_jornadas'],
   '/cobro-movil': ['ver_caja', 'gestionar_pagos'],
 };

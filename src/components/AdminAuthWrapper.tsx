@@ -422,9 +422,13 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
                 Acceso Restringido a este Módulo
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                Su cuenta de trabajador (<b className="text-indigo-600">{user?.usuario}</b> - {user?.rol}) no tiene
-                habilitado el permiso requerido (<b className="font-mono text-amber-700">{requiredList.join(' o ')}</b>) para
-                utilizar esta aplicación municipal.
+                {matchedRoute.includes('administrativ') || matchedRoute.includes('administracion') ? (
+                  <>Este panel administrativo es de acceso exclusivo para la <b>Dirección y el Administrador del Sistema</b>.</>
+                ) : (
+                  <>Su cuenta de trabajador (<b className="text-indigo-600">{user?.usuario}</b> - {user?.rol}) no tiene
+                  habilitado el permiso requerido (<b className="font-mono text-amber-700">{requiredList.join(' o ')}</b>) para
+                  utilizar esta aplicación municipal.</>
+                )}
               </p>
             </div>
 
