@@ -1531,37 +1531,32 @@ export default function CajaPage() {
           try {
             const cajero_id_recibo = getCajeroId();
             const refNum = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
-            const esContribResidencial = isResidencialInm(foundUser) || (freshInmuebles.length > 0 && freshInmuebles.every((i: any) => isResidencialInm(i)));
-            if (esContribResidencial) {
-              setReciboData({
-                reciboNo: refNum,
-                controlWeb: `WEB-${refNum}`,
-                fechaEmision: new Date().toISOString().split('T')[0],
-                codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
-                razonSocial: foundUser.Contribuyente || '',
-                domicilioFiscal: (foundUser.Direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
-                rifCi: foundUser.Identidad,
-                caja: cajero_id_recibo,
-                conceptos: [{
-                  descripcion: `Abono Parcial a Deuda ${isCondominio ? 'Condominio' : ''}`,
-                  precioUnit: montoReal,
-                  total: montoReal
-                }],
-                subTotal: montoReal,
-                exento: montoReal,
-                iva: 0,
-                total: montoReal,
-                formaPago: 'PUNTO DE VENTA',
-                banco: 'Debito',
-                referencia: reqRef ? referencia : referenciaDebito,
-                tasaBcv: currentBcvRate || tcmmv || undefined,
-                esAbono: true,
-                montoCancelado: montoReal,
-                montoPendiente: Math.max(0, (isCondominio ? totalDeudaCondominio : (foundUser.DeudaTotal || finalTotal)) - montoReal),
-              });
-            } else {
-              setReciboData(null);
-            }
+            setReciboData({
+              reciboNo: refNum,
+              controlWeb: `WEB-${refNum}`,
+              fechaEmision: new Date().toISOString().split('T')[0],
+              codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
+              razonSocial: foundUser.Contribuyente || '',
+              domicilioFiscal: (foundUser.Direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
+              rifCi: foundUser.Identidad,
+              caja: cajero_id_recibo,
+              conceptos: [{
+                descripcion: `Abono Parcial a Deuda ${isCondominio ? 'Condominio' : ''}`,
+                precioUnit: montoReal,
+                total: montoReal
+              }],
+              subTotal: montoReal,
+              exento: montoReal,
+              iva: 0,
+              total: montoReal,
+              formaPago: paymentMethod || 'PUNTO DE VENTA',
+              banco: 'Debito',
+              referencia: reqRef ? referencia : referenciaDebito,
+              tasaBcv: currentBcvRate || tcmmv || undefined,
+              esAbono: true,
+              montoCancelado: montoReal,
+              montoPendiente: Math.max(0, (isCondominio ? totalDeudaCondominio : (foundUser.DeudaTotal || finalTotal)) - montoReal),
+            });
           } catch(e) {}
         } else {
           (window as any).__lastPaymentAbono = { esAbono: false, tasaBcv: currentBcvRate };
@@ -1741,13 +1736,34 @@ export default function CajaPage() {
               };
             });
 
-            // A COMERCIAL NO SE LE IMPRIME NADA: TODO ES DIGITAL.
-            // ÚNICAMENTE SE IMPRIME RECIBO PARA RESIDENCIAL.
-            const esContribResidencial = isResidencialInm(foundUser) || (freshInmuebles.length > 0 && freshInmuebles.every((i: any) => isResidencialInm(i)));
-            if (esContribResidencial) {
-              setReciboData(recibosArray.length === 1 ? recibosArray[0] : recibosArray);
+            if (recibosArray.length === 0) {
+              const refNum = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
+              setReciboData({
+                reciboNo: refNum,
+                controlWeb: `WEB-${refNum}`,
+                fechaEmision: new Date().toISOString().split('T')[0],
+                codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
+                razonSocial: foundUser.Contribuyente || '',
+                domicilioFiscal: ((foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+                rifCi: foundUser.Identidad,
+                caja: cajero_id_recibo,
+                conceptos: [{
+                  descripcion: `Servicio de Aseo Urbano y Domiciliario`,
+                  precioUnit: montoReal,
+                  total: montoReal
+                }],
+                subTotal: montoReal,
+                exento: montoReal,
+                iva: 0,
+                total: montoReal,
+                formaPago: paymentMethod || 'PUNTO DE VENTA',
+                banco: 'Debito',
+                referencia: reqRef ? referencia : referenciaDebito,
+                tasaBcv: currentBcvRate || tcmmv || undefined,
+                tipoContribuyente: isResidencialInm(foundUser) ? 'Residencial' : 'Comercial',
+              });
             } else {
-              setReciboData(null);
+              setReciboData(recibosArray.length === 1 ? recibosArray[0] : recibosArray);
             }
             }
           } catch(rErr) { console.warn('Error al generar recibo automático:', rErr); }
@@ -1882,6 +1898,36 @@ export default function CajaPage() {
           referencias_facturas: selectedRecibos,
           es_abono: esAbono,
         }, 'TRANSFERENCIA');
+
+        // Generar recibo de constancia de pago para transferencia
+        try {
+          const cajero_id_recibo = getCajeroId();
+          const refNum = (referencia || Date.now().toString()).slice(-7).padStart(7, '0');
+          setReciboData({
+            reciboNo: refNum,
+            controlWeb: `WEB-${refNum}`,
+            fechaEmision: new Date().toISOString().split('T')[0],
+            codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
+            razonSocial: foundUser.Contribuyente || '',
+            domicilioFiscal: ((foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+            rifCi: foundUser.Identidad,
+            caja: cajero_id_recibo,
+            conceptos: [{
+              descripcion: `Pago en Verificación (${paymentMethod}) - Servicio de Aseo Urbano`,
+              precioUnit: montoReal,
+              total: montoReal
+            }],
+            subTotal: montoReal,
+            exento: montoReal,
+            iva: 0,
+            total: montoReal,
+            formaPago: 'TRANSFERENCIA',
+            banco: banco || 'Transferencia',
+            referencia: referencia || 'N/A',
+            tasaBcv: currentBcvRate || tcmmv || undefined,
+            tipoContribuyente: isResidencialInm(foundUser) ? 'Residencial' : 'Comercial',
+          });
+        } catch(e) {}
       }
 
       // Agregar al historial de la sesión

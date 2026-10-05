@@ -772,9 +772,10 @@ function ContribuyentesPageContent() {
           penultimoPeriodo = formatPeriodo(clusterDeudas[clusterDeudas.length - 2].emision);
         }
       } else if (numMesesTotal > 0) {
-        const dIni = new Date(today.getFullYear(), today.getMonth() - numMesesTotal + 1, 1);
-        const dFin = new Date(today.getFullYear(), today.getMonth(), 1);
-        const dPen = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        // En octubre, el último mes adeudado/emitido es septiembre (today.getMonth() - 1), ya que octubre se cobra en noviembre
+        const dIni = new Date(today.getFullYear(), today.getMonth() - numMesesTotal, 1);
+        const dFin = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const dPen = new Date(today.getFullYear(), today.getMonth() - 2, 1);
         periodoDesde = formatPeriodo(dIni);
         periodoHasta = formatPeriodo(dFin);
         penultimoPeriodo = formatPeriodo(dPen);

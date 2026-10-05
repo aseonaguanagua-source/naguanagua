@@ -495,7 +495,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             DeudaCongelada: 0,
             DeudaBs: 0,
             MesesDeuda: 0,
-            Estado: 'Activo',
+            Estado: c.estado || 'Activo',
             FechaRegistro: c.created_at || null
           });
         }
