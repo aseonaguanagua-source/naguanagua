@@ -37,39 +37,17 @@ export default function EstadoCuentaPage() {
     try { return JSON.parse(raw); } catch(e) { return {}; }
   };
 
-  // Carga fresca de recibos desde Supabase (para que los pagos recientes aparezcan de inmediato)
+  // Carga fresca de recibos desde la API del servidor (bypassa restricciones RLS)
   const fetchFacturasDb = async () => {
     setLoadingFacturas(true);
     try {
-      let all: any[] = [];
-      let from = 0;
-      const step = 999;
-      let more = true;
-      while (more) {
-        const { data: chunk, error } = await supabase
-          .from('facturas')
-          .select('*')
-          .order('emision', { ascending: true }) // orden consistente en cada chunk
-          .range(from, from + step);
-        if (error) { console.error('Error cargando chunk:', error); break; }
-        if (chunk && chunk.length > 0) {
-          all = [...all, ...chunk];
-          from += step + 1;
-          if (chunk.length < step + 1) more = false; // último chunk parcial
-        } else {
-          more = false;
-        }
+      const res = await fetch('/api/admin/facturas?limit=5000');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.facturas)) {
+        setFacturasDb(data.facturas);
       }
-      // El array ya viene ordenado por emision asc desde Supabase — no necesitamos re-ordenar.
-      // Pero por seguridad lo afirmamos en el cliente también:
-      all.sort((a: any, b: any) => {
-        const dA = new Date(a.emision || '1900-01-01').getTime();
-        const dB = new Date(b.emision || '1900-01-01').getTime();
-        return dA - dB; // más antiguos primero
-      });
-      setFacturasDb(all);
     } catch (e) {
-      console.error('Error cargando recibos:', e);
+      console.error('Error cargando recibos desde API:', e);
     }
     setLoadingFacturas(false);
   };

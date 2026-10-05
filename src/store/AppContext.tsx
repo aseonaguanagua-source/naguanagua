@@ -165,9 +165,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 saveToIndexedDB('naguanagua_full_cache', cached).catch(() => {});
               }
               if (dbPreReg) setPreRegistros(dbPreReg);
-              // Sincronizar facturas frescas en vivo para evitar cualquier recibo desactualizado
-              const { data: liveFacts } = await supabase.from('facturas').select('*').order('created_at', { ascending: false }).limit(2000);
-              if (liveFacts && liveFacts.length > 0) setFacturas(liveFacts);
+              // Sincronizar facturas frescas en vivo desde el servidor para evitar bloqueo RLS
+              try {
+                const resF = await fetch('/api/admin/facturas?limit=5000');
+                const jsonF = await resF.json();
+                if (jsonF.success && Array.isArray(jsonF.facturas) && jsonF.facturas.length > 0) {
+                  setFacturas(jsonF.facturas);
+                }
+              } catch (_) {}
             } catch (err) {
               // Silencioso en segundo plano
             }
@@ -221,21 +226,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return results.flat();
       };
 
-      // Descarga de facturas activas
+      // Descarga de facturas activas desde API para bypass de RLS
       let allFacturas: any[] = [];
-      let fetchMore = true;
-      let from = 0;
-      const stepFacturas = 999;
-      while (fetchMore) {
-        const { data: chunk } = await supabase.from('facturas').select('*')
-          .in('estado', ['Pendiente', 'Abonado', 'Por Verificar'])
-          .range(from, from + stepFacturas);
-        if (chunk && chunk.length > 0) {
-          allFacturas.push(...chunk);
-          from += stepFacturas + 1;
-        } else {
-          fetchMore = false;
+      try {
+        const resF = await fetch('/api/admin/facturas?limit=5000');
+        const jsonF = await resF.json();
+        if (jsonF.success && Array.isArray(jsonF.facturas)) {
+          allFacturas = jsonF.facturas;
         }
+      } catch (e) {
+        console.error('Error fetching facturas from API in AppContext:', e);
       }
 
       // Descarga concurrente de Inmuebles y Contribuyentes

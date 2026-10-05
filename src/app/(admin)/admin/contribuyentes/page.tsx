@@ -135,10 +135,20 @@ function ContribuyentesPageContent() {
 
       const publicUrl = resData.publicUrl || '';
       setUploadDocs(prev => ({ ...prev, [tipo]: { url: publicUrl, uploading: false, name: file.name } }));
-      // Guardar URL en inmuebles
-      const campo = tipo === 'cedula' ? 'doc_cedula_url' : tipo === 'ficha' ? 'doc_ficha_url' : 'doc_registro_url';
+      // Guardar URL de documento en observaciones del contribuyente de forma segura
       if (identidad && identidad !== 'sin_id') {
-        await supabase.from('inmuebles').update({ [campo]: publicUrl }).eq('identidad', identidad);
+        try {
+          const { data: c } = await supabase.from('contribuyentes').select('observaciones').eq('identidad', identidad).maybeSingle();
+          const obsActual = c?.observaciones || '';
+          const docNote = `[DOC_${tipo.toUpperCase()}: ${publicUrl}]`;
+          if (!obsActual.includes(publicUrl)) {
+            await supabase.from('contribuyentes').update({
+              observaciones: obsActual ? `${obsActual}\n${docNote}` : docNote
+            }).eq('identidad', identidad);
+          }
+        } catch (eDoc) {
+          console.warn('No se pudo guardar URL en observaciones:', eDoc);
+        }
       }
     } catch (err: any) {
       console.error('Error al subir documento:', err);
@@ -690,6 +700,11 @@ function ContribuyentesPageContent() {
       inmuebles: userInms
     }];
 
+    const stripNivel = (str: string): string => {
+      if (!str) return '';
+      return str.replace(/\s*\((ALTA|MEDIA|BAJA|RESIDENCIAL)\)/gi, '').trim();
+    };
+
     const MESES_ABR = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
     const formatPeriodo = (fecha: string | Date | undefined): string => {
       if (!fecha) return 'N/A';
@@ -731,28 +746,57 @@ function ContribuyentesPageContent() {
         clusterDeudas = deudas;
       }
 
-      // Si no hay facturas pero hay meses de deuda en el inmueble
-      const maxInmMes = Math.max(0, ...cluster.inmuebles.map((i: any) => parseInt(String(i.meses_deuda || 0), 10)));
-      const numMesesTotal = Math.max(clusterDeudas.length, maxInmMes);
+      // Desglose y cálculo individual por cada inmueble / actividad económica del cluster
+      let subtotalBaseLocal = 0;
+      let subtotalIvaLocal = 0;
+      let subtotalMultasLocal = 0;
+      let maxMesesCluster = 0;
 
-      // Calcular montos mensuales base de este cluster
-      const baseMensualLocal = cluster.inmuebles.reduce((sum: number, inm: any) => {
-        return sum + calcularMensualidad(inm, tcmmv);
-      }, 0);
+      const clusterInmBreakdown = cluster.inmuebles.map((inm: any) => {
+        const bMes = calcularMensualidad(inm, tcmmv);
+        const iMes = esRes ? 0 : (bMes * 0.16);
+        const mDeuda = parseInt(String(inm.meses_deuda || 0), 10);
+        if (mDeuda > maxMesesCluster) maxMesesCluster = mDeuda;
+
+        const esCasoSinMulta = (inm.inmueble === 'URB014954') ||
+          (inm.notas && (inm.notas.toLowerCase().includes('sin multa') || inm.notas.toLowerCase().includes('especial') || inm.notas.toLowerCase().includes('exonerad'))) ||
+          (inm.multa_bs === 0 && mDeuda > 1);
+
+        const baseTotal = bMes * mDeuda;
+        const ivaTotal = iMes * mDeuda;
+        let multaTotal = 0;
+
+        if (!esCasoSinMulta && mDeuda > 1) {
+          const mesesConMultaInm = mDeuda - 1;
+          const tasaMora = esRes ? 0.10 : 0.12;
+          multaTotal = (bMes * tasaMora) * mesesConMultaInm;
+        }
+
+        subtotalBaseLocal += baseTotal;
+        subtotalIvaLocal += ivaTotal;
+        subtotalMultasLocal += multaTotal;
+
+        return {
+          inmueble: inm.inmueble,
+          actividad: stripNivel(inm.actividad_principal || 'Actividad Comercial'),
+          meses: mDeuda,
+          bMes,
+          iMes,
+          baseTotal,
+          ivaTotal,
+          multaTotal,
+          total: baseTotal + ivaTotal + multaTotal,
+          esCasoSinMulta
+        };
+      });
+
+      const numMesesTotal = clusterDeudas.length > 0 ? clusterDeudas.length : maxMesesCluster;
+      const baseMensualLocal = cluster.inmuebles.reduce((sum: number, inm: any) => sum + calcularMensualidad(inm, tcmmv), 0);
       const ivaMensualLocal = esRes ? 0 : (baseMensualLocal * 0.16);
       const totalMensualLocal = baseMensualLocal + ivaMensualLocal;
-
-      // REGLA OFICIAL: El último mes de la factura es SIN MULTA.
-      // Meses 1 a N-1 acumulan recargo por mora (10% residencial / 12% comercial).
-      // Mes N acumula 0 multa.
       const mesesConMulta = Math.max(0, numMesesTotal - 1);
       const moraTasa = esRes ? 0.10 : 0.12;
       const multaMensualLocal = baseMensualLocal * moraTasa;
-
-      const subtotalBaseLocal = baseMensualLocal * numMesesTotal;
-      const subtotalIvaLocal = ivaMensualLocal * numMesesTotal;
-      const totalMoraUnits = (mesesConMulta * (mesesConMulta + 1)) / 2;
-      const subtotalMultasLocal = multaMensualLocal * totalMoraUnits;
 
       const serviciosPendientes = (clusterIdx === 0)
         ? viewServiciosEsp.filter((s: any) => s.estado !== 'Pagado')
@@ -890,7 +934,7 @@ function ContribuyentesPageContent() {
         y += 2;
 
         const actRows = cluster.inmuebles.map((inm: any) => {
-          const actName = inm.actividad_principal || 'Actividad Comercial';
+          const actName = stripNivel(inm.actividad_principal || 'Actividad Comercial');
           const fo = inm.mmv_mes ? parseFloat(inm.mmv_mes) : getFO(actName, false);
           const bMes = calcularMensualidad(inm, tcmmv);
           const iMes = bMes * 0.16;
@@ -947,7 +991,10 @@ function ContribuyentesPageContent() {
       y += 4;
 
       const resumenRows: Array<[string, string]> = [
-        [`Períodos Calculados (${numMesesTotal} meses):`, numMesesTotal > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Solvente / Al Día'],
+        [`Períodos Calculados:`, cluster.isMultiActivity
+          ? clusterInmBreakdown.map((b: any) => `${b.inmueble}: ${b.meses > 0 ? `${b.meses}m` : 'Al Día'}`).join(' | ')
+          : (numMesesTotal > 0 ? `${periodoDesde} a ${periodoHasta} (${numMesesTotal} meses)` : 'Solvente / Al Día')
+        ],
         ['Monto Recolección Aseo Urbano Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
       ];
 
@@ -960,14 +1007,14 @@ function ContribuyentesPageContent() {
           ['Total Exento de IVA Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
           ['Base Imponible Bs.:', 'Bs. 0,00'],
           ['IVA (0.00%) Bs.:', 'Bs. 0,00'],
-          ['Recargos por Mora (10% - Último mes sin multa) Bs.:', `Bs. ${subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+          ['Multas (Último mes sin multa) Bs.:', `Bs. ${subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
         );
       } else {
         resumenRows.push(
           ['Total Exento Bs.:', `Bs. ${(clusterIdx === 0 ? totalServiciosBs : 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
           ['Base Imponible Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
           ['IVA (16.00%) Bs.:', `Bs. ${subtotalIvaLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-          ['Recargos por Mora (12% - Último mes sin multa) Bs.:', `Bs. ${subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+          ['Multas (Último mes sin multa) Bs.:', `Bs. ${subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
         );
       }
 
@@ -996,7 +1043,7 @@ function ContribuyentesPageContent() {
       doc.line(14, y, 196, y);
       y += 5;
 
-      // ── ESTADO DE CUENTA DETALLADO (COMPACTO PARA EVITAR LISTAS LARGAS) ──
+      // ── ESTADO DE CUENTA DETALLADO ──
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
       doc.text('ESTADO DE CUENTA DETALLADO', 105, y, { align: 'center' });
@@ -1004,18 +1051,35 @@ function ContribuyentesPageContent() {
 
       const detalleRows: any[] = [];
 
-      if (numMesesTotal === 0) {
+      if (cluster.isMultiActivity) {
+        clusterInmBreakdown.forEach((item: any) => {
+          let periodoStr = 'Al Día';
+          if (item.meses > 0) {
+            const dIni = new Date(today.getFullYear(), today.getMonth() - item.meses, 1);
+            const dFin = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            periodoStr = `${formatPeriodo(dIni)} a ${formatPeriodo(dFin)} (${item.meses} ${item.meses === 1 ? 'mes' : 'meses'})`;
+          }
+          const concepto = `${item.actividad} [${item.inmueble}]${item.esCasoSinMulta ? ' — Caso Especial Sin Multa' : (item.meses <= 1 ? ' — Período al Día (Sin Multa)' : '')}`;
+          detalleRows.push([
+            periodoStr,
+            concepto,
+            item.baseTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            item.multaTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            item.ivaTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            item.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          ]);
+        });
+      } else if (numMesesTotal === 0) {
         detalleRows.push([
           tasaVigente,
-          'Solvente — No posee períodos de mora pendientes',
+          'Solvente — No posee períodos pendientes',
           '0,00', '0,00', '0,00', '0,00'
         ]);
       } else if (numMesesTotal <= 6) {
         // Listar individualmente si son pocos meses
         for (let i = 1; i <= numMesesTotal; i++) {
           const isUltimo = (i === numMesesTotal);
-          const mesesAtras = Math.max(0, numMesesTotal - i);
-          const mesMora = isUltimo ? 0 : (multaMensualLocal * mesesAtras);
+          const mesMora = isUltimo ? 0 : (baseMensualLocal * (esRes ? 0.10 : 0.12));
           const mesTotal = baseMensualLocal + ivaMensualLocal + mesMora;
           let labelMes = `Mes ${i}`;
           if (clusterDeudas[i - 1]?.emision) {
@@ -1027,7 +1091,7 @@ function ContribuyentesPageContent() {
 
           detalleRows.push([
             labelMes,
-            isUltimo ? 'Aseo Urbano (Último período - Sin Multa)' : `Aseo Urbano (Mora ${esRes ? '10%' : '12%'} × ${mesesAtras} ${mesesAtras === 1 ? 'mes' : 'meses'})`,
+            isUltimo ? 'Aseo Urbano (Último período - Sin Multa)' : `Aseo Urbano (Multa ${esRes ? '10%' : '12%'})`,
             baseMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             mesMora.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             ivaMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -1035,11 +1099,8 @@ function ContribuyentesPageContent() {
           ]);
         }
       } else {
-        // "para que no salga esa lista tan larga":
-        // Consolidar período histórico (Meses 1 a N-1) y detallar el último mes sin multa
         const histBase = baseMensualLocal * mesesConMulta;
-        const totalMoraUnits = (mesesConMulta * (mesesConMulta + 1)) / 2;
-        const histMulta = multaMensualLocal * totalMoraUnits;
+        const histMulta = (baseMensualLocal * (esRes ? 0.10 : 0.12)) * mesesConMulta;
         const histIva = ivaMensualLocal * mesesConMulta;
         const histTotal = histBase + histMulta + histIva;
 
@@ -1050,7 +1111,7 @@ function ContribuyentesPageContent() {
 
         detalleRows.push([
           `${periodoDesde} a ${penultimoPeriodo}`,
-          `Período Acumulado (${mesesConMulta} Meses con Recargo por Mora)`,
+          `Período Acumulado (${mesesConMulta} Meses con Multa)`,
           histBase.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           histMulta.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           histIva.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -1083,11 +1144,11 @@ function ContribuyentesPageContent() {
 
       autoTable(doc, {
         startY: y,
-        head: [['PERÍODO', 'DETALLE / CONCEPTO', 'RECOLECCIÓN (Bs)', 'MORA / MULTA (Bs)', 'IVA (Bs)', 'TOTAL BS']],
+        head: [['PERÍODO', 'DETALLE / CONCEPTO', 'RECOLECCIÓN (Bs)', 'MULTAS (Bs)', 'IVA (Bs)', 'TOTAL BS']],
         body: detalleRows,
         foot: [[
           'TOTALES',
-          `${numMesesTotal} Meses Facturados`,
+          cluster.isMultiActivity ? `${cluster.inmuebles.length} Actividades Unificadas` : `${numMesesTotal} Meses Facturados`,
           subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           subtotalIvaLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
