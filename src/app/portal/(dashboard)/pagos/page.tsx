@@ -53,6 +53,7 @@ export default function DondePagarPage() {
   const [metodo, setMetodo] = useState<Metodo>('');
   const [bloqueadoPorCondominio, setBloqueadoPorCondominio] = useState(false);
   const [formData, setFormData] = useState({
+    bancoDestino: 'BANCAMIGA - 0172 - 0717',
     bancoOrigen: '',
     referencia: '',
     monto: '',
@@ -670,6 +671,7 @@ export default function DondePagarPage() {
           monto: montoTotal,
           referencia: formData.referencia,
           banco: formData.bancoOrigen,
+          bancoDestino: formData.bancoDestino,
           fecha: formData.fecha,
           identidad
         })
@@ -690,14 +692,14 @@ export default function DondePagarPage() {
           {
             referencia: formData.referencia,
             monto: montoTotal,
-            detalles: JSON.stringify({ recibos: justPaidRefs })
+            detalles: JSON.stringify({ recibos: justPaidRefs, banco_destino: formData.bancoDestino })
           }
         ]);
 
         // Limpiar selecciones y formulario
         setSelectedReceiptRefs([]);
         setSelectedConvenioIds([]);
-        setFormData({ bancoOrigen: '', referencia: '', monto: '', fecha: '', comprobante: null });
+        setFormData({ bancoDestino: 'BANCAMIGA - 0172 - 0717', bancoOrigen: '', referencia: '', monto: '', fecha: '', comprobante: null });
         setMetodo('');
       } else {
         setResult({ type: 'error', msg: data.error || 'Error al procesar el pago.' });
@@ -752,36 +754,79 @@ export default function DondePagarPage() {
 
           {/* Tarjeta de Cuentas Recaudadoras */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="bg-indigo-50/80 px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
-              <h2 className="font-bold text-indigo-900 uppercase flex items-center gap-2 text-xs tracking-wide">
-                <Building className="w-4 h-4 text-indigo-600" />
-                Cuenta Recaudadora Oficial
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 px-4 py-3 flex items-center justify-between text-white">
+              <h2 className="font-bold uppercase flex items-center gap-2 text-xs tracking-wide">
+                <Building className="w-4 h-4 text-blue-200" />
+                Cuentas Recaudadoras Oficiales (Alcaldía / IAMEC)
               </h2>
-              <span className="text-[11px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">
-                BANESCO (0134)
+              <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded">
+                Bancamiga & Banesco
               </span>
             </div>
-            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div>
-                <span className="text-slate-500 font-medium block">Cta Corriente Nro.:</span>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="font-mono bg-slate-50 px-2 py-1.5 rounded text-slate-800 font-bold border border-slate-200 text-xs tracking-wider">
-                    01340415144151031715
-                  </span>
-                  <button 
-                    type="button"
-                    className="text-blue-600 hover:text-blue-800 transition-colors p-1.5 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200" 
-                    title="Copiar número"
-                    onClick={() => navigator.clipboard?.writeText('01340415144151031715')}
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                  </button>
+            
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Bancamiga */}
+              <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-3.5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-black text-blue-900 text-xs tracking-wide flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-600 inline-block"></span>
+                      BANCAMIGA (0172)
+                    </span>
+                    <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">Cta Corriente</span>
+                  </div>
+                  <span className="text-slate-500 font-medium block text-[11px]">Número de Cuenta (20 dígitos):</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="font-mono bg-white px-2.5 py-1.5 rounded-lg text-slate-800 font-bold border border-blue-200 text-xs tracking-wider flex-1 select-all">
+                      01720110711101340717
+                    </span>
+                    <button 
+                      type="button"
+                      className="text-blue-600 hover:text-blue-800 transition-colors p-1.5 bg-white hover:bg-blue-100 rounded-lg border border-blue-200" 
+                      title="Copiar número de cuenta Bancamiga"
+                      onClick={() => navigator.clipboard?.writeText('01720110711101340717')}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-blue-200/60 text-[11px] text-slate-600 leading-tight">
+                  <span className="text-slate-400 block text-[10px]">Beneficiario / R.I.F.:</span>
+                  <strong className="text-slate-800">IAMEC BANCAMIGA</strong>
+                  <span className="text-slate-500 block font-mono text-[10px] mt-0.5">R.I.F.: G-200086149</span>
                 </div>
               </div>
-              <div>
-                <span className="text-slate-500 font-medium block">Beneficiario / Titular:</span>
-                <strong className="text-slate-800 block mt-1 leading-snug">Inst. Socialista Municipal para el Ambiente</strong>
-                <span className="text-slate-500 text-[11px] block mt-0.5">R.I.F.: G-200076739</span>
+
+              {/* Banesco */}
+              <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3.5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-black text-emerald-900 text-xs tracking-wide flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block"></span>
+                      BANESCO (0134)
+                    </span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">Cta Corriente</span>
+                  </div>
+                  <span className="text-slate-500 font-medium block text-[11px]">Número de Cuenta (20 dígitos):</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="font-mono bg-white px-2.5 py-1.5 rounded-lg text-slate-800 font-bold border border-emerald-200 text-xs tracking-wider flex-1 select-all">
+                      01340415144151031715
+                    </span>
+                    <button 
+                      type="button"
+                      className="text-emerald-600 hover:text-emerald-800 transition-colors p-1.5 bg-white hover:bg-emerald-100 rounded-lg border border-emerald-200" 
+                      title="Copiar número de cuenta Banesco"
+                      onClick={() => navigator.clipboard?.writeText('01340415144151031715')}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-emerald-200/60 text-[11px] text-slate-600 leading-tight">
+                  <span className="text-slate-400 block text-[10px]">Beneficiario / R.I.F.:</span>
+                  <strong className="text-slate-800">Inst. Socialista Municipal para el Ambiente</strong>
+                  <span className="text-slate-500 block font-mono text-[10px] mt-0.5">R.I.F.: G-200076739</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1191,7 +1236,22 @@ export default function DondePagarPage() {
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Banco Emisor Origen <span className="text-red-500">*</span>
+                      Cuenta Receptora Oficial IAMEC <span className="text-red-500">*</span>
+                    </label>
+                    <select 
+                      value={formData.bancoDestino}
+                      onChange={(e) => setFormData({...formData, bancoDestino: e.target.value})}
+                      className="w-full border border-blue-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 bg-blue-50/40"
+                      required
+                    >
+                      <option value="BANCAMIGA - 0172 - 0717">Bancamiga (0172) - 01720110711101340717 (IAMEC BANCAMIGA)</option>
+                      <option value="BANESCO - 0134 - 1715">Banesco (0134) - 01340415144151031715 (IAMEC)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Banco Emisor Origen (Su Banco) <span className="text-red-500">*</span>
                     </label>
                     <select 
                       value={formData.bancoOrigen}

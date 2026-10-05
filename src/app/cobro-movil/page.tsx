@@ -105,7 +105,7 @@ export default function KioskPage() {
   const [showBancamigaSim, setShowBancamigaSim] = useState(false);
   const [expandedInms, setExpandedInms] = useState<Record<string, boolean>>({});
 
-  const isResidencialGlobal = isResidencialInm(foundUser);
+  const isResidencialGlobal = isResidencialInm(foundUser) || (userInms.length > 0 && userInms.every((i: any) => isResidencialInm(i)));
   const esAgenteGlobal = foundUser?.EsAgente ?? false;
 
   const getReciboDesglose = (r: Recibo): { base: number; multa: number; iva: number; total: number } => {
@@ -518,13 +518,13 @@ export default function KioskPage() {
 
     // 1. Buscar en inmuebles con todas las variantes
     let { data: inmsDB } = await supabase.from('inmuebles')
-      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
       .or(orFilter);
 
     // 2. Si no se encontró por identidad directa, buscar por código de inmueble (ej: URB002290)
     if (!inmsDB || inmsDB.length === 0) {
       const { data: byInmCode } = await supabase.from('inmuebles')
-        .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+        .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
         .ilike('inmueble', `%${inputClean}%`)
         .limit(10);
       if (byInmCode && byInmCode.length > 0) inmsDB = byInmCode;
@@ -541,7 +541,7 @@ export default function KioskPage() {
         const officialId = cMatches[0].identidad;
         const cVariants = getIdentidadVariants(officialId);
         const { data: inmsByContrib } = await supabase.from('inmuebles')
-          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
           .or(cVariants.map(v => `identidad.eq.${v}`).join(','));
         if (inmsByContrib && inmsByContrib.length > 0) {
           inmsDB = inmsByContrib;
@@ -591,7 +591,7 @@ export default function KioskPage() {
       Identidad: p.identidad,
       Contribuyente: nombreCont || 'Cont. No Registrado',
       Direccion: p.direccion || '',
-      Clasificacion: p.clasificacion || 'Residencial',
+      Clasificacion: ((p.tipo && p.tipo.toUpperCase().includes('RESIDENCIAL')) || isResidencialInm(p)) ? 'Residencial' : 'Comercial',
       Actividad: p.actividad_principal || '',
       EsAgente: (inmsDB as any[]).some(i => i.agente_retencion === true),
     };
@@ -606,7 +606,7 @@ export default function KioskPage() {
       if (condoCodes.length > 0) {
         const { data: hijos } = await supabase
           .from('inmuebles')
-          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
           .in('condominio_padre_id', condoCodes);
         if (hijos && hijos.length > 0) {
           const ids = new Set(inmsFinal.map(x => x.id));
@@ -698,7 +698,14 @@ export default function KioskPage() {
         identidad: foundUser?.Identidad, monto: pagoTotalCalculado,
         banco: method === 'Bancamiga' ? 'Bancamiga' : 'Punto de Venta',
         referencia: ref || `POS-${Date.now()}`, tipo: method, estado: 'Aprobado',
-        detalles: JSON.stringify({ recibos: selectedRefs, origen: 'kiosco' })
+        detalles: JSON.stringify({ 
+          recibos: selectedRefs, 
+          origen: 'kiosco',
+          banco_destino: method === 'Bancamiga' ? 'BANCAMIGA - 0172 - 0717' : undefined,
+          cuenta_destino: method === 'Bancamiga' ? '01720110711101340717' : undefined,
+          titular_destino: method === 'Bancamiga' ? 'IAMEC BANCAMIGA' : undefined,
+          rif_destino: method === 'Bancamiga' ? 'G-200086149' : undefined
+        })
       });
       let dinero = totalSel;
       for (const r of selectedRefs) {
@@ -1357,11 +1364,35 @@ export default function KioskPage() {
               <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Landmark className="w-8 h-8 text-blue-400" />
               </div>
-              <h3 className="text-2xl font-black mb-3">Pago con Bancamiga</h3>
-              <p className="text-slate-400 mb-6 text-lg">Será dirigido a la pasarela de pagos seguros de Bancamiga para completar el pago con su tarjeta de débito.</p>
+              <h3 className="text-2xl font-black mb-1 text-white">Pago Oficial Bancamiga</h3>
+              <p className="text-slate-400 mb-5 text-sm">Cuenta Recaudadora Municipal Oficial de IAMEC Naguanagua.</p>
+              
+              <div className="bg-slate-900/90 rounded-2xl p-4 border border-blue-500/30 text-left mb-6 text-xs space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Banco:</span>
+                  <span className="font-bold text-white">Bancamiga (0172)</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Tipo de Cuenta:</span>
+                  <span className="font-semibold text-slate-200">Cuenta Corriente</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Número de Cuenta:</span>
+                  <span className="font-mono font-bold text-blue-300">01720110711101340717</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Titular:</span>
+                  <span className="font-bold text-white">IAMEC BANCAMIGA</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">R.I.F.:</span>
+                  <span className="font-mono font-bold text-emerald-400">G-200086149</span>
+                </div>
+              </div>
+
               <button onClick={() => setShowBancamigaSim(true)}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-2xl text-2xl active:scale-95 transition-all">
-                Ir a Pagar → Bancamiga
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl text-xl active:scale-95 transition-all">
+                Procesar Cobro con Bancamiga
               </button>
             </div>
           )}
@@ -1400,24 +1431,32 @@ export default function KioskPage() {
 
       {showBancamigaSim && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-900 rounded-3xl w-full max-w-md overflow-hidden">
+          <div className="bg-white text-slate-900 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
             <div className="bg-blue-600 p-6 text-center text-white">
               <h2 className="text-2xl font-black tracking-wide">BANCAMIGA</h2>
-              <p className="text-blue-200 text-sm">Pasarela de Pago Seguro</p>
+              <p className="text-blue-200 text-xs">Cuenta Recaudadora Oficial IAMEC · Pasarela de Pago</p>
             </div>
-            <div className="p-8">
-              <div className="bg-blue-50 rounded-2xl p-5 text-center mb-6 border border-blue-100">
-                <div className="text-sm text-slate-500 font-bold uppercase">Monto a Cobrar</div>
-                <div className="text-4xl font-black text-slate-800 mt-1">Bs. {fmtBs(pagoTotalCalculado)}</div>
-                <div className="text-slate-500 text-sm mt-1">{foundUser?.Contribuyente}</div>
+            <div className="p-6">
+              <div className="bg-blue-50 rounded-2xl p-4 text-center mb-4 border border-blue-100">
+                <div className="text-xs text-slate-500 font-bold uppercase">Monto a Cobrar</div>
+                <div className="text-3xl font-black text-slate-800 mt-1">Bs. {fmtBs(pagoTotalCalculado)}</div>
+                <div className="text-slate-600 font-semibold text-xs mt-1">{foundUser?.Contribuyente}</div>
               </div>
-              <p className="text-center text-slate-400 text-sm mb-6">Esta pantalla simula la pasarela oficial de Bancamiga. La integración real requiere credenciales del banco.</p>
+
+              <div className="bg-slate-50 rounded-xl p-3 text-[11px] space-y-1.5 mb-5 border border-slate-200 text-slate-600">
+                <div className="flex justify-between"><span className="text-slate-400">Banco:</span><span className="font-bold text-slate-800">Bancamiga (0172)</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Tipo:</span><span className="font-semibold text-slate-800">Cuenta Corriente</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Cta Corriente:</span><span className="font-mono font-bold text-slate-900">01720110711101340717</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Beneficiario:</span><span className="font-bold text-slate-800">IAMEC BANCAMIGA</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">R.I.F.:</span><span className="font-mono font-bold text-slate-800">G-200086149</span></div>
+              </div>
+
               <button onClick={() => processPayment(`BCA-${Math.floor(Math.random()*1000000)}`, 'Bancamiga')} disabled={isProcessing}
-                className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl text-xl mb-3 active:scale-95 disabled:bg-slate-300">
-                {isProcessing ? 'Procesando...' : 'Simular Pago Exitoso'}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-lg mb-2.5 active:scale-95 disabled:bg-slate-300 transition-all">
+                {isProcessing ? 'Procesando...' : 'Confirmar Cobro Bancamiga'}
               </button>
               <button onClick={() => setShowBancamigaSim(false)} disabled={isProcessing}
-                className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-2xl active:scale-95">Cancelar</button>
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3.5 rounded-2xl active:scale-95 transition-all text-sm">Cancelar</button>
             </div>
           </div>
         </div>

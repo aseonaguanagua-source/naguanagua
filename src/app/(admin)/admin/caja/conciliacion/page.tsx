@@ -39,6 +39,7 @@ type Filtros = {
 
 const BANCOS_DESTINO = [
   'Todos',
+  'BANCAMIGA - 0172 - 0717',
   'BANESCO - 0134 - 1715',
   'BANCO DE VENEZUELA - 0102',
   'BANCO MERCANTIL - 0105',
@@ -358,11 +359,23 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
                   </tbody>
                 </table>
               </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
-                <p className="font-bold text-slate-700 mb-1 uppercase text-[11px]">Informacion para pagos y transferencias</p>
-                <p><span className="font-semibold">Banco:</span> BANESCO (0134)</p>
-                <p><span className="font-semibold">Cta:</span> 01340415144151031715</p>
-                <p className="mt-1 italic">Pagos a nombre de: <strong>INST SOC MUN PARA EL AMBIENTE R.I.F.: G-200076739</strong></p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-3 text-slate-700">
+                  <p className="font-bold text-blue-900 mb-1 uppercase text-[11px]">Cuenta Oficial Bancamiga</p>
+                  <p><span className="font-semibold">Banco:</span> Bancamiga (0172)</p>
+                  <p><span className="font-semibold">Tipo:</span> Cuenta Corriente</p>
+                  <p><span className="font-semibold">Cta:</span> <span className="font-mono font-bold text-slate-900">01720110711101340717</span></p>
+                  <p className="mt-1">Titular: <strong>IAMEC BANCAMIGA</strong></p>
+                  <p className="text-[11px] text-slate-500">R.I.F.: <strong>G-200086149</strong></p>
+                </div>
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-3 text-slate-700">
+                  <p className="font-bold text-emerald-900 mb-1 uppercase text-[11px]">Cuenta Oficial Banesco</p>
+                  <p><span className="font-semibold">Banco:</span> Banesco (0134)</p>
+                  <p><span className="font-semibold">Tipo:</span> Cuenta Corriente</p>
+                  <p><span className="font-semibold">Cta:</span> <span className="font-mono font-bold text-slate-900">01340415144151031715</span></p>
+                  <p className="mt-1">Titular: <strong>INST. SOC. MUN. PARA EL AMBIENTE</strong></p>
+                  <p className="text-[11px] text-slate-500">R.I.F.: <strong>G-200076739</strong></p>
+                </div>
               </div>
             </>
           )}
@@ -380,7 +393,7 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
 function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: () => void; onSuccess: () => void }) {
   const det = parseDetalles(pago.detalles);
 
-  // Informaci�n del contribuyente cargada desde Supabase (solo lectura)
+  // Información del contribuyente cargada desde Supabase (solo lectura)
   const [contribInfo, setContribInfo] = useState<any>(null);
   const [loadingContrib, setLoadingContrib] = useState(true);
 
@@ -399,7 +412,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     String(det.monto_conciliado || montoReportadoNum.toFixed(2))
   );
   const [bancoEmisor, setBancoEmisor] = useState(pago.banco || '');
-  const [bancoReceptor, setBancoReceptor] = useState(pago.banco_destino || 'BANESCO - 0134 - 1715');
+    const [bancoReceptor, setBancoReceptor] = useState(pago.banco_destino || det.banco_destino || 'BANCAMIGA - 0172 - 0717');
   const [referenciaOrigen, setReferenciaOrigen] = useState(pago.referencia || '');
   const [correoResponsable, setCorreoResponsable] = useState(det.correo || '');
   const [telefonoResponsable, setTelefonoResponsable] = useState(det.telefono || '');

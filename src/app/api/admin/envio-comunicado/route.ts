@@ -119,14 +119,24 @@ function buildHtml(nombre: string): string {
             <p style="margin:0 0 10px;font-size:13px;color:#075985;line-height:1.7;">
               Le informamos que <strong>seguimos contando con los mismos n&uacute;meros de cuenta habituales</strong> para procesar sus pagos y reportar transferencias a trav&eacute;s del portal:
             </p>
-            <table width="100%" cellpadding="6" cellspacing="0" style="background:#ffffff;border-radius:8px;font-size:13px;color:#1e293b;">
+            <table width="100%" cellpadding="6" cellspacing="0" style="background:#ffffff;border-radius:8px;font-size:13px;color:#1e293b;margin-bottom:8px;">
               <tr style="background:#0369a1;">
-                <td colspan="2" style="color:#ffffff;font-weight:bold;padding:8px 12px;border-radius:6px 6px 0 0;">Datos Bancarios IAMEC Naguanagua</td>
+                <td colspan="2" style="color:#ffffff;font-weight:bold;padding:8px 12px;border-radius:6px 6px 0 0;">1. Cuenta Oficial Bancamiga (0172)</td>
               </tr>
-              <tr><td style="padding:6px 12px;font-weight:bold;color:#0369a1;width:100px;">Titular:</td><td style="padding:6px 12px;">INST SOC MUN PARA EL AMBIENTE</td></tr>
-              <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#0369a1;">Banco:</td><td style="padding:6px 12px;">BANESCO (0134)</td></tr>
-              <tr><td style="padding:6px 12px;font-weight:bold;color:#0369a1;">Cta. Cte:</td><td style="padding:6px 12px;font-family:monospace;font-size:14px;font-weight:bold;">0134 0415 14 4151031715</td></tr>
-              <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#0369a1;">R.I.F.:</td><td style="padding:6px 12px;font-family:monospace;">G-200076739</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;color:#0369a1;width:100px;">Titular:</td><td style="padding:6px 12px;font-weight:bold;">IAMEC BANCAMIGA</td></tr>
+              <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#0369a1;">Banco:</td><td style="padding:6px 12px;">Bancamiga Banco Universal</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;color:#0369a1;">Cta. Cte:</td><td style="padding:6px 12px;font-family:monospace;font-size:14px;font-weight:bold;color:#0369a1;">0172 0110 71 1101340717</td></tr>
+              <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#0369a1;">R.I.F.:</td><td style="padding:6px 12px;font-family:monospace;">G-200086149</td></tr>
+            </table>
+
+            <table width="100%" cellpadding="6" cellspacing="0" style="background:#ffffff;border-radius:8px;font-size:13px;color:#1e293b;">
+              <tr style="background:#047857;">
+                <td colspan="2" style="color:#ffffff;font-weight:bold;padding:8px 12px;border-radius:6px 6px 0 0;">2. Cuenta Oficial Banesco (0134)</td>
+              </tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;color:#047857;width:100px;">Titular:</td><td style="padding:6px 12px;">INST SOC MUN PARA EL AMBIENTE (IAMEC)</td></tr>
+              <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#047857;">Banco:</td><td style="padding:6px 12px;">Banesco Banco Universal</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;color:#047857;">Cta. Cte:</td><td style="padding:6px 12px;font-family:monospace;font-size:14px;font-weight:bold;color:#047857;">0134 0415 14 4151031715</td></tr>
+              <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#047857;">R.I.F.:</td><td style="padding:6px 12px;font-family:monospace;">G-200076739</td></tr>
             </table>
           </td>
         </tr>

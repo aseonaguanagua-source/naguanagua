@@ -564,12 +564,13 @@ export default function EstadoCuentaPage() {
       doc.line(14, y, 196, y);
       y += 5;
       doc.setFont('helvetica', 'normal');
-      doc.text('Banco:  BANESCO (0134)', 14, y);
-      y += 5;
-      doc.text('Cta:    01340415144151031715', 14, y);
-      y += 7;
+      doc.setFontSize(8);
+      doc.text('1) Banco: BANCAMIGA (0172)  |  Cta: 01720110711101340717  |  Titular: IAMEC BANCAMIGA  |  RIF: G-200086149', 14, y);
+      y += 4.5;
+      doc.text('2) Banco: BANESCO (0134)    |  Cta: 01340415144151031715  |  Titular: IAMEC            |  RIF: G-200076739', 14, y);
+      y += 5.5;
       doc.setFont('helvetica', 'italic');
-      doc.text('Pagos a nombre de: INST SOC MUN PARA EL AMBIENTE R.I.F.: G-200076739', 14, y);
+      doc.text('Transferencias oficiales a nombre de: Instituto Autónomo Municipal de Ecosocialismo (IAMEC)', 14, y);
 
       const fileName = `Estado_Cuenta_${viewData.Identidad}_${codInm}_${Date.now()}.pdf`;
       doc.save(fileName);

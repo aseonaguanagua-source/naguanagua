@@ -82,23 +82,47 @@ export default async function AdminHome() {
 
         {/* Cuentas Bancarias */}
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-          <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
-            <h2 className="font-semibold text-slate-700">Cuentas Bancarias</h2>
+          <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+            <h2 className="font-semibold text-slate-700">Cuentas Bancarias Oficiales</h2>
+            <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">IAMEC Naguanagua</span>
           </div>
-          <div className="p-6 space-y-4">
-            <div className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="font-semibold w-24">Banco:</span>
-              <span>Banesco</span>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Bancamiga */}
+            <div className="border border-blue-200 bg-blue-50/40 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="font-black text-blue-900 text-sm">Bancamiga</span>
+                <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">Cta Corriente</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-700">
+                <span className="font-semibold">Cuenta:</span>
+                <span className="font-mono font-bold text-slate-900">01720110711101340717</span>
+                <button onClick={() => navigator.clipboard?.writeText('01720110711101340717')} className="text-blue-600 hover:text-blue-800 ml-1 p-1 bg-white rounded border border-blue-200" title="Copiar">
+                  <FileText className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="text-xs text-slate-600 pt-2 border-t border-blue-100">
+                <p>Titular: <strong className="text-slate-800">IAMEC BANCAMIGA</strong></p>
+                <p className="text-[11px] text-slate-500 font-mono">RIF: G-200086149</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="font-semibold w-24">Cta Corriente:</span>
-              <span>01340415144151031715</span>
-              <button className="text-red-500 hover:text-red-700 ml-2" title="Copiar">
-                <FileText className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="pt-4 mt-4 border-t border-slate-100 text-sm text-slate-600">
-              Todos los pagos a nombre de: <strong className="text-slate-800">Instituto Socialista Municipal para el Ambiente R.I.F.: G-200076739</strong>
+
+            {/* Banesco */}
+            <div className="border border-emerald-200 bg-emerald-50/40 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="font-black text-emerald-900 text-sm">Banesco</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">Cta Corriente</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-700">
+                <span className="font-semibold">Cuenta:</span>
+                <span className="font-mono font-bold text-slate-900">01340415144151031715</span>
+                <button onClick={() => navigator.clipboard?.writeText('01340415144151031715')} className="text-emerald-600 hover:text-emerald-800 ml-1 p-1 bg-white rounded border border-emerald-200" title="Copiar">
+                  <FileText className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="text-xs text-slate-600 pt-2 border-t border-emerald-100">
+                <p>Titular: <strong className="text-slate-800">Inst. Soc. Mun. para el Ambiente</strong></p>
+                <p className="text-[11px] text-slate-500 font-mono">RIF: G-200076739</p>
+              </div>
             </div>
           </div>
         </div>

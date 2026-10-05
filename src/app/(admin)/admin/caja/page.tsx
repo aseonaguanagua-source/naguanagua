@@ -82,6 +82,7 @@ export default function CajaPage() {
   const [referenciaDebito, setReferenciaDebito] = useState('');
   const [montoDebito, setMontoDebito] = useState<string>(''); // Monto manual punto de venta
   const [banco, setBanco] = useState('Banco de Venezuela');
+  const [bancoDestino, setBancoDestino] = useState('BANCAMIGA - 0172 - 0717');
   const [referencia, setReferencia] = useState('');
   const [montoTransferido, setMontoTransferido] = useState<string>('');
   const [fechaTransaccion, setFechaTransaccion] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -1776,6 +1777,7 @@ export default function CajaPage() {
             servicios: selectedServicios,
             tala_poda: selectedTalaPoda,
             cajero: cajero_id,
+            banco_destino: bancoDestino,
             saldo_favor: saldoAFavorNuevo,
             es_abono: esAbono,
             monto_abonado: esAbono ? montoReal : undefined,
@@ -3510,6 +3512,20 @@ export default function CajaPage() {
                   {['Transferencia', 'Deposito'].includes(paymentMethod) && (
                 <div className="space-y-3 bg-white p-3 rounded border border-slate-200">
                   <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 mb-1 block">Cuenta Bancaria Receptora / Destino (Alcaldía / IAMEC)</span>
+                    <select
+                      value={bancoDestino}
+                      onChange={(e) => setBancoDestino(e.target.value)}
+                      className="w-full border border-blue-300 bg-blue-50/40 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-semibold text-slate-800"
+                    >
+                      <option value="BANCAMIGA - 0172 - 0717">Bancamiga (0172) - 01720110711101340717 (IAMEC BANCAMIGA)</option>
+                      <option value="BANESCO - 0134 - 1715">Banesco (0134) - 01340415144151031715 (IAMEC)</option>
+                      <option value="BANCO DE VENEZUELA - 0102">Banco de Venezuela (0102)</option>
+                      <option value="BANCO MERCANTIL - 0105">Banco Mercantil (0105)</option>
+                      <option value="BANCO PROVINCIAL - 0108">Banco Provincial (0108)</option>
+                    </select>
+                  </label>
+                  <label className="block">
                     <span className="text-xs font-semibold text-slate-600 mb-1 block">Fecha de Transacción</span>
                     <input
                       type="date"
@@ -3519,7 +3535,7 @@ export default function CajaPage() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-xs font-semibold text-slate-600 mb-1 block">Banco Emisor</span>
+                    <span className="text-xs font-semibold text-slate-600 mb-1 block">Banco Emisor (del Contribuyente)</span>
                     <select
                       value={banco}
                       onChange={(e) => setBanco(e.target.value)}

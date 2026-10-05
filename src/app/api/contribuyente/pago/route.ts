@@ -4,7 +4,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { metodo, facturaIds, convenioIds, monto, referencia, banco, fecha, identidad, reciboRefs } = body;
+    const { metodo, facturaIds, convenioIds, monto, referencia, banco, bancoDestino, fecha, identidad, reciboRefs } = body;
 
     if (!identidad || !monto || !metodo) {
       return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 });
@@ -91,6 +91,7 @@ export async function POST(request: Request) {
         estado: 'Por Verificar',
         detalles: JSON.stringify({
           origen: 'Portal Web (Soy Contribuyente)',
+          banco_destino: bancoDestino || 'BANCAMIGA - 0172 - 0717',
           recibos: finalRecibos,
           recibosIds: facturaIds,
           conveniosIds: convenioIds,
