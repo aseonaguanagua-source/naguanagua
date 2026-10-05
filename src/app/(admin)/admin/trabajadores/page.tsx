@@ -396,13 +396,36 @@ export default function TrabajadoresPage() {
         permisos: formData.permisos
       };
 
-      if (formData.id) {
-        let res = await supabase.from('trabajadores').update(payload).eq('id', formData.id);
-        if (res.error && (res.error.message?.includes('permisos') || res.error.code === '42703')) {
-          const { permisos: _, ...safePayload } = payload;
-          res = await supabase.from('trabajadores').update(safePayload).eq('id', formData.id);
+      const performSave = async (dataPayload: any) => {
+        let res = formData.id
+          ? await supabase.from('trabajadores').update(dataPayload).eq('id', formData.id)
+          : await supabase.from('trabajadores').insert([dataPayload]);
+
+        if (res.error && (res.error.code === '42703' || res.error.message?.includes('schema cache'))) {
+          // Si PostgREST todavía tuviera en caché alguna columna, reintentar adaptativamente
+          const safe: any = {
+            nombre: dataPayload.nombre,
+            usuario: dataPayload.usuario,
+            clave: dataPayload.clave,
+            rol: dataPayload.rol,
+            estado: dataPayload.estado,
+            letra: dataPayload.letra
+          };
+          if (!res.error.message?.includes('cedula')) safe.cedula = dataPayload.cedula;
+          if (!res.error.message?.includes('correo')) safe.correo = dataPayload.correo;
+          if (!res.error.message?.includes('permisos')) safe.permisos = dataPayload.permisos;
+
+          res = formData.id
+            ? await supabase.from('trabajadores').update(safe).eq('id', formData.id)
+            : await supabase.from('trabajadores').insert([safe]);
         }
-        if (res.error) throw res.error;
+        return res;
+      };
+
+      const res = await performSave(payload);
+      if (res.error) throw res.error;
+
+      if (formData.id) {
         await logAudit(
           `Modificación de Permisos y Datos de Trabajador: ${formData.nombre}`,
           { trabajador_usuario: formData.usuario, rol: formData.rol, letra: payload.letra },
@@ -410,12 +433,6 @@ export default function TrabajadoresPage() {
           'ALTA'
         );
       } else {
-        let res = await supabase.from('trabajadores').insert([payload]);
-        if (res.error && (res.error.message?.includes('permisos') || res.error.code === '42703')) {
-          const { permisos: _, ...safePayload } = payload;
-          res = await supabase.from('trabajadores').insert([safePayload]);
-        }
-        if (res.error) throw res.error;
         await logAudit(
           `Creación de Nuevo Trabajador: ${formData.nombre}`,
           { trabajador_usuario: formData.usuario, rol: formData.rol, letra: payload.letra },
