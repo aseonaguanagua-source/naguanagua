@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants } from '@/lib/formatCurrency';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm, isCondominioPagoIndividual } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isCondominioPagoIndividual, isMesExoneradoMulta } from '@/lib/calculos';
 import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, getShortAddress } from '@/lib/cajaHelpers';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
@@ -1019,8 +1019,9 @@ export default function CajaPage() {
           const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
           const isUltimoMes = mNum > 0 ? (mNum >= totalMeses) : false;
 
+          const esMesExon = isMesExoneradoMulta(inm.notas, emision);
           // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base (solo meses anteriores a septiembre: monthsDiff > 1)
-          if (!isUltimoMes && monthsDiff > 1) {
+          if (!isUltimoMes && monthsDiff > 1 && !esMesExon) {
             smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
           }
         }
@@ -1047,7 +1048,8 @@ export default function CajaPage() {
             rc.referencia?.startsWith('CM-') && (rc.referencia || '').includes(inm.inmueble || '')
           );
           const isUltimoMes = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === ref || monthsDiff <= 1;
-          if (!isUltimoMes && monthsDiff > 1) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
+          const esMesExon = isMesExoneradoMulta(inm.notas, emision);
+          if (!isUltimoMes && monthsDiff > 1 && !esMesExon) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
         });
       } else {
         const f = recibosMap.get(ref);
@@ -1719,7 +1721,8 @@ export default function CajaPage() {
                     const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
                     const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
                     const isUltimoMes = mesNum >= totalMeses || monthsDiff <= 1;
-                    const multa = (!isUltimoMes && monthsDiff > 1) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                    const esMesExon = isMesExoneradoMulta(inm?.notas, emision);
+                    const multa = (!isUltimoMes && monthsDiff > 1 && !esMesExon) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                     const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
                     conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Base Imponible`, precioUnit: bm, total: bm });
                     if (iva > 0) {

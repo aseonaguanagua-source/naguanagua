@@ -25,12 +25,12 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount } from '@/lib/calculos';
 import { isSameLocal, getShortAddress } from '@/lib/cajaHelpers';
 
 
 function ContribuyentesPageContent() {
-  const { inmuebles, contribuyentes, recibos, setFacturas, convenios, updateContribuyente, addContribuyente, addAuditLog, tcmmv, addCertificado, auditLogs, refreshData } = useAppContext();
+  const { inmuebles, contribuyentes, recibos, setFacturas, convenios, updateContribuyente, addContribuyente, addAuditLog, tcmmv, addCertificado, auditLogs, refreshData, refreshUserData } = useAppContext();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [formData, setFormData] = useState<any>(null);
@@ -795,16 +795,16 @@ function ContribuyentesPageContent() {
         const mDeuda = parseInt(String(inm.meses_deuda || 0), 10);
         if (mDeuda > maxMesesCluster) maxMesesCluster = mDeuda;
 
-        const esCasoSinMulta = (inm.inmueble === 'URB014954') ||
-          (inm.notas && (inm.notas.toLowerCase().includes('sin multa') || inm.notas.toLowerCase().includes('especial') || inm.notas.toLowerCase().includes('exonerad'))) ||
-          (inm.multa_bs === 0 && mDeuda > 1);
+        const esExoneradoTotal = isExoneradoTotalMultas(inm.notas);
+        const totalExoneradosInm = getMesesExoneradosCount(inm.notas);
+        const esCasoSinMulta = (inm.inmueble === 'URB014954') || esExoneradoTotal;
 
         const baseTotal = bMes * mDeuda;
         const ivaTotal = iMes * mDeuda;
         let multaTotal = 0;
 
         if (!esCasoSinMulta && mDeuda > 1) {
-          const mesesConMultaInm = mDeuda - 1;
+          const mesesConMultaInm = Math.max(0, mDeuda - 1 - totalExoneradosInm);
           const tasaMora = esRes ? 0.10 : 0.12;
           multaTotal = (bMes * tasaMora) * mesesConMultaInm;
         }
@@ -831,7 +831,9 @@ function ContribuyentesPageContent() {
       const baseMensualLocal = cluster.inmuebles.reduce((sum: number, inm: any) => sum + calcularMensualidad(inm, tcmmv), 0);
       const ivaMensualLocal = esRes ? 0 : (baseMensualLocal * 0.16);
       const totalMensualLocal = baseMensualLocal + ivaMensualLocal;
-      const mesesConMulta = Math.max(0, numMesesTotal - 1);
+      const maxExoneradosCluster = cluster.inmuebles.reduce((max: number, inm: any) => Math.max(max, getMesesExoneradosCount(inm.notas)), 0);
+      const esExonTotalCluster = cluster.inmuebles.some((inm: any) => isExoneradoTotalMultas(inm.notas));
+      const mesesConMulta = esExonTotalCluster ? 0 : Math.max(0, numMesesTotal - 1 - maxExoneradosCluster);
       const moraTasa = esRes ? 0.10 : 0.12;
       const multaMensualLocal = baseMensualLocal * moraTasa;
 
@@ -1116,19 +1118,26 @@ function ContribuyentesPageContent() {
         // Listar individualmente si son pocos meses
         for (let i = 1; i <= numMesesTotal; i++) {
           const isUltimo = (i === numMesesTotal);
-          const mesMora = isUltimo ? 0 : (baseMensualLocal * (esRes ? 0.10 : 0.12));
-          const mesTotal = baseMensualLocal + ivaMensualLocal + mesMora;
-          let labelMes = `Mes ${i}`;
+          let dMes: Date;
           if (clusterDeudas[i - 1]?.emision) {
-            labelMes = formatPeriodo(clusterDeudas[i - 1].emision);
+            dMes = new Date(clusterDeudas[i - 1].emision);
           } else {
-            const d = new Date(today.getFullYear(), today.getMonth() - numMesesTotal + i - 1, 1);
-            labelMes = formatPeriodo(d);
+            dMes = new Date(today.getFullYear(), today.getMonth() - numMesesTotal + i - 1, 1);
           }
+          const labelMes = formatPeriodo(dMes);
+          const esExonMes = cluster.inmuebles.some((inm: any) => isMesExoneradoMulta(inm.notas, dMes));
+          const mesMora = (isUltimo || esExonMes) ? 0 : (baseMensualLocal * (esRes ? 0.10 : 0.12));
+          const mesTotal = baseMensualLocal + ivaMensualLocal + mesMora;
+
+          let concepto = isUltimo
+            ? 'Aseo Urbano (Último período - Sin Multa)'
+            : esExonMes
+            ? 'Aseo Urbano (Multa Exonerada - Bs. 0)'
+            : `Aseo Urbano (Multa ${esRes ? '10%' : '12%'})`;
 
           detalleRows.push([
             labelMes,
-            isUltimo ? 'Aseo Urbano (Último período - Sin Multa)' : `Aseo Urbano (Multa ${esRes ? '10%' : '12%'})`,
+            concepto,
             baseMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             mesMora.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             ivaMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -3269,9 +3278,8 @@ function ContribuyentesPageContent() {
                           const emision = f.emision ? new Date(f.emision) : new Date();
                           const today = new Date();
                           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-                          const notasLower = (matchedInm.notas || '').toLowerCase();
-                          const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
-                          const tieneMora = (!isUltimoMes && monthsDiff > 1 && !isExonerado);
+                          const esMesExon = isMesExoneradoMulta(matchedInm.notas, emision);
+                          const tieneMora = (!isUltimoMes && monthsDiff > 1 && !esMesExon);
                           const multa = tieneMora ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                           base = bm + iva + multa;
                         }
@@ -3296,9 +3304,8 @@ function ContribuyentesPageContent() {
                           const today = new Date();
                           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
                           const isUltimoCm = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === f.referencia || monthsDiff <= 1;
-                          const notasLower = (targetInm.notas || '').toLowerCase();
-                          const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
-                          const tieneMora = (!isUltimoCm && monthsDiff > 1 && !isExonerado);
+                          const esMesExon = isMesExoneradoMulta(targetInm.notas, emision);
+                          const tieneMora = (!isUltimoCm && monthsDiff > 1 && !esMesExon);
                           const multa = tieneMora ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                           base = bm + iva + multa;
                         }
@@ -3328,10 +3335,10 @@ function ContribuyentesPageContent() {
                       const esRes = isResidencialInm(inm);
                       const baseUnMes = calcularMensualidad(inm, tcmmv);
                       const iva = esRes ? 0 : (baseUnMes * 0.16);
-                      const notasLower = (inm.notas || '').toLowerCase();
-                      const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
-                      const multaMes = isExonerado ? 0 : baseUnMes * (esRes ? 0.10 : 0.12);
-                      const mesesConMulta = isExonerado ? 0 : Math.max(0, meses - 1);
+                      const esExoneradoTotal = isExoneradoTotalMultas(inm.notas);
+                      const totalExon = getMesesExoneradosCount(inm.notas);
+                      const multaMes = esExoneradoTotal ? 0 : baseUnMes * (esRes ? 0.10 : 0.12);
+                      const mesesConMulta = esExoneradoTotal ? 0 : Math.max(0, meses - 1 - totalExon);
                       const totalMulta = multaMes * mesesConMulta;
                       return sum + ( (baseUnMes + iva) * meses ) + totalMulta;
                     }, 0);
@@ -3411,13 +3418,13 @@ function ContribuyentesPageContent() {
                                   const baseUnMes = calcularMensualidad(inm, tcmmv);
                                   const base = baseUnMes * meses;
                                   const iva = esRes ? 0 : (base * 0.16);
-                                  const notasLower = (inm.notas || '').toLowerCase();
-                                  const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
-                                  const multaMes = isExonerado ? 0 : baseUnMes * (esRes ? 0.10 : 0.12);
-                                  const mesesConMulta = isExonerado ? 0 : Math.max(0, meses - 1);
-                                  const multaCalc = isExonerado ? 0 : (multaMes * mesesConMulta);
-                                  const multaGuardada = isExonerado ? 0 : parseFloat(inm.multa_bs || '0');
-                                  const multa = (meses <= 1 || isExonerado) ? 0 : Math.max(multaCalc, multaGuardada);
+                                  const esExoneradoTotal = isExoneradoTotalMultas(inm.notas);
+                                  const totalExon = getMesesExoneradosCount(inm.notas);
+                                  const multaMes = esExoneradoTotal ? 0 : baseUnMes * (esRes ? 0.10 : 0.12);
+                                  const mesesConMulta = esExoneradoTotal ? 0 : Math.max(0, meses - 1 - totalExon);
+                                  const multaCalc = esExoneradoTotal ? 0 : (multaMes * mesesConMulta);
+                                  const multaGuardada = esExoneradoTotal ? 0 : parseFloat(inm.multa_bs || '0');
+                                  const multa = (meses <= 1 || esExoneradoTotal) ? 0 : Math.min(multaCalc, multaGuardada > 0 ? multaGuardada : multaCalc);
                                   const totalInm = base + iva + multa;
 
                                   const getLocalLabelItem = (item: any) => {
@@ -3528,13 +3535,13 @@ function ContribuyentesPageContent() {
                                     const baseUnMes = calcularMensualidad(inm, tcmmv);
                                     const base = baseUnMes * meses;
                                     const iva = esRes ? 0 : (base * 0.16);
-                                    const notasLower = (inm.notas || '').toLowerCase();
-                                    const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
-                                    const multaMes = isExonerado ? 0 : baseUnMes * (esRes ? 0.10 : 0.12);
-                                    const mesesConMulta = isExonerado ? 0 : Math.max(0, meses - 1);
-                                    const multaCalc = isExonerado ? 0 : (multaMes * mesesConMulta);
-                                    const multaGuardada = isExonerado ? 0 : parseFloat(inm.multa_bs || '0');
-                                    const multa = (meses <= 1 || isExonerado) ? 0 : Math.max(multaCalc, multaGuardada);
+                                    const esExoneradoTotal = isExoneradoTotalMultas(inm.notas);
+                                    const totalExon = getMesesExoneradosCount(inm.notas);
+                                    const multaMes = esExoneradoTotal ? 0 : baseUnMes * (esRes ? 0.10 : 0.12);
+                                    const mesesConMulta = esExoneradoTotal ? 0 : Math.max(0, meses - 1 - totalExon);
+                                    const multaCalc = esExoneradoTotal ? 0 : (multaMes * mesesConMulta);
+                                    const multaGuardada = esExoneradoTotal ? 0 : parseFloat(inm.multa_bs || '0');
+                                    const multa = (meses <= 1 || esExoneradoTotal) ? 0 : Math.min(multaCalc, multaGuardada > 0 ? multaGuardada : multaCalc);
                                     const totalInm = base + iva + multa;
 
                                     const getLocalLabelItem = (item: any) => {
@@ -3610,21 +3617,33 @@ function ContribuyentesPageContent() {
                               {deudas.map((d: any, idx: number) => {
                                 const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
                                 let mesLabel = d.emision || 'N/A';
+                                let monthKey = '';
                                 if (d.emision) {
                                   const parts = d.emision.split('-');
-                                  if (parts.length >= 2) mesLabel = `${MESES[parseInt(parts[1])-1] || parts[1]} ${parts[0]}`;
+                                  if (parts.length >= 2) {
+                                    mesLabel = `${MESES[parseInt(parts[1])-1] || parts[1]} ${parts[0]}`;
+                                    monthKey = `${parts[0]}-${parts[1]}`;
+                                  }
                                 }
                                 const isUltimo = (idx === deudas.length - 1);
+                                const matchedInm = userInms.find((inm: any) =>
+                                  (d.referencia && inm.inmueble && d.referencia.includes(inm.inmueble))
+                                ) || userInms[0];
+                                const esExon = matchedInm ? isMesExoneradoMulta(matchedInm.notas, monthKey || d.emision) : false;
                                 return (
                                   <tr key={idx} className="border-b border-slate-100 last:border-0 bg-white group hover:bg-slate-50/80">
                                     <td className="px-4 py-2 font-medium text-slate-700 text-xs">{d.referencia}</td>
                                     <td className="px-4 py-2 text-slate-700 font-semibold text-xs whitespace-nowrap">
                                       {mesLabel}
-                                      {isUltimo && (
+                                      {isUltimo ? (
                                         <span className="ml-2 text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                                           Sin Multa
                                         </span>
-                                      )}
+                                      ) : esExon ? (
+                                        <span className="ml-2 text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                                          Multa Exonerada
+                                        </span>
+                                      ) : null}
                                     </td>
                                     <td className="px-4 py-2">
                                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${d.estado === 'Por Verificar' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
@@ -4044,7 +4063,12 @@ function ContribuyentesPageContent() {
           recibos={recibos}
           onClose={() => setExonerarModalOpen(false)}
           onSuccess={async () => {
-            await refreshData();
+            const rawId = selectedExonerarRow?.Identidad || selectedExonerarRow?.identidad;
+            if (rawId && refreshUserData) {
+              await refreshUserData(rawId);
+            }
+            await refreshData(true);
+            setViewData((prev: any) => prev ? ({ ...prev, _ts: Date.now() }) : null);
           }}
         />
       )}

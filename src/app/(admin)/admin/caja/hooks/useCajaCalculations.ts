@@ -6,7 +6,7 @@
  * Extraído de caja/page.tsx como parte de la Fase 2 de refactorización.
  */
 import { useCallback } from 'react';
-import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
+import { calcularMensualidad, isResidencialInm, isMesExoneradoMulta } from '@/lib/calculos';
 import { getUserInmuebles } from '@/lib/cajaHelpers';
 
 interface UseCajaCalculationsParams {
@@ -83,11 +83,10 @@ export function useCajaCalculations({
           (today.getFullYear() - emision.getFullYear()) * 12 +
           (today.getMonth() - emision.getMonth());
 
-        const notasLower = ((inm as any).notas || '').toLowerCase();
-        const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
+        const esMesExon = isMesExoneradoMulta((inm as any).notas, emision);
 
         // Multa mensual por mora: se aplica 10% (res) o 12% (com) sobre el mes vencido, salvo exoneración
-        const tieneMora = (!isUltimoMes && monthsDiff > 1 && !isExonerado);
+        const tieneMora = (!isUltimoMes && monthsDiff > 1 && !esMesExon);
         const montoMulta = tieneMora ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
 
         const totalMes = parseFloat((baseMonto + montoIVA + montoMulta).toFixed(2));
@@ -122,10 +121,9 @@ export function useCajaCalculations({
         // El último mes de la factura no lleva multa (ej. septiembre en octubre)
         const isUltimoMes = monthsDiff <= 1;
 
-        const notasLower = ((inm as any).notas || '').toLowerCase();
-        const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
+        const esMesExon = isMesExoneradoMulta((inm as any).notas, emision);
 
-        const tieneMora = (!isUltimoMes && monthsDiff > 1 && !isExonerado);
+        const tieneMora = (!isUltimoMes && monthsDiff > 1 && !esMesExon);
         const multaLocal = tieneMora ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
         const ivaLocal = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
         totalConIva += bm + ivaLocal + multaLocal;

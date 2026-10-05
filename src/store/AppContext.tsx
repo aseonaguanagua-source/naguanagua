@@ -568,12 +568,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .or(`identidad.eq.${identidad},identidad.eq.${idClean}`);
 
       if (freshInms) {
-        setInmuebles(prev => [
-          ...prev.filter(i =>
-            (i.identidad || '').replace(/-/g, '').toUpperCase() !== idClean
-          ),
-          ...freshInms
-        ]);
+        setInmuebles(prev => {
+          const next = [
+            ...prev.filter(i =>
+              (i.identidad || '').replace(/-/g, '').toUpperCase() !== idClean
+            ),
+            ...freshInms
+          ];
+          try {
+            getFromIndexedDB<any>('naguanagua_full_cache').then(cached => {
+              if (cached) {
+                cached.inmuebles = next;
+                saveToIndexedDB('naguanagua_full_cache', cached).catch(() => {});
+              }
+            }).catch(() => {});
+          } catch (_) {}
+          return next;
+        });
       }
 
       // Refrescar también las facturas de este contribuyente
@@ -584,12 +595,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .or(`identidad.eq.${identidad},identidad.eq.${idClean}`);
 
       if (freshFacts) {
-        setFacturas(prev => [
-          ...prev.filter(f =>
-            (f.identidad || '').replace(/-/g, '').toUpperCase() !== idClean
-          ),
-          ...freshFacts
-        ]);
+        setFacturas(prev => {
+          const next = [
+            ...prev.filter(f =>
+              (f.identidad || '').replace(/-/g, '').toUpperCase() !== idClean
+            ),
+            ...freshFacts
+          ];
+          try {
+            getFromIndexedDB<any>('naguanagua_full_cache').then(cached => {
+              if (cached) {
+                cached.facturas = next;
+                saveToIndexedDB('naguanagua_full_cache', cached).catch(() => {});
+              }
+            }).catch(() => {});
+          } catch (_) {}
+          return next;
+        });
       }
 
       // Refrescar también los datos del contribuyente (correo, teléfono, nombre)

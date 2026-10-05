@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { X, ShieldAlert, AlertCircle, CheckCircle2, Lock, FileText, CheckSquare, Square } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
+import { calcularMensualidad, isResidencialInm, isExoneradoTotalMultas, isMesExoneradoMulta } from '@/lib/calculos';
 import { useAppContext } from '@/store/AppContext';
 
 interface Props {
@@ -21,10 +21,11 @@ interface MonthItem {
   baseBs: number;
   multaBs: number;
   isOverdue: boolean;
+  yaExoneradoPreviamente: boolean;
 }
 
 export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, onSuccess }: Props) {
-  const { refreshData } = useAppContext();
+  const { refreshData, refreshUserData } = useAppContext();
   const rawId = (row?.Identidad || row?.identidad || '').replace(/-/g, '').toUpperCase();
   
   // Inmuebles del contribuyente
@@ -54,9 +55,8 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
     const now = new Date();
     const items: MonthItem[] = [];
 
-    // Ver si ya tiene meses exonerados en notas
-    const notasStr = (activeInm.notas || '').toUpperCase();
-    const yaExoneradoTodo = notasStr.includes('EXONERADO') || notasStr.includes('SIN MULTA');
+    // Ver si ya tiene multas totalmente exoneradas
+    const yaExoneradoTodo = isExoneradoTotalMultas(activeInm.notas);
 
     for (let i = 1; i <= Math.max(1, totalMeses); i++) {
       // De más antiguo a más reciente
@@ -72,7 +72,7 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
       const monthsDiff = (now.getFullYear() - year) * 12 + (now.getMonth() - monthNum);
       const isOverdue = monthsDiff > 1;
 
-      const yaExoneradoEsteMes = yaExoneradoTodo || notasStr.includes(`[EXONERADO:${key}]`);
+      const yaExoneradoEsteMes = yaExoneradoTodo || isMesExoneradoMulta(activeInm.notas, key);
       const multaBs = (!isOverdue || yaExoneradoEsteMes) ? 0 : baseMultaMes;
 
       items.push({
@@ -80,7 +80,8 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
         label: monthName,
         baseBs: baseUnMes,
         multaBs,
-        isOverdue
+        isOverdue,
+        yaExoneradoPreviamente: isOverdue && yaExoneradoEsteMes
       });
     }
 
@@ -169,15 +170,24 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
         }
       }
 
-      // Guardar también tags de meses exonerados
-      const tagsMeses = selectedMonths.map(k => `[EXONERADO:${k}]`).join(' ');
-      nuevaNota += `\n${tagsMeses}`;
+      // Guardar también tags de meses exonerados evitando duplicados
+      const tagsExistentes = nuevaNota.match(/\[EXONERADO:\d{4}-\d{2}\]/g) || [];
+      const tagsNuevos = selectedMonths
+        .map(k => `[EXONERADO:${k}]`)
+        .filter(t => !tagsExistentes.includes(t));
+      if (tagsNuevos.length > 0) {
+        nuevaNota += `\n${tagsNuevos.join(' ')}`;
+      }
+
+      // Calcular la multa remanente para los meses que NO fueron seleccionados
+      const mesesRestantesConMulta = mesesAdeudados.filter(m => m.multaBs > 0 && !selectedMonths.includes(m.key));
+      const nuevaMultaBs = mesesRestantesConMulta.reduce((sum, m) => sum + m.multaBs, 0);
 
       // 1. Actualizar inmueble en Supabase
       const { error: errInm } = await supabase
         .from('inmuebles')
         .update({
-          multa_bs: 0,
+          multa_bs: nuevaMultaBs,
           notas: nuevaNota
         })
         .eq('id', activeInm.id);
@@ -210,10 +220,16 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
         'ALTA'
       );
 
+      // 4. Refrescar datos en memoria y caché de inmediato
+      const rawIdentidad = row.Identidad || row.identidad;
+      if (rawIdentidad) {
+        await refreshUserData(rawIdentidad);
+      }
+      await refreshData(true);
+
       alert(`✅ Multas eliminadas exitosamente para ${selectedMonths.length} mes(es) en el inmueble ${activeInm.inmueble}.\n\nTotal exonerado: Bs. ${totalMultaAEliminar.toFixed(2)}`);
       
-      if (onSuccess) onSuccess();
-      await refreshData();
+      if (onSuccess) await onSuccess();
       onClose();
     } catch (err: any) {
       console.error('Error al eliminar multas:', err);
@@ -340,6 +356,10 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
                         {tieneMulta ? (
                           <span className="font-bold text-rose-600 font-mono">
                             Multa: Bs. {m.multaBs.toFixed(2)}
+                          </span>
+                        ) : m.yaExoneradoPreviamente ? (
+                          <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                            Exonerado previamente
                           </span>
                         ) : (
                           <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">

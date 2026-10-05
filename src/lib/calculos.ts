@@ -244,3 +244,63 @@ export const isCondominioPagoIndividual = (itemOrCode: any): boolean => {
   const cleanCode = code.trim().toUpperCase();
   return CONDOMINIOS_PAGO_INDIVIDUAL.includes(cleanCode);
 };
+
+/**
+ * Determina si las multas están totalmente exoneradas para un inmueble.
+ */
+export const isExoneradoTotalMultas = (notas?: string | null): boolean => {
+  if (!notas) return false;
+  const upper = notas.toUpperCase();
+  return (
+    upper.includes('CASO ESPECIAL: EXONERADO') ||
+    upper.includes('EXONERADO SEGUN GACETA') ||
+    upper.includes('EXONERADO SEGUN ORDENANZA') ||
+    upper.includes('EXONERACION TOTAL') ||
+    upper.includes('EXONERADO TOTAL') ||
+    upper.includes('SIN MULTAS') ||
+    upper.includes('SIN MULTA')
+  );
+};
+
+/**
+ * Determina si la multa de un mes específico (YYYY-MM o Date) está exonerada.
+ */
+export const isMesExoneradoMulta = (notas?: string | null, dateOrMonthKey?: string | Date | null): boolean => {
+  if (!notas) return false;
+  if (isExoneradoTotalMultas(notas)) return true;
+  if (!dateOrMonthKey) return false;
+
+  let key = '';
+  if (dateOrMonthKey instanceof Date) {
+    const y = dateOrMonthKey.getFullYear();
+    const m = String(dateOrMonthKey.getMonth() + 1).padStart(2, '0');
+    key = `${y}-${m}`;
+  } else if (typeof dateOrMonthKey === 'string') {
+    const match = dateOrMonthKey.match(/(\d{4})-(\d{2})/);
+    if (match) {
+      key = `${match[1]}-${match[2]}`;
+    } else {
+      const d = new Date(dateOrMonthKey);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        key = `${y}-${m}`;
+      } else {
+        key = dateOrMonthKey;
+      }
+    }
+  }
+
+  if (!key) return false;
+  return (notas.toUpperCase()).includes(`[EXONERADO:${key}]`);
+};
+
+/**
+ * Cuenta la cantidad de meses individuales que han sido exonerados con tag [EXONERADO:YYYY-MM].
+ */
+export const getMesesExoneradosCount = (notas?: string | null): number => {
+  if (!notas) return 0;
+  const matches = (notas.toUpperCase()).match(/\[EXONERADO:\d{4}-\d{2}\]/g);
+  return matches ? matches.length : 0;
+};
+
