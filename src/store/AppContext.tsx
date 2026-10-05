@@ -337,36 +337,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTcmmv(currentTcmmv);
       setAuditLogs(dbAuditLogs || []);
 
-      const mappedInmuebles = allInmuebles.map((row: any) => ({
-        ...row,
-        'Inmueble': row.inmueble || row.cod_cont,
-        'Clasificacion': row.clasificacion || 'Residencial',
-        'Tipo': 'Urbano',
-        'Saldo': (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * 57 * currentTcmmv)).toFixed(2),
-        'DeudaMMV': parseFloat(row.deuda_mmv || 0),
-        'DeudaCongelada': parseFloat(row.deuda_congelada_bs || 0),
-        'Cant Inmuebles': 1,
-        'Actividad Principal': row.actividad || 'No aplica',
-        'Direccion': row.direccion
-      }));
-      setInmuebles(mappedInmuebles);
-      setCondominios(apiCondominios);
-
-      // Información del padre para condominios
+      // Información del padre para condominios (resolver nombre de condominio padre)
       const parentInfoMap = new Map<string, { nombre: string; isComercial: boolean }>();
+
+      (apiCondominios || []).forEach((c: any) => {
+        const cCod = c.codigo_inmueble || c.id;
+        const cName = c.nombre || c.razon_social || 'Condominio';
+        if (cCod) {
+          parentInfoMap.set(cCod, { nombre: cName, isComercial: true });
+        }
+      });
 
       allInmuebles.forEach((row: any) => {
         const cod = row.inmueble || row.cod_cont;
-        const isCondo = Boolean(row.es_condominio || row.clasificacion === 'Condominio' || (row.cant_inmuebles && parseInt(row.cant_inmuebles) > 1));
-        if (cod && isCondo) {
+        if (cod) {
           const rawName = row.contribuyentes?.nombre || row.nombre || row.contribuyente || 'Condominio';
           const isCom = (row.tipo || '').toUpperCase().includes('COMERCIAL') ||
                         (row.clasificacion || '').toUpperCase().includes('COMERCIAL') ||
                         rawName.toUpperCase().includes('COMERCIAL') ||
                         rawName.toUpperCase().includes('C.C.');
-          parentInfoMap.set(cod, { nombre: rawName, isComercial: isCom });
+          if (!parentInfoMap.has(cod)) {
+            parentInfoMap.set(cod, { nombre: rawName, isComercial: isCom });
+          }
+          if (row.id && !parentInfoMap.has(row.id)) {
+            parentInfoMap.set(row.id, { nombre: rawName, isComercial: isCom });
+          }
         }
       });
+
+      const mappedInmuebles = allInmuebles.map((row: any) => {
+        const pInfo = row.condominio_padre_id ? parentInfoMap.get(row.condominio_padre_id) : null;
+        return {
+          ...row,
+          'Inmueble': row.inmueble || row.cod_cont,
+          'Clasificacion': row.clasificacion || 'Residencial',
+          'Tipo': 'Urbano',
+          'Saldo': (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * 57 * currentTcmmv)).toFixed(2),
+          'DeudaMMV': parseFloat(row.deuda_mmv || 0),
+          'DeudaCongelada': parseFloat(row.deuda_congelada_bs || 0),
+          'Cant Inmuebles': 1,
+          'Actividad Principal': row.actividad || 'No aplica',
+          'Direccion': row.direccion,
+          condominio_padre_id: row.condominio_padre_id || null,
+          condominio_padre_nombre: pInfo?.nombre || null
+        };
+      });
+      setInmuebles(mappedInmuebles);
+      setCondominios(apiCondominios);
 
       const map = new Map();
       allInmuebles.forEach((row: any) => {
@@ -453,6 +470,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           existing.DeudaCongelada += rowCongelada;
           existing.MultaBs = (existing.MultaBs || 0) + rowMultaBs;
           existing.DeudaBs = (existing.DeudaBs || 0) + rowDeudaBs;
+          if (!existing.condominio_padre_id && row.condominio_padre_id) {
+            existing.condominio_padre_id = row.condominio_padre_id;
+            existing.condominio_padre_nombre = pInfo?.nombre || null;
+            existing.isCondoChild = true;
+          }
           if (isParentCondo) {
             existing.isCondominio = true;
             existing.es_condominio = true;

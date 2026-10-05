@@ -1889,10 +1889,15 @@ function ContribuyentesPageContent() {
 
         <form onSubmit={handleSave} className="bg-white border border-slate-200 rounded shadow-sm">
           {/* Section: Datos del Contribuyente */}
-          <div className="bg-slate-50 border-b border-slate-200 px-4 py-3">
+          <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
               <Users className="w-4 h-4 text-slate-500" /> Datos del Contribuyente
             </h2>
+            {formData.condominio_padre_id && (
+              <span className="text-xs bg-indigo-50 text-indigo-800 font-bold px-3 py-1 rounded-full border border-indigo-200 shadow-2xs flex items-center gap-1.5">
+                🏢 Filial del Condominio: {formData.condominio_padre_nombre || (inmuebles || []).find((i: any) => i.inmueble === formData.condominio_padre_id || i.id === formData.condominio_padre_id)?.contribuyente || formData.condominio_padre_id}
+              </span>
+            )}
           </div>
           
           <div className="p-6 space-y-6">
@@ -2689,10 +2694,10 @@ function ContribuyentesPageContent() {
             )}
             {isChild && (
               <span 
-                className="text-[9px] bg-amber-50 text-amber-700 font-semibold px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 inline-block w-fit"
+                className="text-[10px] bg-indigo-50 text-indigo-800 font-bold px-2 py-0.5 rounded border border-indigo-200 mt-1 inline-flex items-center gap-1 w-fit shadow-2xs"
                 title={`Filial de: ${row.condominio_padre_nombre || row.condominio_padre_id}`}
               >
-                Filial de {row.condominio_padre_id}
+                🏢 Filial de {row.condominio_padre_id}
               </span>
             )}
             {!isCondo && otherCount > 0 && (
@@ -2713,7 +2718,8 @@ function ContribuyentesPageContent() {
       header: 'Nombre / Razón Social',
       render: (row: any) => {
         const isCondo = Boolean(row.isCondominio || row.es_condominio);
-        const isChild = Boolean(row.isCondoChild);
+        const isChild = Boolean(row.isCondoChild || row.condominio_padre_id);
+        const padreNombre = row.condominio_padre_nombre || (inmuebles || []).find((i: any) => i.inmueble === row.condominio_padre_id || i.id === row.condominio_padre_id)?.contribuyente || null;
         return (
           <div>
             <div className="font-medium text-slate-800 flex items-center gap-1.5 flex-wrap">
@@ -2725,8 +2731,14 @@ function ContribuyentesPageContent() {
               )}
             </div>
             {isChild && (
-              <div className="text-[10px] text-amber-700 flex items-center gap-1 mt-0.5 font-medium">
-                🏢 Local en: {row.condominio_padre_nombre || row.condominio_padre_id}
+              <div className="text-[11px] text-indigo-900 bg-indigo-50/80 border border-indigo-200/90 px-2 py-0.5 rounded-md mt-1 font-semibold flex items-center gap-1.5 w-fit shadow-2xs">
+                <span>🏢 Pertenece al Condominio:</span>
+                <span className="font-extrabold text-indigo-950">{padreNombre || row.condominio_padre_id}</span>
+                {row.condominio_padre_id && (
+                  <span className="font-mono text-[10px] text-indigo-700 bg-white px-1.5 py-0.2 rounded border border-indigo-200">
+                    ({row.condominio_padre_id})
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -3154,6 +3166,32 @@ function ContribuyentesPageContent() {
             </div>
             
             <div className="p-6 overflow-y-auto space-y-6">
+              {(() => {
+                const userInms = inmuebles.filter((i: any) =>
+                  (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase()
+                );
+                const padreId = viewData.condominio_padre_id || userInms.find((i: any) => i.condominio_padre_id)?.condominio_padre_id;
+                if (!padreId) return null;
+                const parentInm = inmuebles.find((i: any) => i.inmueble === padreId || i.id === padreId);
+                const parentNombre = viewData.condominio_padre_nombre || parentInm?.contribuyente || parentInm?.nombre || 'Condominio Centralizado';
+                return (
+                  <div className="bg-indigo-50/90 border border-indigo-200 rounded-xl p-3.5 shadow-xs flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="bg-indigo-600 text-white font-extrabold text-[11px] px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs">
+                        🏢 Pertenece a Condominio
+                      </span>
+                      <div>
+                        <span className="font-extrabold text-sm text-indigo-950 block">
+                          {parentNombre}
+                        </span>
+                        <span className="text-xs text-indigo-800">
+                          Código Inmueble Padre: <strong className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200">{padreId}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">R.I.F. / Cédula</span>
@@ -3208,9 +3246,14 @@ function ContribuyentesPageContent() {
                       {userInms.map((inm: any, idx: number) => (
                         <div key={idx} className="bg-white p-3 rounded border border-slate-200 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                           <div className="col-span-2 md:col-span-4 border-b border-slate-100 pb-2 mb-1 flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-blue-700">{inm.inmueble || inm.cod_cont || `Inmueble ${idx+1}`}</span>
                               <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium">{inm.tipo || 'N/A'}</span>
+                              {inm.condominio_padre_id && (
+                                <span className="bg-indigo-50 text-indigo-800 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-bold" title={`Condominio: ${inm.condominio_padre_nombre || inm.condominio_padre_id}`}>
+                                  🏢 Filial de: {inm.condominio_padre_nombre || (inmuebles.find((p: any) => p.inmueble === inm.condominio_padre_id)?.contribuyente) || inm.condominio_padre_id}
+                                </span>
+                              )}
                             </div>
                             <button
                               type="button"

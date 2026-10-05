@@ -566,6 +566,25 @@ export default function CajaPage() {
         if (detectedPrefix !== docType) setDocType(detectedPrefix);
       }
       
+      // Detectar y resolver si el usuario o alguno de sus inmuebles pertenece a un condominio
+      const condoPadreId = user.condominio_padre_id || activeInmFresh.find((i: any) => i.condominio_padre_id)?.condominio_padre_id;
+      if (condoPadreId) {
+        user.condominio_padre_id = condoPadreId;
+        const parentInMem = (inmuebles || []).find((i: any) => i.inmueble === condoPadreId || i.id === condoPadreId);
+        if (parentInMem?.contribuyente || parentInMem?.nombre) {
+          user.condominio_padre_nombre = parentInMem.contribuyente || parentInMem.nombre;
+        } else {
+          const { data: parentDb } = await supabase
+            .from('inmuebles')
+            .select('contribuyente, nombre')
+            .eq('inmueble', condoPadreId)
+            .maybeSingle();
+          if (parentDb) {
+            user.condominio_padre_nombre = parentDb.contribuyente || parentDb.nombre;
+          }
+        }
+      }
+
       // Guardar inmuebles frescos para que getReciboMonto los use
       setFreshInmuebles(activeInmFresh);
       
@@ -2387,54 +2406,67 @@ export default function CajaPage() {
                 )}
               </div>
 
-              {foundUser.isSearchByCode && foundUser.condominio_padre_id && (
-                <div className={`mt-2.5 p-3 rounded-lg text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-sm border ${
+              {foundUser.condominio_padre_id && (
+                <div className={`mt-3 p-3.5 rounded-xl border shadow-xs ${
                   isCondominioPagoIndividual(foundUser.condominio_padre_id)
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                    : 'bg-sky-50 border-sky-300 text-sky-900'
+                    ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                    : 'bg-indigo-50/90 border-indigo-200 text-indigo-950'
                 }`}>
-                  <div>
-                    <span className={`font-bold flex items-center gap-1.5 ${
-                      isCondominioPagoIndividual(foundUser.condominio_padre_id) ? 'text-emerald-800' : 'text-sky-800'
-                    }`}>
-                      🏢 Inmueble Filial de Condominio:
-                      {isCondominioPagoIndividual(foundUser.condominio_padre_id) && (
-                        <span className="bg-emerald-200 text-emerald-900 font-extrabold text-[10px] px-2 py-0.5 rounded-full uppercase">
-                          Habilitado para Pago Individual
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 ${
+                          isCondominioPagoIndividual(foundUser.condominio_padre_id)
+                            ? 'bg-emerald-700 text-white'
+                            : 'bg-indigo-700 text-white'
+                        }`}>
+                          🏢 Pertenece a Condominio
                         </span>
-                      )}
-                    </span>
-                    <p className={`text-[11px] mt-0.5 ${
-                      isCondominioPagoIndividual(foundUser.condominio_padre_id) ? 'text-emerald-700 font-medium' : 'text-sky-700'
-                    }`}>
-                      {isCondominioPagoIndividual(foundUser.condominio_padre_id) ? (
-                        <>
-                          Este inmueble pertenece al Condominio Padre <strong className="font-mono bg-emerald-100 px-1 py-0.5 rounded">{foundUser.condominio_padre_id}</strong>. Está autorizado por la administración tributaria para <strong>pagar de forma individual tanto sus meses de aseo como sus multas</strong>.
-                        </>
-                      ) : (
-                        <>
-                          Este inmueble pertenece al Condominio Padre <strong className="font-mono bg-sky-100 px-1 py-0.5 rounded">{foundUser.condominio_padre_id}</strong>. La solvencia y facturación del servicio de aseo se administra de forma centralizada con el Condominio.
-                        </>
-                      )}
-                    </p>
+                        {foundUser.condominio_padre_nombre && (
+                          <span className="font-extrabold text-sm text-slate-900">
+                            {foundUser.condominio_padre_nombre}
+                          </span>
+                        )}
+                        <span className="font-mono text-xs font-bold bg-white/95 text-slate-700 px-2 py-0.5 rounded border border-slate-300 shadow-2xs">
+                          Código Padre: {foundUser.condominio_padre_id}
+                        </span>
+                        {isCondominioPagoIndividual(foundUser.condominio_padre_id) && (
+                          <span className="bg-emerald-200 text-emerald-900 font-bold text-[10px] px-2 py-0.5 rounded-full uppercase">
+                            Pago Individual Habilitado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs leading-relaxed opacity-90">
+                        {isCondominioPagoIndividual(foundUser.condominio_padre_id) ? (
+                          <>
+                            Este inmueble es filial del condominio <strong>{foundUser.condominio_padre_nombre || foundUser.condominio_padre_id}</strong>. Está autorizado por la administración tributaria para <strong>pagar de forma individual tanto sus meses de aseo como sus multas</strong>.
+                          </>
+                        ) : (
+                          <>
+                            Este inmueble es filial del condominio <strong>{foundUser.condominio_padre_nombre || foundUser.condominio_padre_id}</strong>. La solvencia y facturación del servicio de aseo se administra de forma centralizada con el Condominio.
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDocNumber(foundUser.condominio_padre_id);
+                        setDocType('J');
+                        setTimeout(() => {
+                          const btn = document.querySelector('button[data-testid="search-btn"]') as HTMLButtonElement;
+                          if (btn) btn.click();
+                        }, 50);
+                      }}
+                      className={`font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 transition-colors shadow-xs text-white cursor-pointer ${
+                        isCondominioPagoIndividual(foundUser.condominio_padre_id)
+                          ? 'bg-emerald-700 hover:bg-emerald-800'
+                          : 'bg-indigo-600 hover:bg-indigo-700'
+                      }`}
+                    >
+                      Ver Condominio Padre ({foundUser.condominio_padre_id}) →
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      setDocNumber(foundUser.condominio_padre_id);
-                      setDocType('J');
-                      setTimeout(() => {
-                        const btn = document.querySelector('button[data-testid="search-btn"]') as HTMLButtonElement;
-                        if (btn) btn.click();
-                      }, 50);
-                    }}
-                    className={`font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 transition-colors shadow-sm text-white ${
-                      isCondominioPagoIndividual(foundUser.condominio_padre_id)
-                        ? 'bg-emerald-700 hover:bg-emerald-800'
-                        : 'bg-sky-600 hover:bg-sky-700'
-                    }`}
-                  >
-                    Ver Condominio ({foundUser.condominio_padre_id})
-                  </button>
                 </div>
               )}
 
