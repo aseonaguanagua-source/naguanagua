@@ -751,7 +751,8 @@ function ContribuyentesPageContent() {
 
       const subtotalBaseLocal = baseMensualLocal * numMesesTotal;
       const subtotalIvaLocal = ivaMensualLocal * numMesesTotal;
-      const subtotalMultasLocal = multaMensualLocal * mesesConMulta;
+      const totalMoraUnits = (mesesConMulta * (mesesConMulta + 1)) / 2;
+      const subtotalMultasLocal = multaMensualLocal * totalMoraUnits;
 
       const serviciosPendientes = (clusterIdx === 0)
         ? viewServiciosEsp.filter((s: any) => s.estado !== 'Pagado')
@@ -1013,7 +1014,8 @@ function ContribuyentesPageContent() {
         // Listar individualmente si son pocos meses
         for (let i = 1; i <= numMesesTotal; i++) {
           const isUltimo = (i === numMesesTotal);
-          const mesMora = isUltimo ? 0 : multaMensualLocal;
+          const mesesAtras = Math.max(0, numMesesTotal - i);
+          const mesMora = isUltimo ? 0 : (multaMensualLocal * mesesAtras);
           const mesTotal = baseMensualLocal + ivaMensualLocal + mesMora;
           let labelMes = `Mes ${i}`;
           if (clusterDeudas[i - 1]?.emision) {
@@ -1025,7 +1027,7 @@ function ContribuyentesPageContent() {
 
           detalleRows.push([
             labelMes,
-            isUltimo ? 'Aseo Urbano (Último período - Sin Multa)' : `Aseo Urbano (Mora ${esRes ? '10%' : '12%'})`,
+            isUltimo ? 'Aseo Urbano (Último período - Sin Multa)' : `Aseo Urbano (Mora ${esRes ? '10%' : '12%'} × ${mesesAtras} ${mesesAtras === 1 ? 'mes' : 'meses'})`,
             baseMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             mesMora.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             ivaMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -1036,7 +1038,8 @@ function ContribuyentesPageContent() {
         // "para que no salga esa lista tan larga":
         // Consolidar período histórico (Meses 1 a N-1) y detallar el último mes sin multa
         const histBase = baseMensualLocal * mesesConMulta;
-        const histMulta = multaMensualLocal * mesesConMulta;
+        const totalMoraUnits = (mesesConMulta * (mesesConMulta + 1)) / 2;
+        const histMulta = multaMensualLocal * totalMoraUnits;
         const histIva = ivaMensualLocal * mesesConMulta;
         const histTotal = histBase + histMulta + histIva;
 
@@ -3100,7 +3103,8 @@ function ContribuyentesPageContent() {
                           const emision = f.emision ? new Date(f.emision) : new Date();
                           const today = new Date();
                           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-                          const multa = (!isUltimoMes && monthsDiff > 1) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                          const mesesMora = (!isUltimoMes && monthsDiff > 1) ? (monthsDiff - 1) : 0;
+                          const multa = parseFloat((bm * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
                           base = bm + iva + multa;
                         }
                       } else if (f.referencia?.startsWith('CM-')) {
@@ -3124,7 +3128,8 @@ function ContribuyentesPageContent() {
                           const today = new Date();
                           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
                           const isUltimoCm = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === f.referencia || monthsDiff <= 1;
-                          const multa = (!isUltimoCm && monthsDiff > 1) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                          const mesesMora = (!isUltimoCm && monthsDiff > 1) ? (monthsDiff - 1) : 0;
+                          const multa = parseFloat((bm * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
                           base = bm + iva + multa;
                         }
                       }
@@ -3155,7 +3160,8 @@ function ContribuyentesPageContent() {
                       const iva = esRes ? 0 : (baseUnMes * 0.16);
                       const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
                       const mesesConMulta = Math.max(0, meses - 1);
-                      return sum + ( (baseUnMes + iva) * meses ) + (multaMes * mesesConMulta);
+                      const totalMesesMora = (mesesConMulta * (mesesConMulta + 1)) / 2;
+                      return sum + ( (baseUnMes + iva) * meses ) + (multaMes * totalMesesMora);
                     }, 0);
                     const tieneDeudaReal = deudaInmuebleBs > 0.01;
                     if (deudas.length === 0 && !tieneDeudaReal) {
@@ -3235,7 +3241,8 @@ function ContribuyentesPageContent() {
                                   const iva = esRes ? 0 : (base * 0.16);
                                   const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
                                   const mesesConMulta = Math.max(0, meses - 1);
-                                  const multaCalc = multaMes * mesesConMulta;
+                                  const totalMesesMora = (mesesConMulta * (mesesConMulta + 1)) / 2;
+                                  const multaCalc = multaMes * totalMesesMora;
                                   const multaGuardada = parseFloat(inm.multa_bs || '0');
                                   const multa = meses <= 1 ? 0 : Math.max(multaCalc, multaGuardada);
                                   const totalInm = base + iva + multa;
@@ -3350,7 +3357,8 @@ function ContribuyentesPageContent() {
                                     const iva = esRes ? 0 : (base * 0.16);
                                     const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
                                     const mesesConMulta = Math.max(0, meses - 1);
-                                    const multaCalc = multaMes * mesesConMulta;
+                                    const totalMesesMora = (mesesConMulta * (mesesConMulta + 1)) / 2;
+                                    const multaCalc = multaMes * totalMesesMora;
                                     const multaGuardada = parseFloat(inm.multa_bs || '0');
                                     const multa = meses <= 1 ? 0 : Math.max(multaCalc, multaGuardada);
                                     const totalInm = base + iva + multa;

@@ -270,8 +270,9 @@ export default function DondePagarPage() {
         const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
         const isUltimoMes = mesNum >= totalMeses;
 
-        // Multa: 10% residencial, 12% comercial (solo meses vencidos anteriores a septiembre: monthsDiff > 1)
-        const multaMes = (!isUltimoMes && monthsDiff > 1) ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        // Multa: 10% residencial, 12% comercial acumulada por meses de retraso (septiembre se paga en octubre sin multa)
+        const mesesMora = (!isUltimoMes && monthsDiff > 1) ? (monthsDiff - 1) : 0;
+        const multaMes = parseFloat((baseMes * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
         // IVA: 0% residencial, 16% comercial
         const rawIva = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
         const ivaPagar = inm.agente_retencion ? parseFloat((rawIva * 0.25).toFixed(2)) : rawIva;

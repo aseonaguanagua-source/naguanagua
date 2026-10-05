@@ -83,8 +83,9 @@ export function useCajaCalculations({
           (today.getFullYear() - emision.getFullYear()) * 12 +
           (today.getMonth() - emision.getMonth());
 
-        // Multa mensual por mora: solo para meses anteriores vencidos (el último mes emitido va sin multa; septiembre se paga en octubre sin multa)
-        const montoMulta = (!isUltimoMes && monthsDiff > 1) ? parseFloat((baseMonto * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        // Multa mensual por mora: se acumula por cada mes de retraso (el último mes emitido va sin multa; septiembre se paga en octubre sin multa)
+        const mesesMora = (!isUltimoMes && monthsDiff > 1) ? (monthsDiff - 1) : 0;
+        const montoMulta = parseFloat((baseMonto * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
 
         const totalMes = parseFloat((baseMonto + montoIVA + montoMulta).toFixed(2));
         const montoPendiente = _calcularMontoPendienteEnVuelo(r.referencia, pagosPendientes);
@@ -118,7 +119,8 @@ export function useCajaCalculations({
         // El último mes de la factura no lleva multa (ej. septiembre en octubre)
         const isUltimoMes = monthsDiff <= 1;
 
-        const multaLocal = (!isUltimoMes && monthsDiff > 1) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        const mesesMora = (!isUltimoMes && monthsDiff > 1) ? (monthsDiff - 1) : 0;
+        const multaLocal = parseFloat((bm * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
         const ivaLocal = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
         totalConIva += bm + ivaLocal + multaLocal;
       });
