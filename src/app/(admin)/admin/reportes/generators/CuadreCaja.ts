@@ -1,31 +1,34 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
+import { descargarPdfBlob } from './PdfReports';
 
 const formatBs = (num: number) => {
-  return 'Bs. ' + num.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return 'Bs. ' + (num || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 export const generarCuadreCajaPDF = (
   pagosFiltrados: any[], 
   fechaInicio: string,
   fechaFin: string,
-  cajeroNombre: string
+  cajeroNombre: string = 'Todos',
+  contribuyentes: any[] = []
 ) => {
-  if (pagosFiltrados.length === 0) {
+  if (!pagosFiltrados || pagosFiltrados.length === 0) {
     alert("No hay pagos en el rango de fechas seleccionado.");
     return;
   }
-
-  // Fallback para contribuyentes
-  const contribuyentes: any[] = [];
 
   const doc = new jsPDF('p', 'pt', 'letter');
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   
-  if (logos.iamec) {
-    doc.addImage(logos.iamec, 'PNG', 40, 20, 110, 40);
+  try {
+    if (logos && logos.iamec) {
+      doc.addImage(logos.iamec, 'PNG', 40, 20, 110, 40);
+    }
+  } catch (e) {
+    console.warn("Logo no pudo cargarse en CuadreCaja:", e);
   }
   
   doc.setFont('helvetica', 'bold');
@@ -51,15 +54,20 @@ export const generarCuadreCajaPDF = (
   doc.setLineWidth(0.5);
   doc.line(40, 105, pageWidth - 40, 105);
 
-  const debitos = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('DEBITO') || p.tipo === 'Punto de Venta');
-  const transferencias = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('TRANSFERENCIA'));
-  const depositos = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('DEPOSITO') || p.tipo?.toUpperCase().includes('DEPÓSITO'));
-  const saldosAFavor = pagosFiltrados.filter(p => p.tipo?.toUpperCase().includes('SALDO'));
+  const isDebitoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase();
+    return t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA';
+  };
 
-  const totalDebito = debitos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalTransf = transferencias.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalDeposito = depositos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
-  const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
+  const transferencias = pagosFiltrados.filter(p => !isDebitoPago(p) && !String(p.tipo || '').toUpperCase().includes('DEPOSITO') && !String(p.tipo || '').toUpperCase().includes('SALDO'));
+  const depositos = pagosFiltrados.filter(p => String(p.tipo || '').toUpperCase().includes('DEPOSITO') || String(p.tipo || '').toUpperCase().includes('DEPÓSITO'));
+  const saldosAFavor = pagosFiltrados.filter(p => String(p.tipo || '').toUpperCase().includes('SALDO'));
+
+  const totalDebito = debitos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
+  const totalTransf = transferencias.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
+  const totalDeposito = depositos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
+  const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalGeneral = totalDebito + totalTransf + totalDeposito + totalSaldo;
 
   doc.setFont('helvetica', 'bold');
@@ -96,6 +104,10 @@ export const generarCuadreCajaPDF = (
 
   let startY = 285;
 
+  const getNombreContribuyente = (p: any, c: any) => {
+    return c?.Contribuyente || p.contribuyente || p.identidad || 'N/A';
+  };
+
   const drawSubTable = (title: string, dataItems: any[], columns: string[], rowMapper: (p: any, cInfo: any) => any[], footerTotal: number, footerLabel: string) => {
     if (dataItems.length === 0) return;
     
@@ -123,12 +135,12 @@ export const generarCuadreCajaPDF = (
       columnStyles: { [columns.length - 1]: { halign: 'right' } }
     });
 
-    let currentY = (doc as any).lastAutoTable.finalY + 10;
+    let currentY = ((doc as any).lastAutoTable?.finalY || startY + 50) + 10;
     
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.text(footerLabel, pageWidth - 100, currentY, { align: 'right' });
-    doc.text(parseFloat(footerTotal.toString()).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), pageWidth - 40, currentY, { align: 'right' }); 
+    doc.text((footerTotal || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), pageWidth - 40, currentY, { align: 'right' }); 
     
     currentY += 5;
     doc.setLineWidth(1);
@@ -143,13 +155,13 @@ export const generarCuadreCajaPDF = (
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
     (p, c) => [
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
-      p.tipo.substring(0,3).toUpperCase(),
-      (c.Contribuyente || p.identidad).substring(0,35),
+      String(p.tipo || 'REC').substring(0,3).toUpperCase(),
+      String(getNombreContribuyente(p, c)).substring(0,35),
       p.factura_ref || p.referencia || 'N/A', 
-      p.banco_origen || 'N/A',
+      p.banco || p.banco_origen || 'N/A',
       p.referencia || 'N/A',
       '0390',
-      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalDebito,
     "Total Debito:"
@@ -162,14 +174,14 @@ export const generarCuadreCajaPDF = (
     (p, c) => [
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
       new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
-      p.tipo.substring(0,3).toUpperCase(),
+      String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
       ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO"),
       p.referencia_bancaria || p.referencia || 'N/A',
-      (p.banco_origen || 'N/A').substring(0,15),
+      String(p.banco_origen || 'N/A').substring(0,15),
       p.referencia || 'N/A',
-      (p.banco_destino || 'N/A').substring(0,15),
+      String(p.banco_destino || 'N/A').substring(0,15),
       p.referencia || 'N/A',
-      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalTransf,
     "Total Transferencias:"
@@ -183,11 +195,11 @@ export const generarCuadreCajaPDF = (
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
       new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
       'DEP',
-      (c.Contribuyente || p.identidad).substring(0,35),
-      (p.banco_origen || 'N/A').substring(0,15),
+      String(getNombreContribuyente(p, c)).substring(0,35),
+      String(p.banco_origen || 'N/A').substring(0,15),
       p.referencia || 'N/A',
-      (p.banco_destino || 'N/A').substring(0,15),
-      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      String(p.banco_destino || 'N/A').substring(0,15),
+      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalDeposito,
     "Total Depósitos:"
@@ -199,11 +211,11 @@ export const generarCuadreCajaPDF = (
     ["FECHA/HORA", "TIPO", "CAJERO", "CONTRIBUYENTE", "APLICADO A NUMERO", "MONTO"],
     (p, c) => [
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
-      p.tipo.substring(0,3).toUpperCase(),
+      String(p.tipo || 'SAL').substring(0,3).toUpperCase(),
       cajeroNombre,
-      c.Contribuyente || p.identidad,
+      String(getNombreContribuyente(p, c)).substring(0,35),
       p.factura_ref || p.referencia || 'N/A',
-      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalSaldo,
     "Total Saldo a Favor:"
@@ -226,5 +238,5 @@ export const generarCuadreCajaPDF = (
     doc.text(`Usuario: ${cajeroNombre}`, pageWidth - 40, pageHeight - 15, { align: 'right' });
   }
 
-  doc.save(`Cuadre_Caja_${new Date().getTime()}.pdf`);
+  descargarPdfBlob(doc, `Cuadre_Caja_${new Date().getTime()}.pdf`);
 };

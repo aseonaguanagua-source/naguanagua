@@ -130,6 +130,7 @@ export default function ReportesPage() {
   if (activeView === 'corte') return (
     <CuadreCaja
       pagos={pagos} cajeros={cajeros} isAdmin={isAdmin} currentUser={currentUser}
+      contribuyentes={contribuyentes}
       onBack={() => setActiveView(null)}
     />
   );

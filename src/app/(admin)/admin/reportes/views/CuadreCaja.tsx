@@ -1,13 +1,14 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { generarCorteCajaPDF } from '../generators/PdfReports';
+import { ChevronDown, Printer, ArrowLeft } from 'lucide-react';
+import { generarCuadreCajaPDF } from '../generators/CuadreCaja';
 
 interface Props {
   pagos: any[];
   cajeros: string[];
   isAdmin: boolean;
   currentUser: string;
+  contribuyentes?: any[];
   onBack: () => void;
 }
 
@@ -27,18 +28,19 @@ function parseDet(p: any): any {
 function isDebito(p: any) { return p.tipo === 'Debito' || p.tipo === 'REC' || p.tipo === 'Punto de Venta'; }
 const FORMAS = ['Todas', 'Debito', 'Transferencia', 'Deposito', 'Cheque', 'Efectivo'];
 
-export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, onBack }: Props) {
+export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contribuyentes = [], onBack }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const [cajero, setCajero] = useState(isAdmin ? '' : currentUser);
   const [forma, setForma] = useState('Todas');
   const [fecha, setFecha] = useState(today);
   const [showReport, setShowReport] = useState(false);
 
-  const pagosFiltrados = useMemo(() => {
-    if (!showReport) return [];
+  const getFilteredPagos = () => {
     const s = new Date(fecha + 'T00:00:00');
     const e = new Date(fecha + 'T23:59:59');
     return pagos.filter(p => {
+      // Excluir pagos anulados o rechazados
+      if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
       const d = new Date(p.created_at);
       if (d < s || d > e) return false;
       const det = parseDet(p);
@@ -57,10 +59,15 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, onBac
         if (forma === 'Debito' && !isDebito(p)) return false;
         if (forma === 'Transferencia' && isDebito(p)) return false;
       }
-      // Solo conciliados
+      // Solo conciliados si es transferencia
       if (!isDebito(p) && p.estado !== 'Aprobado' && p.estado !== 'Con Diferencia') return false;
       return true;
     });
+  };
+
+  const pagosFiltrados = useMemo(() => {
+    if (!showReport) return [];
+    return getFilteredPagos();
   }, [showReport, pagos, fecha, cajero, forma, isAdmin, currentUser]);
 
   const debitos = pagosFiltrados.filter(p => isDebito(p));
@@ -68,7 +75,16 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, onBac
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
   const totalCuadre = totalDebito + totalTransf;
-  const cajeroLabel = cajero ? cajero : 'Todos';
+  const cajeroLabel = cajero ? cajero : (!isAdmin ? currentUser : 'Todos');
+
+  const handleDescargarPDF = () => {
+    const items = getFilteredPagos();
+    if (!items || items.length === 0) {
+      alert('No hay transacciones registradas para la fecha seleccionada.');
+      return;
+    }
+    generarCuadreCajaPDF(items, fecha, fecha, cajeroLabel, contribuyentes);
+  };
 
   const S: Record<string, React.CSSProperties> = {
     hdr: { background: '#eeeef6', borderBottom: '1px solid #d5d5e5', padding: '10px 16px' },
@@ -87,9 +103,11 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, onBac
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', fontSize: 13 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>🗂 Cuadre de Caja</div>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Printer size={16} /> Cuadre de Caja
+      </div>
       <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#2a5298', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 12 }}>
-        ← Regresar
+        <ArrowLeft size={13} /> Regresar
       </button>
 
       <div style={S.hdr}>
@@ -127,6 +145,19 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, onBac
           </div>
 
           <button onClick={() => setShowReport(true)} style={S.btnGen}>Generar Reporte</button>
+
+          <button
+            onClick={handleDescargarPDF}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: '#dc2626', color: '#fff', border: 'none',
+              padding: '8px 18px', borderRadius: 6, fontWeight: 700,
+              cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
+              boxShadow: '0 2px 8px rgba(220,38,38,0.3)',
+            }}
+          >
+            <Printer size={15} /> Descargar PDF
+          </button>
         </div>
       </div>
 
@@ -134,10 +165,19 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, onBac
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>
             RESUMEN CUADRE DE CAJA
-            <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4 }}>
-              <button onClick={() => generarCorteCajaPDF(pagosFiltrados, [], fecha, fecha)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }} title="PDF">🖨</button>
-              <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}>≡</button>
+            <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button
+                onClick={handleDescargarPDF}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: '#dc2626', color: '#fff', border: 'none',
+                  padding: '4px 10px', borderRadius: 4, fontWeight: 600,
+                  cursor: 'pointer', fontSize: 12
+                }}
+                title="Descargar PDF"
+              >
+                <Printer size={13}/> PDF
+              </button>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 200px', borderBottom: '1px solid #ccc' }}>

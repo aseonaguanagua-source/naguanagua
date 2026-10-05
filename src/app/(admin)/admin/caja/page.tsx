@@ -14,6 +14,7 @@ import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
 import { useCajaSelection } from './hooks/useCajaSelection';
 import { LISTA_BANCOS } from '@/lib/bancos';
+import { generarCorteCajaPDF } from '../reportes/generators/PdfReports';
 
 // ─ Constante oficial de bancos de Venezuela actualizada ─
 const BANCOS_VENEZUELA = LISTA_BANCOS;
@@ -2204,6 +2205,47 @@ export default function CajaPage() {
     }
   };
 
+  const handleDescargarReporteCajaDia = async () => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: pagosHoy, error } = await supabase
+        .from('pagos_reportados')
+        .select('*')
+        .gte('created_at', today + 'T00:00:00')
+        .lte('created_at', today + 'T23:59:59')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const cajeroActual = getCajeroId();
+      const cajeroLower = cajeroActual.toLowerCase();
+      
+      const pagosFiltrados = (pagosHoy || []).filter(p => {
+        if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
+        if (cajeroActual === 'Administrador' || cajeroActual === 'Sistema') return true;
+        const det = typeof p.detalles === 'object' ? p.detalles : (JSON.parse(p.detalles || '{}'));
+        const pCajero = (det.cajero || det.analista || '').toLowerCase();
+        return pCajero === cajeroLower || pCajero.endsWith(`-${cajeroLower}`) || cajeroLower.endsWith(`-${pCajero}`);
+      });
+
+      if (pagosFiltrados.length === 0) {
+        alert('No se encontraron pagos registrados para tu caja el día de hoy (' + today + ').');
+        return;
+      }
+
+      generarCorteCajaPDF(
+        pagosFiltrados,
+        contribuyentes || [],
+        today + 'T00:00',
+        today + 'T23:59',
+        parseFloat(customBcvRate) || tcmmv || 0,
+        cajeroActual
+      );
+    } catch (err: any) {
+      alert('Error al generar reporte de caja: ' + (err?.message || err));
+    }
+  };
+
   const isAdmin = typeof window !== 'undefined' && localStorage.getItem('adminUser')?.toUpperCase() === 'ADMINISTRADOR';
 
   return (
@@ -2247,7 +2289,7 @@ export default function CajaPage() {
               <button onClick={fetchTasaHistorica} className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded ml-auto">Fijar Día</button>
             </div>
           </div>
-          <div className="flex bg-slate-100 rounded-lg p-1">
+          <div className="flex bg-slate-100 rounded-lg p-1 items-center gap-1">
             <button
               onClick={() => setActiveTab('Pagos')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -2263,6 +2305,14 @@ export default function CajaPage() {
               }`}
             >
               Notas de Crédito
+            </button>
+            <button
+              onClick={handleDescargarReporteCajaDia}
+              className="px-3 py-2 text-sm font-bold rounded-md bg-rose-600 hover:bg-rose-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+              title="Descargar Reporte del Día en PDF"
+            >
+              <Printer size={15} />
+              <span>Reporte del Día (PDF)</span>
             </button>
           </div>
         </div>

@@ -1,21 +1,44 @@
-﻿import jsPDF from 'jspdf';
+import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
 
+// Helper para descarga confiable de PDF en todos los navegadores
+export function descargarPdfBlob(doc: jsPDF, filename: string) {
+  try {
+    doc.save(filename);
+  } catch (err) {
+    try {
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e2) {
+      console.error('Error al descargar PDF:', e2);
+      window.open(doc.output('bloburl'), '_blank');
+    }
+  }
+}
+
 // Helper de formato de moneda
 const formatBs = (num: number) => {
-  return 'Bs. ' + num.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return 'Bs. ' + (num || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 export const generarCorteCajaPDF = (
   pagosFiltrados: any[], 
-  contribuyentes: any[], 
-  fechaInicio: string,
-  fechaFin: string,
-  tasaEuro: number = 0
+  contribuyentes: any[] = [], 
+  fechaInicio: string = '',
+  fechaFin: string = '',
+  tasaEuro: number = 0,
+  cajeroNombre: string = 'Todos'
 ) => {
-  if (pagosFiltrados.length === 0) {
-    alert("No hay pagos en el rango de fechas seleccionado.");
+  if (!pagosFiltrados || pagosFiltrados.length === 0) {
+    alert("No hay pagos en el rango de fechas o cajero seleccionado.");
     return;
   }
 
@@ -26,8 +49,12 @@ export const generarCorteCajaPDF = (
   // ==============================
   // HEADER
   // ==============================
-  if (logos.iamec) {
-    doc.addImage(logos.iamec, 'PNG', 40, 20, 110, 40);
+  try {
+    if (logos && logos.iamec) {
+      doc.addImage(logos.iamec, 'PNG', 40, 20, 110, 40);
+    }
+  } catch (e) {
+    console.warn("Logo no pudo cargarse en el PDF:", e);
   }
   
   doc.setFont('helvetica', 'bold');
@@ -52,7 +79,7 @@ export const generarCorteCajaPDF = (
   doc.text(`Periodo: Desde ${startDate}`, 40, 85);
   doc.text(`Hasta ${endDate}`, pageWidth - 40, 85, { align: 'right' });
   doc.text(`Registros: ${pagosFiltrados.length}`, 40, 100);
-  doc.text(`Cajero: Todos`, pageWidth - 40, 100, { align: 'right' });
+  doc.text(`Cajero: ${cajeroNombre}`, pageWidth - 40, 100, { align: 'right' });
 
   // Divider 2
   doc.setLineWidth(0.5);
@@ -108,7 +135,7 @@ export const generarCorteCajaPDF = (
 
   // Helper function to draw sub-tables
   const drawSubTable = (title: string, dataItems: any[], columns: string[], rowMapper: (p: any, cInfo: any) => any[], footerTotal: number, footerLabel: string) => {
-    if (dataItems.length === 0) return;
+    if (!dataItems || dataItems.length === 0) return;
     
     // Check if we need a new page for the title
     if (startY > pageHeight - 100) {
@@ -121,7 +148,7 @@ export const generarCorteCajaPDF = (
     doc.text(title, pageWidth / 2, startY, { align: 'center' });
     
     const body = dataItems.map(p => {
-      const cInfo = contribuyentes.find(c => c.Identidad === p.identidad) || {};
+      const cInfo = (contribuyentes || []).find(c => c.Identidad === p.identidad || c.identidad === p.identidad) || {};
       return rowMapper(p, cInfo);
     });
 
@@ -133,18 +160,15 @@ export const generarCorteCajaPDF = (
       styles: { fontSize: 7, cellPadding: 2, textColor: [0, 0, 0] },
       headStyles: { fontStyle: 'bold', lineWidth: { top: 0.5, bottom: 0.5 }, lineColor: [0, 0, 0] },
       columnStyles: { [columns.length - 1]: { halign: 'right' } }, // El monto siempre a la derecha
-      didDrawPage: function (data) {
-        // Guardamos el Y para saber donde terminó
-      }
     });
 
-    let currentY = (doc as any).lastAutoTable.finalY + 10;
+    let currentY = ((doc as any).lastAutoTable?.finalY || (startY + 50)) + 10;
     
     // Draw footer total
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.text(footerLabel, pageWidth - 100, currentY, { align: 'right' });
-    doc.text(formatBs(footerTotal).replace('Bs. ', ''), pageWidth - 40, currentY, { align: 'right' }); // Just the number to match image
+    doc.text(formatBs(footerTotal).replace('Bs. ', ''), pageWidth - 40, currentY, { align: 'right' });
     
     currentY += 5;
     doc.setLineWidth(1);
@@ -160,13 +184,13 @@ export const generarCorteCajaPDF = (
     ["FECHA/HORA", "TIPO", "CONTRIBUYENTE", "RECIBO", "BANCO", "APROBACION", "LOTE", "MONTO"],
     (p, c) => [
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
-      p.tipo.substring(0,3).toUpperCase(),
-      (c.Contribuyente || p.identidad).substring(0,35), // Truncate
-      p.factura_ref || p.referencia || 'N/A', // O recibo
-      p.banco_origen || 'N/A',
-      p.referencia || 'N/A',
-      '0390', // Default lote or from data
-      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      String(p.tipo || 'DEB').substring(0,3).toUpperCase(),
+      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A').substring(0,35),
+      String(p.factura_ref || p.referencia || 'N/A'),
+      String(p.banco_origen || p.banco || 'N/A'),
+      String(p.referencia || 'N/A'),
+      '0390',
+      parseFloat(p.monto || '0').toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalDebito,
     "Total Debito:"
@@ -180,8 +204,8 @@ export const generarCorteCajaPDF = (
     (p, c) => {
       let det: any = {};
       try { det = (typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles) || {}; } catch(e) {}
-      const bancoOrigen = (p.banco || det.banco_origen || det.banco_emisor || 'N/A').substring(0,22);
-      const bancoDestino = (det.banco_destino || det.banco_receptor || 'N/A').substring(0,22);
+      const bancoOrigen = String(p.banco || det.banco_origen || det.banco_emisor || 'N/A').substring(0,22);
+      const bancoDestino = String(det.banco_destino || det.banco_receptor || 'N/A').substring(0,22);
       const montoNum = parseFloat(det.monto_conciliado || p.monto || '0');
       const tasaPagoEuro = det.tasa_euro || det.tasa_bcv_conciliacion || tasaEuro || 0;
       const montoEur = tasaPagoEuro > 0 ? (montoNum / tasaPagoEuro).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
@@ -189,7 +213,7 @@ export const generarCorteCajaPDF = (
         new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
         bancoOrigen,
         bancoDestino,
-        p.referencia || 'N/A',
+        String(p.referencia || 'N/A'),
         montoNum.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         montoEur
       ];
@@ -205,11 +229,11 @@ export const generarCorteCajaPDF = (
     ["FECHA/HORA", "TIPO", "CAJERO", "CONTRIBUYENTE", "APLICADO A NUMERO", "MONTO"],
     (p, c) => [
       new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
-      p.tipo.substring(0,3).toUpperCase(),
-      "Todos", // Asumido
-      c.Contribuyente || p.identidad,
-      p.factura_ref || p.referencia || 'N/A',
-      parseFloat(p.monto).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      String(p.tipo || 'SAL').substring(0,3).toUpperCase(),
+      cajeroNombre,
+      String(c.Contribuyente || c.contribuyente || p.contribuyente || p.identidad || 'N/A'),
+      String(p.factura_ref || p.referencia || 'N/A'),
+      parseFloat(p.monto || '0').toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ],
     totalSaldo,
     "Total Saldo a Favor:"
@@ -232,10 +256,10 @@ export const generarCorteCajaPDF = (
     doc.text(`Emitido: ${emisionStr}`, 40, pageHeight - 15);
 
     doc.text(`Pagina ${i} de ${pageCount}`, pageWidth - 40, pageHeight - 25, { align: 'right' });
-    doc.text(`Cajero: Todos`, pageWidth - 40, pageHeight - 15, { align: 'right' });
+    doc.text(`Cajero: ${cajeroNombre}`, pageWidth - 40, pageHeight - 15, { align: 'right' });
   }
 
-  doc.save(`Corte_Caja_${new Date().getTime()}.pdf`);
+  descargarPdfBlob(doc, `Corte_Caja_${new Date().getTime()}.pdf`);
 };
 
 // ============================================

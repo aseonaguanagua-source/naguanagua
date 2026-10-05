@@ -79,8 +79,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     setSelectedCajas(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
   };
 
-  const pagosFiltrados = useMemo(() => {
-    if (!showReport) return [];
+  const getFilteredPagos = () => {
     const s = new Date(fechaInicio), e = new Date(fechaFin);
     return pagos.filter(p => {
       // Excluir pagos anulados, reversados o condonados de todos los reportes
@@ -108,12 +107,23 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         if (tipoFilter !== 'REC' && isDebito(p)) return false;
         if (tipoFilter !== 'REC' && p.tipo !== tipoFilter) return false;
       }
-      if (subTipo === 'Corte de Caja') {
-        // Incluye debitos Y todas las transferencias del cajero (cualquier estado excepto anuladas/reversadas ya filtradas)
-      }
       return true;
     });
+  };
+
+  const pagosFiltrados = useMemo(() => {
+    if (!showReport) return [];
+    return getFilteredPagos();
   }, [showReport, pagos, fechaInicio, fechaFin, selectedCajas, tipoFilter, bancFilter, subTipo, isAdmin, currentUser]);
+
+  const handleDescargarPDF = () => {
+    const items = getFilteredPagos();
+    if (!items || items.length === 0) {
+      alert('No hay pagos registrados para descargar en el rango y filtros seleccionados.');
+      return;
+    }
+    generarCorteCajaPDF(items, contribuyentes, fechaInicio, fechaFin, tasaEuro);
+  };
   const debitos = pagosFiltrados.filter(p => isDebito(p));
   const transferencias = pagosFiltrados.filter(p => !isDebito(p));
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
@@ -166,10 +176,33 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   );
 
   const IconsTop = ({ showExcel }: { showExcel?: boolean }) => (
-    <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4 }}>
-      <button onClick={() => generarCorteCajaPDF(pagosFiltrados, contribuyentes, fechaInicio, fechaFin, tasaEuro)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', padding: '2px 6px' }} title="PDF"><Printer size={15}/></button>
-      <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', padding: '2px 6px' }} title="Columnas"><span style={{fontSize:14, fontWeight:700}}>|||</span></button>
-      {showExcel && <button onClick={() => generarLibroVentas(pagosFiltrados, contribuyentes, 'Diario', fechaInicio, fechaFin)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', padding: '2px 6px' }} title="Excel"><FileSpreadsheet size={15}/></button>}
+    <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 6, alignItems: 'center' }}>
+      <button
+        onClick={handleDescargarPDF}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          background: '#dc2626', color: '#fff', border: 'none',
+          padding: '4px 10px', borderRadius: 4, fontWeight: 600,
+          cursor: 'pointer', fontSize: 12
+        }}
+        title="Descargar PDF"
+      >
+        <Printer size={13}/> PDF
+      </button>
+      {showExcel && (
+        <button
+          onClick={() => generarLibroVentas(getFilteredPagos(), contribuyentes, 'Diario', fechaInicio, fechaFin)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            background: '#166534', color: '#fff', border: 'none',
+            padding: '4px 10px', borderRadius: 4, fontWeight: 600,
+            cursor: 'pointer', fontSize: 12
+          }}
+          title="Descargar Excel"
+        >
+          <FileSpreadsheet size={13}/> Excel
+        </button>
+      )}
     </div>
   );
 
@@ -234,8 +267,8 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     setShowConfirmCierre(false);
     try {
       setShowReport(true);
-      await new Promise(r => setTimeout(r, 400));
-      generarCorteCajaPDF(pagosFiltrados, contribuyentes, fechaInicio, fechaFin, tasaEuro);
+      const items = getFilteredPagos();
+      generarCorteCajaPDF(items, contribuyentes, fechaInicio, fechaFin, tasaEuro);
       setCajaCerrada(true);
     } catch (e) {
       alert('Error al cerrar caja: ' + (e as Error).message);
@@ -314,6 +347,19 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             </div>
           )}
           <button onClick={() => { setShowReport(true); setShowCajaDD(false); }} style={S.btnGen}>Generar Reporte</button>
+
+          <button
+            onClick={handleDescargarPDF}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: '#dc2626', color: '#fff', border: 'none',
+              padding: '8px 18px', borderRadius: 6, fontWeight: 700,
+              cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
+              boxShadow: '0 2px 8px rgba(220,38,38,0.3)',
+            }}
+          >
+            <Printer size={15} /> Descargar PDF
+          </button>
 
           <button
             onClick={() => setShowConfirmCierre(true)}
@@ -429,8 +475,8 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>
             LIBRO DE VENTAS
             <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4 }}>
-              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', padding: '2px 6px' }} title="PDF"><FileText size={15}/></button>
-              <button onClick={() => generarLibroVentas(pagosFiltrados, contribuyentes, 'Diario', fechaInicio, fechaFin)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', padding: '2px 6px' }} title="Excel"><FileSpreadsheet size={15}/></button>
+              <button onClick={handleDescargarPDF} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', padding: '2px 6px' }} title="PDF"><FileText size={15}/></button>
+              <button onClick={() => generarLibroVentas(getFilteredPagos(), contribuyentes, 'Diario', fechaInicio, fechaFin)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', padding: '2px 6px' }} title="Excel"><FileSpreadsheet size={15}/></button>
             </div>
           </div>
           <div style={{ padding: '8px 14px', fontSize: 12, borderBottom: '1px solid #eee' }}>
