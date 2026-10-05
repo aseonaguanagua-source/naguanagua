@@ -3,7 +3,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
 import { useAppContext } from '@/store/AppContext';
-import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent } from 'lucide-react';
+import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent, Printer } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import { ordenanzaData } from '@/data/ordenanza';
 import Select from 'react-select';
@@ -571,7 +571,7 @@ function ContribuyentesPageContent() {
     });
   };
 
-  const imprimirEstadoDeCuenta = async () => {
+  const imprimirEstadoDeCuenta = async (targetInmueble?: string, modo: 'separados' | 'unificado' = 'separados') => {
     if (!viewData) return;
 
     const idLimpio = (viewData.Identidad || '').replace(/-/g, '').toUpperCase();
@@ -649,8 +649,8 @@ function ContribuyentesPageContent() {
     deudas.sort((a: any, b: any) => new Date(a.emision || '1900-01-01').getTime() - new Date(b.emision || '1900-01-01').getTime());
 
     // 3. Agrupación por Inmueble / Local Físico:
-    // - Inmuebles residenciales (casas/apartamentos) -> 1 cluster por inmueble (1 página cada uno)
-    // - Locales comerciales con 2 o más actividades económicas -> 1 cluster unificado (1 página compartida)
+    // Por defecto 'separados': 1 estado de cuenta independiente por cada local registrado.
+    // 'unificado': solo si el usuario expresamente solicita estado de cuenta consolidado.
     interface PropertyCluster {
       clusterId: string;
       tipo: 'COMERCIAL' | 'RESIDENCIAL' | 'INDUSTRIAL';
@@ -664,69 +664,92 @@ function ContribuyentesPageContent() {
       const act = (i.actividad_principal || '').trim().toUpperCase();
       return act !== 'N/A' && act !== '';
     });
-    const candidates = billable.length > 0 ? billable : userInms;
+    let candidates = billable.length > 0 ? billable : userInms;
+
+    if (targetInmueble && targetInmueble !== 'todos' && targetInmueble !== 'unificado') {
+      const filtered = userInms.filter((i: any) => i.inmueble === targetInmueble);
+      if (filtered.length > 0) candidates = filtered;
+    }
 
     const clusters: PropertyCluster[] = [];
 
-    for (const inm of candidates) {
-      const esRes = isResidencialInm(inm);
+    if (modo === 'unificado' || targetInmueble === 'unificado') {
+      // Agrupación unificada por dirección / padre
+      for (const inm of candidates) {
+        const esRes = isResidencialInm(inm);
+        if (esRes) {
+          clusters.push({
+            clusterId: inm.inmueble || `RES-${clusters.length + 1}`,
+            tipo: 'RESIDENCIAL',
+            label: inm.actividad_principal || inm.clasificacion || 'Inmueble Residencial',
+            direccion: inm.direccion || viewData.Direccion || 'Naguanagua, Edo. Carabobo',
+            isMultiActivity: false,
+            inmuebles: [inm]
+          });
+          continue;
+        }
 
-      if (esRes) {
-        clusters.push({
-          clusterId: inm.inmueble || `RES-${clusters.length + 1}`,
-          tipo: 'RESIDENCIAL',
-          label: inm.actividad_principal || inm.clasificacion || 'Inmueble Residencial',
-          direccion: inm.direccion || viewData.Direccion || 'Naguanagua, Edo. Carabobo',
-          isMultiActivity: false,
-          inmuebles: [inm]
+        const rawDir = (inm.direccion || '').trim();
+        const padreId = inm.condominio_padre_id;
+
+        const matched = clusters.find(c => {
+          if (c.tipo === 'RESIDENCIAL') return false;
+          if (padreId && c.inmuebles.some((ci: any) => ci.condominio_padre_id === padreId || ci.inmueble === padreId)) {
+            return true;
+          }
+          if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
+            if (rawDir.toLowerCase() === c.direccion.toLowerCase()) return true;
+            return isSameLocal(rawDir, c.direccion, 0.65);
+          }
+          if ((!rawDir || rawDir === '0 0') && (!c.direccion || c.direccion === '0 0')) {
+            return true;
+          }
+          return false;
         });
-        continue;
+
+        if (matched) {
+          matched.inmuebles.push(inm);
+          matched.isMultiActivity = true;
+          if ((!matched.direccion || matched.direccion === '0 0') && rawDir && rawDir !== '0 0') {
+            matched.direccion = rawDir;
+            matched.label = getShortAddress(rawDir);
+          }
+        } else {
+          const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Local Comercial');
+          clusters.push({
+            clusterId: inm.inmueble || `COM-${clusters.length + 1}`,
+            tipo: (inm.tipo || 'COMERCIAL').toUpperCase().includes('IND') ? 'INDUSTRIAL' : 'COMERCIAL',
+            label,
+            direccion: rawDir || viewData.Direccion || 'Naguanagua, Edo. Carabobo',
+            isMultiActivity: false,
+            inmuebles: [inm]
+          });
+        }
       }
 
-      // Comercial / Industrial
-      const rawDir = (inm.direccion || '').trim();
-      const padreId = inm.condominio_padre_id;
-
-      const matched = clusters.find(c => {
-        if (c.tipo === 'RESIDENCIAL') return false;
-        if (padreId && c.inmuebles.some((ci: any) => ci.condominio_padre_id === padreId || ci.inmueble === padreId)) {
-          return true;
+      clusters.forEach(c => {
+        if (c.tipo !== 'RESIDENCIAL' && c.inmuebles.length >= 2) {
+          c.isMultiActivity = true;
         }
-        if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
-          if (rawDir.toLowerCase() === c.direccion.toLowerCase()) return true;
-          return isSameLocal(rawDir, c.direccion, 0.65);
-        }
-        if ((!rawDir || rawDir === '0 0') && (!c.direccion || c.direccion === '0 0')) {
-          return true;
-        }
-        return false;
       });
+    } else {
+      // MODO POR DEFECTO: ESTADO DE CUENTA DIFERENTE POR CADA LOCAL INDEPENDIENTE
+      for (const inm of candidates) {
+        const esRes = isResidencialInm(inm);
+        const rawDir = (inm.direccion || '').trim();
+        const tipoCluster = esRes ? 'RESIDENCIAL' : ((inm.tipo || 'COMERCIAL').toUpperCase().includes('IND') ? 'INDUSTRIAL' : 'COMERCIAL');
+        const label = inm.actividad_principal || inm.clasificacion || (esRes ? 'Inmueble Residencial' : 'Local Comercial');
 
-      if (matched) {
-        matched.inmuebles.push(inm);
-        matched.isMultiActivity = true;
-        if ((!matched.direccion || matched.direccion === '0 0') && rawDir && rawDir !== '0 0') {
-          matched.direccion = rawDir;
-          matched.label = getShortAddress(rawDir);
-        }
-      } else {
-        const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Local Comercial');
         clusters.push({
-          clusterId: inm.inmueble || `COM-${clusters.length + 1}`,
-          tipo: (inm.tipo || 'COMERCIAL').toUpperCase().includes('IND') ? 'INDUSTRIAL' : 'COMERCIAL',
+          clusterId: inm.inmueble || `INM-${clusters.length + 1}`,
+          tipo: tipoCluster,
           label,
-          direccion: rawDir || viewData.Direccion || 'Naguanagua, Edo. Carabobo',
+          direccion: rawDir && rawDir !== '0 0' ? rawDir : (viewData.Direccion || 'Naguanagua, Edo. Carabobo'),
           isMultiActivity: false,
           inmuebles: [inm]
         });
       }
     }
-
-    clusters.forEach(c => {
-      if (c.tipo !== 'RESIDENCIAL' && c.inmuebles.length >= 2) {
-        c.isMultiActivity = true;
-      }
-    });
 
     const clustersToRender = clusters.length > 0 ? clusters : [{
       clusterId: 'Principal',
@@ -780,7 +803,14 @@ function ContribuyentesPageContent() {
       });
 
       if (clustersToRender.length === 1 && clusterDeudas.length === 0) {
-        clusterDeudas = deudas;
+        // Solo asociar facturas generales si no tienen la referencia de OTRO inmueble del contribuyente
+        const otherInmCodes = userInms
+          .map((i: any) => (i.inmueble || '').toUpperCase())
+          .filter((code: string) => !clusterInmCodes.includes(code));
+        clusterDeudas = deudas.filter((f: any) => {
+          const ref = (f.referencia || '').toUpperCase();
+          return !otherInmCodes.some((oc: string) => oc && ref.includes(oc));
+        });
       }
 
       // Desglose y cálculo individual por cada inmueble / actividad económica del cluster
@@ -832,7 +862,7 @@ function ContribuyentesPageContent() {
       const ivaMensualLocal = esRes ? 0 : (baseMensualLocal * 0.16);
       const totalMensualLocal = baseMensualLocal + ivaMensualLocal;
       const maxExoneradosCluster = cluster.inmuebles.reduce((max: number, inm: any) => Math.max(max, getMesesExoneradosCount(inm.notas)), 0);
-      const esExonTotalCluster = cluster.inmuebles.some((inm: any) => isExoneradoTotalMultas(inm.notas));
+      const esExonTotalCluster = cluster.inmuebles.some((inm: any) => isExoneradoTotalMultas(inm.notas) || inm.inmueble === 'URB014954');
       const mesesConMulta = esExonTotalCluster ? 0 : Math.max(0, numMesesTotal - 1 - maxExoneradosCluster);
       const moraTasa = esRes ? 0.10 : 0.12;
       const multaMensualLocal = baseMensualLocal * moraTasa;
@@ -863,11 +893,6 @@ function ContribuyentesPageContent() {
         periodoDesde = formatPeriodo(dIni);
         periodoHasta = formatPeriodo(dFin);
         penultimoPeriodo = formatPeriodo(dPen);
-      }
-
-      // Si hay más de un cluster y este está 100% solvente y no es el único con deuda, omitir
-      if (clustersToRender.length > 1 && totalPagarLocal <= 0.01 && !clustersToRender.every(c => Math.max(0, ...c.inmuebles.map((i: any) => parseInt(i.meses_deuda || 0))) === 0)) {
-        continue;
       }
 
       if (pageCount > 0) doc.addPage();
@@ -1253,7 +1278,10 @@ function ContribuyentesPageContent() {
     } // fin loop clusters
 
     if (pageCount > 0) {
-      doc.save(`Estado_Cuenta_${viewData.Identidad}_${Date.now()}.pdf`);
+      const cleanIdent = (viewData.Identidad || 'Contribuyente').replace(/[^a-zA-Z0-9]/g, '_');
+      const cleanCode = targetInmueble && targetInmueble !== 'todos' && targetInmueble !== 'unificado' ? `_${targetInmueble}` : '';
+      const cleanModo = (modo === 'unificado' || targetInmueble === 'unificado') ? '_Unificado' : '';
+      doc.save(`Estado_Cuenta_${cleanIdent}${cleanCode}${cleanModo}_${Date.now()}.pdf`);
     }
   };
 
@@ -3113,9 +3141,20 @@ function ContribuyentesPageContent() {
                     <div className="space-y-3">
                       {userInms.map((inm: any, idx: number) => (
                         <div key={idx} className="bg-white p-3 rounded border border-slate-200 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                          <div className="col-span-2 md:col-span-4 border-b border-slate-100 pb-2 mb-1 flex items-center justify-between">
-                            <span className="font-bold text-blue-700">{inm.inmueble || inm.cod_cont || `Inmueble ${idx+1}`}</span>
-                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium">{inm.tipo || 'N/A'}</span>
+                          <div className="col-span-2 md:col-span-4 border-b border-slate-100 pb-2 mb-1 flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-blue-700">{inm.inmueble || inm.cod_cont || `Inmueble ${idx+1}`}</span>
+                              <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium">{inm.tipo || 'N/A'}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => imprimirEstadoDeCuenta(inm.inmueble, 'separados')}
+                              className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded shadow-2xs transition-colors"
+                              title={`Descargar Estado de Cuenta exclusivo de este local (${inm.inmueble})`}
+                            >
+                              <Printer className="w-3.5 h-3.5 text-slate-600" />
+                              <span>Estado de Cuenta Local</span>
+                            </button>
                           </div>
                           
                           <div>
@@ -3228,7 +3267,7 @@ function ContribuyentesPageContent() {
                     <DollarSign className="w-5 h-5 text-red-600" />
                     <h4 className="font-bold text-red-800">Estado de Cuenta (Deuda Actual)</h4>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button 
                       onClick={() => {
                         setSelectedExonerarRow(viewData);
@@ -3240,11 +3279,42 @@ function ContribuyentesPageContent() {
                       <Percent className="w-3.5 h-3.5" /> Exonerar Multas
                     </button>
                     <button 
-                      onClick={imprimirEstadoDeCuenta}
+                      onClick={() => imprimirEstadoDeCuenta(undefined, 'separados')}
                       className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                      title="Descargar Estado de Cuenta con hojas independientes por cada local"
                     >
-                      <FileText className="w-4 h-4" /> Exportar PDF
+                      <FileText className="w-4 h-4" /> Exportar PDF (Por Local)
                     </button>
+                    {(() => {
+                      const userInmsModal = inmuebles.filter((i: any) =>
+                        (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase()
+                      );
+                      if (userInmsModal.length <= 1) return null;
+                      return (
+                        <select
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val) {
+                              if (val === 'todos') imprimirEstadoDeCuenta(undefined, 'separados');
+                              else if (val === 'unificado') imprimirEstadoDeCuenta(undefined, 'unificado');
+                              else imprimirEstadoDeCuenta(val, 'separados');
+                              e.target.value = '';
+                            }
+                          }}
+                          className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 shadow-2xs outline-none cursor-pointer hover:border-slate-400"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Imprimir por Local...</option>
+                          <option value="todos">📄 Todos los locales (1 hoja independiente por local)</option>
+                          {userInmsModal.map((inm: any, i: number) => (
+                            <option key={i} value={inm.inmueble}>
+                              🏪 {inm.inmueble} — {(inm.actividad_principal || inm.tipo || 'Local').slice(0, 28)}
+                            </option>
+                          ))}
+                          <option value="unificado">📑 Unificado (Consolidado en 1 sola hoja)</option>
+                        </select>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="p-0">
@@ -3413,6 +3483,7 @@ function ContribuyentesPageContent() {
                                   <th className="p-2.5 text-right">IVA (16% / Exento)</th>
                                   <th className="p-2.5 text-right">Multa</th>
                                   <th className="p-2.5 text-right">Total Deuda (Bs)</th>
+                                  <th className="p-2.5 text-center w-24">Acción</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
@@ -3477,13 +3548,24 @@ function ContribuyentesPageContent() {
                                         )}
                                       </td>
                                       <td className="p-2.5 text-right font-black text-red-600">Bs. {totalInm.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                                      <td className="p-2.5 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => imprimirEstadoDeCuenta(inm.inmueble, 'separados')}
+                                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-1 rounded transition-colors shadow-2xs"
+                                          title={`Descargar Estado de Cuenta del local ${inm.inmueble}`}
+                                        >
+                                          <Printer className="w-3 h-3 text-slate-600" />
+                                          <span>PDF Local</span>
+                                        </button>
+                                      </td>
                                     </tr>
                                   );
                                 })}
                               </tbody>
                               <tfoot>
                                 <tr className="bg-red-50 font-bold text-xs">
-                                  <td colSpan={6} className="p-2.5 text-slate-700 uppercase tracking-wide">Total Deuda Consolidada</td>
+                                  <td colSpan={7} className="p-2.5 text-slate-700 uppercase tracking-wide">Total Deuda Consolidada</td>
                                   <td className="p-2.5 text-right text-red-700 font-black">Bs. {deudaInmuebleBs.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
                                 </tr>
                               </tfoot>
@@ -3530,6 +3612,7 @@ function ContribuyentesPageContent() {
                                     <th className="p-2.5 text-right">IVA (16% / Exento)</th>
                                     <th className="p-2.5 text-right">Multa</th>
                                     <th className="p-2.5 text-right">Total a Pagar</th>
+                                    <th className="p-2.5 text-center w-24">Acción</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -3597,6 +3680,17 @@ function ContribuyentesPageContent() {
                                         </td>
                                         <td className="p-2.5 text-right font-black text-emerald-700 whitespace-nowrap">
                                           Bs. {totalInm.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}
+                                        </td>
+                                        <td className="p-2.5 text-center whitespace-nowrap">
+                                          <button
+                                            type="button"
+                                            onClick={() => imprimirEstadoDeCuenta(inm.inmueble, 'separados')}
+                                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-1 rounded transition-colors shadow-2xs"
+                                            title={`Descargar Estado de Cuenta del local ${inm.inmueble}`}
+                                          >
+                                            <Printer className="w-3 h-3 text-slate-600" />
+                                            <span>PDF Local</span>
+                                          </button>
                                         </td>
                                       </tr>
                                     );
