@@ -479,16 +479,18 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ══ FOOTER (IAMEC, Global Rec y Naguanagua Te Quiero) ══ */}
+        {/* ══ FOOTER (4 logos: IAMEC, Global Rec, Naguanagua Te Quiero e Instituto de Ecosocialismo) ══ */}
         <div className="footer">
           <div className="footer-iamec">
             <div className="footer-iamec-glow" />
             <img src="/logos/IAMEC.png" alt="IAMEC Naguanagua" className="iamec-logo" />
           </div>
           <div className="footer-logos">
-            <img src="/logos/logo_global_rec.png" alt="Global Rec Collection System" className="footer-logo" style={{ maxHeight: 62 }} />
+            <img src="/logos/logo_global_rec.png" alt="Global Rec Collection System" className="footer-logo" style={{ maxHeight: 60 }} />
             <div className="footer-divider" />
-            <img src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" className="footer-logo" style={{ maxHeight: 60 }} />
+            <img src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" className="footer-logo" style={{ maxHeight: 58 }} />
+            <div className="footer-divider" />
+            <img src="/logos/INSTITUTO.png" alt="Instituto Autónomo Municipal de Ecosocialismo" className="footer-logo rounded" style={{ maxHeight: 62 }} />
           </div>
         </div>
 
