@@ -42,31 +42,42 @@ export default function ReportesPage() {
   const [loadingMorosos, setLoadingMorosos] = useState(false);
 
   useEffect(() => {
-    const user = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || '';
-    setCurrentUser(user);
+    let activeUser = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || '';
+    let letra = (typeof window !== 'undefined' ? localStorage.getItem('adminLetra') : null) || '';
     let adminCheck = false;
     if (typeof window !== 'undefined') {
       try {
         const userData = JSON.parse(localStorage.getItem('admin_user_data') || '{}');
-        if (userData.rol === 'Administrador' || userData.rol === 'SuperAdmin' || user === 'Administrador' || user === 'dzara') {
+        if (userData.usuario) activeUser = userData.usuario;
+        if (userData.letra) letra = userData.letra;
+        if (userData.rol === 'Administrador' || userData.rol === 'SuperAdmin' || activeUser === 'Administrador' || activeUser === 'dzara') {
           adminCheck = true;
         }
       } catch(e) {}
     }
+    const cajeroIdentifier = (!adminCheck && letra) ? `${letra}-${activeUser}` : activeUser;
+    setCurrentUser(cajeroIdentifier || activeUser);
     setIsAdmin(adminCheck);
 
     const loadPagos = async () => {
       const { data } = await supabase.from('pagos_reportados').select('*').not('estado','in','(Anulado,Reversado,Condonado)').order('created_at', { ascending: false });
       if (data) {
         setPagos(data);
-        const cajerosSet = new Set<string>();
-        data.forEach((p: any) => {
-          try {
-            const dets = typeof p.detalles === 'object' ? p.detalles : JSON.parse(p.detalles || '{}');
-            if (dets.cajero) cajerosSet.add(dets.cajero);
-          } catch(e) {}
-        });
-        setCajeros(Array.from(cajerosSet).sort());
+        if (adminCheck) {
+          const cajerosSet = new Set<string>();
+          data.forEach((p: any) => {
+            try {
+              const dets = typeof p.detalles === 'object' ? p.detalles : JSON.parse(p.detalles || '{}');
+              if (dets.cajero) cajerosSet.add(dets.cajero);
+            } catch(e) {}
+          });
+          setCajeros(Array.from(cajerosSet).sort());
+        } else {
+          const myOptions = new Set<string>();
+          if (cajeroIdentifier) myOptions.add(cajeroIdentifier);
+          if (activeUser) myOptions.add(activeUser);
+          setCajeros(Array.from(myOptions));
+        }
       }
     };
     loadPagos();

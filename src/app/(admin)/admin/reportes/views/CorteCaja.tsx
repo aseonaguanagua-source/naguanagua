@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useMemo } from 'react';
 import { Printer, ArrowLeft, ChevronDown } from 'lucide-react';
 
@@ -48,7 +48,14 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
       if (d < start || d > end) return false;
       const det = parseDet(p);
       const cajero = det.cajero || '';
-      if (!isAdmin && cajero !== currentUser) return false;
+      if (!isAdmin) {
+        const myName = currentUser.toLowerCase();
+        const pCajLower = cajero.toLowerCase();
+        const matches = pCajLower === myName ||
+                        pCajLower.endsWith(`-${myName}`) ||
+                        (selectedCajas.length > 0 && selectedCajas.some(sc => sc.toLowerCase() === pCajLower));
+        if (!matches) return false;
+      }
       if (isAdmin && selectedCajas.length > 0 && !selectedCajas.includes(cajero)) return false;
       // Corte de caja: solo pagos conciliados o debito (auto-aprobado)
       if (isDebito(p)) return true;

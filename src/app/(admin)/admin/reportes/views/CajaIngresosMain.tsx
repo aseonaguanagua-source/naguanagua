@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, Lock, CheckCircle, Loader2, Printer, ArrowLeft, FileSpreadsheet, FileText } from 'lucide-react';
 import { generarCorteCajaPDF } from '../generators/PdfReports';
@@ -88,7 +88,14 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       const det = parseDet(p);
       // Para debitos: det.cajero. Para transferencias conciliadas: det.analista o det.cajero
       const cajero = det.cajero || det.analista || '';
-      if (!isAdmin && cajero !== currentUser) return false;
+      if (!isAdmin) {
+        const myName = currentUser.toLowerCase();
+        const pCajLower = cajero.toLowerCase();
+        const matches = pCajLower === myName ||
+                        pCajLower.endsWith(`-${myName}`) ||
+                        (selectedCajas.length > 0 && selectedCajas.some(sc => sc.toLowerCase() === pCajLower));
+        if (!matches) return false;
+      }
       if (isAdmin && selectedCajas.length > 0 && !selectedCajas.includes(cajero)) return false;
       if (subTipo === 'Ingresos por Banco' && bancFilter) {
         const bd = det.banco_destino || det.banco_receptor || '';
@@ -254,9 +261,9 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             <div style={{ ...S.fw, position: 'relative' }}>
               <span style={S.fl}>Caja</span>
               <div onClick={() => isAdmin && setShowCajaDD(!showCajaDD)}
-                style={{ ...S.fi, cursor: isAdmin ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 4, minWidth: 200, flexWrap: 'wrap' }}>
+                style={{ ...S.fi, cursor: isAdmin ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 4, minWidth: 200, flexWrap: 'wrap', background: isAdmin ? '#fff' : '#f8fafc' }}>
                 {!isAdmin
-                  ? <span style={{ background: '#e3eaff', border: '1px solid #aac', borderRadius: 3, padding: '1px 7px', fontSize: 11 }}>x {currentUser}</span>
+                  ? <span style={{ background: '#e3eaff', border: '1px solid #aac', borderRadius: 3, padding: '2px 8px', fontSize: 11, fontWeight: 700, color: '#1e3a8a' }}>{currentUser}</span>
                   : selectedCajas.length === 0 ? <span style={{ color: '#888', fontSize: 12 }}>Todos</span>
                   : selectedCajas.map(c => <span key={c} style={{ background: '#e3eaff', border: '1px solid #aac', borderRadius: 3, padding: '1px 7px', fontSize: 11, marginRight: 2 }}>x {c}</span>)}
                 {isAdmin && <ChevronDown size={12} style={{ marginLeft: 'auto', color: '#666' }} />}

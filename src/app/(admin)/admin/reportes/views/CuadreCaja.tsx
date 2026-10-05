@@ -42,9 +42,17 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, onBac
       const d = new Date(p.created_at);
       if (d < s || d > e) return false;
       const det = parseDet(p);
-      const pCajero = det.cajero || '';
-      if (!isAdmin && pCajero !== currentUser) return false;
-      if (cajero && pCajero !== cajero) return false;
+      const pCajero = det.cajero || det.analista || '';
+      if (!isAdmin) {
+        const myName = currentUser.toLowerCase();
+        const pCajLower = pCajero.toLowerCase();
+        const matches = pCajLower === myName ||
+                        pCajLower.endsWith(`-${myName}`) ||
+                        (cajero && pCajLower === cajero.toLowerCase());
+        if (!matches) return false;
+      } else if (cajero && pCajero !== cajero) {
+        return false;
+      }
       if (forma !== 'Todas') {
         if (forma === 'Debito' && !isDebito(p)) return false;
         if (forma === 'Transferencia' && isDebito(p)) return false;
@@ -94,10 +102,16 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, onBac
 
           <div style={S.fw}>
             <span style={S.fl}>Cajero</span>
-            <select value={cajero} onChange={e => setCajero(e.target.value)} style={{ ...S.fi, minWidth: 220 }}>
-              {isAdmin && <option value="">Todos</option>}
-              {cajeros.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            {isAdmin ? (
+              <select value={cajero} onChange={e => setCajero(e.target.value)} style={{ ...S.fi, minWidth: 220 }}>
+                <option value="">Todos</option>
+                {cajeros.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            ) : (
+              <select value={cajero || currentUser} disabled style={{ ...S.fi, minWidth: 220, background: '#f8fafc', color: '#1e293b', fontWeight: 700, cursor: 'not-allowed' }}>
+                <option value={cajero || currentUser}>{cajero || currentUser}</option>
+              </select>
+            )}
           </div>
 
           <div style={S.fw}>
