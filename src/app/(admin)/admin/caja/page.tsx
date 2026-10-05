@@ -995,12 +995,12 @@ export default function CajaPage() {
 
     selectedServicios.forEach(ref => {
       const s = serviciosMap.get(ref);
-      if (s) total += parseFloat(s.monto || '0');
+      if (s) total += parseFloat(s.monto || '0') * (1 + ivaPercent);
     });
 
     selectedTalaPoda.forEach(ref => {
       const s = talaPodaMap.get(ref);
-      if (s) total += parseFloat(s.monto || '0');
+      if (s) total += parseFloat(s.monto || '0') * (1 + ivaPercent);
     });
     
     let sb = 0, siva = 0, smulta = 0, sivaRetencionable = 0;
@@ -1102,11 +1102,27 @@ export default function CajaPage() {
     });
     selectedServicios.forEach(ref => {
       const s = serviciosMap.get(ref);
-      if (s) { sb += parseFloat(s.monto || '0'); siva += parseFloat(s.monto || '0') * ivaPercent; }
+      if (s) {
+        const baseMonto = parseFloat(s.monto || '0');
+        const ivaMonto = parseFloat((baseMonto * ivaPercent).toFixed(2));
+        sb += baseMonto;
+        siva += ivaMonto;
+        if (foundUser?.agente_retencion || (freshInmuebles || []).some((i: any) => i.agente_retencion)) {
+          sivaRetencionable += ivaMonto;
+        }
+      }
     });
     selectedTalaPoda.forEach(ref => {
       const s = talaPodaMap.get(ref);
-      if (s) { sb += parseFloat(s.monto || '0'); siva += parseFloat(s.monto || '0') * ivaPercent; }
+      if (s) {
+        const baseMonto = parseFloat(s.monto || '0');
+        const ivaMonto = parseFloat((baseMonto * ivaPercent).toFixed(2));
+        sb += baseMonto;
+        siva += ivaMonto;
+        if (foundUser?.agente_retencion || (freshInmuebles || []).some((i: any) => i.agente_retencion)) {
+          sivaRetencionable += ivaMonto;
+        }
+      }
     });
     setSumBase(sb);
     setSumIVA(siva);
@@ -3729,7 +3745,16 @@ export default function CajaPage() {
                           <p className="text-xs text-slate-500">{s.referencia} • {s.fecha || 'Sin fecha'}</p>
                         </div>
                       </div>
-                      <span className="font-bold text-green-700">Bs. {formatBs(parseFloat(s.monto || '0'))}</span>
+                      {(() => {
+                        const baseMonto = parseFloat(s.monto || '0');
+                        const montoConIva = baseMonto * (1 + ivaPercent);
+                        return (
+                          <div className="text-right shrink-0">
+                            <span className="font-bold text-green-700 block text-sm">Bs. {formatBs(montoConIva)}</span>
+                            <span className="text-[10px] text-slate-500 font-medium">Base: Bs. {formatBs(baseMonto)} + IVA 16%</span>
+                          </div>
+                        );
+                      })()}
                     </label>
                   ))}
                 </div>
@@ -3763,7 +3788,16 @@ export default function CajaPage() {
                             <p className="text-xs text-slate-500">{s.referencia} • {s.fecha}</p>
                           </div>
                         </div>
-                        <span className="font-bold text-purple-700">Bs. {formatBs(parseFloat(s.monto || '0'))}</span>
+                        {(() => {
+                          const baseMonto = parseFloat(s.monto || '0');
+                          const montoConIva = baseMonto * (1 + ivaPercent);
+                          return (
+                            <div className="text-right shrink-0">
+                              <span className="font-bold text-purple-700 block text-sm">Bs. {formatBs(montoConIva)}</span>
+                              <span className="text-[10px] text-slate-500 font-medium">Base: Bs. {formatBs(baseMonto)} + IVA 16%</span>
+                            </div>
+                          );
+                        })()}
                       </label>
                     );
                   })}
