@@ -172,18 +172,23 @@ export default function ConveniosPagoPage() {
 
       let docUrl = null;
       if (documento) {
-        const fileExt = documento.name.split('.').pop();
+        const fileExt = documento.name.split('.').pop() || 'pdf';
         const fileName = `convenio_${foundUser.identidad}_${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('convenios')
-          .upload(fileName, documento);
-          
-        if (uploadError) {
-          console.error('Error subiendo documento:', uploadError);
-          alert('Hubo un error subiendo el documento adjunto. Asegúrate que el bucket "convenios" exista y sea público.');
+        const uploadData = new FormData();
+        uploadData.append('file', documento);
+        uploadData.append('bucket', 'convenios');
+        uploadData.append('path', fileName);
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadData,
+        });
+        const resData = await res.json();
+        if (!res.ok || !resData.success) {
+          console.error('Error subiendo documento:', resData.error);
+          alert('Hubo un error subiendo el documento adjunto: ' + (resData.error || 'Error desconocido'));
         } else {
-          const { data } = supabase.storage.from('convenios').getPublicUrl(fileName);
-          docUrl = data.publicUrl;
+          docUrl = resData.publicUrl;
         }
       }
 

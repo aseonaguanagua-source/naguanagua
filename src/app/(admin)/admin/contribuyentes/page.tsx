@@ -115,12 +115,25 @@ function ContribuyentesPageContent() {
     setUploadDocs(prev => ({ ...prev, [tipo]: { ...prev[tipo], uploading: true, name: file.name } }));
     try {
       const identidad = formData?.Identidad || 'sin_id';
-      const ext = file.name.split('.').pop();
+      const ext = file.name.split('.').pop() || 'jpg';
       const path = `expedientes/${identidad.replace(/[^a-zA-Z0-9]/g,'_')}/${tipo}_${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('documentos').upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
-      const { data: urlData } = supabase.storage.from('documentos').getPublicUrl(path);
-      const publicUrl = urlData?.publicUrl || '';
+
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      uploadData.append('bucket', 'documentos');
+      uploadData.append('path', path);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadData,
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || 'Error al subir archivo');
+      }
+
+      const publicUrl = resData.publicUrl || '';
       setUploadDocs(prev => ({ ...prev, [tipo]: { url: publicUrl, uploading: false, name: file.name } }));
       // Guardar URL en inmuebles
       const campo = tipo === 'cedula' ? 'doc_cedula_url' : tipo === 'ficha' ? 'doc_ficha_url' : 'doc_registro_url';
@@ -128,6 +141,7 @@ function ContribuyentesPageContent() {
         await supabase.from('inmuebles').update({ [campo]: publicUrl }).eq('identidad', identidad);
       }
     } catch (err: any) {
+      console.error('Error al subir documento:', err);
       alert('Error al subir archivo: ' + (err.message || err));
       setUploadDocs(prev => ({ ...prev, [tipo]: { ...prev[tipo], uploading: false } }));
     }

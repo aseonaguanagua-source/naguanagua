@@ -1771,16 +1771,22 @@ export default function CajaPage() {
         let comprobanteUrl = '';
         let comprobanteB64 = '';
         if (comprobante) {
-          // Try Storage first
+          // Try Storage via /api/upload
           try {
             const ext = comprobante.name.split('.').pop() || 'jpg';
             const filePath = `comprobantes/${(foundUser.Identidad || 'x').replace(/[^a-zA-Z0-9]/g,'_')}_${Date.now()}.${ext}`;
-            const { data: upData, error: upErr } = await supabase.storage
-              .from('comprobantes')
-              .upload(filePath, comprobante, { upsert: true, contentType: comprobante.type });
-            if (!upErr && upData) {
-              const { data: pubData } = supabase.storage.from('comprobantes').getPublicUrl(filePath);
-              comprobanteUrl = pubData?.publicUrl || '';
+            const uploadData = new FormData();
+            uploadData.append('file', comprobante);
+            uploadData.append('bucket', 'comprobantes');
+            uploadData.append('path', filePath);
+
+            const res = await fetch('/api/upload', {
+              method: 'POST',
+              body: uploadData,
+            });
+            const resData = await res.json();
+            if (res.ok && resData.success) {
+              comprobanteUrl = resData.publicUrl || '';
             }
           } catch(e) { /* Storage no disponible, usar base64 */ }
           // Fallback: base64 (siempre, garantiza visualizacion aunque falle Storage)

@@ -30,18 +30,24 @@ export default function OperadorDashboard() {
     setIsUploading(true);
     try {
       const fileName = `${operador}_${Date.now()}_${file.name}`;
-      const { data, error } = await supabase.storage
-        .from('archivos_externos')
-        .upload(fileName, file);
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      uploadData.append('bucket', 'archivos_externos');
+      uploadData.append('path', fileName);
 
-      if (error) {
-        throw error;
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadData,
+      });
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || 'Error al subir archivo');
       }
 
       alert('¡Archivo subido exitosamente a la nube!');
     } catch (err: any) {
       console.error('Error uploading file:', err);
-      alert('Error al subir el archivo. Verifica que el bucket "archivos_externos" exista y sea público.');
+      alert('Error al subir el archivo: ' + (err.message || err));
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {

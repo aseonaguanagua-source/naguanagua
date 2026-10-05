@@ -99,15 +99,23 @@ export default function RetencionesDashboard() {
     try {
       let planilla_url = '';
 
-      // Upload PDF if provided
+      // Upload PDF if provided via /api/upload
       if (pdfFile) {
         const fileName = `${identidad}/${Date.now()}_${pdfFile.name}`;
-        const { data: upData, error: upErr } = await supabase.storage
-          .from('retenciones')
-          .upload(fileName, pdfFile, { contentType: 'application/pdf' });
-        if (upErr) throw new Error('Error subiendo PDF: ' + upErr.message);
-        const { data: urlData } = supabase.storage.from('retenciones').getPublicUrl(fileName);
-        planilla_url = urlData?.publicUrl || '';
+        const uploadData = new FormData();
+        uploadData.append('file', pdfFile);
+        uploadData.append('bucket', 'retenciones');
+        uploadData.append('path', fileName);
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadData,
+        });
+        const resData = await res.json();
+        if (!res.ok || !resData.success) {
+          throw new Error('Error subiendo PDF: ' + (resData.error || 'Error desconocido'));
+        }
+        planilla_url = resData.publicUrl || '';
       }
 
       // Get name from inmuebles
