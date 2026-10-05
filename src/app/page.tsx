@@ -317,26 +317,34 @@ export default function Home() {
 
             {activeTab === 'funcionario' && (
               <div className="card func-dropdown-container">
-                <div className="icon-bubble">
-                  <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" />
-                  </svg>
+                <div className="icon-bubble" style={{ background: '#ffffff', border: '2px solid rgba(184,205,41,.9)', padding: '6px', overflow: 'hidden' }}>
+                  <img src="/logos/global_green.png" alt="Global Green" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 </div>
                 <h3 className="card-title"><b style={{ fontWeight:800 }}>Soy</b>{' '}<span style={{ fontWeight:400 }}>Funcionario</span></h3>
-                <p className="card-desc">Acceso al sistema administrativo interno. Por favor, seleccione su rol operativo.</p>
+                <p className="card-desc">Acceso al sistema administrativo interno para gestión de recaudación, reportes y operaciones municipales.</p>
                 
-                <button 
-                  className="btn-enter" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowDropdown(!showDropdown);
-                  }}
-                >
-                  Seleccionar Tipo de Funcionario
-                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" style={{ transform: showDropdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                <Link href="/admin" className="btn-enter" style={{ textDecoration: 'none' }}>
+                  Acceder al Sistema
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                   </svg>
-                </button>
+                </Link>
+
+                <div className="mt-4 pt-3 border-t border-white/10 w-full flex justify-center">
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDropdown(!showDropdown);
+                    }}
+                    className="text-xs text-lime-400 hover:text-lime-300 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer bg-transparent border-none py-1"
+                  >
+                    <span>Módulos de campo y taquilla (Cajero, Móvil, Censo)</span>
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" style={{ transform: showDropdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </button>
+                </div>
 
                 {showDropdown && (
                   <div className="func-dropdown-menu">

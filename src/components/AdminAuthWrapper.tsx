@@ -185,8 +185,8 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
         <div className="w-full max-w-md bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-8 space-y-6 relative z-10">
           {/* Logo y Encabezado */}
           <div className="text-center space-y-2">
-            <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg shadow-indigo-500/30">
-              <Shield className="w-8 h-8" />
+            <div className="w-20 h-20 bg-white rounded-2xl p-2.5 flex items-center justify-center mx-auto shadow-md border border-slate-100">
+              <img src="/logos/global_green.png" alt="Global Green" className="max-h-full max-w-full object-contain" />
             </div>
             <div>
               <h1 className="text-xl font-black text-slate-900 tracking-tight">

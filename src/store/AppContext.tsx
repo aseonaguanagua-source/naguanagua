@@ -203,7 +203,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           await Promise.all(
             chunkRanges.map(async (r, idx) => {
               const batchIndex = i + idx;
-              const { data, error } = await supabase.from(table).select(select).range(r.from, r.to);
+              const { data, error } = await supabase.from(table).select(select).order('id', { ascending: true }).range(r.from, r.to);
               if (error) console.error(`Error fetching chunk ${batchIndex} from ${table}:`, error);
               results[batchIndex] = data || [];
             })
@@ -400,8 +400,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
           existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
           existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * 57 * currentTcmmv));
-          if (row.estado === 'Eliminado' || (row.estado === 'Inactivo' && existing.Estado !== 'Eliminado')) {
-            existing.Estado = row.estado;
+          const rowEstado = row.estado || 'Activo';
+          if (rowEstado === 'Activo') {
+            existing.Estado = 'Activo';
+          } else if (existing.Estado !== 'Activo') {
+            if (rowEstado === 'Eliminado') {
+              existing.Estado = 'Eliminado';
+            } else if (rowEstado === 'Inactivo' && existing.Estado !== 'Eliminado') {
+              existing.Estado = 'Inactivo';
+            }
           }
           const cod = row.inmueble || row.cod_cont;
           if (cod && !existing.CodCont.includes(cod)) {

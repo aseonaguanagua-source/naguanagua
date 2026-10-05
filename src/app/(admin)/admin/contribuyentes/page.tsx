@@ -3,7 +3,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
 import { useAppContext } from '@/store/AppContext';
-import { Users, Save, ArrowLeft, Plus, Building, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw } from 'lucide-react';
+import { Users, Save, ArrowLeft, Plus, Building, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import { ordenanzaData } from '@/data/ordenanza';
 import Select from 'react-select';
@@ -1117,34 +1117,68 @@ function ContribuyentesPageContent() {
         supabase.from('inmuebles')
           .select('*')
           .or(`identidad.ilike.%${term}%,inmueble.ilike.%${term}%,contribuyente.ilike.%${term}%`)
-          .limit(50),
+          .limit(100),
         supabase.from('contribuyentes')
           .select('*')
           .or(`identidad.ilike.%${term}%,nombre.ilike.%${term}%,email.ilike.%${term}%`)
-          .limit(50)
+          .limit(100)
       ]);
         
       if (inmsError) throw inmsError;
+
+      // Si encontramos inmuebles, recopilar todas las identidades y buscar sus otros inmuebles vinculados
+      const identsSet = new Set<string>();
+      (inmsData || []).forEach((i: any) => { if (i.identidad) identsSet.add(i.identidad); });
+      (contsData || []).forEach((c: any) => { if (c.identidad) identsSet.add(c.identidad); });
+
+      let allFoundInmuebles = inmsData || [];
+      if (identsSet.size > 0 && identsSet.size <= 20) {
+        const { data: siblings } = await supabase
+          .from('inmuebles')
+          .select('*')
+          .in('identidad', Array.from(identsSet));
+        if (siblings && siblings.length > 0) {
+          allFoundInmuebles = siblings;
+        }
+      }
       
       const mapResults = new Map();
 
-      (inmsData || []).forEach((row: any) => {
+      allFoundInmuebles.forEach((row: any) => {
         if (row.identidad && !mapResults.has(row.identidad)) {
+          const rowEstado = row.estado || 'Activo';
           mapResults.set(row.identidad, {
             Identidad: row.identidad,
             Contribuyente: row.contribuyente || row.nombre || 'Sin Nombre',
             Telefono: row.telefono || 'No registrado',
             Correo: row.email || row.correo_electronico || 'No registrado',
-            CodCont: row.inmueble || row.cod_cont,
-            cod_cont: row.inmueble || row.cod_cont,
+            CodCont: row.inmueble || row.cod_cont || '',
+            cod_cont: row.inmueble || row.cod_cont || '',
             Direccion: row.direccion || '',
-            Observaciones: '',
+            Observaciones: row.notas || '',
             Actividad: row.actividad_principal || 'No aplica',
-            Clasificacion: row.clasificacion || 'Residencial',
+            Clasificacion: row.clasificacion || (row.tipo?.toUpperCase().includes('COMERCIAL') ? 'Comercial' : 'Residencial'),
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
-            Estado: row.estado || 'Activo',
+            DeudaMMV: parseFloat(row.deuda_mmv || 0),
+            DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
+            DeudaBs: (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * 57 * tcmmv)),
+            MesesDeuda: parseInt(row.meses_deuda || '0'),
+            Estado: rowEstado,
             FechaRegistro: row.created_at || null
           });
+        } else if (row.identidad && mapResults.has(row.identidad)) {
+          const existing = mapResults.get(row.identidad);
+          existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
+          existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
+          existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
+          existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * 57 * tcmmv));
+          const rowEstado = row.estado || 'Activo';
+          if (rowEstado === 'Activo') existing.Estado = 'Activo';
+          const cod = row.inmueble || row.cod_cont;
+          if (cod && !existing.CodCont.includes(cod)) {
+            existing.CodCont += " " + cod;
+          }
+          mapResults.set(row.identidad, existing);
         }
       });
 
@@ -1162,6 +1196,10 @@ function ContribuyentesPageContent() {
             Actividad: 'No aplica',
             Clasificacion: 'Individual',
             SaldoFavor: 0,
+            DeudaMMV: 0,
+            DeudaCongelada: 0,
+            DeudaBs: 0,
+            MesesDeuda: 0,
             Estado: 'Activo',
             FechaRegistro: c.created_at || null
           });
@@ -1170,7 +1208,7 @@ function ContribuyentesPageContent() {
 
       setServerResults(Array.from(mapResults.values()));
     } catch (e: any) {
-      alert("Error en la busqueda: " + e.message);
+      alert("Error en la búsqueda en servidor: " + e.message);
     } finally {
       setIsSearchingServer(false);
     }
@@ -2360,7 +2398,25 @@ function ContribuyentesPageContent() {
     { 
       key: 'cod_cont', 
       header: 'Código',
-      render: (row: any) => <span className="font-bold text-slate-700">{row.cod_cont || row.CodCont || 'N/A'}</span>
+      render: (row: any) => {
+        const rawCodes = (row.CodCont || row.cod_cont || '').trim().split(/\s+/).filter(Boolean);
+        const mainCode = rawCodes[0] || row.cod_cont || 'N/A';
+        const otherCount = rawCodes.length - 1;
+
+        return (
+          <div className="flex flex-col">
+            <span className="font-bold text-slate-800 tracking-tight">{mainCode}</span>
+            {otherCount > 0 && (
+              <span 
+                className="text-[10px] bg-blue-50 text-blue-700 font-semibold px-1.5 py-0.5 rounded border border-blue-200 mt-0.5 inline-block w-fit cursor-help shadow-2xs"
+                title={`Inmuebles vinculados: ${rawCodes.join(', ')}`}
+              >
+                +{otherCount} {otherCount === 1 ? 'inmueble' : 'inmuebles'} ({rawCodes.slice(1, 3).join(', ')}{otherCount > 2 ? '...' : ''})
+              </span>
+            )}
+          </div>
+        );
+      }
     },
     { key: 'Identidad', header: 'R.I.F. / Cédula' },
     { key: 'Contribuyente', header: 'Nombre / Razón Social' },
@@ -2510,7 +2566,25 @@ function ContribuyentesPageContent() {
     { 
       key: 'cod_cont', 
       header: 'Código',
-      render: (row: any) => <span className="font-bold text-slate-700">{row.cod_cont || row.CodCont || 'N/A'}</span>
+      render: (row: any) => {
+        const rawCodes = (row.CodCont || row.cod_cont || '').trim().split(/\s+/).filter(Boolean);
+        const mainCode = rawCodes[0] || row.cod_cont || 'N/A';
+        const otherCount = rawCodes.length - 1;
+
+        return (
+          <div className="flex flex-col">
+            <span className="font-bold text-slate-800 tracking-tight">{mainCode}</span>
+            {otherCount > 0 && (
+              <span 
+                className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-1.5 py-0.5 rounded border border-slate-200 mt-0.5 inline-block w-fit cursor-help shadow-2xs"
+                title={`Inmuebles vinculados: ${rawCodes.join(', ')}`}
+              >
+                +{otherCount} {otherCount === 1 ? 'inmueble' : 'inmuebles'} ({rawCodes.slice(1, 3).join(', ')}{otherCount > 2 ? '...' : ''})
+              </span>
+            )}
+          </div>
+        );
+      }
     },
     { key: 'Identidad', header: 'R.I.F. / Cédula' },
     { key: 'Contribuyente', header: 'Nombre / Razón Social' },
@@ -2615,6 +2689,54 @@ function ContribuyentesPageContent() {
             Solo mostrar con Notas Históricas
           </label>
         </div>
+      </div>
+
+      {/* Buscador de Inmuebles y Contribuyentes en BD */}
+      <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={serverSearchTerm}
+              onChange={(e) => {
+                setServerSearchTerm(e.target.value);
+                if (!e.target.value.trim()) setIsShowingServerResults(false);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && handleServerSearch()}
+              placeholder="Buscar directamente en la BD por Código de Inmueble (ej. URB004206), Cédula/RIF o Razón Social..."
+              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-xs md:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+            />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          </div>
+          <button
+            onClick={handleServerSearch}
+            disabled={isSearchingServer || !serverSearchTerm.trim()}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs md:text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-xs cursor-pointer"
+          >
+            {isSearchingServer ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Search className="w-4 h-4" />
+            )}
+            <span>Buscar en BD</span>
+          </button>
+          {isShowingServerResults && (
+            <button
+              onClick={() => {
+                setIsShowingServerResults(false);
+                setServerSearchTerm('');
+              }}
+              className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            >
+              Ver todos ({contribuyentes.length})
+            </button>
+          )}
+        </div>
+        {isShowingServerResults && (
+          <span className="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2.5 py-1 rounded-full border border-emerald-200">
+            {serverResults.length} {serverResults.length === 1 ? 'resultado encontrado' : 'resultados encontrados'} en la BD
+          </span>
+        )}
       </div>
 
       <div className="bg-white rounded border border-slate-200 shadow-sm mt-4 overflow-hidden">
