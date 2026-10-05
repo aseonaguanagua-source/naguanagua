@@ -35,6 +35,7 @@ export interface AdminSession {
   nombre: string;
   rol: string;
   letra?: string;
+  permisos?: Record<string, boolean>;
   iat?: number;
   exp?: number;
 }

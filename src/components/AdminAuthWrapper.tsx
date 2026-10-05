@@ -16,32 +16,32 @@ export const PUESTOS_PLANTILLA = [
   { puesto: 'Cobro Móvil / Campo', usuario: 'cobromovil', defaultClave: 'movil123', rol: 'Taquilla / Operador' },
 ];
 
-// Mapeo de rutas a las claves de permisos del sistema de Naguanagua
-export const ROUTE_PERMISSIONS_MAP: Record<string, string> = {
-  '/admin/tarifas': 'ver_tarifas',
-  '/admin/censo': 'ver_censo',
-  '/admin/contribuyentes': 'ver_contribuyentes',
-  '/admin/condominios-cob': 'ver_condominios',
-  '/admin/pre-registros': 'ver_pre_registros',
-  '/admin/jornadas': 'planificar_jornadas',
-  '/admin/ambiental': 'gestionar_visto_bueno',
-  '/admin/herramientas': 'ver_reportes',
-  '/admin/calculo': 'usar_calculadora_deuda',
-  '/admin/caja': 'ver_caja',
-  '/admin/caja/conciliacion': 'ver_conciliacion',
-  '/admin/facturacion-electronica': 'emitir_recibos',
-  '/admin/estado-cuenta': 'ver_estado_cuenta',
-  '/admin/convenios-pago': 'ver_convenios',
-  '/admin/certificados': 'ver_certificados',
-  '/admin/buzon': 'ver_buzon',
-  '/admin/denuncias': 'ver_denuncias',
-  '/admin/rutas': 'ver_rutas',
-  '/admin/servicios-especiales': 'ver_servicios_especiales',
-  '/admin/reportes': 'ver_reportes',
-  '/admin/correos': 'ver_correos',
-  '/admin/trabajadores': 'gestionar_usuarios',
-  '/admin/auditoria': 'ver_auditoria',
-  '/cobro-movil': 'ver_caja',
+// Mapeo flexible de rutas a las claves de permisos del sistema de Naguanagua
+export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
+  '/admin/tarifas': ['ver_tarifas'],
+  '/admin/censo': ['ver_censo', 'registrar_censo'],
+  '/admin/contribuyentes': ['ver_contribuyentes', 'ver_contribuyentes_lectura', 'ver_caja', 'gestionar_pagos'],
+  '/admin/condominios-cob': ['ver_condominios', 'cobro_masivo_condo'],
+  '/admin/pre-registros': ['ver_pre_registros'],
+  '/admin/jornadas': ['planificar_jornadas'],
+  '/admin/ambiental': ['gestionar_visto_bueno'],
+  '/admin/herramientas': ['ver_reportes'],
+  '/admin/calculo': ['usar_calculadora_deuda'],
+  '/admin/caja': ['ver_caja', 'gestionar_pagos'],
+  '/admin/caja/conciliacion': ['ver_conciliacion', 'ver_caja'],
+  '/admin/facturacion-electronica': ['emitir_recibos', 'ver_caja'],
+  '/admin/estado-cuenta': ['ver_estado_cuenta', 'descargar_pdf_ec', 'ver_caja'],
+  '/admin/convenios-pago': ['ver_convenios'],
+  '/admin/certificados': ['ver_certificados', 'emitir_solvencia', 'ver_caja'],
+  '/admin/buzon': ['ver_buzon'],
+  '/admin/denuncias': ['ver_denuncias'],
+  '/admin/rutas': ['ver_rutas'],
+  '/admin/servicios-especiales': ['ver_servicios_especiales'],
+  '/admin/reportes': ['ver_reportes'],
+  '/admin/correos': ['ver_correos'],
+  '/admin/trabajadores': ['gestionar_usuarios'],
+  '/admin/auditoria': ['ver_auditoria'],
+  '/cobro-movil': ['ver_caja', 'gestionar_pagos'],
 };
 
 export default function AdminAuthWrapper({ children }: { children: React.ReactNode }) {
@@ -65,7 +65,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
       try {
         const { data } = await supabase
           .from('trabajadores')
-          .select('id, nombre, usuario, rol, letra, estado')
+          .select('id, nombre, usuario, rol, letra, estado, permisos')
           .eq('estado', 'Activo');
         if (data && data.length > 0) setTrabajadoresDb(data);
       } catch {}
@@ -84,36 +84,62 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
     }
   }, []);
 
-  // Verificar sesión existente en el cliente
+  // Verificar sesión existente en el cliente y rehidratar permisos desde BD
   useEffect(() => {
-    try {
-      const rawUser = localStorage.getItem('admin_user_data');
-      const simpleUser = localStorage.getItem('adminUser');
-      const isAuth = localStorage.getItem('admin_auth_andministrador');
+    const verifyAndRehydrate = async () => {
+      try {
+        const rawUser = localStorage.getItem('admin_user_data');
+        const simpleUser = localStorage.getItem('adminUser');
+        const isAuth = localStorage.getItem('admin_auth_andministrador');
 
-      if ((rawUser || simpleUser) && isAuth === 'true') {
-        let parsed = null;
-        if (rawUser) {
-          try { parsed = JSON.parse(rawUser); } catch {}
+        if ((rawUser || simpleUser) && isAuth === 'true') {
+          let parsed: any = null;
+          if (rawUser) {
+            try { parsed = JSON.parse(rawUser); } catch {}
+          }
+          if (!parsed && simpleUser) {
+            parsed = {
+              usuario: simpleUser,
+              nombre: simpleUser,
+              rol: simpleUser.toLowerCase().includes('admin') || simpleUser === 'dzara' ? 'Administrador' : 'Operador',
+              letra: localStorage.getItem('adminLetra') || '',
+              permisos: {}
+            };
+          }
+
+          // Si el usuario no es superadmin y sus permisos están vacíos en local, buscarlos en Supabase
+          if (parsed && parsed.rol !== 'Administrador' && parsed.usuario !== 'dzara') {
+            if (!parsed.permisos || Object.keys(parsed.permisos).length === 0) {
+              try {
+                const { data: dbWorker } = await supabase
+                  .from('trabajadores')
+                  .select('permisos, rol, letra, nombre')
+                  .eq('usuario', parsed.usuario)
+                  .maybeSingle();
+
+                if (dbWorker && dbWorker.permisos && Object.keys(dbWorker.permisos).length > 0) {
+                  parsed.permisos = dbWorker.permisos;
+                  parsed.rol = dbWorker.rol || parsed.rol;
+                  parsed.letra = dbWorker.letra || parsed.letra;
+                  localStorage.setItem('admin_user_data', JSON.stringify(parsed));
+                }
+              } catch {}
+            }
+          }
+
+          setUser(parsed);
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
         }
-        if (!parsed && simpleUser) {
-          parsed = {
-            usuario: simpleUser,
-            nombre: simpleUser,
-            rol: simpleUser.toLowerCase().includes('admin') || simpleUser === 'dzara' ? 'Administrador' : 'Operador',
-            letra: localStorage.getItem('adminLetra') || ''
-          };
-        }
-        setUser(parsed);
-        setIsAuthenticated(true);
-      } else {
+      } catch {
         setIsAuthenticated(false);
+      } finally {
+        setIsChecking(false);
       }
-    } catch {
-      setIsAuthenticated(false);
-    } finally {
-      setIsChecking(false);
-    }
+    };
+
+    verifyAndRehydrate();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -389,34 +415,48 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
   // ══════════════════════════════════════════════════════════════════════════
   const isSuperAdmin = user?.rol === 'Administrador' || user?.usuario === 'dzara';
 
+  // Si es cajero o tiene permiso de caja y entra en /admin raíz, redirigir automáticamente a /admin/caja
+  useEffect(() => {
+    if (isAuthenticated && !isSuperAdmin && pathname === '/admin') {
+      const isCajaWorker = user?.permisos?.['ver_caja'] || user?.rol?.toLowerCase().includes('taquilla') || user?.rol?.toLowerCase().includes('caja');
+      if (isCajaWorker) {
+        router.replace('/admin/caja');
+      }
+    }
+  }, [isAuthenticated, isSuperAdmin, pathname, user, router]);
+
   // Si no es superadministrador, verificar permiso de la ruta
   if (!isSuperAdmin) {
-    const requiredPermission = Object.entries(ROUTE_PERMISSIONS_MAP).find(([route]) =>
+    const requiredPermissionEntry = Object.entries(ROUTE_PERMISSIONS_MAP).find(([route]) =>
       pathname.startsWith(route)
-    )?.[1];
+    );
 
-    if (requiredPermission && user?.permisos && !user.permisos[requiredPermission]) {
-      return (
-        <div className="p-8 max-w-2xl mx-auto my-12 bg-white rounded-2xl border border-amber-200 shadow-xl space-y-5 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
-            <ShieldAlert size={36} />
-          </div>
-          <div>
-            <h2 className="text-xl font-black text-slate-800">
-              Acceso Restringido a este Módulo
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Su cuenta de trabajador (<b className="text-indigo-600">{user?.usuario}</b> - {user?.rol}) no tiene
-              habilitado el permiso requerido (<b className="font-mono text-amber-700">{requiredPermission}</b>) para
-              utilizar esta aplicación municipal.
-            </p>
-          </div>
+    if (requiredPermissionEntry) {
+      const [matchedRoute, requiredList] = requiredPermissionEntry;
+      const hasPerm = requiredList.some(p => user?.permisos && user.permisos[p]);
 
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 font-medium">
-            Si requiere acceso a este módulo para sus labores, solicite al administrador ({user?.letra ? `Caja ${user.letra}` : 'Personal'}) que actualice su matriz de permisos en <b>Gestión de Trabajadores</b>.
-          </div>
+      if (!hasPerm) {
+        return (
+          <div className="p-8 max-w-2xl mx-auto my-12 bg-white rounded-2xl border border-amber-200 shadow-xl space-y-5 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+              <ShieldAlert size={36} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-800">
+                Acceso Restringido a este Módulo
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Su cuenta de trabajador (<b className="text-indigo-600">{user?.usuario}</b> - {user?.rol}) no tiene
+                habilitado el permiso requerido (<b className="font-mono text-amber-700">{requiredList.join(' o ')}</b>) para
+                utilizar esta aplicación municipal.
+              </p>
+            </div>
 
-          <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 font-medium">
+              Si requiere acceso a este módulo para sus labores, solicite al administrador ({user?.letra ? `Caja ${user.letra}` : 'Personal'}) que actualice su matriz de permisos en <b>Gestión de Trabajadores</b>.
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-2">
             <button
               onClick={() => router.push('/admin')}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors"
@@ -434,6 +474,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
       );
     }
   }
+}
 
   // Usuario autenticado y autorizado para esta aplicación
   return <>{children}</>;

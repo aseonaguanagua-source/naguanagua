@@ -1,17 +1,30 @@
 'use client';
-import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpreadsheet, History, Award, Clock, Building2, AlertTriangle, Handshake, LayoutDashboard, Mail, User, PieChart, Truck, Inbox, Calculator, Briefcase, Landmark, BookOpen, Car, Map, Bus, TreePine, ShieldAlert, DollarSign, Wallet, FileCheck, Package, ShoppingCart, Target, BarChart3, ClipboardCheck, Smartphone, LogOut } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpreadsheet, History, Award, Clock, Building2, AlertTriangle, Handshake, LayoutDashboard, Mail, User, PieChart, Truck, Inbox, Calculator, Briefcase, Landmark, BookOpen, Car, Map, Bus, TreePine, ShieldAlert, DollarSign, Wallet, FileCheck, Package, ShoppingCart, Target, BarChart3, ClipboardCheck, Smartphone, LogOut, ShieldCheck } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { performLogout } from '@/lib/logout';
+import { ROUTE_PERMISSIONS_MAP } from '@/components/AdminAuthWrapper';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/audit');
-  
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('admin_user_data');
+      if (raw) {
+        setUser(JSON.parse(raw));
+      }
+    } catch {}
+  }, [pathname]);
+
   if (!isAdminPath) {
     return null;
   }
 
+  const isSuperAdmin = user?.rol === 'Administrador' || user?.usuario === 'dzara';
   const isRecaudacion = pathname.startsWith('/admin/recaudacion');
   const isAdministracion = pathname.startsWith('/admin/administracion');
 
@@ -87,6 +100,16 @@ export default function Sidebar() {
     title = 'Administración Interna';
   }
 
+  // Filtrar el menú por los permisos reales del trabajador
+  const filteredMenu = activeMenu.filter((item) => {
+    if (isSuperAdmin) return true;
+    if (item.href === '/admin') return true;
+    const requiredList = ROUTE_PERMISSIONS_MAP[item.href];
+    if (!requiredList || requiredList.length === 0) return true;
+    if (!user?.permisos) return false;
+    return requiredList.some((p) => user.permisos[p]);
+  });
+
   return (
     <aside className="w-64 bg-[#111827] h-screen text-slate-300 flex flex-col fixed left-0 top-0 z-50">
       <div className="flex items-center justify-center border-b border-white/10 bg-[#111827] px-4 py-4">
@@ -97,12 +120,33 @@ export default function Sidebar() {
           style={{ filter: 'brightness(0) invert(1)' }}
         />
       </div>
-      <div className="p-4 bg-[#111827] border-b border-white/10 text-sm text-[#c8e64c] text-center uppercase tracking-wider font-semibold">
+
+      {/* Información del funcionario activo */}
+      {user && (
+        <div className="px-4 py-2.5 bg-slate-900/80 border-b border-white/10 flex items-center justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold text-white truncate leading-tight flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+              {user.nombre || user.usuario}
+            </p>
+            <p className="text-[10px] text-slate-400 truncate">
+              {user.rol || 'Operador'} {user.letra ? `• Caja ${user.letra}` : ''}
+            </p>
+          </div>
+          {user.letra && (
+            <span className="text-[10px] font-mono font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              {user.letra}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="p-3 bg-[#111827] border-b border-white/10 text-xs text-[#c8e64c] text-center uppercase tracking-wider font-semibold">
         {title}
       </div>
-      <nav className="flex-1 overflow-y-auto py-4 sidebar-scroll">
+      <nav className="flex-1 overflow-y-auto py-3 sidebar-scroll">
         <ul className="space-y-1">
-          {activeMenu.map((item) => (
+          {filteredMenu.map((item) => (
             <li key={item.name}>
               <Link
                 href={item.href}
@@ -115,7 +159,7 @@ export default function Sidebar() {
           ))}
         </ul>
       </nav>
-      
+
       <div className="p-4 bg-[#111827] border-t border-white/10 shrink-0 space-y-2">
         <button
           onClick={async () => {

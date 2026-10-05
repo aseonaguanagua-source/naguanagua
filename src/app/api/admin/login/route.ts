@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('trabajadores')
-      .select('id, usuario, clave, nombre, rol, letra, estado')
+      .select('id, usuario, clave, nombre, rol, letra, estado, permisos')
       .eq('usuario', username.trim())
       .eq('estado', 'Activo')
       .single();
@@ -62,12 +62,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Contraseña incorrecta' }, { status: 401 });
     }
 
+    const permisosObj = (data as any).permisos || {};
+
     // Emitir JWT en cookie httpOnly (Fix A-3)
     const token = signSession({
       usuario: data.usuario,
       nombre: data.nombre || data.usuario,
       rol: data.rol || 'Cajero',
       letra: data.letra || '',
+      permisos: permisosObj,
     });
 
     const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
       nombre: data.nombre,
       rol: data.rol,
       letra: data.letra || '',
-      permisos: (data as any).permisos || {},
+      permisos: permisosObj,
     });
 
     response.headers.set('Set-Cookie', cookieValue);

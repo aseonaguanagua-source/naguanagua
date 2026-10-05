@@ -24,5 +24,6 @@ export async function GET(request: NextRequest) {
     nombre: session.nombre,
     rol: session.rol,
     letra: session.letra || '',
+    permisos: session.permisos || {},
   });
 }
