@@ -71,7 +71,7 @@ export default function CajaPage() {
   const montoRetencionIVA = sumIVARetencionable * (retencionIVA / 100);
 
   // Payment State
-  const [paymentMethod, setPaymentMethod] = useState<'Debito' | 'Transferencia' | 'Deposito' | 'Saldo a Favor'>('Debito');
+  const [paymentMethod, setPaymentMethod] = useState<'Debito' | 'TMD' | 'TVD' | 'Transferencia' | 'Deposito' | 'Saldo a Favor'>('Debito');
   const [referenciaDebito, setReferenciaDebito] = useState('');
   const [montoDebito, setMontoDebito] = useState<string>(''); // Monto manual punto de venta
   const [banco, setBanco] = useState('Banco de Venezuela');
@@ -1166,9 +1166,10 @@ export default function CajaPage() {
       } else {
         montoReal = transferido;
       }
-    } else if (paymentMethod === 'Debito') {
-      if (!referenciaDebito.trim()) return alert("Debe ingresar el número de comprobante o referencia del pago por punto.");
-      if (referenciaDebito.trim().length > 8) return alert("El número de referencia para Punto de Venta no puede superar los 8 dígitos.");
+    } else if (['Debito', 'TMD', 'TVD'].includes(paymentMethod)) {
+      const cardLabel = paymentMethod === 'TMD' ? 'Tarjeta Master (TMD)' : paymentMethod === 'TVD' ? 'Tarjeta Visa (TVD)' : 'Punto de Venta';
+      if (!referenciaDebito.trim()) return alert(`Debe ingresar el número de comprobante o referencia del pago por ${cardLabel}.`);
+      if (referenciaDebito.trim().length > 8) return alert(`El número de referencia para ${cardLabel} no puede superar los 8 dígitos.`);
       if (montoDebito && (parseFloat(montoDebito) <= 0 || isNaN(parseFloat(montoDebito)))) {
         return alert("Si ingresa un monto manual, debe ser un valor válido mayor a 0.");
       }
@@ -1269,7 +1270,7 @@ export default function CajaPage() {
           })
         }]);
         // ─ Acreditar nuevo Saldo a Favor (fix I-6: usa inmueble principal, no inmuebles[0]) ─
-        if (paymentMethod === 'Debito') {
+        if (['Debito', 'TMD', 'TVD'].includes(paymentMethod)) {
           const result = await acreditarSaldoFavor(foundUser.Identidad, saldoAFavorNuevo);
           if (!result.ok) console.error('Error acreditando saldo:', result.error);
         }
@@ -1287,7 +1288,7 @@ export default function CajaPage() {
         if (!result.ok) console.error('Error al pagar con Saldo a Favor:', result.error);
       }
 
-      const isAutoAprobado = ['Debito', 'Saldo a Favor'].includes(paymentMethod);
+      const isAutoAprobado = ['Debito', 'Saldo a Favor', 'TMD', 'TVD'].includes(paymentMethod);
       // Detect abono: montoDebito provided and < totalBs
       const esAbonoDebito = !!(montoDebito && parseFloat(montoDebito) > 0 && parseFloat(montoDebito) < confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor - 0.01);
 
@@ -1394,7 +1395,7 @@ export default function CajaPage() {
           id: pagoId,
           identidad: foundUser.Identidad,
           monto: montoReal,
-          banco: paymentMethod,
+          banco: paymentMethod === 'TMD' ? 'PUNTO TMD (MASTER)' : paymentMethod === 'TVD' ? 'PUNTO TVD (VISA)' : paymentMethod,
           referencia: reqRef ? referencia : referenciaDebito,
           tipo: paymentMethod,
           estado: 'Aprobado',
@@ -1457,7 +1458,14 @@ export default function CajaPage() {
             currentDetalles.montoTotal = montoReal;
             currentDetalles.isCondominio = isCondominio;
             currentDetalles.formasPago = [
-              { descripcion: paymentMethod, fecha: new Date().toISOString(), forma: paymentMethod === 'Debito' ? '03' : paymentMethod === 'Deposito' ? '05' : '05', banco: banco || undefined, referencia: reqRef ? referencia : referenciaDebito || undefined, monto: montoReal }
+              {
+                descripcion: paymentMethod === 'TMD' ? 'TARJETA DE CRÉDITO MASTER (TMD)' : paymentMethod === 'TVD' ? 'TARJETA DE CRÉDITO VISA (TVD)' : paymentMethod === 'Debito' ? 'TARJETA DE DÉBITO' : paymentMethod,
+                fecha: new Date().toISOString(),
+                forma: paymentMethod === 'Debito' ? '03' : ['TMD', 'TVD'].includes(paymentMethod) ? '02' : '05',
+                banco: banco || undefined,
+                referencia: reqRef ? referencia : referenciaDebito || undefined,
+                monto: montoReal
+              }
             ];
             await supabase.from('pagos_reportados').update({ detalles: currentDetalles }).eq('id', pagoId);
           } catch(err) {
@@ -1568,8 +1576,8 @@ export default function CajaPage() {
               exento: montoReal,
               iva: 0,
               total: montoReal,
-              formaPago: paymentMethod || 'PUNTO DE VENTA',
-              banco: 'Debito',
+              formaPago: paymentMethod === 'TMD' ? 'TMD (TARJETA CRÉDITO MASTER)' : paymentMethod === 'TVD' ? 'TVD (TARJETA CRÉDITO VISA)' : paymentMethod === 'Debito' ? 'PUNTO DE VENTA (DÉBITO)' : paymentMethod,
+              banco: ['Debito', 'TMD', 'TVD'].includes(paymentMethod) ? paymentMethod : (banco || 'Debito'),
               referencia: reqRef ? referencia : referenciaDebito,
               tasaBcv: currentBcvRate || tcmmv || undefined,
               esAbono: true,
@@ -1582,7 +1590,7 @@ export default function CajaPage() {
         }
         setSuccessMsg(esAbonoDebito
           ? `Abono de Bs. ${formatBs(montoReal)} procesado. La deuda restante quedó actualizada.`
-          : `Pago procesado exitosamente por ${paymentMethod}. La deuda ha sido conciliada automáticamente.`
+          : `Pago procesado exitosamente por ${paymentMethod === 'TMD' ? 'TMD (Tarjeta Crédito Master)' : paymentMethod === 'TVD' ? 'TVD (Tarjeta Crédito Visa)' : paymentMethod}. La deuda ha sido conciliada automáticamente.`
         );
         // ── AUDITORÍA: Cobro completado ──
         logAudit(
@@ -1775,8 +1783,8 @@ export default function CajaPage() {
                 exento: montoReal,
                 iva: 0,
                 total: montoReal,
-                formaPago: paymentMethod || 'PUNTO DE VENTA',
-                banco: 'Debito',
+                formaPago: paymentMethod === 'TMD' ? 'TMD (TARJETA CRÉDITO MASTER)' : paymentMethod === 'TVD' ? 'TVD (TARJETA CRÉDITO VISA)' : paymentMethod === 'Debito' ? 'PUNTO DE VENTA (DÉBITO)' : paymentMethod,
+                banco: ['Debito', 'TMD', 'TVD'].includes(paymentMethod) ? paymentMethod : (banco || 'Debito'),
                 referencia: reqRef ? referencia : referenciaDebito,
                 tasaBcv: currentBcvRate || tcmmv || undefined,
                 tipoContribuyente: isResidencialInm(foundUser) ? 'Residencial' : 'Comercial',
@@ -3844,9 +3852,11 @@ export default function CajaPage() {
                 <select 
                   value={paymentMethod}
                   onChange={(e: any) => setPaymentMethod(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
                 >
-                  <option value="Debito">Punto de Venta (Débito / Crédito)</option>
+                  <option value="Debito">Punto de Venta (Tarjeta de Débito)</option>
+                  <option value="TMD">TMD (Tarjeta de Crédito Master)</option>
+                  <option value="TVD">TVD (Tarjeta de Crédito Visa)</option>
                   <option value="Transferencia">Transferencia Bancaria</option>
                   <option value="Deposito">Depósito Bancario</option>
                   {(foundUser?.SaldoFavor || 0) > 0 && (
@@ -3855,11 +3865,13 @@ export default function CajaPage() {
                   </select>
               </label>
 
-                  {['Debito'].includes(paymentMethod) && (
+                  {['Debito', 'TMD', 'TVD'].includes(paymentMethod) && (
                     <div className="mt-4 space-y-3">
                       {isPagoMultiple && (
                         <label className="block mt-2">
-                          <span className="text-xs font-semibold text-slate-600 mb-1 block">Monto a Pagar por Punto (Bs)</span>
+                          <span className="text-xs font-semibold text-slate-600 mb-1 block">
+                            {paymentMethod === 'TMD' ? 'Monto Tarjeta Master (Bs)' : paymentMethod === 'TVD' ? 'Monto Tarjeta Visa (Bs)' : 'Monto a Pagar por Punto (Bs)'}
+                          </span>
                           <input type="text" value={montoDebito} onChange={e => {
                             const val = e.target.value.replace(/[^0-9.]/g, '');
                             setMontoDebito(val);
@@ -3876,7 +3888,9 @@ export default function CajaPage() {
                         />
                       </label>
                       <label className="block">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Número de Comprobante / Referencia <span className="text-red-500">*</span> (máx. 8 dígitos)</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">
+                          {paymentMethod === 'TMD' ? 'Número de Aprobación / Referencia TMD (Master)' : paymentMethod === 'TVD' ? 'Número de Aprobación / Referencia TVD (Visa)' : 'Número de Comprobante / Referencia POS'} <span className="text-red-500">*</span> (máx. 8 dígitos)
+                        </span>
                         <input 
                           type="text" 
                           value={referenciaDebito} 

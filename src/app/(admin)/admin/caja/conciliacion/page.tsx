@@ -47,7 +47,7 @@ const BANCOS_DESTINO = [
   'BANCO PROVINCIAL - 0108',
 ];
 
-const FORMAS_PAGO = ['Todos', 'Transferencia', 'Punto de Venta', 'Debito', 'Efectivo'];
+const FORMAS_PAGO = ['Todos', 'Transferencia', 'Punto de Venta', 'Debito', 'TMD (Master)', 'TVD (Visa)', 'Efectivo'];
 const ESTATUS_LIST = ['Todos', 'Pendiente', 'Por Verificar', 'Aprobado', 'Rechazado'];
 const ESTATUS_CONCILIAR = ['Aprobado', 'Rechazado', 'Con Diferencia'];
 

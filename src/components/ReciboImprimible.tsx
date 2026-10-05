@@ -37,8 +37,10 @@ interface ReciboProps {
   }[];
 }
 
-function normalizarFormaPago(fp: string): 'PUNTO_VENTA' | 'TRANSFERENCIA' | 'EFECTIVO' | 'OTRO' {
+function normalizarFormaPago(fp: string): 'PUNTO_VENTA' | 'TMD' | 'TVD' | 'TRANSFERENCIA' | 'EFECTIVO' | 'OTRO' {
   const v = (fp || '').toLowerCase().trim();
+  if (v.includes('tmd') || v.includes('master')) return 'TMD';
+  if (v.includes('tvd') || v.includes('visa')) return 'TVD';
   if (v.includes('debito') || v.includes('punto')) return 'PUNTO_VENTA';
   if (v.includes('transfer')) return 'TRANSFERENCIA';
   if (v.includes('efectivo') || v.includes('cash')) return 'EFECTIVO';
@@ -293,8 +295,10 @@ function ReciboContenido({
       <div style={{ display:'grid', gridTemplateColumns:'1fr 110px' }}>
         <div style={{ padding:'3px 6px', borderRight: B, fontSize:8 }}>
           <div style={{ fontWeight:'bold', marginBottom:2 }}>Forma de Pago:</div>
-          <div style={{ display:'flex', gap:8, marginBottom:2 }}>
+          <div style={{ display:'flex', gap:6, marginBottom:2, flexWrap:'wrap' }}>
             <span>PUNTO DE VENTA <strong style={{ display:'inline-block', width:12, textAlign:'center', border: B }}>{fpNorm==='PUNTO_VENTA'?'X':''}</strong></span>
+            <span>TMD (MASTER) <strong style={{ display:'inline-block', width:12, textAlign:'center', border: B }}>{fpNorm==='TMD'?'X':''}</strong></span>
+            <span>TVD (VISA) <strong style={{ display:'inline-block', width:12, textAlign:'center', border: B }}>{fpNorm==='TVD'?'X':''}</strong></span>
             <span>TRANSFERENCIA <strong style={{ display:'inline-block', width:12, textAlign:'center', border: B }}>{fpNorm==='TRANSFERENCIA'?'X':''}</strong></span>
           </div>
           <div>
