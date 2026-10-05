@@ -113,6 +113,19 @@ export default function DatosContribuyentePage() {
         </Link>
       </div>
 
+      {/* Alerta de Actualización de Correo para Facturación Digital */}
+      {(!userData.email || userData.email.toLowerCase().includes('facturacion.naguanagua@gmail.com') || userData.email.toLowerCase().includes('globalgreenca')) && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3 text-amber-900 shadow-xs">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-black text-sm">Actualización Requerida de Correo Electrónico Fiscal</h4>
+            <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+              Estimado contribuyente: Actualmente su expediente no cuenta con un correo electrónico personal registrado para el despacho directo de sus <strong>Facturas Fiscales Digitales (SENIAT / The Factory HKA)</strong>. Por favor complete su correo a continuación y guarde los cambios.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Datos Principales */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">

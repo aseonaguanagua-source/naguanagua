@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { isResidencialInm } from '@/lib/calculos';
+import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
 
 function numeroALetras(monto: number): string {
   const unidades = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
@@ -64,7 +65,11 @@ function formatearFecha(isoString: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { pagoId, recibos, montos, contribuyente, identidad, formasPago, montoTotal, isCondominio, concepto, montoServicio, montoMulta } = await request.json();
+    const { 
+      pagoId, recibos, montos, contribuyente, identidad, formasPago, 
+      montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
+      correoDestino, enviarCorreo = true 
+    } = await request.json();
 
     if (!pagoId) {
       return NextResponse.json({ error: 'Faltan datos obligatorios (pagoId requerido)' }, { status: 400 });
@@ -75,7 +80,7 @@ export async function POST(request: Request) {
     const idVariants = [identidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];
     const { data: userProps, error: propsErr } = await supabase
       .from('inmuebles')
-      .select('tipo, actividad_principal, direccion')
+      .select('tipo, actividad_principal, direccion, correo_electronico')
       .in('identidad', idVariants);
 
     if (propsErr) {
@@ -442,7 +447,11 @@ export async function POST(request: Request) {
             Pais:                 "VE",
             Notificar:            null,
             Telefono:             [],
-            Correo:               ["aseonaguanagua@globalgreenca.com"],
+            Correo:               [(() => {
+              const fallback = TheFactoryHKA.getFallbackEmail();
+              const cand = (correoDestino || propRef?.correo_electronico || '').trim();
+              return cand && cand.length > 3 ? cand : fallback;
+            })()],
             OtrosEnvios:          null,
           },
           SujetoRetenido: null,
@@ -591,12 +600,45 @@ export async function POST(request: Request) {
       };
     }
 
+    // Envío por correo: Cliente + Copia Interna de Respaldo Fiscal (Costo 0 en The Factory)
+    const fallbackEmail = TheFactoryHKA.getFallbackEmail();
+    const candEmail = (correoDestino || propRef?.correo_electronico || '').trim();
+    const esComodin = !candEmail || candEmail.length < 4 || candEmail.toLowerCase() === fallbackEmail.toLowerCase();
+    const emailFinal = esComodin ? fallbackEmail : candEmail;
+
+    if (enviarCorreo) {
+      try {
+        const envioInfo = await enviarFacturaConCopiaInterna({
+          contribuyente: contribuyente || 'Contribuyente',
+          identidad: identidad || 'N/A',
+          numeroControl: nuevosDetalles.factura_digital.numero_control,
+          numeroDocumento: nuevosDetalles.factura_digital.numero_documento,
+          monto: totalAPagar,
+          fecha: nuevosDetalles.factura_digital.fecha_emision,
+          urlPdf: nuevosDetalles.factura_digital.url,
+          correoContribuyente: emailFinal,
+          esCorreoComodin: esComodin,
+        });
+        nuevosDetalles.factura_digital.envio_correo = envioInfo;
+      } catch (mailErr: any) {
+        console.warn('Aviso enviando correos de factura digital:', mailErr.message);
+      }
+    }
+
+    nuevosDetalles.factura_digital.correo_utilizado = emailFinal;
+    nuevosDetalles.factura_digital.es_correo_comodin = esComodin;
+    nuevosDetalles.factura_digital.requiere_actualizacion_correo = esComodin;
+
     await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
 
     return NextResponse.json({
       success: true,
       simulated: !isTfhkaEnabled,
       url: nuevosDetalles.factura_digital.url,
+      numeroControl: nuevosDetalles.factura_digital.numero_control,
+      numeroDocumento: nuevosDetalles.factura_digital.numero_documento,
+      correoUtilizado: emailFinal,
+      esCorreoComodin: esComodin
     });
 
   } catch (err: any) {

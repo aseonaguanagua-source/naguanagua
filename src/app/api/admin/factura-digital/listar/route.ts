@@ -42,13 +42,20 @@ export async function GET(request: Request) {
       const cont = contsMap.get(pago.identidad);
       const fd = det.factura_digital || null;
       const emitida = !!(fd && (fd.emitida || fd.url || fd.numero_control));
+      const fallbackEmail = process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.naguanagua@gmail.com';
+      const rawEmail = (cont?.email || det.correo || fd?.correo_utilizado || '').trim();
+      const esCorreoComodin = !rawEmail || rawEmail.length < 4 || rawEmail.toLowerCase() === fallbackEmail.toLowerCase();
+      const correoFinal = esCorreoComodin ? fallbackEmail : rawEmail;
 
       return {
         id: pago.id,
         pagoId: pago.id,
         identidad: pago.identidad,
         contribuyente: det.contribuyente || cont?.nombre || 'Contribuyente ' + pago.identidad,
-        correo: cont?.email || det.correo || '',
+        correo: correoFinal,
+        rawCorreo: rawEmail,
+        esCorreoComodin,
+        requiereActualizacionCorreo: esCorreoComodin,
         monto: parseFloat(pago.monto || '0'),
         banco: pago.banco || 'N/A',
         referencia: pago.referencia || 'N/A',
