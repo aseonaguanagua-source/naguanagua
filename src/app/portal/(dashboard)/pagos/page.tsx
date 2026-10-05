@@ -11,6 +11,7 @@ import { formatBs } from '@/lib/formatCurrency';
 import { isResidencialInm, calcularMensualidad } from '@/lib/calculos';
 import { getIdentidadVariants } from '@/lib/formatters';
 import { clusterInmueblesByLocal } from '@/lib/cajaHelpers';
+import { LISTA_BANCOS } from '@/lib/bancos';
 
 type Metodo = 'transferencia' | '';
 
@@ -601,15 +602,7 @@ export default function DondePagarPage() {
     setFormData(prev => ({ ...prev, monto: montoTotal > 0 ? formatBs(montoTotal) : '' }));
   }, [montoTotal]);
 
-  const bancos = [
-    '100% Banco', 'Bancamiga', 'Bancaribe', 'Banco Activo', 'Banco Bicentenario',
-    'Banco Caroní', 'Banco de Venezuela', 'Banco del Tesoro', 'Banco Exterior',
-    'Banco Mercantil', 'Banco Nacional de Crédito (BNC)', 'Banco Plaza',
-    'Banco Provincial', 'Banco Sofitasa', 'Banesco', 'Banplus', 'Bancrecer',
-    'Mi Banco', 'Banco Internacional (BIB)', 'Banco Venezolano de Crédito (BVC)',
-    'BanFanb', 'Bancovi', 'Instituto Municipal de Crédito Popular (IMCP)',
-    'Fondemi', 'Microfinanzas', 'Pagomovil BDV'
-  ].sort();
+  const bancos = LISTA_BANCOS;
 
   const compressImage = (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {

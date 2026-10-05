@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
 import { logAudit } from '@/lib/audit';
 import AdminRetenciones from '@/components/AdminRetenciones';
+import { LISTA_BANCOS } from '@/lib/bancos';
 
 type Pago = {
   id: string;
@@ -428,12 +429,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [tasaCustom, setTasaCustom] = useState<string>(tasaOriginal ? tasaOriginal.toFixed(2) : '');
   const [facturasParaConciliar, setFacturasParaConciliar] = useState<any[]>([]);
 
-  const bancosVenezuela = [
-    '100% Banco','Bancamiga','Bancaribe','Banco Activo','Banco Agricola de Venezuela',
-    'Banco Bicentenario','Banco Caroni','Banco de Venezuela','Banco del Tesoro',
-    'Banco Exterior','Banco Mercantil','Banco Nacional de Credito BNC','Banco Plaza',
-    'Banco Provincial','Banco Sofitasa','Banesco','Banplus','Bancrecer','Mi Banco',
-  ].sort();
+  const bancosVenezuela = LISTA_BANCOS;
 
   // Cargar TODA la info del contribuyente desde inmuebles
   useEffect(() => {

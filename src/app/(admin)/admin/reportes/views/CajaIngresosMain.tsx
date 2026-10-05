@@ -46,8 +46,10 @@ function getNombre(p: any, contribuyentes: any[]): string {
   return nombre;
 }
 
+import { LISTA_BANCOS } from '@/lib/bancos';
+
 const SUB_TIPOS: SubTipo[] = ['General de Ingresos', 'Corte de Caja', 'Ingresos por Banco', 'Libro de Ventas', 'Resumen Libro de Ventas'];
-const BANCOS = ['BANESCO','BANCO NACIONAL CREDITO BNC','BDT','BANCO DE VENEZUELA','PROVINCIAL','MERCANTIL','BOD','BANCO DEL CARIBE','BANCO PLAZA','BANCO EXTERIOR','SOFITASA','BANCAMIGA','MIBANCO'];
+const BANCOS = LISTA_BANCOS;
 
 export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser, tcmmv, contribuyentes, onBack }: Props) {
   const today = new Date().toISOString().slice(0, 10);

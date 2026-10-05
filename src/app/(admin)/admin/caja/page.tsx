@@ -13,17 +13,10 @@ import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, ge
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
 import { useCajaSelection } from './hooks/useCajaSelection';
+import { LISTA_BANCOS } from '@/lib/bancos';
 
-// ─ Constante de módulo: evita re-ordenar en cada render (fix A-4) ─
-const BANCOS_VENEZUELA = [
-  '100% Banco', 'Bancamiga', 'Bancaribe', 'Banco Activo', 'Banco Agrícola de Venezuela',
-  'Banco Bicentenario', 'Banco Caroní', 'Banco de Venezuela', 'Banco del Tesoro',
-  'Banco Exterior', 'Banco Mercantil', 'Banco Nacional de Crédito (BNC)', 'Banco Plaza',
-  'Banco Provincial', 'Banco Sofitasa', 'Banesco', 'Banplus', 'Bancrecer',
-  'Mi Banco', 'Banco Internacional (BIB)', 'Banco Venezolano de Crédito (BVC)',
-  'BanFanb', 'Bancovi', 'Instituto Municipal de Crédito Popular (IMCP)',
-  'Fondemi', 'Microfinanzas', 'Pagomovil BDV'
-].sort();
+// ─ Constante oficial de bancos de Venezuela actualizada ─
+const BANCOS_VENEZUELA = LISTA_BANCOS;
 
 
 export default function CajaPage() {
