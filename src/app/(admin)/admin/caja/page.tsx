@@ -4204,35 +4204,120 @@ export default function CajaPage() {
 
       {/* ── Modal de Confirmación de Pago ── */}
       {isConfirmModalOpen && confirmPayload && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="bg-slate-800 px-6 py-4 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden my-auto border border-slate-200">
+            {/* Cabecera Fija */}
+            <div className="bg-slate-800 px-6 py-4 flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-white font-black text-lg">Confirmar Pago</h3>
                 <p className="text-slate-400 text-xs mt-0.5">Verifique los datos antes de procesar</p>
               </div>
-              <button onClick={() => { setIsConfirmModalOpen(false); setConfirmPayload(null); }} className="text-slate-400 hover:text-white text-2xl font-bold leading-none">&times;</button>
+              <button 
+                onClick={() => { setIsConfirmModalOpen(false); setConfirmPayload(null); }} 
+                className="text-slate-400 hover:text-white text-2xl font-bold leading-none p-1 transition-colors"
+                title="Cerrar"
+              >
+                &times;
+              </button>
             </div>
 
-            <div className="p-6 space-y-3">
+            {/* Cuerpo con barra de desplazamiento (Scroll) */}
+            <div 
+              className="p-6 space-y-4 overflow-y-auto flex-1"
+              style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#94a3b8 #f1f5f9'
+              }}
+            >
               {/* Contribuyente */}
-              <div className="bg-slate-50 rounded-xl p-4">
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Contribuyente</p>
                 <p className="font-black text-slate-800 text-sm">{foundUser?.Contribuyente}</p>
                 <p className="text-slate-500 text-xs">{foundUser?.Identidad}</p>
               </div>
 
-              {/* Recibos seleccionados */}
+              {/* Recibos seleccionados con scroll interno */}
               {confirmPayload.recibosSeleccionados?.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Recibos a saldar</p>
-                  <div className="space-y-1">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                      Recibos / Meses a saldar ({confirmPayload.recibosSeleccionados.length})
+                    </p>
+                    {confirmPayload.recibosSeleccionados.length > 4 && (
+                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        ↕ Deslice para revisar todos
+                      </span>
+                    )}
+                  </div>
+                  <div 
+                    className="space-y-1.5 max-h-48 overflow-y-auto pr-1.5 border border-slate-200 rounded-xl p-2.5 bg-slate-50/70"
+                    style={{
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: '#cbd5e1 #f8fafc'
+                    }}
+                  >
                     {confirmPayload.recibosSeleccionados.map((ref: string) => {
                       const f = recibos.find((r: any) => r.referencia === ref);
                       return (
-                        <div key={ref} className="flex justify-between text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5">
-                          <span className="text-slate-600 font-medium">{ref}</span>
-                          <span className="font-bold text-slate-800">Bs. {formatBs(getReciboMonto(f))}</span>
+                        <div key={ref} className="flex justify-between items-center text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-2xs">
+                          <span className="text-slate-700 font-semibold">{ref}</span>
+                          <span className="font-bold text-slate-900">Bs. {formatBs(getReciboMonto(f))}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Cuotas de Convenio */}
+              {confirmPayload.cuotasSeleccionadas?.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                    Cuotas de Convenio ({confirmPayload.cuotasSeleccionadas.length})
+                  </p>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1.5 border border-slate-200 rounded-xl p-2.5 bg-slate-50/70">
+                    {confirmPayload.cuotasSeleccionadas.map((c: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                        <span className="text-slate-700 font-medium">Convenio #{c.convId} - Cuota {c.cuotaId}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Servicios Especiales */}
+              {confirmPayload.serviciosSeleccionados?.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                    Servicios Especiales ({confirmPayload.serviciosSeleccionados.length})
+                  </p>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1.5 border border-slate-200 rounded-xl p-2.5 bg-slate-50/70">
+                    {confirmPayload.serviciosSeleccionados.map((sId: string) => {
+                      const s = serviciosEsp.find((item: any) => item.id === sId || item.referencia === sId);
+                      return (
+                        <div key={sId} className="flex justify-between items-center text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                          <span className="text-slate-700 font-medium">{s?.descripcion || sId}</span>
+                          <span className="font-bold text-slate-900">Bs. {formatBs(parseFloat(s?.monto || 0))}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Tala y Poda */}
+              {confirmPayload.talaPodaSeleccionada?.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                    Tala y Poda ({confirmPayload.talaPodaSeleccionada.length})
+                  </p>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1.5 border border-slate-200 rounded-xl p-2.5 bg-slate-50/70">
+                    {confirmPayload.talaPodaSeleccionada.map((tId: string) => {
+                      const t = talaPoda.find((item: any) => item.id === tId || item.referencia === tId);
+                      return (
+                        <div key={tId} className="flex justify-between items-center text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                          <span className="text-slate-700 font-medium">{t?.descripcion || tId}</span>
+                          <span className="font-bold text-slate-900">Bs. {formatBs(parseFloat(t?.monto || 0))}</span>
                         </div>
                       );
                     })}
@@ -4242,27 +4327,27 @@ export default function CajaPage() {
 
               {/* Método y referencia */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-blue-50 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-blue-400 uppercase">Método</p>
-                  <p className="font-bold text-blue-800 text-sm mt-0.5">{paymentMethod}</p>
+                <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Método</p>
+                  <p className="font-bold text-blue-900 text-sm mt-0.5">{paymentMethod}</p>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-blue-400 uppercase">Fecha</p>
-                  <p className="font-bold text-blue-800 text-sm mt-0.5">{fechaTransaccion}</p>
+                <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Fecha</p>
+                  <p className="font-bold text-blue-900 text-sm mt-0.5">{fechaTransaccion}</p>
                 </div>
               </div>
 
               {(referenciaDebito || referencia) && (
-                <div className="bg-amber-50 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-amber-500 uppercase">N° Referencia / Comprobante</p>
-                  <p className="font-black text-amber-800 text-base tracking-widest">{referenciaDebito || referencia}</p>
+                <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">N° Referencia / Comprobante</p>
+                  <p className="font-black text-amber-900 text-base tracking-widest">{referenciaDebito || referencia}</p>
                 </div>
               )}
 
               {confirmPayload.descuentoSaldoFavor > 0 && (
-                <div className="flex justify-between text-xs text-slate-600 px-1">
+                <div className="flex justify-between text-xs text-slate-600 px-1 py-0.5">
                   <span>Descuento saldo a favor:</span>
-                  <span className="font-bold text-green-600">- Bs. {formatBs(confirmPayload.descuentoSaldoFavor)}</span>
+                  <span className="font-bold text-emerald-600">- Bs. {formatBs(confirmPayload.descuentoSaldoFavor)}</span>
                 </div>
               )}
 
@@ -4279,21 +4364,24 @@ export default function CajaPage() {
               )}
 
               {/* Total */}
-              <div className="bg-emerald-600 rounded-xl p-4 flex justify-between items-center">
-                <span className="text-white font-bold text-sm">TOTAL A PAGAR</span>
+              <div className="bg-emerald-600 rounded-xl p-4 flex justify-between items-center shadow-sm">
+                <span className="text-white font-bold text-sm tracking-wide">TOTAL A PAGAR</span>
                 <span className="text-white font-black text-2xl">Bs. {formatBs(confirmPayload.montoReal)}</span>
               </div>
             </div>
 
-            <div className="px-6 pb-6 flex gap-3">
+            {/* Pie de modal fijo con botones de acción siempre visibles */}
+            <div className="p-4 px-6 bg-slate-50 border-t border-slate-200 flex gap-3 flex-shrink-0">
               <button
                 onClick={() => { setIsConfirmModalOpen(false); setConfirmPayload(null); }}
-                className="flex-1 py-3 border-2 border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors"
-              >Cancelar</button>
+                className="flex-1 py-3 border-2 border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors text-sm"
+              >
+                Cancelar
+              </button>
               <button
                 onClick={handleConfirmAndPay}
                 disabled={isProcessing}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm shadow-md shadow-emerald-600/30"
               >
                 <CreditCard className="w-4 h-4" />
                 {isProcessing ? 'Procesando...' : 'Procesar Pago'}
