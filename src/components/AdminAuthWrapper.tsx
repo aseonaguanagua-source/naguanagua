@@ -85,10 +85,10 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
           // Sincronizar permisos actualizados de Supabase
           if (parsed && parsed.rol !== 'Administrador' && parsed.usuario !== 'dzara') {
             try {
-              const { data: dbWorker } = await supabase
-                .from('trabajadores')
+              const { data: dbWorker } = await (supabase
+                .from('trabajadores') as any)
                 .select('permisos, rol, letra, nombre')
-                .eq('usuario', parsed.usuario)
+                .ilike('usuario', (parsed.usuario || '').trim())
                 .maybeSingle();
 
               if (dbWorker) {

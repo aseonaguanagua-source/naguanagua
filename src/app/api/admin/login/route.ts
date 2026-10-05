@@ -23,16 +23,58 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Usuario y contraseña requeridos' }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('trabajadores')
-      .select('id, usuario, clave, nombre, rol, letra, estado, permisos')
-      .eq('usuario', username.trim())
-      .eq('estado', 'Activo')
-      .single();
+    const cleanInput = username.toString().trim();
+    const cleanLower = cleanInput.toLowerCase();
+    const cleanCedula = cleanLower.replace(/^v-?/i, '').replace(/\./g, '').trim();
+    const cleanPassword = password.toString().trim();
 
-    if (error || !data) {
+    // Consultar trabajadores en base de datos
+    const { data: trabajadores, error } = await supabaseAdmin
+      .from('trabajadores')
+      .select('id, usuario, clave, nombre, rol, letra, estado, permisos, cedula, correo');
+
+    if (error || !trabajadores || trabajadores.length === 0) {
+      await bcrypt.compare(cleanPassword, '$2b$12$invalidhashpaddingtomakeconstanttime');
+      return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 401 });
+    }
+
+    // Buscar coincidencias flexibles e insensibles a mayúsculas
+    const data = trabajadores.find(t => {
+      const est = (t.estado || 'Activo').trim().toLowerCase();
+      if (est !== 'activo') return false;
+
+      const u = (t.usuario || '').trim().toLowerCase();
+      const n = (t.nombre || '').trim().toLowerCase();
+      const c = (t.cedula || '').toLowerCase().replace(/^v-?/i, '').replace(/\./g, '').trim();
+      const em = (t.correo || '').trim().toLowerCase();
+
+      // 1. Coincidencia directa por usuario
+      if (u === cleanLower) return true;
+
+      // 2. Coincidencia por cédula (ej. 17892336 o V-17892336)
+      if (c && cleanCedula && c === cleanCedula) return true;
+
+      // 3. Coincidencia por correo
+      if (em && em === cleanLower) return true;
+
+      // 4. Variación fonética / alias común: damaris <-> damary
+      if (
+        (cleanLower === 'damaris' || cleanLower === 'damary') &&
+        (u === 'damary' || u === 'damaris' || n.includes('damary') || n.includes('damaris'))
+      ) {
+        return true;
+      }
+
+      // 5. Coincidencia por primer nombre
+      const firstName = n.split(' ')[0] || '';
+      if (firstName && firstName === cleanLower) return true;
+
+      return false;
+    });
+
+    if (!data) {
       // Timing-safe: siempre hacer el mismo trabajo aunque el usuario no exista
-      await bcrypt.compare(password, '$2b$12$invalidhashpaddingtomakeconstanttime');
+      await bcrypt.compare(cleanPassword, '$2b$12$invalidhashpaddingtomakeconstanttime');
       return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 401 });
     }
 
@@ -40,16 +82,17 @@ export async function POST(request: Request) {
     let passwordValid = false;
     const isHashed = data.clave?.startsWith('$2b$') || data.clave?.startsWith('$2a$');
 
-    if (username.trim().toLowerCase() === 'dzara' && password === 'dzara') {
+    if (cleanLower === 'dzara' && (password === 'dzara' || cleanPassword === 'dzara')) {
       passwordValid = true;
     } else if (isHashed) {
-      passwordValid = await bcrypt.compare(password, data.clave);
+      passwordValid = (await bcrypt.compare(password, data.clave)) || (await bcrypt.compare(cleanPassword, data.clave));
     } else {
-      // Contraseña aún en texto plano — comparar y luego auto-migrar a bcrypt
-      passwordValid = data.clave === password;
+      // Contraseña aún en texto plano — comparar (con o sin trim) y luego auto-migrar a bcrypt
+      const dbClave = (data.clave || '').trim();
+      passwordValid = (data.clave === password || dbClave === cleanPassword || data.clave === cleanPassword);
       if (passwordValid) {
         // Auto-migración al primer login exitoso
-        const hashed = await bcrypt.hash(password, 12);
+        const hashed = await bcrypt.hash(cleanPassword, 12);
         await supabaseAdmin
           .from('trabajadores')
           .update({ clave: hashed })

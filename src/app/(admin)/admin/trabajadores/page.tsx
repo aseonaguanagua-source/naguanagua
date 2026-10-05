@@ -385,11 +385,11 @@ export default function TrabajadoresPage() {
       }
 
       const payload = {
-        nombre: formData.nombre,
-        cedula: formData.cedula,
-        correo: formData.correo,
-        usuario: formData.usuario,
-        clave: formData.clave,
+        nombre: (formData.nombre || '').trim(),
+        cedula: (formData.cedula || '').trim(),
+        correo: (formData.correo || '').trim(),
+        usuario: (formData.usuario || '').trim(),
+        clave: (formData.clave || '').trim(),
         rol: formData.rol,
         estado: formData.estado,
         letra: (formData.letra || '').trim().toUpperCase(),

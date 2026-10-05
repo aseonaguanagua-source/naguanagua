@@ -18,8 +18,8 @@ export default function PresidenciaLogin() {
       const { data } = await supabase
         .from('trabajadores')
         .select('id, usuario, nombre, rol, clave, estado')
-        .eq('usuario', usuario.trim().toLowerCase())
-        .single();
+        .ilike('usuario', usuario.trim())
+        .maybeSingle();
 
       if (!data) { setError('Usuario o contrasena incorrectos.'); setLoading(false); return; }
       if (data.estado !== 'Activo') { setError('Usuario inactivo.'); setLoading(false); return; }

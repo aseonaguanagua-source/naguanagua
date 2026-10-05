@@ -82,9 +82,9 @@ export default function OperadorLogin() {
       const { data, error: dbError } = await supabase
         .from('trabajadores')
         .select('id, nombre, usuario, clave, rol, estado')
-        .eq('usuario', u)
-        .eq('estado', 'Activo')
-        .single();
+        .ilike('usuario', u.trim())
+        .ilike('estado', 'Activo')
+        .maybeSingle();
 
       if (dbError || !data) {
         setError('Usuario o contraseña incorrectos');
