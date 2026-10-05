@@ -217,12 +217,12 @@ export default function CajaPage() {
 
     const base = parseFloat((baseMensual * mesesAPagar).toFixed(2));
     const iva = esRes ? 0 : parseFloat((ivaMensual * mesesAPagar).toFixed(2));
-    // Multa mensual por mora: 10% residencial, 12% comercial sobre los meses adeudados vencidos
+    // Multa mensual por mora: 10% residencial, 12% comercial sobre los meses adeudados vencidos (septiembre se paga en octubre sin multa; multas aplican hasta agosto)
     const porcentajeMulta = esRes ? 0.10 : 0.12;
     const mesesConMora = Math.max(0, mesesAPagar - 1);
     const multaCalculada = parseFloat((baseMensual * porcentajeMulta * (mesesTotales > 1 ? mesesConMora : 0)).toFixed(2));
     const multaGuardada = parseFloat(hijo?.multa_bs || '0');
-    const multa = Math.max(multaCalculada, multaGuardada);
+    const multa = (mesesTotales <= 1 || mesesConMora === 0) ? 0 : Math.max(multaCalculada, multaGuardada);
     const total = parseFloat((base + iva + multa).toFixed(2));
 
     return {
@@ -995,13 +995,13 @@ export default function CajaPage() {
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
 
-          // REGLA OFICIAL: El último mes de la factura es SIN multa.
+          // REGLA OFICIAL: El último mes de la factura es SIN multa. Septiembre se paga en octubre (monthsDiff <= 1 sin multa).
           const mNum = parseInt(parts[3]?.replace('M', '') || '0');
           const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
           const isUltimoMes = mNum > 0 ? (mNum >= totalMeses) : false;
 
-          // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base (excepto último mes)
-          if (!isUltimoMes && monthsDiff > 0) {
+          // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base (solo meses anteriores a septiembre: monthsDiff > 1)
+          if (!isUltimoMes && monthsDiff > 1) {
             smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
           }
         }
@@ -1027,8 +1027,8 @@ export default function CajaPage() {
           const allCmForInm = (recibos || []).filter((rc: any) =>
             rc.referencia?.startsWith('CM-') && (rc.referencia || '').includes(inm.inmueble || '')
           );
-          const isUltimoMes = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === ref;
-          if (!isUltimoMes && monthsDiff > 0) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
+          const isUltimoMes = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === ref || monthsDiff <= 1;
+          if (!isUltimoMes && monthsDiff > 1) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
         });
       } else {
         const f = recibosMap.get(ref);
@@ -1696,8 +1696,8 @@ export default function CajaPage() {
                     const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
                     const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
                     const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
-                    const isUltimoMes = mesNum >= totalMeses;
-                    const multa = (!isUltimoMes && monthsDiff > 0) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                    const isUltimoMes = mesNum >= totalMeses || monthsDiff <= 1;
+                    const multa = (!isUltimoMes && monthsDiff > 1) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                     const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
                     conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Base Imponible`, precioUnit: bm, total: bm });
                     if (iva > 0) {

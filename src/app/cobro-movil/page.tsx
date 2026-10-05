@@ -135,8 +135,8 @@ export default function KioskPage() {
         const totalMeses = Math.max(1, parseInt(String(inm.meses_deuda || '1')));
         const isUltimoMes = mesNum >= totalMeses;
 
-        // Multa mensual por mora: solo para meses anteriores vencidos
-        const multaMes = (!isUltimoMes && monthsDiff > 0) ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+        // Multa mensual por mora: solo para meses anteriores vencidos (hasta agosto: monthsDiff > 1)
+        const multaMes = (!isUltimoMes && monthsDiff > 1) ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
         // IVA solo sobre la base del servicio comercial; residencial exento 0%
         const ivaMes = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
         return {

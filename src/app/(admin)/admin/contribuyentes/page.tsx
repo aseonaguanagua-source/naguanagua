@@ -3085,7 +3085,7 @@ function ContribuyentesPageContent() {
                           const emision = f.emision ? new Date(f.emision) : new Date();
                           const today = new Date();
                           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-                          const multa = (!isUltimoMes && monthsDiff > 0) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                          const multa = (!isUltimoMes && monthsDiff > 1) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                           base = bm + iva + multa;
                         }
                       } else if (f.referencia?.startsWith('CM-')) {
@@ -3105,12 +3105,11 @@ function ContribuyentesPageContent() {
                             d.referencia?.startsWith('CM-') &&
                             ((targetInm.inmueble && d.referencia.includes(targetInm.inmueble)) || (targetInm.cod_cont && d.referencia.includes(targetInm.cod_cont)))
                           );
-                          const isUltimoCm = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === f.referencia;
-
                           const emision = f.emision ? new Date(f.emision) : new Date();
                           const today = new Date();
                           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-                          const multa = (!isUltimoCm && monthsDiff > 0) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+                          const isUltimoCm = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === f.referencia || monthsDiff <= 1;
+                          const multa = (!isUltimoCm && monthsDiff > 1) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                           base = bm + iva + multa;
                         }
                       }
@@ -3223,7 +3222,7 @@ function ContribuyentesPageContent() {
                                   const mesesConMulta = Math.max(0, meses - 1);
                                   const multaCalc = multaMes * mesesConMulta;
                                   const multaGuardada = parseFloat(inm.multa_bs || '0');
-                                  const multa = Math.max(multaCalc, multaGuardada);
+                                  const multa = meses <= 1 ? 0 : Math.max(multaCalc, multaGuardada);
                                   const totalInm = base + iva + multa;
 
                                   const getLocalLabelItem = (item: any) => {
@@ -3338,7 +3337,7 @@ function ContribuyentesPageContent() {
                                     const mesesConMulta = Math.max(0, meses - 1);
                                     const multaCalc = multaMes * mesesConMulta;
                                     const multaGuardada = parseFloat(inm.multa_bs || '0');
-                                    const multa = Math.max(multaCalc, multaGuardada);
+                                    const multa = meses <= 1 ? 0 : Math.max(multaCalc, multaGuardada);
                                     const totalInm = base + iva + multa;
 
                                     const getLocalLabelItem = (item: any) => {

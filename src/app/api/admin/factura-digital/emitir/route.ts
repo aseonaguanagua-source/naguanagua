@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       const codigosInm = [...new Set(histRecibos.map((r: string) => r.split('-').slice(2, -1).join('-')))];
       const { data: inmsHist } = await supabase
         .from('inmuebles')
-        .select('inmueble, deuda_mmv, deuda_congelada_bs, multa_bs, tipo, actividad_principal')
+        .select('inmueble, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, tipo, actividad_principal')
         .in('inmueble', codigosInm);
 
       histRecibos.forEach((ref: string) => {
@@ -160,9 +160,14 @@ export async function POST(request: Request) {
 
         // MULTA: calcular como % del base (NO usar multa_bs que es el total histórico acumulado)
         // Residencial: 10%, Comercial/Industrial: 12%
+        // REGLA OFICIAL: El último mes facturado (septiembre pagado en octubre) es SIN multa
         const esResidencial = isResidencialInm(inm);
         const pctMulta = esResidencial ? 0.10 : 0.12;
-        const montoMulta = parseFloat((montoBase * pctMulta).toFixed(2));
+        const parts = ref.split('-');
+        const mesNum = parseInt(parts[parts.length - 1]?.replace('M', '') || '1');
+        const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
+        const isUltimoMes = mesNum >= totalMeses;
+        const montoMulta = (!isUltimoMes && totalMeses > 1) ? parseFloat((montoBase * pctMulta).toFixed(2)) : 0;
 
         if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipoInm: inm?.tipo || '', esRes: esResidencial });
       });
