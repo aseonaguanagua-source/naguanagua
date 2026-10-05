@@ -1965,41 +1965,53 @@ export default function CajaPage() {
 
     setIsSavingContact(true);
     try {
-      const userIdentVariants = getIdentidadVariants(foundUser.Identidad);
+      const currentInms = (freshInmuebles && freshInmuebles.length > 0) ? freshInmuebles : (inmuebles || []);
+      const inmIds = currentInms
+        .filter((i: any) => i.identidad === foundUser.Identidad || (foundUser.cod_cont && (i.inmueble === foundUser.cod_cont || i.cod_cont === foundUser.cod_cont)))
+        .map((i: any) => i.id)
+        .filter(Boolean);
 
-      // 1. Actualizar tabla contribuyentes
-      await supabase.from('contribuyentes')
-        .update({
+      const res = await fetch('/api/admin/actualizar-contacto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identidad: foundUser.Identidad,
+          nombre: foundUser.Contribuyente,
           email: cleanEmail,
-          telefono: cleanPhone || foundUser.Telefono || null
+          telefono: cleanPhone,
+          inmueble_ids: inmIds
         })
-        .or(userIdentVariants.map(v => `identidad.eq.${v}`).join(','));
+      });
 
-      // 2. Actualizar todos los inmuebles de este contribuyente
-      await supabase.from('inmuebles')
-        .update({
-          correo_electronico: cleanEmail,
-          telefono: cleanPhone || foundUser.Telefono || null
-        })
-        .or(userIdentVariants.map(v => `identidad.eq.${v}`).join(','));
+      const resJson = await res.json();
+      if (!res.ok || !resJson.ok) {
+        throw new Error(resJson.error || 'Error al guardar los datos de contacto');
+      }
 
-      // 3. Actualizar estado local de foundUser
+      // 1. Actualizar estado local inmediato de foundUser
       setFoundUser((prev: any) => prev ? ({
         ...prev,
         Correo: cleanEmail,
         Telefono: cleanPhone || prev.Telefono
       }) : null);
 
-      // 4. Refrescar datos globales
+      // 2. Actualizar inmuebles frescos en memoria
+      setFreshInmuebles((prev: any[]) => (prev || []).map(i => ({
+        ...i,
+        correo_electronico: cleanEmail,
+        ...(cleanPhone ? { telefono: cleanPhone } : {})
+      })));
+
+      // 3. Refrescar datos globales
       await refreshUserData(foundUser.Identidad);
 
-      // 5. Cerrar modal y notificar éxito
+      // 4. Cerrar modal y notificar éxito
       setShowUpdateContactModal(false);
-      setSuccessMsg('Datos de contacto actualizados exitosamente.');
+      setSuccessMsg('Datos de contacto actualizados y almacenados exitosamente.');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
       console.error('Error al guardar datos de contacto:', err);
-      setContactSaveError('Error al guardar en el servidor. Intente de nuevo.');
+      setContactSaveError(err.message || 'Error al guardar en el servidor. Intente de nuevo.');
     } finally {
       setIsSavingContact(false);
     }
@@ -2209,10 +2221,40 @@ export default function CajaPage() {
                     <span className="text-slate-700 font-medium">📞 {formatPhoneNumber(foundUser.Telefono)}</span>
                   </>
                 )}
-                {foundUser.Correo && !isFictitiousEmail(foundUser.Correo) && (
+                {foundUser.Correo && !isFictitiousEmail(foundUser.Correo) ? (
                   <>
                     <span>•</span>
-                    <span className="text-slate-700 font-medium">✉️ {foundUser.Correo}</span>
+                    <span className="text-slate-700 font-medium inline-flex items-center gap-1.5">
+                      ✉️ {foundUser.Correo}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContactModalEmail(foundUser.Correo || '');
+                          setContactModalPhone(foundUser.Telefono && foundUser.Telefono !== 'No registrado' ? foundUser.Telefono : '');
+                          setShowUpdateContactModal(true);
+                        }}
+                        className="text-[11px] font-bold text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        title="Cambiar correo o teléfono"
+                      >
+                        ✏️ Cambiar
+                      </button>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContactModalEmail('');
+                        setContactModalPhone(foundUser.Telefono && foundUser.Telefono !== 'No registrado' ? foundUser.Telefono : '');
+                        setShowUpdateContactModal(true);
+                      }}
+                      className="text-[11px] font-bold text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md transition-colors inline-flex items-center gap-1 cursor-pointer animate-pulse"
+                      title="Registrar correo del contribuyente"
+                    >
+                      ⚠️ Agregar Correo
+                    </button>
                   </>
                 )}
               </div>

@@ -591,6 +591,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ...freshFacts
         ]);
       }
+
+      // Refrescar también los datos del contribuyente (correo, teléfono, nombre)
+      const { data: freshContrib } = await supabase
+        .from('contribuyentes')
+        .select('*')
+        .or(`identidad.eq.${identidad},identidad.eq.${idClean}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (freshContrib) {
+        setContribuyentes(prev => prev.map(c => {
+          const cId = (c.Identidad || '').replace(/-/g, '').toUpperCase();
+          if (cId === idClean) {
+            return {
+              ...c,
+              Correo: freshContrib.email || freshContrib.correo_electronico || c.Correo,
+              Telefono: freshContrib.telefono || c.Telefono,
+              Contribuyente: freshContrib.nombre || c.Contribuyente
+            };
+          }
+          return c;
+        }));
+      }
     } catch (error) {
       console.error('Error en refreshUserData:', error);
     }
