@@ -73,8 +73,24 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
     if (row) calcView();
   }, [row, inmuebles]);
 
+  const [clave, setClave] = useState('');
+  const [nota, setNota] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
   const handleConfirmAdjustDebt = async () => {
     if (!calculoDetalle || !row) return;
+    setErrorMsg('');
+
+    if (clave.trim().toLowerCase() !== 'dzara') {
+      setErrorMsg('Clave de autorización incorrecta. Solo personal autorizado (dzara) puede ejecutar este ajuste.');
+      return;
+    }
+
+    if (!nota.trim() || nota.trim().length < 8) {
+      setErrorMsg('Es OBLIGATORIO ingresar una justificación detallada del ajuste de deuda.');
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const rowIdentidad = row.Identidad || row.identidad;
@@ -102,19 +118,34 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       const { data: newFactura, error: err2 } = await supabase.from('facturas').insert([facturaData]).select().single();
       if (err2) throw err2;
 
+      // Actualizar notas en inmuebles
+      const fechaHoy = new Date().toLocaleDateString('es-VE');
+      const registroAjuste = `[${fechaHoy}] AJUSTE DE DEUDA: Ajustado a ${debtMonths} meses (${deudaMMV.toFixed(2)} UCD ≈ Bs. ${montoBs}). Motivo: ${nota.trim()} (Autorizado por: dzara)`;
+
+      const misInmuebles = inmuebles.filter((i: any) => i.identidad === rowIdentidad);
+      for (const inm of misInmuebles) {
+        const notaPrev = (inm.notas || '').trim();
+        const nuevaNota = notaPrev ? `${notaPrev}\n---\n${registroAjuste}` : registroAjuste;
+        await supabase.from('inmuebles').update({
+          deuda_mmv: deudaMMV,
+          meses_deuda: debtMonths,
+          notas: nuevaNota
+        }).eq('id', inm.id);
+      }
+
       // Update state
       const facturasRestantes = recibos.filter((f: any) => !(f.contribuyente === rowContribuyente && f.estado === 'Pendiente'));
       setFacturas([newFactura, ...facturasRestantes]);
 
       if (addAuditLog) {
-        await addAuditLog('AJUSTAR_DEUDA', `Deuda ajustada a ${debtMonths} meses (${montoBs} Bs) para el contribuyente ${rowContribuyente}`);
+        await addAuditLog('AJUSTAR_DEUDA', `Deuda ajustada a ${debtMonths} meses (${montoBs} Bs) para ${rowContribuyente}. Motivo: ${nota.trim()}`);
       }
 
-      alert('Deuda ajustada y recibo generada exitosamente.');
+      alert('✅ Deuda ajustada y recibo generado exitosamente.');
       onClose();
     } catch (e: any) {
       console.error(e);
-      alert('Error al ajustar la deuda: ' + e.message);
+      setErrorMsg('Error al ajustar la deuda: ' + e.message);
     } finally {
       setIsProcessing(false);
     }
@@ -135,58 +166,97 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
           </button>
         </div>
         
-        <div className="p-6 space-y-6">
-          <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 space-y-2">
-            <p className="text-sm"><span className="font-semibold text-slate-700">Contribuyente/Condominio:</span> {row.Contribuyente || row.contribuyente || row.nombre} ({row.Identidad || row.identidad})</p>
-            <p className="text-sm"><span className="font-semibold text-slate-700">Clasificación:</span> {calculoDetalle.leyenda || 'Varias unidades'}</p>
+        <div className="p-6 space-y-5 max-h-[85vh] overflow-y-auto">
+          <div className="bg-slate-50 rounded-lg p-3.5 border border-slate-200 space-y-1.5 text-xs">
+            <p><span className="font-semibold text-slate-500">Contribuyente/Condominio:</span> <span className="font-bold text-slate-800">{row.Contribuyente || row.contribuyente || row.nombre} ({row.Identidad || row.identidad})</span></p>
+            <p><span className="font-semibold text-slate-500">Clasificación:</span> {calculoDetalle.leyenda || 'Varias unidades'}</p>
           </div>
 
           <div className="space-y-4">
-            <div className="flex justify-between items-center bg-blue-50 p-3 rounded border border-blue-100">
-              <span className="text-sm font-semibold text-blue-800">Tarifa Mensual (UCD):</span>
-              <span className="font-bold text-blue-900 text-lg">{calculoDetalle.factor.toFixed(2)}</span>
+            <div className="flex justify-between items-center bg-blue-50 p-3 rounded-lg border border-blue-100">
+              <span className="text-xs font-semibold text-blue-800">Tarifa Mensual (UCD):</span>
+              <span className="font-bold text-blue-900 text-base">{calculoDetalle.factor.toFixed(2)}</span>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Meses a adeudar (Morosidad Ajustada)</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Meses a adeudar (Morosidad Ajustada)</label>
               <input 
                 type="number" 
                 min="0"
                 value={debtMonths} 
                 onChange={(e) => setDebtMonths(Number(e.target.value))}
-                className="w-full border-2 border-slate-200 rounded-lg px-4 py-2 font-semibold text-slate-700 focus:border-orange-500 outline-none"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 focus:border-orange-500 outline-none"
               />
             </div>
 
-            <div className="flex justify-between items-center bg-orange-50 p-4 rounded-lg border border-orange-200 shadow-inner">
-              <span className="font-bold text-orange-800">Nueva Deuda Total:</span>
+            <div className="flex justify-between items-center bg-orange-50 p-3.5 rounded-lg border border-orange-200 shadow-inner">
+              <span className="font-bold text-orange-800 text-xs uppercase tracking-wide">Nueva Deuda Total:</span>
               <div className="text-right">
-                <span className="block font-black text-orange-600 text-2xl">{(calculoDetalle.factor * debtMonths).toFixed(2)} UCD</span>
-                <span className="block text-xs font-semibold text-orange-700 mt-1">≈ Bs. {(calculoDetalle.factor * debtMonths * dynamicTcmmv).toFixed(2)}</span>
+                <span className="block font-black text-orange-600 text-xl">{(calculoDetalle.factor * debtMonths).toFixed(2)} UCD</span>
+                <span className="block text-xs font-semibold text-orange-700 mt-0.5">≈ Bs. {(calculoDetalle.factor * debtMonths * dynamicTcmmv).toFixed(2)}</span>
               </div>
+            </div>
+
+            {/* Clave dzara */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+                Clave de Autorización <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="password"
+                placeholder="Ingrese clave de autorización (dzara)"
+                value={clave}
+                onChange={(e) => setClave(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-orange-500 font-mono"
+                required
+              />
+            </div>
+
+            {/* Justificación obligatoria */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+                Motivo / Justificación del Ajuste <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Ingrese justificación obligatoria del ajuste de deuda..."
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-orange-500"
+                required
+              />
             </div>
           </div>
 
-          <div className="flex items-start gap-2 bg-amber-50 p-3 rounded border border-amber-200">
-            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-700 leading-relaxed font-medium">
-              Al confirmar, se eliminarán **todos los recibos pendientes** actuales de este usuario y se generará un **único recibo nuevo** con el monto total ajustado.
+          {errorMsg && (
+            <div className="bg-red-50 text-red-700 p-3 rounded-lg border border-red-200 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+              <p>{errorMsg}</p>
+            </div>
+          )}
+
+          <div className="flex items-start gap-2 bg-amber-50 p-2.5 rounded-lg border border-amber-200 text-[11px] text-amber-700">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <p>
+              Al confirmar, se eliminarán los recibos pendientes actuales de este contribuyente y se emitirá un recibo único por el nuevo saldo.
             </p>
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-slate-100">
+          <div className="flex gap-3 pt-3 border-t border-slate-100">
             <button 
+              type="button"
               onClick={onClose}
-              className="flex-1 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold py-2.5 rounded-lg transition-colors"
+              className="flex-1 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold py-2.5 rounded-lg text-xs transition-colors"
             >
               Cancelar
             </button>
             <button 
+              type="button"
               onClick={handleConfirmAdjustDebt}
               disabled={isProcessing}
-              className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg transition-colors shadow-sm disabled:opacity-70 flex justify-center"
+              className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg text-xs transition-colors shadow-sm disabled:opacity-70 flex justify-center items-center"
             >
-              {isProcessing ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Confirmar Ajuste'}
+              {isProcessing ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Confirmar Ajuste'}
             </button>
           </div>
         </div>

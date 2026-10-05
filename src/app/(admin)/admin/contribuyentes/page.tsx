@@ -3,7 +3,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
 import { useAppContext } from '@/store/AppContext';
-import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search } from 'lucide-react';
+import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import { ordenanzaData } from '@/data/ordenanza';
 import Select from 'react-select';
@@ -18,6 +18,7 @@ const todasLasActividades = [...ordenanzaData.actividadesComerciales, ...ordenan
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), { ssr: false });
 import { DebtAdjustmentModal } from '@/components/DebtAdjustmentModal';
+import { EliminarMultaModal } from '@/components/EliminarMultaModal';
 
 import { logos } from '@/lib/logosBase64';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
@@ -48,6 +49,8 @@ function ContribuyentesPageContent() {
 
   const [debtModalOpen, setDebtModalOpen] = useState(false);
   const [selectedDebtRow, setSelectedDebtRow] = useState<any>(null);
+  const [exonerarModalOpen, setExonerarModalOpen] = useState(false);
+  const [selectedExonerarRow, setSelectedExonerarRow] = useState<any>(null);
   
   // Calculadora state
   const [bcvRate, setBcvRate] = useState<string | null>(null);
@@ -2723,6 +2726,13 @@ function ContribuyentesPageContent() {
             >
               <Calculator className="w-4 h-4" />
             </button>
+            <button 
+              onClick={() => { setSelectedExonerarRow(row); setExonerarModalOpen(true); }}
+              className="bg-rose-50 text-rose-600 hover:bg-rose-100 p-1.5 rounded transition-colors"
+              title="Eliminar / Exonerar Multas por Mes (Requiere clave dzara)"
+            >
+              <Percent className="w-4 h-4" />
+            </button>
             {hasDebt ? (
               <button 
                 className="bg-red-50 text-red-600 p-1.5 rounded cursor-default"
@@ -3158,12 +3168,24 @@ function ContribuyentesPageContent() {
                     <DollarSign className="w-5 h-5 text-red-600" />
                     <h4 className="font-bold text-red-800">Estado de Cuenta (Deuda Actual)</h4>
                   </div>
-                  <button 
-                    onClick={imprimirEstadoDeCuenta}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors"
-                  >
-                    <FileText className="w-4 h-4" /> Exportar PDF
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        setSelectedExonerarRow(viewData);
+                        setExonerarModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                      title="Eliminar / Exonerar Multas por Mes"
+                    >
+                      <Percent className="w-3.5 h-3.5" /> Exonerar Multas
+                    </button>
+                    <button 
+                      onClick={imprimirEstadoDeCuenta}
+                      className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                    >
+                      <FileText className="w-4 h-4" /> Exportar PDF
+                    </button>
+                  </div>
                 </div>
                 <div className="p-0">
                   {(() => {
@@ -3963,6 +3985,20 @@ function ContribuyentesPageContent() {
           recibos={recibos}
           setFacturas={setFacturas}
           onClose={() => setDebtModalOpen(false)}
+        />
+      )}
+
+      {/* Modal Eliminar / Exonerar Multas por Mes */}
+      {exonerarModalOpen && selectedExonerarRow && (
+        <EliminarMultaModal
+          row={selectedExonerarRow}
+          inmuebles={inmuebles}
+          tcmmv={tcmmv || viewCalculo?.tasaBcv || 1}
+          recibos={recibos}
+          onClose={() => setExonerarModalOpen(false)}
+          onSuccess={async () => {
+            await refreshData();
+          }}
         />
       )}
 
