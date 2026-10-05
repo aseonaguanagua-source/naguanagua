@@ -540,13 +540,79 @@ function ContribuyentesPageContent() {
     }
 
     try {
-      const { error } = await supabase.from('facturas').delete().eq('id', recibo.id);
-      if (error) throw error;
-      
-      setFacturas(recibos.filter((f: any) => f.id !== recibo.id));
+      const recId = String(recibo.id || '');
+      const isDummyHist = recId.startsWith('dummy-hist-');
+      const isMulta = recId.startsWith('multa-');
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recId);
+
+      if (isDummyHist) {
+        // Formato: dummy-hist-CODIGO_INMUEBLE-MES_NUM
+        const parts = recId.split('-');
+        const inmCode = parts[2] || recibo.referencia?.split('-')[2];
+        if (inmCode) {
+          const { data: inmData } = await supabase
+            .from('inmuebles')
+            .select('*')
+            .eq('inmueble', inmCode)
+            .maybeSingle();
+
+          if (inmData) {
+            const mesesActuales = Math.max(0, parseInt(String(inmData.meses_deuda || '1'), 10));
+            const nuevosMeses = Math.max(0, mesesActuales - 1);
+            const mmvMes = parseFloat(inmData.mmv_mes || '0');
+            const nuevaDeudaMmv = nuevosMeses > 0 ? parseFloat((nuevosMeses * mmvMes).toFixed(5)) : 0;
+
+            const { error: errInm } = await supabase
+              .from('inmuebles')
+              .update({
+                meses_deuda: nuevosMeses,
+                deuda_mmv: nuevaDeudaMmv
+              })
+              .eq('inmueble', inmCode);
+
+            if (errInm) throw errInm;
+
+            // Si tiene condominio_padre_id, recalcular también la deuda_mmv del padre
+            if (inmData.condominio_padre_id) {
+              const { data: hermanos } = await supabase
+                .from('inmuebles')
+                .select('deuda_mmv, meses_deuda')
+                .eq('condominio_padre_id', inmData.condominio_padre_id);
+              if (hermanos) {
+                const totalHermanosMmv = hermanos.reduce((sum, h) => sum + parseFloat(h.deuda_mmv || '0'), 0);
+                const maxMesesHermanos = hermanos.reduce((max, h) => Math.max(max, parseInt(h.meses_deuda || '0')), 0);
+                await supabase
+                  .from('inmuebles')
+                  .update({ deuda_mmv: parseFloat(totalHermanosMmv.toFixed(5)), meses_deuda: maxMesesHermanos })
+                  .eq('inmueble', inmData.condominio_padre_id);
+              }
+            }
+          }
+        }
+      } else if (isMulta) {
+        const inmCode = recId.replace('multa-', '');
+        if (inmCode) {
+          await supabase
+            .from('inmuebles')
+            .update({ multa_bs: 0, deuda_congelada_bs: 0 })
+            .eq('inmueble', inmCode);
+        }
+      } else if (isUuid) {
+        const { error } = await supabase.from('facturas').delete().eq('id', recibo.id);
+        if (error) throw error;
+      } else {
+        // Fallback: intentar por referencia en la tabla facturas
+        if (recibo.referencia) {
+          await supabase.from('facturas').delete().eq('referencia', recibo.referencia);
+        }
+      }
+
+      setViewFacturasDb(prev => prev.filter((f: any) => f.id !== recibo.id));
+      setFacturas((prev: any) => (prev || []).filter((f: any) => f.id !== recibo.id && f.referencia !== recibo.referencia));
+      await refreshData();
       alert("Deuda eliminada exitosamente.");
     } catch (e: any) {
-      alert("Error eliminando deuda: " + e.message);
+      alert("Error eliminando deuda: " + (e?.message || 'Error desconocido'));
     }
   };
 
