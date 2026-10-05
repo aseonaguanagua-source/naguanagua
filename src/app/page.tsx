@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 
 const PUESTOS_PLANTILLA = [
-  { puesto: 'Administrador General', usuario: 'dzara', defaultClave: 'dzara', destino: '/admin', rol: 'Administrador' },
+  { puesto: 'Administrador', usuario: 'dzara', defaultClave: 'dzara', destino: '/admin', rol: 'Administrador' },
   { puesto: 'Taquilla / Cajero Principal', usuario: 'cajero', defaultClave: 'cajero123', destino: '/admin/caja', rol: 'Taquilla / Operador' },
   { puesto: 'Supervisor de Operaciones', usuario: 'supervisor', defaultClave: 'supervisor123', destino: '/admin', rol: 'Supervisor' },
   { puesto: 'Operador de Censo / Catastro', usuario: 'censo', defaultClave: 'censo123', destino: '/operador', rol: 'Operador de Censo' },
@@ -219,11 +219,19 @@ export default function Home() {
         .header-title { color: #fff; font-weight: 800; line-height: 1.15; text-transform: uppercase; font-size: clamp(18px, 2.5vw, 36px); }
         .header-right {
           flex: 1; background: #fff;
-          display: flex; align-items: center; justify-content: center;
-          padding: 20px 32px; gap: 20px; flex-wrap: wrap;
+          display: flex; align-items: center; justify-content: space-around;
+          padding: 12px 24px; gap: 14px; flex-wrap: wrap;
         }
-        .alcaldia-logo { height: 90px; width: auto; object-fit: contain; display: block; }
-        .extra-logo { height: 70px; width: auto; object-fit: contain; display: block; }
+        .header-logo {
+          max-height: 68px; width: auto; object-fit: contain; display: block;
+          transition: transform 0.2s ease;
+        }
+        .header-logo:hover {
+          transform: scale(1.05);
+        }
+        .header-divider-v {
+          width: 1px; height: 42px; background: #e2e8f0; flex-shrink: 0;
+        }
 
         /* ── CENTER ── */
         .center {
@@ -356,12 +364,12 @@ export default function Home() {
           filter: drop-shadow(0 0 14px rgba(184,205,41,.5)) brightness(1.15);
         }
         .footer-logos {
-          flex: 1; background: rgba(255,255,255,.97); padding: 20px 40px;
-          display: flex; align-items: center; justify-content: center; gap: 60px; flex-wrap: wrap;
+          flex: 1; background: rgba(255,255,255,.98); padding: 14px 28px;
+          display: flex; align-items: center; justify-content: space-around; gap: 20px; flex-wrap: wrap;
         }
-        .footer-logo { height: 85px; width: auto; object-fit: contain; }
-        .footer-logo.rounded { border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .footer-divider { width: 1px; height: 60px; background: #dde; flex-shrink: 0; }
+        .footer-logo { max-height: 62px; width: auto; object-fit: contain; }
+        .footer-logo.rounded { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .footer-divider { width: 1px; height: 46px; background: #e2e8f0; flex-shrink: 0; }
 
         /* ── RESPONSIVE MOBILE ── */
         @media (max-width: 768px) {
@@ -374,9 +382,9 @@ export default function Home() {
           }
           .header-accent { display: none; }
           .header-title { font-size: clamp(20px, 6vw, 28px); text-align: center; }
-          .header-right { padding: 16px 24px; flex-wrap: wrap; }
-          .alcaldia-logo { height: 70px; }
-          .extra-logo { height: 50px; }
+          .header-right { padding: 14px 16px; justify-content: center; gap: 12px; }
+          .header-logo { max-height: 48px; }
+          .header-divider-v { display: none; }
 
           .center { padding: 36px 20px 44px; }
           .section-title { margin-bottom: 30px; }
@@ -387,8 +395,8 @@ export default function Home() {
           .footer { flex-direction: column; }
           .footer-iamec { min-width: unset; width: 100%; border-right: none; border-bottom: 1px solid rgba(184,205,41,.25); padding: 20px; }
           .iamec-logo { height: 64px; }
-          .footer-logos { padding: 16px 24px; justify-content: center; gap: 20px; }
-          .footer-logo { height: 60px; }
+          .footer-logos { padding: 16px; justify-content: center; gap: 16px; }
+          .footer-logo { max-height: 44px; }
           .footer-divider { display: none; }
         }
       `}</style>
@@ -413,9 +421,13 @@ export default function Home() {
             </div>
           </div>
           <div className="header-right">
-            <img src={logos.alcaldia} alt="Alcaldía del Municipio Naguanagua" className="alcaldia-logo" />
-            <img src={logos.global_rec} alt="Global Rec" className="extra-logo" style={{opacity:0.8}} />
-            
+            <img src="/logos/alcaldia.png" alt="Alcaldía Bolivariana de Naguanagua" className="header-logo" style={{ maxHeight: 72 }} />
+            <div className="header-divider-v" />
+            <img src="/logos/LACAVA.png" alt="Gobernación de Carabobo" className="header-logo" style={{ maxHeight: 58 }} />
+            <div className="header-divider-v" />
+            <img src="/logos/ELIZABETH.png" alt="Gestión Municipal" className="header-logo" style={{ maxHeight: 62 }} />
+            <div className="header-divider-v" />
+            <img src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" className="header-logo" style={{ maxHeight: 62 }} />
           </div>
         </div>
 
@@ -507,7 +519,7 @@ export default function Home() {
                         <optgroup label="── Puestos de la Plantilla ──">
                           {PUESTOS_PLANTILLA.map((p) => (
                             <option key={p.usuario} value={p.usuario}>
-                              {p.puesto} ({p.usuario})
+                              {p.puesto}
                             </option>
                           ))}
                         </optgroup>
@@ -515,7 +527,7 @@ export default function Home() {
                           <optgroup label="── Trabajadores Registrados ──">
                             {trabajadoresDb.map((t) => (
                               <option key={t.usuario} value={t.usuario}>
-                                {t.nombre} - {t.rol} ({t.usuario})
+                                {t.nombre} - {t.rol}
                               </option>
                             ))}
                           </optgroup>
@@ -586,12 +598,16 @@ export default function Home() {
         <div className="footer">
           <div className="footer-iamec">
             <div className="footer-iamec-glow" />
-            <img src={logos.iamec} alt="IAMEC Naguanagua" className="iamec-logo" />
+            <img src="/logos/IAMEC.png" alt="IAMEC Naguanagua" className="iamec-logo" />
           </div>
           <div className="footer-logos">
-            <img src={logos.global_rec} alt="Global Rec" className="footer-logo" />
+            <img src="/logos/logo_global_rec.png" alt="Global Rec Collection System" className="footer-logo" style={{ maxHeight: 60 }} />
             <div className="footer-divider" />
-            <img src={logos.instituto} alt="Instituto" className="footer-logo" />
+            <img src="/logos/global_green.png" alt="Global Green Environmental Solutions" className="footer-logo" style={{ maxHeight: 56 }} />
+            <div className="footer-divider" />
+            <img src="/logos/INSTITUTO.png" alt="Instituto Municipal" className="footer-logo rounded" style={{ maxHeight: 62 }} />
+            <div className="footer-divider" />
+            <img src="/logos/basura_cero.jpg" alt="Naguanagua Basura Cero" className="footer-logo rounded" style={{ maxHeight: 60 }} />
           </div>
         </div>
 

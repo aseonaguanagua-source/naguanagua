@@ -1,7 +1,8 @@
 'use client';
-import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpreadsheet, History, Award, Clock, Building2, AlertTriangle, Handshake, LayoutDashboard, Mail, User, PieChart, Truck, Inbox, Calculator, Briefcase, Landmark, BookOpen, Car, Map, Bus, TreePine, ShieldAlert, DollarSign, Wallet, FileCheck, Package, ShoppingCart, Target, BarChart3, ClipboardCheck, Smartphone } from 'lucide-react';
+import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpreadsheet, History, Award, Clock, Building2, AlertTriangle, Handshake, LayoutDashboard, Mail, User, PieChart, Truck, Inbox, Calculator, Briefcase, Landmark, BookOpen, Car, Map, Bus, TreePine, ShieldAlert, DollarSign, Wallet, FileCheck, Package, ShoppingCart, Target, BarChart3, ClipboardCheck, Smartphone, LogOut } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { performLogout } from '@/lib/logout';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -115,7 +116,16 @@ export default function Sidebar() {
         </ul>
       </nav>
       
-      <div className="p-4 bg-[#111827] border-t border-white/10 shrink-0">
+      <div className="p-4 bg-[#111827] border-t border-white/10 shrink-0 space-y-2">
+        <button
+          onClick={async () => {
+            await performLogout('/admin');
+          }}
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/70 border border-red-800/40 text-xs font-bold text-red-300 hover:text-white transition-colors cursor-pointer"
+        >
+          <LogOut className="w-3.5 h-3.5 text-red-400" />
+          <span>Cerrar Sesión</span>
+        </button>
         <Link href="/" className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors">
           <Home className="w-4 h-4" /> Volver al Inicio
         </Link>

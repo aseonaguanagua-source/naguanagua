@@ -1,7 +1,8 @@
 'use client';
-import { Power, RefreshCw, Zap } from 'lucide-react';
+import { Power, RefreshCw, Zap, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { logAudit } from '@/lib/audit';
+import { performLogout } from '@/lib/logout';
 import { useAppContext } from '@/store/AppContext';
 import { useState } from 'react';
 
@@ -70,21 +71,14 @@ export default function Header() {
           <div className="text-[11px] text-slate-400">{workerRole}</div>
         </div>
         <button 
-          onClick={() => {
-            logAudit('Logout (Cierre Manual)', {}, 'SESION');
-            // Eliminar TODOS los tokens - siempre pedirá contraseña al volver
-            localStorage.removeItem('admin_auth_andministrador');
-            localStorage.removeItem('admin_user_data');
-            localStorage.removeItem('adminUser');
-            localStorage.removeItem('adminLetra');
-            localStorage.removeItem('adminToken');
-            // Redirigir al login admin
-            window.location.href = '/admin';
+          onClick={async () => {
+            await performLogout('/admin');
           }}
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-full transition-colors"
-          title="Cerrar sesión"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-300 hover:text-white bg-red-950/40 hover:bg-red-900/70 border border-red-800/40 rounded-lg transition-colors cursor-pointer"
+          title="Cerrar sesión y solicitar credenciales"
         >
-          <Power className="w-5 h-5" />
+          <LogOut className="w-3.5 h-3.5 text-red-400" />
+          <span>Cerrar Sesión</span>
         </button>
       </div>
     </header>

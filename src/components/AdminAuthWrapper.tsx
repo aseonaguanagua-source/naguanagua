@@ -4,9 +4,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Shield, Lock, User, AlertCircle, ArrowRight, ShieldAlert, LogOut, CheckCircle2, Eye, EyeOff, ShieldCheck, ChevronDown } from 'lucide-react';
 import { logAudit } from '@/lib/audit';
 import { supabase } from '@/lib/supabase';
+import { performLogout } from '@/lib/logout';
 
 export const PUESTOS_PLANTILLA = [
-  { puesto: 'Administrador General', usuario: 'dzara', defaultClave: 'dzara', rol: 'Administrador' },
+  { puesto: 'Administrador', usuario: 'dzara', defaultClave: 'dzara', rol: 'Administrador' },
   { puesto: 'Taquilla / Cajero Principal', usuario: 'cajero', defaultClave: 'cajero123', rol: 'Taquilla / Operador' },
   { puesto: 'Supervisor de Operaciones', usuario: 'supervisor', defaultClave: 'supervisor123', rol: 'Supervisor' },
   { puesto: 'Operador de Censo / Catastro', usuario: 'censo', defaultClave: 'censo123', rol: 'Operador de Censo' },
@@ -221,15 +222,8 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
   };
 
   const handleLogout = useCallback(async () => {
-    await logAudit(`Cierre de Sesión: ${user?.usuario || 'Desconocido'}`, {}, 'SESION', 'BAJA');
-    ['admin_auth_andministrador', 'admin_user_data', 'adminUser', 'adminLetra', 'adminToken'].forEach(k =>
-      localStorage.removeItem(k)
-    );
-    await fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
-    setUser(null);
-    setIsAuthenticated(false);
-    setPasswordInput('');
-  }, [user]);
+    await performLogout('/admin');
+  }, []);
 
   // Si está verificando estado inicial
   if (isChecking) {
@@ -298,7 +292,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
                     <optgroup label="── Puestos de la Plantilla ──">
                       {PUESTOS_PLANTILLA.map((p) => (
                         <option key={p.usuario} value={p.usuario}>
-                          {p.puesto} ({p.usuario})
+                          {p.puesto}
                         </option>
                       ))}
                     </optgroup>
@@ -306,7 +300,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
                       <optgroup label="── Trabajadores Registrados ──">
                         {trabajadoresDb.map((t) => (
                           <option key={t.usuario} value={t.usuario}>
-                            {t.nombre} - {t.rol} ({t.usuario})
+                            {t.nombre} - {t.rol}
                           </option>
                         ))}
                       </optgroup>

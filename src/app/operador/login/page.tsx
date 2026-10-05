@@ -10,7 +10,7 @@ const PUESTOS_OPERADOR = [
   { puesto: 'Hacienda Especial', usuario: 'HACIENDA', defaultClave: '1042700' },
   { puesto: 'Cobro Móvil / Campo', usuario: 'cobromovil', defaultClave: 'movil123' },
   { puesto: 'Taquilla / Cajero', usuario: 'cajero', defaultClave: 'cajero123' },
-  { puesto: 'Administrador General', usuario: 'dzara', defaultClave: 'dzara' },
+  { puesto: 'Administrador', usuario: 'dzara', defaultClave: 'dzara' },
 ];
 
 export default function OperadorLogin() {
@@ -161,7 +161,7 @@ export default function OperadorLogin() {
                   <optgroup label="── Puestos de Campo y Censo ──">
                     {PUESTOS_OPERADOR.map((p) => (
                       <option key={p.usuario} value={p.usuario}>
-                        {p.puesto} ({p.usuario})
+                        {p.puesto}
                       </option>
                     ))}
                   </optgroup>
@@ -169,7 +169,7 @@ export default function OperadorLogin() {
                     <optgroup label="── Trabajadores Registrados ──">
                       {trabajadoresDb.map((t) => (
                         <option key={t.usuario} value={t.usuario}>
-                          {t.nombre} - {t.rol} ({t.usuario})
+                          {t.nombre} - {t.rol}
                         </option>
                       ))}
                     </optgroup>

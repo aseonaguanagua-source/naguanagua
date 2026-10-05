@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { LogOut, User, MapPin } from 'lucide-react';
 import { AppProvider } from '@/store/AppContext';
+import { performLogout } from '@/lib/logout';
 
 export default function OperadorLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -13,17 +14,16 @@ export default function OperadorLayout({ children }: { children: React.ReactNode
 
   useEffect(() => {
     if (isLoginPage) return;
-    // Auto-autenticar sin requerir login
-    const storedOp = localStorage.getItem('operador_censo_auth') || 'Administrador';
-    if (!localStorage.getItem('operador_censo_auth')) {
-      localStorage.setItem('operador_censo_auth', 'Administrador');
+    const storedOp = localStorage.getItem('operador_censo_auth');
+    if (!storedOp) {
+      router.replace('/operador/login');
+      return;
     }
     setOperador(storedOp);
-  }, [pathname]);
+  }, [pathname, isLoginPage, router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('operador_censo_auth');
-    router.replace('/');
+  const handleLogout = async () => {
+    await performLogout('/');
   };
 
   if (isLoginPage) {
