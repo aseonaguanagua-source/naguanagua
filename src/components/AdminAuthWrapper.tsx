@@ -8,7 +8,7 @@ import { performLogout } from '@/lib/logout';
 
 export const PUESTOS_PLANTILLA = [
   { puesto: 'Administrador', usuario: 'dzara', defaultClave: 'dzara', rol: 'Administrador' },
-  { puesto: 'Taquilla / Cajero Principal', usuario: 'cajero', defaultClave: 'cajero123', rol: 'Taquilla / Operador' },
+  { puesto: 'Cajero', usuario: 'cajero', defaultClave: 'cajero123', rol: 'Taquilla / Operador' },
   { puesto: 'Supervisor de Operaciones', usuario: 'supervisor', defaultClave: 'supervisor123', rol: 'Supervisor' },
   { puesto: 'Operador de Censo / Catastro', usuario: 'censo', defaultClave: 'censo123', rol: 'Operador de Censo' },
   { puesto: 'Auditor Fiscal y Tributario', usuario: 'auditor', defaultClave: 'auditor123', rol: 'Auditor' },
@@ -72,6 +72,18 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
       } catch {}
     };
     fetchTrabajadores();
+
+    // Preseleccionar el puesto si viene por parámetro de URL
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const puestoParam = params.get('puesto');
+        if (puestoParam) {
+          setSelectedPuesto(puestoParam);
+          setUsernameInput(puestoParam);
+        }
+      } catch {}
+    }
   }, []);
 
   // Verificar sesión existente en el cliente
@@ -119,7 +131,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
       if (u.toLowerCase() === 'dzara' && p === 'dzara') {
         const adminData = {
           usuario: 'dzara',
-          nombre: 'David Zara',
+          nombre: 'Administrador',
           rol: 'Administrador',
           letra: 'DZ',
           permisos: {} // Administrador tiene bypass total
@@ -248,11 +260,9 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
 
         <div className="w-full max-w-sm relative z-10">
           <div className="bg-white rounded-[28px] shadow-2xl p-7 sm:p-8 w-full text-slate-800">
-            {/* Encabezado logos */}
-            <div className="flex items-center justify-center gap-4 mb-3">
-              <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-10 w-auto object-contain" />
-              <div className="h-8 w-[1px] bg-slate-200" />
-              <img src="/logos/global_green.png" alt="Global Green" className="h-9 w-auto object-contain" />
+            {/* Encabezado logo Global Rec */}
+            <div className="flex items-center justify-center mb-3">
+              <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-11 w-auto object-contain" />
             </div>
 
             {/* Títulos corporativos */}

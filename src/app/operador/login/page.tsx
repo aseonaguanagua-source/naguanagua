@@ -119,11 +119,9 @@ export default function OperadorLogin() {
 
       <div className="w-full max-w-sm relative z-10">
         <div className="bg-white rounded-[28px] shadow-2xl p-7 sm:p-8 text-slate-800">
-          {/* Encabezado logos */}
-          <div className="flex items-center justify-center gap-4 mb-3">
-            <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-10 w-auto object-contain" />
-            <div className="h-8 w-[1px] bg-slate-200" />
-            <img src="/logos/global_green.png" alt="Global Green" className="h-9 w-auto object-contain" />
+          {/* Encabezado logo Global Rec */}
+          <div className="flex items-center justify-center mb-3">
+            <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-11 w-auto object-contain" />
           </div>
 
           <h1 className="text-2xl font-black text-slate-900 tracking-tight text-center">Global Rec</h1>

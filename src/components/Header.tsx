@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { logAudit } from '@/lib/audit';
 import { performLogout } from '@/lib/logout';
 import { useAppContext } from '@/store/AppContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Header() {
   const router = useRouter();
@@ -23,24 +23,25 @@ export default function Header() {
   const [workerName, setWorkerName] = useState('Usuario Oficial');
   const [workerRole, setWorkerRole] = useState('Personal Municipal');
 
-  useState(() => {
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         const raw = localStorage.getItem('admin_user_data');
         if (raw) {
           const u = JSON.parse(raw);
-          setWorkerName(u.nombre || u.usuario || 'Usuario Oficial');
-          setWorkerRole(u.rol ? `${u.rol}${u.letra ? ` (Caja ${u.letra})` : ''}` : 'Funcionario');
+          const isAdmin = u.usuario === 'dzara' || u.nombre === 'David Zara' || u.rol === 'Administrador';
+          setWorkerName(isAdmin ? 'Administrador' : (u.nombre || u.usuario || 'Usuario Oficial'));
+          setWorkerRole(u.rol ? `${u.rol}${u.letra && u.letra !== 'DZ' ? ` (Caja ${u.letra})` : ''}` : 'Funcionario');
         } else {
           const u = localStorage.getItem('adminUser');
           if (u) {
-            setWorkerName(u);
+            setWorkerName(u === 'dzara' ? 'Administrador' : u);
             setWorkerRole(u === 'dzara' ? 'Administrador' : 'Funcionario');
           }
         }
       } catch {}
     }
-  });
+  }, []);
 
   return (
     <header className="h-16 bg-[#1e293b] sticky top-0 left-0 right-0 flex items-center justify-between px-6 z-40 border-b border-slate-700 shadow-md">
