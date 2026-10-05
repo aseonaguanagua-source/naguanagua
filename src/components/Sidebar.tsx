@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpreadsheet, History, Award, Clock, Building2, AlertTriangle, Handshake, LayoutDashboard, Mail, User, PieChart, Truck, Inbox, Calculator, Briefcase, Landmark, BookOpen, Car, Map, Bus, TreePine, ShieldAlert, DollarSign, Wallet, FileCheck, Package, ShoppingCart, Target, BarChart3, ClipboardCheck, Smartphone, LogOut, ShieldCheck } from 'lucide-react';
+import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpreadsheet, History, Award, Clock, Building2, AlertTriangle, Handshake, LayoutDashboard, Mail, User, PieChart, Truck, Inbox, Calculator, Briefcase, Landmark, BookOpen, Car, Map, Bus, TreePine, ShieldAlert, DollarSign, Wallet, FileCheck, Package, ShoppingCart, Target, BarChart3, ClipboardCheck, Smartphone, LogOut, ShieldCheck, Sparkles } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { performLogout } from '@/lib/logout';
@@ -41,6 +41,7 @@ export default function Sidebar() {
     { icon: TreePine, name: 'Visto Bueno Ambiental', href: '/admin/ambiental' },
     { icon: BarChart3, name: 'Análisis de Deudas', href: '/admin/herramientas' },
     { icon: Calculator, name: 'Cálculo y Proyección', href: '/admin/calculo' },
+    { icon: Sparkles, name: 'Simulador de Deuda', href: '/admin/simulador' },
     { icon: Briefcase, name: 'Caja / Pagos', href: '/admin/caja' },
     { icon: Landmark, name: 'Conciliacion Bancaria', href: '/admin/caja/conciliacion' },
     { icon: FileText, name: 'Facturación Electrónica', href: '/admin/facturacion-electronica' },

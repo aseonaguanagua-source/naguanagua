@@ -11,6 +11,7 @@ export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
   '/admin/ambiental': ['gestionar_visto_bueno'],
   '/admin/herramientas': ['ver_reportes'],
   '/admin/calculo': ['usar_calculadora_deuda'],
+  '/admin/simulador': ['usar_calculadora_deuda', 'ver_caja', 'gestionar_pagos'],
   '/admin/caja': ['ver_caja', 'gestionar_pagos'],
   '/admin/caja/conciliacion': ['ver_conciliacion'],
   '/admin/facturacion-electronica': ['emitir_recibos', 'ver_caja'],
