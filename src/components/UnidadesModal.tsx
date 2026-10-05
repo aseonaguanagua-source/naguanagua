@@ -437,9 +437,13 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
       doc.setFillColor(245, 245, 245);
       doc.rect(15, 103, 180, 25, 'FD');
       
-      const fechaVencimiento = new Date();
-      fechaVencimiento.setDate(fechaVencimiento.getDate() + 30);
-      const vencMesAnio = `${('0' + (fechaVencimiento.getMonth() + 1)).slice(-2)}-${fechaVencimiento.getFullYear()}`;
+      const fechaEmision = new Date();
+      const anio = fechaEmision.getFullYear();
+      const mes = fechaEmision.getMonth();
+      const ultimoDia = new Date(anio, mes + 1, 0).getDate();
+      const mesStr = ('0' + (mes + 1)).slice(-2);
+      const vencMesAnio = `${mesStr}-${anio}`;
+      const vencStr = `${String(ultimoDia).padStart(2, '0')}/${mesStr}/${anio}`;
       
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
@@ -448,7 +452,6 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
       
       doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
-      const vencStr = fechaVencimiento.toLocaleDateString('es-VE');
       doc.text(`CERTIFICADO VÁLIDO HASTA: ${vencStr}`, 105, 123, { align: "center" });
       
       // Section 3: DECLARACIÓN

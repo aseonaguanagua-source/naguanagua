@@ -18,6 +18,19 @@ import { LISTA_BANCOS } from '@/lib/bancos';
 // ─ Constante oficial de bancos de Venezuela actualizada ─
 const BANCOS_VENEZUELA = LISTA_BANCOS;
 
+const updateServiciosEspecialesEstado = async (referencias: string[], estado: string) => {
+  if (!referencias || referencias.length === 0) return;
+  try {
+    await fetch('/api/admin/servicios-especiales', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ referencias, estado })
+    });
+  } catch (err) {
+    console.error('Error actualizando servicios_especiales:', err);
+  }
+};
+
 
 export default function CajaPage() {
   const { inmuebles, convenios, contribuyentes, documentos, tcmmv, refreshData, refreshUserData } = useAppContext();
@@ -795,14 +808,19 @@ export default function CajaPage() {
       });
       setCuotas(pendingCuotas);
 
-      // Cargar servicios especiales pendientes
-      const { data: servEsp } = await supabase
-        .from('servicios_especiales')
-        .select('*')
-        .or(facturasOrFilter)
-        .eq('estado', 'Pendiente');
-      
-      const filteredServEsp = (servEsp || []).filter((s: any) => {
+      // Cargar servicios especiales y tala/poda pendientes vía API (bypassa RLS)
+      let allServiciosData: any[] = [];
+      try {
+        const idSearch = user.Identidad || user.identidad || '';
+        const res = await fetch(`/api/admin/servicios-especiales?identidad=${encodeURIComponent(idSearch)}&estado=Pendiente`);
+        if (res.ok) {
+          allServiciosData = await res.json();
+        }
+      } catch (e) {
+        console.error('Error fetching servicios_especiales:', e);
+      }
+
+      const filteredServEsp = (allServiciosData || []).filter((s: any) => {
         if (s.tipo === 'tala_poda') return false;
         if (isCodeFormat && (user.CodCont || user.cod_cont)) {
           const specificCode = String(user.CodCont || user.cod_cont).toUpperCase();
@@ -813,14 +831,8 @@ export default function CajaPage() {
       setServiciosEsp(filteredServEsp);
 
       // Cargar servicios de tala y poda pendientes
-      const { data: talaData } = await supabase
-        .from('servicios_especiales')
-        .select('*')
-        .or(facturasOrFilter)
-        .eq('tipo', 'tala_poda')
-        .eq('estado', 'Pendiente');
-      
-      const filteredTala = (talaData || []).filter((s: any) => {
+      const filteredTala = (allServiciosData || []).filter((s: any) => {
+        if (s.tipo !== 'tala_poda') return false;
         if (isCodeFormat && (user.CodCont || user.cod_cont)) {
           const specificCode = String(user.CodCont || user.cod_cont).toUpperCase();
           if (s.inmueble && s.inmueble.toUpperCase() !== specificCode) return false;
@@ -1352,13 +1364,13 @@ export default function CajaPage() {
         
         // Tala y Poda debito: pagar completo
         if (selectedTalaPoda.length > 0 && !esAbonoDebito) {
-          await supabase.from('servicios_especiales').update({ estado: 'Pagado' }).in('referencia', selectedTalaPoda);
+          await updateServiciosEspecialesEstado(selectedTalaPoda, 'Pagado');
         }
         // Servicios especiales: solo se pagan completos (no hay abono parcial)
         if (selectedServicios.length > 0) {
           if (!esAbonoDebito) {
             // Pago completo - marcar todos como Pagado
-            await supabase.from('servicios_especiales').update({ estado: 'Pagado' }).in('referencia', selectedServicios);
+            await updateServiciosEspecialesEstado(selectedServicios, 'Pagado');
           } else {
             // Abono: calcular dinero restante despues de cubrir recibos
             let dineroPagado = 0;
@@ -1375,7 +1387,7 @@ export default function CajaPage() {
               if (dineroRestanteParaServicios >= montoS - 0.01) {
                 // Alcanza para cubrir el servicio completo
                 dineroRestanteParaServicios = Math.max(0, dineroRestanteParaServicios - montoS);
-                await supabase.from('servicios_especiales').update({ estado: 'Pagado' }).eq('referencia', ref);
+                await updateServiciosEspecialesEstado([ref], 'Pagado');
               }
               // Si no alcanza: el servicio queda Pendiente INTACTO (sin modificar el monto)
             }
@@ -1909,11 +1921,11 @@ export default function CajaPage() {
 
         // Tala y Poda Transferencia -> Por Verificar
         if (selectedTalaPoda.length > 0) {
-          await supabase.from('servicios_especiales').update({ estado: 'Por Verificar' }).in('referencia', selectedTalaPoda);
+          await updateServiciosEspecialesEstado(selectedTalaPoda, 'Por Verificar');
         }
-        // Servicios especiales Transferencia â†’ Por Verificar (incluir en detalles)
+        // Servicios especiales Transferencia → Por Verificar (incluir en detalles)
         if (selectedServicios.length > 0) {
-          await supabase.from('servicios_especiales').update({ estado: 'Por Verificar' }).in('referencia', selectedServicios);
+          await updateServiciosEspecialesEstado(selectedServicios, 'Por Verificar');
         }
 
         setSuccessMsg(`${paymentMethod} registrado(a). Ha sido enviado(a) al módulo de Emisión de recibos para su conciliación automática o manual.`);
