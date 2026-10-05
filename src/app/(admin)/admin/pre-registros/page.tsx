@@ -230,6 +230,19 @@ export default function PreRegistrosPage() {
         }];
       }
 
+      // 1. Asegurar registro en contribuyentes (requerido por FK inmuebles_identidad_fkey)
+      try {
+        await supabase.from('contribuyentes').upsert([{
+          identidad: rowToApprove.identidad,
+          nombre: rowToApprove.contribuyente,
+          telefono: rowToApprove.registro || '',
+          email: rowToApprove.correo || '',
+          direccion: rowToApprove.direccion_exacta || rowToApprove.domicilio_fiscal || rowToApprove.direccion || ''
+        }], { onConflict: 'identidad' });
+      } catch (eC) {
+        console.warn('Advertencia al upsertar contribuyente en aprobación:', eC);
+      }
+
       const { data: newInmuebles, error: err1 } = await supabase.from('inmuebles').insert(recordsToInsert).select();
       if (err1) throw err1;
       

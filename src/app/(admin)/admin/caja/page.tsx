@@ -656,10 +656,13 @@ export default function CajaPage() {
           ...activeInmFresh.map((i: any) => String(i.inmueble || '').toUpperCase())
         ]);
         combined = combined.filter((f: any) => {
-          const fInm = String(f.inmueble || '').toUpperCase();
-          if (fInm && allowedCodes.has(fInm)) return true;
+          const fInm = String(f.inmueble || '').trim().toUpperCase();
+          if (fInm) return allowedCodes.has(fInm);
           const ref = String(f.referencia || '').toUpperCase();
-          return Array.from(allowedCodes).some(code => ref.includes(code));
+          const hasCodeInRef = Array.from(allowedCodes).some(code => ref.includes(code));
+          if (hasCodeInRef) return true;
+          // Facturas del contribuyente sin código de inmueble específico (ej. O-003146) se conservan
+          return true;
         });
       }
       
@@ -692,10 +695,15 @@ export default function CajaPage() {
           billableInms.forEach((inm: any) => {
             const esCondoPagoInd = isCondominioPagoIndividual(inm);
 
-            // Si el inmueble es hijo/filial de un condominio comercial ORDINARIO:
+            const isParentContainerNA = inm.condominio_padre_id && naParentCodes.includes(inm.condominio_padre_id);
+            const isSameContribChild = inm.condominio_padre_id && (
+              (inm.identidad || '').replace(/^[VEJPG]-?/i, '').trim().toUpperCase() === (user.Identidad || '').replace(/^[VEJPG]-?/i, '').trim().toUpperCase()
+            );
+
+            // Si el inmueble es hijo/filial de un condominio comercial ORDINARIO con locales de distintos propietarios:
             // El aseo lo paga el condominio padre, pero las multas se pagan por la oficina individual.
-            // EXCEPCIÓN: Condominios URB014903, URB030783, URB029866 y URB015503 permiten pagar aparte como individual tanto multa como sus meses.
-            if (inm.condominio_padre_id && !isResidencialInm(inm) && !esCondoPagoInd) {
+            // EXCEPCIÓN: Si el padre es contenedor N/A o si los locales son del mismo contribuyente (múltiples actividades), debe generar su facturación.
+            if (inm.condominio_padre_id && !isResidencialInm(inm) && !esCondoPagoInd && !isParentContainerNA && !isSameContribChild) {
               const multa = parseFloat(inm.multa_bs || '0');
               const congelada = parseFloat(inm.deuda_congelada_bs || '0');
               if (multa > 0 || congelada > 0) {
@@ -3446,7 +3454,13 @@ export default function CajaPage() {
                           if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
                           else inmId = 'Acumulados';
                         } else {
-                          if (userInms.length === 1) { inmId = String(userInms[0].inmueble || ''); tipo = String(userInms[0].tipo || userInms[0].clasificacion || ''); act = String(userInms[0].actividad_principal || ''); dir = String(userInms[0].direccion || ''); }
+                          const matchedInm = userInms.find((i: any) => (i.actividad_principal || '').toUpperCase() !== 'N/A') || userInms[0];
+                          if (matchedInm) {
+                            inmId = String(matchedInm.inmueble || 'General');
+                            tipo = String(matchedInm.tipo || matchedInm.clasificacion || 'Comercial');
+                            act = String(matchedInm.actividad_principal || 'Aseo Urbano');
+                            dir = String(matchedInm.direccion || '');
+                          }
                         }
                         
                         // Extraer clave uniforme de mes YYYY-MM a partir de r.emision

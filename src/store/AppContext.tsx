@@ -769,9 +769,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!variants.includes(cleanIdent)) variants.push(cleanIdent);
       const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
-      // 1. Actualizar datos en tabla contribuyentes
+      // 1. Asegurar / actualizar datos en tabla contribuyentes (requerido por FK inmuebles_identidad_fkey)
       try {
-        const contribUpdate: any = {
+        const contribRecord: any = {
+          identidad: data.Identidad || id,
           nombre: data.Contribuyente,
           telefono: data.Telefono,
           email: data.Correo,
@@ -781,9 +782,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const { data: curC } = await supabase.from('contribuyentes').select('observaciones').or(orFilter).limit(1).maybeSingle();
           const obsActual = curC?.observaciones || '';
           const newEntry = `${new Date().toLocaleDateString('es-VE')}: ${notaToSave}`;
-          contribUpdate.observaciones = obsActual ? `${newEntry}\n---\n${obsActual}` : newEntry;
+          contribRecord.observaciones = obsActual ? `${newEntry}\n---\n${obsActual}` : newEntry;
         }
-        await supabase.from('contribuyentes').update(contribUpdate).or(orFilter);
+        await supabase.from('contribuyentes').upsert([contribRecord], { onConflict: 'identidad' });
       } catch (eCont) {
         console.warn('Advertencia al sincronizar contribuyente:', eCont);
       }
@@ -1007,12 +1008,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
       }
       
-      const { error } = await supabase.from('inmuebles').insert(rowsToInsert);
-      if (error) throw error;
-
-      // Registrar también en tabla contribuyentes
+      // 1. PRIMERO asegurar existencia en tabla contribuyentes (requerido por foreign key 'inmuebles_identidad_fkey')
       try {
-        await supabase.from('contribuyentes').upsert([{
+        const { error: errContrib } = await supabase.from('contribuyentes').upsert([{
           identidad: data.Identidad,
           nombre: data.Contribuyente,
           telefono: data.Telefono,
@@ -1020,7 +1018,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           direccion: data.Direccion,
           observaciones: data.Notas_Adicionales || data.Nota || ''
         }], { onConflict: 'identidad' });
-      } catch (_) {}
+        if (errContrib) console.warn("Advertencia al upsertar en contribuyentes:", errContrib);
+      } catch (eContrib) {
+        console.warn("Excepción al upsertar en contribuyentes:", eContrib);
+      }
+      
+      // 2. LUEGO insertar en tabla inmuebles
+      const { error } = await supabase.from('inmuebles').insert(rowsToInsert);
+      if (error) throw error;
       
       // Update local state and cache
       await refreshData(true);
