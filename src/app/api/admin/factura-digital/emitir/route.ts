@@ -167,8 +167,7 @@ export async function POST(request: Request) {
         const mesNum = parseInt(parts[parts.length - 1]?.replace('M', '') || '1');
         const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
         const isUltimoMes = mesNum >= totalMeses;
-        const mesesMora = Math.max(0, totalMeses - mesNum);
-        const montoMulta = (!isUltimoMes && totalMeses > 1) ? parseFloat((montoBase * pctMulta * mesesMora).toFixed(2)) : 0;
+        const montoMulta = (!isUltimoMes && totalMeses > 1) ? parseFloat((montoBase * pctMulta).toFixed(2)) : 0;
 
         if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipoInm: inm?.tipo || '', esRes: esResidencial });
       });

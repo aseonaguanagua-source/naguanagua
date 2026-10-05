@@ -210,11 +210,10 @@ export default function CajaPage() {
 
     const base = parseFloat((baseMensual * mesesAPagar).toFixed(2));
     const iva = esRes ? 0 : parseFloat((ivaMensual * mesesAPagar).toFixed(2));
-    // Multa mensual por mora: 10% residencial, 12% comercial acumulada mensualmente por retraso (septiembre se paga en octubre sin multa; multas aplican hasta agosto)
+    // Multa mensual por mora: 10% residencial, 12% comercial sobre los meses adeudados vencidos (septiembre se paga en octubre sin multa; multas aplican hasta agosto)
     const porcentajeMulta = esRes ? 0.10 : 0.12;
     const mesesConMora = Math.max(0, mesesAPagar - 1);
-    const unidadesMora = (mesesConMora * (mesesConMora + 1)) / 2;
-    const multaCalculada = parseFloat((baseMensual * porcentajeMulta * (mesesTotales > 1 ? unidadesMora : 0)).toFixed(2));
+    const multaCalculada = parseFloat((baseMensual * porcentajeMulta * (mesesTotales > 1 ? mesesConMora : 0)).toFixed(2));
     const multaGuardada = parseFloat(hijo?.multa_bs || '0');
     const multa = (mesesTotales <= 1 || mesesConMora === 0) ? 0 : Math.max(multaCalculada, multaGuardada);
     const total = parseFloat((base + iva + multa).toFixed(2));
@@ -575,8 +574,7 @@ export default function CajaPage() {
             const ivaMes = esRes ? 0 : baseMes * 0.16;
             const multaMes = baseMes * (esRes ? 0.10 : 0.12);
             const mesesConMulta = Math.max(0, meses - 1);
-            const unidadesMora = (mesesConMulta * (mesesConMulta + 1)) / 2;
-            return sum + ((baseMes + ivaMes) * meses) + (multaMes * unidadesMora);
+            return sum + ((baseMes + ivaMes) * meses) + (multaMes * mesesConMulta);
           }
           return sum + (parseFloat(i.deuda_mmv || '0') * currentBcvRate) + parseFloat(i.deuda_congelada_bs || '0');
         }, 0
@@ -1022,9 +1020,8 @@ export default function CajaPage() {
           const isUltimoMes = mNum > 0 ? (mNum >= totalMeses) : false;
 
           // Multa mensual por mora: 10% para residencial, 12% para comercial sobre la base (solo meses anteriores a septiembre: monthsDiff > 1)
-          const mesesMora = (!isUltimoMes && monthsDiff > 1) ? (monthsDiff - 1) : 0;
-          if (mesesMora > 0) {
-            smulta += parseFloat((bm * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
+          if (!isUltimoMes && monthsDiff > 1) {
+            smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
           }
         }
       } else if (ref.startsWith('CM-')) {
@@ -1050,8 +1047,7 @@ export default function CajaPage() {
             rc.referencia?.startsWith('CM-') && (rc.referencia || '').includes(inm.inmueble || '')
           );
           const isUltimoMes = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === ref || monthsDiff <= 1;
-          const mesesMora = (!isUltimoMes && monthsDiff > 1) ? (monthsDiff - 1) : 0;
-          if (mesesMora > 0) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
+          if (!isUltimoMes && monthsDiff > 1) smulta += parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2));
         });
       } else {
         const f = recibosMap.get(ref);
@@ -1715,15 +1711,14 @@ export default function CajaPage() {
                     const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
                     const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
                     const isUltimoMes = mesNum >= totalMeses || monthsDiff <= 1;
-                    const mesesMora = (!isUltimoMes && monthsDiff > 1) ? (monthsDiff - 1) : 0;
-                    const multa = parseFloat((bm * (esRes ? 0.10 : 0.12) * mesesMora).toFixed(2));
+                    const multa = (!isUltimoMes && monthsDiff > 1) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                     const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
                     conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Base Imponible`, precioUnit: bm, total: bm });
                     if (iva > 0) {
                       conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - IVA (16%)`, precioUnit: iva, total: iva });
                     }
                     if (multa > 0) {
-                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Multa (${esRes ? '10%' : '12%'} × ${mesesMora} ${mesesMora === 1 ? 'mes' : 'meses'})`, precioUnit: multa, total: multa });
+                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Multa (${esRes ? '10%' : '12%'})`, precioUnit: multa, total: multa });
                     }
                   }
                 } else {
