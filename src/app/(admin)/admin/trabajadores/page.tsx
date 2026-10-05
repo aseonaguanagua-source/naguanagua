@@ -388,7 +388,7 @@ export default function TrabajadoresPage() {
         nombre: (formData.nombre || '').trim(),
         cedula: (formData.cedula || '').trim(),
         correo: (formData.correo || '').trim(),
-        usuario: (formData.usuario || '').trim(),
+        usuario: (formData.usuario || '').trim().toLowerCase(),
         clave: (formData.clave || '').trim(),
         rol: formData.rol,
         estado: formData.estado,
