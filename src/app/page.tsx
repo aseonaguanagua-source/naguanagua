@@ -75,7 +75,7 @@ export default function Home() {
     {
       id: 'cobromovil',
       label: 'Cobro Móvil',
-      targetUrl: '/cobro-movil?puesto=cobromovil',
+      targetUrl: '/operador/login?modulo=cobromovil',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
@@ -86,7 +86,7 @@ export default function Home() {
     {
       id: 'censo',
       label: 'Operador de Censo',
-      targetUrl: '/operador/login',
+      targetUrl: '/operador/login?modulo=censo',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />

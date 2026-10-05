@@ -1,12 +1,14 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, 
   Landmark, MapPin, User2, Building2, TriangleAlert, ChevronDown, ChevronUp,
-  CheckSquare2, Square, Store, Sparkles
+  CheckSquare2, Square, Store, Sparkles, LogOut
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
+import { performLogout } from '@/lib/logout';
 import { isResidencialInm, calcularMensualidad } from '@/lib/calculos';
 import { getIdentidadVariants } from '@/lib/formatters';
 import { clusterInmueblesByLocal } from '@/lib/cajaHelpers';
@@ -68,6 +70,18 @@ const calcMontoMes = (inm: Inmueble, tcmmv: number): number => {
 };
 
 export default function KioskPage() {
+  const router = useRouter();
+  const [operatorUser, setOperatorUser] = useState<string | null>(null);
+
+  useEffect(() => {
+    const auth = localStorage.getItem('operador_censo_auth') || localStorage.getItem('adminUser');
+    if (!auth) {
+      router.replace('/operador/login?modulo=cobromovil');
+      return;
+    }
+    setOperatorUser(auth);
+  }, [router]);
+
   const [tcmmv, setTcmmv] = useState<number>(0);
   useEffect(() => {
     fetch('/api/bcv').then(r => r.json()).then(d => { if (d?.tcmmv) setTcmmv(d.tcmmv); }).catch(() => {});
@@ -733,6 +747,37 @@ export default function KioskPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white font-sans select-none" style={{ WebkitTapHighlightColor: 'transparent' }}>
+
+      {/* Barra superior de Operador de Cobro Móvil */}
+      <header className="bg-slate-800/90 border-b border-slate-700/60 px-5 py-3 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+            <Building2 className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div>
+            <span className="text-xs font-black text-white uppercase tracking-wider block">Cobro Móvil</span>
+            <span className="text-[10px] text-emerald-400 font-bold block">Naguanagua · IAMEC</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {operatorUser && (
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-700/70 rounded-full border border-slate-600 text-xs font-semibold text-slate-300">
+              <User2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{operatorUser}</span>
+            </div>
+          )}
+          <button
+            onClick={async () => {
+              await performLogout('/');
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-900/40 hover:bg-red-900/70 border border-red-700/50 text-xs font-bold text-red-300 transition-colors cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Salir</span>
+          </button>
+        </div>
+      </header>
 
       {step === 'search' && (
         <div className="flex-1 flex flex-col items-center justify-center p-6">

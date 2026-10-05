@@ -19,13 +19,13 @@ function buildHtml(nombre: string): string {
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
           <td align="center" width="33%">
-            <img src="${BASE}/logos/global_rec.jpg" alt="Global Rec - Naguanagua" width="100" style="display:block;margin:0 auto;border-radius:6px;" />
+            <img src="${BASE}/logos/logo_global_rec.png" alt="Global Rec - Naguanagua" width="100" style="display:block;margin:0 auto;border-radius:6px;" />
           </td>
           <td align="center" width="34%">
-            <img src="${BASE}/logos/basura_cero.jpg" alt="IAMEC Naguanagua" width="120" style="display:block;margin:0 auto;background:#fff;border-radius:8px;padding:4px;" />
+            <img src="${BASE}/logos/alcaldia.png" alt="Alcaldía Bolivariana de Naguanagua" width="110" style="display:block;margin:0 auto;border-radius:8px;padding:4px;" />
           </td>
           <td align="center" width="33%">
-            <img src="${BASE}/logos/basura_cero.jpg" alt="Basura Cero" width="90" style="display:block;margin:0 auto;border-radius:6px;" />
+            <img src="${BASE}/logos/IAMEC.png" alt="IAMEC Naguanagua" width="100" style="display:block;margin:0 auto;border-radius:6px;" />
           </td>
         </tr>
       </table>

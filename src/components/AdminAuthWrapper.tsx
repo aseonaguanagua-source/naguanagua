@@ -53,8 +53,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
   const [user, setUser] = useState<any>(null);
 
   // Estados del formulario de login
-  const [selectedPuesto, setSelectedPuesto] = useState('dzara');
-  const [usernameInput, setUsernameInput] = useState('dzara');
+  const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -73,13 +72,12 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
     };
     fetchTrabajadores();
 
-    // Preseleccionar el puesto si viene por parámetro de URL
+    // Preseleccionar el usuario si viene por parámetro de URL
     if (typeof window !== 'undefined') {
       try {
         const params = new URLSearchParams(window.location.search);
         const puestoParam = params.get('puesto');
         if (puestoParam) {
-          setSelectedPuesto(puestoParam);
           setUsernameInput(puestoParam);
         }
       } catch {}
@@ -124,11 +122,17 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
     setLoginError('');
 
     try {
-      const u = (selectedPuesto === 'manual' ? usernameInput : selectedPuesto).trim();
+      const u = usernameInput.trim();
       const p = passwordInput;
 
+      if (!u || !p) {
+        setLoginError('Por favor complete su usuario y contraseña');
+        setLoginLoading(false);
+        return;
+      }
+
       // Soporte directo para credenciales maestras de administrador
-      if (u.toLowerCase() === 'dzara' && p === 'dzara') {
+      if ((u.toLowerCase() === 'dzara' || u.toLowerCase() === 'administrador' || u.toLowerCase() === 'admin') && p === 'dzara') {
         const adminData = {
           usuario: 'dzara',
           nombre: 'Administrador',
@@ -209,7 +213,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
       setLoginLoading(false);
     } catch (err: any) {
       console.error('Error de login:', err);
-      const u = (selectedPuesto === 'manual' ? usernameInput : selectedPuesto).trim();
+      const u = usernameInput.trim();
       const matchPreset = PUESTOS_PLANTILLA.find(x => x.usuario.toLowerCase() === u.toLowerCase());
       if (matchPreset && matchPreset.defaultClave === passwordInput) {
         const workerData = {
@@ -260,15 +264,16 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
 
         <div className="w-full max-w-sm relative z-10">
           <div className="bg-white rounded-[28px] shadow-2xl p-7 sm:p-8 w-full text-slate-800">
-            {/* Encabezado logo Global Rec */}
-            <div className="flex items-center justify-center mb-3">
-              <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-11 w-auto object-contain" />
+            {/* Encabezado con logos oficiales */}
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <img src="/logos/alcaldia.png" alt="Alcaldía de Naguanagua" className="h-10 w-auto object-contain" />
+              <div className="w-[1px] h-6 bg-slate-200" />
+              <img src="/logos/IAMEC.png" alt="IAMEC" className="h-9 w-auto object-contain" />
             </div>
 
             {/* Títulos corporativos */}
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight text-center">Global Rec</h2>
-            <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400 uppercase text-center mt-0.5">COLLECTION SYSTEM</p>
-            <p className="text-xs font-black text-slate-700 uppercase tracking-[0.2em] text-center mt-2.5">MÓDULO OPERADOR</p>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight text-center">Acceso al Sistema</h2>
+            <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400 uppercase text-center mt-0.5">SISTEMA ADMINISTRATIVO MUNICIPAL</p>
 
             <div className="border-t border-slate-100 my-5" />
 
@@ -283,56 +288,20 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
 
               <div>
                 <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5 text-left">
-                  USUARIO ASIGNADO
+                  USUARIO
                 </label>
                 <div className="relative">
                   <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
-                  <select
-                    value={selectedPuesto}
-                    onChange={(e) => {
-                      setSelectedPuesto(e.target.value);
-                      if (e.target.value !== 'manual') {
-                        setUsernameInput(e.target.value);
-                      } else {
-                        setUsernameInput('');
-                      }
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-9 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all appearance-none cursor-pointer"
-                  >
-                    <optgroup label="── Puestos de la Plantilla ──">
-                      {PUESTOS_PLANTILLA.map((p) => (
-                        <option key={p.usuario} value={p.usuario}>
-                          {p.puesto}
-                        </option>
-                      ))}
-                    </optgroup>
-                    {trabajadoresDb.length > 0 && (
-                      <optgroup label="── Trabajadores Registrados ──">
-                        {trabajadoresDb.map((t) => (
-                          <option key={t.usuario} value={t.usuario}>
-                            {t.nombre} - {t.rol}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    <option value="manual">➕ Otro / Ingresar usuario manual</option>
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3 top-3 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    placeholder="Ingrese su usuario"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all"
+                  />
                 </div>
-
-                {selectedPuesto === 'manual' && (
-                  <div className="relative mt-2">
-                    <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" />
-                    <input
-                      type="text"
-                      required
-                      value={usernameInput}
-                      onChange={(e) => setUsernameInput(e.target.value)}
-                      placeholder="Ej. jperez"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all"
-                    />
-                  </div>
-                )}
               </div>
 
               <div>

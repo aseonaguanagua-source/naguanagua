@@ -1,78 +1,95 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, User, Lock, AlertCircle, Eye, EyeOff, ChevronDown } from 'lucide-react';
+import { ShieldCheck, User, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 const PUESTOS_OPERADOR = [
-  { puesto: 'Operador de Censo / Catastro', usuario: 'censo', defaultClave: 'censo123' },
-  { puesto: 'Catastro Especial', usuario: 'CATASTRO', defaultClave: '1042700' },
-  { puesto: 'Hacienda Especial', usuario: 'HACIENDA', defaultClave: '1042700' },
-  { puesto: 'Cobro Móvil / Campo', usuario: 'cobromovil', defaultClave: 'movil123' },
-  { puesto: 'Taquilla / Cajero', usuario: 'cajero', defaultClave: 'cajero123' },
-  { puesto: 'Administrador', usuario: 'dzara', defaultClave: 'dzara' },
+  { puesto: 'Operador de Censo / Catastro', usuario: 'censo', defaultClave: 'censo123', redirect: '/operador' },
+  { puesto: 'Cobro Móvil / Campo', usuario: 'cobromovil', defaultClave: 'movil123', redirect: '/cobro-movil' },
+  { puesto: 'Catastro Especial', usuario: 'CATASTRO', defaultClave: '1042700', redirect: '/operador' },
+  { puesto: 'Hacienda Especial', usuario: 'HACIENDA', defaultClave: '1042700', redirect: '/operador' },
+  { puesto: 'Taquilla / Cajero', usuario: 'cajero', defaultClave: 'cajero123', redirect: '/admin/caja' },
+  { puesto: 'Administrador', usuario: 'dzara', defaultClave: 'dzara', redirect: '/admin' },
 ];
 
 export default function OperadorLogin() {
   const router = useRouter();
-  const [selectedPuesto, setSelectedPuesto] = useState('censo');
-  const [usuario, setUsuario] = useState('censo');
+  const [usuario, setUsuario] = useState('');
   const [clave, setClave] = useState('');
   const [error, setError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [trabajadoresDb, setTrabajadoresDb] = useState<any[]>([]);
+  const [targetModulo, setTargetModulo] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchTrabajadores = async () => {
+    // Detectar si venimos por un módulo específico (ej. cobromovil o censo)
+    if (typeof window !== 'undefined') {
       try {
-        const { data } = await supabase
-          .from('trabajadores')
-          .select('id, nombre, usuario, rol, letra, estado')
-          .eq('estado', 'Activo');
-        if (data && data.length > 0) setTrabajadoresDb(data);
+        const params = new URLSearchParams(window.location.search);
+        const modulo = params.get('modulo') || params.get('puesto');
+        if (modulo) {
+          setTargetModulo(modulo);
+          if (modulo === 'censo' || modulo === 'operador') {
+            setUsuario('censo');
+          } else if (modulo === 'cobromovil' || modulo === 'cobro-movil') {
+            setUsuario('cobromovil');
+          }
+        }
       } catch {}
-    };
-    fetchTrabajadores();
+    }
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const u = (selectedPuesto === 'manual' ? usuario : selectedPuesto).trim();
-    const userUpper = u.toUpperCase();
+    const u = usuario.trim();
 
-    // Mantener bypass para CATASTRO e HACIENDA temporalmente si es necesario
-    if (userUpper === 'CATASTRO' || userUpper === 'HACIENDA') {
-      if (clave !== '1042700') {
-        setError('Clave incorrecta para este usuario especial');
-        return;
-      }
-      localStorage.setItem('operador_censo_auth', userUpper);
-      router.push('/operador');
-      return;
-    }
-
-    if (u.length === 0 || clave.length === 0) {
-      setError('Credenciales incompletas');
+    if (!u || !clave) {
+      setError('Por favor ingrese su usuario y contraseña');
       return;
     }
 
     setIsAuthenticating(true);
     setError('');
 
+    const userUpper = u.toUpperCase();
+
+    // Bypass especial para CATASTRO e HACIENDA
+    if (userUpper === 'CATASTRO' || userUpper === 'HACIENDA') {
+      if (clave !== '1042700') {
+        setError('Contraseña incorrecta para este usuario especial');
+        setIsAuthenticating(false);
+        return;
+      }
+      localStorage.setItem('operador_censo_auth', userUpper);
+      localStorage.setItem('adminUser', userUpper);
+      router.push('/operador');
+      return;
+    }
+
     try {
-      // Fallback directo a presets locales si coincide la clave
+      // 1. Verificar presets del sistema
       const matchPreset = PUESTOS_OPERADOR.find(x => x.usuario.toLowerCase() === u.toLowerCase());
       if (matchPreset && matchPreset.defaultClave === clave) {
-        localStorage.setItem('operador_censo_auth', u);
-        localStorage.setItem('operador_user_data', JSON.stringify({ usuario: u, rol: 'Operador de Censo' }));
-        router.push('/operador');
+        localStorage.setItem('operador_censo_auth', matchPreset.usuario);
+        localStorage.setItem('adminUser', matchPreset.usuario);
+        localStorage.setItem('operador_user_data', JSON.stringify({ 
+          usuario: matchPreset.usuario, 
+          rol: matchPreset.puesto 
+        }));
+
+        if (targetModulo === 'cobromovil' || matchPreset.usuario === 'cobromovil') {
+          router.push('/cobro-movil');
+        } else {
+          router.push(matchPreset.redirect || '/operador');
+        }
         return;
       }
 
+      // 2. Verificar trabajadores registrados en base de datos Supabase
       const { data, error: dbError } = await supabase
         .from('trabajadores')
-        .select('id, usuario, clave, rol, estado')
+        .select('id, nombre, usuario, clave, rol, estado')
         .eq('usuario', u)
         .eq('estado', 'Activo')
         .single();
@@ -98,15 +115,21 @@ export default function OperadorLogin() {
       }
 
       if (passwordValid) {
-        localStorage.setItem('operador_censo_auth', u);
+        localStorage.setItem('operador_censo_auth', data.usuario);
+        localStorage.setItem('adminUser', data.usuario);
         localStorage.setItem('operador_user_data', JSON.stringify(data));
-        router.push('/operador');
+
+        if (targetModulo === 'cobromovil' || data.rol === 'Cobro Móvil') {
+          router.push('/cobro-movil');
+        } else {
+          router.push('/operador');
+        }
       } else {
         setError('Contraseña incorrecta');
       }
     } catch (err) {
       console.error(err);
-      setError('Error al conectar con la base de datos');
+      setError('Error al conectar con el servidor de autenticación');
     } finally {
       setIsAuthenticating(false);
     }
@@ -115,18 +138,21 @@ export default function OperadorLogin() {
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {/* Fondo decorativo */}
-      <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none"></div>
+      <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" />
 
       <div className="w-full max-w-sm relative z-10">
         <div className="bg-white rounded-[28px] shadow-2xl p-7 sm:p-8 text-slate-800">
-          {/* Encabezado logo Global Rec */}
-          <div className="flex items-center justify-center mb-3">
-            <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-11 w-auto object-contain" />
+          {/* Encabezado con logos oficiales */}
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <img src="/logos/alcaldia.png" alt="Alcaldía de Naguanagua" className="h-10 w-auto object-contain" />
+            <div className="w-[1px] h-6 bg-slate-200" />
+            <img src="/logos/IAMEC.png" alt="IAMEC" className="h-9 w-auto object-contain" />
           </div>
 
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight text-center">Global Rec</h1>
-          <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400 uppercase text-center mt-0.5">COLLECTION SYSTEM</p>
-          <p className="text-xs font-black text-slate-700 uppercase tracking-[0.2em] text-center mt-2.5">MÓDULO OPERADOR</p>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight text-center">Acceso de Operador</h1>
+          <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400 uppercase text-center mt-0.5">
+            {targetModulo === 'cobromovil' ? 'MÓDULO DE COBRO MÓVIL' : 'JORNADAS Y EMPADRONAMIENTO'}
+          </p>
 
           <div className="border-t border-slate-100 my-5" />
 
@@ -140,56 +166,20 @@ export default function OperadorLogin() {
 
             <div>
               <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5 text-left">
-                USUARIO ASIGNADO
+                USUARIO
               </label>
               <div className="relative">
                 <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
-                <select
-                  value={selectedPuesto}
-                  onChange={(e) => {
-                    setSelectedPuesto(e.target.value);
-                    if (e.target.value !== 'manual') {
-                      setUsuario(e.target.value);
-                    } else {
-                      setUsuario('');
-                    }
-                  }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-9 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all appearance-none cursor-pointer"
-                >
-                  <optgroup label="── Puestos de Campo y Censo ──">
-                    {PUESTOS_OPERADOR.map((p) => (
-                      <option key={p.usuario} value={p.usuario}>
-                        {p.puesto}
-                      </option>
-                    ))}
-                  </optgroup>
-                  {trabajadoresDb.length > 0 && (
-                    <optgroup label="── Trabajadores Registrados ──">
-                      {trabajadoresDb.map((t) => (
-                        <option key={t.usuario} value={t.usuario}>
-                          {t.nombre} - {t.rol}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  <option value="manual">➕ Otro / Ingresar usuario manual</option>
-                </select>
-                <ChevronDown className="w-4 h-4 absolute right-3 top-3 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={usuario}
+                  onChange={(e) => setUsuario(e.target.value)}
+                  placeholder="Ingrese su usuario"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all"
+                />
               </div>
-
-              {selectedPuesto === 'manual' && (
-                <div className="relative mt-2">
-                  <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    value={usuario}
-                    onChange={(e) => setUsuario(e.target.value)}
-                    placeholder="Ej. jperez"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all"
-                  />
-                </div>
-              )}
             </div>
 
             <div>
@@ -197,14 +187,14 @@ export default function OperadorLogin() {
                 CONTRASEÑA
               </label>
               <div className="relative">
-                <Lock className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" />
+                <Lock className="w-5 h-5 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
                 <input
                   type={showPassword ? "text" : "password"}
                   required
                   value={clave}
-                  onChange={e => setClave(e.target.value)}
+                  onChange={(e) => setClave(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all tracking-wider"
-                  placeholder="********"
+                  placeholder="••••••••"
                 />
                 <button
                   type="button"
@@ -226,7 +216,7 @@ export default function OperadorLogin() {
               ) : (
                 <ShieldCheck className="w-5 h-5 text-slate-900 stroke-[2.5]" />
               )}
-              <span>{isAuthenticating ? 'Verificando...' : 'Iniciar Jornada'}</span>
+              <span>{isAuthenticating ? 'Verificando...' : 'Ingresar'}</span>
             </button>
           </form>
 
@@ -238,7 +228,7 @@ export default function OperadorLogin() {
         </div>
 
         <p className="text-center text-slate-400 text-xs mt-6 font-medium">
-          Sistema Exclusivo de Empadronamiento de Calle
+          Sistema de Recaudación y Empadronamiento Municipal
         </p>
       </div>
     </div>
