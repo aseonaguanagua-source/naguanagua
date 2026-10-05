@@ -60,8 +60,8 @@ function ValidarContent() {
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-10">
           <div className="flex justify-center items-center gap-6 mb-6">
-            <div className="relative w-24 h-20">
-              <Image src="/logos/alcaldia.png" alt="Alcaldía Bolivariana de Naguanagua" fill className="object-contain" />
+            <div className="relative w-36 h-16">
+              <Image src="/logos/ELIZABETH.png" alt="Gestión Municipal Elizabeth Niño" fill className="object-contain" />
             </div>
             <div className="relative w-24 h-20">
               <Image src="/logos/IAMEC.png" alt="Instituto Autónomo Municipal de Ecosocialismo (IAMEC)" fill className="object-contain" />

@@ -22,7 +22,7 @@ function buildHtml(nombre: string): string {
             <img src="${BASE}/logos/logo_global_rec.png" alt="Global Rec - Naguanagua" width="100" style="display:block;margin:0 auto;border-radius:6px;" />
           </td>
           <td align="center" width="34%">
-            <img src="${BASE}/logos/alcaldia.png" alt="Alcaldía Bolivariana de Naguanagua" width="110" style="display:block;margin:0 auto;border-radius:8px;padding:4px;" />
+            <img src="${BASE}/logos/ELIZABETH.png" alt="Gestión Municipal Elizabeth Niño" width="130" style="display:block;margin:0 auto;border-radius:8px;padding:4px;" />
           </td>
           <td align="center" width="33%">
             <img src="${BASE}/logos/IAMEC.png" alt="IAMEC Naguanagua" width="100" style="display:block;margin:0 auto;border-radius:6px;" />

@@ -266,7 +266,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
           <div className="bg-white rounded-[28px] shadow-2xl p-7 sm:p-8 w-full text-slate-800">
             {/* Encabezado con logos oficiales */}
             <div className="flex items-center justify-center gap-3 mb-4">
-              <img src="/logos/alcaldia.png" alt="Alcaldía de Naguanagua" className="h-10 w-auto object-contain" />
+              <img src="/logos/ELIZABETH.png" alt="Gestión Municipal Elizabeth Niño" className="h-8 w-auto object-contain" />
               <div className="w-[1px] h-6 bg-slate-200" />
               <img src="/logos/IAMEC.png" alt="IAMEC" className="h-9 w-auto object-contain" />
             </div>

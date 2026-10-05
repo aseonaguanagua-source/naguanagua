@@ -153,18 +153,26 @@ export default function Home() {
         .header-title { color: #fff; font-weight: 800; line-height: 1.15; text-transform: uppercase; font-size: clamp(18px, 2.5vw, 36px); }
         .header-right {
           flex: 1; background: #fff;
-          display: flex; align-items: center; justify-content: space-around;
-          padding: 12px 24px; gap: 14px; flex-wrap: wrap;
+          display: flex; flex-direction: column; justify-content: center;
+          padding: 8px 32px; gap: 4px;
+        }
+        .header-logos-top {
+          display: flex; align-items: center; justify-content: space-between;
+          width: 100%; gap: 16px;
+        }
+        .header-logos-bottom {
+          display: flex; align-items: center; justify-content: center;
+          width: 100%;
         }
         .header-logo {
-          max-height: 68px; width: auto; object-fit: contain; display: block;
+          max-height: 52px; width: auto; object-fit: contain; display: block;
           transition: transform 0.2s ease;
         }
         .header-logo:hover {
-          transform: scale(1.05);
+          transform: scale(1.04);
         }
         .header-divider-v {
-          width: 1px; height: 42px; background: #e2e8f0; flex-shrink: 0;
+          width: 1px; height: 32px; background: #cbd5e1; flex-shrink: 0;
         }
 
         /* ── CENTER ── */
@@ -329,8 +337,10 @@ export default function Home() {
           }
           .header-accent { display: none; }
           .header-title { font-size: clamp(20px, 6vw, 28px); text-align: center; }
-          .header-right { padding: 14px 16px; justify-content: center; gap: 12px; }
-          .header-logo { max-height: 48px; }
+          .header-right { padding: 12px 16px; gap: 6px; }
+          .header-logos-top { justify-content: center; gap: 14px; flex-wrap: wrap; }
+          .header-logos-bottom { justify-content: center; }
+          .header-logo { max-height: 38px; }
           .header-divider-v { display: none; }
 
           .center { padding: 36px 20px 44px; }
@@ -368,13 +378,32 @@ export default function Home() {
             </div>
           </div>
           <div className="header-right">
-            <img src="/logos/alcaldia.png" alt="Alcaldía Bolivariana de Naguanagua" className="header-logo" style={{ maxHeight: 72 }} />
-            <div className="header-divider-v" />
-            <img src="/logos/LACAVA.png" alt="Gobernación de Carabobo" className="header-logo" style={{ maxHeight: 58 }} />
-            <div className="header-divider-v" />
-            <img src="/logos/ELIZABETH.png" alt="Gestión Municipal" className="header-logo" style={{ maxHeight: 62 }} />
-            <div className="header-divider-v" />
-            <img src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" className="header-logo" style={{ maxHeight: 62 }} />
+            {/* Arriba: Elizabeth Niño a la izquierda y Lacava Gobernador a la derecha */}
+            <div className="header-logos-top">
+              <img 
+                src="/logos/ELIZABETH.png" 
+                alt="Elizabeth Niño - Alcaldesa de Naguanagua" 
+                className="header-logo" 
+                style={{ maxHeight: 46 }} 
+              />
+              <div className="header-divider-v" />
+              <img 
+                src="/logos/LACAVA.png" 
+                alt="Lacava Gobernador" 
+                className="header-logo" 
+                style={{ maxHeight: 44 }} 
+              />
+            </div>
+
+            {/* Abajo en el espacio en blanco: Naguanagua Te Quiero */}
+            <div className="header-logos-bottom">
+              <img 
+                src="/logos/NAGUANAGUATEQUIERO.png" 
+                alt="Naguanagua Te Quiero" 
+                className="header-logo" 
+                style={{ maxHeight: 48 }} 
+              />
+            </div>
           </div>
         </div>
 

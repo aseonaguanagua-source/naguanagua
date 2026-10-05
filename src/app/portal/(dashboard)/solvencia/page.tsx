@@ -277,9 +277,9 @@ export default function SolvenciaPage() {
                 {/* Logo Alcaldía Izquierda */}
                 <div className="w-24 sm:w-28 flex-shrink-0 text-center">
                   <img 
-                    src="/logos/alcaldia.png" 
-                    alt="Alcaldía Bolivariana de Naguanagua" 
-                    className="max-h-20 max-w-full object-contain mx-auto"
+                    src="/logos/ELIZABETH.png" 
+                    alt="Gestión Municipal Elizabeth Niño" 
+                    className="max-h-16 max-w-full object-contain mx-auto"
                   />
                 </div>
 

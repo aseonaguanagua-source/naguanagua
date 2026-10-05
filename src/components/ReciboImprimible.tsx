@@ -163,7 +163,7 @@ function ReciboContenido({
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom: B, padding:'4px 8px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logos/alcaldia.png" alt="Alcaldía de Naguanagua" style={{ width:36, height:36, objectFit:'contain' }} />
+          <img src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" style={{ width:42, height:36, objectFit:'contain' }} />
           <div>
             <div style={{ fontWeight:'bold', fontSize:8.5, lineHeight:1.2, color:'#064e3b' }}>
               ALCALDÍA BOLIVARIANA DE NAGUANAGUA
