@@ -3,7 +3,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
 import { useAppContext } from '@/store/AppContext';
-import { Users, Save, ArrowLeft, Plus, Building, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search } from 'lucide-react';
+import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import { ordenanzaData } from '@/data/ordenanza';
 import Select from 'react-select';
@@ -292,21 +292,45 @@ function ContribuyentesPageContent() {
           const ivaInm = esRes ? 0 : (montoTotalInm * 0.16);
           totalMensualCalculado += (montoTotalInm + ivaInm);
 
+          const getLocalLabelUnit = (targetInm: any, defaultText: string) => {
+            if (targetInm?.numero_unidad) return `Local ${targetInm.numero_unidad}`;
+            if (targetInm?.unidad) return `Local ${targetInm.unidad}`;
+            if (targetInm?.local) return `Local ${targetInm.local}`;
+            const dir = targetInm?.direccion || '';
+            const startMatch = dir.match(/^\s*(?:[0-9]+\s+)+([A-Za-z0-9\-]+)/);
+            if (startMatch && startMatch[1].length <= 12) return `Local ${startMatch[1].toUpperCase()}`;
+            const match = dir.match(/(?:LOCAL\s*(?:COMERCIAL\s*)?(?:NRO\.?\s*)?([A-Za-z0-9\-]+)|([A-Z]\-[0-9]+))/i);
+            if (match) return `Local ${(match[1] || match[2]).toUpperCase()}`;
+            return defaultText;
+          };
+
           if (cant > 1) {
             for(let i=1; i<=cant; i++) {
+              const baseU = montoUnidad;
+              const ivaU = esRes ? 0 : (baseU * 0.16);
               desgloseLocales.push({
-                numeracion: `${inm.inmueble || 'Inmueble'} - Unidad ${i}`,
+                numeracion: getLocalLabelUnit(inm, `${inm.inmueble || 'Inmueble'} - Unidad ${i}`),
+                inmueble: inm.inmueble,
                 leyenda: inm.actividad_principal || (esRes ? 'Residencial' : 'Comercial'),
                 factor: localFactor,
-                montoBs: (Math.trunc(montoUnidad * 100) / 100).toFixed(2)
+                baseBs: (Math.trunc(baseU * 100) / 100).toFixed(2),
+                ivaBs: (Math.trunc(ivaU * 100) / 100).toFixed(2),
+                esRes,
+                montoBs: (Math.trunc((baseU + ivaU) * 100) / 100).toFixed(2)
               });
             }
           } else {
+            const baseU = montoTotalInm;
+            const ivaU = esRes ? 0 : (baseU * 0.16);
             desgloseLocales.push({
-              numeracion: inm.inmueble || 'Inmueble/Local',
+              numeracion: getLocalLabelUnit(inm, inm.inmueble || 'Inmueble/Local'),
+              inmueble: inm.inmueble,
               leyenda: inm.actividad_principal || (esRes ? 'Residencial' : 'Comercial'),
               factor: localFactor,
-              montoBs: (Math.trunc(montoTotalInm * 100) / 100).toFixed(2)
+              baseBs: (Math.trunc(baseU * 100) / 100).toFixed(2),
+              ivaBs: (Math.trunc(ivaU * 100) / 100).toFixed(2),
+              esRes,
+              montoBs: (Math.trunc((baseU + ivaU) * 100) / 100).toFixed(2)
             });
           }
         });
@@ -2296,18 +2320,20 @@ function ContribuyentesPageContent() {
                       <table className="w-full text-left text-[10px] text-slate-600">
                         <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10 shadow-sm">
                           <tr>
-                            <th className="px-3 py-2 font-semibold border-r border-slate-100">Identificador</th>
+                            <th className="px-3 py-2 font-semibold border-r border-slate-100">N° Local / Identificador</th>
                             <th className="px-3 py-2 font-semibold border-r border-slate-100">Concepto / Clasificación</th>
-                            <th className="px-3 py-2 font-semibold text-right border-r border-slate-100 w-24">F.O.</th>
-                            <th className="px-3 py-2 font-semibold text-right text-green-700 w-24">Monto (Bs)</th>
+                            <th className="px-3 py-2 font-semibold text-right border-r border-slate-100 w-20">Base (Bs)</th>
+                            <th className="px-3 py-2 font-semibold text-right border-r border-slate-100 w-20">IVA</th>
+                            <th className="px-3 py-2 font-semibold text-right text-green-700 w-24">Total (Bs)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {calculoDetalle.desglose.map((item: any, i: number) => (
                             <tr key={i} className="border-b border-slate-100 hover:bg-blue-50 transition-colors">
-                              <td className="px-3 py-2 font-medium border-r border-slate-100">{item.numeracion}</td>
+                              <td className="px-3 py-2 font-bold border-r border-slate-100 text-slate-800">{item.numeracion}</td>
                               <td className="px-3 py-2 truncate max-w-[200px] border-r border-slate-100">{item.leyenda}</td>
-                              <td className="px-3 py-2 text-right border-r border-slate-100">{Number(item.factor || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                              <td className="px-3 py-2 text-right border-r border-slate-100">{item.baseBs || Number(item.montoBs || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                              <td className="px-3 py-2 text-right border-r border-slate-100">{item.ivaBs ? (item.esRes ? 'Exento' : item.ivaBs) : 'Exento'}</td>
                               <td className="px-3 py-2 text-right font-bold text-green-700 bg-green-50/30">{Number(item.montoBs || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
                             </tr>
                           ))}
@@ -2986,18 +3012,20 @@ function ContribuyentesPageContent() {
                         <table className="w-full text-left text-[10px] text-slate-600">
                           <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
                             <tr>
-                              <th className="px-3 py-2 font-semibold">Identificador</th>
-                              <th className="px-3 py-2 font-semibold">Concepto</th>
-                              <th className="px-3 py-2 font-semibold text-right">F.O.</th>
-                              <th className="px-3 py-2 font-semibold text-right text-green-700">Monto (Bs)</th>
+                              <th className="px-3 py-2 font-semibold">N° Local / Identificador</th>
+                              <th className="px-3 py-2 font-semibold">Concepto / Clasificación</th>
+                              <th className="px-3 py-2 font-semibold text-right">Base (Bs)</th>
+                              <th className="px-3 py-2 font-semibold text-right">IVA</th>
+                              <th className="px-3 py-2 font-semibold text-right text-green-700">Total (Bs)</th>
                             </tr>
                           </thead>
                           <tbody>
                             {viewCalculo.desglose.map((item: any, i: number) => (
-                              <tr key={i} className="border-b border-slate-100 last:border-0">
-                                <td className="px-3 py-2 font-medium">{item.numeracion}</td>
+                              <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                                <td className="px-3 py-2 font-bold text-slate-800">{item.numeracion}</td>
                                 <td className="px-3 py-2">{item.leyenda}</td>
-                                <td className="px-3 py-2 text-right">{Number(item.factor || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                                <td className="px-3 py-2 text-right">{item.baseBs || Number(item.montoBs || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                                <td className="px-3 py-2 text-right">{item.ivaBs ? (item.esRes ? 'Exento' : item.ivaBs) : 'Exento'}</td>
                                 <td className="px-3 py-2 text-right font-bold text-green-700">{Number(item.montoBs || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
                               </tr>
                             ))}
@@ -3171,28 +3199,91 @@ function ContribuyentesPageContent() {
                             </div>
                             <p className="text-sm text-amber-700 mb-3">Este contribuyente tiene deuda registrada en sus inmuebles pero no tiene recibos pendientes. La deuda se generó por acumulación mensual.</p>
                           </div>
-                          <table className="w-full text-sm">
-                            <thead><tr className="bg-slate-50"><th className="p-2 text-left">Inmueble</th><th className="p-2 text-left">Tipo</th><th className="p-2 text-right">Deuda MMV</th><th className="p-2 text-right">Deuda Bs</th></tr></thead>
-                            <tbody>
-                              {userInms.filter((inm: any) => parseFloat(inm.deuda_mmv || 0) > 0 || parseFloat(inm.deuda_congelada_bs || 0) > 0).map((inm: any, idx: number) => (
-                                <tr key={idx} className="border-b border-slate-100">
-                                  <td className="p-2 font-mono text-xs">{inm.inmueble || inm.Inmueble}</td>
-                                  <td className="p-2">{inm.tipo || inm.clasificacion || "Residencial"}</td>
-                                  <td className="p-2 text-right">{parseFloat(inm.deuda_mmv || 0).toFixed(2)}</td>
-                                  <td className="p-2 text-right font-bold text-red-600">{(() => {
-                                      const meses = Math.max(0, parseInt(inm.meses_deuda || 0));
-                                      const esRes = isResidencialInm(inm);
-                                      const baseUnMes = calcularMensualidad(inm, tcmmv);
-                                      const iva = esRes ? 0 : (baseUnMes * 0.16);
-                                      const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
-                                      const mesesConMulta = Math.max(0, meses - 1);
-                                      return (( (baseUnMes + iva) * meses ) + (multaMes * mesesConMulta)).toFixed(2);
-                                    })()} Bs</td>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-600">
+                                <tr>
+                                  <th className="p-2.5 text-left">N° Local / Inmueble</th>
+                                  <th className="p-2.5 text-left">Comercio / Uso</th>
+                                  <th className="p-2.5 text-center">Meses Mora</th>
+                                  <th className="p-2.5 text-right">Base Imponible</th>
+                                  <th className="p-2.5 text-right">IVA (16% / Exento)</th>
+                                  <th className="p-2.5 text-right">Multa</th>
+                                  <th className="p-2.5 text-right">Total Deuda (Bs)</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                            <tfoot><tr className="bg-red-50 font-bold"><td colSpan={3} className="p-2">Total Deuda</td><td className="p-2 text-right text-red-700">{deudaInmuebleBs.toFixed(2)} Bs</td></tr></tfoot>
-                          </table>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {userInms.filter((inm: any) => parseFloat(inm.deuda_mmv || 0) > 0 || parseFloat(inm.deuda_congelada_bs || 0) > 0 || parseInt(inm.meses_deuda || 0) > 0).map((inm: any, idx: number) => {
+                                  const meses = Math.max(1, parseInt(inm.meses_deuda || 0));
+                                  const esRes = isResidencialInm(inm);
+                                  const baseUnMes = calcularMensualidad(inm, tcmmv);
+                                  const base = baseUnMes * meses;
+                                  const iva = esRes ? 0 : (base * 0.16);
+                                  const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
+                                  const mesesConMulta = Math.max(0, meses - 1);
+                                  const multaCalc = multaMes * mesesConMulta;
+                                  const multaGuardada = parseFloat(inm.multa_bs || '0');
+                                  const multa = Math.max(multaCalc, multaGuardada);
+                                  const totalInm = base + iva + multa;
+
+                                  const getLocalLabelItem = (item: any) => {
+                                    if (item?.numero_unidad) return `Local ${item.numero_unidad}`;
+                                    if (item?.unidad) return `Local ${item.unidad}`;
+                                    if (item?.local) return `Local ${item.local}`;
+                                    const dir = item?.direccion || '';
+                                    const startMatch = dir.match(/^\s*(?:[0-9]+\s+)+([A-Za-z0-9\-]+)/);
+                                    if (startMatch && startMatch[1].length <= 12) return `Local ${startMatch[1].toUpperCase()}`;
+                                    const match = dir.match(/(?:LOCAL\s*(?:COMERCIAL\s*)?(?:NRO\.?\s*)?([A-Za-z0-9\-]+)|([A-Z]\-[0-9]+))/i);
+                                    if (match) return `Local ${(match[1] || match[2]).toUpperCase()}`;
+                                    return item.inmueble ? `Inmueble ${item.inmueble}` : 'Local';
+                                  };
+
+                                  return (
+                                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                                      <td className="p-2.5 font-bold text-slate-800">
+                                        <div className="flex items-center gap-1.5">
+                                          <Store className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                          {getLocalLabelItem(inm)}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 font-mono block ml-5">{inm.inmueble || '---'}</span>
+                                      </td>
+                                      <td className="p-2.5 text-slate-600">
+                                        <div className="font-semibold text-slate-700">{inm.contribuyente || inm.actividad_principal || 'Actividad General'}</div>
+                                        <div className="text-[10px] text-slate-400">{inm.tipo || inm.clasificacion || (esRes ? "Residencial" : "Comercial")}</div>
+                                      </td>
+                                      <td className="p-2.5 text-center">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                          {meses} {meses === 1 ? 'mes' : 'meses'}
+                                        </span>
+                                      </td>
+                                      <td className="p-2.5 text-right font-medium text-slate-700">Bs. {base.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                                      <td className="p-2.5 text-right">
+                                        {esRes ? (
+                                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Exento (Bs. 0)</span>
+                                        ) : (
+                                          <span className="text-blue-700 font-bold">Bs. {iva.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                                        )}
+                                      </td>
+                                      <td className="p-2.5 text-right">
+                                        {multa > 0 ? (
+                                          <span className="text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded">Bs. {multa.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                                        ) : (
+                                          <span className="text-slate-400">Bs. 0,00</span>
+                                        )}
+                                      </td>
+                                      <td className="p-2.5 text-right font-black text-red-600">Bs. {totalInm.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                              <tfoot>
+                                <tr className="bg-red-50 font-bold text-xs">
+                                  <td colSpan={6} className="p-2.5 text-slate-700 uppercase tracking-wide">Total Deuda Consolidada</td>
+                                  <td className="p-2.5 text-right text-red-700 font-black">Bs. {deudaInmuebleBs.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
                         </div>
                       );
                     }
@@ -3213,6 +3304,101 @@ function ContribuyentesPageContent() {
                             </span>
                           </div>
                         </div>
+
+                        {/* Desglose por Inmueble / Local para Condominios */}
+                        {(viewData?.isCondominio || userInms.length > 1) && (
+                          <div className="p-4 border-b border-slate-200 bg-slate-50/50">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Building2 className="w-4 h-4 text-emerald-600" />
+                              <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                                Desglose por Inmueble / Local ({userInms.length} unidades)
+                              </span>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white max-h-[240px] overflow-y-auto">
+                              <table className="w-full text-xs">
+                                <thead className="bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200 sticky top-0 z-10">
+                                  <tr>
+                                    <th className="p-2.5 text-left">N° Local / Inmueble</th>
+                                    <th className="p-2.5 text-left">Comercio / Uso</th>
+                                    <th className="p-2.5 text-center">Meses Mora</th>
+                                    <th className="p-2.5 text-right">Base Imponible</th>
+                                    <th className="p-2.5 text-right">IVA (16% / Exento)</th>
+                                    <th className="p-2.5 text-right">Multa</th>
+                                    <th className="p-2.5 text-right">Total a Pagar</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {userInms.map((inm: any, idx: number) => {
+                                    const meses = Math.max(1, parseInt(inm.meses_deuda || '1'));
+                                    const esRes = isResidencialInm(inm);
+                                    const baseUnMes = calcularMensualidad(inm, tcmmv);
+                                    const base = baseUnMes * meses;
+                                    const iva = esRes ? 0 : (base * 0.16);
+                                    const multaMes = baseUnMes * (esRes ? 0.10 : 0.12);
+                                    const mesesConMulta = Math.max(0, meses - 1);
+                                    const multaCalc = multaMes * mesesConMulta;
+                                    const multaGuardada = parseFloat(inm.multa_bs || '0');
+                                    const multa = Math.max(multaCalc, multaGuardada);
+                                    const totalInm = base + iva + multa;
+
+                                    const getLocalLabelItem = (item: any) => {
+                                      if (item?.numero_unidad) return `Local ${item.numero_unidad}`;
+                                      if (item?.unidad) return `Local ${item.unidad}`;
+                                      if (item?.local) return `Local ${item.local}`;
+                                      const dir = item?.direccion || '';
+                                      const startMatch = dir.match(/^\s*(?:[0-9]+\s+)+([A-Za-z0-9\-]+)/);
+                                      if (startMatch && startMatch[1].length <= 12) return `Local ${startMatch[1].toUpperCase()}`;
+                                      const match = dir.match(/(?:LOCAL\s*(?:COMERCIAL\s*)?(?:NRO\.?\s*)?([A-Za-z0-9\-]+)|([A-Z]\-[0-9]+))/i);
+                                      if (match) return `Local ${(match[1] || match[2]).toUpperCase()}`;
+                                      return item.inmueble ? `Inmueble ${item.inmueble}` : 'Local';
+                                    };
+
+                                    return (
+                                      <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                                        <td className="p-2.5 font-bold text-slate-800 whitespace-nowrap">
+                                          <div className="flex items-center gap-1.5">
+                                            <Store className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                            {getLocalLabelItem(inm)}
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 font-mono block ml-5">{inm.inmueble || '---'}</span>
+                                        </td>
+                                        <td className="p-2.5 text-slate-600">
+                                          <div className="font-semibold text-slate-700 truncate max-w-[170px]">{inm.contribuyente || inm.actividad_principal || 'Actividad General'}</div>
+                                          <div className="text-[10px] text-slate-400">{inm.tipo || inm.clasificacion || (esRes ? "Residencial" : "Comercial")}</div>
+                                        </td>
+                                        <td className="p-2.5 text-center whitespace-nowrap">
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                            {meses} {meses === 1 ? 'mes' : 'meses'}
+                                          </span>
+                                        </td>
+                                        <td className="p-2.5 text-right font-medium text-slate-700 whitespace-nowrap">
+                                          Bs. {base.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}
+                                        </td>
+                                        <td className="p-2.5 text-right whitespace-nowrap">
+                                          {esRes ? (
+                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Exento (Bs. 0)</span>
+                                          ) : (
+                                            <span className="text-blue-700 font-bold">Bs. {iva.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                                          )}
+                                        </td>
+                                        <td className="p-2.5 text-right whitespace-nowrap">
+                                          {multa > 0 ? (
+                                            <span className="text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded">Bs. {multa.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                                          ) : (
+                                            <span className="text-slate-400">Bs. 0,00</span>
+                                          )}
+                                        </td>
+                                        <td className="p-2.5 text-right font-black text-emerald-700 whitespace-nowrap">
+                                          Bs. {totalInm.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
                         <div className="bg-slate-50 max-h-[300px] overflow-y-auto border-t border-slate-200">
                           <table className="w-full text-sm text-left">
                             <thead className="bg-slate-100 text-slate-500 font-medium text-[10px] uppercase sticky top-0 z-10 shadow-xs">

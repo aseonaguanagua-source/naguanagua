@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Edit, Trash2, ShieldCheck, CreditCard, Building2, Download, Plus, XCircle, FileText, Receipt, Edit2, Key, Power, Copy, EyeOff, Eye, AlertTriangle } from 'lucide-react';
+import { X, Save, Edit, Trash2, ShieldCheck, CreditCard, Building2, Store, Download, Plus, XCircle, FileText, Receipt, Edit2, Key, Power, Copy, EyeOff, Eye, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
@@ -657,10 +657,11 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                   <thead className="bg-slate-50 text-slate-600 text-xs uppercase font-semibold">
                     <tr>
                       <th className="px-4 py-3">Código</th>
-                      <th className="px-4 py-3">Unidad</th>
+                      <th className="px-4 py-3">N° Local / Unidad</th>
                       <th className="px-4 py-3">Propietario / Cédula</th>
                       <th className="px-4 py-3">Contacto</th>
                       <th className="px-4 py-3">Aseo Urbano</th>
+                      <th className="px-4 py-3">IVA (16% / Exento)</th>
                       <th className="px-4 py-3">Multa (Oficina)</th>
                       <th className="px-4 py-3">Tipo</th>
                       <th className="px-4 py-3">Nietos</th>
@@ -807,6 +808,17 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                               <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100" title="Aseo urbano facturado centralizado al Condominio Padre">
                                 Centralizado
                               </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs">
+                              {u.tipo === 'COMERCIAL' || (!condominioNombre?.toLowerCase().includes('resid') && !condominioIdentidad?.toLowerCase().includes('resid')) ? (
+                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                                  16% IVA
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                  Exento
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-xs">
                               {parseFloat(u.multa_bs || '0') > 0 ? (
@@ -1010,8 +1022,10 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                                     const { exportToExcelWithLogos } = await import('@/lib/excelExport');
                                     const data = factCondominio.map((f: any) => ({
                                       "Referencia": f.referencia,
-                                      "Unidad": u.numero_unidad,
+                                      "N° Local": u.numero_unidad,
                                       "Propietario": u.propietario || 'Sin propietario',
+                                      "IVA Aplicable": u.tipo === 'COMERCIAL' ? '16%' : 'Exento (0%)',
+                                      "Multa (Bs)": parseFloat(u.multa_bs || '0').toFixed(2),
                                       "Emisión": f.emision,
                                       "Vencimiento": f.vencimiento,
                                       "Monto (Bs)": parseFloat(f.monto || '0').toFixed(2),
@@ -1037,20 +1051,22 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                               const totalPagado = pagadas.reduce((a: number, f: any) => a + parseFloat(f.monto || '0'), 0);
                               return (
                                 <div>
-                                  <div className="grid grid-cols-3 gap-3 mb-3">
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                                    <div className="bg-white border border-slate-200 rounded p-2 text-center">
+                                      <p className="text-[10px] text-slate-500 font-bold uppercase">N° Local / Unidad</p>
+                                      <p className="text-sm font-black text-slate-800">{u.numero_unidad}</p>
+                                    </div>
+                                    <div className="bg-white border border-rose-100 rounded p-2 text-center">
+                                      <p className="text-[10px] text-rose-600 font-bold uppercase">Multa Local</p>
+                                      <p className="text-sm font-black text-rose-600">Bs. {parseFloat(u.multa_bs || '0').toLocaleString('es-VE', {minimumFractionDigits:2})}</p>
+                                    </div>
+                                    <div className="bg-white border border-blue-100 rounded p-2 text-center">
+                                      <p className="text-[10px] text-blue-600 font-bold uppercase">IVA Aplicable</p>
+                                      <p className="text-sm font-black text-blue-700">{u.tipo === 'COMERCIAL' ? '16% (Comercial)' : 'Exento (0%)'}</p>
+                                    </div>
                                     <div className="bg-white border border-orange-100 rounded p-2 text-center">
-                                      <p className="text-[10px] text-orange-600 font-bold uppercase">Deuda Pendiente</p>
+                                      <p className="text-[10px] text-orange-600 font-bold uppercase">Deuda Condominio</p>
                                       <p className="text-sm font-black text-red-600">Bs. {totalDeuda.toLocaleString('es-VE', {minimumFractionDigits:2})}</p>
-                                    </div>
-                                    <div className="bg-white border border-emerald-100 rounded p-2 text-center">
-                                      <p className="text-[10px] text-emerald-600 font-bold uppercase">Total Pagado</p>
-                                      <p className="text-sm font-black text-emerald-600">Bs. {totalPagado.toLocaleString('es-VE', {minimumFractionDigits:2})}</p>
-                                    </div>
-                                    <div className="bg-white border border-slate-100 rounded p-2 text-center">
-                                      <p className="text-[10px] text-slate-500 font-bold uppercase">Estado</p>
-                                      <p className={`text-xs font-bold ${pendientes.length === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                        {pendientes.length === 0 ? '✅ SOLVENTE' : `⚠️ ${pendientes.length} recibo(s) pendiente(s)`}
-                                      </p>
                                     </div>
                                   </div>
                                   {factCondominio.length > 0 ? (

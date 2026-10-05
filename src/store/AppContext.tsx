@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
 
@@ -56,6 +56,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [ordenanzasConfig, setOrdenanzasConfig] = useState<any>(ordenanzaData);
   const [tcmmv, setTcmmv] = useState<number>(0);
+  const tcmmvRef = useRef(tcmmv);
+  useEffect(() => {
+    tcmmvRef.current = tcmmv;
+  }, [tcmmv]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadAllData = async (forceFresh = false) => {
@@ -157,6 +161,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
               ]);
               if (apiBcv?.tcmmv && apiBcv.tcmmv !== cached.tcmmv) {
                 setTcmmv(apiBcv.tcmmv);
+                cached.tcmmv = apiBcv.tcmmv;
+                saveToIndexedDB('naguanagua_full_cache', cached).catch(() => {});
               }
               if (dbPreReg) setPreRegistros(dbPreReg);
               // Sincronizar facturas frescas en vivo para evitar cualquier recibo desactualizado
@@ -631,7 +637,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 DeudaMMV: deudaMMV,
                 MultaBs: multaBs,
                 DeudaCongelada: congelada,
-                DeudaBs: congelada + multaBs + (deudaMMV * 57 * (tcmmv || 1)),
+                DeudaBs: congelada + multaBs + (deudaMMV * 57 * (tcmmvRef.current || 1)),
                 Estado: updated.estado || c.Estado
               };
             }
@@ -670,7 +676,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tcmmv]);
+  }, []);
 
   // addAuditLog: integrado con sistema unificado de trazabilidad y auditoría
   const addAuditLog = async (action: string, details: string) => {

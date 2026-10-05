@@ -180,6 +180,9 @@ export default function CajaPage() {
 
   // ─ Helpers de Condominio ─
   const getLocalLabel = useCallback((inm: any): string => {
+    if (inm?.numero_unidad) return `Local ${inm.numero_unidad}`;
+    if (inm?.unidad) return `Local ${inm.unidad}`;
+    if (inm?.local) return `Local ${inm.local}`;
     const dir = inm?.direccion || '';
     const startMatch = dir.match(/^\s*(?:[0-9]+\s+)+([A-Za-z0-9\-]+)/);
     if (startMatch && startMatch[1].length <= 12) return `Local ${startMatch[1].toUpperCase()}`;
@@ -190,8 +193,9 @@ export default function CajaPage() {
 
   const getHijoDebt = useCallback((hijo: any, customMeses?: number) => {
     const currentTasa = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
-    // CRÍTICO: Si el condominio o el hijo es residencial, es 100% RESIDENCIAL (Exento 0% IVA)
-    const esRes = isResidencialInm(hijo) || isResidencialInm(foundUser) || (foundUser?.Tipo || '').toUpperCase().includes('RESIDENCIAL') || (foundUser?.Clasificacion || '').toLowerCase().includes('condominio');
+    // CRÍTICO: Si el hijo es residencial o el condominio padre es estrictamente residencial (no comercial), es Exento (0% IVA)
+    // Para locales de centros comerciales o comercios, aplica 16% IVA y 12% multa comercial
+    const esRes = isResidencialInm(hijo) || (isResidencialInm(foundUser) && !String(hijo?.tipo || '').toUpperCase().includes('COMERCIAL'));
     const baseMensual = parseFloat(calcularMensualidad(hijo, currentTasa).toFixed(2));
     const ivaMensual = esRes ? 0 : parseFloat((baseMensual * 0.16).toFixed(2));
     const mesesTotales = Math.max(0, parseInt(hijo?.meses_deuda ?? '0'));
@@ -216,7 +220,9 @@ export default function CajaPage() {
     // Multa mensual por mora: 10% residencial, 12% comercial sobre los meses adeudados vencidos
     const porcentajeMulta = esRes ? 0.10 : 0.12;
     const mesesConMora = Math.max(0, mesesAPagar - 1);
-    const multa = parseFloat((baseMensual * porcentajeMulta * (mesesTotales > 1 ? mesesConMora : 0)).toFixed(2));
+    const multaCalculada = parseFloat((baseMensual * porcentajeMulta * (mesesTotales > 1 ? mesesConMora : 0)).toFixed(2));
+    const multaGuardada = parseFloat(hijo?.multa_bs || '0');
+    const multa = Math.max(multaCalculada, multaGuardada);
     const total = parseFloat((base + iva + multa).toFixed(2));
 
     return {
@@ -2709,7 +2715,7 @@ export default function CajaPage() {
                     </div>
 
                     {/* Resumen Disgregado del Condominio */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
                       <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
                         <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Locales</span>
                         <span className="text-lg font-black text-slate-800">{condominioHijos.length} und</span>
@@ -2719,17 +2725,133 @@ export default function CajaPage() {
                         <span className="text-lg font-black text-slate-800">Bs. {formatBs(sumBase)}</span>
                       </div>
                       <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase block">IVA Comercial (16%)</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase block">IVA (16% si aplica)</span>
                         <span className="text-lg font-black text-slate-800">Bs. {formatBs(sumIVA)}</span>
                       </div>
-                      <div className="bg-white p-3 rounded-lg border border-emerald-300 bg-emerald-50/50 shadow-sm">
+                      <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                        <span className="text-[10px] font-bold text-rose-500 uppercase block">Multa por Mora</span>
+                        <span className="text-lg font-black text-rose-600">Bs. {formatBs(sumMulta)}</span>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-emerald-300 bg-emerald-50/50 shadow-sm col-span-2 sm:col-span-1">
                         <span className="text-[10px] font-bold text-emerald-800 uppercase block">Total Consolidado</span>
                         <span className="text-lg font-black text-emerald-700">Bs. {formatBs(totalBs)}</span>
                       </div>
                     </div>
 
+                    {/* Tabla de Desglose Completo por Local / Inmueble */}
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm mb-4">
+                      <div className="bg-slate-100/80 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-emerald-600" />
+                          <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                            Desglose Detallado por Inmueble / Local ({condominioHijos.length} unidades)
+                          </span>
+                        </div>
+                        <div className="relative w-full sm:w-64">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Buscar local, RIF, comercio..."
+                            value={condominioSearch}
+                            onChange={e => setCondominioSearch(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1 text-xs border border-slate-300 rounded-md outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-50 sticky top-0 z-10 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                            <tr>
+                              <th className="py-2 px-3 text-left">N° Local / Unidad</th>
+                              <th className="py-2 px-3 text-left">Inmueble / RIF</th>
+                              <th className="py-2 px-3 text-left">Contribuyente / Comercio</th>
+                              <th className="py-2 px-3 text-center">Meses Deuda</th>
+                              <th className="py-2 px-3 text-right">Base Imponible</th>
+                              <th className="py-2 px-3 text-right">IVA</th>
+                              <th className="py-2 px-3 text-right">Multa</th>
+                              <th className="py-2 px-3 text-right">Total a Pagar</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {condominioHijos.filter((h: any) => {
+                              if (!condominioSearch) return true;
+                              const q = condominioSearch.toLowerCase();
+                              return (h.inmueble || '').toLowerCase().includes(q) ||
+                                (h.identidad || '').toLowerCase().includes(q) ||
+                                (h.contribuyente || '').toLowerCase().includes(q) ||
+                                (h.direccion || '').toLowerCase().includes(q) ||
+                                (h.actividad_principal || '').toLowerCase().includes(q);
+                            }).map((hijo: any) => {
+                              const infoDebt = getHijoDebt(hijo, Math.max(0, parseInt(hijo.meses_deuda ?? '0')));
+                              const localLabel = getLocalLabel(hijo);
+
+                              return (
+                                <tr key={hijo.id} className="hover:bg-slate-50/70 transition-colors">
+                                  <td className="py-2 px-3 align-middle whitespace-nowrap">
+                                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1">
+                                      <Store className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                      {localLabel}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3 align-middle whitespace-nowrap">
+                                    <div className="font-mono text-slate-600 text-[11px]">{hijo.inmueble || '---'}</div>
+                                    <div className="text-[10px] text-slate-400 font-mono">{hijo.identidad || '---'}</div>
+                                  </td>
+                                  <td className="py-2 px-3 align-middle">
+                                    <div className="font-semibold text-slate-700 truncate max-w-[190px]" title={hijo.contribuyente}>
+                                      {hijo.contribuyente || 'No asignado'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 truncate max-w-[190px]">
+                                      {hijo.actividad_principal ? hijo.actividad_principal.replace(/\[HIJO_DE:.*?\]\s*/g, '').replace('[CONDOMINIO]', '') : 'General'}
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-3 align-middle text-center whitespace-nowrap">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                      infoDebt.mesesTotales > 1 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {infoDebt.mesesTotales} {infoDebt.mesesTotales === 1 ? 'mes' : 'meses'}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3 align-middle text-right font-medium text-slate-700 whitespace-nowrap">
+                                    Bs. {formatBs(infoDebt.base)}
+                                  </td>
+                                  <td className="py-2 px-3 align-middle text-right whitespace-nowrap">
+                                    {infoDebt.esRes ? (
+                                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                        Exento (Bs. 0)
+                                      </span>
+                                    ) : (
+                                      <div className="flex flex-col items-end">
+                                        <span className="font-bold text-blue-700 text-xs">
+                                          Bs. {formatBs(infoDebt.iva)}
+                                        </span>
+                                        <span className="text-[9px] text-slate-400">16% IVA</span>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-3 align-middle text-right whitespace-nowrap">
+                                    {infoDebt.multa > 0 ? (
+                                      <span className="font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                                        Bs. {formatBs(infoDebt.multa)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">Bs. 0,00</span>
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-3 align-middle text-right font-black text-emerald-700 text-xs whitespace-nowrap">
+                                    Bs. {formatBs(infoDebt.total)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
                     <p className="text-xs text-slate-500 italic">
-                      💡 Proceda al panel lateral derecho "Resumen de Pago" para seleccionar el método de pago (Punto de Venta o Transferencia) y emitir el cobro consolidado.
+                      💡 Todos los locales anteriores están incluidos en el cobro global. Proceda al panel lateral derecho "Resumen de Pago" para seleccionar el método de pago (Punto de Venta o Transferencia) y emitir el cobro consolidado.
                     </p>
                   </div>
                 )}
@@ -2826,11 +2948,13 @@ export default function CajaPage() {
                                 className="w-4 h-4 accent-emerald-600 cursor-pointer"
                               />
                             </th>
-                            <th className="py-2.5 px-3 font-bold text-left">Local / Inmueble</th>
+                            <th className="py-2.5 px-3 font-bold text-left">N° Local / Inmueble</th>
                             <th className="py-2.5 px-3 font-bold text-left">Comercio / RIF</th>
-                            <th className="py-2.5 px-3 font-bold text-left hidden md:table-cell">Actividad Comercial</th>
-                            <th className="py-2.5 px-3 font-bold text-center">Mora</th>
-                            <th className="py-2.5 px-3 font-bold text-right">Monto a Cobrar</th>
+                            <th className="py-2.5 px-3 font-bold text-center">Meses / Mora</th>
+                            <th className="py-2.5 px-3 font-bold text-right">Base Imponible</th>
+                            <th className="py-2.5 px-3 font-bold text-right">IVA (16% / Exento)</th>
+                            <th className="py-2.5 px-3 font-bold text-right">Multa</th>
+                            <th className="py-2.5 px-3 font-bold text-right">Total a Cobrar</th>
                             <th className="py-2.5 px-3 font-bold text-center">Acción Rápida</th>
                           </tr>
                         </thead>
@@ -2855,7 +2979,7 @@ export default function CajaPage() {
                                   isChecked ? 'bg-emerald-50/50' : ''
                                 }`}
                               >
-                                <td className="py-3 px-3 align-middle">
+                                <td className="py-2.5 px-3 align-middle">
                                   <input
                                     type="checkbox"
                                     checked={isChecked}
@@ -2869,7 +2993,7 @@ export default function CajaPage() {
                                     className="w-4 h-4 accent-emerald-600 cursor-pointer"
                                   />
                                 </td>
-                                <td className="py-3 px-3 align-middle">
+                                <td className="py-2.5 px-3 align-middle whitespace-nowrap">
                                   <div className="flex flex-col">
                                     <span className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5">
                                       <Store className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
@@ -2880,9 +3004,9 @@ export default function CajaPage() {
                                     </span>
                                   </div>
                                 </td>
-                                <td className="py-3 px-3 align-middle">
+                                <td className="py-2.5 px-3 align-middle">
                                   <div className="flex flex-col">
-                                    <span className="font-semibold text-slate-700 text-xs truncate max-w-[200px]" title={hijo.contribuyente}>
+                                    <span className="font-semibold text-slate-700 text-xs truncate max-w-[170px]" title={hijo.contribuyente}>
                                       {hijo.contribuyente || 'Contribuyente No Registrado'}
                                     </span>
                                     <span className="text-[10px] text-slate-500 font-mono">
@@ -2890,12 +3014,7 @@ export default function CajaPage() {
                                     </span>
                                   </div>
                                 </td>
-                                <td className="py-3 px-3 align-middle hidden md:table-cell text-xs text-slate-600 max-w-[220px]">
-                                  <span className="line-clamp-2" title={hijo.actividad_principal}>
-                                    {hijo.actividad_principal ? hijo.actividad_principal.replace(/\[HIJO_DE:.*?\]\s*/g, '').replace('[CONDOMINIO]', '') : 'N/A'}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-3 align-middle text-center">
+                                <td className="py-2.5 px-3 align-middle text-center whitespace-nowrap">
                                   {infoDebt.mesesTotales > 1 ? (
                                     <div className="flex flex-col items-center gap-1">
                                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">
@@ -2925,19 +3044,38 @@ export default function CajaPage() {
                                     </span>
                                   )}
                                 </td>
-                                <td className="py-3 px-3 align-middle text-right">
-                                  <div className="flex flex-col items-end">
-                                    <span className="font-black text-emerald-700 text-sm">
-                                      Bs. {formatBs(infoDebt.total)}
-                                    </span>
-                                    <span className="text-[9px] text-slate-400">
-                                      {infoDebt.mesesAPagar > 1 
-                                        ? `${infoDebt.mesesAPagar} meses • Base: ${formatBs(infoDebt.base)} + IVA: ${formatBs(infoDebt.iva)}`
-                                        : `Base: ${formatBs(infoDebt.base)} + IVA: ${formatBs(infoDebt.iva)}`}
-                                    </span>
-                                  </div>
+                                <td className="py-2.5 px-3 align-middle text-right font-medium text-slate-700 text-xs whitespace-nowrap">
+                                  Bs. {formatBs(infoDebt.base)}
                                 </td>
-                                <td className="py-3 px-3 align-middle text-center">
+                                <td className="py-2.5 px-3 align-middle text-right whitespace-nowrap">
+                                  {infoDebt.esRes ? (
+                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                      Exento (Bs. 0)
+                                    </span>
+                                  ) : (
+                                    <div className="flex flex-col items-end">
+                                      <span className="font-bold text-blue-700 text-xs">
+                                        Bs. {formatBs(infoDebt.iva)}
+                                      </span>
+                                      <span className="text-[9px] text-slate-400">16% IVA</span>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 align-middle text-right whitespace-nowrap">
+                                  {infoDebt.multa > 0 ? (
+                                    <span className="font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded text-xs">
+                                      Bs. {formatBs(infoDebt.multa)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">Bs. 0,00</span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 align-middle text-right whitespace-nowrap">
+                                  <span className="font-black text-emerald-700 text-sm">
+                                    Bs. {formatBs(infoDebt.total)}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 align-middle text-center whitespace-nowrap">
                                   <button
                                     type="button"
                                     onClick={() => setSelectedHijos([hijo.id])}
