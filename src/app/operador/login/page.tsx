@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, User, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 const PUESTOS_OPERADOR = [
@@ -19,22 +18,15 @@ export default function OperadorLogin() {
   const [clave, setClave] = useState('');
   const [error, setError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [targetModulo, setTargetModulo] = useState<string | null>(null);
 
   useEffect(() => {
-    // Detectar si venimos por un módulo específico (ej. cobromovil o censo)
     if (typeof window !== 'undefined') {
       try {
         const params = new URLSearchParams(window.location.search);
         const modulo = params.get('modulo') || params.get('puesto');
         if (modulo) {
           setTargetModulo(modulo);
-          if (modulo === 'censo' || modulo === 'operador') {
-            setUsuario('censo');
-          } else if (modulo === 'cobromovil' || modulo === 'cobro-movil') {
-            setUsuario('cobromovil');
-          }
         }
       } catch {}
     }
@@ -45,7 +37,7 @@ export default function OperadorLogin() {
     const u = usuario.trim();
 
     if (!u || !clave) {
-      setError('Por favor ingrese su usuario y contraseña');
+      setError('Por favor ingresa tu usuario y contraseña');
       return;
     }
 
@@ -95,7 +87,7 @@ export default function OperadorLogin() {
         .single();
 
       if (dbError || !data) {
-        setError('Usuario no encontrado o inactivo');
+        setError('Usuario o contraseña incorrectos');
         setIsAuthenticating(false);
         return;
       }
@@ -129,108 +121,104 @@ export default function OperadorLogin() {
       }
     } catch (err) {
       console.error(err);
-      setError('Error al conectar con el servidor de autenticación');
+      setError('Error al conectar con el servidor. Intenta de nuevo.');
     } finally {
       setIsAuthenticating(false);
     }
   };
 
+  const isCobroMovil = targetModulo === 'cobromovil';
+  const titleText = isCobroMovil ? 'Modulo Cobro Móvil' : 'Modulo Operador de Censo';
+
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Fondo decorativo */}
-      <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" />
+    <div style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      background: 'linear-gradient(135deg, #06120e 0%, #0d2a1e 50%, #081810 100%)',
+      fontFamily: 'Poppins, sans-serif', padding: '24px'
+    }}>
+      <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #1a5c2e, #2d8c4e)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px', boxShadow: '0 0 24px rgba(93,177,48,.4)'
+        }}>
+          <svg width="36" height="36" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+          </svg>
+        </div>
+        <h1 style={{ color: '#B8CD29', fontSize: 22, fontWeight: 800, margin: 0 }}>{titleText}</h1>
+        <p style={{ color: 'rgba(200,230,200,.6)', fontSize: 13, margin: '4px 0 0' }}>IAMEC Naguanagua - Municipio Naguanagua</p>
+      </div>
 
-      <div className="w-full max-w-sm relative z-10">
-        <div className="bg-white rounded-[28px] shadow-2xl p-7 sm:p-8 text-slate-800">
-          {/* Encabezado con logos oficiales */}
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <img src="/logos/ELIZABETH.png" alt="Gestión Municipal Elizabeth Niño" className="h-8 w-auto object-contain" />
-            <div className="w-[1px] h-6 bg-slate-200" />
-            <img src="/logos/IAMEC.png" alt="IAMEC" className="h-9 w-auto object-contain" />
-          </div>
-
-          <h1 className="text-xl font-black text-slate-900 tracking-tight text-center">Acceso de Operador</h1>
-          <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400 uppercase text-center mt-0.5">
-            {targetModulo === 'cobromovil' ? 'MÓDULO DE COBRO MÓVIL' : 'JORNADAS Y EMPADRONAMIENTO'}
-          </p>
-
-          <div className="border-t border-slate-100 my-5" />
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            {error && (
-              <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs text-center border border-red-200 font-semibold flex items-center justify-center gap-2">
-                <AlertCircle size={16} className="shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5 text-left">
-                USUARIO
-              </label>
-              <div className="relative">
-                <User className="w-5 h-5 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  value={usuario}
-                  onChange={(e) => setUsuario(e.target.value)}
-                  placeholder="Ingrese su usuario"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5 text-left">
-                CONTRASEÑA
-              </label>
-              <div className="relative">
-                <Lock className="w-5 h-5 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={clave}
-                  onChange={(e) => setClave(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-slate-400 focus:bg-white transition-all tracking-wider"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition-colors bg-transparent border-none cursor-pointer"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isAuthenticating}
-              className="w-full bg-[#c8e844] hover:bg-[#b8d937] text-slate-900 font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2 cursor-pointer border-none mt-2"
-            >
-              {isAuthenticating ? (
-                <AlertCircle className="w-5 h-5 animate-spin text-slate-900" />
-              ) : (
-                <ShieldCheck className="w-5 h-5 text-slate-900 stroke-[2.5]" />
-              )}
-              <span>{isAuthenticating ? 'Verificando...' : 'Ingresar'}</span>
-            </button>
-          </form>
-
-          <div className="text-center pt-4 mt-4 border-t border-slate-100">
-            <a href="/" className="text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors">
-              ← Volver al Portal de la Alcaldía
-            </a>
-          </div>
+      <form onSubmit={handleLogin} style={{
+        background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(184,205,41,.2)', borderRadius: 20,
+        padding: '32px 28px', width: '100%', maxWidth: 360,
+        boxShadow: '0 20px 60px rgba(0,0,0,.5)'
+      }}>
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ color: 'rgba(200,230,200,.8)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+            USUARIO
+          </label>
+          <input
+            type="text"
+            required
+            autoFocus
+            value={usuario}
+            onChange={e => setUsuario(e.target.value)}
+            placeholder="Ingresa tu usuario"
+            style={{
+              width: '100%', padding: '12px 16px', borderRadius: 12,
+              background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(184,205,41,.25)',
+              color: '#fff', fontSize: 15, outline: 'none', boxSizing: 'border-box'
+            }}
+          />
         </div>
 
-        <p className="text-center text-slate-400 text-xs mt-6 font-medium">
-          Sistema de Recaudación y Empadronamiento Municipal
-        </p>
-      </div>
+        <div style={{ marginBottom: 24 }}>
+          <label style={{ color: 'rgba(200,230,200,.8)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+            CONTRASENA
+          </label>
+          <input
+            type="password"
+            required
+            value={clave}
+            onChange={e => setClave(e.target.value)}
+            placeholder="••••••"
+            style={{
+              width: '100%', padding: '12px 16px', borderRadius: 12,
+              background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(184,205,41,.25)',
+              color: '#fff', fontSize: 15, outline: 'none', boxSizing: 'border-box'
+            }}
+          />
+        </div>
+
+        {error && (
+          <div style={{
+            background: 'rgba(220,38,38,.15)', border: '1px solid rgba(220,38,38,.4)',
+            borderRadius: 10, padding: '10px 14px', marginBottom: 18,
+            color: '#fca5a5', fontSize: 13, textAlign: 'center'
+          }}>{error}</div>
+        )}
+
+        <button type="submit" disabled={isAuthenticating} style={{
+          width: '100%', padding: '14px', borderRadius: 12,
+          background: isAuthenticating ? 'rgba(184,205,41,.4)' : 'linear-gradient(135deg, #B8CD29, #8fa81e)',
+          border: 'none', color: '#06120e', fontWeight: 800, fontSize: 15,
+          cursor: isAuthenticating ? 'not-allowed' : 'pointer', letterSpacing: 0.5
+        }}>
+          {isAuthenticating ? 'Ingresando...' : 'Ingresar'}
+        </button>
+
+        <div style={{ textAlign: 'center', marginTop: 18 }}>
+          <a href="/" style={{ color: 'rgba(200,230,200,.5)', fontSize: 12, textDecoration: 'none' }}>
+            ← Volver al Inicio
+          </a>
+        </div>
+      </form>
     </div>
   );
 }

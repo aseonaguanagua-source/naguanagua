@@ -84,7 +84,7 @@ export default function PresidenciaLogin() {
       }}>
         <div style={{ marginBottom: 18 }}>
           <label style={{ color: 'rgba(200,230,200,.8)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
-            Usuario
+            USUARIO
           </label>
           <input
             type="text" value={usuario} onChange={e => setUsuario(e.target.value)}
@@ -98,7 +98,7 @@ export default function PresidenciaLogin() {
         </div>
         <div style={{ marginBottom: 24 }}>
           <label style={{ color: 'rgba(200,230,200,.8)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
-            Contrasena
+            CONTRASENA
           </label>
           <input
             type="password" value={clave} onChange={e => setClave(e.target.value)}
@@ -125,6 +125,12 @@ export default function PresidenciaLogin() {
         }}>
           {loading ? 'Ingresando...' : 'Ingresar'}
         </button>
+
+        <div style={{ textAlign: 'center', marginTop: 18 }}>
+          <a href="/" style={{ color: 'rgba(200,230,200,.5)', fontSize: 12, textDecoration: 'none' }}>
+            ← Volver al Inicio
+          </a>
+        </div>
       </form>
     </div>
   );
