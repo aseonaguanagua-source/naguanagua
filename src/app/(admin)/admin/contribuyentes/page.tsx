@@ -2545,7 +2545,10 @@ function ContribuyentesPageContent() {
                       {!isNew && (
                         <button 
                           type="button" 
-                          onClick={() => setIsDebtModalOpen(true)}
+                          onClick={() => {
+                            setSelectedDebtRow(formData || viewData);
+                            setDebtModalOpen(true);
+                          }}
                           className="bg-orange-100 text-orange-700 hover:bg-orange-200 px-3 py-1.5 rounded text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
                         >
                           <Edit className="w-3.5 h-3.5" /> Ajustar Deuda (Ordenanza)
@@ -2592,79 +2595,16 @@ function ContribuyentesPageContent() {
           </div>
         </form>
 
-        {/* MODAL DE AJUSTE DE DEUDA */}
-        {isDebtModalOpen && calculoDetalle && formData && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
-              <div className="bg-slate-800 p-4 flex items-center justify-between">
-                <h2 className="text-white font-bold flex items-center gap-2">
-                  <Calculator className="w-5 h-5 text-orange-400" />
-                  Ajustar Deuda del Contribuyente
-                </h2>
-                <button onClick={() => setIsDebtModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="p-6 space-y-6">
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 space-y-2">
-                  <p className="text-sm"><span className="font-semibold text-slate-700">Contribuyente:</span> {formData.Contribuyente} ({formData.Identidad})</p>
-                  <p className="text-sm"><span className="font-semibold text-slate-700">Clasificación:</span> {calculoDetalle.leyenda}</p>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center bg-blue-50 p-3 rounded border border-blue-100">
-                    <span className="text-sm font-semibold text-blue-800">Tarifa Mensual (UCD):</span>
-                    <span className="font-bold text-blue-900 text-lg">{calculoDetalle.factor.toFixed(2)}</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Meses a adeudar (Morosidad Ajustada)</label>
-                    <input 
-                      type="number" 
-                      min="0"
-                      value={debtMonths} 
-                      onChange={(e) => setDebtMonths(Number(e.target.value))}
-                      className="w-full border-2 border-slate-200 rounded-lg px-4 py-2 font-semibold text-slate-700 focus:border-orange-500 outline-none"
-                    />
-                  </div>
-
-
-
-                  <div className="flex justify-between items-center bg-orange-50 p-4 rounded-lg border border-orange-200 shadow-inner">
-                    <span className="font-bold text-orange-800">Nueva Deuda Total:</span>
-                    <div className="text-right">
-                      <span className="block font-black text-orange-600 text-2xl">{(calculoDetalle.factor * debtMonths).toFixed(2)} UCD</span>
-                      <span className="block text-xs font-semibold text-orange-700 mt-1">â‰ˆ Bs. {(calculoDetalle.factor * debtMonths * (bcvRate ? parseFloat(bcvRate.replace(',', '.')) : 1)).toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2 bg-amber-50 p-3 rounded border border-amber-200">
-                  <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700 leading-relaxed font-medium">
-                    Al confirmar, se **borrarán todos los recibos (recibos) pendientes** actuales de este usuario y se generará un **único recibo nuevo** con el monto total ajustado.
-                  </p>
-                </div>
-
-                <div className="flex gap-3 pt-4 border-t border-slate-100">
-                  <button 
-                    onClick={() => setIsDebtModalOpen(false)}
-                    className="flex-1 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold py-2.5 rounded-lg transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button 
-                    onClick={handleAjustarDeuda}
-                    disabled={isProcessingDebt}
-                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-lg transition-colors shadow-sm disabled:opacity-70 flex justify-center"
-                  >
-                    {isProcessingDebt ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Confirmar Ajuste'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* MODAL DE AJUSTE DE DEUDA CON SELECTOR DE MESES */}
+        {isDebtModalOpen && (
+          <DebtAdjustmentModal
+            row={formData || viewData}
+            inmuebles={inmuebles}
+            tcmmv={tcmmv || viewCalculo?.tasaBcv || 1}
+            recibos={recibos}
+            setFacturas={setFacturas}
+            onClose={() => setIsDebtModalOpen(false)}
+          />
         )}
       </div>
     );
