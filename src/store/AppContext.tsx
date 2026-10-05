@@ -736,32 +736,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateContribuyente = async (id: string, data: any) => {
     try {
-      const parseLevelToArea = (nivel: string) => {
-        if (!nivel) return null;
-        if (nivel.includes('0 - 50')) return 50;
-        if (nivel.includes('51 - 100')) return 100;
-        if (nivel.includes('101 - 200')) return 200;
-        if (nivel.includes('201')) return 201;
-        return null;
-      };
+      const notaToSave = data.Notas_Adicionales?.trim() || data.Nota?.trim() || null;
 
-      const isComercial = data.Clasificacion === 'Comercial' || data.Clasificacion === 'Industrial';
-
-      const { error } = await supabase
-        .from('inmuebles')
-        .update({
-          contribuyente: data.Contribuyente,
+      // 1. Actualizar datos en tabla contribuyentes
+      try {
+        const contribUpdate: any = {
+          nombre: data.Contribuyente,
           telefono: data.Telefono,
-          correo_electronico: data.Correo,
-          direccion: data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion,
-          clasificacion: data.Clasificacion || 'Residencial',
-          actividad_principal: data.Clasificacion === 'Residencial' ? data.TipoResidencia : data.ActividadComercial,
-          area: isComercial ? parseLevelToArea(data.NivelMetraje) : null,
-          mmv_mes: calcularMmvMes(data, ordenanzasConfig),
-          agente_retencion: data.esAgenteRetencion === true
-        })
-        .eq('identidad', id);
-        
+          email: data.Correo,
+          direccion: data.Direccion
+        };
+        if (notaToSave) {
+          const { data: curC } = await supabase.from('contribuyentes').select('observaciones').eq('identidad', id).maybeSingle();
+          const obsActual = curC?.observaciones || '';
+          const newEntry = `${new Date().toLocaleDateString('es-VE')}: ${notaToSave}`;
+          contribUpdate.observaciones = obsActual ? `${newEntry}\n---\n${obsActual}` : newEntry;
+        }
+        await supabase.from('contribuyentes').update(contribUpdate).eq('identidad', id);
+      } catch (eCont) {
+        console.warn('Advertencia al sincronizar contribuyente:', eCont);
+      }
+
+      // 2. Actualizar datos en tabla inmuebles (sin campo inexistente area)
+      const inmUpdate: any = {
+        contribuyente: data.Contribuyente,
+        telefono: data.Telefono,
+        correo_electronico: data.Correo,
+        direccion: data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion,
+        clasificacion: data.Clasificacion || 'Residencial',
+        actividad_principal: data.Clasificacion === 'Residencial' ? data.TipoResidencia : data.ActividadComercial,
+        mmv_mes: calcularMmvMes(data, ordenanzasConfig),
+        agente_retencion: data.esAgenteRetencion === true
+      };
+      if (notaToSave) {
+        inmUpdate.notas = notaToSave;
+      }
+
+      let q = supabase.from('inmuebles').update(inmUpdate);
+      if (data.Inmueble && data.Inmueble !== 'Principal' && !String(data.Inmueble).startsWith('RES-') && !String(data.Inmueble).startsWith('COM-')) {
+        q = q.eq('inmueble', data.Inmueble);
+      } else {
+        q = q.eq('identidad', id);
+      }
+
+      const { error } = await q;
       if (error) throw error;
       
       // Update local state immediately for better UX

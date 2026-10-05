@@ -221,15 +221,12 @@ export default function PreRegistrosPage() {
           inmueble: local.numeracion,
           actividad_principal: local.uso === 'Comercial' ? local.actividad : local.uso,
           tipo: local.uso === 'Residencial' ? local.tipoResidencia : 'Inmueble',
-          area: local.uso === 'Comercial' ? parseAreaNumeric(local.nivel) : null,
           mmv_mes: 0 // Will be recalculated in general or mapped later if needed
         }));
       } else {
         recordsToInsert = [{
           ...baseInmuebleData,
-          tipo: rowToApprove.tipo === 'Residencial' ? rowToApprove.codigo : 'Inmueble',
-          // codigo puede ser "101 - 200 m²" para comercial, extraer numero
-          area: rowToApprove.tipo !== 'Residencial' ? parseAreaNumeric(rowToApprove.codigo) : null
+          tipo: rowToApprove.tipo === 'Residencial' ? rowToApprove.codigo : 'Inmueble'
         }];
       }
 

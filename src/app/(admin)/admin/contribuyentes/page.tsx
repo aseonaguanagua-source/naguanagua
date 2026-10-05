@@ -1697,9 +1697,9 @@ function ContribuyentesPageContent() {
       
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Ocurrió un error guardando en Supabase. Verifique la conexión.');
+      alert('Ocurrió un error guardando en Supabase: ' + (err?.message || 'Verifique la conexión.'));
     } finally {
       setIsSaving(false);
     }
