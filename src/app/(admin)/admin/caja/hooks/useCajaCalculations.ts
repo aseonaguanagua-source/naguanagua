@@ -49,9 +49,15 @@ export function useCajaCalculations({
     }
 
     // Tasa efectiva: personalizada por el cajero o la del BCV global
-    const tasaActual = (customBcvRate && !isNaN(parseFloat(customBcvRate)))
-      ? parseFloat(customBcvRate)
-      : (tcmmv || 0);
+    let tasaActual = (tcmmv || 0);
+    if (customBcvRate && !isNaN(parseFloat(customBcvRate))) {
+      const parsed = parseFloat(customBcvRate);
+      if (tcmmv > 0 && Math.abs(parsed - tcmmv) < 0.05) {
+        tasaActual = tcmmv;
+      } else {
+        tasaActual = parsed;
+      }
+    }
 
     if (tasaActual <= 0) {
       return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);

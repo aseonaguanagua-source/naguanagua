@@ -1003,9 +1003,16 @@ export default function CajaPage() {
       const s = talaPodaMap.get(ref);
       if (s) total += parseFloat(s.monto || '0') * (1 + ivaPercent);
     });
-    
     let sb = 0, siva = 0, smulta = 0, sivaRetencionable = 0;
-    const tasaActualUse = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : (tcmmv || 0);
+    let tasaActualUse = (tcmmv || 0);
+    if (customBcvRate && !isNaN(parseFloat(customBcvRate))) {
+      const parsed = parseFloat(customBcvRate);
+      if (tcmmv > 0 && Math.abs(parsed - tcmmv) < 0.05) {
+        tasaActualUse = tcmmv;
+      } else {
+        tasaActualUse = parsed;
+      }
+    }
 
     if (isCondominio && selectedRecibos.length === 0) {
       if (condominioModo === 'Abono') {
