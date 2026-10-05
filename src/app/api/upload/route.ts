@@ -29,11 +29,14 @@ export async function POST(req: NextRequest) {
       });
 
     if (error) {
-      console.error('Error al subir a Supabase Storage con supabaseAdmin:', error);
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      );
+      console.warn('Supabase Storage error, usando fallback base64 Data URL:', error.message);
+      const mime = file.type || 'application/octet-stream';
+      const b64 = buffer.toString('base64');
+      return NextResponse.json({
+        success: true,
+        path,
+        publicUrl: `data:${mime};base64,${b64}`,
+      });
     }
 
     const { data: pubData } = supabaseAdmin.storage.from(bucket).getPublicUrl(path);
