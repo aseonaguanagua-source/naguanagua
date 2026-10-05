@@ -3290,15 +3290,73 @@ export default function CajaPage() {
             {/* Recibos de Aseo Mensual */}
             {(!isCondominio || recibos.length > 0) && (
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
+              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-slate-600" />
                   <h3 className="font-bold text-slate-800">Recibos de Aseo Mensual</h3>
                   <span className="text-xs text-slate-500 font-medium">({recibos.length} pendiente{recibos.length !== 1 ? 's' : ''})</span>
                 </div>
 
+                {/* Botones de selección rápida para pagos múltiples */}
+                {recibos.length > 1 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allRefs = recibos.map((r: any) => r.referencia).filter(Boolean);
+                        setSelectedRecibos(allRefs);
+                      }}
+                      className="text-[11px] font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded transition-colors shadow-xs"
+                    >
+                      ✓ Marcar Todos ({recibos.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRecibos([])}
+                      className="text-[11px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 px-2.5 py-1 rounded transition-colors"
+                    >
+                      ✕ Desmarcar
+                    </button>
+                    {recibos.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const last3 = recibos.slice(-3).map((r: any) => r.referencia).filter(Boolean);
+                          setSelectedRecibos(last3);
+                        }}
+                        className="text-[11px] font-semibold bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded transition-colors"
+                      >
+                        Últimos 3
+                      </button>
+                    )}
+                    {recibos.length > 6 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const last6 = recibos.slice(-6).map((r: any) => r.referencia).filter(Boolean);
+                          setSelectedRecibos(last6);
+                        }}
+                        className="text-[11px] font-semibold bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded transition-colors"
+                      >
+                        Últimos 6
+                      </button>
+                    )}
+                    {recibos.length > 12 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const last12 = recibos.slice(-12).map((r: any) => r.referencia).filter(Boolean);
+                          setSelectedRecibos(last12);
+                        }}
+                        className="text-[11px] font-semibold bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded transition-colors"
+                      >
+                        Últimos 12
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="p-4 bg-slate-50 border-t border-slate-200">
+              <div className="p-4 bg-slate-50 border-t border-slate-200 max-h-[700px] overflow-y-auto">
                 {recibos.length === 0 ? (
                   <p className="text-sm text-slate-500 bg-white p-4 rounded-lg border border-slate-200">No hay recibos pendientes.</p>
                 ) : (
@@ -3390,12 +3448,29 @@ export default function CajaPage() {
                               </span>
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
+                              {group.items.length > 1 && !group.isVirtualMonth && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const groupRefs = group.items.map((it: any) => it.referencia);
+                                    const isEverySelected = groupRefs.every((ref: string) => selectedRecibos.includes(ref));
+                                    if (isEverySelected) {
+                                      setSelectedRecibos(selectedRecibos.filter((ref: string) => !groupRefs.includes(ref)));
+                                    } else {
+                                      setSelectedRecibos(Array.from(new Set([...selectedRecibos, ...groupRefs])));
+                                    }
+                                  }}
+                                  className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition-colors cursor-pointer"
+                                >
+                                  {group.items.every((it: any) => selectedRecibos.includes(it.referencia)) ? 'Desmarcar Inmueble' : 'Marcar Inmueble'}
+                                </button>
+                              )}
                               <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">
                                 {group.items.length} {group.isVirtualMonth ? 'actividades' : 'recibos'}
                               </span>
                             </div>
                           </div>
-                          <div className="p-2 space-y-1.5">
+                          <div className="p-2 space-y-1.5 max-h-[460px] overflow-y-auto">
                             {group.isVirtualMonth ? (
                               <div className={`p-2.5 border rounded-lg transition-colors ${allSelected ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-400' : anyPending ? 'bg-slate-50 border-slate-200 opacity-60' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
                                 <div className="flex items-center justify-between">
@@ -3585,7 +3660,7 @@ export default function CajaPage() {
           </div>
 
                     {/* Panel de Pago Disgregado */}
-          <div className="bg-slate-50 rounded-lg shadow-sm border border-slate-200 p-6 h-fit sticky top-6">
+          <div className="bg-slate-50 rounded-lg shadow-sm border border-slate-200 p-6 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
             <h3 className="font-bold text-slate-800 text-lg mb-4 border-b border-slate-200 pb-2">Resumen de Pago</h3>
             
             {/* Actividades Unificadas Badge en Resumen */}
