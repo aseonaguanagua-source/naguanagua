@@ -4,7 +4,7 @@ import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpre
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { performLogout } from '@/lib/logout';
-import { ROUTE_PERMISSIONS_MAP } from '@/components/AdminAuthWrapper';
+import { ROUTE_PERMISSIONS_MAP } from '@/lib/permissionsMap';
 
 export default function Sidebar() {
   const pathname = usePathname();

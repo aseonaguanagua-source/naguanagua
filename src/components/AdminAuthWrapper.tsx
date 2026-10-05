@@ -16,33 +16,8 @@ export const PUESTOS_PLANTILLA = [
   { puesto: 'Cobro Móvil / Campo', usuario: 'cobromovil', defaultClave: 'movil123', rol: 'Taquilla / Operador' },
 ];
 
-// Mapeo flexible de rutas a las claves de permisos del sistema de Naguanagua
-export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
-  '/admin/tarifas': ['ver_tarifas'],
-  '/admin/censo': ['ver_censo', 'registrar_censo'],
-  '/admin/contribuyentes': ['ver_contribuyentes', 'ver_contribuyentes_lectura', 'ver_caja', 'gestionar_pagos'],
-  '/admin/condominios-cob': ['ver_condominios', 'cobro_masivo_condo'],
-  '/admin/pre-registros': ['ver_pre_registros'],
-  '/admin/jornadas': ['planificar_jornadas'],
-  '/admin/ambiental': ['gestionar_visto_bueno'],
-  '/admin/herramientas': ['ver_reportes'],
-  '/admin/calculo': ['usar_calculadora_deuda'],
-  '/admin/caja': ['ver_caja', 'gestionar_pagos'],
-  '/admin/caja/conciliacion': ['ver_conciliacion', 'ver_caja'],
-  '/admin/facturacion-electronica': ['emitir_recibos', 'ver_caja'],
-  '/admin/estado-cuenta': ['ver_estado_cuenta', 'descargar_pdf_ec', 'ver_caja'],
-  '/admin/convenios-pago': ['ver_convenios'],
-  '/admin/certificados': ['ver_certificados', 'emitir_solvencia', 'ver_caja'],
-  '/admin/buzon': ['ver_buzon'],
-  '/admin/denuncias': ['ver_denuncias'],
-  '/admin/rutas': ['ver_rutas'],
-  '/admin/servicios-especiales': ['ver_servicios_especiales'],
-  '/admin/reportes': ['ver_reportes'],
-  '/admin/correos': ['ver_correos'],
-  '/admin/trabajadores': ['gestionar_usuarios'],
-  '/admin/auditoria': ['ver_auditoria'],
-  '/cobro-movil': ['ver_caja', 'gestionar_pagos'],
-};
+export { ROUTE_PERMISSIONS_MAP } from '@/lib/permissionsMap';
+import { ROUTE_PERMISSIONS_MAP } from '@/lib/permissionsMap';
 
 export default function AdminAuthWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -141,6 +116,18 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
 
     verifyAndRehydrate();
   }, []);
+
+  const isSuperAdmin = user?.rol === 'Administrador' || user?.usuario === 'dzara';
+
+  // Si es cajero o tiene permiso de caja y entra en /admin raíz, redirigir automáticamente a /admin/caja
+  useEffect(() => {
+    if (isAuthenticated && !isSuperAdmin && pathname === '/admin') {
+      const isCajaWorker = user?.permisos?.['ver_caja'] || user?.rol?.toLowerCase().includes('taquilla') || user?.rol?.toLowerCase().includes('caja');
+      if (isCajaWorker) {
+        router.replace('/admin/caja');
+      }
+    }
+  }, [isAuthenticated, isSuperAdmin, pathname, user, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -413,17 +400,6 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
   // ══════════════════════════════════════════════════════════════════════════
   // CONTROL GRANULAR DE ACCESO POR RUTA SEGÚN LOS PERMISOS DEL TRABAJADOR
   // ══════════════════════════════════════════════════════════════════════════
-  const isSuperAdmin = user?.rol === 'Administrador' || user?.usuario === 'dzara';
-
-  // Si es cajero o tiene permiso de caja y entra en /admin raíz, redirigir automáticamente a /admin/caja
-  useEffect(() => {
-    if (isAuthenticated && !isSuperAdmin && pathname === '/admin') {
-      const isCajaWorker = user?.permisos?.['ver_caja'] || user?.rol?.toLowerCase().includes('taquilla') || user?.rol?.toLowerCase().includes('caja');
-      if (isCajaWorker) {
-        router.replace('/admin/caja');
-      }
-    }
-  }, [isAuthenticated, isSuperAdmin, pathname, user, router]);
 
   // Si no es superadministrador, verificar permiso de la ruta
   if (!isSuperAdmin) {
