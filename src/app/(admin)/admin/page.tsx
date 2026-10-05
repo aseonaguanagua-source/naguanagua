@@ -17,7 +17,7 @@ async function getExchangeRates() {
       usd: bcvData.usd,
       eur: bcvData.euro,
       tcmmv: bcvData.tcmmv,
-      fecha: new Date(bcvData.timestamp).toLocaleDateString('es-VE', {
+      fecha: new Date(bcvData.timestamp || Date.now()).toLocaleDateString('es-VE', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
