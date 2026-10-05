@@ -23,6 +23,7 @@ export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
   '/admin/rutas': ['ver_rutas'],
   '/admin/servicios-especiales': ['ver_servicios_especiales'],
   '/admin/reportes': ['ver_reportes', 'ver_caja'],
+  '/admin/recibo-demo': ['ver_caja', 'ver_reportes'],
   '/admin/correos': ['ver_correos'],
   '/admin/trabajadores': ['gestionar_usuarios'],
   '/admin/auditoria': ['ver_auditoria'],

@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X, Building2, Store, Receipt, CheckSquare, Square, Filter, ChevronRight, DollarSign, Sparkles, AlertCircle, Coins } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
@@ -2140,7 +2141,16 @@ export default function CajaPage() {
 
       {/* Buscador */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-        <label className="block text-sm font-semibold text-slate-700 mb-2">Buscar Contribuyente</label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-semibold text-slate-700">Buscar Contribuyente</label>
+          <Link
+            href="/admin/recibo-demo"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors shadow-xs"
+          >
+            <Printer size={13} />
+            <span>Ver Formato de Recibo</span>
+          </Link>
+        </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <select 
             value={docType}
