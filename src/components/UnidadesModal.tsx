@@ -1,3 +1,4 @@
+'use client';
 import React, { useState, useEffect } from 'react';
 import { X, Save, Edit, Trash2, ShieldCheck, CreditCard, Building2, Store, Download, Plus, XCircle, FileText, Receipt, Edit2, Key, Power, Copy, EyeOff, Eye, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';

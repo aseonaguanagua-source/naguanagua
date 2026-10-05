@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import ManualBCVRateEditor from '@/components/ManualBCVRateEditor';
 import RecaudacionWidget from '@/components/RecaudacionWidget';
 import { getTasaBCV } from '@/services/bcv';
+import CopyButton from '@/components/CopyButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,9 +97,7 @@ export default async function AdminHome() {
               <div className="flex items-center justify-between text-xs text-slate-700">
                 <span className="font-semibold">Cuenta:</span>
                 <span className="font-mono font-bold text-slate-900">01720110711101340717</span>
-                <button onClick={() => navigator.clipboard?.writeText('01720110711101340717')} className="text-blue-600 hover:text-blue-800 ml-1 p-1 bg-white rounded border border-blue-200" title="Copiar">
-                  <FileText className="w-3.5 h-3.5" />
-                </button>
+                <CopyButton text="01720110711101340717" className="text-blue-600 hover:text-blue-800 ml-1 p-1 bg-white rounded border border-blue-200" />
               </div>
               <div className="text-xs text-slate-600 pt-2 border-t border-blue-100">
                 <p>Titular: <strong className="text-slate-800">IAMEC BANCAMIGA</strong></p>
@@ -115,9 +114,7 @@ export default async function AdminHome() {
               <div className="flex items-center justify-between text-xs text-slate-700">
                 <span className="font-semibold">Cuenta:</span>
                 <span className="font-mono font-bold text-slate-900">01340415144151031715</span>
-                <button onClick={() => navigator.clipboard?.writeText('01340415144151031715')} className="text-emerald-600 hover:text-emerald-800 ml-1 p-1 bg-white rounded border border-emerald-200" title="Copiar">
-                  <FileText className="w-3.5 h-3.5" />
-                </button>
+                <CopyButton text="01340415144151031715" className="text-emerald-600 hover:text-emerald-800 ml-1 p-1 bg-white rounded border border-emerald-200" />
               </div>
               <div className="text-xs text-slate-600 pt-2 border-t border-emerald-100">
                 <p>Titular: <strong className="text-slate-800">Inst. Soc. Mun. para el Ambiente</strong></p>
