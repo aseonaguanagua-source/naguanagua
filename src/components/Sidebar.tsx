@@ -35,6 +35,7 @@ export default function Sidebar() {
     { icon: ClipboardCheck, name: 'Censo de Contribuyentes', href: '/admin/censo' },
     { icon: User, name: 'Contribuyentes', href: '/admin/contribuyentes' },
     { icon: Building2, name: 'Condominios (nuevo)', href: '/admin/condominios' },
+    { icon: Wallet, name: 'Caja Condominios', href: '/admin/condominios/caja' },
     { icon: Users, name: 'Condominios COB', href: '/admin/condominios-cob' },
     { icon: FileText, name: 'Pre-registros WEB', href: '/admin/pre-registros' },
 

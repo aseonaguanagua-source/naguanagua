@@ -4,9 +4,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Building2, User, Search, RefreshCw, AlertTriangle, CheckCircle2, Wallet, CalendarClock,
+  Building2, Search, RefreshCw, AlertTriangle, CheckCircle2, Wallet, CalendarClock,
   Layers, ChevronLeft, ChevronRight, UserSearch, X, Download,
 } from 'lucide-react';
+import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MODALIDAD: Record<string, { label: string; cls: string }> = {
@@ -16,23 +17,6 @@ const MODALIDAD: Record<string, { label: string; cls: string }> = {
   TARIFA_FIJA:     { label: 'Tarifa fija',       cls: 'bg-violet-50 text-violet-800 border-violet-200' },
 };
 const POR_PAGINA = 50;
-
-/** Selector de módulo: Contribuyentes | Condominios */
-export function SelectorModulo({ activo }: { activo: 'contribuyentes' | 'condominios' }) {
-  const base = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-extrabold transition-all';
-  return (
-    <div className="inline-flex p-1 rounded-2xl bg-slate-100 border border-slate-200" role="tablist" aria-label="Módulo">
-      <Link href="/admin/contribuyentes" role="tab" aria-selected={activo === 'contribuyentes'}
-        className={`${base} ${activo === 'contribuyentes' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
-        <User className="w-4 h-4" /> Contribuyentes
-      </Link>
-      <Link href="/admin/condominios" role="tab" aria-selected={activo === 'condominios'}
-        className={`${base} ${activo === 'condominios' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
-        <Building2 className="w-4 h-4" /> Condominios
-      </Link>
-    </div>
-  );
-}
 
 export default function CondominiosPage() {
   const router = useRouter();

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download,
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon,
 } from 'lucide-react';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -39,6 +39,7 @@ function Ficha() {
   const [abierto, setAbierto] = useState<string | null>(null);
   const [pagina, setPagina] = useState(0);
   const [admin, setAdmin] = useState(false);
+  const [torresAbiertas, setTorresAbiertas] = useState<Set<string>>(new Set());
 
   // Edición de opciones
   const [editando, setEditando] = useState(false);
@@ -70,6 +71,17 @@ function Ficha() {
   }, [e, q, soloDeuda]);
   const paginas = Math.max(1, Math.ceil(renglones.length / POR_PAGINA));
   const visibles = renglones.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
+
+  // Árbol torre → unidad
+  const arbol = useMemo(() => {
+    const us: any[] = d?.unidades || [];
+    const hijos = new Map<string, any[]>();
+    us.forEach(u => { if (u.padre_unidad_id) { if (!hijos.has(u.padre_unidad_id)) hijos.set(u.padre_unidad_id, []); hijos.get(u.padre_unidad_id)!.push(u); } });
+    const ids = new Set(us.map(u => u.id));
+    const raiz = us.filter(u => !u.padre_unidad_id || !ids.has(u.padre_unidad_id))
+      .sort((a, b) => Number(!!(hijos.get(b.id)?.length)) - Number(!!(hijos.get(a.id)?.length)) || String(a.inmueble).localeCompare(String(b.inmueble)));
+    return { raiz, hijos, torres: us.filter(u => hijos.get(u.id)?.length).length };
+  }, [d]);
 
   const abrirEdicion = () => {
     setForm({
@@ -148,6 +160,9 @@ function Ficha() {
                   <Settings className="w-4 h-4" /> Opciones
                 </button>
               )}
+              <Link id="btn-cobrar-desde-ficha" href={`/admin/condominios/caja?codigo=${c.codigo}`} className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-2">
+                <WalletIcon className="w-4 h-4" /> Cobrar
+              </Link>
               <button onClick={exportar} className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-2 cursor-pointer">
                 <Download className="w-4 h-4" /> Estado de cuenta
               </button>
@@ -284,33 +299,55 @@ function Ficha() {
               </>
             )}
 
-            {tab === 'unidades' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
-                    <tr>
-                      <th className="text-left py-2.5 px-4">Código</th><th className="text-left py-2.5 px-3">Número</th><th className="text-left py-2.5 px-3">Propietario</th>
-                      <th className="text-left py-2.5 px-3">Cédula/RIF</th><th className="text-left py-2.5 px-3">Actividad</th><th className="text-left py-2.5 px-3">Estado</th><th className="text-left py-2.5 px-4">Pendiente desde</th>
+            {tab === 'unidades' && (() => {
+              const t = q.trim().toUpperCase();
+              const coincide = (u: any) => !t || [u.inmueble, u.numero, u.propietario, u.identidad].some((x: any) => String(x || '').toUpperCase().includes(t));
+              const fila = (u: any, nivel: number) => {
+                const hs = arbol.hijos.get(u.id) || [];
+                const abierta = torresAbiertas.has(u.id) || !!t;
+                const visiblesH = hs.filter(coincide);
+                if (!coincide(u) && visiblesH.length === 0) return null;
+                return (
+                  <React.Fragment key={u.id}>
+                    <tr onClick={() => hs.length && setTorresAbiertas(s => { const n = new Set(s); n.has(u.id) ? n.delete(u.id) : n.add(u.id); return n; })}
+                      className={`${hs.length ? 'cursor-pointer bg-slate-50/80 hover:bg-emerald-50/50' : ''} ${unidadFoco && u.inmueble === unidadFoco ? 'bg-emerald-50' : ''}`}>
+                      <td className="py-2 px-4 font-mono font-bold" style={{ paddingLeft: 16 + nivel * 22 }}>
+                        <span className="inline-flex items-center gap-1.5">
+                          {hs.length ? (abierta ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />) : nivel > 0 ? <span className="text-slate-300">└</span> : null}
+                          {hs.length ? <Building className="w-3.5 h-3.5 text-emerald-600" /> : null}
+                          {u.inmueble || '—'}
+                          {hs.length ? <span className="ml-1 px-1.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black">{hs.length} unidades</span> : null}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3">{u.numero || '—'}</td>
+                      <td className="py-2 px-3">{u.propietario || '—'}</td>
+                      <td className="py-2 px-3 font-mono text-xs">{u.identidad || '—'}</td>
+                      <td className="py-2 px-3 text-xs text-slate-600">{u.actividad || '—'}</td>
+                      <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${u.estado === 'Activa' ? 'bg-emerald-100 text-emerald-800' : u.estado === 'Desocupada' ? 'bg-slate-200 text-slate-700' : 'bg-red-100 text-red-700'}`}>{u.estado}</span></td>
+                      <td className="py-2 px-4 text-xs">{u.aseo_pendiente_desde ? fmtPeriodo(String(u.aseo_pendiente_desde).slice(0, 7)) : <span className="text-emerald-700 font-bold">Al día</span>}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {d.unidades.filter((u: any) => { const t = q.trim().toUpperCase(); return !t || [u.inmueble, u.numero, u.propietario, u.identidad].some((x: any) => String(x || '').toUpperCase().includes(t)); })
-                      .slice(0, 500).map((u: any) => (
-                        <tr key={u.id} className={unidadFoco && u.inmueble === unidadFoco ? 'bg-emerald-50' : ''}>
-                          <td className="py-2 px-4 font-mono font-bold">{u.inmueble || '—'}</td>
-                          <td className="py-2 px-3">{u.numero || '—'}</td>
-                          <td className="py-2 px-3">{u.propietario || '—'}</td>
-                          <td className="py-2 px-3 font-mono text-xs">{u.identidad || '—'}</td>
-                          <td className="py-2 px-3 text-xs text-slate-600">{u.actividad || '—'}</td>
-                          <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${u.estado === 'Activa' ? 'bg-emerald-100 text-emerald-800' : u.estado === 'Desocupada' ? 'bg-slate-200 text-slate-700' : 'bg-red-100 text-red-700'}`}>{u.estado}</span></td>
-                          <td className="py-2 px-4 text-xs">{u.aseo_pendiente_desde ? fmtPeriodo(String(u.aseo_pendiente_desde).slice(0, 7)) : <span className="text-emerald-700 font-bold">Al día</span>}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-                {d.unidades.length > 500 && <div className="px-4 py-2 text-xs text-slate-500">Mostrando 500 de {d.unidades.length}. Use el buscador para encontrar una unidad.</div>}
-              </div>
-            )}
+                    {hs.length > 0 && abierta && (t ? visiblesH : hs).map((h: any) => fila(h, nivel + 1))}
+                  </React.Fragment>
+                );
+              };
+              return (
+                <div className="overflow-x-auto">
+                  {arbol.torres > 0 && <div className="px-4 py-2 text-xs text-slate-600 border-b border-slate-100 bg-emerald-50/40"><b>{arbol.torres}</b> torre(s) / sub-grupo(s). Haga clic en una torre para ver sus unidades.</div>}
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="text-left py-2.5 px-4">Código</th><th className="text-left py-2.5 px-3">Número</th><th className="text-left py-2.5 px-3">Propietario</th>
+                        <th className="text-left py-2.5 px-3">Cédula/RIF</th><th className="text-left py-2.5 px-3">Actividad</th><th className="text-left py-2.5 px-3">Estado</th><th className="text-left py-2.5 px-4">Pendiente desde</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {arbol.raiz.slice(0, 600).map((u: any) => fila(u, 0))}
+                    </tbody>
+                  </table>
+                  {arbol.raiz.length > 600 && <div className="px-4 py-2 text-xs text-slate-500">Mostrando 600 de {arbol.raiz.length}. Use el buscador para encontrar una unidad.</div>}
+                </div>
+              );
+            })()}
 
             {tab === 'movimientos' && (
               <div className="p-4">
