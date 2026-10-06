@@ -252,15 +252,17 @@ export default function EstadoCuentaPage() {
     const currentRate = tasaBcv > 0 ? tasaBcv : 1;
     let baseMes = 0;
     let multaMes = 0;
-    let ivaMes = 0;
-    let totalMes = 0;
+    let ivaMes = 0;        // IVA completo (16%)
+    let retencionMes = 0;  // IVA retenido (75%) — solo agentes de retención
+    let totalMes = 0;      // lo que va a cancelar
 
     if (r.referencia?.startsWith('RECIB-HIST-')) {
       const pm = histMes(r);
       if (pm) {
         baseMes = pm.base;
         multaMes = pm.multa;
-        ivaMes = pm.ivaNeto;
+        ivaMes = pm.iva;
+        retencionMes = pm.retencion;
         totalMes = pm.totalNeto;
       }
     } else if (r.referencia?.startsWith('CM-')) {
@@ -269,16 +271,16 @@ export default function EstadoCuentaPage() {
       if (inm) {
         const esRes = isResidencialInm(inm);
         baseMes = parseFloat(calcularMensualidad(inm, currentRate).toFixed(2));
-        const rawIva = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
-        ivaMes = inm.agente_retencion ? parseFloat((rawIva * 0.25).toFixed(2)) : rawIva;
-        totalMes = baseMes + ivaMes;
+        ivaMes = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
+        retencionMes = inm.agente_retencion ? parseFloat((ivaMes * 0.75).toFixed(2)) : 0;
+        totalMes = baseMes + ivaMes - retencionMes;
       }
     } else {
       totalMes = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
       baseMes = totalMes;
     }
 
-    return { baseMes, multaMes, ivaMes, totalMes };
+    return { baseMes, multaMes, ivaMes, retencionMes, totalMes };
   };
 
   // Filtrar recibos del usuario (priorizando DB)
@@ -453,6 +455,7 @@ export default function EstadoCuentaPage() {
       const sumBaseInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).baseMes, 0);
       const sumMultaInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).multaMes, 0);
       const sumIvaInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
+      const sumRetInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
       let totalInm = inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0);
       if (idx === 0) totalInm += totalServiciosBs;
 
@@ -481,7 +484,13 @@ export default function EstadoCuentaPage() {
           ['IVA (16.00%) Bs.', `Bs. ${sumIvaInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
         );
       }
-      resumenRows.push(['Total estado de cuenta Bs.', `Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      resumenRows.push(['Total estado de cuenta Bs.', `Bs. ${(totalInm + sumRetInm).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      if (sumRetInm > 0) {
+        resumenRows.push(
+          ['IVA Retenido 75% (Agente de Retención) Bs.', `- Bs. ${sumRetInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['IVA a Cancelar (25%) Bs.', `Bs. ${(sumIvaInm - sumRetInm).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+        );
+      }
 
       resumenRows.forEach(([label, value]) => {
         doc.setFont('helvetica', 'normal');
@@ -498,7 +507,7 @@ export default function EstadoCuentaPage() {
       // ── TOTAL A PAGAR ──
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
-      doc.text('TOTAL A PAGAR', 14, y);
+      doc.text(sumRetInm > 0 ? 'TOTAL A CANCELAR (con retención de IVA)' : 'TOTAL A PAGAR', 14, y);
       doc.text(`Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, y, { align: 'right' });
       y += 2;
       doc.line(14, y, 196, y);
@@ -520,9 +529,9 @@ export default function EstadoCuentaPage() {
           periodoDate,
           det,
           b.baseMes.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
-          '0,00',
           b.multaMes.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
           b.ivaMes.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
+          b.retencionMes > 0 ? `- ${b.retencionMes.toLocaleString('es-VE', { minimumFractionDigits: 2 })}` : '0,00',
           monto.toLocaleString('es-VE', { minimumFractionDigits: 2 })
         ];
       });
@@ -543,7 +552,7 @@ export default function EstadoCuentaPage() {
       try {
         autoTable(doc, {
           startY: y,
-          head: [['PERIODO', 'DETALLE', 'RECOLECCIÓN', 'INT REC', 'MULTA', 'IVA', 'TOTAL BS']],
+          head: [['PERIODO', 'DETALLE', 'RECOLECCIÓN', 'MULTA', 'IVA 16%', 'IVA RETENIDO', 'A CANCELAR BS']],
           body: detalleRows,
           theme: 'grid',
           headStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold', lineColor: [0,0,0], lineWidth: 0.3, halign: 'center' },
@@ -781,6 +790,18 @@ export default function EstadoCuentaPage() {
             <h3 className="font-bold text-red-700 uppercase text-sm tracking-wide">Recibos Pendientes</h3>
             <span className="ml-auto text-xs font-bold text-red-600">Total: Bs. {formatBs(totalPendBs)}</span>
           </div>
+          {(() => {
+            const ivaTot = pendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
+            const retTot = pendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
+            if (retTot <= 0) return null;
+            return (
+              <div className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-red-100 text-xs">
+                <div className="bg-blue-50 border border-blue-100 rounded px-2 py-1.5"><span className="block text-blue-700 font-semibold">IVA completo (16%)</span><span className="font-black text-blue-900">Bs. {formatBs(ivaTot)}</span></div>
+                <div className="bg-amber-50 border border-amber-100 rounded px-2 py-1.5"><span className="block text-amber-700 font-semibold">IVA retenido 75% (Agente de Retención)</span><span className="font-black text-amber-900">- Bs. {formatBs(retTot)}</span></div>
+                <div className="bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5"><span className="block text-emerald-700 font-semibold">Total a cancelar</span><span className="font-black text-emerald-900">Bs. {formatBs(totalPendBs)}</span></div>
+              </div>
+            );
+          })()}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-red-50/50 border-b border-red-100 text-xs uppercase text-slate-500">

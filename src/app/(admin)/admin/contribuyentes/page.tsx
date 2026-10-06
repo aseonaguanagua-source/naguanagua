@@ -968,6 +968,13 @@ function ContribuyentesPageContent() {
       const totalServiciosBs = serviciosPendientes.reduce((a: number, s: any) => a + (parseFloat(s.monto) || 0), 0);
 
       const totalPagarLocal = subtotalBaseLocal + subtotalIvaLocal + subtotalMultasLocal + totalServiciosBs;
+      // Agente de retención: retiene el 75% del IVA de sus inmuebles comerciales y cancela el resto.
+      const ivaRetenidoLocal = esRes ? 0 : Math.round(clusterInmBreakdown.reduce((s: number, b: any) => {
+        const inmB = cluster.inmuebles.find((i: any) => i.inmueble === b.inmueble);
+        return s + ((inmB?.agente_retencion === true || String(inmB?.agente_retencion) === 'true') ? b.ivaTotal * 0.75 : 0);
+      }, 0) * 100) / 100;
+      const esAgenteLocal = ivaRetenidoLocal > 0;
+      const totalCancelarLocal = totalPagarLocal - ivaRetenidoLocal;
 
       // Determinar fechas de período
       let periodoDesde = 'N/A';
@@ -1176,6 +1183,12 @@ function ContribuyentesPageContent() {
       }
 
       resumenRows.push(['Total Estado de Cuenta Bs.:', `Bs. ${totalPagarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      if (esAgenteLocal) {
+        resumenRows.push(
+          ['IVA Retenido 75% (Agente de Retención) Bs.:', `- Bs. ${ivaRetenidoLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['IVA a Cancelar (25%) Bs.:', `Bs. ${(subtotalIvaLocal - ivaRetenidoLocal).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+        );
+      }
 
       doc.setFontSize(8);
       resumenRows.forEach(([lbl, val]) => {
@@ -1193,8 +1206,8 @@ function ContribuyentesPageContent() {
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(220, 38, 38);
-      doc.text('TOTAL A PAGAR', 14, y);
-      doc.text(`Bs. ${totalPagarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, y, { align: 'right' });
+      doc.text(esAgenteLocal ? 'TOTAL A CANCELAR (con retención de IVA)' : 'TOTAL A PAGAR', 14, y);
+      doc.text(`Bs. ${totalCancelarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, y, { align: 'right' });
       doc.setTextColor(0, 0, 0);
       y += 2;
       doc.line(14, y, 196, y);
@@ -1317,7 +1330,10 @@ function ContribuyentesPageContent() {
           subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           subtotalIvaLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           totalPagarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        ]],
+        ], ...(esAgenteLocal ? [
+          ['', 'IVA RETENIDO 75% (Agente de Retención)', '', '', `- ${ivaRetenidoLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, `- ${ivaRetenidoLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['', 'TOTAL A CANCELAR', '', '', (subtotalIvaLocal - ivaRetenidoLocal).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalCancelarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })]
+        ] : [])],
         theme: 'grid',
         headStyles: {
           fillColor: [248, 250, 252], textColor: [15, 23, 42],
@@ -3625,6 +3641,18 @@ function ContribuyentesPageContent() {
                       return sum + ( (baseUnMes + iva) * meses ) + totalMulta;
                     }, 0);
                     const tieneDeudaReal = deudaInmuebleBs > 0.01;
+                    // Agente de retención: IVA completo, IVA retenido (75%) y monto a cancelar
+                    const esAgenteInm = (inm: any) => inm.agente_retencion === true || String(inm.agente_retencion) === 'true';
+                    const ivaCompletoUser = userInms.reduce((s: number, inm: any) => isResidencialInm(inm) ? s : s + calcularMensualidad(inm, tcmmv) * 0.16 * Math.max(0, parseInt(inm.meses_deuda || 0)), 0);
+                    const ivaRetenidoUser = Math.round(userInms.reduce((s: number, inm: any) => (isResidencialInm(inm) || !esAgenteInm(inm)) ? s : s + calcularMensualidad(inm, tcmmv) * 0.16 * Math.max(0, parseInt(inm.meses_deuda || 0)) * 0.75, 0) * 100) / 100;
+                    const fmtBs = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const bloqueRetencion = (totalBruto: number) => ivaRetenidoUser > 0 ? (
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                        <div className="bg-blue-50 border border-blue-100 rounded px-2 py-1"><span className="block text-blue-700 font-semibold">IVA completo (16%)</span><span className="font-black text-blue-900">Bs. {fmtBs(ivaCompletoUser)}</span></div>
+                        <div className="bg-amber-50 border border-amber-100 rounded px-2 py-1"><span className="block text-amber-700 font-semibold">IVA retenido 75% (Agente)</span><span className="font-black text-amber-900">- Bs. {fmtBs(ivaRetenidoUser)}</span></div>
+                        <div className="bg-emerald-50 border border-emerald-100 rounded px-2 py-1"><span className="block text-emerald-700 font-semibold">Total a cancelar</span><span className="font-black text-emerald-900">Bs. {fmtBs(Math.max(0, totalBruto - ivaRetenidoUser))}</span></div>
+                      </div>
+                    ) : null;
                     if (deudas.length === 0 && !tieneDeudaReal) {
                       return (
                         <div className="p-6 text-center">
@@ -3775,6 +3803,18 @@ function ContribuyentesPageContent() {
                                   <td colSpan={7} className="p-2.5 text-slate-700 uppercase tracking-wide">Total Deuda Consolidada</td>
                                   <td className="p-2.5 text-right text-red-700 font-black">Bs. {deudaInmuebleBs.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
                                 </tr>
+                                {ivaRetenidoUser > 0 && (
+                                  <>
+                                    <tr className="bg-amber-50 font-bold text-xs">
+                                      <td colSpan={7} className="p-2.5 text-amber-800 uppercase tracking-wide">IVA completo Bs. {fmtBs(ivaCompletoUser)} — IVA retenido 75% (Agente de Retención)</td>
+                                      <td className="p-2.5 text-right text-amber-800 font-black">- Bs. {fmtBs(ivaRetenidoUser)}</td>
+                                    </tr>
+                                    <tr className="bg-emerald-50 font-bold text-xs">
+                                      <td colSpan={7} className="p-2.5 text-emerald-800 uppercase tracking-wide">Total a cancelar</td>
+                                      <td className="p-2.5 text-right text-emerald-800 font-black">Bs. {fmtBs(Math.max(0, deudaInmuebleBs - ivaRetenidoUser))}</td>
+                                    </tr>
+                                  </>
+                                )}
                               </tfoot>
                             </table>
                           </div>
@@ -3788,6 +3828,7 @@ function ContribuyentesPageContent() {
                           <div>
                             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Monto Total Adeudado</span>
                             <span className="text-xl font-black text-red-600">Bs. {totalBs.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                            {bloqueRetencion(totalBs)}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-bold border border-slate-200">

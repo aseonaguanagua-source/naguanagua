@@ -10,6 +10,7 @@ import { logAudit } from '@/lib/audit';
 import AdminRetenciones from '@/components/AdminRetenciones';
 import { LISTA_BANCOS } from '@/lib/bancos';
 import { calcularMensualidad, isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
+import { desglosarPago } from '@/lib/desglosePago';
 
 type Pago = {
   id: string;
@@ -240,6 +241,23 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
   const totalPendiente = pendientes.reduce((a, f) => a + (parseFloat(String(f.monto||'0').replace(/[^0-9.]/g,''))||0), 0);
   const totalPagado = pagadas.reduce((a, f) => a + (parseFloat(String(f.monto||'0').replace(/[^0-9.]/g,''))||0), 0);
 
+  // Desglose real del pago (misma fórmula de Caja): base, multa, IVA completo, IVA retenido y total a cancelar
+  const desglose = (() => {
+    try {
+      const todos: any[] = inmueble?._todos || [];
+      if (todos.length === 0) return null;
+      const map = new Map<string, any>(todos.map((i: any) => [String(i.inmueble), i]));
+      const d = desglosarPago(pago, map);
+      return d.lineas.length > 0 ? d : null;
+    } catch { return null; }
+  })();
+  const dBase = desglose ? desglose.lineas.reduce((s, l) => s + l.base, 0) : 0;
+  const dMulta = desglose ? desglose.lineas.reduce((s, l) => s + l.multa, 0) : 0;
+  const dIva = desglose ? desglose.lineas.reduce((s, l) => s + l.iva, 0) : 0;
+  const dRet = desglose ? desglose.lineas.reduce((s, l) => s + l.retencion, 0) : 0;
+  const dExento = desglose ? desglose.lineas.filter(l => l.esResidencial || l.tipo !== 'mes').reduce((s, l) => s + l.base, 0) : totalDoc;
+  const dImponible = desglose ? desglose.lineas.filter(l => !l.esResidencial && l.tipo === 'mes').reduce((s, l) => s + l.base, 0) : 0;
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl my-4" onClick={e => e.stopPropagation()}>
@@ -325,24 +343,41 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
                   <div className="flex justify-between"><span className="text-blue-600">Monto del Pago Reportado Bs.:</span><span className="font-bold">{fmt(totalDoc)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-600">Total Recibos Pendientes:</span><span className="text-red-600 font-semibold">{fmt(totalPendiente)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-600">Total Recibos Pagadas:</span><span className="text-green-600 font-semibold">{fmt(totalPagado)}</span></div>
-                  <div className="flex justify-between"><span className="text-blue-600">Total Exento Bs.:</span><span>{fmt(totalDoc)}</span></div>
-                  <div className="flex justify-between"><span>Base Imponible Bs.:</span><span>0,00</span></div>
-                  <div className="flex justify-between"><span>IVA (16.00%) Bs.:</span><span>0,00</span></div>
-                  <div className="flex justify-between border-t pt-1 mt-1"><span className="font-semibold">Total estado de cuenta Bs.:</span><span className="font-bold">{fmt(totalDoc)}</span></div>
+                  <div className="flex justify-between"><span className="text-blue-600">Total Exento Bs.:</span><span>{fmt(dExento)}</span></div>
+                  <div className="flex justify-between"><span>Base Imponible Bs.:</span><span>{fmt(dImponible)}</span></div>
+                  {dMulta > 0 && <div className="flex justify-between"><span>Multas Bs.:</span><span>{fmt(dMulta)}</span></div>}
+                  <div className="flex justify-between"><span>IVA completo (16.00%) Bs.:</span><span>{fmt(dIva)}</span></div>
+                  {dRet > 0 && (
+                    <>
+                      <div className="flex justify-between text-amber-700"><span>IVA Retenido 75% (Agente de Retención) Bs.:</span><span className="font-semibold">- {fmt(dRet)}</span></div>
+                      <div className="flex justify-between"><span>IVA a Cancelar (25%) Bs.:</span><span>{fmt(dIva - dRet)}</span></div>
+                    </>
+                  )}
+                  <div className="flex justify-between border-t pt-1 mt-1"><span className="font-semibold">Total estado de cuenta Bs.:</span><span className="font-bold">{fmt(desglose ? dBase + dMulta + dIva : totalDoc)}</span></div>
                 </div>
               </div>
               <div className="bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 flex justify-between items-center">
-                <span className="text-lg font-bold text-slate-800 uppercase">Total a Pagar</span>
+                <span className="text-lg font-bold text-slate-800 uppercase">{dRet > 0 ? 'Total a Cancelar (con retención de IVA)' : 'Total a Pagar'}</span>
                 <span className="text-xl font-bold text-slate-900">Bs. {fmt(totalDoc)}</span>
               </div>
               <div>
                 <div className="bg-slate-200 px-3 py-1.5 font-bold text-sm text-slate-700 text-center uppercase mb-2 rounded">Estado de Cuenta Detallado</div>
                 <table className="w-full text-xs border border-slate-200 rounded">
                   <thead className="bg-slate-100">
-                    <tr>{['Periodo','Detalle','Recoleccion','Int Rec','Multa','IVA','Total BS'].map(h=><th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr>
+                    <tr>{['Periodo','Inmueble','Recoleccion','Multa','IVA 16%','IVA Retenido','A Cancelar'].map(h=><th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr>
                   </thead>
                   <tbody>
-                    {pendientes.length > 0 ? pendientes.map((f,i) => {
+                    {desglose ? desglose.lineas.map((l, i) => (
+                      <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-3 py-2">{l.periodo}</td>
+                        <td className="px-3 py-2 font-mono">{l.codigo}</td>
+                        <td className="px-3 py-2 text-right">{fmt(l.base)}</td>
+                        <td className="px-3 py-2 text-right">{fmt(l.multa)}</td>
+                        <td className="px-3 py-2 text-right">{fmt(l.iva)}</td>
+                        <td className="px-3 py-2 text-right text-amber-700">{l.retencion > 0 ? `- ${fmt(l.retencion)}` : '0,00'}</td>
+                        <td className="px-3 py-2 text-right font-bold">{fmt(l.total)}</td>
+                      </tr>
+                    )) : pendientes.length > 0 ? pendientes.map((f,i) => {
                       const m = parseFloat(String(f.monto||'0').replace(/[^0-9.]/g,''));
                       return (
                         <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
