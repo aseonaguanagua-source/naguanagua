@@ -213,6 +213,19 @@ const IGNORAR_HIJOS_DE_PADRES = ABSORBIDOS;
     process.stdout.write(`\r${Math.min(i + 500, filas.length)}/${filas.length} unidades`);
     await sleep(200);
   }
+  // Copias duplicadas de HMR (cuelgan de sus actividades o de URB009841): se desactivan con respaldo (aprobado 06/10/2026)
+  const padresHMR = [...(FORZAR_CONDOMINIO.URB009841.unidades || []), 'URB009841'];
+  const copias = all.filter(i => i.identidad === 'J-300605930' && i.estado !== 'Eliminado' && padresHMR.includes(String(i.condominio_padre_id || '').toUpperCase()));
+  if (copias.length) {
+    const respaldo = path.resolve('..', `respaldo_copias_HMR_${Date.now()}.json`);
+    fs.writeFileSync(respaldo, JSON.stringify(copias, null, 1));
+    for (let i = 0; i < copias.length; i += 100) {
+      const { error } = await sb.from('inmuebles').update({ estado: 'Eliminado' }).in('id', copias.slice(i, i + 100).map(c => c.id));
+      if (error) throw new Error(`copias HMR: ${error.message}`);
+    }
+    await sb.from('auditoria').insert({ accion: 'Desactivación de inmuebles duplicados', usuario: 'Sistema (autorizado por DZ-Administrador)', detalles: { identidad: 'J-300605930', cantidad: copias.length, motivo: 'Copias duplicadas de INVERSIONES HMR; el condominio URB009841 paga cada local por su actividad', respaldo, _categoria: 'DATOS', criticidad: 'ALTA' } });
+    console.log(`\n${copias.length} copias de HMR desactivadas (respaldo: ${respaldo})`);
+  }
   await sb.from('auditoria').insert({ accion: 'Migración módulo condominios', usuario: 'Sistema', detalles: { condominios: condos.length, unidades: filas.length, _categoria: 'DATOS', criticidad: 'ALTA' } });
   console.log('\nMigración aplicada.');
   process.exit(0);
