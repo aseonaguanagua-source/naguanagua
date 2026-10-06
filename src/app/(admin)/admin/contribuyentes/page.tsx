@@ -1979,7 +1979,41 @@ function ContribuyentesPageContent() {
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Nro Identidad</label>
+                <div className="flex gap-1">
                 <input type="text" maxLength={isNew ? 10 : 14} value={formData.Identidad} readOnly={!isNew} onChange={e => isNew && setFormData({...formData, Identidad: e.target.value.replace(/[^0-9]/g, '')})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 read-only:bg-slate-100" required />
+                {!isNew && (
+                  <button
+                    type="button"
+                    id="btn-cambiar-identidad"
+                    title="Corregir la cédula / RIF en todo el sistema"
+                    onClick={async () => {
+                      const actual = String(formData.Identidad || '');
+                      const nueva = window.prompt(`Cédula/RIF actual: ${actual}\n\nEscriba la identidad correcta (ej: V-12345678, E-81225289, J-123456789):`, actual);
+                      if (!nueva || nueva.trim().toUpperCase() === actual.toUpperCase()) return;
+                      if (!window.confirm(`Se cambiará ${actual} → ${nueva.trim().toUpperCase()} en inmuebles, pagos, facturas, convenios y documentos.\n\n¿Confirmar?`)) return;
+                      try {
+                        const res = await fetch('/api/admin/contribuyentes/cambiar-identidad', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ actual, nueva, usuario: typeof window !== 'undefined' ? (sessionStorage.getItem('admin_user') || localStorage.getItem('admin_user') || undefined) : undefined }),
+                        });
+                        const j = await res.json();
+                        if (!res.ok) throw new Error(j.error || 'Error');
+                        setFormData({ ...formData, Identidad: j.identidad });
+                        setOriginalData((o: any) => o ? { ...o, Identidad: j.identidad } : o);
+                        setEditingId(j.identidad);
+                        await refreshUserData(j.identidad).catch(() => {});
+                        alert(`Identidad cambiada a ${j.identidad}.`);
+                      } catch (err: any) {
+                        alert('No se pudo cambiar la identidad: ' + err.message);
+                      }
+                    }}
+                    className="shrink-0 px-2 text-[11px] font-semibold rounded border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100"
+                  >
+                    Cambiar
+                  </button>
+                )}
+                </div>
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Nombre o Razón Social</label>

@@ -1245,7 +1245,7 @@ export default function CajaPage() {
       return alert("Debe ingresar un monto válido a abonar para el condominio.");
     }
     
-    if (sumIVARetencionable > 0 && retencionIVA > 0 && !comprobanteRetencion.trim()) return alert("Debe ingresar el número de comprobante de retención de IVA para los comercios autorizados.");
+    // El comprobante de retención de IVA es OPCIONAL en Caja (decisión del municipio)
     const calculatedTotalBs = sumBase + sumIVA + sumMulta;
     const realMontoRetencionIVA = sumIVARetencionable * (retencionIVA / 100);
     const totalConImpuestos = calculatedTotalBs - realMontoRetencionIVA;
@@ -4198,11 +4198,10 @@ export default function CajaPage() {
                         <div className="mt-2">
                           <input 
                             type="text" 
-                            placeholder="N° Comprobante de Retención IVA SENIAT *" 
+                            placeholder="N° Comprobante de Retención IVA (opcional)" 
                             value={comprobanteRetencion}
                             onChange={e => setComprobanteRetencion(e.target.value)}
                             className="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-emerald-500 font-mono"
-                            required
                           />
                         </div>
                       )}

@@ -3,6 +3,7 @@ import { getResendClient, DEFAULT_RESEND_FROM } from '@/lib/emailClient';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { clasificarPago, extraerCodigoInmueble, parseDetalles, ClasificacionPago } from '@/lib/documentoPago';
 import { isResidencialInm } from '@/lib/calculos';
+import { desglosarPago, COLS_INMUEBLE_DESGLOSE, DesglosePago } from '@/lib/desglosePago';
 
 /**
  * Recibos de pago por correo (NO fiscales): solo residenciales (lo comercial, incluidas sus multas, se factura).
@@ -19,6 +20,7 @@ export interface DatosRecibo {
   lineas: { codigo: string; direccion: string; uso: string; meses: number; multa: boolean }[];
   numeroRecibo: string;
   fechaPago: string;
+  desglose: DesglosePago;
 }
 
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
@@ -41,7 +43,7 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
   if (codigos.length > 0) {
     const { data: inms } = await supabase
       .from('inmuebles')
-      .select('inmueble, tipo, clasificacion, actividad_principal, direccion, correo_electronico, contribuyente')
+      .select(COLS_INMUEBLE_DESGLOSE)
       .in('inmueble', codigos);
     (inms || []).forEach((i: any) => inmMap.set(i.inmueble, i));
   }
@@ -71,6 +73,7 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
     pago, det, contribuyente, identidad: pago.identidad, correoCliente, clasif, lineas,
     numeroRecibo: `RC-${String(pago.id).replace(/-/g, '').slice(0, 8).toUpperCase()}`,
     fechaPago: fechaCaracas(det.fecha_transaccion || pago.created_at),
+    desglose: desglosarPago(pago, inmMap),
   };
 }
 
@@ -85,6 +88,25 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
       </td>
     </tr>`).join('');
   const formaPago = [d.pago.tipo, d.pago.banco && d.pago.banco !== d.pago.tipo ? d.pago.banco : ''].filter(Boolean).join(' · ');
+
+  // Detalle por período (mes pagado con su aseo, IVA y multa; multas sueltas aparte)
+  const dg = d.desglose;
+  const td = 'padding:6px 8px;border-bottom:1px solid #e2e8f0;';
+  const hayIva = dg?.lineas?.some(l => l.iva > 0);
+  const detallePeriodos = dg && dg.lineas.length > 0 ? `
+        ${dg.periodoTexto ? `<p style="margin:0 0 8px;font-size:13px;color:#0f172a;"><strong>Período cancelado:</strong> ${esc(dg.periodoTexto)}</p>` : ''}
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;margin-bottom:20px;border:1px solid #e2e8f0;border-radius:8px;">
+          <tr style="background:#f1f5f9;">
+            <th style="padding:8px;text-align:left;color:#475569;">Período</th>
+            ${dg.cuadra ? `<th style="padding:8px;text-align:right;color:#475569;">Aseo</th>${hayIva ? '<th style="padding:8px;text-align:right;color:#475569;">IVA</th>' : ''}<th style="padding:8px;text-align:right;color:#475569;">Multa</th><th style="padding:8px;text-align:right;color:#475569;">Total</th>` : '<th style="padding:8px;text-align:right;color:#475569;">Concepto</th>'}
+          </tr>
+          ${dg.lineas.map(l => `<tr>
+            <td style="${td}color:#0f172a;">${esc(l.periodo)}${d.lineas.length > 1 ? ` <span style="color:#64748b;font-size:11px;">(${esc(l.codigo)})</span>` : ''}</td>
+            ${dg.cuadra
+              ? `<td style="${td}text-align:right;">${l.base ? fmtBs(l.base) : '-'}</td>${hayIva ? `<td style="${td}text-align:right;">${l.iva ? fmtBs(l.iva - l.retencion) : '-'}</td>` : ''}<td style="${td}text-align:right;${l.multa ? 'color:#b91c1c;font-weight:bold;' : ''}">${l.multa ? fmtBs(l.multa) : '-'}</td><td style="${td}text-align:right;font-weight:bold;">${fmtBs(l.total)}</td>`
+              : `<td style="${td}text-align:right;">${l.tipo === 'multa' ? 'Multa por mora' : 'Aseo urbano'}</td>`}
+          </tr>`).join('')}
+        </table>` : '';
 
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><title>${titulo} - IAMEC Naguanagua</title></head>
@@ -110,6 +132,7 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
           <tr style="background:#f1f5f9;"><th style="padding:8px;text-align:left;color:#475569;">Inmueble</th><th style="padding:8px;text-align:left;color:#475569;">Dirección</th><th style="padding:8px;text-align:right;color:#475569;">Concepto</th></tr>
           ${filas}
         </table>` : ''}
+        ${detallePeriodos}
         <table width="100%" cellpadding="10" cellspacing="0" style="background:#ecfdf5;border-radius:8px;border:1px solid #a7f3d0;font-size:15px;">
           <tr><td style="color:#065f46;font-weight:bold;">TOTAL PAGADO</td><td style="text-align:right;color:#166534;font-size:18px;font-weight:800;">Bs ${fmtBs(d.pago.monto)}</td></tr>
         </table>

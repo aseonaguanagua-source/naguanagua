@@ -2,6 +2,21 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { extraerCodigoInmueble, parseDetalles } from '@/lib/documentoPago';
 import { isResidencialInm } from '@/lib/calculos';
+import { desglosarPago, COLS_INMUEBLE_DESGLOSE, LineaDesglose } from '@/lib/desglosePago';
+
+/** Conceptos del recibo a partir del desglose por período (base, IVA, retención y multa de cada mes). */
+function conceptosDeDesglose(lineas: LineaDesglose[]) {
+  const out: { descripcion: string; precioUnit: number; total: number }[] = [];
+  for (const l of lineas) {
+    if (l.tipo === 'multa') { out.push({ descripcion: `Multa por mora - Aseo Urbano (${l.codigo})`, precioUnit: l.multa, total: l.multa }); continue; }
+    if (l.tipo === 'otro') { out.push({ descripcion: `Servicio de Aseo Urbano (${l.periodo})`, precioUnit: l.total, total: l.total }); continue; }
+    out.push({ descripcion: `Aseo Urbano ${l.periodo} - Base Imponible (${l.codigo})`, precioUnit: l.base, total: l.base });
+    if (l.iva > 0) out.push({ descripcion: `Aseo Urbano ${l.periodo} - IVA (16%)`, precioUnit: l.iva, total: l.iva });
+    if (l.retencion > 0) out.push({ descripcion: `Aseo Urbano ${l.periodo} - Retención IVA (75%)`, precioUnit: -l.retencion, total: -l.retencion });
+    if (l.multa > 0) out.push({ descripcion: `Aseo Urbano ${l.periodo} - Multa (${l.esResidencial ? '10%' : '12%'})`, precioUnit: l.multa, total: l.multa });
+  }
+  return out;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +47,25 @@ export async function GET(request: Request) {
     if (!pago) return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 });
 
     const det = parseDetalles(pago.detalles);
+
+    // Desglose real por período (incluye las multas pagadas)
+    const refsAll: string[] = Array.isArray(det.recibos) ? det.recibos : [];
+    const codsAll = [...new Set(refsAll.map(r => extraerCodigoInmueble(r)).filter(Boolean))] as string[];
+    const { data: inmsDesg } = codsAll.length
+      ? await supabase.from('inmuebles').select(COLS_INMUEBLE_DESGLOSE).in('inmueble', codsAll)
+      : { data: [] as any[] };
+    const desglose = desglosarPago(pago, new Map((inmsDesg || []).map((i: any) => [i.inmueble, i])));
+
     if (Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0) {
-      return NextResponse.json({ success: true, original: true, recibos: det.recibo_caja });
+      // Recibo original de Caja. Si quedó con un solo concepto genérico, se completa con el desglose por período.
+      const recibos = det.recibo_caja.map((rc: any) => {
+        const generico = Array.isArray(rc?.conceptos) && rc.conceptos.length === 1 && /Servicio de Aseo Urbano y Domiciliario|Abono/i.test(rc.conceptos[0]?.descripcion || '');
+        if (det.recibo_caja.length === 1 && generico && desglose.cuadra) {
+          return { ...rc, conceptos: conceptosDeDesglose(desglose.lineas), periodo: desglose.periodoTexto || rc.periodo };
+        }
+        return rc;
+      });
+      return NextResponse.json({ success: true, original: true, recibos });
     }
 
     // ── Reconstrucción ──
@@ -87,7 +119,9 @@ export async function GET(request: Request) {
     }
     const suma = r2(conceptos.reduce((s, c) => s + c.total, 0));
     const cuadra = conceptos.length > 0 && Math.abs(suma - monto) <= 0.05;
-    const lineas = cuadra ? conceptos : [{ descripcion: 'Servicio de Aseo Urbano y Domiciliario', precioUnit: monto, total: monto }];
+    const lineas = cuadra ? conceptos
+      : desglose.cuadra ? conceptosDeDesglose(desglose.lineas)
+      : [{ descripcion: 'Servicio de Aseo Urbano y Domiciliario', precioUnit: monto, total: monto }];
 
     const inmPrincipal: any = codigos.map(c => inmMap.get(c)).find(Boolean);
     const esComercial = (inms || []).some((i: any) => !isResidencialInm(i));
@@ -103,7 +137,7 @@ export async function GET(request: Request) {
       domicilioFiscal: String(inmPrincipal?.direccion || cont?.direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
       rifCi: pago.identidad,
       caja: det.cajero || '',
-      periodo,
+      periodo: desglose.periodoTexto || periodo,
       conceptos: lineas,
       subTotal: monto,
       exento: monto,
