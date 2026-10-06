@@ -131,7 +131,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // ======================================================================
       if (!forceFresh && typeof window !== 'undefined') {
         const cached = await getFromIndexedDB<any>('naguanagua_full_cache');
-        if (cached && cached.version === CURRENT_CACHE_VERSION && Array.isArray(cached.inmuebles) && cached.inmuebles.length > 0) {
+        if (cached && (cached.version === CURRENT_CACHE_VERSION || cached.version === 'v2026_10_06_carga_completa_v1') && Array.isArray(cached.inmuebles) && cached.inmuebles.length > 0) {
           // CARGA INSTANTÁNEA (< 50ms)
           setInmuebles(cached.inmuebles);
           setContribuyentes(cached.contribuyentes || []);
