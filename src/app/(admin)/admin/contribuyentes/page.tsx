@@ -1813,11 +1813,11 @@ function ContribuyentesPageContent() {
         
       if (err1) throw err1;
 
-      // Delete all pending recibos for this taxpayer
+      // Delete pending recibos for this taxpayer (por cédula, nunca por nombre)
       const { error: errDelete } = await supabase
         .from('facturas')
         .delete()
-        .eq('contribuyente', formData.Contribuyente)
+        .eq('identidad', formData.Identidad)
         .eq('estado', 'Pendiente');
         
       if (errDelete) throw errDelete;

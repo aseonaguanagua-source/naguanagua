@@ -4,6 +4,7 @@ import { Calculator, X, AlertCircle, Calendar, CheckSquare, Square, Building, Ch
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
 import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
+import { logAudit } from '@/lib/audit';
 
 interface MonthItem {
   key: string;        // '2024-01'
@@ -269,6 +270,12 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       const fechaHoy = new Date().toLocaleDateString('es-VE');
       const registroNota = `[${fechaHoy}] AJUSTE DE DEUDA: Asignados ${selectedCount} meses (${financialSummary.periodoTexto}). Total estimado: Bs. ${financialSummary.totalGeneral.toFixed(2)}. Motivo: ${nota.trim()} (Autorizado por: ${claveLimpia})`;
 
+      // Respaldo de los valores anteriores (para auditoría y posible reverso)
+      const valoresPrevios = targetInms.map((i: any) => ({
+        inmueble: i.inmueble, meses_deuda: i.meses_deuda, deuda_mmv: i.deuda_mmv,
+        multa_bs: i.multa_bs, deuda_congelada_bs: i.deuda_congelada_bs,
+      }));
+
       for (const inm of targetInms) {
         const mmvMes = parseFloat(inm.mmv_mes || '0');
         const nuevaDeudaMmv = parseFloat((selectedCount * mmvMes).toFixed(5));
@@ -315,18 +322,33 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
         }
       }
 
-      // Limpieza segura de facturas pendientes huérfanas sin bloquear si RLS lo previene
-      try {
-        await supabase
-          .from('facturas')
-          .delete()
-          .eq('identidad', rowIdentidad)
-          .eq('estado', 'Pendiente');
-      } catch (fErr) {
-        console.warn('Limpieza de facturas pendientes omitida o no requerida:', fErr);
+      // Limpieza de facturas pendientes: SOLO del contribuyente (por cédula) y, si se ajustó un inmueble,
+      // solo las de ese inmueble (nunca por nombre, que puede repetirse entre contribuyentes).
+      if (rowIdentidad) {
+        try {
+          let q = supabase.from('facturas').delete().eq('identidad', rowIdentidad).eq('estado', 'Pendiente');
+          if (targetInmCode !== 'ALL' && targetInms.length === 1 && targetInms[0]?.inmueble) {
+            q = q.like('referencia', `%${targetInms[0].inmueble}%`);
+          }
+          const { error: errDel } = await q;
+          if (errDel) console.warn('Limpieza de facturas pendientes omitida:', errDel.message);
+        } catch (fErr) {
+          console.warn('Limpieza de facturas pendientes omitida o no requerida:', fErr);
+        }
       }
 
-      // Registro de Auditoría
+      // Registro de Auditoría (con valores anteriores y nuevos)
+      await logAudit('Ajuste de deuda (meses)', {
+        identidad: rowIdentidad,
+        contribuyente: rowContribuyente,
+        inmuebles: targetInms.map((i: any) => i.inmueble),
+        meses_nuevos: selectedCount,
+        periodo: financialSummary.periodoTexto,
+        total_estimado_bs: financialSummary.totalGeneral,
+        valores_previos: valoresPrevios,
+        motivo: nota.trim(),
+        autorizado_por: claveLimpia,
+      }, 'DEUDA', 'CRITICA');
       if (addAuditLog) {
         await addAuditLog(
           'AJUSTAR_DEUDA_MESES',

@@ -32,6 +32,27 @@ const updateServiciosEspecialesEstado = async (referencias: string[], estado: st
   }
 };
 
+/**
+ * Foto de la deuda de los inmuebles ANTES del cobro (se guarda en detalles.deuda_previa del pago).
+ * Permite revertir un pago sin depender del respaldo de SIGYR. Nunca bloquea el cobro.
+ */
+const snapshotDeudaPrevia = async (identidad: string, hijosIds: string[] = []) => {
+  try {
+    const cols = 'id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs';
+    const { data: propios } = await supabase.from('inmuebles').select(cols).eq('identidad', identidad);
+    let hijos: any[] = [];
+    const ids = (hijosIds || []).filter(Boolean);
+    if (ids.length > 0) {
+      const { data } = await supabase.from('inmuebles').select(cols).in('id', ids);
+      hijos = data || [];
+    }
+    const vistos = new Set<string>();
+    return [...(propios || []), ...hijos].filter((i: any) => !vistos.has(i.id) && vistos.add(i.id));
+  } catch (e) {
+    console.warn('No se pudo tomar la deuda previa:', e);
+    return [];
+  }
+};
 
 export default function CajaPage() {
   const { inmuebles, convenios, contribuyentes, documentos, tcmmv, refreshData, refreshUserData } = useAppContext();
@@ -1477,6 +1498,7 @@ export default function CajaPage() {
         }
 
         const pagoId = crypto.randomUUID();
+        const deudaPrevia = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
         const { error: insertErr } = await supabase.from('pagos_reportados').insert({
           id: pagoId,
           identidad: foundUser.Identidad,
@@ -1502,7 +1524,8 @@ export default function CajaPage() {
             iva_percent: ivaPercent,
             es_condominio: isCondominio,
             condominio_modo: condominioModo,
-            condominio_hijos_pagados: condominioModo === 'Local' ? selectedHijos : (condominioModo === 'Total' ? condominioHijos.map(h => h.id) : [])
+            condominio_hijos_pagados: condominioModo === 'Local' ? selectedHijos : (condominioModo === 'Total' ? condominioHijos.map(h => h.id) : []),
+            deuda_previa: deudaPrevia
           })
         });
         if (insertErr) {
@@ -2049,6 +2072,7 @@ export default function CajaPage() {
           }
         }
 
+        const deudaPreviaT = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
         const { error: pErr } = await supabase.from('pagos_reportados').insert({
           identidad: foundUser.Identidad,
           monto: montoReal,
@@ -2070,6 +2094,7 @@ export default function CajaPage() {
             saldo_usado: descuentoSaldoFavor,
             tasa_bcv: currentBcvRate,
             deuda_total_sistema: foundUser.DeudaTotal,
+            deuda_previa: deudaPreviaT,
             comprobante_nombre: comprobante?.name || '',
             comprobante_url: comprobanteUrl,
             comprobante_b64: comprobanteB64 || undefined,
