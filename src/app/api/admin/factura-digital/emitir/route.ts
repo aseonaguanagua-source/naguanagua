@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     const { 
       pagoId, recibos, montos, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
-      correoDestino, enviarCorreo = true 
+      correoDestino, enviarCorreo = true, dryRun = false
     } = await request.json();
 
     if (!pagoId) {
@@ -632,6 +632,31 @@ export async function POST(request: Request) {
     let nuevosDetalles: any = pagoData?.detalles || {};
     if (typeof nuevosDetalles === 'string') {
       try { nuevosDetalles = JSON.parse(nuevosDetalles); } catch(e) { nuevosDetalles = {}; }
+    }
+
+    // ===== VALIDACIÓN FISCAL OBLIGATORIA (una factura emitida NO se puede anular) =====
+    const erroresFiscales: string[] = [];
+    const tol = 0.05;
+    const sumItems = (detallesItems as any[]).reduce((s, it) => s + (parseFloat(it.ValorTotalItem) || 0), 0);
+    if (!(montoCobrado > 0)) erroresFiscales.push('El pago no tiene monto cobrado registrado; no se puede verificar el total.');
+    if (montoCobrado > 0 && totalAPagar > montoCobrado + tol)
+      erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja (${montoCobrado.toFixed(2)}).`);
+    if (montoCobrado > 0 && !esMixto && excluidosResidenciales === 0 && Math.abs(totalAPagar - montoCobrado) > tol)
+      erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con lo cobrado (${montoCobrado.toFixed(2)}).`);
+    if (Math.abs(sumItems - totalAPagar) > tol + 0.01 * detallesItems.length)
+      erroresFiscales.push(`La suma de los ítems (${sumItems.toFixed(2)}) no coincide con el total (${totalAPagar.toFixed(2)}).`);
+    if (Math.abs(totalIVA - totalGravado * 0.16) > tol + 0.01 * detallesItems.length)
+      erroresFiscales.push(`IVA (${totalIVA.toFixed(2)}) no es el 16% de la base gravada (${totalGravado.toFixed(2)}).`);
+    if (!numId) erroresFiscales.push('Falta el RIF/Cédula del comprador.');
+
+    if (dryRun) {
+      return NextResponse.json({ success: erroresFiscales.length === 0, dryRun: true, errores: erroresFiscales, montoCobrado, totalAPagar, payload: jsonTFHKA });
+    }
+    if (erroresFiscales.length > 0) {
+      console.error('[TFHKA] Emisión BLOQUEADA por validación fiscal:', erroresFiscales);
+      nuevosDetalles.factura_digital_error = 'Bloqueada por validación: ' + erroresFiscales.join(' | ');
+      await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
+      return NextResponse.json({ error: 'Emisión bloqueada (no se envió a TFHKA): ' + erroresFiscales.join(' | '), errores: erroresFiscales }, { status: 422 });
     }
 
     if (isTfhkaEnabled) {
