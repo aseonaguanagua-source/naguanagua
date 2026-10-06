@@ -1588,9 +1588,19 @@ export default function FacturacionElectronicaPage() {
                 <Eye className="w-5 h-5 text-violet-300" />
                 <h3 className="font-bold text-sm">Vista previa del recibo (así lo recibirá el contribuyente)</h3>
               </div>
-              <button onClick={() => setPreviewPagoId(null)} className="text-slate-400 hover:text-white cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3">
+                <a
+                  href={`/api/admin/recibos-digitales/pdf?pagoId=${previewPagoId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold"
+                >
+                  Ver PDF adjunto
+                </a>
+                <button onClick={() => setPreviewPagoId(null)} className="text-slate-400 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             <iframe
               title="Vista previa del recibo"

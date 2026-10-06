@@ -4,6 +4,7 @@ import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { clasificarPago, extraerCodigoInmueble, parseDetalles, ClasificacionPago } from '@/lib/documentoPago';
 import { isResidencialInm } from '@/lib/calculos';
 import { desglosarPago, COLS_INMUEBLE_DESGLOSE, DesglosePago } from '@/lib/desglosePago';
+import { construirReciboPdf } from '@/lib/reciboPdf';
 
 /**
  * Recibos de pago por correo (NO fiscales): solo residenciales (lo comercial, incluidas sus multas, se factura).
@@ -161,9 +162,17 @@ export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clien
   let copiaInternaEnviada = false;
   let error: string | undefined;
 
+  // PDF adjunto (cliente y copia de archivo). Si fallara la generación, el correo sale igual con el detalle en el cuerpo.
+  let attachments: { filename: string; content: Buffer }[] | undefined;
+  try {
+    attachments = [{ filename: `Recibo_${d.numeroRecibo}.pdf`, content: construirReciboPdf(d) }];
+  } catch (e: any) {
+    console.warn('[Recibo] No se pudo generar el PDF:', e?.message);
+  }
+
   if (d.correoCliente) {
     try {
-      const r = await resend.emails.send({ from, to: [d.correoCliente], subject: asunto, html: construirReciboHtml(d) });
+      const r = await resend.emails.send({ from, to: [d.correoCliente], subject: asunto, html: construirReciboHtml(d), attachments });
       if (r.error) error = r.error.message; else clienteEnviado = true;
     } catch (e: any) { error = e.message; }
   }
@@ -173,6 +182,7 @@ export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clien
         from, to: [backup],
         subject: `[ARCHIVO RECIBOS] ${d.numeroRecibo} - ${d.contribuyente} (${d.identidad})`,
         html: construirReciboHtml(d, { esCopiaInterna: true }),
+        attachments,
       });
       if (r.error) error = error || r.error.message; else copiaInternaEnviada = true;
     } catch (e: any) { error = error || e.message; }
