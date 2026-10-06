@@ -26,8 +26,8 @@ type AppState = {
   isLoading: boolean;
   cacheStatus: 'cached' | 'syncing' | 'fresh';
   setInmuebles: (inmuebles: any[]) => void;
-  updateContribuyente: (id: string, data: any) => void;
-  addContribuyente: (data: any) => void;
+  updateContribuyente: (id: string, data: any) => Promise<void>;
+  addContribuyente: (data: any) => Promise<string | void>;
   aprobarPreRegistro: (item: number) => void;
   addFactura: (recibo: any) => Promise<void>;
   addAuditLog: (action: string, details: string) => Promise<void>;
@@ -783,147 +783,179 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ── Helpers de registro/edición ─────────────────────────────────────────
+  const DESOCUPADO_LABEL = 'INMUEBLES Y LOCALES DESOCUPADOS';
+  const normalizarIdentidad = (raw: string, tipo: string = 'V'): string => {
+    const s = String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
+    const m = s.match(/^([VJGEP])-?(\d+)$/);
+    if (m) return `${m[1]}-${m[2]}`;
+    if (/^\d+$/.test(s)) return `${(tipo || 'V').toUpperCase()}-${s}`;
+    return s;
+  };
+  const tipoDeUso = (uso: string) => (uso === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL');
+  const actividadDeLocal = (local: any) =>
+    local.uso === 'Residencial'
+      ? (local.tipoResidencia || 'No aplica')
+      : (local.estatus === 'Desocupado' ? DESOCUPADO_LABEL : (local.actividad || ''));
+  /** Siguientes códigos URB###### libres (correlativo del catastro, sin colisiones). */
+  const siguientesCodigosInmueble = async (n: number): Promise<string[]> => {
+    const { data } = await supabase
+      .from('inmuebles')
+      .select('inmueble')
+      .like('inmueble', 'URB0%')
+      .lt('inmueble', 'URB099000')
+      .order('inmueble', { ascending: false })
+      .limit(200);
+    const max = (data || [])
+      .map((r: any) => String(r.inmueble))
+      .filter((c: string) => /^URB\d{6}$/.test(c))
+      .reduce((mx: number, c: string) => Math.max(mx, parseInt(c.slice(3), 10)), 0);
+    const out: string[] = [];
+    let next = max + 1;
+    while (out.length < n) {
+      const cand = `URB${String(next).padStart(6, '0')}`;
+      const { data: ex } = await supabase.from('inmuebles').select('id').eq('inmueble', cand).limit(1);
+      if (!ex || ex.length === 0) out.push(cand);
+      next++;
+    }
+    return out;
+  };
+
   const updateContribuyente = async (id: string, data: any) => {
     try {
       const notaToSave = data.Notas_Adicionales?.trim() || data.Nota?.trim() || null;
-      const cleanIdent = (id || '').replace(/-/g, '').toUpperCase();
-      const variants = getIdentidadVariants(id);
-      if (!variants.includes(id)) variants.push(id);
-      if (!variants.includes(cleanIdent)) variants.push(cleanIdent);
-      const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
+      const orig: any = data.__original || {};
+      // SOLO la identidad exacta del contribuyente (nunca variantes V-/J-/G- de otros RIF)
+      const identidadExacta = id;
+      const codigosPropios: string[] = Array.isArray(data.__inmuebleCodes) && data.__inmuebleCodes.length > 0
+        ? data.__inmuebleCodes
+        : [];
 
-      // 1. Asegurar / actualizar datos en tabla contribuyentes (requerido por FK inmuebles_identidad_fkey)
-      try {
-        const contribRecord: any = {
-          identidad: data.Identidad || id,
-          nombre: data.Contribuyente,
-          telefono: data.Telefono,
-          email: data.Correo,
-          direccion: data.Direccion
-        };
-        if (notaToSave) {
-          const { data: curC } = await supabase.from('contribuyentes').select('observaciones').or(orFilter).limit(1).maybeSingle();
-          const obsActual = curC?.observaciones || '';
-          const newEntry = `${new Date().toLocaleDateString('es-VE')}: ${notaToSave}`;
-          contribRecord.observaciones = obsActual ? `${newEntry}\n---\n${obsActual}` : newEntry;
-        }
-        await supabase.from('contribuyentes').upsert([contribRecord], { onConflict: 'identidad' });
-      } catch (eCont) {
-        console.warn('Advertencia al sincronizar contribuyente:', eCont);
-      }
-
-      // 2. Determinar nueva clasificación y actividad económica
-      const nuevaClasificacion = data.Clasificacion || 'Residencial';
-      const nuevaActividad = nuevaClasificacion === 'Residencial' 
-        ? (data.TipoResidencia || 'No aplica') 
-        : (data.ActividadComercial || data.Actividad || 'No aplica');
-      const nuevoMmv = calcularMmvMes(data, ordenanzasConfig);
-
-      const inmUpdate: any = {
-        contribuyente: data.Contribuyente,
+      // 1. Datos del contribuyente
+      const contribRecord: any = {
+        identidad: identidadExacta,
+        nombre: data.Contribuyente,
         telefono: data.Telefono,
-        correo_electronico: data.Correo,
-        direccion: data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion,
-        clasificacion: nuevaClasificacion,
-        actividad_principal: nuevaActividad,
-        mmv_mes: nuevoMmv,
-        agente_retencion: data.esAgenteRetencion === true
+        email: data.Correo,
+        direccion: data.Direccion
       };
       if (notaToSave) {
-        inmUpdate.notas = notaToSave;
+        const { data: curC } = await supabase.from('contribuyentes').select('observaciones').eq('identidad', identidadExacta).maybeSingle();
+        const obsActual = curC?.observaciones || '';
+        const newEntry = `${new Date().toLocaleDateString('es-VE')}: ${notaToSave}`;
+        contribRecord.observaciones = obsActual ? `${newEntry}\n---\n${obsActual}` : newEntry;
       }
+      const { error: errC } = await supabase.from('contribuyentes').upsert([contribRecord], { onConflict: 'identidad' });
+      if (errC) throw new Error('No se pudo guardar el contribuyente: ' + errC.message);
 
-      let q = supabase.from('inmuebles').update(inmUpdate);
-      if (data.Inmueble && data.Inmueble !== 'Principal' && !String(data.Inmueble).startsWith('RES-') && !String(data.Inmueble).startsWith('COM-')) {
-        q = q.eq('inmueble', data.Inmueble);
-      } else {
-        q = q.or(orFilter);
-      }
+      // 2. Datos de contacto en sus inmuebles (no toca tarifas)
+      const contacto: any = { contribuyente: data.Contribuyente, telefono: data.Telefono, correo_electronico: data.Correo };
+      if (notaToSave) contacto.notas = notaToSave;
+      let qc = supabase.from('inmuebles').update(contacto);
+      qc = codigosPropios.length > 0 ? qc.in('inmueble', codigosPropios) : qc.eq('identidad', identidadExacta);
+      const { error: errCont } = await qc;
+      if (errCont) throw errCont;
 
-      const { error } = await q;
-      if (error) throw error;
-      
-      // Update local state immediately for both contribuyentes and inmuebles
-      setContribuyentes(prev => prev.map(c => {
-        const cClean = (c.Identidad || '').replace(/-/g, '').toUpperCase();
-        if (cClean === cleanIdent || variants.includes(c.Identidad)) {
-          return {
-            ...c,
-            ...data,
-            Clasificacion: nuevaClasificacion,
-            Actividad: nuevaActividad,
-            ActividadComercial: nuevaClasificacion !== 'Residencial' ? nuevaActividad : '',
-            TipoResidencia: nuevaClasificacion === 'Residencial' ? nuevaActividad : '',
-            Contribuyente: data.Contribuyente || c.Contribuyente,
-            Telefono: data.Telefono || c.Telefono,
-            Correo: data.Correo || c.Correo,
-            Direccion: data.Direccion || c.Direccion
-          };
-        }
-        return c;
-      }));
+      const nuevaClasificacion = data.Clasificacion || 'Residencial';
+      let nuevaActividad = '';
+      const cambios: string[] = [];
 
-      // Actualizar el estado de inmuebles en memoria y caché local
-      setInmuebles(prev => {
-        const next = prev.map(inm => {
-          const inmClean = (inm.identidad || '').replace(/-/g, '').toUpperCase();
-          const matchesInmueble = data.Inmueble && inm.inmueble === data.Inmueble;
-          const matchesIdentidad = inmClean === cleanIdent || variants.includes(inm.identidad);
-          
-          if (matchesInmueble || (!data.Inmueble && matchesIdentidad)) {
-            return {
-              ...inm,
-              contribuyente: data.Contribuyente || inm.contribuyente,
-              telefono: data.Telefono || inm.telefono,
-              correo_electronico: data.Correo || inm.correo_electronico,
-              direccion: inmUpdate.direccion || inm.direccion,
-              clasificacion: nuevaClasificacion,
-              actividad_principal: nuevaActividad,
-              mmv_mes: nuevoMmv,
-              agente_retencion: data.esAgenteRetencion === true
-            };
+      if (data.isCondominio && Array.isArray(data.locales) && data.locales.length > 0) {
+        // 3a. Varios inmuebles/actividades: actualizar SOLO los que cambiaron; insertar los nuevos
+        const nuevos = data.locales.filter((l: any) => !l.codigo);
+        const codigosNuevos = nuevos.length > 0 ? await siguientesCodigosInmueble(nuevos.length) : [];
+        let iNuevo = 0;
+        for (const local of data.locales) {
+          const act = actividadDeLocal(local);
+          if (local.codigo) {
+            const o = local.__orig || {};
+            const cambio = o.uso !== local.uso || o.actividad !== local.actividad || o.nivel !== local.nivel ||
+              o.tipoResidencia !== local.tipoResidencia || o.estatus !== local.estatus;
+            if (!cambio) continue;
+            const mmv = calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
+            if (local.uso !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}" (${local.codigo}).`);
+            const { error: eU } = await supabase.from('inmuebles')
+              .update({ actividad_principal: act, tipo: tipoDeUso(local.uso), mmv_mes: mmv })
+              .eq('inmueble', local.codigo);
+            if (eU) throw eU;
+            cambios.push(`${local.codigo}: ${o.actividad || o.tipoResidencia || '-'} → ${act} (${mmv} MMV)`);
+          } else {
+            const mmv = calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
+            if (local.uso !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}".`);
+            const codigo = codigosNuevos[iNuevo++];
+            const { error: eI } = await supabase.from('inmuebles').insert([{
+              inmueble: codigo,
+              identidad: identidadExacta,
+              contribuyente: data.Contribuyente,
+              telefono: data.Telefono,
+              correo_electronico: data.Correo,
+              direccion: data.Direccion,
+              tipo: tipoDeUso(local.uso),
+              clasificacion: 'Individual',
+              estado: 'Activo',
+              actividad_principal: act,
+              mmv_mes: mmv,
+              cant_inmuebles: 1,
+              agente_retencion: data.esAgenteRetencion === true,
+            }]);
+            if (eI) throw eI;
+            cambios.push(`NUEVO ${codigo}: ${act} (${mmv} MMV)`);
           }
-          return inm;
-        });
+        }
+      } else {
+        // 3b. Un solo inmueble: la tarifa SOLO se recalcula si cambió la actividad/clasificación/nivel
+        const tarifaCambio = !data.__original ||
+          data.Clasificacion !== orig.Clasificacion ||
+          (data.ActividadComercial || '') !== (orig.ActividadComercial || '') ||
+          (data.TipoResidencia || '') !== (orig.TipoResidencia || '') ||
+          (data.NivelMetraje || '') !== (orig.NivelMetraje || '');
+        const objetivo = data.Inmueble && data.Inmueble !== 'Principal' ? data.Inmueble : (codigosPropios.length === 1 ? codigosPropios[0] : null);
+        const upd: any = {};
+        if ((data.Direccion || '') !== (orig.Direccion || '')) {
+          upd.direccion = data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion;
+        }
+        if (tarifaCambio) {
+          nuevaActividad = nuevaClasificacion === 'Residencial' ? (data.TipoResidencia || 'No aplica') : (data.ActividadComercial || '');
+          const mmv = calcularMmvMes(data, ordenanzasConfig);
+          if (nuevaClasificacion !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${nuevaActividad}".`);
+          if (!objetivo) throw new Error('No se pudo determinar qué inmueble modificar. Edite cada inmueble por separado.');
+          upd.actividad_principal = nuevaActividad;
+          upd.tipo = nuevaClasificacion === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL';
+          upd.mmv_mes = mmv;
+          cambios.push(`${objetivo}: ${orig.ActividadComercial || orig.TipoResidencia || '-'} → ${nuevaActividad} (${mmv} MMV)`);
+        }
+        if (Object.keys(upd).length > 0 && objetivo) {
+          const { error: eU } = await supabase.from('inmuebles').update(upd).eq('inmueble', objetivo);
+          if (eU) throw eU;
+        }
+        // Actividades comerciales adicionales → un inmueble nuevo por cada una
+        const extras = (data.actividadesExtra || []).filter((a: any) => a?.actividad);
+        if (extras.length > 0) {
+          const codigos = await siguientesCodigosInmueble(extras.length);
+          const rows = extras.map((a: any, i: number) => {
+            const mmv = calcularMmvMes({ uso: 'Comercial', actividad: a.actividad, nivel: a.nivel }, ordenanzasConfig);
+            if (!(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${a.actividad}".`);
+            cambios.push(`NUEVO ${codigos[i]}: ${a.actividad} (${mmv} MMV)`);
+            return {
+              inmueble: codigos[i], identidad: identidadExacta, contribuyente: data.Contribuyente,
+              telefono: data.Telefono, correo_electronico: data.Correo, direccion: data.Direccion,
+              tipo: 'COMERCIAL', clasificacion: 'Individual', estado: 'Activo',
+              actividad_principal: a.actividad, mmv_mes: mmv, cant_inmuebles: 1,
+              agente_retencion: data.esAgenteRetencion === true,
+            };
+          });
+          const { error: eX } = await supabase.from('inmuebles').insert(rows);
+          if (eX) throw eX;
+        }
+      }
 
-        // Actualizar en IndexedDB inmediatamente
-        try {
-          getFromIndexedDB<any>('naguanagua_full_cache').then(cached => {
-            if (cached) {
-              cached.inmuebles = next;
-              cached.contribuyentes = cached.contribuyentes?.map((c: any) => {
-                const cClean = (c.Identidad || '').replace(/-/g, '').toUpperCase();
-                if (cClean === cleanIdent || variants.includes(c.Identidad)) {
-                  return {
-                    ...c,
-                    ...data,
-                    Clasificacion: nuevaClasificacion,
-                    Actividad: nuevaActividad,
-                    ActividadComercial: nuevaClasificacion !== 'Residencial' ? nuevaActividad : '',
-                    TipoResidencia: nuevaClasificacion === 'Residencial' ? nuevaActividad : '',
-                    Contribuyente: data.Contribuyente || c.Contribuyente,
-                    Telefono: data.Telefono || c.Telefono,
-                    Correo: data.Correo || c.Correo,
-                    Direccion: data.Direccion || c.Direccion
-                  };
-                }
-                return c;
-              });
-              saveToIndexedDB('naguanagua_full_cache', cached).catch(() => {});
-            }
-          }).catch(() => {});
-        } catch (_) {}
+      // Recargar del servidor (fuente de verdad) en lugar de parchear el estado local
+      await refreshUserData(identidadExacta).catch(() => {});
 
-        return next;
-      });
-      
-      // Sincronizar en segundo plano con refreshUserData
-      refreshUserData(id).catch(() => {});
-
-      let logMsg = `Se actualizaron los datos del contribuyente: ${data.Contribuyente} (Identidad: ${id}) | Clasificación: ${nuevaClasificacion} | Actividad: ${nuevaActividad}`;
+      let logMsg = `Se actualizaron los datos del contribuyente: ${data.Contribuyente} (Identidad: ${identidadExacta})`;
+      if (cambios.length > 0) logMsg += ` | Cambios de tarifa/actividad: ${cambios.join('; ')}`;
       if (data.Nota?.trim()) logMsg += ` | Nota Simple: ${data.Nota}`;
       if (data.Notas_Adicionales?.trim()) logMsg += ` | Notas Adicionales: ${data.Notas_Adicionales}`;
-      
       await addAuditLog('ACTUALIZAR_CONTRIBUYENTE', logMsg);
     } catch (e) {
       console.error("Error updating contribuyente in Supabase:", e);
@@ -983,76 +1015,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addContribuyente = async (data: any) => {
     try {
+      const identidad = normalizarIdentidad(data.Identidad, data.TipoIdentidad || 'V');
+      if (!/^[VJGEP]-\d{5,10}$/.test(identidad)) throw new Error(`Identidad inválida: "${data.Identidad}".`);
       const codCont = data.CodCont || `N-${Math.floor(10000 + Math.random() * 90000)}`;
-      const rowsToInsert = [];
-      const timestampSeq = Date.now().toString().slice(-6);
-      
+      const direccionBase = data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion;
+
+      // Cada unidad a registrar: { uso, actividad, nivel, tipoResidencia, estatus, etiqueta }
+      const unidades: any[] = [];
       if (data.isCondominio && data.locales && data.locales.length > 0) {
-        data.locales.forEach((local: any, idx: number) => {
-          // Asignar código único si viene con valor por defecto
-          const safeInmueble = local.inmueble && local.inmueble !== 'Principal' && !local.inmueble.startsWith('Inmueble ')
-            ? local.inmueble
-            : `URB${timestampSeq}${String(idx + 1).padStart(2, '0')}`;
-
-          rowsToInsert.push({
-            identidad: data.Identidad,
-            contribuyente: data.Contribuyente,
-            telefono: data.Telefono,
-            correo_electronico: data.Correo,
-            direccion: data.DireccionExacta 
-              ? `${data.Direccion} | Local: ${local.numeracion || idx + 1} | Exacta: ${data.DireccionExacta}` 
-              : `${data.Direccion} | Local: ${local.numeracion || idx + 1}`,
-            cod_cont: codCont,
-            clasificacion: local.uso === 'Comercial' ? 'Comercial' : 'Residencial',
-            actividad_principal: local.uso === 'Comercial' ? (local.actividad || 'Actividad Comercial') : (local.tipoResidencia || 'No aplica'),
-            inmueble: safeInmueble,
-            mmv_mes: calcularMmvMes(local, ordenanzasConfig),
-            agente_retencion: data.esAgenteRetencion === true,
-            cant_inmuebles: data.locales.length
-          });
-        });
+        data.locales.forEach((local: any, idx: number) => unidades.push({ ...local, etiqueta: local.numeracion || String(idx + 1) }));
       } else {
-        const safeInmueble = data.Inmueble && data.Inmueble !== 'Principal'
-          ? data.Inmueble
-          : `URB099${Math.floor(1000 + Math.random() * 9000)}`;
+        const esRes = (data.Clasificacion || 'Residencial') === 'Residencial';
+        unidades.push({
+          uso: esRes ? 'Residencial' : 'Comercial',
+          actividad: data.ActividadComercial,
+          nivel: data.NivelMetraje,
+          tipoResidencia: data.TipoResidencia,
+          estatus: 'Ocupado',
+        });
+        // Actividades comerciales adicionales (sin modo condominio)
+        (data.actividadesExtra || []).filter((a: any) => a?.actividad).forEach((a: any) =>
+          unidades.push({ uso: 'Comercial', actividad: a.actividad, nivel: a.nivel, estatus: 'Ocupado' }));
+      }
 
-        rowsToInsert.push({
-          identidad: data.Identidad,
+      const codigos = await siguientesCodigosInmueble(unidades.length);
+      const rowsToInsert = unidades.map((u: any, idx: number) => {
+        const act = actividadDeLocal(u);
+        const mmv = calcularMmvMes({ ...u, actividad: act }, ordenanzasConfig);
+        if (u.uso !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para la actividad "${act || '(vacía)'}".`);
+        if (u.uso === 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act || '(vacío)'}".`);
+        return {
+          inmueble: codigos[idx],
+          identidad,
           contribuyente: data.Contribuyente,
           telefono: data.Telefono,
           correo_electronico: data.Correo,
-          direccion: data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion,
+          direccion: u.etiqueta ? `${direccionBase} | Local: ${u.etiqueta}` : direccionBase,
           cod_cont: codCont,
-          clasificacion: data.Clasificacion || 'Residencial',
-          actividad_principal: data.Clasificacion === 'Residencial' ? (data.TipoResidencia || 'Apartamento') : (data.ActividadComercial || 'Comercio General'),
-          inmueble: safeInmueble,
-          mmv_mes: calcularMmvMes(data, ordenanzasConfig),
-          agente_retencion: data.esAgenteRetencion === true
-        });
-      }
-      
-      // 1. PRIMERO asegurar existencia en tabla contribuyentes (requerido por foreign key 'inmuebles_identidad_fkey')
-      try {
-        const { error: errContrib } = await supabase.from('contribuyentes').upsert([{
-          identidad: data.Identidad,
-          nombre: data.Contribuyente,
-          telefono: data.Telefono,
-          email: data.Correo,
-          direccion: data.Direccion,
-          observaciones: data.Notas_Adicionales || data.Nota || ''
-        }], { onConflict: 'identidad' });
-        if (errContrib) console.warn("Advertencia al upsertar en contribuyentes:", errContrib);
-      } catch (eContrib) {
-        console.warn("Excepción al upsertar en contribuyentes:", eContrib);
-      }
-      
-      // 2. LUEGO insertar en tabla inmuebles
+          tipo: tipoDeUso(u.uso),
+          clasificacion: 'Individual',
+          estado: 'Activo',
+          actividad_principal: act,
+          mmv_mes: mmv,
+          agente_retencion: data.esAgenteRetencion === true,
+          cant_inmuebles: 1,
+        };
+      });
+
+      // 1. Contribuyente (requerido por la FK inmuebles_identidad_fkey) — si falla, NO seguir
+      const { error: errContrib } = await supabase.from('contribuyentes').upsert([{
+        identidad,
+        nombre: data.Contribuyente,
+        telefono: data.Telefono,
+        email: data.Correo,
+        direccion: data.Direccion,
+        observaciones: data.Notas_Adicionales || data.Nota || ''
+      }], { onConflict: 'identidad' });
+      if (errContrib) throw new Error('No se pudo registrar el contribuyente: ' + errContrib.message);
+
+      // 2. Inmuebles / actividades
       const { error } = await supabase.from('inmuebles').insert(rowsToInsert);
-      if (error) throw error;
-      
-      // Update local state and cache
-      await refreshData(true);
-      await addAuditLog('NUEVO_CONTRIBUYENTE', `Se registró un nuevo contribuyente: ${data.Contribuyente} (Identidad: ${data.Identidad})`);
+      if (error) throw new Error('No se pudieron registrar los inmuebles: ' + error.message);
+
+      await refreshUserData(identidad).catch(() => {});
+      await addAuditLog('NUEVO_CONTRIBUYENTE', `Se registró un nuevo contribuyente: ${data.Contribuyente} (Identidad: ${identidad}) | Inmuebles: ${rowsToInsert.map(r => `${r.inmueble} ${r.actividad_principal} (${r.mmv_mes} MMV)`).join('; ')}`);
+      return identidad;
     } catch (e) {
       console.error("Error adding contribuyente to Supabase:", e);
       throw e;

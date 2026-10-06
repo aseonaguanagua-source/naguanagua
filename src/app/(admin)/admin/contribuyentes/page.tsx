@@ -1585,25 +1585,36 @@ function ContribuyentesPageContent() {
     let ActividadComercial = '';
     let NivelMetraje = ordenanzaData.nivelesMetraje[0];
 
-    const misInmuebles = inmuebles.filter((i: any) => i.identidad === row.Identidad);
+    const misInmuebles = inmuebles.filter((i: any) => i.identidad === row.Identidad && i.estado !== 'Eliminado');
+    const usoDe = (inm: any) => (isResidencialInm(inm) ? 'Residencial' : 'Comercial');
     
     if (misInmuebles.length > 0) {
-      if (misInmuebles.length > 1 || (parseInt(misInmuebles[0].cant_inmuebles) || 1) > 1 || autoClasificacion === 'Condominio') {
+      if (misInmuebles.length > 1 || autoClasificacion === 'Condominio') {
         isCondominio = true;
-        autoClasificacion = 'Condominio';
-        cantidadInmuebles = misInmuebles.length > 1 ? misInmuebles.length : (parseInt(misInmuebles[0].cant_inmuebles) || 1);
+        if (misInmuebles.length <= 1) autoClasificacion = 'Condominio';
+        cantidadInmuebles = misInmuebles.length;
         
-        locales = misInmuebles.map((inm: any, idx: number) => ({
-          id: `local-${idx}-${Date.now()}`,
-          numeracion: inm.inmueble || `Inmueble ${idx + 1}`,
-          uso: inm.clasificacion === 'Comercial' || inm.clasificacion === 'Industrial' ? 'Comercial' : 'Residencial',
-          estatus: 'Ocupado',
-          actividad: inm.clasificacion === 'Residencial' ? '' : (inm.actividad_principal || ''),
-          nivel: parseAreaToLevel(parseFloat(inm.area) || 0)
-        }));
+        locales = misInmuebles.map((inm: any, idx: number) => {
+          const uso = usoDe(inm);
+          const act = inm.actividad_principal || '';
+          const desocupado = uso === 'Comercial' && /DESOCUPAD/i.test(act);
+          const loc: any = {
+            id: `local-${idx}-${Date.now()}`,
+            codigo: inm.inmueble,
+            numeracion: inm.inmueble || `Inmueble ${idx + 1}`,
+            uso,
+            estatus: desocupado ? 'Desocupado' : 'Ocupado',
+            actividad: uso === 'Residencial' || desocupado ? '' : act,
+            tipoResidencia: uso === 'Residencial' ? act : '',
+            nivel: parseAreaToLevel(parseFloat(inm.area) || 0),
+            mmvActual: inm.mmv_mes,
+          };
+          loc.__orig = { uso: loc.uso, actividad: loc.actividad, nivel: loc.nivel, tipoResidencia: loc.tipoResidencia, estatus: loc.estatus };
+          return loc;
+        });
       } else {
         const principal = misInmuebles[0];
-        if (principal.clasificacion === 'Residencial') {
+        if (usoDe(principal) === 'Residencial') {
           TipoResidencia = principal.actividad_principal || TipoResidencia;
         } else {
           ActividadComercial = principal.actividad_principal || '';
@@ -1626,11 +1637,13 @@ function ContribuyentesPageContent() {
       isCondominio,
       cantidadInmuebles,
       locales,
+      actividadesExtra: [],
+      __inmuebleCodes: misInmuebles.map((i: any) => i.inmueble).filter(Boolean),
       Nota: '',
       
       
     });
-    setOriginalData({ ...row, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia });
+    setOriginalData({ ...row, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia, NivelMetraje });
     setEditingId(row.Identidad);
     setIsNew(false);
     setShowSuccess(false);
@@ -1656,6 +1669,8 @@ function ContribuyentesPageContent() {
       isCondominio: false,
       cantidadInmuebles: 0,
       locales: [],
+      actividadesExtra: [],
+      TipoIdentidad: 'V',
       coordenadas: null,
       Nota: '',
       
@@ -1724,7 +1739,7 @@ function ContribuyentesPageContent() {
             const nivelIndex = ordenanzaData.nivelesMetraje.indexOf(local.nivel || ordenanzaData.nivelesMetraje[0]);
             
             if (local.estatus === 'Desocupado') {
-              const actVacio = todasLasActividades.find(a => a.label === 'Inmueble desocupado (vacío)');
+              const actVacio = todasLasActividades.find(a => a.label === 'INMUEBLES Y LOCALES DESOCUPADOS') || todasLasActividades.find(a => /DESOCUPAD/i.test(a.label));
               if (actVacio && nivelIndex !== -1) {
                 localFactor = actVacio.factores[nivelIndex];
                 localLeyenda = `Comercial Desocupado (${local.nivel})`;
@@ -1865,13 +1880,26 @@ function ContribuyentesPageContent() {
       const dataToSave = {
         ...formData,
         Telefono: finalTelefono,
-        Correo: finalCorreo
+        Correo: finalCorreo,
+        __original: originalData,
       };
 
       if (isNew) {
-        await addContribuyente(dataToSave);
+        const tipoId = (formData.TipoIdentidad || 'V').toUpperCase();
+        const digits = String(formData.Identidad || '').replace(/[^0-9]/g, '');
+        const idCompleta = `${tipoId}-${digits}`;
+        const yaExiste = contribuyentes.some((c: any) => String(c.Identidad || '').toUpperCase().replace(/-/g, '') === idCompleta.replace(/-/g, ''));
+        if (yaExiste) {
+          alert(`El contribuyente ${idCompleta} ya está registrado. Búsquelo y use "Editar" para agregarle actividades.`);
+          setIsSaving(false);
+          return;
+        }
+        const idGuardada = await addContribuyente({ ...dataToSave, Identidad: idCompleta, TipoIdentidad: tipoId });
         setIsNew(false);
-        setEditingId(dataToSave.Identidad); // Switch to edit mode
+        setEditingId(null); // volver a la lista: el registro ya quedó guardado
+        alert(`Contribuyente ${idGuardada || idCompleta} registrado correctamente.`);
+        setIsSaving(false);
+        return;
       } else if (editingId) {
         await updateContribuyente(editingId, dataToSave);
       }
@@ -1930,7 +1958,12 @@ function ContribuyentesPageContent() {
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Tipo Identidad</label>
-                <select className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500">
+                <select
+                  value={isNew ? (formData.TipoIdentidad || 'V') : (String(formData.Identidad || '').charAt(0).toUpperCase() || 'V')}
+                  disabled={!isNew}
+                  onChange={e => setFormData({ ...formData, TipoIdentidad: e.target.value })}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 disabled:bg-slate-100"
+                >
                   <option value="V">Venezolano (V)</option>
                   <option value="E">Extranjero (E)</option>
                   <option value="J">Jurídico (J)</option>
@@ -1939,7 +1972,7 @@ function ContribuyentesPageContent() {
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Nro Identidad</label>
-                <input type="text" maxLength={9} value={formData.Identidad} onChange={e => setFormData({...formData, Identidad: e.target.value.replace(/[^0-9]/g, '')})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" required />
+                <input type="text" maxLength={isNew ? 10 : 14} value={formData.Identidad} readOnly={!isNew} onChange={e => isNew && setFormData({...formData, Identidad: e.target.value.replace(/[^0-9]/g, '')})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 read-only:bg-slate-100" required />
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Nombre o Razón Social</label>
@@ -2247,6 +2280,69 @@ function ContribuyentesPageContent() {
                   </>
                 )}
               </div>
+
+              {/* Actividades comerciales adicionales (mismo contribuyente, sin modo condominio) */}
+              {(formData.Clasificacion?.includes('Comercial') || formData.Clasificacion === 'Industrial') && !formData.isCondominio && (
+                <div className="mt-4 border border-emerald-200 rounded bg-emerald-50/40 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-[11px] font-bold text-emerald-800 uppercase">Actividades comerciales adicionales</h4>
+                    <button
+                      type="button"
+                      id="btn-agregar-actividad"
+                      onClick={() => setFormData({ ...formData, actividadesExtra: [...(formData.actividadesExtra || []), { actividad: '', nivel: ordenanzaData.nivelesMetraje[0] }] })}
+                      className="text-[11px] font-semibold px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      + Agregar actividad
+                    </button>
+                  </div>
+                  {(formData.actividadesExtra || []).length === 0 ? (
+                    <p className="text-[10px] text-slate-500">Si el contribuyente ejerce más de una actividad, agréguelas aquí. Cada una se registra como un inmueble con su propia tarifa.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(formData.actividadesExtra || []).map((a: any, i: number) => (
+                        <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_200px_auto] gap-2 items-end">
+                          <div>
+                            <label className="block text-[10px] font-medium text-slate-500 mb-1">Actividad #{i + 2}</label>
+                            <Select
+                              options={todasLasActividades.map(x => ({ value: x.label, label: x.label }))}
+                              value={a.actividad ? { value: a.actividad, label: a.actividad } : null}
+                              onChange={(sel: any) => {
+                                const arr = [...(formData.actividadesExtra || [])];
+                                arr[i] = { ...arr[i], actividad: sel?.value || '' };
+                                setFormData({ ...formData, actividadesExtra: arr });
+                              }}
+                              placeholder="Buscar actividad..."
+                              className="text-sm"
+                              menuPosition="fixed"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-medium text-slate-500 mb-1">Nivel</label>
+                            <select
+                              value={a.nivel || ordenanzaData.nivelesMetraje[0]}
+                              onChange={e => {
+                                const arr = [...(formData.actividadesExtra || [])];
+                                arr[i] = { ...arr[i], nivel: e.target.value };
+                                setFormData({ ...formData, actividadesExtra: arr });
+                              }}
+                              className="w-full border border-slate-300 rounded px-2 py-2 text-sm outline-none"
+                            >
+                              {ordenanzaData.nivelesMetraje.map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, actividadesExtra: (formData.actividadesExtra || []).filter((_: any, j: number) => j !== i) })}
+                            className="text-[11px] px-2 py-2 rounded border border-red-200 text-red-600 hover:bg-red-50"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
             <div className="flex items-center gap-2 mt-4 mb-2">
@@ -2262,7 +2358,7 @@ function ContribuyentesPageContent() {
                 })}
                 className="w-4 h-4 text-blue-600 rounded border-slate-300" 
               />
-              <label htmlFor="isCondominio" className="text-xs font-medium text-slate-700">Es un Condominio (Contiene múltiples inmuebles)</label>
+              <label htmlFor="isCondominio" className="text-xs font-medium text-slate-700">{isNew ? 'Es un Condominio (Contiene múltiples inmuebles)' : 'Varios inmuebles / actividades (editar cada uno por separado)'}</label>
             </div>
 
             {formData.isCondominio && (
@@ -2361,11 +2457,11 @@ function ContribuyentesPageContent() {
                               if(e.target.value === 'Residencial') newLocales[index].actividad = '';
                               setFormData({...formData, locales: newLocales});
                            }} 
-                           className={`w-full border rounded px-2 py-1.5 text-xs outline-none ${formData.Clasificacion !== 'Mixto' ? 'bg-slate-100 text-slate-500 border-slate-200' : 'border-slate-300 text-slate-700'}`}
-                           disabled={formData.Clasificacion !== 'Mixto'}
+                           className={`w-full border rounded px-2 py-1.5 text-xs outline-none ${formData.Clasificacion !== 'Mixto' && !local.codigo ? 'bg-slate-100 text-slate-500 border-slate-200' : 'border-slate-300 text-slate-700'}`}
+                           disabled={formData.Clasificacion !== 'Mixto' && !local.codigo}
                          >
-                           {(formData.Clasificacion === 'Residencial' || formData.Clasificacion === 'Mixto') && <option value="Residencial">Residencial</option>}
-                           {(formData.Clasificacion === 'Comercial' || formData.Clasificacion === 'Industrial' || formData.Clasificacion === 'Mixto') && <option value="Comercial">Comercial</option>}
+                           {(formData.Clasificacion === 'Residencial' || formData.Clasificacion === 'Mixto' || local.codigo) && <option value="Residencial">Residencial</option>}
+                           {(formData.Clasificacion?.includes('Comercial') || formData.Clasificacion === 'Industrial' || formData.Clasificacion === 'Mixto' || local.codigo) && <option value="Comercial">Comercial</option>}
                          </select>
                        </div>
                        <div>
