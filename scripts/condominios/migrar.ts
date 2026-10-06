@@ -111,15 +111,20 @@ const IGNORAR_HIJOS_DE_PADRES = ABSORBIDOS;
       excluidos.push({ codigo: code, nombre: p.contribuyente, motivo: 'Mismo dueño con varias actividades → se queda en Contribuyentes' });
       continue;
     }
+    // Decisión 06/10/2026: si en el sistema anterior era "Individual", no es condominio
+    if (!forz && viejo.get(code)?.Uso === 'Individual') {
+      excluidos.push({ codigo: code, nombre: p.contribuyente, motivo: 'Era "Individual" en el sistema anterior → se queda en Contribuyentes' });
+      continue;
+    }
 
     const esRes = calc.isResidencialInm(p);
     const tiposHijos = new Set(hijos.map((h: any) => calc.isResidencialInm(h) ? 'R' : 'C'));
     const tipo = esRes ? (tiposHijos.has('C') ? 'MIXTO' : 'RESIDENCIAL') : (tiposHijos.has('R') ? 'MIXTO' : 'COMERCIAL');
     const modalidad = (forz?.modalidad || M.modalidadSugerida(code, esRes)) as any;
     const cant = forz?.cant_declarada || Math.max(1, parseInt(p.cant_inmuebles || '1'));
-    // TARIFA REAL (verificada con estados de cuenta del sistema anterior): el condominio paga la SUMA de la
-    // tarifa propia de cada unidad según su actividad. Solo si no tiene unidades registradas se usa su tarifa propia.
-    const porUnidad = hijos.length > 0;
+    // TARIFA APROBADA (06/10/2026): unidades DECLARADAS × tarifa del condominio, como cobra hoy la Caja.
+    // Excepción: HMR, donde cada local paga según su propia actividad.
+    const porUnidad = !!forz?.cobro_tarifa_por_unidad;
     const mesesPadre = Math.max(0, parseInt(p.meses_deuda || '0'));
 
     const condo = {
@@ -129,11 +134,12 @@ const IGNORAR_HIJOS_DE_PADRES = ABSORBIDOS;
       cobro_tarifa_por_unidad: porUnidad,
       permite_pago_por_unidad: modalidad === 'INDIVIDUAL',
       permite_abonos: true,
-      aseo_pendiente_desde: porUnidad ? null : M.pendienteDesdeParaMeses(mesesPadre),
+      aseo_pendiente_desde: M.pendienteDesdeParaMeses(mesesPadre),
       notas: forz?.nota || null,
       migrado_desde: { inmueble: code, cant_inmuebles: p.cant_inmuebles, meses_deuda: p.meses_deuda, deuda_mmv: p.deuda_mmv, multa_bs: p.multa_bs, deuda_congelada_bs: p.deuda_congelada_bs, mmv_mes: p.mmv_mes, fecha: new Date().toISOString() },
     };
-    const propios = true; // cada unidad arrastra sus propios meses (así lo llevaba el sistema anterior)
+    // Pago individual / tarifa por local: cada unidad con sus meses; si no, la deuda es la del condominio
+    const propios = modalidad === 'INDIVIDUAL' || porUnidad;
     const uRows = hijos.map((h: any) => ({
       _codigo: code,
       inmueble: String(h.inmueble).toUpperCase(), identidad: h.identidad, propietario: h.contribuyente,
