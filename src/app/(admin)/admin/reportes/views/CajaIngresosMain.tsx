@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, Lock, CheckCircle, Loader2, Printer, ArrowLeft, FileSpreadsheet, FileText } from 'lucide-react';
 import { generarCorteCajaPDF } from '../generators/PdfReports';
 import { generarLibroVentas } from '../generators/LibroVentas';
+import { useEditarMontoReporte } from './EditarMontoReporte';
 
 interface Props {
   pagos: any[];
@@ -12,6 +13,7 @@ interface Props {
   tcmmv: number;
   contribuyentes: any[];
   onBack: () => void;
+  onPagoActualizado?: (row: any) => void;
 }
 
 type SubTipo = 'General de Ingresos' | 'Corte de Caja' | 'Ingresos por Banco' | 'Libro de Ventas' | 'Resumen Libro de Ventas';
@@ -61,7 +63,8 @@ import { LISTA_BANCOS } from '@/lib/bancos';
 const SUB_TIPOS: SubTipo[] = ['General de Ingresos', 'Corte de Caja', 'Ingresos por Banco', 'Libro de Ventas', 'Resumen Libro de Ventas'];
 const BANCOS = LISTA_BANCOS;
 
-export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser, tcmmv, contribuyentes, onBack }: Props) {
+export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser, tcmmv, contribuyentes, onBack, onPagoActualizado }: Props) {
+  const { CeldaMonto, modal: modalMonto } = useEditarMontoReporte(isAdmin, onPagoActualizado);
   const today = new Date().toISOString().slice(0, 10);
   const [subTipo, setSubTipo] = useState<SubTipo>('General de Ingresos');
   const [selectedCajas, setSelectedCajas] = useState<string[]>(isAdmin ? [] : [currentUser]);
@@ -234,9 +237,10 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             </td>
             <td style={S.td}>{recs[0] || p.referencia || '-'}</td><td style={S.td}>{p.banco || '-'}</td>
             <td style={S.td}>{det.aprobacion || '-'}</td><td style={S.td}>{det.lote || '-'}</td>
-            <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmtBs(parseFloat(p.monto) || 0)}</td>
+            <td style={S.td}><span style={getEstadoStyle(p.estado)}>{p.estado || 'Aprobado'}</span></td>
+            <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} />
           </tr>); })}</tbody>
-          <tfoot><tr><td colSpan={9} style={S.tf}>Total Items: {debitos.length}</td><td style={{ ...S.tf, textAlign: 'right' }}>Total Debito: {fmtBs(totalDebito)}</td></tr></tfoot>
+          <tfoot><tr><td colSpan={10} style={S.tf}>Total Items: {debitos.length}</td><td style={{ ...S.tf, textAlign: 'right' }}>Total Debito: {fmtBs(totalDebito)}</td></tr></tfoot>
         </table>
       </div>
     </>}
@@ -258,7 +262,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             <td style={S.td}>{recs[0] || p.referencia || '-'}</td><td style={S.td}>{p.banco || '-'}</td>
             <td style={S.td}>{p.referencia || det.aprobacion || '-'}</td><td style={S.td}>{det.lote || '-'}</td>
             <td style={S.td}><span style={getEstadoStyle(p.estado)}>{p.estado || 'Aprobado'}</span></td>
-            <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmtBs(parseFloat(p.monto) || 0)}</td>
+            <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} />
           </tr>); })}</tbody>
           <tfoot><tr><td colSpan={10} style={S.tf}>Total Items Crédito: {creditos.length}</td><td style={{ ...S.tf, textAlign: 'right', color: '#1e40af' }}>Total Crédito: {fmtBs(totalCredito)}</td></tr></tfoot>
         </table>
@@ -287,8 +291,8 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
               <td style={S.td}>{recs[0] || '-'}</td><td style={S.td}>{p.banco || '-'}</td><td style={S.td}>{p.referencia || '-'}</td>
               <td style={S.td}>{det.banco_destino || det.banco_receptor || '-'}</td><td style={S.td}>{p.referencia || '-'}</td>
               {!showDT && <td style={S.td}>{p.estado || '-'}</td>}
-              {showDT ? <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmtBs(mC)}</td>
-                : <><td style={{ ...S.td, textAlign: 'right' }}>{fmtBs(parseFloat(p.monto) || 0)}</td><td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmtBs(mC)}</td></>}
+              {showDT ? <CeldaMonto p={p} valor={mC} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} />
+                : <><td style={{ ...S.td, textAlign: 'right' }}>{fmtBs(parseFloat(p.monto) || 0)}</td><CeldaMonto p={p} valor={mC} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} /></>}
             </tr>);
           })}</tbody>
           <tfoot><tr><td colSpan={12} style={S.tf}>Total Items: {transferencias.length}</td><td style={{ ...S.tf, textAlign: 'right' }}>Total Transferencia: {fmtBs(totalTransf)}</td></tr></tfoot>
@@ -584,6 +588,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           </div>
         </div>
       )}
+      {modalMonto}
     </div>
   );
 }

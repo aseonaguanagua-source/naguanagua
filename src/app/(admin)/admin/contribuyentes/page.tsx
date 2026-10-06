@@ -2,6 +2,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
+import HuerfanosPanel from '@/components/HuerfanosPanel';
 import { useAppContext } from '@/store/AppContext';
 import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent, Printer } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
@@ -75,7 +76,7 @@ function ContribuyentesPageContent() {
   const [statusModal, setStatusModal] = useState<{type: 'Eliminar'|'Desactivar', row: any} | null>(null);
   const [statusNota, setStatusNota] = useState('');
   const [isProcessingStatus, setIsProcessingStatus] = useState(false);
-  const [activeTab, setActiveTab] = useState<'Activos' | 'Inactivos'>('Activos');
+  const [activeTab, setActiveTab] = useState<'Activos' | 'Inactivos' | 'Huerfanos'>('Activos');
   const [serverSearchTerm, setServerSearchTerm] = useState('');
   const [isSearchingServer, setIsSearchingServer] = useState(false);
   const [serverResults, setServerResults] = useState<any[]>([]);
@@ -3168,6 +3169,13 @@ function ContribuyentesPageContent() {
           >
             Usuarios Inactivos / Eliminados
           </button>
+          <button
+            id="tab-huerfanos"
+            onClick={() => setActiveTab('Huerfanos')}
+            className={`pb-2 px-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'Huerfanos' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            Huérfanos (SIGYR)
+          </button>
         </div>
         
         <div className="flex items-center gap-4 mb-2 flex-wrap">
@@ -3202,6 +3210,9 @@ function ContribuyentesPageContent() {
         </div>
       </div>
 
+      {activeTab === 'Huerfanos' ? (
+        <div className="mt-4"><HuerfanosPanel /></div>
+      ) : (<>
       {/* Buscador de Inmuebles y Contribuyentes en BD */}
       <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center gap-2 flex-1 min-w-[280px]">
@@ -3253,6 +3264,7 @@ function ContribuyentesPageContent() {
       <div className="bg-white rounded border border-slate-200 shadow-sm mt-4 overflow-hidden">
         <DataTable data={filteredContribuyentes} columns={activeTab === 'Activos' ? columns : inactiveColumns} itemsPerPage={15} />
       </div>
+      </>)}
 
       {isViewModalOpen && viewData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
