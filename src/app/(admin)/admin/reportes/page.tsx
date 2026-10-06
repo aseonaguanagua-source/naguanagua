@@ -125,6 +125,7 @@ export default function ReportesPage() {
     <CajaIngresosMain
       pagos={pagos} cajeros={cajeros} isAdmin={isAdmin} currentUser={currentUser}
       tcmmv={tcmmv || 0} contribuyentes={contribuyentes} onBack={() => setActiveView(null)}
+      onPagoActualizado={(row: any) => setPagos(prev => prev.map(p => (p.id === row.id ? aplicarMontoReporte(row) : p)))}
     />
   );
 
