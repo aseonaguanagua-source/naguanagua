@@ -62,9 +62,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [tcmmv]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadAllData = async (forceFresh = false) => {
+  const loadAllData = async (forceFresh = false, silent = false) => {
     try {
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
       
       const isPortal = typeof window !== 'undefined' && window.location.pathname.startsWith('/portal');
       const portalDoc = typeof window !== 'undefined' ? localStorage.getItem('portal_doc') : null;
@@ -178,17 +178,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
           })();
 
+          // La caché local no ve los contribuyentes registrados/modificados después de guardarla.
+          // Si tiene más de 20 min o el número de inmuebles cambió, se recarga completa en segundo plano.
+          (async () => {
+            try {
+              const edadMin = (Date.now() - (cached.timestamp || 0)) / 60000;
+              let distinto = false;
+              if (edadMin <= 20) {
+                const { count } = await supabase.from('inmuebles').select('id', { count: 'exact', head: true });
+                distinto = typeof count === 'number' && count !== cached.inmuebles.length;
+              }
+              if (edadMin > 20 || distinto) await loadAllData(true, true);
+            } catch { /* silencioso */ }
+          })();
+
           return;
         }
       }
 
       setCacheStatus('syncing');
 
-      // Helper concurrente para descargar páginas en paralelo (8 peticiones simultáneas)
+      // Helper concurrente para descargar páginas en paralelo (8 peticiones simultáneas).
+      // Cada bloque se reintenta (timeouts de la BD) y se sigue pidiendo hasta agotar la tabla,
+      // aunque el conteo estimado de Postgres se quede corto.
+      let cargaIncompleta = false;
       const fetchAllClientParallel = async (table: string, select: string) => {
         let total = 0;
         try {
-          const { count, error: countErr } = await supabase.from(table).select('*', { count: 'planned', head: true });
+          const { count, error: countErr } = await supabase.from(table).select('id', { count: 'exact', head: true });
           if (!countErr && count && count > 0) total = count;
         } catch (e) {}
 
@@ -204,26 +221,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
 
         const step = 1000;
-        const numBatches = Math.ceil(total / step);
-        const ranges = [];
-        for (let i = 0; i < numBatches; i++) {
-          ranges.push({ from: i * step, to: Math.min((i + 1) * step - 1, total - 1) });
-        }
+        const fetchChunk = async (from: number, to: number): Promise<any[] | null> => {
+          for (let intento = 0; intento < 4; intento++) {
+            const { data, error } = await supabase.from(table).select(select).order('id', { ascending: true }).range(from, to);
+            if (!error) return data || [];
+            console.warn(`Reintento ${intento + 1} bloque ${from}-${to} de ${table}:`, error.message);
+            await new Promise(r => setTimeout(r, 800 * (intento + 1)));
+          }
+          return null;
+        };
 
-        const results: any[] = new Array(numBatches);
-        const CONCURRENCY = 8;
-        for (let i = 0; i < ranges.length; i += CONCURRENCY) {
-          const chunkRanges = ranges.slice(i, i + CONCURRENCY);
+        const numBatches = Math.ceil(total / step);
+        const results: any[][] = new Array(numBatches);
+        const CONCURRENCY = 6;
+        for (let i = 0; i < numBatches; i += CONCURRENCY) {
           await Promise.all(
-            chunkRanges.map(async (r, idx) => {
-              const batchIndex = i + idx;
-              const { data, error } = await supabase.from(table).select(select).order('id', { ascending: true }).range(r.from, r.to);
-              if (error) console.error(`Error fetching chunk ${batchIndex} from ${table}:`, error);
-              results[batchIndex] = data || [];
+            Array.from({ length: Math.min(CONCURRENCY, numBatches - i) }, async (_, idx) => {
+              const b = i + idx;
+              const data = await fetchChunk(b * step, (b + 1) * step - 1);
+              if (data === null) { cargaIncompleta = true; console.error(`Bloque ${b} de ${table} no se pudo descargar`); }
+              results[b] = data || [];
             })
           );
         }
-        return results.flat();
+        // Cola: filas por encima del conteo (registros nuevos o conteo corto)
+        let next = numBatches * step;
+        for (let guard = 0; guard < 20; guard++) {
+          const data = await fetchChunk(next, next + step - 1);
+          if (data === null) { cargaIncompleta = true; break; }
+          if (data.length === 0) break;
+          results.push(data);
+          if (data.length < step) break;
+          next += step;
+        }
+        // Quitar duplicados por id (si se insertaron filas mientras se paginaba)
+        const seen = new Set<any>();
+        return results.flat().filter((r: any) => (r?.id == null || seen.has(r.id)) ? r?.id == null : (seen.add(r.id), true));
       };
 
       // Descarga de facturas activas desde API para bypass de RLS
@@ -540,7 +573,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (dbPreLiquidaciones) setPreLiquidaciones(dbPreLiquidaciones);
 
       // Guardar en caché persistente IndexedDB para cargas instantáneas subsiguientes
-      if (typeof window !== 'undefined') {
+      // (solo si la descarga fue COMPLETA: una caché con huecos ocultaría contribuyentes)
+      if (typeof window !== 'undefined' && !cargaIncompleta) {
         await saveToIndexedDB('naguanagua_full_cache', {
           version: CURRENT_CACHE_VERSION,
           timestamp: Date.now(),

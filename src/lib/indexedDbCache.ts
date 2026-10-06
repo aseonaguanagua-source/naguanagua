@@ -10,7 +10,7 @@ const DB_VERSION = 2;
 const STORE_NAME = 'app_cache';
 
 // Versión del caché: cambiar para invalidar y forzar refresco automático en todos los clientes
-export const CURRENT_CACHE_VERSION = 'v2026_10_05_inactivos_v1';
+export const CURRENT_CACHE_VERSION = 'v2026_10_06_carga_completa_v1';
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
