@@ -8,6 +8,7 @@ import { logAudit } from '@/lib/audit';
 import tarifasData from '@/data/tarifas.json';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { calcularMensualidad, isResidencialInm, getFAR } from '@/lib/calculos';
+import { deudaTotalContribuyente, r2 } from '@/lib/deudaMensual';
 
 export default function EstadoCuentaPage() {
   const { inmuebles } = useAppContext();
@@ -338,17 +339,9 @@ export default function EstadoCuentaPage() {
           });
           if (totalMesConIva > 0) montoNumerico = parseFloat(totalMesConIva.toFixed(2));
         } else if (row.referencia.startsWith('RECIB-')) {
-          // RECIB- = deuda acumulada: (deuda_mmv × tcmmv) + multa_bs
-          let totalDeudaMMV = 0;
-          let totalMulta = 0;
-          userInmsForCalc.forEach((inm: any) => {
-            const deuda = parseFloat(inm.deuda_mmv || 0);
-            if (deuda > 0) {
-              totalDeudaMMV += deuda;
-            }
-            totalMulta += parseFloat(inm.multa_bs || 0);
-          });
-          if (totalDeudaMMV > 0 || totalMulta > 0) montoNumerico = parseFloat(((totalDeudaMMV * tcmmv) + totalMulta).toFixed(2));
+          // RECIB- = deuda acumulada calculada IGUAL que Caja (fórmula única, condominios y retención de agentes)
+          const dt = deudaTotalContribuyente(userInmsForCalc, tcmmv, row.identidad || '');
+          if (dt.totalNeto > 0) montoNumerico = dt.totalNeto;
         }
       }
     }
@@ -551,22 +544,16 @@ export default function EstadoCuentaPage() {
                   }
                 }
 
-                let mmv = 0;
+                // Mensualidad según la tarifa guardada (misma fórmula que Caja) + 16% IVA comercial
+                let mesConIva = 0;
                 matchedInmuebles.forEach((inm: any) => {
-                  mmv += parseFloat(inm.cant_inmuebles || 1) * parseFloat(inm.mmv_mes || 0);
+                  const b = calcularMensualidad(inm, tcmmv);
+                  mesConIva += b + (isResidencialInm(inm) ? 0 : b * 0.16);
                 });
-                if (mmv > 0) mF = parseFloat((mmv * tcmmv).toFixed(2));
+                if (mesConIva > 0) mF = r2(mesConIva);
               } else if (f.referencia?.startsWith('RECIB-')) {
-                let deuda = 0;
-                let multa = 0;
-                userInmsForAll.forEach((inm: any) => { 
-                  const d = parseFloat(inm.deuda_mmv || 0);
-                  if (d > 0) {
-                    deuda += d;
-                  }
-                  multa += parseFloat(inm.multa_bs || 0);
-                });
-                if (deuda > 0 || multa > 0) mF = parseFloat(((deuda * tcmmv) + multa).toFixed(2));
+                const dt = deudaTotalContribuyente(userInmsForAll, tcmmv, f.identidad || idBusc);
+                if (dt.totalNeto > 0) mF = dt.totalNeto;
               }
             }
             return {

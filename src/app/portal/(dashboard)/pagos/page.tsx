@@ -9,6 +9,7 @@ import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { isResidencialInm, calcularMensualidad, isCondominioPagoIndividual } from '@/lib/calculos';
+import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist, reglaCobroInmueble } from '@/lib/deudaMensual';
 import { getIdentidadVariants } from '@/lib/formatters';
 import { clusterInmueblesByLocal } from '@/lib/cajaHelpers';
 import { LISTA_BANCOS } from '@/lib/bancos';
@@ -53,6 +54,7 @@ const getMonthLabel = (dStr?: string) => {
 export default function DondePagarPage() {
   const [metodo, setMetodo] = useState<Metodo>('');
   const [bloqueadoPorCondominio, setBloqueadoPorCondominio] = useState(false);
+  const [reglasCobro, setReglasCobro] = useState<Record<string, 'completo' | 'solo_multa'>>({});
   const [formData, setFormData] = useState({
     bancoDestino: 'BANCAMIGA - 0172 - 0717',
     bancoOrigen: '',
@@ -122,7 +124,7 @@ export default function DondePagarPage() {
         // A. Cargar Inmuebles
         const { data: inmsDB } = await supabase
           .from('inmuebles')
-          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
           .or(orFilter);
 
         let inmsFinal = inmsDB ? [...inmsDB] : [];
@@ -134,7 +136,7 @@ export default function DondePagarPage() {
           if (condoCodes.length > 0) {
             const { data: hijos } = await supabase
               .from('inmuebles')
-              .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+              .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
               .in('condominio_padre_id', condoCodes);
             if (hijos && hijos.length > 0) {
               const ids = new Set(inmsFinal.map(x => x.id));
@@ -154,13 +156,18 @@ export default function DondePagarPage() {
         const billableInms = inmsFinal.filter((i: any) => !naParentCodes.includes(i.inmueble));
         setUserInms(billableInms);
 
-        // Bloqueo total por condominio si todos son de condominio sin pago individual
+        // Regla de cobro por inmueble (igual a Caja): los locales comerciales de condominios ORDINARIOS
+        // solo pagan sus multas (el aseo lo paga el condominio). Residenciales y condominios especiales pagan todo.
+        const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
+        billableInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, naParentCodes, portalDoc)));
+        setReglasCobro(Object.fromEntries(reglaPorInm));
+
+        // Bloqueo total solo si todos son locales "solo multa" y ninguno tiene multa pendiente
         if (billableInms.length > 0) {
-          const todosCondoBloqueados = billableInms.every((inm: any) => {
-            const isCondoUnit = !!inm.condominio_padre_id || (inm.actividad_principal || '').includes('HIJO_DE:');
-            const isInd = (inm.actividad_principal || '').includes('PAGOS INDIVIDUALES') || isCondominioPagoIndividual(inm);
-            return isCondoUnit && !isInd;
-          });
+          const todosCondoBloqueados = billableInms.every((inm: any) =>
+            reglaPorInm.get(inm.inmueble) === 'solo_multa' &&
+            !(parseFloat(inm.multa_bs || '0') > 0 || parseFloat(inm.deuda_congelada_bs || '0') > 0)
+          );
           setBloqueadoPorCondominio(todosCondoBloqueados);
         }
 
@@ -184,6 +191,25 @@ export default function DondePagarPage() {
         if (hasDeuda && combinedFacturas.length === 0) {
           const now = new Date();
           billableInms.forEach((inm: any) => {
+            const multa = parseFloat(inm.multa_bs || '0');
+            const congelada = parseFloat(inm.deuda_congelada_bs || '0');
+            const regla = reglaPorInm.get(inm.inmueble);
+            if (regla === 'solo_multa' || (isCondominioPagoIndividual(inm) && (multa > 0 || congelada > 0))) {
+              if (multa > 0 || congelada > 0) {
+                const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
+                combinedFacturas.push({
+                  id: `multa-${inm.inmueble}`,
+                  referencia: `MULTA-${inm.inmueble}`,
+                  identidad: inm.identidad,
+                  contribuyente: inm.contribuyente,
+                  emision: fechaMora.toISOString(),
+                  vencimiento: fechaMora.toISOString(),
+                  estado: 'Pendiente',
+                  monto: (multa + congelada).toFixed(2)
+                });
+              }
+              if (regla === 'solo_multa') return;
+            }
             const meses = Math.max(1, parseInt(inm.meses_deuda || '1'));
             for (let i = 1; i <= meses; i++) {
               const targetDate = new Date(now.getFullYear(), now.getMonth() - meses + i - 1, 1, 12, 0, 0);
@@ -259,25 +285,13 @@ export default function DondePagarPage() {
       const parts = r.referencia.split('-');
       const inm = userInms.find((i: any) => i.inmueble === parts[2]);
       if (inm) {
-        const esRes = isResidencialInm(inm);
-        // Base mensual oficial
-        const baseMes = parseFloat(calcularMensualidad(inm, currentRate).toFixed(2));
-        const emision = r.emision ? new Date(r.emision) : new Date();
-        const today = new Date();
-        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-        
-        // REGLA OFICIAL: El último mes de la factura es SIN multa.
-        const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
-        const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
-        const isUltimoMes = mesNum >= totalMeses;
-
-        // Multa: 10% residencial, 12% comercial (septiembre se paga en octubre sin multa)
-        const tieneMora = (!isUltimoMes && monthsDiff > 1);
-        const multaMes = tieneMora ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
-        // IVA: 0% residencial, 16% comercial
-        const rawIva = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
-        const ivaPagar = inm.agente_retencion ? parseFloat((rawIva * 0.25).toFixed(2)) : rawIva;
-        baseMonto = baseMes + multaMes + ivaPagar;
+        // Cálculo único de Caja (retención 75% del IVA solo para agentes de retención)
+        const histRefs = rawRecibos.filter((x: any) => x.referencia?.startsWith(`RECIB-HIST-${parts[2]}-M`));
+        const meses = histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm) }));
+        const d = calcularDeudaInmueble(inm, currentRate, meses);
+        const idx = histRefs.findIndex((x: any) => x.referencia === r.referencia);
+        const pm = porMesConRetencion(d)[idx];
+        if (pm) baseMonto = pm.totalNeto;
       }
     } else if (r.referencia?.startsWith('CM-')) {
       const matched = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
@@ -351,6 +365,9 @@ export default function DondePagarPage() {
       if (r.referencia?.startsWith('RECIB-HIST-')) {
         return r.referencia.split('-')[2] || '';
       }
+      if (r.referencia?.startsWith('MULTA-')) {
+        return r.referencia.slice('MULTA-'.length);
+      }
       if (r.referencia?.startsWith('CM-')) {
         const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
         if (match) return match.inmueble;
@@ -389,9 +406,9 @@ export default function DondePagarPage() {
         const singleItems: ReciboItem[] = c.receipts.map((r) => {
           const inmId = getReceiptInmId(r);
           const inmMatch = c.inms.find((i) => i.inmueble === inmId) || userInms[0];
-          const isCondoUnit = inmMatch && (!!inmMatch.condominio_padre_id || (inmMatch.actividad_principal || '').includes('HIJO_DE:'));
-          const esPagoIndividual = inmMatch && ((inmMatch.actividad_principal || '').includes('PAGOS INDIVIDUALES') || isCondominioPagoIndividual(inmMatch));
-          const bloqueadoCondo = isCondoUnit && !esPagoIndividual;
+          // Bloqueado solo el aseo de locales comerciales de condominios ordinarios (sus MULTA- sí se pagan)
+          const bloqueadoCondo = !!inmMatch && !String(r.referencia || '').startsWith('MULTA-') &&
+            reglasCobro[inmMatch.inmueble] === 'solo_multa';
 
           return {
             id: r.id || r.referencia,
@@ -506,7 +523,7 @@ export default function DondePagarPage() {
         singleItems: []
       };
     });
-  }, [userInms, rawRecibos, localClustersMap, pagosPorVerificar, effectiveTcmmv]);
+  }, [userInms, rawRecibos, localClustersMap, pagosPorVerificar, effectiveTcmmv, reglasCobro]);
 
   // Por defecto expandir el primer local
   useEffect(() => {

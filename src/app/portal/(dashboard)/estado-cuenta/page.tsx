@@ -4,7 +4,8 @@ import { Download, FileText, Building, Handshake, AlertCircle, CheckCircle2, Wre
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
-import { getFAR, isResidencialInm, calcularMensualidad, cleanClasificacionActividad } from '@/lib/calculos';
+import { getFAR, isResidencialInm, calcularMensualidad, cleanClasificacionActividad, isCondominioPagoIndividual } from '@/lib/calculos';
+import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist, reglaCobroInmueble } from '@/lib/deudaMensual';
 import { getIdentidadVariants } from '@/lib/formatters';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -42,7 +43,7 @@ export default function EstadoCuentaPage() {
           // 1. Inmuebles
           let { data: inmsDB } = await supabase
             .from('inmuebles')
-            .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+            .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
             .or(orFilter);
 
           let inmsFinal = inmsDB ? [...inmsDB] : [];
@@ -52,7 +53,7 @@ export default function EstadoCuentaPage() {
             if (condoCodes.length > 0) {
               const { data: hijos } = await supabase
                 .from('inmuebles')
-                .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+                .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
                 .in('condominio_padre_id', condoCodes);
               if (hijos && hijos.length > 0) {
                 const ids = new Set(inmsFinal.map(x => x.id));
@@ -92,6 +93,25 @@ export default function EstadoCuentaPage() {
                 const congelada = parseFloat(inm.deuda_congelada_bs || '0');
                 const multa = parseFloat(inm.multa_bs || '0');
                 const meses = parseInt(inm.meses_deuda || 1);
+                // Regla de condominios (igual a Caja): local de condominio comercial ordinario → solo sus multas.
+                // Los condominios especiales de pago individual pagan aseo + multas.
+                const regla = reglaCobroInmueble(inm, naParentCodes, fullDoc);
+                if (regla === 'solo_multa' || (isCondominioPagoIndividual(inm) && (multa > 0 || congelada > 0))) {
+                  if (multa > 0 || congelada > 0) {
+                    const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
+                    combined.push({
+                      id: `multa-${inm.inmueble}`,
+                      referencia: `MULTA-${inm.inmueble}`,
+                      identidad: fullDoc,
+                      contribuyente: inm.contribuyente || '',
+                      emision: fechaMora.toISOString(),
+                      vencimiento: fechaMora.toISOString(),
+                      estado: 'Pendiente',
+                      monto: (multa + congelada).toFixed(2)
+                    });
+                  }
+                  if (regla === 'solo_multa') return;
+                }
                 if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
                   const numMeses = Math.max(1, meses);
                   for (let i = 1; i <= numMeses; i++) {
@@ -171,6 +191,19 @@ export default function EstadoCuentaPage() {
     });
   }, [misInmueblesDb, inmuebles, portalDoc]);
 
+  // Mes RECIB-HIST con la fórmula única de Caja (incluye retención 75% solo para agentes de retención)
+  const histMes = (r: any) => {
+    const parts = r.referencia.split('-');
+    const inm = misInmuebles.find((i: any) => i.inmueble === parts[2]);
+    if (!inm) return null;
+    const currentRate = tasaBcv > 0 ? tasaBcv : 1;
+    const histRefs = misFact.filter((x: any) => x.referencia?.startsWith(`RECIB-HIST-${parts[2]}-M`));
+    const meses = histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm) }));
+    const d = calcularDeudaInmueble(inm, currentRate, meses);
+    const idx = histRefs.findIndex((x: any) => x.referencia === r.referencia);
+    return porMesConRetencion(d)[idx] || null;
+  };
+
   const getReciboMonto = (r: any): string => {
     if (r.estado === 'Abonado') return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
     const inmsSource = misInmuebles;
@@ -178,26 +211,8 @@ export default function EstadoCuentaPage() {
 
     let baseMonto = 0;
     if (r.referencia?.startsWith('RECIB-HIST-')) {
-      const parts = r.referencia.split('-');
-      const inm = inmsSource.find((i: any) => i.inmueble === parts[2]);
-      if (inm) {
-        const esRes = isResidencialInm(inm);
-        const baseMes = parseFloat(calcularMensualidad(inm, currentRate).toFixed(2));
-        const emision = r.emision ? new Date(r.emision) : new Date();
-        const today = new Date();
-        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-        
-        // REGLA OFICIAL: El último mes de la factura es SIN multa.
-        const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
-        const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
-        const isUltimoMes = mesNum >= totalMeses;
-
-        const tieneMora = (!isUltimoMes && monthsDiff > 1);
-        const multaMes = tieneMora ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
-        const ivaMes = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
-        const ivaPagar = inm.agente_retencion ? ivaMes * 0.25 : ivaMes;
-        baseMonto = baseMes + multaMes + ivaPagar;
-      }
+      const pm = histMes(r);
+      if (pm) baseMonto = pm.totalNeto;
     } else if (r.referencia?.startsWith('CM-')) {
       const matched = inmsSource.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
       const inm = matched || inmsSource[0];
@@ -241,25 +256,12 @@ export default function EstadoCuentaPage() {
     let totalMes = 0;
 
     if (r.referencia?.startsWith('RECIB-HIST-')) {
-      const parts = r.referencia.split('-');
-      const inm = inmsSource.find((i: any) => i.inmueble === parts[2]);
-      if (inm) {
-        const esRes = isResidencialInm(inm);
-        baseMes = parseFloat(calcularMensualidad(inm, currentRate).toFixed(2));
-        const emision = r.emision ? new Date(r.emision) : new Date();
-        const today = new Date();
-        const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-
-        // REGLA OFICIAL: El último mes de la factura es SIN multa.
-        const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
-        const totalMeses = Math.max(1, parseInt(inm.meses_deuda || '1'));
-        const isUltimoMes = mesNum >= totalMeses;
-
-        const tieneMora = (!isUltimoMes && monthsDiff > 1);
-        multaMes = tieneMora ? parseFloat((baseMes * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
-        const rawIva = esRes ? 0 : parseFloat((baseMes * 0.16).toFixed(2));
-        ivaMes = inm.agente_retencion ? parseFloat((rawIva * 0.25).toFixed(2)) : rawIva;
-        totalMes = baseMes + multaMes + ivaMes;
+      const pm = histMes(r);
+      if (pm) {
+        baseMes = pm.base;
+        multaMes = pm.multa;
+        ivaMes = pm.ivaNeto;
+        totalMes = pm.totalNeto;
       }
     } else if (r.referencia?.startsWith('CM-')) {
       const matched = inmsSource.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));

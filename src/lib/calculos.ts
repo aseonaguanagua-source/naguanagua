@@ -72,6 +72,88 @@ export const isResidencialInm = (item: any): boolean => {
   return false;
 };
 
+// --- Búsqueda tolerante de actividades en la ordenanza ---------------------------------
+// Los textos de SIGYR y de la ordenanza tienen variaciones ("PARQUES ATRACCIONES" vs
+// "PARQUES DE ATRACCIONES", "REPUESTOS" vs "RESPUESTOS", "COMPAÑIAS" vs "COMPANIAS").
+const STOPWORDS = new Set(['DE', 'DEL', 'Y', 'LA', 'EL', 'LOS', 'LAS', 'E', 'O', 'PARA', 'CON', 'EN', 'A']);
+const tokensActividad = (s: string): string[] =>
+  String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\uFFFD/g, 'N')
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .split(' ')
+    .filter(t => t && !STOPWORDS.has(t));
+const levenshtein = (a: string, b: string): number => {
+  if (a === b) return 0;
+  const dp = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = tmp;
+    }
+  }
+  return dp[b.length];
+};
+const tokensEquivalentes = (a: string[], b: string[]): boolean => {
+  if (a.length === 0 || a.length !== b.length) return false;
+  return a.every((t, i) => {
+    const u = b[i];
+    if (t === u) return true;
+    const max = Math.max(t.length, u.length);
+    return max >= 5 && levenshtein(t, u) <= (max >= 8 ? 2 : 1);
+  });
+};
+
+/** Nivel (0 BAJA, 1 MEDIA, 2 ALTA) indicado en el texto de la actividad. */
+export const nivelActividad = (actividadFull: string): number => {
+  const act = (actividadFull || '').toLowerCase();
+  if (act.includes('(alta)')) return 2;
+  if (act.includes('(media)')) return 1;
+  return 0;
+};
+
+/** Busca la actividad en la ordenanza (exacta, contenida o equivalente con errores de escritura). */
+export const buscarActividadOrdenanza = (actividadFull: string): any | null => {
+  const act = (actividadFull || '').toLowerCase().trim();
+  const labelToSearch = act.replace(/\(alta\)|\(media\)|\(baja\)/g, '').replace(/\[hijo_de:[^\]]+\]/g, '').replace(/\[hijo\]/g, '').replace(/\[condominio\]/g, '').trim();
+  if (!labelToSearch) return null;
+  let found = todasLasActividades.find(a => a.label.toLowerCase() === labelToSearch);
+  if (!found) {
+    found = todasLasActividades.find(a => a.label.toLowerCase().includes(labelToSearch) || labelToSearch.includes(a.label.toLowerCase()));
+  }
+  if (!found) {
+    const t = tokensActividad(labelToSearch);
+    found = todasLasActividades.find(a => tokensEquivalentes(t, tokensActividad(a.label)));
+  }
+  return found || null;
+};
+
+/** Conjunto de todos los F.O. comerciales/industriales válidos de la ordenanza. */
+const FACTORES_ORDENANZA = new Set<number>(
+  todasLasActividades.flatMap((a: any) => (a.factores || []) as number[]).filter((f: number) => f > 0).map((f: number) => Math.round(f * 100) / 100)
+);
+
+/**
+ * F.O. comercial REAL de un inmueble (Tabla "B" de la Ordenanza):
+ *  1. Si la actividad está en la ordenanza → factor del nivel (si es 0, p.ej. terrenos → 1.98).
+ *  2. Si no está, pero la tarifa guardada es un F.O. válido de la ordenanza → la guardada.
+ *  3. Si no → 1.98 (tarifa mínima).
+ */
+export const resolverFOComercial = (actividadFull: string, mmvGuardado?: number | null): number => {
+  const found = buscarActividadOrdenanza(actividadFull);
+  if (found && found.factores) {
+    const f = found.factores[nivelActividad(actividadFull)];
+    return f && f > 0 ? f : 1.98;
+  }
+  const m = Number(mmvGuardado) || 0;
+  if (m >= 1.54 && [...FACTORES_ORDENANZA].some(f => Math.abs(f - m) < 0.0005)) return m;
+  return 1.98;
+};
+
 export const getFO = (actividadFull: string, esResidencial: boolean) => {
   const act = (actividadFull || "").toLowerCase().trim();
   
@@ -88,26 +170,9 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
     return 0.80; // Default Casa
   }
 
-  // Comercial
-  // Parse something like "AREPERAS (ALTA)"
-  let labelToSearch = act.replace(/\(alta\)|\(media\)|\(baja\)/g, '').replace(/\[hijo_de:[^\]]+\]/g, '').replace(/\[hijo\]/g, '').replace(/\[condominio\]/g, '').trim();
-  let nivel = 'BAJA'; // Default
-  if (act.includes('(alta)')) nivel = 'ALTA';
-  if (act.includes('(media)')) nivel = 'MEDIA';
-  
-  let found = todasLasActividades.find(a => a.label.toLowerCase() === labelToSearch);
-  if (!found) {
-    found = todasLasActividades.find(a => a.label.toLowerCase().includes(labelToSearch) || labelToSearch.includes(a.label.toLowerCase()));
-  }
-  
-  if (found && found.factores) {
-    const idx = nivel === 'BAJA' ? 0 : (nivel === 'MEDIA' ? 1 : 2);
-    // Terrenos y Servicios con factor 0 en el array causan En Verificacion
-    if (found.factores[idx] === 0) return 1.98;
-    return found.factores[idx] || 1.98;
-  }
-  
-  return 1.98; // Default fallback for Comercial (matches lowest common rate) to prevent 0 division/verification loops
+  // Comercial: F.O. de la ordenanza según actividad y nivel (ALTA/MEDIA/BAJA)
+  // Terrenos y Servicios con factor 0 en el array causan En Verificacion → 1.98
+  return resolverFOComercial(actividadFull);
 };
 
 export const getFAR = (actividadFull: string) => {
@@ -188,17 +253,14 @@ export const calcularMensualidad = (
     }
   } else {
     // Comercial / Industrial / Institucional:
-    // Todos los Factores de Ordenanza F.O. según Tabla "B" de la Ordenanza Municipal de Naguanagua
-    // deben resolverse prioritariamente mediante getFO(actividad, false).
-    // Si mmv en BD es 1.00 (valor dummy residual de importación) o < 1.54 (no existe F.O. comercial menor a 1.54),
-    // se aplica el F.O. oficial de la Ordenanza (ej: Depósitos Alta = 22.49).
-    const foOficial = getFO(actividad, false);
-    if (foOficial && foOficial > 1.00) {
-      fo = foOficial;
-    } else if (mmv !== undefined && mmv > 1.00) {
+    // DECISIÓN DEL MUNICIPIO: se cobra SIEMPRE la tarifa guardada en el inmueble (mmv_mes),
+    // para que el sistema nunca cambie la tarifa de un usuario por el texto de la actividad.
+    // La tarifa guardada fue normalizada al F.O. real de la ordenanza (resolverFOComercial).
+    // Solo si no hay tarifa válida guardada (< 1.54, no existe F.O. comercial menor) se resuelve por ordenanza.
+    if (mmv !== undefined && mmv >= 1.54) {
       fo = mmv;
     } else {
-      fo = 1.98;
+      fo = resolverFOComercial(actividad, mmv);
     }
   }
 
