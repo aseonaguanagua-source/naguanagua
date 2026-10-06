@@ -255,7 +255,7 @@ export async function POST(request: Request) {
 
     // MODO PRUEBA: si EMAIL_TEST_MODE=true, todos los comunicados van a aseonaguanagua@globalgreenca.com
     const modoTestComun = process.env.EMAIL_TEST_MODE !== 'false';
-    const fromEmail = process.env.RESEND_FROM || 'IAMEC Naguanagua <onboarding@resend.dev>';
+    const fromEmail = process.env.RESEND_FROM || 'IAMEC Naguanagua <facturacion@globalgreenrec.com>';
 
     for (let i = 0; i < destinatarios.length; i += 10) {
       const lote = destinatarios.slice(i, i + 10);

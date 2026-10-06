@@ -8,4 +8,4 @@ export function getResendClient(): Resend {
   return new Resend(apiKey);
 }
 
-export const DEFAULT_RESEND_FROM = process.env.RESEND_FROM || 'IAMEC Naguanagua <onboarding@resend.dev>';
+export const DEFAULT_RESEND_FROM = process.env.RESEND_FROM || 'IAMEC Naguanagua <facturacion@globalgreenrec.com>';

@@ -139,7 +139,7 @@ export async function POST(request: Request) {
 
     try {
       // En modo prueba o cuentas nuevas de Resend, usar onboarding@resend.dev para entregar sin esperar DNS
-      const fromEmail = process.env.RESEND_FROM || 'IAMEC Facturación <onboarding@resend.dev>';
+      const fromEmail = process.env.RESEND_FROM || 'IAMEC Naguanagua <facturacion@globalgreenrec.com>';
         let sendResult = await resend.emails.send({
           from: fromEmail,
           to: [targetEmail],
