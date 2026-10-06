@@ -3,8 +3,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calculator, X, AlertCircle, Calendar, CheckSquare, Square, Building, Check, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
-import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
+import { calcularMensualidad, isResidencialInm, getFO, resolverFOComercial } from '@/lib/calculos';
 import { logAudit } from '@/lib/audit';
+import { getIdentidadVariants } from '@/lib/formatters';
 
 interface MonthItem {
   key: string;        // '2024-01'
@@ -63,11 +64,22 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
   const rowIdentidad = (row?.Identidad || row?.identidad || '').replace(/-/g, '').toUpperCase();
   const rowContribuyente = row?.Contribuyente || row?.contribuyente || row?.nombre || 'Contribuyente';
 
+  // Inmuebles frescos desde la BD: los contribuyentes registrados después de abrir la página
+  // no están en la lista en memoria y el ajuste fallaba con "No se encontraron inmuebles".
+  const [inmsBD, setInmsBD] = useState<any[] | null>(null);
+  const identProp = row?.Identidad || row?.identidad || '';
+  useEffect(() => {
+    if (!identProp) { setInmsBD([]); return; }
+    supabase.from('inmuebles').select('*').in('identidad', getIdentidadVariants(identProp))
+      .then(({ data }) => setInmsBD((data || []).filter((i: any) => i.estado !== 'Eliminado')));
+  }, [identProp]);
+
   // Inmuebles pertenecientes al contribuyente
   const misInmuebles = useMemo(() => {
+    if (inmsBD && inmsBD.length > 0) return inmsBD;
     if (!inmuebles || inmuebles.length === 0) return [];
     const directos = inmuebles.filter((i: any) =>
-      (i.identidad || '').replace(/-/g, '').toUpperCase() === rowIdentidad
+      (i.identidad || '').replace(/-/g, '').toUpperCase() === rowIdentidad && i.estado !== 'Eliminado'
     );
     if (directos.length > 0) return directos;
 
@@ -76,7 +88,7 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       if (byCode.length > 0) return byCode;
     }
     return [];
-  }, [inmuebles, rowIdentidad, row]);
+  }, [inmsBD, inmuebles, rowIdentidad, row]);
 
   // Selección de inmueble objetivo ('ALL' para todos, o código de inmueble específico)
   const [targetInmCode, setTargetInmCode] = useState<string>('ALL');
@@ -277,7 +289,14 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       }));
 
       for (const inm of targetInms) {
-        const mmvMes = parseFloat(inm.mmv_mes || '0');
+        let mmvMes = parseFloat(inm.mmv_mes || '0');
+        let fijarTarifa = false;
+        if (!(mmvMes > 0)) {
+          // Inmueble sin tarifa guardada (registro nuevo): F.O. oficial de la ordenanza según su actividad
+          const esResInm = isResidencialInm(inm);
+          mmvMes = esResInm ? getFO(inm.actividad_principal || '', true) : resolverFOComercial(inm.actividad_principal || '', null);
+          fijarTarifa = mmvMes > 0;
+        }
         const nuevaDeudaMmv = parseFloat((selectedCount * mmvMes).toFixed(5));
 
         const notaPrev = (inm.notas || '').trim();
@@ -288,6 +307,7 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
           deuda_mmv: nuevaDeudaMmv,
           notas: nuevaNota
         };
+        if (fijarTarifa) updateData.mmv_mes = mmvMes;
 
         if (selectedCount === 0) {
           updateData.multa_bs = 0;
