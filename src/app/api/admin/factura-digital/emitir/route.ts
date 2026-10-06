@@ -5,6 +5,24 @@ import { isResidencialInm } from '@/lib/calculos';
 import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
 import { isFictitiousEmail } from '@/lib/formatters';
 
+/** Siguiente N° de factura (correlativo propio, serie vacía). */
+async function siguienteNumeroDocumento(sb: any): Promise<number> {
+  const ultTfhka = await TheFactoryHKA.ultimoDocumento('', '01');
+  let ultDb = 0;
+  try {
+    const { data } = await sb
+      .from('pagos_reportados')
+      .select('detalles')
+      .not('detalles->factura_digital->tfhka_seq', 'is', null)
+      .order('detalles->factura_digital->tfhka_seq', { ascending: false })
+      .limit(1);
+    const d = data?.[0]?.detalles;
+    const fd = (typeof d === 'string' ? JSON.parse(d) : d)?.factura_digital;
+    ultDb = parseInt(String(fd?.tfhka_seq ?? 0), 10) || 0;
+  } catch { /* sin registros */ }
+  return Math.max(ultTfhka ?? 0, ultDb) + 1;
+}
+
 function numeroALetras(monto: number): string {
   const unidades = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
   const decenas = ['', 'DIEZ', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
@@ -454,7 +472,8 @@ export async function POST(request: Request) {
             Moneda:                       "BSD",
             Anulado:                      false,
             TipoDePago:                   "Inmediato",
-            Serie:                        "CAJA-001",
+            // El rango asignado por TFHKA es serie "NO APLICA" → se envía vacía
+            Serie:                        "",
             Sucursal:                     "",
             TipoDeVenta:                  "Interna",
           },
@@ -580,31 +599,49 @@ export async function POST(request: Request) {
     if (isTfhkaEnabled) {
       console.log(`[TFHKA] Enviando Factura Real para pago ${pagoId}`);
       try {
-        const tfhkaResponse = await TheFactoryHKA.emitirDocumento(jsonTFHKA.documentoElectronico);
-
-        let finalUrl = tfhkaResponse.resultado?.urlConsulta;
-        let finalControl = tfhkaResponse.resultado?.numeroControl;
-        let finalDoc = tfhkaResponse.resultado?.numeroDocumento;
-
-        // Si TFHKA Demo responde código 203 (Cuenta Demo sin rango de numeración asignado en el portal)
-        if (!finalUrl || tfhkaResponse.codigo === '203') {
-          console.warn("[TFHKA Demo] Cuenta Demo sin rango activo en portal TFHKA. Asignando URL de prueba con payload verificado.");
-          finalUrl = "https://democonsulta.thefactoryhka.com.ve/?doc=GhQVet4Fbe+vAHltz47VsoKrQ1NOzTmiOLp4jVe5oz4U01Z9FA/OdGcGnU9nU1co";
-          finalControl = `00-${(pagoId || '').replace(/-/g,'').slice(0,8).toUpperCase()}`;
-          finalDoc = jsonTFHKA.documentoElectronico.Encabezado.IdentificacionDocumento.NumeroDocumento;
+        // Evitar doble emisión real del mismo pago
+        if (nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated) {
+          return NextResponse.json({ success: true, yaEmitida: true, url: nuevosDetalles.factura_digital.url, numeroControl: nuevosDetalles.factura_digital.numero_control });
         }
 
+        let seq = await siguienteNumeroDocumento(supabase);
+        let tfhkaResponse: any = null;
+        for (let intento = 0; intento < 3; intento++) {
+          jsonTFHKA.documentoElectronico.Encabezado.IdentificacionDocumento.NumeroDocumento = String(seq);
+          tfhkaResponse = await TheFactoryHKA.emitirDocumento(jsonTFHKA.documentoElectronico);
+          if (tfhkaResponse?.resultado?.numeroControl) break;
+          const val = JSON.stringify(tfhkaResponse?.validaciones || tfhkaResponse?.mensaje || '').toLowerCase();
+          // Número de documento repetido → probar el siguiente
+          if (/(existe|duplic|registrad|utilizad)/.test(val) && /n[uú]mero/.test(val)) { seq++; continue; }
+          break;
+        }
+
+        const finalUrl = tfhkaResponse?.resultado?.urlConsulta;
+        const finalControl = tfhkaResponse?.resultado?.numeroControl;
+        const finalDoc = tfhkaResponse?.resultado?.numeroDocumento || String(seq);
+
+        // TFHKA rechazó el documento (p.ej. 203 sin rango): NO marcar como emitida
+        if (!finalControl) {
+          const msg = `TFHKA ${tfhkaResponse?.codigo || ''}: ${(tfhkaResponse?.validaciones || []).join('; ') || tfhkaResponse?.mensaje || 'respuesta sin número de control'}`;
+          throw new Error(msg);
+        }
+
+        delete nuevosDetalles.factura_digital_error;
         nuevosDetalles.factura_digital = {
           emitida:          true,
-          url:              finalUrl,
+          url:              finalUrl || null,
           numero_control:   finalControl,
           numero_documento: finalDoc,
+          tfhka_seq:        parseInt(finalDoc, 10) || seq,
           fecha_emision:    new Date().toISOString(),
           raw_response:     tfhkaResponse,
         };
       } catch (err: any) {
         console.error("[TFHKA] Error en emisión real:", err.message);
         nuevosDetalles.factura_digital_error = err.message;
+        if (nuevosDetalles.factura_digital && !nuevosDetalles.factura_digital.tfhka_seq) {
+          delete nuevosDetalles.factura_digital; // quitar registros demo/falsos previos
+        }
         await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
         return NextResponse.json({ error: 'Error en TFHKA: ' + err.message }, { status: 500 });
       }

@@ -150,4 +150,30 @@ export class TheFactoryHKA {
 
     return data;
   }
+
+  /**
+   * Último número de documento emitido en TFHKA.
+   * Devuelve: número (>=0; 0 = nunca ha emitido) o null si no se pudo consultar
+   * (p.ej. código 99: límite de 1 consulta cada 30 s).
+   */
+  static async ultimoDocumento(serie: string = '', tipoDocumento: string = '01'): Promise<number | null> {
+    try {
+      const token = await this.getToken();
+      const response = await fetch(`${this.getBaseUrl()}/api/UltimoDocumento`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ serie, tipoDocumento }),
+      });
+      const data: any = await response.json().catch(() => ({}));
+      if (data?.codigo === '200' || data?.numeroDocumento) {
+        const n = parseInt(String(data.numeroDocumento ?? data.resultado?.numeroDocumento ?? ''), 10);
+        return Number.isFinite(n) ? n : null;
+      }
+      const val = JSON.stringify(data?.validaciones || '').toLowerCase();
+      if (data?.codigo === '203' && val.includes('no ha emitido')) return 0;
+      return null;
+    } catch {
+      return null;
+    }
+  }
 }
