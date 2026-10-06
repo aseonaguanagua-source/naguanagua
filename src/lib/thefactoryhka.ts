@@ -176,4 +176,25 @@ export class TheFactoryHKA {
       return null;
     }
   }
+
+  /**
+   * Descarga el PDF oficial de un documento emitido (api/DescargaArchivo).
+   * Se adjunta al correo para que el contribuyente reciba SOLO su factura,
+   * sin enlace al visor web de TFHKA.
+   */
+  static async descargarPdf(numeroDocumento: string | number, serie: string = '', tipoDocumento: string = '01'): Promise<Buffer | null> {
+    try {
+      const token = await this.getToken();
+      const response = await fetch(`${this.getBaseUrl()}/api/DescargaArchivo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ serie, tipoDocumento, numeroDocumento: String(numeroDocumento), tipoArchivo: 'PDF' }),
+      });
+      const data: any = await response.json().catch(() => ({}));
+      if (!data?.archivo) return null;
+      return Buffer.from(data.archivo, 'base64');
+    } catch {
+      return null;
+    }
+  }
 }

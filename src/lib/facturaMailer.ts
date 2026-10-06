@@ -29,6 +29,7 @@ export function buildFacturaEmailTemplate(data: {
   urlPdf: string;
   esCopiaInterna?: boolean;
   esCorreoComodin?: boolean;
+  pdfAdjunto?: boolean;
 }): string {
   const montoFormateado = data.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -118,12 +119,16 @@ export function buildFacturaEmailTemplate(data: {
                 </tr>
               </table>
 
-              <!-- BOTÓN DESCARGA -->
-              <div style="text-align:center;margin:30px 0 20px;">
-                <a href="${data.urlPdf}" target="_blank" style="background:linear-gradient(135deg, #16a34a, #15803d);color:#ffffff;text-decoration:none;padding:14px 34px;border-radius:10px;font-size:15px;font-weight:bold;display:inline-block;box-shadow:0 4px 14px rgba(22,163,74,0.35);">
-                  &darr; Ver y Descargar Factura Fiscal Digital (PDF)
-                </a>
-              </div>
+              ${data.pdfAdjunto ? `
+              <!-- PDF ADJUNTO -->
+              <div style="text-align:center;margin:30px 0 20px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;color:#166534;font-size:14px;font-weight:bold;">
+                &#128206; Su Factura Fiscal Digital va adjunta a este correo en formato PDF.
+              </div>` : ''}
+              ${data.esCopiaInterna && data.urlPdf && data.urlPdf !== '#' ? `
+              <!-- ENLACE SOLO EN COPIA INTERNA -->
+              <div style="text-align:center;margin:10px 0 20px;">
+                <a href="${data.urlPdf}" target="_blank" style="color:#15803d;font-size:12px;">Ver en el portal de The Factory HKA (uso interno)</a>
+              </div>` : ''}
 
               <p style="margin:22px 0 0;font-size:11px;color:#94a3b8;line-height:1.5;text-align:center;">
                 Comprobante electrónico certificado por el Proveedor Autorizado de Certificación (PAC) The Factory HKA. Documento legal válido conforme al SENIAT.
@@ -176,8 +181,14 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
 
   const fromEmail = process.env.RESEND_FROM || DEFAULT_RESEND_FROM;
 
+  // PDF oficial de TFHKA, adjunto (el contribuyente NO recibe enlace al visor web)
+  const pdf = params.numeroDocumento ? await TheFactoryHKA.descargarPdf(params.numeroDocumento) : null;
+  const attachments = pdf ? [{ filename: `Factura_${params.numeroControl}.pdf`, content: pdf }] : undefined;
+
   // 1. Envío al contribuyente (si no tiene correo real, solo se envía la copia institucional del paso 2)
-  if (!esComodin) try {
+  if (!esComodin && !pdf) {
+    lastError = 'No se pudo descargar el PDF de la factura desde The Factory HKA; no se envió al contribuyente.';
+  } else if (!esComodin) try {
     const htmlCliente = buildFacturaEmailTemplate({
       contribuyente: params.contribuyente,
       identidad: params.identidad,
@@ -185,9 +196,10 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
       numeroDocumento: numDoc,
       monto: params.monto,
       fecha: fechaStr,
-      urlPdf: params.urlPdf,
+      urlPdf: '',
       esCopiaInterna: false,
       esCorreoComodin: esComodin,
+      pdfAdjunto: true,
     });
 
     const resCliente = await resend.emails.send({
@@ -195,6 +207,7 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
       to: [clienteEmail],
       subject: `Factura Fiscal Digital ${params.numeroControl} - IAMEC Naguanagua`,
       html: htmlCliente,
+      attachments,
     });
 
     if (!resCliente.error) {
@@ -221,6 +234,7 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
         urlPdf: params.urlPdf,
         esCopiaInterna: true,
         esCorreoComodin: esComodin,
+        pdfAdjunto: !!pdf,
       });
 
       const resCopia = await resend.emails.send({
@@ -228,6 +242,7 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
         to: [backupEmail],
         subject: `[ARCHIVO FISCAL] Factura ${params.numeroControl} - ${params.contribuyente} (${params.identidad})`,
         html: htmlCopia,
+        attachments,
       });
 
       if (!resCopia.error) {

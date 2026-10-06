@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getResendClient, DEFAULT_RESEND_FROM } from '@/lib/emailClient';
 
@@ -64,11 +65,9 @@ function buildFacturaEmailHtml(data: {
                 </tr>
               </table>
 
-              <!-- BOTON DE DESCARGA / CONSULTA -->
-              <div style="text-align:center;margin:28px 0;">
-                <a href="${data.url}" target="_blank" style="background:#16a34a;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:bold;display:inline-block;box-shadow:0 2px 8px rgba(22,163,74,0.3);">
-                  &darr; Ver y Descargar Factura Fiscal Digital (PDF)
-                </a>
+              <!-- PDF ADJUNTO (sin enlace al visor web de TFHKA) -->
+              <div style="text-align:center;margin:28px 0;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;font-size:14px;font-weight:bold;">
+                &#128206; Su Factura Fiscal Digital va adjunta a este correo en formato PDF.
               </div>
 
               <p style="margin:20px 0 0;font-size:12px;color:#94a3b8;line-height:1.5;text-align:center;">
@@ -101,6 +100,7 @@ export async function POST(request: Request) {
     const { pagoId, correoDestino, facturaUrl, numeroControl, contribuyente, identidad, monto, fecha } = body;
 
     // Agente de retención: la factura solo se envía después de aprobar su comprobante de retención
+    let numeroDocumento: string | null = null;
     if (pagoId) {
       const { data: pg } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
       let dt: any = pg?.detalles || {};
@@ -109,7 +109,15 @@ export async function POST(request: Request) {
       if (est && est !== 'aprobada') {
         return NextResponse.json({ error: 'Esta factura es de un agente de retención: se envía automáticamente cuando se apruebe su comprobante de retención (Conciliación → Retenciones).' }, { status: 409 });
       }
+      numeroDocumento = dt?.factura_digital?.numero_documento || dt?.factura_digital?.raw_response?.resultado?.numeroDocumento || null;
     }
+
+    // PDF oficial adjunto: el contribuyente recibe SOLO su factura, sin acceso al visor de TFHKA
+    const pdf = numeroDocumento ? await TheFactoryHKA.descargarPdf(numeroDocumento) : null;
+    if (!pdf) {
+      return NextResponse.json({ error: 'No se pudo descargar el PDF de esta factura desde The Factory HKA. Intente de nuevo en unos minutos.' }, { status: 502 });
+    }
+    const attachments = [{ filename: `Factura_${numeroControl || numeroDocumento}.pdf`, content: pdf }];
 
     const testMode = process.env.EMAIL_TEST_MODE !== 'false';
     const defaultTestEmail = process.env.TEST_EMAIL || 'aseonaguanagua@globalgreenca.com';
@@ -144,7 +152,8 @@ export async function POST(request: Request) {
           from: fromEmail,
           to: [targetEmail],
           subject: subject,
-          html: htmlContent
+          html: htmlContent,
+          attachments
         });
         if (sendResult.error && sendResult.error.message.includes('only send testing emails')) {
           console.warn('[Resend Sandbox] Reenviando a cuenta verificada aseonaguanagua@globalgreenca.com');
@@ -152,7 +161,8 @@ export async function POST(request: Request) {
             from: fromEmail,
             to: ['aseonaguanagua@globalgreenca.com'],
             subject: subject + ` (Destino original: ${targetEmail})`,
-            html: htmlContent
+            html: htmlContent,
+            attachments
           });
         }
         if (sendResult.error) {
