@@ -3,7 +3,7 @@
  *   npx tsx --tsconfig tsconfig.json src/lib/condominios/motor.test.ts
  */
 import assert from 'node:assert/strict';
-import { cargoMensual, cargoMensualUnidad, deudaPorMeses, esCondominioReal, modalidadSugerida, tarifaDesocupadaBs, Condominio } from './motor';
+import { cargoMensual, cargoMensualUnidad, cargosPorUnidad, aplicarAbono, multaLaPagaLaUnidad, SIN_REGISTRAR, deudaPorMeses, esCondominioReal, modalidadSugerida, tarifaDesocupadaBs, Condominio } from './motor';
 
 const TASA = 977.22;
 let ok = 0;
@@ -81,6 +81,51 @@ t('Mismo dueño con varias actividades NO es condominio', () => {
   assert.equal(esCondominioReal({ identidad: 'J-123' }, [{ identidad: 'J123' }, { identidad: 'J-123' }]), false);
   assert.equal(esCondominioReal({ identidad: 'J-123' }, [{ identidad: 'J-123' }, { identidad: 'V-999' }]), true);
   assert.equal(esCondominioReal({ identidad: 'J-123' }, []), true);
+});
+
+t('Reparto por unidad: suma = cargo del condominio; las no registradas van en un grupo', () => {
+  const c: Condominio = { codigo: 'URB016822', tipo: 'COMERCIAL', modalidad: 'MIXTO_COMERCIAL', cant_declarada: 565, tarifa_mmv: 1.98 };
+  const unidades = Array.from({ length: 546 }, (_, i) => ({ id: `u${i}`, estado: 'Activa' as const }));
+  const rep = cargosPorUnidad(c, unidades, TASA);
+  assert.equal(rep.length, 547);
+  assert.equal(rep.find(r => r.clave === SIN_REGISTRAR)!.cantidad, 19);
+  cerca(rep.reduce((s, r) => s + r.montoBs, 0), cargoMensual(c, unidades, TASA).condominioBs, 0.5);
+});
+
+t('Reparto con más registradas que declaradas: total = declarada, cuadra al céntimo', () => {
+  const c: Condominio = { codigo: 'URBX', tipo: 'RESIDENCIAL', modalidad: 'CENTRALIZADO', cant_declarada: 3, actividad: 'APARTAMENTO (ZONA A)', tarifa_mmv: 0.618 };
+  const unidades = Array.from({ length: 7 }, (_, i) => ({ id: `u${i}`, estado: 'Activa' as const }));
+  const rep = cargosPorUnidad(c, unidades, TASA);
+  assert.equal(rep.length, 7);
+  assert.equal(Math.round(rep.reduce((s, r) => s + r.montoBs, 0) * 100) / 100, cargoMensual(c, unidades, TASA).condominioBs);
+});
+
+t('Cobro con tarifa propia de cada unidad (condominio paga la suma)', () => {
+  const c: Condominio = { codigo: 'URBX', tipo: 'COMERCIAL', modalidad: 'CENTRALIZADO', cant_declarada: 2, tarifa_mmv: 1.98, cobro_tarifa_por_unidad: true };
+  const u = [{ id: 'a', estado: 'Activa' as const, tarifa_mmv: 82.99 }, { id: 'b', estado: 'Activa' as const, tarifa_mmv: 6.21 }];
+  const rep = cargosPorUnidad(c, u, TASA);
+  cerca(cargoMensual(c, u, TASA).condominioBs, rep[0].montoBs + rep[1].montoBs);
+  assert.ok(rep[0].montoBs > rep[1].montoBs * 10);
+});
+
+t('Abono: cubre primero los meses más viejos; aseo antes que multa', () => {
+  const deuda = [
+    { clave: 'u1', periodo: '2026-09', montoBs: 100, concepto: 'ASEO' as const },
+    { clave: 'u1', periodo: '2026-08', montoBs: 100, concepto: 'ASEO' as const },
+    { clave: 'u1', periodo: '2026-08', montoBs: 12, concepto: 'MULTA' as const },
+  ];
+  const r = aplicarAbono(150, deuda);
+  assert.deepEqual(r.aplicado.map(a => [a.periodo, a.concepto, a.pagadoBs, a.completo]), [
+    ['2026-08', 'ASEO', 100, true], ['2026-08', 'MULTA', 12, true], ['2026-09', 'ASEO', 38, false],
+  ]);
+  assert.deepEqual(r.mesesCompletos, ['2026-08']);
+  assert.equal(r.sobranteBs, 0);
+  assert.equal(aplicarAbono(500, deuda).sobranteBs, 288);
+});
+
+t('Quién paga la multa', () => {
+  assert.equal(multaLaPagaLaUnidad({ codigo: 'x', tipo: 'COMERCIAL', modalidad: 'MIXTO_COMERCIAL', cant_declarada: 1 }), true);
+  assert.equal(multaLaPagaLaUnidad({ codigo: 'x', tipo: 'RESIDENCIAL', modalidad: 'CENTRALIZADO', cant_declarada: 1 }), false);
 });
 
 console.log(`\n${ok} pruebas OK`);

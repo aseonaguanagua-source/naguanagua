@@ -17,6 +17,9 @@ create table if not exists public.condominios (
   tarifa_mmv       numeric(10,4),                        -- F.O. por unidad
   tarifa_fija_bs   numeric(14,2),                        -- solo modalidad TARIFA_FIJA
   agente_retencion boolean not null default false,
+  permite_pago_por_unidad boolean not null default false,  -- el condominio puede cancelar sus inmuebles por separado
+  permite_abonos          boolean not null default true,   -- acepta pagos parciales (se aplican a los meses más viejos)
+  cobro_tarifa_por_unidad boolean not null default false,  -- el condominio paga la suma de la tarifa propia de cada unidad
   administradora   text,
   telefono         text,
   correo           text,

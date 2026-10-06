@@ -27,10 +27,18 @@ export interface Condominio {
   tarifa_mmv?: number | null;
   tarifa_fija_bs?: number | null;
   agente_retencion?: boolean;
+  /** Puede cancelar sus inmuebles por separado (escoger unidades) */
+  permite_pago_por_unidad?: boolean;
+  /** Acepta abonos (pagos parciales) */
+  permite_abonos?: boolean;
+  /** Paga la suma de la tarifa propia de cada unidad (en vez de declarada × tarifa del condominio) */
+  cobro_tarifa_por_unidad?: boolean;
 }
 
 export interface Unidad {
+  id?: string;
   inmueble?: string | null;
+  identidad?: string | null;
   actividad?: string | null;
   tarifa_mmv?: number | null;
   estado: EstadoUnidad;
@@ -87,12 +95,71 @@ export function cargoMensual(c: Condominio, unidades: Unidad[], tasa: number): C
     return { condominioBs: r2(c.tarifa_fija_bs!), unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
       detalle: 'Tarifa fija acordada' };
   }
+  if (c.cobro_tarifa_por_unidad) {
+    const reparto = cargosPorUnidad(c, unidades, tasa);
+    const total = reparto.reduce((s, r) => s + r.montoBs, 0);
+    return { condominioBs: r2(total), unidadesCobradas: reparto.length, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
+      detalle: 'Suma de la tarifa propia de cada unidad' };
+  }
   const ocupadas = declarada - desoc;
   const total = tUnit * ocupadas + tDesoc * desoc;
   return {
     condominioBs: r2(total), unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
     detalle: `${ocupadas} unidad(es) × Bs ${r2(tUnit)}${desoc ? ` + ${desoc} desocupada(s) × Bs ${r2(tDesoc)}` : ''}`,
   };
+}
+
+/** Clave del grupo de unidades declaradas que no están registradas una por una */
+export const SIN_REGISTRAR = '__SIN_REGISTRAR__';
+
+export interface CargoUnidad {
+  /** id de la unidad, o SIN_REGISTRAR para las declaradas que no están cargadas, o '__CONDOMINIO__' (tarifa fija) */
+  clave: string;
+  inmueble?: string | null;
+  cantidad: number;
+  montoBs: number;
+}
+
+/**
+ * Reparte el cargo mensual del condominio entre sus unidades. La deuda se lleva POR UNIDAD:
+ * así se puede pagar el condominio completo, solo algunas unidades, o abonar.
+ * La suma de los cargos = cargoMensual().condominioBs (salvo INDIVIDUAL, donde cada unidad paga lo suyo).
+ */
+export function cargosPorUnidad(c: Condominio, unidades: Unidad[], tasa: number): CargoUnidad[] {
+  const vivas = unidades.filter(u => u.estado !== 'Eliminada');
+  const declarada = Math.max(1, Math.floor(c.cant_declarada || 1));
+  const tUnit = tarifaUnidadBs(c, tasa);
+  const tDesoc = tarifaDesocupadaBs(tasa);
+  const clave = (u: Unidad, i: number) => u.id || u.inmueble || `U${i}`;
+
+  if (c.modalidad === 'TARIFA_FIJA' && (c.tarifa_fija_bs || 0) > 0) {
+    return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: r2(c.tarifa_fija_bs!) }];
+  }
+  if (c.modalidad === 'INDIVIDUAL' || c.cobro_tarifa_por_unidad) {
+    const propios = vivas.map((u, i) => ({
+      clave: clave(u, i), inmueble: u.inmueble, cantidad: 1,
+      montoBs: r2(u.estado === 'Desocupada' ? tDesoc : tarifaUnidadBs(c, tasa, u)),
+    }));
+    const faltan = Math.max(0, declarada - vivas.length);
+    if (faltan > 0) propios.push({ clave: SIN_REGISTRAR, inmueble: null, cantidad: faltan, montoBs: r2(tUnit * faltan) });
+    return propios;
+  }
+
+  // CENTRALIZADO / MIXTO_COMERCIAL: tarifa del condominio por unidad, se cobra la DECLARADA
+  if (vivas.length >= declarada) {
+    // Más (o igual) registradas que declaradas: el total sigue siendo la declarada, repartido entre las registradas
+    const total = cargoMensual(c, vivas, tasa).condominioBs;
+    const cuota = total / vivas.length;
+    const out = vivas.map((u, i) => ({ clave: clave(u, i), inmueble: u.inmueble, cantidad: 1, montoBs: r2(cuota) }));
+    const dif = r2(total - out.reduce((s, o) => s + o.montoBs, 0));
+    if (out.length && dif !== 0) out[out.length - 1].montoBs = r2(out[out.length - 1].montoBs + dif); // cuadre de céntimos
+    return out;
+  }
+  const out: CargoUnidad[] = vivas.map((u, i) => ({
+    clave: clave(u, i), inmueble: u.inmueble, cantidad: 1, montoBs: r2(u.estado === 'Desocupada' ? tDesoc : tUnit),
+  }));
+  out.push({ clave: SIN_REGISTRAR, inmueble: null, cantidad: declarada - vivas.length, montoBs: r2(tUnit * (declarada - vivas.length)) });
+  return out;
 }
 
 /** Cargo mensual de UNA unidad (solo modalidad INDIVIDUAL; en las demás la unidad no paga aseo propio). */
@@ -137,15 +204,69 @@ export function modalidadSugerida(codigo: string, residencial: boolean): Modalid
   return residencial ? 'CENTRALIZADO' : 'MIXTO_COMERCIAL';
 }
 
+export interface RenglonDeuda {
+  /** unidad (clave de cargosPorUnidad) */
+  clave: string;
+  /** 'YYYY-MM' */
+  periodo: string;
+  /** pendiente de este renglón */
+  montoBs: number;
+  concepto?: 'ASEO' | 'MULTA' | 'IVA';
+}
+
+export interface ResultadoAbono {
+  aplicado: (RenglonDeuda & { pagadoBs: number; completo: boolean })[];
+  sobranteBs: number;
+  mesesCompletos: string[];
+}
+
+/**
+ * Aplica un abono a la deuda: primero los MESES MÁS VIEJOS; dentro de un mismo mes, aseo e IVA
+ * antes que la multa. Lo que no alcanza a cubrir un renglón queda como abono parcial de ese renglón.
+ */
+export function aplicarAbono(montoBs: number, deuda: RenglonDeuda[]): ResultadoAbono {
+  const orden = { ASEO: 0, IVA: 1, MULTA: 2 } as const;
+  const pend = deuda
+    .filter(d => d.montoBs > 0)
+    .slice()
+    .sort((a, b) => a.periodo.localeCompare(b.periodo) || orden[a.concepto || 'ASEO'] - orden[b.concepto || 'ASEO'] || a.clave.localeCompare(b.clave));
+  let resto = r2(montoBs);
+  const aplicado: ResultadoAbono['aplicado'] = [];
+  for (const d of pend) {
+    if (resto <= 0) break;
+    const pagado = r2(Math.min(resto, d.montoBs));
+    aplicado.push({ ...d, pagadoBs: pagado, completo: pagado >= d.montoBs });
+    resto = r2(resto - pagado);
+  }
+  const porMes = new Map<string, boolean>();
+  for (const d of pend) {
+    const a = aplicado.find(x => x.clave === d.clave && x.periodo === d.periodo && x.concepto === d.concepto);
+    porMes.set(d.periodo, (porMes.get(d.periodo) ?? true) && !!a?.completo);
+  }
+  return { aplicado, sobranteBs: resto, mesesCompletos: [...porMes].filter(([, c]) => c).map(([p]) => p) };
+}
+
+/** Normaliza una cédula/RIF para comparar (V-12.345.678 → 12345678). */
+export const normId = (s: any) => String(s || '').replace(/^[VEJPG]-?/i, '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
+
+/**
+ * ¿Quién paga la multa de una unidad? En MIXTO_COMERCIAL e INDIVIDUAL la paga el dueño de la unidad
+ * (se le busca por su cédula/RIF en la Caja de Condominios); en CENTRALIZADO y TARIFA_FIJA, el condominio.
+ */
+export const multaLaPagaLaUnidad = (c: Condominio) => c.modalidad === 'MIXTO_COMERCIAL' || c.modalidad === 'INDIVIDUAL';
+
+/** ¿El aseo de la unidad lo paga la propia unidad? Solo en INDIVIDUAL. */
+export const aseoLoPagaLaUnidad = (c: Condominio) => c.modalidad === 'INDIVIDUAL';
+
 /**
  * ¿Es un condominio real? Un mismo dueño con varias actividades NO es condominio
  * (es un local con varias actividades económicas → se queda en Contribuyentes).
+ * Excepciones confirmadas por el municipio (p. ej. HMR, Free Market) se fuerzan en la migración.
  */
 export function esCondominioReal(padre: { identidad?: string | null }, unidadesActivas: { identidad?: string | null }[]): boolean {
-  const norm = (s: any) => String(s || '').replace(/^[VEJPG]-?/i, '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
   if (unidadesActivas.length === 0) return true; // condominio declarado sin unidades cargadas
-  const p = norm(padre.identidad);
-  return unidadesActivas.some(u => norm(u.identidad) !== p);
+  const p = normId(padre.identidad);
+  return unidadesActivas.some(u => normId(u.identidad) !== p);
 }
 
 export { isResidencialInm };
