@@ -187,65 +187,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setCacheStatus('syncing');
 
-      // Helper concurrente para descargar páginas en paralelo (8 peticiones simultáneas).
-      // Cada bloque se reintenta (timeouts de la BD) y se sigue pidiendo hasta agotar la tabla,
-      // aunque el conteo estimado de Postgres se quede corto.
+      // Descarga secuencial por cursor. Si la BD está ocupada se detiene y NO guarda caché incompleta.
       let cargaIncompleta = false;
+      // Escalonar el arranque (0–10 s) para que, tras una caída, no descarguen todas las computadoras a la vez.
+      await new Promise(r => setTimeout(r, Math.floor(Math.random() * 10000)));
       const fetchAllClientParallel = async (table: string, select: string) => {
-        let total = 0;
-        try {
-          const { count, error: countErr } = await supabase.from(table).select('*', { count: 'planned', head: true });
-          if (!countErr && count && count > 0) total = count;
-        } catch (e) {}
-
-        if (!total) {
-          try {
-            const { count: estCount } = await supabase.from(table).select('*', { count: 'estimated', head: true });
-            if (estCount && estCount > 0) total = estCount;
-          } catch (e) {}
-        }
-
-        if (!total) {
-          total = table === 'inmuebles' ? 52000 : 36000;
-        }
-
         const step = 1000;
-        const fetchChunk = async (from: number, to: number): Promise<any[] | null> => {
+        // Paginación por cursor (id > último id) usando el índice de la llave primaria:
+        // cada bloque cuesta lo mismo sin importar la posición (el OFFSET obligaba a recorrer
+        // todas las filas anteriores y saturaba la BD con varias computadoras a la vez).
+        const fetchAfter = async (lastId: any): Promise<any[] | null> => {
           for (let intento = 0; intento < 2; intento++) {
-            const { data, error } = await supabase.from(table).select(select).order('id', { ascending: true }).range(from, to);
+            let q = supabase.from(table).select(select).order('id', { ascending: true }).limit(step);
+            if (lastId !== null) q = q.gt('id', lastId);
+            const { data, error } = await q;
             if (!error) return data || [];
-            console.warn(`Reintento ${intento + 1} bloque ${from}-${to} de ${table}:`, error.message);
-            await new Promise(r => setTimeout(r, 2000 * (intento + 1)));
+            console.warn(`Reintento ${intento + 1} de ${table}:`, error.message);
+            await new Promise(r => setTimeout(r, 3000));
           }
           return null;
         };
 
-        const numBatches = Math.ceil(total / step);
-        const results: any[][] = new Array(numBatches);
-        const CONCURRENCY = 4;
-        for (let i = 0; i < numBatches; i += CONCURRENCY) {
-          await Promise.all(
-            Array.from({ length: Math.min(CONCURRENCY, numBatches - i) }, async (_, idx) => {
-              const b = i + idx;
-              const data = await fetchChunk(b * step, (b + 1) * step - 1);
-              if (data === null) { cargaIncompleta = true; console.error(`Bloque ${b} de ${table} no se pudo descargar`); }
-              results[b] = data || [];
-            })
-          );
-        }
-        // Cola: filas por encima del conteo (registros nuevos o conteo corto)
-        let next = numBatches * step;
-        for (let guard = 0; guard < 20; guard++) {
-          const data = await fetchChunk(next, next + step - 1);
-          if (data === null) { cargaIncompleta = true; break; }
+        const results: any[] = [];
+        let lastId: any = null;
+        for (let guard = 0; guard < 200; guard++) {
+          const data = await fetchAfter(lastId);
+          if (data === null) { cargaIncompleta = true; console.error(`Descarga de ${table} interrumpida (BD ocupada)`); break; }
           if (data.length === 0) break;
-          results.push(data);
+          results.push(...data);
+          lastId = (data[data.length - 1] as any).id;
           if (data.length < step) break;
-          next += step;
         }
-        // Quitar duplicados por id (si se insertaron filas mientras se paginaba)
-        const seen = new Set<any>();
-        return results.flat().filter((r: any) => (r?.id == null || seen.has(r.id)) ? r?.id == null : (seen.add(r.id), true));
+        return results;
       };
 
       // Descarga de facturas activas desde API para bypass de RLS
