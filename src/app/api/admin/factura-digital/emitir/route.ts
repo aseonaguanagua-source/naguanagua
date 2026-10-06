@@ -4,6 +4,7 @@ import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
 import { isFictitiousEmail } from '@/lib/formatters';
+import { extraerCodigoInmueble } from '@/lib/documentoPago';
 
 /** Siguiente N° de factura (correlativo propio, serie vacía). */
 async function siguienteNumeroDocumento(sb: any): Promise<number> {
@@ -85,7 +86,7 @@ function formatearFecha(isoString: string): string {
 export async function POST(request: Request) {
   try {
     const { 
-      pagoId, recibos, montos, contribuyente, identidad, formasPago, 
+      pagoId, recibos, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
       correoDestino, enviarCorreo = true, dryRun = false
     } = await request.json();
@@ -94,13 +95,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Faltan datos obligatorios (pagoId requerido)' }, { status: 400 });
     }
 
-    // REGLA: un pago que solo contiene multas (MULTA-*) no lleva factura fiscal; se envía como recibo por correo.
-    if (Array.isArray(recibos) && recibos.length > 0 && recibos.every((r: string) => /^MULTA-/i.test(String(r)))) {
-      return NextResponse.json({
-        success: true,
-        skipped: true,
-        message: 'Emisión omitida: el pago es solo multa (se envía como recibo por correo).'
-      });
+    // REGLA: las multas de inmuebles COMERCIALES se facturan (ítem exento), incluso si el pago es solo multa
+    // (p. ej. local de un condominio comercial). Las multas residenciales nunca se facturan.
+    // Montos por referencia: del payload o, si no vienen (emisión por lote), los que guardó Caja en el pago.
+    const montos: Record<string, any> = montosBody && typeof montosBody === 'object' ? montosBody : {};
+    let montosMulta: Record<string, any> = { ...montos };
+    if (Array.isArray(recibos) && recibos.some((r: string) => /^MULTA-/i.test(String(r)) && !montos[r])) {
+      const { data: pagoMontos } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
+      let dm: any = pagoMontos?.detalles || {};
+      if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
+      if (dm?.montos && typeof dm.montos === 'object') montosMulta = { ...dm.montos, ...montos };
     }
 
     // --- BUSINESS RULE: Only emit invoices for Commercial properties ---
@@ -323,9 +327,56 @@ export async function POST(request: Request) {
       return items;
     });
 
+    // Multas pagadas por referencia MULTA-{COD}: solo inmuebles comerciales, exentas de IVA.
+    const multaRecibos = (recibos || []).filter((r: string) => /^MULTA-/i.test(String(r)));
+    const itemsMulta: any[] = [];
+    if (multaRecibos.length > 0) {
+      const codsMulta = [...new Set(multaRecibos.map((r: string) => extraerCodigoInmueble(r)).filter(Boolean))] as string[];
+      const { data: inmsMulta } = await supabase
+        .from('inmuebles')
+        .select('inmueble, tipo, clasificacion, actividad_principal')
+        .in('inmueble', codsMulta.length ? codsMulta : ['__none__']);
+      const soloMultas = multaRecibos.length === recibos.length;
+      for (const ref of multaRecibos) {
+        const cod = extraerCodigoInmueble(ref);
+        const inm = (inmsMulta || []).find((i: any) => i.inmueble === cod);
+        if (inm && isResidencialInm(inm)) { excluidosResidenciales++; continue; }
+        let monto = parseFloat(String(montosMulta[ref] ?? 0)) || 0;
+        // Pago de una sola multa sin monto guardado: se toma el total cobrado
+        if (monto <= 0 && soloMultas && multaRecibos.length === 1) monto = parseFloat(String(montoTotal || 0)) || 0;
+        if (monto <= 0) continue;
+        monto = parseFloat(monto.toFixed(2));
+        lineaNum++;
+        totalExento += monto;
+        itemsMulta.push({
+          NumeroLinea:             String(lineaNum),
+          CodigoCIIU:              "0198",
+          CodigoPLU:               "MULT001",
+          IndicadorBienoServicio:  "2",
+          Descripcion:             `Multa por Mora - Aseo Urbano ${cod || ''}`.trim(),
+          Cantidad:                "1",
+          UnidadMedida:            "NIU",
+          PrecioUnitario:          monto.toFixed(2),
+          PrecioUnitarioDescuento: null,
+          MontoBonificacion:       null,
+          DescripcionBonificacion: null,
+          DescuentoMonto:          "0.00",
+          RecargoMonto:            "0",
+          PrecioItem:              monto.toFixed(2),
+          PrecioAntesDescuento:    monto.toFixed(2),
+          CodigoImpuesto:          "E",
+          TasaIVA:                 "0",
+          ValorIVA:                "0.00",
+          ValorTotalItem:          monto.toFixed(2),
+          InfoAdicionalItem:       [],
+          ListaItemOTI:            null,
+        });
+      }
+    }
+
     const condoRecibos = (recibos || []).filter((r: string) => r.startsWith('CONDO-'));
     const itemsCondo: any[] = [];
-    if ((isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && excluidosResidenciales === 0) {
+    if ((isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && excluidosResidenciales === 0) {
       lineaNum++;
       const totalNum = parseFloat(String(montoTotal || 0));
       const base = parseFloat((totalNum / 1.16).toFixed(2));
@@ -359,7 +410,7 @@ export async function POST(request: Request) {
     }
 
     const itemsGeneral: any[] = [];
-    if (itemsFacturas.length === 0 && itemsHist.length === 0 && itemsCondo.length === 0 && excluidosResidenciales === 0 && (parseFloat(String(montoTotal || 0)) > 0 || parseFloat(String(montoServicio || 0)) > 0)) {
+    if (itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && itemsCondo.length === 0 && excluidosResidenciales === 0 && (parseFloat(String(montoTotal || 0)) > 0 || parseFloat(String(montoServicio || 0)) > 0)) {
       lineaNum++;
       const totalNum = parseFloat(String(montoTotal || 0));
       const multaNum = parseFloat(String(montoMulta || montos?.multa || 0));
@@ -423,7 +474,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const detallesItems = [...itemsFacturas, ...itemsHist, ...itemsCondo, ...itemsGeneral];
+    const detallesItems = [...itemsFacturas, ...itemsHist, ...itemsMulta, ...itemsCondo, ...itemsGeneral];
 
     // Si no hay items, no emitir (nada que facturar)
     if (detallesItems.length === 0) {

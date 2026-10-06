@@ -29,7 +29,7 @@ const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumF
 const SUBTIPO_LABEL: Record<string, { label: string; cls: string }> = {
   factura_comercial:      { label: 'FACTURA · Comercial',      cls: 'bg-blue-100 text-blue-800 border-blue-300' },
   recibo_residencial:     { label: 'RECIBO · Residencial',     cls: 'bg-violet-100 text-violet-800 border-violet-300' },
-  recibo_multa_comercial: { label: 'RECIBO · Multa comercial', cls: 'bg-orange-100 text-orange-800 border-orange-300' },
+  factura_multa_comercial: { label: 'FACTURA · Multa comercial', cls: 'bg-orange-100 text-orange-800 border-orange-300' },
 };
 
 export default function FacturacionElectronicaPage() {
@@ -124,7 +124,7 @@ export default function FacturacionElectronicaPage() {
     loadPagos();
   }, [loadPagos]);
 
-  // Separación del día: facturas (comerciales) y recibos (residenciales / comerciales solo multa)
+  // Separación del día: facturas (todo lo comercial: servicio y multas) y recibos (solo residenciales)
   const facturasDia = pagosList.filter(p => p.documento === 'factura');
   const recibosDia = pagosList.filter(p => p.documento === 'recibo');
   const delTipo = docTab === 'factura' ? facturasDia : recibosDia;
@@ -524,7 +524,7 @@ export default function FacturacionElectronicaPage() {
             </div>
             <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">The Factory HKA</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">Comerciales (servicio de aseo con IVA)</p>
+          <p className="text-[11px] text-slate-500 mt-1">Comerciales: servicio de aseo (con IVA) y multas (exentas), incluso locales de condominio que solo pagan multa</p>
           <div className="flex items-end justify-between mt-3">
             <div className="text-xs text-slate-600 space-x-3">
               <span><strong className="text-amber-700 text-base">{resFact.pendientes}</strong> pendientes</span>
@@ -547,7 +547,7 @@ export default function FacturacionElectronicaPage() {
             </div>
             <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">No fiscal</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">Residenciales y comerciales que solo pagaron multa</p>
+          <p className="text-[11px] text-slate-500 mt-1">Solo residenciales (servicio y multas)</p>
           <div className="flex items-end justify-between mt-3">
             <div className="text-xs text-slate-600 space-x-3">
               <span><strong className="text-amber-700 text-base">{resRec.pendientes}</strong> pendientes</span>

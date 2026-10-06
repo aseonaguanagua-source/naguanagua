@@ -5,7 +5,7 @@ import { clasificarPago, extraerCodigoInmueble, parseDetalles, ClasificacionPago
 import { isResidencialInm } from '@/lib/calculos';
 
 /**
- * Recibos de pago por correo (NO fiscales): residenciales y comerciales que solo pagaron multa.
+ * Recibos de pago por correo (NO fiscales): solo residenciales (lo comercial, incluidas sus multas, se factura).
  * Las facturas comerciales van por The Factory HKA (factura-digital/emitir).
  */
 
@@ -75,7 +75,7 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
 }
 
 export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boolean } = {}): string {
-  const titulo = d.clasif.subtipo === 'recibo_multa_comercial' ? 'RECIBO DE PAGO DE MULTA' : 'RECIBO DE PAGO';
+  const titulo = 'RECIBO DE PAGO';
   const filas = d.lineas.map(l => `
     <tr>
       <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-weight:bold;color:#0f172a;">${esc(l.codigo)}</td>
@@ -132,7 +132,7 @@ export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clien
   const resend = getResendClient();
   const from = process.env.RESEND_FROM || DEFAULT_RESEND_FROM;
   const backup = TheFactoryHKA.getBackupEmail();
-  const asunto = `${d.clasif.subtipo === 'recibo_multa_comercial' ? 'Recibo de pago de multa' : 'Recibo de pago'} ${d.numeroRecibo} - IAMEC Naguanagua`;
+  const asunto = `Recibo de pago ${d.numeroRecibo} - IAMEC Naguanagua`;
 
   let clienteEnviado = false;
   let copiaInternaEnviada = false;

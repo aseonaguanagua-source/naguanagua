@@ -145,8 +145,20 @@ export const logAudit = async (
       }
     };
 
-    // Inserción no bloqueante
-    await supabase.from('auditoria').insert([payload]);
+    // La tabla tiene RLS para la clave pública: desde el navegador se registra vía API (clave de servicio).
+    if (typeof window !== 'undefined') {
+      const res = await fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+      if (!res.ok) console.error('Audit Log Error:', await res.text().catch(() => res.status));
+    } else {
+      const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
+      const { error } = await supabaseAdmin.from('auditoria').insert([payload]);
+      if (error) console.error('Audit Log Error:', error.message);
+    }
   } catch (e) {
     console.error('Audit Log Error:', e);
   }
@@ -164,7 +176,8 @@ export const logAuditServer = async (
   modulo = '/api'
 ): Promise<void> => {
   try {
-    await supabase.from('auditoria').insert([{
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
+    const { error } = await supabaseAdmin.from('auditoria').insert([{
       usuario,
       accion,
       categoria,
@@ -179,6 +192,7 @@ export const logAuditServer = async (
         _ts: new Date().toISOString(),
       }
     }]);
+    if (error) console.error('Server Audit Log Error:', error.message);
   } catch (e) {
     console.error('Server Audit Log Error:', e);
   }

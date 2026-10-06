@@ -2,15 +2,16 @@ import { isResidencialInm } from './calculos';
 
 /**
  * Clasificación del documento que corresponde a un pago de caja:
- *  - FACTURA fiscal (TFHKA): el pago incluye servicio de aseo de un inmueble COMERCIAL.
- *  - RECIBO (correo, no fiscal): residenciales, o comerciales que solo pagaron MULTA.
+ *  - FACTURA fiscal (TFHKA): TODO pago de un inmueble COMERCIAL (servicio de aseo y/o multas),
+ *    incluido el local de un condominio comercial que solo paga su multa.
+ *  - RECIBO (correo, no fiscal): SOLO residenciales.
  */
 export type TipoDocumentoPago = 'factura' | 'recibo';
 
 export interface ClasificacionPago {
   documento: TipoDocumentoPago;
-  /** Recibo residencial / Recibo multa comercial / Factura comercial */
-  subtipo: 'factura_comercial' | 'recibo_residencial' | 'recibo_multa_comercial';
+  /** Factura comercial (servicio) / Factura de multa comercial / Recibo residencial */
+  subtipo: 'factura_comercial' | 'factura_multa_comercial' | 'recibo_residencial';
   /** Pago con inmuebles residenciales y comerciales a la vez (va a factura; la factura solo toma la porción comercial) */
   mixto: boolean;
   inmuebles: string[];
@@ -72,15 +73,16 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
     servicioComercial = true;
   }
 
-  const documento: TipoDocumentoPago = servicioComercial ? 'factura' : 'recibo';
+  const comercial = servicioComercial || multaComercial;
+  const documento: TipoDocumentoPago = comercial ? 'factura' : 'recibo';
   const subtipo = servicioComercial
     ? 'factura_comercial'
-    : (multaComercial && !residencial ? 'recibo_multa_comercial' : 'recibo_residencial');
+    : (multaComercial ? 'factura_multa_comercial' : 'recibo_residencial');
 
   return {
     documento,
     subtipo,
-    mixto: servicioComercial && residencial,
+    mixto: comercial && residencial,
     inmuebles: [...inmuebles],
     mesesServicio,
     tieneMulta,
