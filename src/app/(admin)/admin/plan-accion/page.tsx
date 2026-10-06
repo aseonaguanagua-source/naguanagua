@@ -77,11 +77,9 @@ export default function PlanAccionPage() {
       setMorosos(morososArray);
 
       // Cargar asignaciones de hoy
-      const hoy = new Date().toISOString().split('T')[0];
-      const { data: audits } = await supabase.from('auditoria')
-        .select('*')
-        .eq('accion', 'Asignacion Plan de Accion')
-        .gte('created_at', hoy + 'T00:00:00Z');
+      const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+      const audits: any[] = await fetch(`/api/admin/auditoria?accion=${encodeURIComponent('Asignacion Plan de Accion')}&desde=${hoy}`, { cache: 'no-store' })
+        .then(r => r.json()).then(j => j?.data || []).catch(() => []);
       
       const asigMap: Record<string, string> = {};
       if (audits) {

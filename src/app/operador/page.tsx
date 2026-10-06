@@ -66,12 +66,11 @@ export default function OperadorDashboard() {
 
   const fetchStats = async (opName: string) => {
     try {
-      // Count all historical censuses sent by this operator from audit_logs
-      const { count, error } = await supabase
-        .from('auditoria')
-        .select('*', { count: 'exact', head: true })
-        .eq('accion', 'Censo Movil Enviado')
-        .eq('user_id', opName);
+      // Censos enviados por este operador (bitácora de auditoría, leída vía servidor)
+      const res = await fetch(`/api/admin/auditoria?count=1&accion=${encodeURIComponent('Censo Movil Enviado')}&usuario=${encodeURIComponent(opName)}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => ({}));
+      const count = res.ok ? json?.count : null;
+      const error = !res.ok;
         
       if (!error && count !== null) {
         setCensosRealizados(count);

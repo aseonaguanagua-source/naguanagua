@@ -197,22 +197,18 @@ export default function AuditoriaPage() {
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      let q = supabase
-        .from('auditoria')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(2000);
-
-      if (filterDateFrom) q = q.gte('created_at', filterDateFrom + 'T00:00:00');
-      if (filterDateTo)   q = q.lte('created_at', filterDateTo + 'T23:59:59');
-      if (filterUser)     q = q.eq('usuario', filterUser);
-      if (filterCat !== 'TODAS') q = (q as any).eq('categoria', filterCat);
-
-      const { data, error } = await q;
-      if (error) {
-        console.error('Error fetching auditoria logs:', error);
+      // La tabla tiene RLS para la clave pública (devolvía vacío): se lee vía servidor.
+      const params = new URLSearchParams();
+      if (filterDateFrom) params.set('desde', filterDateFrom);
+      if (filterDateTo)   params.set('hasta', filterDateTo);
+      if (filterUser)     params.set('usuario', filterUser);
+      if (filterCat !== 'TODAS') params.set('categoria', filterCat);
+      const res = await fetch(`/api/admin/auditoria?${params.toString()}`, { cache: 'no-store' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        console.error('Error fetching auditoria logs:', json?.error || res.status);
       }
-      setLogs(data || []);
+      setLogs(json?.data || []);
     } finally {
       setLoading(false);
     }

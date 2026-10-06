@@ -301,7 +301,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supabase.from('reclamos').select('*'),
         supabase.from('convenios').select('*'),
         supabase.from('pre_liquidaciones').select('*'),
-        supabase.from('auditoria').select('*').order('created_at', { ascending: false }).limit(200),
+        fetch('/api/admin/auditoria?limit=200', { cache: 'no-store' }).then(r => r.json()).then(j => ({ data: j?.data || [] })).catch(() => ({ data: [] as any[] })),
         supabase.from('sistema_config').select('*'),
         fetch(`/api/bcv?t=${Date.now()}`, { cache: 'no-store' }).then(res => res.json()).catch(() => ({ tcmmv: 0 }))
       ]);

@@ -214,14 +214,18 @@ export default function CensoMobilePage() {
 
       if (error) throw error;
       
-      // Registrar en auditoria
-      await supabase.from('auditoria').insert([{
-        usuario: operador,
-        accion: 'Censo Movil Enviado',
-        categoria: 'SISTEMA',
-        modulo: '/operador/censo',
-        detalles: { _categoria: 'SISTEMA', _modulo: '/operador/censo', operador },
-      }]);
+      // Registrar en auditoria (vía servidor: la clave pública no puede insertar)
+      await fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          usuario: operador,
+          accion: 'Censo Movil Enviado',
+          categoria: 'SISTEMA',
+          modulo: '/operador/censo',
+          detalles: { _categoria: 'SISTEMA', _modulo: '/operador/censo', operador },
+        }),
+      }).catch(() => {});
 
       
       setShowSuccess(true);
