@@ -16,10 +16,11 @@ export async function POST(request: Request) {
       .select('*')
       .order('created_at', { ascending: false });
 
+    // Cada emisión es un documento fiscal real: solo se emiten los pagos revisados y seleccionados explícitamente.
     if (pagosIds && Array.isArray(pagosIds) && pagosIds.length > 0) {
       query = query.in('id', pagosIds);
     } else {
-      query = query.limit(100);
+      return NextResponse.json({ error: 'Debe indicar los pagos a emitir (pagosIds). No se emite en lote sin selección.' }, { status: 400 });
     }
 
     const { data: pagos, error: pagosErr } = await query;

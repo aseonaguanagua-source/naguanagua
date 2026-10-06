@@ -94,6 +94,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Faltan datos obligatorios (pagoId requerido)' }, { status: 400 });
     }
 
+    // REGLA: un pago que solo contiene multas (MULTA-*) no lleva factura fiscal; se envía como recibo por correo.
+    if (Array.isArray(recibos) && recibos.length > 0 && recibos.every((r: string) => /^MULTA-/i.test(String(r)))) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        message: 'Emisión omitida: el pago es solo multa (se envía como recibo por correo).'
+      });
+    }
+
     // --- BUSINESS RULE: Only emit invoices for Commercial properties ---
     const idNaked = identidad.replace(/^[VJGEP]-?/i, '');
     const idVariants = [identidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];

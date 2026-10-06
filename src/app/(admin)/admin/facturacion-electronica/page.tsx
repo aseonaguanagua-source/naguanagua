@@ -19,11 +19,38 @@ function getMesActual() {
   return `${MESES[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+/** Fecha de hoy (YYYY-MM-DD) en hora de Venezuela */
+function hoyCaracas() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+}
+
+const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const SUBTIPO_LABEL: Record<string, { label: string; cls: string }> = {
+  factura_comercial:      { label: 'FACTURA · Comercial',      cls: 'bg-blue-100 text-blue-800 border-blue-300' },
+  recibo_residencial:     { label: 'RECIBO · Residencial',     cls: 'bg-violet-100 text-violet-800 border-violet-300' },
+  recibo_multa_comercial: { label: 'RECIBO · Multa comercial', cls: 'bg-orange-100 text-orange-800 border-orange-300' },
+};
+
 export default function FacturacionElectronicaPage() {
   const [pagosList, setPagosList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTab, setFilterTab] = useState<'todos' | 'pendientes' | 'emitidas'>('pendientes');
+
+  // Día y tipo de documento (Facturas comerciales vs Recibos por correo)
+  const [fecha, setFecha] = useState<string>(hoyCaracas());
+  const [docTab, setDocTab] = useState<'factura' | 'recibo'>('factura');
+
+  // Vista previa de recibo
+  const [previewPagoId, setPreviewPagoId] = useState<string | null>(null);
+
+  // Lote del día (revisión + envío)
+  const [loteModal, setLoteModal] = useState<null | 'factura' | 'recibo'>(null);
+  const [loteSeleccion, setLoteSeleccion] = useState<Set<string>>(new Set());
+  const [loteRunning, setLoteRunning] = useState(false);
+  const [loteProgreso, setLoteProgreso] = useState<{ total: number; hechos: number; ok: number; fallidos: number } | null>(null);
+  const [loteResultados, setLoteResultados] = useState<any[]>([]);
 
   // Configuración y Estado de The Factory HKA
   const [tfhkaConfig, setTfhkaConfig] = useState<any>(null);
@@ -76,7 +103,8 @@ export default function FacturacionElectronicaPage() {
   const loadPagos = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/admin/factura-digital/listar?filter=${filterTab}&q=${encodeURIComponent(searchTerm)}`);
+      // Se cargan todos los pagos del día; las pestañas filtran en el cliente
+      const res = await fetch(`/api/admin/factura-digital/listar?filter=todos&fecha=${fecha}&q=${encodeURIComponent(searchTerm)}`);
       const data = await res.json();
       if (data.success) {
         setPagosList(data.items || []);
@@ -86,15 +114,116 @@ export default function FacturacionElectronicaPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterTab, searchTerm]);
+  }, [fecha, searchTerm]);
 
   useEffect(() => {
     loadConfig();
-    loadPagos();
-  }, [loadConfig, loadPagos]);
+  }, [loadConfig]);
 
-  // Contar cuántas facturas comerciales están pendientes
-  const totalPendientes = pagosList.filter(p => !p.facturaEmitida).length;
+  useEffect(() => {
+    loadPagos();
+  }, [loadPagos]);
+
+  // Separación del día: facturas (comerciales) y recibos (residenciales / comerciales solo multa)
+  const facturasDia = pagosList.filter(p => p.documento === 'factura');
+  const recibosDia = pagosList.filter(p => p.documento === 'recibo');
+  const delTipo = docTab === 'factura' ? facturasDia : recibosDia;
+  const visibles = delTipo.filter(p =>
+    filterTab === 'pendientes' ? !p.procesado : filterTab === 'emitidas' ? p.procesado : true
+  );
+  const totalPendientes = delTipo.filter(p => !p.procesado).length;
+  const resumen = (lista: any[]) => ({
+    total: lista.length,
+    pendientes: lista.filter(p => !p.procesado).length,
+    procesados: lista.filter(p => p.procesado).length,
+    monto: lista.reduce((s, p) => s + (p.monto || 0), 0),
+  });
+  const resFact = resumen(facturasDia);
+  const resRec = resumen(recibosDia);
+
+  // Abrir revisión de lote del día (todas las pendientes seleccionadas por defecto)
+  const abrirLote = (tipo: 'factura' | 'recibo') => {
+    const pend = (tipo === 'factura' ? facturasDia : recibosDia).filter(p => !p.procesado);
+    setLoteSeleccion(new Set(pend.map(p => p.id)));
+    setLoteProgreso(null);
+    setLoteResultados([]);
+    setLoteModal(tipo);
+  };
+
+  // Ejecutar lote: facturas una a una (documento fiscal secuencial) y recibos en bloques de 10
+  const ejecutarLote = async () => {
+    if (!loteModal) return;
+    const items = pagosList.filter(p => loteSeleccion.has(p.id) && p.documento === loteModal && !p.procesado);
+    if (items.length === 0) return;
+    if (loteModal === 'factura' && !confirm(`Se emitirán ${items.length} facturas fiscales reales ante The Factory HKA (SENIAT). ¿Continuar?`)) return;
+    setLoteRunning(true);
+    const res: any[] = [];
+    let ok = 0, fallidos = 0;
+    setLoteProgreso({ total: items.length, hechos: 0, ok: 0, fallidos: 0 });
+    try {
+      if (loteModal === 'factura') {
+        for (const p of items) {
+          try {
+            const r = await fetch('/api/admin/factura-digital/emitir', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                pagoId: p.id, recibos: p.recibos, contribuyente: p.contribuyente,
+                identidad: p.identidad, montoTotal: p.monto, enviarCorreo: true
+              })
+            });
+            const d = await r.json();
+            if (d.success && !d.skipped) { ok++; res.push({ ...p, resultado: 'EMITIDA', detalle: d.numeroControl || '' }); }
+            else if (d.success && d.skipped) { fallidos++; res.push({ ...p, resultado: 'OMITIDA', detalle: d.message }); }
+            else { fallidos++; res.push({ ...p, resultado: 'ERROR', detalle: d.error || 'Error de emisión' }); }
+          } catch (e: any) { fallidos++; res.push({ ...p, resultado: 'ERROR', detalle: e.message }); }
+          setLoteProgreso({ total: items.length, hechos: res.length, ok, fallidos });
+        }
+      } else {
+        for (let i = 0; i < items.length; i += 10) {
+          const bloque = items.slice(i, i + 10);
+          try {
+            const r = await fetch('/api/admin/recibos-digitales/enviar', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pagoIds: bloque.map(p => p.id) })
+            });
+            const d = await r.json();
+            bloque.forEach(p => {
+              const it = (d.items || []).find((x: any) => x.pagoId === p.id);
+              if (it?.ok) { ok++; res.push({ ...p, resultado: 'ENVIADO', detalle: it.correo ? `a ${it.correo}` : 'solo copia de archivo (sin correo)' }); }
+              else { fallidos++; res.push({ ...p, resultado: 'ERROR', detalle: it?.omitido || it?.error || d.error || 'No enviado' }); }
+            });
+          } catch (e: any) {
+            bloque.forEach(p => { fallidos++; res.push({ ...p, resultado: 'ERROR', detalle: e.message }); });
+          }
+          setLoteProgreso({ total: items.length, hechos: res.length, ok, fallidos });
+        }
+      }
+    } finally {
+      setLoteResultados(res);
+      setLoteRunning(false);
+      loadPagos();
+    }
+  };
+
+  // Enviar / reenviar un recibo individual
+  const enviarReciboIndividual = async (pago: any) => {
+    if (!confirm(`¿Enviar el recibo de ${pago.contribuyente} (${pago.identidad}) por Bs ${fmtBs(pago.monto)}?`)) return;
+    try {
+      const r = await fetch('/api/admin/recibos-digitales/enviar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pagoIds: [pago.id] })
+      });
+      const d = await r.json();
+      const it = d.items?.[0];
+      alert(it?.ok ? `Recibo enviado ${it.correo ? 'a ' + it.correo : '(solo copia de archivo: el contribuyente no tiene correo)'}` : `No se pudo enviar: ${it?.omitido || it?.error || d.error}`);
+      loadPagos();
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
+  };
 
   // 1. Abrir Modal de Verificación y Auditoría Previa
   const handleVerifyPago = async (pago: any) => {
@@ -323,15 +452,16 @@ export default function FacturacionElectronicaPage() {
               <span>Verificar Facturación</span>
             </button>
 
-            {/* Botón Enviar Todas las que no se han enviado */}
+            {/* Botón Revisar y enviar el lote del día (del tipo seleccionado) */}
             <button
-              onClick={() => setShowBatchModal(true)}
+              id="btn-lote-dia"
+              onClick={() => abrirLote(docTab)}
               disabled={totalPendientes === 0}
               className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              title="Emitir en lote todas las facturas comerciales pendientes"
+              title={docTab === 'factura' ? 'Revisar y emitir las facturas comerciales pendientes del día' : 'Revisar y enviar por correo los recibos pendientes del día'}
             >
               <Layers className="w-4 h-4 text-[#c8e64c]" />
-              <span>Emitir Todas ({totalPendientes})</span>
+              <span>{docTab === 'factura' ? `Emitir facturas del día (${totalPendientes})` : `Enviar recibos del día (${totalPendientes})`}</span>
             </button>
 
             {/* Botón Credenciales The Factory */}
@@ -357,6 +487,77 @@ export default function FacturacionElectronicaPage() {
         </div>
       </div>
 
+      {/* ══ DÍA Y SEPARACIÓN FACTURAS / RECIBOS ══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_1fr] gap-4">
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col justify-center gap-2 min-w-[220px]">
+          <label htmlFor="fecha-lote" className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Día de cobro</label>
+          <input
+            id="fecha-lote"
+            type="date"
+            value={fecha}
+            max={hoyCaracas()}
+            onChange={e => e.target.value && setFecha(e.target.value)}
+            className="border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => { const d = new Date(`${fecha}T12:00:00-04:00`); d.setDate(d.getDate() - 1); setFecha(d.toISOString().slice(0, 10)); }}
+              className="flex-1 text-[11px] font-bold px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 cursor-pointer"
+            >← Anterior</button>
+            <button
+              onClick={() => setFecha(hoyCaracas())}
+              className="flex-1 text-[11px] font-bold px-2 py-1 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 cursor-pointer"
+            >Hoy</button>
+          </div>
+        </div>
+
+        {/* Tarjeta FACTURAS */}
+        <button
+          id="tab-facturas"
+          onClick={() => setDocTab('factura')}
+          className={`text-left rounded-2xl p-4 border-2 transition-all cursor-pointer ${docTab === 'factura' ? 'bg-blue-50 border-blue-500 shadow-md' : 'bg-white border-slate-200 hover:border-blue-300'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              <span className="font-black text-slate-800 text-sm">FACTURAS FISCALES</span>
+            </div>
+            <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">The Factory HKA</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1">Comerciales (servicio de aseo con IVA)</p>
+          <div className="flex items-end justify-between mt-3">
+            <div className="text-xs text-slate-600 space-x-3">
+              <span><strong className="text-amber-700 text-base">{resFact.pendientes}</strong> pendientes</span>
+              <span><strong className="text-emerald-700 text-base">{resFact.procesados}</strong> emitidas</span>
+            </div>
+            <span className="font-mono font-black text-slate-900">Bs {fmtBs(resFact.monto)}</span>
+          </div>
+        </button>
+
+        {/* Tarjeta RECIBOS */}
+        <button
+          id="tab-recibos"
+          onClick={() => setDocTab('recibo')}
+          className={`text-left rounded-2xl p-4 border-2 transition-all cursor-pointer ${docTab === 'recibo' ? 'bg-violet-50 border-violet-500 shadow-md' : 'bg-white border-slate-200 hover:border-violet-300'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-violet-600" />
+              <span className="font-black text-slate-800 text-sm">RECIBOS POR CORREO</span>
+            </div>
+            <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">No fiscal</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1">Residenciales y comerciales que solo pagaron multa</p>
+          <div className="flex items-end justify-between mt-3">
+            <div className="text-xs text-slate-600 space-x-3">
+              <span><strong className="text-amber-700 text-base">{resRec.pendientes}</strong> pendientes</span>
+              <span><strong className="text-emerald-700 text-base">{resRec.procesados}</strong> enviados</span>
+            </div>
+            <span className="font-mono font-black text-slate-900">Bs {fmtBs(resRec.monto)}</span>
+          </div>
+        </button>
+      </div>
+
       {/* ══ BARRA DE FILTROS Y BÚSQUEDA ══ */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50/70">
@@ -380,7 +581,7 @@ export default function FacturacionElectronicaPage() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Emitidas SENIAT
+              {docTab === 'factura' ? 'Emitidas SENIAT' : 'Enviados por correo'}
             </button>
             <button
               onClick={() => setFilterTab('todos')}
@@ -390,7 +591,7 @@ export default function FacturacionElectronicaPage() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Todos los Pagos
+              {docTab === 'factura' ? `Todas las facturas (${facturasDia.length})` : `Todos los recibos (${recibosDia.length})`}
             </button>
           </div>
 
@@ -414,29 +615,31 @@ export default function FacturacionElectronicaPage() {
               <tr>
                 <th className="py-3.5 px-4">C.I. / R.I.F.</th>
                 <th className="py-3.5 px-4">Contribuyente / Razón Social</th>
+                <th className="py-3.5 px-4">Documento</th>
                 <th className="py-3.5 px-4">Correo Destino</th>
                 <th className="py-3.5 px-4">Monto Pagado</th>
                 <th className="py-3.5 px-4">Fecha Pago</th>
-                <th className="py-3.5 px-4">Estado Fiscal</th>
+                <th className="py-3.5 px-4">{docTab === 'factura' ? 'Estado Fiscal' : 'Estado Envío'}</th>
                 <th className="py-3.5 px-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-14 text-slate-400">
+                  <td colSpan={8} className="text-center py-14 text-slate-400">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
                     Cargando listado de facturas y pagos...
                   </td>
                 </tr>
-              ) : pagosList.length === 0 ? (
+              ) : visibles.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-14 text-slate-400">
-                    No se encontraron pagos con los filtros seleccionados.
+                  <td colSpan={8} className="text-center py-14 text-slate-400">
+                    No hay {docTab === 'factura' ? 'facturas' : 'recibos'} con los filtros seleccionados para el {fecha.split('-').reverse().join('/')}.
                   </td>
                 </tr>
               ) : (
-                pagosList.map((pago: any) => {
+                visibles.map((pago: any) => {
+                  const sub = SUBTIPO_LABEL[pago.subtipo] || SUBTIPO_LABEL.recibo_residencial;
                   return (
                     <tr key={pago.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
@@ -447,6 +650,18 @@ export default function FacturacionElectronicaPage() {
                         {pago.referencia && (
                           <span className="text-[10px] text-slate-400 font-mono">Ref: {pago.referencia}</span>
                         )}
+                        {pago.inmuebles?.length > 0 && (
+                          <span className="block text-[10px] text-slate-400 font-mono">{pago.inmuebles.join(', ')}</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded border ${sub.cls}`}>{sub.label}</span>
+                        {pago.mixto && (
+                          <span className="block mt-1 text-[10px] font-bold text-slate-500" title="Incluye inmuebles residenciales; la factura solo toma la porción comercial">+ residencial (mixto)</span>
+                        )}
+                        <span className="block mt-0.5 text-[10px] text-slate-400">
+                          {pago.mesesServicio > 0 ? `${pago.mesesServicio} mes(es)` : ''}{pago.mesesServicio > 0 && pago.tieneMulta ? ' + ' : ''}{pago.tieneMulta ? 'multa' : ''}
+                        </span>
                       </td>
                       <td className="py-3.5 px-4">
                         {pago.esCorreoComodin ? (
@@ -471,7 +686,29 @@ export default function FacturacionElectronicaPage() {
                         {new Date(pago.created_at).toLocaleDateString('es-VE')}
                       </td>
                       <td className="py-3.5 px-4">
-                        {pago.facturaEmitida ? (
+                        {pago.documento === 'recibo' ? (
+                          pago.reciboEnviado ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                Enviado
+                              </span>
+                              {pago.reciboEnviadoFecha && (
+                                <span className="block font-mono text-[10px] text-slate-500">
+                                  {new Date(pago.reciboEnviadoFecha).toLocaleString('es-VE', { timeZone: 'America/Caracas' })}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                Pendiente envío
+                              </span>
+                              {pago.reciboError && <span className="block text-[10px] text-red-600 max-w-[180px]">{pago.reciboError}</span>}
+                            </div>
+                          )
+                        ) : pago.facturaEmitida ? (
                           <div className="space-y-1">
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -492,7 +729,26 @@ export default function FacturacionElectronicaPage() {
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {pago.facturaEmitida ? (
+                          {pago.documento === 'recibo' ? (
+                            <>
+                              <button
+                                onClick={() => setPreviewPagoId(pago.id)}
+                                className="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-slate-200 transition-colors cursor-pointer"
+                                title="Ver el recibo tal como lo recibirá el contribuyente"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-violet-600" />
+                                <span>Ver</span>
+                              </button>
+                              <button
+                                onClick={() => enviarReciboIndividual(pago)}
+                                className="text-[11px] bg-violet-600 hover:bg-violet-700 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                title="Enviar recibo por correo"
+                              >
+                                <Mail className="w-3.5 h-3.5" />
+                                <span>{pago.reciboEnviado ? 'Reenviar' : 'Enviar'}</span>
+                              </button>
+                            </>
+                          ) : pago.facturaEmitida ? (
                             <>
                               {pago.facturaUrl && (
                                 <a
@@ -1072,6 +1328,180 @@ export default function FacturacionElectronicaPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL DE REVISIÓN Y ENVÍO DEL LOTE DEL DÍA ══ */}
+      {loteModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+            <div className={`px-6 py-4 text-white flex items-center justify-between ${loteModal === 'factura' ? 'bg-gradient-to-r from-blue-900 to-slate-900' : 'bg-gradient-to-r from-violet-900 to-slate-900'}`}>
+              <div className="flex items-center gap-2.5">
+                {loteModal === 'factura' ? <FileText className="w-6 h-6 text-[#c8e64c]" /> : <Receipt className="w-6 h-6 text-[#c8e64c]" />}
+                <div>
+                  <h3 className="font-black text-base leading-tight">
+                    {loteModal === 'factura' ? 'Facturas fiscales' : 'Recibos por correo'} del {fecha.split('-').reverse().join('/')}
+                  </h3>
+                  <p className="text-[11px] text-slate-300">
+                    {loteModal === 'factura'
+                      ? 'Revise cada factura antes de emitir. Cada emisión es un documento fiscal real (The Factory HKA / SENIAT).'
+                      : 'Revise cada recibo antes de enviar. Se envía al contribuyente y copia a facturacion.comercial@globalgreenca.com.'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => !loteRunning && setLoteModal(null)} disabled={loteRunning} className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer disabled:opacity-30">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {loteResultados.length > 0 ? (
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-100 text-[10px] uppercase font-black text-slate-600 sticky top-0">
+                    <tr><th className="py-2 px-4">Contribuyente</th><th className="py-2 px-4">Monto</th><th className="py-2 px-4">Resultado</th><th className="py-2 px-4">Detalle</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {loteResultados.map((r: any) => (
+                      <tr key={r.id}>
+                        <td className="py-2 px-4"><strong className="text-slate-800">{r.contribuyente}</strong><span className="block font-mono text-[10px]">{r.identidad}</span></td>
+                        <td className="py-2 px-4 font-mono">Bs {fmtBs(r.monto)}</td>
+                        <td className="py-2 px-4">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded ${r.resultado === 'EMITIDA' || r.resultado === 'ENVIADO' ? 'bg-emerald-100 text-emerald-800' : r.resultado === 'OMITIDA' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>{r.resultado}</span>
+                        </td>
+                        <td className="py-2 px-4 text-[11px]">{r.detalle}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-100 text-[10px] uppercase font-black text-slate-600 sticky top-0">
+                    <tr>
+                      <th className="py-2 px-4 w-8">
+                        {(() => {
+                          const pend = pagosList.filter(p => p.documento === loteModal && !p.procesado);
+                          const todos = pend.length > 0 && pend.every(p => loteSeleccion.has(p.id));
+                          return (
+                            <input
+                              type="checkbox"
+                              checked={todos}
+                              disabled={loteRunning}
+                              onChange={() => setLoteSeleccion(todos ? new Set() : new Set(pend.map(p => p.id)))}
+                              className="w-4 h-4 cursor-pointer"
+                            />
+                          );
+                        })()}
+                      </th>
+                      <th className="py-2 px-4">Contribuyente</th>
+                      <th className="py-2 px-4">Tipo</th>
+                      <th className="py-2 px-4">Correo</th>
+                      <th className="py-2 px-4 text-right">Monto</th>
+                      <th className="py-2 px-4 text-right">Revisar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {pagosList.filter(p => p.documento === loteModal && !p.procesado).map((p: any) => {
+                      const sub = SUBTIPO_LABEL[p.subtipo] || SUBTIPO_LABEL.recibo_residencial;
+                      return (
+                        <tr key={p.id} className={loteSeleccion.has(p.id) ? '' : 'opacity-50'}>
+                          <td className="py-2 px-4">
+                            <input
+                              type="checkbox"
+                              checked={loteSeleccion.has(p.id)}
+                              disabled={loteRunning}
+                              onChange={() => {
+                                const s = new Set(loteSeleccion);
+                                if (s.has(p.id)) s.delete(p.id); else s.add(p.id);
+                                setLoteSeleccion(s);
+                              }}
+                              className="w-4 h-4 cursor-pointer"
+                            />
+                          </td>
+                          <td className="py-2 px-4">
+                            <strong className="text-slate-800">{p.contribuyente}</strong>
+                            <span className="block font-mono text-[10px]">{p.identidad} · {p.inmuebles?.join(', ')}</span>
+                          </td>
+                          <td className="py-2 px-4"><span className={`text-[10px] font-black px-2 py-0.5 rounded border ${sub.cls}`}>{sub.label}</span></td>
+                          <td className="py-2 px-4 font-mono text-[10px]">
+                            {p.esCorreoComodin ? <span className="text-amber-700 font-bold">Sin correo (solo copia archivo)</span> : p.correo}
+                          </td>
+                          <td className="py-2 px-4 text-right font-mono font-bold text-slate-900">Bs {fmtBs(p.monto)}</td>
+                          <td className="py-2 px-4 text-right">
+                            <button
+                              onClick={() => (loteModal === 'factura' ? handleVerifyPago(p) : setPreviewPagoId(p.id))}
+                              disabled={loteRunning}
+                              className="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded-lg inline-flex items-center gap-1 border border-slate-200 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" /> Ver
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+              <div className="text-xs text-slate-600">
+                {loteProgreso ? (
+                  <span>
+                    {loteRunning && <RefreshCw className="w-3.5 h-3.5 animate-spin inline mr-1" />}
+                    Procesados <strong>{loteProgreso.hechos}/{loteProgreso.total}</strong> · OK <strong className="text-emerald-700">{loteProgreso.ok}</strong> · Fallidos <strong className="text-red-700">{loteProgreso.fallidos}</strong>
+                  </span>
+                ) : (
+                  <span>
+                    Seleccionados <strong>{loteSeleccion.size}</strong> · Total <strong className="font-mono">Bs {fmtBs(pagosList.filter(p => loteSeleccion.has(p.id)).reduce((s, p) => s + (p.monto || 0), 0))}</strong>
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setLoteModal(null)}
+                  disabled={loteRunning}
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer disabled:opacity-40"
+                >
+                  {loteResultados.length > 0 ? 'Cerrar' : 'Cancelar'}
+                </button>
+                {loteResultados.length === 0 && (
+                  <button
+                    id="btn-confirmar-lote"
+                    onClick={ejecutarLote}
+                    disabled={loteRunning || loteSeleccion.size === 0}
+                    className={`px-5 py-2.5 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50 ${loteModal === 'factura' ? 'bg-blue-700 hover:bg-blue-800' : 'bg-violet-600 hover:bg-violet-700'}`}
+                  >
+                    <Send className={`w-3.5 h-3.5 ${loteRunning ? 'animate-spin' : ''}`} />
+                    <span>
+                      {loteRunning ? 'Procesando...' : loteModal === 'factura' ? `Emitir ${loteSeleccion.size} facturas` : `Enviar ${loteSeleccion.size} recibos`}
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ VISTA PREVIA DEL RECIBO ══ */}
+      {previewPagoId && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 flex flex-col h-[90vh]">
+            <div className="px-6 py-3 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="w-5 h-5 text-violet-300" />
+                <h3 className="font-bold text-sm">Vista previa del recibo (así lo recibirá el contribuyente)</h3>
+              </div>
+              <button onClick={() => setPreviewPagoId(null)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <iframe
+              title="Vista previa del recibo"
+              src={`/api/admin/recibos-digitales/preview?pagoId=${previewPagoId}`}
+              className="flex-1 w-full border-0 bg-slate-50"
+            />
           </div>
         </div>
       )}
