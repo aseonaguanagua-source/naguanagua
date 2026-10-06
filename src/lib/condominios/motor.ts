@@ -159,6 +159,10 @@ export function cargosPorUnidad(c: Condominio, unidades: Unidad[], tasa: number)
     clave: clave(u, i), inmueble: u.inmueble, cantidad: 1, montoBs: r2(u.estado === 'Desocupada' ? tDesoc : tUnit),
   }));
   out.push({ clave: SIN_REGISTRAR, inmueble: null, cantidad: declarada - vivas.length, montoBs: r2(tUnit * (declarada - vivas.length)) });
+  // Cuadre de céntimos: la suma por unidad debe ser exactamente el cargo del condominio
+  const total = cargoMensual(c, vivas, tasa).condominioBs;
+  const dif = r2(total - out.reduce((s, o) => s + o.montoBs, 0));
+  if (dif !== 0) out[out.length - 1].montoBs = r2(out[out.length - 1].montoBs + dif);
   return out;
 }
 

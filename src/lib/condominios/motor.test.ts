@@ -89,7 +89,7 @@ t('Reparto por unidad: suma = cargo del condominio; las no registradas van en un
   const rep = cargosPorUnidad(c, unidades, TASA);
   assert.equal(rep.length, 547);
   assert.equal(rep.find(r => r.clave === SIN_REGISTRAR)!.cantidad, 19);
-  cerca(rep.reduce((s, r) => s + r.montoBs, 0), cargoMensual(c, unidades, TASA).condominioBs, 0.5);
+  assert.equal(Math.round(rep.reduce((s, r) => s + r.montoBs, 0) * 100) / 100, cargoMensual(c, unidades, TASA).condominioBs);
 });
 
 t('Reparto con más registradas que declaradas: total = declarada, cuadra al céntimo', () => {
