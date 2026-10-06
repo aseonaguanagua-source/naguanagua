@@ -687,6 +687,7 @@ function ContribuyentesPageContent() {
 
     // 2. Inmuebles del contribuyente
     const inmueblesContribuyente = (inmuebles || []).filter((i: any) => {
+      if (i.estado === 'Eliminado') return false; // misma regla que Caja
       const iid = (i.identidad || '').replace(/-/g, '').toUpperCase();
       return iid === idLimpio || iid === viewData.Identidad;
     });
