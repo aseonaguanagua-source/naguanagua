@@ -178,19 +178,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
           })();
 
-          // La caché local no ve los contribuyentes registrados/modificados después de guardarla.
-          // Si tiene más de 20 min o el número de inmuebles cambió, se recarga completa en segundo plano.
-          (async () => {
-            try {
-              const edadMin = (Date.now() - (cached.timestamp || 0)) / 60000;
-              let distinto = false;
-              if (edadMin <= 20) {
-                const { count } = await supabase.from('inmuebles').select('id', { count: 'exact', head: true });
-                distinto = typeof count === 'number' && count !== cached.inmuebles.length;
-              }
-              if (edadMin > 20 || distinto) await loadAllData(true, true);
-            } catch { /* silencioso */ }
-          })();
+          // (Recarga automática en segundo plano DESACTIVADA: saturaba la base de datos con
+          //  todas las computadoras descargando ~87.000 registros a la vez. Usar el botón de sincronizar.)
 
           return;
         }
@@ -205,7 +194,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const fetchAllClientParallel = async (table: string, select: string) => {
         let total = 0;
         try {
-          const { count, error: countErr } = await supabase.from(table).select('id', { count: 'exact', head: true });
+          const { count, error: countErr } = await supabase.from(table).select('*', { count: 'planned', head: true });
           if (!countErr && count && count > 0) total = count;
         } catch (e) {}
 
@@ -222,18 +211,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const step = 1000;
         const fetchChunk = async (from: number, to: number): Promise<any[] | null> => {
-          for (let intento = 0; intento < 4; intento++) {
+          for (let intento = 0; intento < 2; intento++) {
             const { data, error } = await supabase.from(table).select(select).order('id', { ascending: true }).range(from, to);
             if (!error) return data || [];
             console.warn(`Reintento ${intento + 1} bloque ${from}-${to} de ${table}:`, error.message);
-            await new Promise(r => setTimeout(r, 800 * (intento + 1)));
+            await new Promise(r => setTimeout(r, 2000 * (intento + 1)));
           }
           return null;
         };
 
         const numBatches = Math.ceil(total / step);
         const results: any[][] = new Array(numBatches);
-        const CONCURRENCY = 6;
+        const CONCURRENCY = 4;
         for (let i = 0; i < numBatches; i += CONCURRENCY) {
           await Promise.all(
             Array.from({ length: Math.min(CONCURRENCY, numBatches - i) }, async (_, idx) => {
