@@ -1233,6 +1233,27 @@ export default function CajaPage() {
     alert(`Se buscará la tasa BCV del día ${selectedUcdDate}`);
   };
 
+  // ── Monto acordado puntual (autorizado por la administración) ──
+  // Solo para el inmueble indicado, solo en la fecha indicada y solo si se cobra TODA su deuda con retención 75%.
+  // Ajusta el redondeo para que el total sea exactamente el monto acordado y el pago salde la deuda completa.
+  const MONTOS_ACORDADOS: Record<string, { monto: number; fecha: string }> = {
+    URB007447: { monto: 45008.92, fecha: '2026-10-06' },
+  };
+  const ajusteMontoAcordado = (() => {
+    const hoyVE = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+    for (const [cod, acuerdo] of Object.entries(MONTOS_ACORDADOS)) {
+      if (acuerdo.fecha !== hoyVE || retencionIVA !== 75) continue;
+      const pendCod = recibos.filter((r: any) => (r.referencia || '').includes(cod) && isItemPending(r)).map((r: any) => r.referencia);
+      const soloEste = selectedRecibos.length > 0 && selectedRecibos.every(ref => ref.includes(cod));
+      const todos = pendCod.length > 0 && pendCod.every((ref: string) => selectedRecibos.includes(ref));
+      if (!soloEste || !todos || selectedCuotas.length || selectedServicios.length || selectedTalaPoda.length) continue;
+      const neto = Math.round(((sumBase + sumIVA + sumMulta) - (sumIVARetencionable * 0.75)) * 100) / 100;
+      const diff = Math.round((acuerdo.monto - neto) * 100) / 100;
+      if (Math.abs(diff) <= 1) return diff; // solo redondeo, nunca un cambio grande
+    }
+    return 0;
+  })();
+
   const handlePayment = async () => {
     const isAbonoCondo = isCondominio && condominioModo === 'Abono';
     if (!isAbonoCondo && totalBs <= 0) {
@@ -1248,7 +1269,7 @@ export default function CajaPage() {
     // El comprobante de retención de IVA es OPCIONAL en Caja (decisión del municipio)
     const calculatedTotalBs = sumBase + sumIVA + sumMulta;
     const realMontoRetencionIVA = sumIVARetencionable * (retencionIVA / 100);
-    const totalConImpuestos = calculatedTotalBs - realMontoRetencionIVA;
+    const totalConImpuestos = calculatedTotalBs - realMontoRetencionIVA + ajusteMontoAcordado;
     const maxSaldoUsable = foundUser?.SaldoFavor || 0;
     // Cuando el método de pago ES Saldo a Favor, el checkbox no aplica
     // (evita doble deducción: una por descuento + otra por el método)
@@ -4224,7 +4245,7 @@ export default function CajaPage() {
               )}
               <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-200">
                 <span className="text-slate-800 font-bold text-base">Total Neto a Pagar:</span>
-                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(Math.max(0, ((sumBase + sumIVA + sumMulta) - (sumIVARetencionable * (retencionIVA / 100))) - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)))}</span>
+                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(Math.max(0, ((sumBase + sumIVA + sumMulta) - (sumIVARetencionable * (retencionIVA / 100)) + ajusteMontoAcordado) - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)))}</span>
               </div>
             </div>
 
