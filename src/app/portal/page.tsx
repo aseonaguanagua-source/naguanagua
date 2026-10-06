@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Phone, Key } from 'lucide-react';
+import { PORTAL_EN_MANTENIMIENTO, MENSAJE_MANTENIMIENTO_PORTAL } from '@/lib/portalConfig';
 
 export default function PortalLogin() {
   const router = useRouter();
@@ -21,6 +22,10 @@ export default function PortalLogin() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (PORTAL_EN_MANTENIMIENTO) {
+      ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
+      return;
+    }
     const doc = localStorage.getItem('portal_doc');
     if (doc) {
       router.replace('/portal/dashboard');
@@ -184,6 +189,13 @@ export default function PortalLogin() {
               </div>
             )}
 
+            {PORTAL_EN_MANTENIMIENTO ? (
+              <div className="p-5 bg-amber-50 border border-amber-200 rounded-xl text-center">
+                <p className="text-3xl mb-2">🛠️</p>
+                <p className="font-bold text-amber-800 mb-1">Portal en mantenimiento</p>
+                <p className="text-sm text-amber-700 leading-snug">{MENSAJE_MANTENIMIENTO_PORTAL}</p>
+              </div>
+            ) : (
             <form onSubmit={isSetupMode ? handleSetup : handleLogin} className="space-y-4">
               {!isSetupMode && (
                 <>
@@ -358,6 +370,7 @@ export default function PortalLogin() {
                 </div>
               )}
             </form>
+            )}
           </div>
         </div>
       </div>

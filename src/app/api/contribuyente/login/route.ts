@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getIdentidadVariants, isFictitiousEmail } from "@/lib/formatters";
+import { PORTAL_EN_MANTENIMIENTO, MENSAJE_MANTENIMIENTO_PORTAL } from "@/lib/portalConfig";
 
 export async function POST(request: Request) {
+  if (PORTAL_EN_MANTENIMIENTO) {
+    return NextResponse.json({ error: MENSAJE_MANTENIMIENTO_PORTAL, mantenimiento: true }, { status: 503 });
+  }
   try {
     const { identidad, clave, primerIngreso } = await request.json();
 

@@ -3,6 +3,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PortalSidebar from '@/components/PortalSidebar';
 import PortalHeader from '@/components/PortalHeader';
+import { PORTAL_EN_MANTENIMIENTO } from '@/lib/portalConfig';
 
 export default function PortalDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -11,13 +12,18 @@ export default function PortalDashboardLayout({ children }: { children: ReactNod
 
   useEffect(() => {
     setIsClient(true);
+    if (PORTAL_EN_MANTENIMIENTO) {
+      ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
+      router.replace('/portal');
+      return;
+    }
     const portalUser = localStorage.getItem('portal_user');
     if (!portalUser) {
       router.push('/portal');
     }
   }, [router]);
 
-  if (!isClient) return null; // Evitar hidratación incorrecta
+  if (!isClient || PORTAL_EN_MANTENIMIENTO) return null; // Evitar hidratación incorrecta
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex">
