@@ -111,6 +111,8 @@ export async function GET(request: Request) {
         reciboEnviadoFecha: rd?.fecha || null,
         reciboCorreo: rd?.correo || null,
         reciboError: rd?.error || null,
+        // Recibo impreso en Caja (original guardado en el pago; si no, se reconstruye al descargar)
+        reciboCajaGuardado: Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0,
         // Procesado = factura emitida (facturas) o recibo enviado (recibos)
         procesado: clasif.documento === 'factura' ? emitida : reciboEnviado,
       };

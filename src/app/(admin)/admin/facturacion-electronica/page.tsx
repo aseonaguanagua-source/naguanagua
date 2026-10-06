@@ -6,8 +6,9 @@ import {
   RefreshCw, Receipt, Search, Mail, Filter, Eye, ShieldCheck, 
   Sliders, ArrowUpRight, Check, X, Building, CheckCircle2,
   AlertCircle, Key, Layers, ArrowRight, ShieldAlert, Sparkles,
-  Info
+  Info, Printer, Download
 } from 'lucide-react';
+import { ReciboImprimible } from '@/components/ReciboImprimible';
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -44,6 +45,30 @@ export default function FacturacionElectronicaPage() {
 
   // Vista previa de recibo
   const [previewPagoId, setPreviewPagoId] = useState<string | null>(null);
+  // Recibo de Caja (el mismo que se entrega al cobrar por débito) para descargar/reimprimir
+  const [reciboCaja, setReciboCaja] = useState<{ pago: any; recibos: any[]; original: boolean } | null>(null);
+  const [reciboCajaCargando, setReciboCajaCargando] = useState<string | null>(null);
+  const abrirReciboCaja = async (pago: any) => {
+    setReciboCajaCargando(pago.id);
+    try {
+      const r = await fetch(`/api/admin/recibos-caja?pagoId=${pago.id}`);
+      const d = await r.json();
+      if (!r.ok || !d.success) throw new Error(d.error || 'No se pudo obtener el recibo');
+      setReciboCaja({ pago, recibos: d.recibos || [], original: !!d.original });
+    } catch (e: any) {
+      alert('Error obteniendo el recibo: ' + e.message);
+    } finally {
+      setReciboCajaCargando(null);
+    }
+  };
+  const descargarReciboCaja = () => {
+    if (!reciboCaja) return;
+    // El navegador ofrece "Guardar como PDF"; el nombre sugerido sale del título del documento
+    const tituloPrevio = document.title;
+    document.title = `Recibo_${reciboCaja.pago.identidad}_${String(reciboCaja.pago.referencia || reciboCaja.pago.id).replace(/[^A-Za-z0-9-]/g, '')}`;
+    window.print();
+    setTimeout(() => { document.title = tituloPrevio; }, 1000);
+  };
 
   // Lote del día (revisión + envío)
   const [loteModal, setLoteModal] = useState<null | 'factura' | 'recibo'>(null);
@@ -729,6 +754,15 @@ export default function FacturacionElectronicaPage() {
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => abrirReciboCaja(pago)}
+                            disabled={reciboCajaCargando === pago.id}
+                            className="text-[11px] bg-white hover:bg-emerald-50 text-emerald-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer disabled:opacity-50"
+                            title="Ver y descargar el recibo entregado en Caja"
+                          >
+                            {reciboCajaCargando === pago.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            <span>Recibo Caja</span>
+                          </button>
                           {pago.documento === 'recibo' ? (
                             <>
                               <button
@@ -1479,6 +1513,52 @@ export default function FacturacionElectronicaPage() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ RECIBO DE CAJA (descarga / reimpresión) ══ */}
+      {reciboCaja && (
+        <div className="fixed inset-0 z-[70] bg-black/70 flex items-start justify-center overflow-y-auto py-6 px-2 print:bg-white print:items-start print:py-0">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full print:shadow-none print:rounded-none">
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-200 bg-slate-50 rounded-t-xl print:hidden">
+              <div>
+                <span className="text-slate-800 font-bold text-base block">Recibo de Caja — {reciboCaja.pago.contribuyente}</span>
+                <span className={`text-[11px] font-semibold ${reciboCaja.original ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {reciboCaja.original
+                    ? 'Recibo original entregado en Caja'
+                    : 'Reconstruido con los datos del pago (cobro anterior a que Caja guardara el recibo)'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={descargarReciboCaja}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+                  title='En la ventana de impresión elija "Guardar como PDF" para descargarlo'
+                >
+                  <Printer className="w-4 h-4" /> Descargar PDF / Imprimir
+                </button>
+                <button
+                  onClick={() => setReciboCaja(null)}
+                  className="flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+                >
+                  <X className="w-4 h-4" /> Cerrar
+                </button>
+              </div>
+            </div>
+            <p className="px-6 pt-3 text-[11px] text-slate-500 print:hidden">
+              Para descargar: pulse <b>Descargar PDF / Imprimir</b> y en <b>Destino</b> elija <b>&quot;Guardar como PDF&quot;</b>.
+            </p>
+            <div className="p-4">
+              {reciboCaja.recibos.map((rd: any, idx: number) => (
+                <div key={idx} className={idx > 0 ? 'mt-6 pt-6 border-t border-slate-200' : ''}>
+                  {reciboCaja.recibos.length > 1 && (
+                    <div className="text-xs font-bold text-slate-500 uppercase mb-2 print:hidden">Recibo {idx + 1} de {reciboCaja.recibos.length} — {rd.codContribuyente}</div>
+                  )}
+                  <ReciboImprimible data={rd} />
+                </div>
+              ))}
             </div>
           </div>
         </div>

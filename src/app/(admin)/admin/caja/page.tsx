@@ -144,6 +144,25 @@ export default function CajaPage() {
 
   // Recibo imprimible post-pago
   const [reciboData, setReciboData] = React.useState<any>(null);
+  // Pago al que pertenece el próximo recibo generado: el recibo se guarda en ese pago
+  // (detalles.recibo_caja) para poder descargarlo después desde Facturación Electrónica.
+  const ultimoPagoIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const pagoIdRecibo = ultimoPagoIdRef.current;
+    if (!reciboData || !pagoIdRecibo) return;
+    ultimoPagoIdRef.current = null;
+    (async () => {
+      try {
+        const { data: p } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoIdRecibo).maybeSingle();
+        let det: any = p?.detalles || {};
+        if (typeof det === 'string') { try { det = JSON.parse(det); } catch { det = {}; } }
+        det.recibo_caja = Array.isArray(reciboData) ? reciboData : [reciboData];
+        det.recibo_caja_at = new Date().toISOString();
+        const { error } = await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pagoIdRecibo);
+        if (error) console.warn('No se pudo guardar el recibo en el pago:', error.message);
+      } catch (e) { console.warn('No se pudo guardar el recibo en el pago:', e); }
+    })();
+  }, [reciboData]);
   // Filtro de meses para el recibo
   const [reciboFiltro, setReciboFiltro] = React.useState<'todos' | 'rango'>('todos');
   const [reciboDesde, setReciboDesde] = React.useState<string>('');   // 'YYYY-MM' e.g. '2026-07'
@@ -1313,6 +1332,7 @@ export default function CajaPage() {
     const { montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef } = confirmPayload;
     setIsConfirmModalOpen(false);
     setIsProcessing(true);
+    ultimoPagoIdRef.current = null;
     
     try {
       // ── CONTROL DE CONCURRENCIA ATÓMICO (PREVENCIÓN DE COBRO DOBLE MULTI-OPERADOR) ──
@@ -1532,6 +1552,7 @@ export default function CajaPage() {
           console.error('Error insertando pago:', insertErr);
           throw new Error('No se pudo registrar el pago: ' + insertErr.message);
         }
+        ultimoPagoIdRef.current = pagoId;
 
         // ── TFHKA FACTURACIÓN DIGITAL (antes de limpiar deuda para tener los montos) ──
         if (pagoId) {
@@ -2073,7 +2094,9 @@ export default function CajaPage() {
         }
 
         const deudaPreviaT = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
+        const pagoIdT = crypto.randomUUID();
         const { error: pErr } = await supabase.from('pagos_reportados').insert({
+          id: pagoIdT,
           identidad: foundUser.Identidad,
           monto: montoReal,
           banco: banco,
@@ -2105,6 +2128,7 @@ export default function CajaPage() {
         });
         
         if (pErr) throw pErr;
+        ultimoPagoIdRef.current = pagoIdT;
         
         // Update items to 'Por Verificar'
         if (selectedRecibos.length > 0 && !esAbono) {
