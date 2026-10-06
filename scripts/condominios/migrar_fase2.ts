@@ -12,6 +12,9 @@
  *     Los de un mismo dueño se quedan en Contribuyentes. Se respeta "Individual" del sistema anterior.
  *  3. Torres / sub-grupos: un hijo de SIGYR que a su vez tiene hijos se marca es_grupo y sus nietos
  *     cuelgan de él (padre_unidad_id).
+ *  4. (06/10 18:23) Areka Suites URB031929 se pasa a condominio aunque todo esté a nombre de la constructora.
+ *     Conjuntos COPIADOS en SIGYR (mismos dueños en varios códigos): se trae UNA sola copia (Puerta Real = URB033533;
+ *     en los demás, la de más unidades). Las copias se quedan en Contribuyentes y se listan para revisión.
  *  Nunca se traen inmuebles Eliminados/Inactivos ni dueños dados de baja en SIGYR.
  *  NO modifica la tabla `inmuebles`.
  */
@@ -27,6 +30,9 @@ const JERARQUIA = path.join(RESP, 'sigyr_jerarquia_2026-10-06.json');
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const HMR = new Set(['URB009841', 'URB009575', 'URB009651', 'URB009803', 'URB009613', 'URB009727', 'URB009689', 'URB009423', 'URB009461', 'URB009499', 'URB009765', 'URB009537', 'URB018655']);
 const up = (s: any) => String(s || '').toUpperCase().trim();
+const FORZAR_CONDOMINIO = new Set(['URB031929']);           // Areka Suites (aprobado por el usuario)
+const COPIA_PREFERIDA = new Set(['URB033533']);             // Puerta Real real (aprobado por el usuario)
+const nomb = (s: any) => String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
 
 (async () => {
   const { supabaseAdmin: sb } = await import('@/lib/supabaseAdmin');
@@ -55,7 +61,7 @@ const up = (s: any) => String(s || '').toUpperCase().trim();
   const inmBy = new Map(inms.map(i => [up(i.inmueble), i]));
   const condos = await todo('condominios', 'id,codigo,modalidad,cobro_tarifa_por_unidad,aseo_pendiente_desde');
   const condoBy = new Map(condos.map(c => [up(c.codigo), c]));
-  const unidades = await todo('condominio_unidades', 'id,condominio_id,inmueble,padre_unidad_id,es_grupo');
+  const unidades = await todo('condominio_unidades', 'id,condominio_id,inmueble,padre_unidad_id,es_grupo,propietario');
   const uniBy = new Map(unidades.filter(u => u.inmueble).map(u => [up(u.inmueble), u]));
   const huer = await todo('huerfanos', 'id,inmueble,identidad,nombre,actividad,numero,meses_deuda,padre_sugerido,estado');
   const huerBy = new Map(huer.filter(h => h.estado === 'Pendiente').map(h => [up(h.inmueble), h]));
@@ -93,7 +99,7 @@ const up = (s: any) => String(s || '').toUpperCase().trim();
     if (!ok.length) { excluidos.push({ codigo: raiz, nombre: p.contribuyente, motivo: 'Sin unidades activas' }); continue; }
     // Condominio real = hay dueños distintos al del padre (por cédula de SIGYR o del sistema nuevo)
     const docsHijos = ok.map(x => ({ identidad: (x.v as any).i?.identidad || (x.v as any).h?.identidad || x.d.doc }));
-    if (!M.esCondominioReal({ identidad: p.identidad }, docsHijos)) { excluidos.push({ codigo: raiz, nombre: p.contribuyente, motivo: 'Mismo dueño con varios inmuebles → se queda en Contribuyentes' }); continue; }
+    if (!FORZAR_CONDOMINIO.has(raiz) && !M.esCondominioReal({ identidad: p.identidad }, docsHijos)) { excluidos.push({ codigo: raiz, nombre: p.contribuyente, motivo: 'Mismo dueño con varios inmuebles → se queda en Contribuyentes' }); continue; }
     if (!rearmado && viejo.get(raiz)?.Uso === 'Individual') { excluidos.push({ codigo: raiz, nombre: p.contribuyente, motivo: 'Era "Individual" en el sistema anterior' }); continue; }
 
     const esRes = calc.isResidencialInm(p);
@@ -155,6 +161,37 @@ const up = (s: any) => String(s || '').toUpperCase().trim();
     }
   }
 
+  // ── Conjuntos copiados (mismos dueños en varios códigos) → una sola copia ──
+  const dueños = new Map<string, Set<string>>();
+  const addD = (k: string, n: any) => { const v = nomb(n); if (!v) return; if (!dueños.has(k)) dueños.set(k, new Set()); dueños.get(k)!.add(v); };
+  nuevasUni.forEach(u => addD(u._condo, u.propietario));
+  const codPorId = new Map(condos.map(c => [c.id, up(c.codigo)]));
+  unidades.forEach(u => addD('EXISTE:' + codPorId.get(u.condominio_id), u.propietario));
+  const solapa = (a: string, b: string) => { const A = dueños.get(a), B = dueños.get(b); if (!A || !B) return false; const m = Math.min(A.size, B.size); if (m < 3) return false; let o = 0; A.forEach(x => { if (B.has(x)) o++; }); return o / m > 0.5; };
+  const nUni = (k: string) => nuevasUni.filter(u => u._condo === k).length;
+  const codsNuevos = nuevosCondos.map(c => c.codigo);
+  const existentes = [...dueños.keys()].filter(k => k.startsWith('EXISTE:'));
+  const duplicados: any[] = []; const descartar = new Map<string, string>();
+  // a) copia de un condominio que YA está en el módulo
+  for (const k of codsNuevos) { const e = existentes.find(x => solapa(k, x)); if (e) descartar.set(k, e.slice(7)); }
+  // b) copias entre los nuevos
+  const par = new Map(codsNuevos.map(k => [k, k])); const raizUF = (k: string): string => par.get(k) === k ? k : raizUF(par.get(k)!);
+  for (let i = 0; i < codsNuevos.length; i++) for (let j = i + 1; j < codsNuevos.length; j++) if (solapa(codsNuevos[i], codsNuevos[j])) par.set(raizUF(codsNuevos[i]), raizUF(codsNuevos[j]));
+  const clusters = new Map<string, string[]>(); codsNuevos.forEach(k => { const r = raizUF(k); if (!clusters.has(r)) clusters.set(r, []); clusters.get(r)!.push(k); });
+  for (const g of clusters.values()) {
+    if (g.length < 2) continue;
+    const libres = g.filter(k => !descartar.has(k)); if (!libres.length) continue;
+    const queda = libres.find(k => COPIA_PREFERIDA.has(k)) || libres.sort((a, b) => nUni(b) - nUni(a) || a.localeCompare(b))[0];
+    libres.filter(k => k !== queda).forEach(k => descartar.set(k, queda));
+  }
+  for (const [k, queda] of descartar) {
+    const c = nuevosCondos.find(x => x.codigo === k)!;
+    duplicados.push({ codigo: k, nombre: c.nombre, unidades: nUni(k), queda, nombre_queda: nuevosCondos.find(x => x.codigo === queda)?.nombre || '(ya en el módulo)' });
+    excluidos.push({ codigo: k, nombre: c.nombre, motivo: `Copia duplicada de ${queda} (mismos dueños) → se queda en Contribuyentes para revisión` });
+  }
+  for (let i = nuevosCondos.length - 1; i >= 0; i--) if (descartar.has(nuevosCondos[i].codigo)) nuevosCondos.splice(i, 1);
+  for (let i = nuevasUni.length - 1; i >= 0; i--) if (descartar.has(nuevasUni[i]._condo)) nuevasUni.splice(i, 1);
+
   // Unidades repetidas (una unidad no puede estar en dos condominios)
   const vistos = new Set(uniBy.keys()); const repetidas: any[] = [];
   const nuevasOk = nuevasUni.filter(u => { if (vistos.has(u.inmueble)) { repetidas.push(u); return false; } vistos.add(u.inmueble); return true; });
@@ -168,6 +205,7 @@ const up = (s: any) => String(s || '').toUpperCase().trim();
     torres_en_nuevos: nuevasOk.filter(u => u.es_grupo).length, nietos_en_nuevos: nuevasOk.filter(u => u._padre).length,
     torres_en_existentes: gruposExistentes.size, nietos_enlazados_existentes: enlacesExistentes.length, nietos_agregados_existentes: nietosNuevosEnModulo.length,
     huerfanos_resueltos: nuevasOk.filter(u => u._huerfano).length + nietosNuevosEnModulo.filter(u => u._huerfano).length,
+    copias_duplicadas_no_traidas: duplicados.length, unidades_en_copias: duplicados.reduce((s, d) => s + d.unidades, 0),
     excluidos: excluidos.length, unidades_no_traidas: unidadesNoTraidas.length, repetidas: repetidas.length,
   };
   console.log(resumen);
@@ -189,6 +227,7 @@ const up = (s: any) => String(s || '').toUpperCase().trim();
     [...enlacesExistentes.map(e => ({ ...e, a: 'Enlazar a su torre' })), ...nietosNuevosEnModulo.map(n => ({ inmueble: n.inmueble, padre: '', a: 'Agregar' }))]);
   hoja('Se quedan en Contribuyentes', [['Código', 'codigo', 12], ['Nombre', 'nombre', 45], ['Motivo', 'motivo', 60]], excluidos);
   hoja('Unidades NO traídas', [['Condominio', 'condominio', 12], ['Unidad', 'unidad', 12], ['Motivo', 'motivo', 45]], unidadesNoTraidas);
+  hoja('Copias duplicadas', [['Código copia', 'codigo', 12], ['Nombre', 'nombre', 45], ['Unidades', 'unidades', 9], ['Se queda', 'queda', 12], ['Nombre del que queda', 'nombre_queda', 45]], duplicados.sort((a, b) => a.queda.localeCompare(b.queda)));
   if (repetidas.length) hoja('Repetidas', [['Unidad', 'inmueble', 12], ['Condominio', '_condo', 12]], repetidas);
   const salida = path.resolve('..', `Condominios_Fase2_${APLICAR ? 'APLICADA' : 'SIMULACION'}.xlsx`);
   await wb.xlsx.writeFile(salida);
