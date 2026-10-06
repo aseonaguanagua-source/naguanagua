@@ -75,11 +75,11 @@ function numeroALetras(monto: number): string {
 }
 
 function formatearFecha(isoString: string): string {
-  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(isoString) ? `${isoString}T12:00:00` : isoString);
-  const dia = String(d.getDate()).padStart(2, '0');
-  const mes = String(d.getMonth() + 1).padStart(2, '0');
-  const anio = d.getFullYear();
-  return `${dia}/${mes}/${anio}`;
+  // Siempre en hora de Venezuela (el servidor de Vercel corre en UTC)
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(isoString) ? `${isoString}T12:00:00-04:00` : isoString);
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(d);
+  const get = (t: string) => parts.find(p => p.type === t)?.value || '';
+  return `${get('day')}/${get('month')}/${get('year')}`;
 }
 
 export async function POST(request: Request) {
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
     // ------------------------------------------------------------------
 
     const fechaActual = new Date();
-    const horaStr = fechaActual.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
+    const horaStr = fechaActual.toLocaleTimeString('en-US', { timeZone: 'America/Caracas', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase().replace(/[\s\u202f\u00a0]+/g, ' ');
 
     const { data: facturasBD } = await supabase.from('facturas').select('*').in('referencia', recibos);
 
