@@ -47,17 +47,42 @@ export async function GET(request: Request) {
     const inmMap = new Map((inms || []).map((i: any) => [i.inmueble, i]));
 
     const monto = r2(parseFloat(String(pago.monto || 0)));
+    // Mes de cada referencia: HIST usa la deuda previa guardada en el pago (meses que debía al pagar)
+    const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+    const mesesPrevios = new Map<string, number>();
+    (Array.isArray(det.deuda_previa) ? det.deuda_previa : []).forEach((d: any) => {
+      if (d?.inmueble) mesesPrevios.set(String(d.inmueble), parseInt(d.meses_deuda || '0') || 0);
+    });
+    const fechaPago = new Date(new Date(pago.created_at).getTime() - 4 * 3600 * 1000); // hora Venezuela
+    const mesKey = (ref: string): string | null => {
+      const h = ref.match(/^RECIB-HIST-(.+)-M(\d+)$/i);
+      if (h) {
+        const total = mesesPrevios.get(h[1]);
+        if (!total) return null;
+        const d = new Date(Date.UTC(fechaPago.getUTCFullYear(), fechaPago.getUTCMonth() - total + parseInt(h[2]) - 1, 1));
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      }
+      const cm = ref.match(/-(\d{2})-(\d{4})$/);
+      return cm ? `${cm[2]}-${cm[1]}` : null;
+    };
+    const lbl = (k: string) => `${MESES[parseInt(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}`;
+    const keys = [...new Set(refs.filter(r => !/^MULTA-/i.test(r)).map(mesKey).filter(Boolean) as string[])].sort();
+    const periodo = keys.length === 0 ? undefined
+      : keys.length === 1 ? lbl(keys[0])
+      : `DESDE ${lbl(keys[0])} HASTA ${lbl(keys[keys.length - 1])} (${keys.length} MESES)`;
+
     const conceptos: { descripcion: string; precioUnit: number; total: number }[] = [];
     for (const ref of refs) {
       const m = r2(parseFloat(String(montos[ref] ?? 0)));
       if (m <= 0) continue;
       const cod = extraerCodigoInmueble(ref) || '';
       const mes = ref.match(/-M(\d+)$/i)?.[1];
+      const k = mesKey(ref);
       const desc = /^MULTA-/i.test(ref)
         ? `Multa por mora - Aseo Urbano (${cod})`
         : /^RECIB-HIST-/i.test(ref)
-          ? `Servicio de Aseo Urbano - Mes ${mes || ''} de deuda (${cod})`
-          : `Servicio de Aseo Urbano (${ref})`;
+          ? `Servicio de Aseo Urbano - ${k ? lbl(k) : `Mes ${mes || ''} de deuda`} (${cod})`
+          : `Servicio de Aseo Urbano ${k ? lbl(k) : ''} (${ref})`;
       conceptos.push({ descripcion: desc, precioUnit: m, total: m });
     }
     const suma = r2(conceptos.reduce((s, c) => s + c.total, 0));
@@ -78,6 +103,7 @@ export async function GET(request: Request) {
       domicilioFiscal: String(inmPrincipal?.direccion || cont?.direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
       rifCi: pago.identidad,
       caja: det.cajero || '',
+      periodo,
       conceptos: lineas,
       subTotal: monto,
       exento: monto,

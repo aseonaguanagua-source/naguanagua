@@ -12,6 +12,8 @@ interface ReciboProps {
   rifCi: string;
   caja: string;
   tipoContribuyente?: string;
+  /** Período cancelado, p. ej. "OCTUBRE 2026" o "DESDE JULIO 2026 HASTA OCTUBRE 2026" */
+  periodo?: string;
   conceptos: {
     descripcion: string;
     precioUnit: number;
@@ -247,7 +249,12 @@ function ReciboContenido({
         </div>
       </div>
 
-      {/* ── TABLA CONCEPTOS ── */}
+      {/* ── PERÍODO CANCELADO ── */}
+      {data.periodo && (
+        <div style={{ borderBottom: B, padding:'2.5px 6px', fontSize:8.5, background:'#ecfdf5' }}>
+          <strong>PERÍODO CANCELADO:</strong> {data.periodo}
+        </div>
+      )}
       <table style={{ width:'100%', borderCollapse:'collapse', borderBottom: B }}>
         <thead>
           <tr style={{ borderBottom: B }}>

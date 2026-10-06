@@ -1873,19 +1873,37 @@ export default function CajaPage() {
                 ? condominioHijos.filter((h: any) => selectedHijos.includes(h.id))
                 : condominioHijos;
 
+              const MESES_C = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+              const hoyC = new Date();
+              // Mes i (1 = más antiguo) de una deuda de `total` meses que termina el mes pasado
+              const mesDeuda = (total: number, i: number) => new Date(hoyC.getFullYear(), hoyC.getMonth() - total + i - 1, 1);
+              const lblMes = (d: Date) => `${MESES_C[d.getMonth()]} ${d.getFullYear()}`;
+              const extremos: Date[] = [];
+
               const conceptosCondo = hijosPagados.map((hijo: any) => {
                 const infoDebt = getHijoDebt(hijo);
                 const localDesc = getLocalLabel(hijo);
                 const nombreLocal = hijo.contribuyente ? ` - ${hijo.contribuyente}` : '';
+                let rango = '';
+                if (infoDebt.mesesTotales > 0 && infoDebt.mesesAPagar > 0) {
+                  const ini = mesDeuda(infoDebt.mesesTotales, 1);
+                  const fin = mesDeuda(infoDebt.mesesTotales, infoDebt.mesesAPagar);
+                  extremos.push(ini, fin);
+                  rango = infoDebt.mesesAPagar === 1 ? lblMes(ini) : `${lblMes(ini)} a ${lblMes(fin)}`;
+                }
                 const descMeses = infoDebt.mesesTotales > 1
-                  ? ` [${infoDebt.mesesAPagar} mes${infoDebt.mesesAPagar !== 1 ? 'es' : ''} cancelado${infoDebt.mesesAPagar !== 1 ? 's' : ''}${infoDebt.mesesTotales > infoDebt.mesesAPagar ? ` • Restan ${infoDebt.mesesTotales - infoDebt.mesesAPagar}` : ' • Al día'}]`
-                  : '';
+                  ? ` [${infoDebt.mesesAPagar} mes${infoDebt.mesesAPagar !== 1 ? 'es' : ''} cancelado${infoDebt.mesesAPagar !== 1 ? 's' : ''}${rango ? `: ${rango}` : ''}${infoDebt.mesesTotales > infoDebt.mesesAPagar ? ` • Restan ${infoDebt.mesesTotales - infoDebt.mesesAPagar}` : ' • Al día'}]`
+                  : (rango ? ` [${rango}]` : '');
                 return {
                   descripcion: `Aseo Urbano - ${localDesc}${nombreLocal}${descMeses} (${hijo.inmueble || ''})`,
                   precioUnit: infoDebt.total,
                   total: infoDebt.total
                 };
               });
+              extremos.sort((a, b) => a.getTime() - b.getTime());
+              const periodoCondo = extremos.length === 0 ? undefined
+                : lblMes(extremos[0]) === lblMes(extremos[extremos.length - 1]) ? lblMes(extremos[0])
+                : `DESDE ${lblMes(extremos[0])} HASTA ${lblMes(extremos[extremos.length - 1])}`;
 
               const refNum = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
               setReciboData({
@@ -1897,6 +1915,7 @@ export default function CajaPage() {
                 domicilioFiscal: (foundUser.Direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
                 rifCi: foundUser.Identidad,
                 caja: cajero_id_recibo,
+                periodo: periodoCondo,
                 conceptos: conceptosCondo.length > 0 ? conceptosCondo : [{
                   descripcion: `Cobro Consolidado Condominio (${condominioHijos.length} Unidades)`,
                   precioUnit: montoReal,
@@ -1923,6 +1942,33 @@ export default function CajaPage() {
               const p = emision.split('-');
               return p.length >= 2 ? `${MESES_REC[parseInt(p[1])-1]} ${p[0]}` : emision;
             };
+            // Mes (YYYY-MM) al que corresponde una referencia pagada
+            const mesKeyDeRef = (ref: string): string | null => {
+              const f = recibos.find((r: any) => r.referencia === ref);
+              if (f?.emision) {
+                const p = String(f.emision).split('-');
+                if (p.length >= 2) return `${p[0]}-${p[1].slice(0, 2)}`;
+              }
+              const m = ref.match(/^RECIB-HIST-(.+)-M(\d+)$/);
+              if (m) {
+                const inmR = userInmsRec.find((i: any) => i.inmueble === m[1]);
+                const total = Math.max(1, parseInt(inmR?.meses_deuda || '0') || 0);
+                const hoyR = new Date();
+                const d = new Date(hoyR.getFullYear(), hoyR.getMonth() - total + parseInt(m[2]) - 1, 1);
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+              }
+              const cm = ref.match(/-(\d{2})-(\d{4})$/);
+              if (cm) return `${cm[2]}-${cm[1]}`;
+              return null;
+            };
+            const etiquetaMes = (ref: string) => { const k = mesKeyDeRef(ref); return k ? getMesRec(k) : ''; };
+            const periodoDeKeys = (keys: (string | null)[]) => {
+              const ks = [...new Set(keys.filter(Boolean) as string[])].sort();
+              if (ks.length === 0) return undefined;
+              if (ks.length === 1) return getMesRec(ks[0]);
+              return `DESDE ${getMesRec(ks[0])} HASTA ${getMesRec(ks[ks.length - 1])} (${ks.length} MESES)`;
+            };
+            const periodoDeRefs = (refs: string[]) => periodoDeKeys(refs.filter(r => !/^MULTA-/i.test(r)).map(mesKeyDeRef));
 
             // Agrupar facturas seleccionadas por inmueble
             const facturasPorInmueble: Record<string, { inm: any; refs: string[] }> = {};
@@ -1945,13 +1991,13 @@ export default function CajaPage() {
                   const pDet = pagosPendientes.find((p: any) => p.facturas && p.facturas[0]?.referencia === ref);
                   if (pDet && pDet.facturas && pDet.facturas[0]) {
                     const f = pDet.facturas[0];
-                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Base Imponible`, precioUnit: parseFloat(f.base), total: parseFloat(f.base) });
+                    conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Base Imponible`, precioUnit: parseFloat(f.base), total: parseFloat(f.base) });
                     if (parseFloat(f.iva) > 0) {
-                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - IVA (16%)`, precioUnit: parseFloat(f.iva), total: parseFloat(f.iva) });
+                      conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - IVA (16%)`, precioUnit: parseFloat(f.iva), total: parseFloat(f.iva) });
                     }
                     const porcentajeMulta = f.clasificacion.toLowerCase().includes('residencial') ? '10%' : '12%';
                     if (parseFloat(f.multa) > 0) {
-                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${f.mesNum}) - Multa (${porcentajeMulta})`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
+                      conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Multa (${porcentajeMulta})`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
                     }
                   } else {
                     const parts = ref.split('-');
@@ -1969,12 +2015,12 @@ export default function CajaPage() {
                     const esMesExon = isMesExoneradoMulta(inm?.notas, emision);
                     const multa = (!isUltimoMes && monthsDiff > 1 && !esMesExon) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
                     const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
-                    conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Base Imponible`, precioUnit: bm, total: bm });
+                    conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - Base Imponible`, precioUnit: bm, total: bm });
                     if (iva > 0) {
-                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - IVA (16%)`, precioUnit: iva, total: iva });
+                      conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - IVA (16%)`, precioUnit: iva, total: iva });
                     }
                     if (multa > 0) {
-                      conceptosGrupo.push({ descripcion: `Mes Histórico (M${mesNum}) - Multa (${esRes ? '10%' : '12%'})`, precioUnit: multa, total: multa });
+                      conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - Multa (${esRes ? '10%' : '12%'})`, precioUnit: multa, total: multa });
                     }
                   }
                 } else {
@@ -2008,6 +2054,7 @@ export default function CajaPage() {
                 referencia: reqRef ? referencia : referenciaDebito,
                 tasaBcv: currentBcvRate || tcmmv || undefined,
                 tipoContribuyente: 'Residencial',
+                periodo: periodoDeRefs(grupo.refs),
               };
             });
 
@@ -2022,6 +2069,7 @@ export default function CajaPage() {
                 domicilioFiscal: ((foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
                 rifCi: foundUser.Identidad,
                 caja: cajero_id_recibo,
+                periodo: periodoDeRefs(selectedRecibos),
                 conceptos: [{
                   descripcion: `Servicio de Aseo Urbano y Domiciliario`,
                   precioUnit: montoReal,
