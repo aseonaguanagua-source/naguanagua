@@ -469,9 +469,14 @@ function ContribuyentesPageContent() {
         .order('emision', { ascending: true })
         .then(({ data: facData }) => {
           // fallback por nombre si no hay resultados por identidad (cubre RECIB- con identidad en otro formato)
-          const applyDynamicInvoices = (baseFacturas: any[]) => {
+          const applyDynamicInvoices = async (baseFacturas: any[]) => {
             const combined = [...baseFacturas];
-            const misInmuebles = inmuebles.filter((i: any) => (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase());
+            // Inmuebles FRESCOS de la BD: la copia en memoria puede tener deuda ya pagada en Caja
+            const idsBuscar = Array.from(new Set([viewData.Identidad, identidadClean].filter(Boolean)));
+            const { data: inmsBD } = await supabase.from('inmuebles').select('*').in('identidad', idsBuscar);
+            const misInmuebles = (inmsBD && inmsBD.length > 0)
+              ? inmsBD
+              : inmuebles.filter((i: any) => (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase());
             if (combined.length === 0 && misInmuebles.length > 0) {
               const hasDeuda = misInmuebles.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
               if (hasDeuda) {
