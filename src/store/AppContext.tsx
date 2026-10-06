@@ -393,9 +393,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Regla Condominios Comerciales:
         // Aseo urbano se paga separado por condominio (centralizado en el padre).
         // Las multas se pagan por la oficina individual.
-        const rowDeudaMMV = isCommercialChild ? 0 : parseFloat(row.deuda_mmv || 0);
-        const rowMultaBs = isParentCondo ? 0 : parseFloat(row.multa_bs || 0);
-        const rowCongelada = parseFloat(row.deuda_congelada_bs || 0);
+        // Inmuebles "Eliminado" no suman deuda (misma regla que Caja y Solvencias).
+        const esEliminado = row.estado === 'Eliminado';
+        const rowDeudaMMV = (isCommercialChild || esEliminado) ? 0 : parseFloat(row.deuda_mmv || 0);
+        const rowMultaBs = (isParentCondo || esEliminado) ? 0 : parseFloat(row.multa_bs || 0);
+        const rowCongelada = esEliminado ? 0 : parseFloat(row.deuda_congelada_bs || 0);
         const rowDeudaBs = rowCongelada + rowMultaBs + (rowDeudaMMV * 57 * currentTcmmv);
 
         if (row.identidad && !map.has(row.identidad)) {

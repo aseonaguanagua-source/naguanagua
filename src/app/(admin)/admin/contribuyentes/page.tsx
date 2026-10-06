@@ -5,6 +5,7 @@ import { DataTable } from '@/components/DataTable';
 import { useAppContext } from '@/store/AppContext';
 import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent, Printer } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
+import { inmuebleTieneDeuda } from '@/lib/solvencia';
 import { ordenanzaData } from '@/data/ordenanza';
 import Select from 'react-select';
 import dynamic from 'next/dynamic';
@@ -1530,26 +1531,11 @@ function ContribuyentesPageContent() {
   };
 
   const generarSolvenciaIndividual = async (contribuyente: any, inmuebleSpec: string) => {
-    const cleanId = (contribuyente.Identidad || '').replace(/-/g, '').toUpperCase();
-    const userInms = (inmuebles || []).filter((i: any) =>
-      (i.identidad || '').replace(/-/g, '').toUpperCase() === cleanId
-    );
-    const inmsConDeuda = userInms.filter((i: any) =>
-      parseInt(String(i.meses_deuda || '0'), 10) > 0 ||
-      parseFloat(String(i.deuda_mmv || '0')) > 0 ||
-      parseFloat(String(i.deuda_congelada_bs || '0')) > 0
-    );
-    const pendFacturas = (recibos || []).filter((f: any) =>
-      (f.identidad || '').replace(/-/g, '').toUpperCase() === cleanId &&
-      ['Pendiente', 'Abonado', 'Por Verificar'].includes(f.estado)
-    );
-
-    if (inmsConDeuda.length > 0 || pendFacturas.length > 0) {
-      alert(`ACCESO DENEGADO: El contribuyente ${contribuyente.Identidad} posee deudas activas o meses pendientes. No es posible emitir la Solvencia.`);
-      return;
-    }
-
-    await generarSolvenciaPDF(contribuyente, inmuebleSpec, addCertificado);
+    // La validación de deuda se hace en generarSolvenciaPDF con la regla única (src/lib/solvencia.ts):
+    // ignora inmuebles eliminados y, si se elige un inmueble, evalúa solo ese.
+    try {
+      await generarSolvenciaPDF(contribuyente, inmuebleSpec, addCertificado);
+    } catch { /* el motivo ya se mostró en pantalla */ }
   };
 
   const handleEdit = (row: any) => {
@@ -2934,7 +2920,7 @@ function ContribuyentesPageContent() {
 
         // 2. Inmuebles asociados y verificación de mora en padrón
         const userInms = (inmuebles || []).filter((i: any) =>
-          (i.identidad || '').replace(/-/g,'').toUpperCase() === cleanIdent
+          (i.identidad || '').replace(/-/g,'').toUpperCase() === cleanIdent && i.estado !== 'Eliminado'
         );
         const inmsConMora = userInms.filter((i: any) =>
           parseInt(String(i.meses_deuda || '0'), 10) > 0 ||
@@ -3347,7 +3333,7 @@ function ContribuyentesPageContent() {
               {/* Ficha de Censo Inmobiliario */}
               {(() => {
                 const userInms = inmuebles.filter((i: any) =>
-                  (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase()
+                  (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase() && i.estado !== 'Eliminado'
                 );
                 
                 if (userInms.length === 0) return null;
@@ -3553,7 +3539,7 @@ function ContribuyentesPageContent() {
                     // Helper: para CM- recalcular con tasa BCV actual (fluctúa cada día)
                     // Para RECIB- usar monto guardado (deuda acumulada ajustada por Ajustar Deuda)
                     const userInms = inmuebles.filter((i: any) =>
-                      (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase()
+                      (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase() && i.estado !== 'Eliminado'
                     );
                     const getMontoActual = (f: any): number => {
                       if (f.estado === 'Abonado') return parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
@@ -3641,6 +3627,21 @@ function ContribuyentesPageContent() {
                       return sum + ( (baseUnMes + iva) * meses ) + totalMulta;
                     }, 0);
                     const tieneDeudaReal = deudaInmuebleBs > 0.01;
+                    // Inmuebles al día (mismo criterio que Caja): pueden tener su propia solvencia aunque otro inmueble del RIF deba
+                    const inmsSolventes = userInms.filter((inm: any) => inm.inmueble && !inmuebleTieneDeuda(inm));
+                    const bloqueSolvenciaPorInmueble = inmsSolventes.length > 0 ? (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                        <p className="text-xs font-bold text-green-800 mb-2">Inmuebles al día — puede emitir su solvencia individual:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {inmsSolventes.map((inm: any) => (
+                            <button key={inm.inmueble} onClick={() => generarSolvenciaIndividual(viewData, inm.inmueble)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5">
+                              <Download className="w-3.5 h-3.5" /> Solvencia {inm.inmueble}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null;
                     // Agente de retención: IVA completo, IVA retenido (75%) y monto a cancelar
                     const esAgenteInm = (inm: any) => inm.agente_retencion === true || String(inm.agente_retencion) === 'true';
                     const ivaCompletoUser = userInms.reduce((s: number, inm: any) => isResidencialInm(inm) ? s : s + calcularMensualidad(inm, tcmmv) * 0.16 * Math.max(0, parseInt(inm.meses_deuda || 0)), 0);
@@ -3708,6 +3709,7 @@ function ContribuyentesPageContent() {
                             </div>
                             <p className="text-sm text-amber-700 mb-3">Este contribuyente tiene deuda registrada en sus inmuebles pero no tiene recibos pendientes. La deuda se generó por acumulación mensual.</p>
                           </div>
+                          {bloqueSolvenciaPorInmueble}
                           <div className="overflow-x-auto">
                             <table className="w-full text-xs">
                               <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-600">

@@ -2,6 +2,7 @@ import { logos } from './logosBase64';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { supabase } from '@/lib/supabase';
+import { evaluarSolvencia } from '@/lib/solvencia';
 
 
 export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
@@ -144,40 +145,12 @@ export const generarSolvenciaPDF = async (
     const cleanId = rawId.trim();
     const idSinGuion = cleanId.replace(/-/g, '');
 
-    // 1. Verificación estricta en base de datos: Facturas pendientes
+    // 1. Verificación en base de datos con la regla única (ignora eliminados; si se pide un inmueble, solo ese)
     if (cleanId) {
-      const { data: facts } = await supabase
-        .from('facturas')
-        .select('id, referencia, estado, monto')
-        .or(`identidad.eq.${cleanId},identidad.eq.${idSinGuion}`)
-        .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
-
-      if (facts && facts.length > 0) {
-        const msg = `EMISIÓN DENEGADA: El contribuyente ${cleanId} posee ${facts.length} factura(s) pendiente(s) de pago. Debe estar 100% al día para emitir Solvencia.`;
-        alert(msg);
-        throw new Error(msg);
-      }
-
-      // 2. Verificación estricta en base de datos: Inmuebles con meses de deuda o saldo
-      const { data: inms } = await supabase
-        .from('inmuebles')
-        .select('inmueble, meses_deuda, deuda_mmv, deuda_congelada_bs, actividad_principal')
-        .or(`identidad.eq.${cleanId},identidad.eq.${idSinGuion}`);
-
-      if (inms && inms.length > 0) {
-        const inmsConMora = inms.filter((i: any) => {
-          const m = parseInt(String(i.meses_deuda || 0), 10);
-          const dMMV = parseFloat(String(i.deuda_mmv || 0));
-          const dCong = parseFloat(String(i.deuda_congelada_bs || 0));
-          return m > 0 || dMMV > 0 || dCong > 0;
-        });
-
-        if (inmsConMora.length > 0) {
-          const detInm = inmsConMora.map((i: any) => `${i.inmueble} (${i.meses_deuda} meses)`).join(', ');
-          const msg = `EMISIÓN DENEGADA: El contribuyente ${cleanId} posee deuda activa en los siguientes inmuebles: ${detInm}. No está solvente.`;
-          alert(msg);
-          throw new Error(msg);
-        }
+      const ev = await evaluarSolvencia(cleanId, inmuebleSpec);
+      if (!ev.solvente) {
+        alert(ev.mensaje);
+        throw new Error(ev.mensaje);
       }
     }
 
@@ -194,6 +167,7 @@ export const generarSolvenciaPDF = async (
       codigo: codigoUnico,
       contribuyente: contribuyente.Contribuyente || contribuyente.nombre || 'Contribuyente',
       identidad: cleanId,
+      inmueble: inmuebleSpec && inmuebleSpec !== 'general' ? inmuebleSpec : null,
       tipo: 'Solvencia Municipal',
       emision: fechaEmision.toISOString(),
       vencimiento: fechaVencimiento.toISOString(),
@@ -226,26 +200,9 @@ export const reimprimirSolvenciaPDF = async (certificadoRow: any) => {
   const idSinGuion = cleanId.replace(/-/g, '');
 
   if (cleanId) {
-    const { data: facts } = await supabase
-      .from('facturas')
-      .select('id')
-      .or(`identidad.eq.${cleanId},identidad.eq.${idSinGuion}`)
-      .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
-
-    const { data: inms } = await supabase
-      .from('inmuebles')
-      .select('inmueble, meses_deuda, deuda_mmv, deuda_congelada_bs')
-      .or(`identidad.eq.${cleanId},identidad.eq.${idSinGuion}`);
-
-    const inmsConMora = inms?.filter((i: any) => {
-      const m = parseInt(String(i.meses_deuda || 0), 10);
-      const dMMV = parseFloat(String(i.deuda_mmv || 0));
-      const dCong = parseFloat(String(i.deuda_congelada_bs || 0));
-      return m > 0 || dMMV > 0 || dCong > 0;
-    });
-
-    if ((facts && facts.length > 0) || (inmsConMora && inmsConMora.length > 0)) {
-      alert(`REIMPRESIÓN BLOQUEADA: El contribuyente ${cleanId} actualmente posee deuda activa y ya no se encuentra solvente.`);
+    const ev = await evaluarSolvencia(cleanId, certificadoRow.inmueble || 'general');
+    if (!ev.solvente) {
+      alert(`REIMPRESIÓN BLOQUEADA: ${ev.mensaje}`);
       return;
     }
   }

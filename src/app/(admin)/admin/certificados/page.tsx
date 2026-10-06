@@ -4,6 +4,7 @@ import { DataTable } from '@/components/DataTable';
 import { Award, Printer, CheckCircle, Search, Download, AlertCircle } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { generarSolvenciaPDF, reimprimirSolvenciaPDF } from '@/lib/pdfGenerator';
+import { inmuebleTieneDeuda } from '@/lib/solvencia';
 
 export default function CertificadosPage() {
   const { certificados, contribuyentes, recibos, inmuebles, addCertificado } = useAppContext();
@@ -45,12 +46,8 @@ export default function CertificadosPage() {
       const totalBs = deudas.reduce((acc: number, f: any) => acc + parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')), 0);
       
       // Buscar inmuebles y verificar meses_deuda
-      const misInmuebles = (inmuebles || []).filter((i: any) => (i.identidad || '').replace(/-/g, '').toUpperCase() === cleanIdent);
-      const inmsConMora = misInmuebles.filter((i: any) =>
-        parseInt(String(i.meses_deuda || '0'), 10) > 0 ||
-        parseFloat(String(i.deuda_mmv || '0')) > 0 ||
-        parseFloat(String(i.deuda_congelada_bs || '0')) > 0
-      );
+      const misInmuebles = (inmuebles || []).filter((i: any) => (i.identidad || '').replace(/-/g, '').toUpperCase() === cleanIdent && i.estado !== 'Eliminado');
+      const inmsConMora = misInmuebles.filter(inmuebleTieneDeuda);
       
       const hasDebt = totalBs > 0 || inmsConMora.length > 0;
       const totalMesesDeuda = inmsConMora.reduce((max: number, i: any) => Math.max(max, parseInt(String(i.meses_deuda || 0), 10)), 0);
@@ -74,11 +71,10 @@ export default function CertificadosPage() {
 
   const handleDownload = async () => {
     if (!searchResult) return;
-    if (searchResult.hasDebt) {
-      alert("EMISIÓN DENEGADA: El contribuyente posee deudas activas o meses pendientes. No es posible generar una solvencia.");
-      return;
-    }
-    await generarSolvenciaPDF(searchResult, selectedInmueble || 'general', addCertificado);
+    // Validación final en BD con la regla única: si se eligió un inmueble, solo cuenta ese.
+    try {
+      await generarSolvenciaPDF(searchResult, selectedInmueble || 'general', addCertificado);
+    } catch { /* el motivo ya se mostró en pantalla */ }
   };
 
   const columns = [
