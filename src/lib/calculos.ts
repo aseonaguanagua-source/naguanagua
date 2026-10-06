@@ -304,3 +304,37 @@ export const getMesesExoneradosCount = (notas?: string | null): number => {
   return matches ? matches.length : 0;
 };
 
+/**
+ * Limpia y normaliza la descripción de una actividad o inmueble para Estados de Cuenta:
+ * Elimina completamente clasificaciones como (ALTA), (MEDIA), (BAJA), zonas (ZONA A, B, C, D),
+ * sufijos como CASA A, B y términos de "Residencial" / "Comercial".
+ */
+export const cleanClasificacionActividad = (str?: string | null): string => {
+  if (!str) return '';
+  let cleaned = str
+    // Quitar tags entre corchetes tipo [hijo_de:...] o [condominio] o [hijo]
+    .replace(/\[[^\]]+\]/g, '')
+    // Quitar zonas entre paréntesis: (ZONA A), (ZONA B), (ZONA C), (ZONA D), (ZONA 1), (A), (B), (C), (D)
+    .replace(/\s*\((ZONA\s+[A-Z0-9]+|[A-D])\)/gi, '')
+    // Quitar niveles entre paréntesis: (ALTA), (MEDIA), (BAJA), (RESIDENCIAL), (COMERCIAL)
+    .replace(/\s*\((ALTA|MEDIA|BAJA|RESIDENCIAL|COMERCIAL)\)/gi, '')
+    // Quitar palabras de nivel si van con guión o sueltas: - ALTA, - MEDIA, - BAJA
+    .replace(/\s*-\s*(ALTA|MEDIA|BAJA)\b/gi, '')
+    .replace(/\b(ALTA|MEDIA|BAJA)\b/gi, '')
+    // Quitar ZONA A, ZONA B, ZONA C, ZONA D aunque no tengan paréntesis: "CASA ZONA A", "QUINTA ZONA B"
+    .replace(/\bZONA\s+[A-D]\b/gi, '')
+    // Quitar sufijos tipo "CASA A", "CASA B", "QUINTA A", "APARTAMENTO B", "TOWNHOUSE C"
+    .replace(/\b(CASA|QUINTA|APARTAMENTO|TOWNHOUSE)\s+([A-D])\b/gi, '$1')
+    .replace(/\s+-\s+[A-D]\b/gi, '')
+    // Quitar términos de tipo/uso: "USO RESIDENCIAL", "USO COMERCIAL", "LOCAL COMERCIAL", "ACTIVIDAD COMERCIAL", "INMUEBLE RESIDENCIAL"
+    .replace(/\b(USO\s+RESIDENCIAL|USO\s+COMERCIAL|ACTIVIDAD\s+COMERCIAL|LOCAL\s+COMERCIAL|INMUEBLE\s+RESIDENCIAL)\b/gi, '')
+    // Quitar palabras sueltas RESIDENCIAL, RESIDENCIALES, COMERCIAL, COMERCIALES
+    .replace(/\b(RESIDENCIALES|RESIDENCIAL|COMERCIALES|COMERCIAL)\b/gi, '')
+    // Limpiar espacios dobles y signos residuales al inicio/fin
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[-\s,./]+|[-\s,./]+$/g, '')
+    .trim();
+
+  return cleaned || 'Servicio de Aseo Urbano';
+};
+

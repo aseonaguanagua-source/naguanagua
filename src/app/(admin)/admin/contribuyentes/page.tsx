@@ -25,7 +25,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad } from '@/lib/calculos';
 import { isSameLocal, getShortAddress } from '@/lib/cajaHelpers';
 
 
@@ -332,7 +332,7 @@ function ContribuyentesPageContent() {
 
       if (misInmuebles.length > 0) {
         const isCondominio = misInmuebles.some((i: any) => (parseInt(i.cant_inmuebles) || 1) > 1);
-        leyenda = isCondominio ? `Condominio / Complejo Residencial` : misInmuebles.map((i: any) => i.actividad_principal || 'Residencial').join(', ');
+        leyenda = isCondominio ? `Condominio / Complejo Habitacional` : misInmuebles.map((i: any) => cleanClasificacionActividad(i.actividad_principal || '')).filter(Boolean).join(', ') || 'Servicio de Aseo Urbano';
         
         misInmuebles.forEach((inm: any) => {
           const esRes = isResidencialInm(inm);
@@ -372,7 +372,7 @@ function ContribuyentesPageContent() {
               desgloseLocales.push({
                 numeracion: getLocalLabelUnit(inm, `${inm.inmueble || 'Inmueble'} - Unidad ${i}`),
                 inmueble: inm.inmueble,
-                leyenda: inm.actividad_principal || (esRes ? 'Residencial' : 'Comercial'),
+                leyenda: cleanClasificacionActividad(inm.actividad_principal || '') || 'Servicio de Aseo Urbano',
                 factor: localFactor,
                 baseBs: (Math.trunc(baseU * 100) / 100).toFixed(2),
                 ivaBs: (Math.trunc(ivaU * 100) / 100).toFixed(2),
@@ -386,7 +386,7 @@ function ContribuyentesPageContent() {
             desgloseLocales.push({
               numeracion: getLocalLabelUnit(inm, inm.inmueble || 'Inmueble/Local'),
               inmueble: inm.inmueble,
-              leyenda: inm.actividad_principal || (esRes ? 'Residencial' : 'Comercial'),
+              leyenda: cleanClasificacionActividad(inm.actividad_principal || '') || 'Servicio de Aseo Urbano',
               factor: localFactor,
               baseBs: (Math.trunc(baseU * 100) / 100).toFixed(2),
               ivaBs: (Math.trunc(ivaU * 100) / 100).toFixed(2),
@@ -404,7 +404,7 @@ function ContribuyentesPageContent() {
         const far = esRes ? getFAR(rowTipoResidencia) : 0.1280;
         farAplicado = far;
         factorTotal = fo;
-        leyenda = rowTipoResidencia || (esRes ? 'Residencial' : 'Comercial');
+        leyenda = cleanClasificacionActividad(rowTipoResidencia) || 'Servicio de Aseo Urbano';
         const base = calcularMensualidad({ tipo: rowClasificacion, actividad_principal: rowTipoResidencia, mmv_mes: fo }, data.tcmmv);
         const iva = esRes ? 0 : (base * 0.16);
         totalMensualCalculado = base + iva;
@@ -687,7 +687,7 @@ function ContribuyentesPageContent() {
 
     const userInms = inmueblesContribuyente.length > 0
       ? inmueblesContribuyente
-      : [{ inmueble: 'Principal', tipo: 'Residencial', clasificacion: 'Individual', actividad_principal: 'CASA (ZONA A)', cant_inmuebles: 1, direccion: viewData.Direccion || '' }];
+      : [{ inmueble: 'Principal', tipo: 'Inmueble', clasificacion: 'Individual', actividad_principal: 'Inmueble Principal', cant_inmuebles: 1, direccion: viewData.Direccion || '' }];
 
     // Si deudas sigue vacío pero los inmuebles tienen meses_deuda registrados, generar períodos
     if (deudas.length === 0) {
@@ -747,7 +747,7 @@ function ContribuyentesPageContent() {
           clusters.push({
             clusterId: inm.inmueble || `RES-${clusters.length + 1}`,
             tipo: 'RESIDENCIAL',
-            label: inm.actividad_principal || inm.clasificacion || 'Inmueble Residencial',
+            label: cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || (inm.inmueble || 'Inmueble'),
             direccion: inm.direccion || viewData.Direccion || 'Naguanagua, Edo. Carabobo',
             isMultiActivity: false,
             inmuebles: [inm]
@@ -781,7 +781,7 @@ function ContribuyentesPageContent() {
             matched.label = getShortAddress(rawDir);
           }
         } else {
-          const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Local Comercial');
+          const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Inmueble');
           clusters.push({
             clusterId: inm.inmueble || `COM-${clusters.length + 1}`,
             tipo: (inm.tipo || 'COMERCIAL').toUpperCase().includes('IND') ? 'INDUSTRIAL' : 'COMERCIAL',
@@ -799,15 +799,39 @@ function ContribuyentesPageContent() {
         }
       });
     } else {
-      // MODO POR DEFECTO: ESTADO DE CUENTA DIFERENTE POR CADA LOCAL INDEPENDIENTE
+      // MODO POR DEFECTO: UN ESTADO DE CUENTA POR CADA LOCAL FÍSICO.
+      // Si el contribuyente tiene varias actividades en el MISMO local (mismo padre propio o misma
+      // dirección exacta), se consolidan en un solo estado de cuenta (no uno por actividad).
+      const ownCodes = new Set(userInms.map((i: any) => i.inmueble));
+      const normDir = (d: string) => (d || '').trim().toUpperCase().replace(/\s+/g, ' ');
       for (const inm of candidates) {
         const esRes = isResidencialInm(inm);
         const rawDir = (inm.direccion || '').trim();
         const tipoCluster = esRes ? 'RESIDENCIAL' : ((inm.tipo || 'COMERCIAL').toUpperCase().includes('IND') ? 'INDUSTRIAL' : 'COMERCIAL');
-        const label = inm.actividad_principal || inm.clasificacion || (esRes ? 'Inmueble Residencial' : 'Local Comercial');
+        const padreId = inm.condominio_padre_id && ownCodes.has(inm.condominio_padre_id) ? inm.condominio_padre_id : null;
+        const dirKey = rawDir && rawDir !== '0 0' ? normDir(rawDir) : '';
+
+        const matched = esRes ? undefined : clusters.find(c => {
+          if (c.tipo === 'RESIDENCIAL') return false;
+          return c.inmuebles.some((ci: any) => {
+            const ciPadre = ci.condominio_padre_id && ownCodes.has(ci.condominio_padre_id) ? ci.condominio_padre_id : null;
+            if (padreId && ciPadre === padreId) return true;
+            const ciDir = ci.direccion && ci.direccion !== '0 0' ? normDir(ci.direccion) : '';
+            return !!dirKey && ciDir === dirKey;
+          });
+        });
+
+        if (matched) {
+          matched.inmuebles.push(inm);
+          matched.isMultiActivity = true;
+          matched.label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : matched.label;
+          continue;
+        }
+
+        const label = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || (rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Inmueble'));
 
         clusters.push({
-          clusterId: inm.inmueble || `INM-${clusters.length + 1}`,
+          clusterId: padreId || inm.inmueble || `INM-${clusters.length + 1}`,
           tipo: tipoCluster,
           label,
           direccion: rawDir && rawDir !== '0 0' ? rawDir : (viewData.Direccion || 'Naguanagua, Edo. Carabobo'),
@@ -828,7 +852,7 @@ function ContribuyentesPageContent() {
 
     const stripNivel = (str: string): string => {
       if (!str) return '';
-      return str.replace(/\s*\((ALTA|MEDIA|BAJA|RESIDENCIAL)\)/gi, '').trim();
+      return cleanClasificacionActividad(str);
     };
 
     const MESES_ABR = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
@@ -977,13 +1001,10 @@ function ContribuyentesPageContent() {
       doc.setFontSize(8.5);
       if (cluster.isMultiActivity) {
         doc.setTextColor(30, 64, 175);
-        doc.text('LOCAL COMERCIAL UNIFICADO — MÚLTIPLES ACTIVIDADES ECONÓMICAS', 105, 20, { align: 'center' });
+        doc.text('LOCAL UNIFICADO — MÚLTIPLES ACTIVIDADES ECONÓMICAS', 105, 20, { align: 'center' });
       } else if (esRes) {
         doc.setTextColor(5, 150, 105);
-        doc.text('USO RESIDENCIAL (EXENTO DE IVA)', 105, 20, { align: 'center' });
-      } else {
-        doc.setTextColor(71, 85, 105);
-        doc.text('USO COMERCIAL', 105, 20, { align: 'center' });
+        doc.text('EXENTO DE IVA', 105, 20, { align: 'center' });
       }
 
       doc.setFontSize(8);
@@ -1034,10 +1055,11 @@ function ContribuyentesPageContent() {
         doc.setFont('helvetica', 'bold');
         doc.text(inmSingle.inmueble || 'Principal', 40, y);
 
+        const actLabel = cleanClasificacionActividad(inmSingle.actividad_principal || inmSingle.clasificacion || '') || 'Servicio de Aseo Urbano';
         doc.setFont('helvetica', 'normal');
-        doc.text('Uso / Clasificación:', 95, y);
+        doc.text('Actividad / Inmueble:', 95, y);
         doc.setFont('helvetica', 'bold');
-        doc.text(String(inmSingle.actividad_principal || inmSingle.clasificacion || inmSingle.tipo || '').slice(0, 36), 125, y);
+        doc.text(String(actLabel).slice(0, 36), 130, y);
         y += 5;
       }
 
@@ -3526,7 +3548,7 @@ function ContribuyentesPageContent() {
                               <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-600">
                                 <tr>
                                   <th className="p-2.5 text-left">N° Local / Inmueble</th>
-                                  <th className="p-2.5 text-left">Comercio / Uso</th>
+                                  <th className="p-2.5 text-left">Actividad</th>
                                   <th className="p-2.5 text-center">Meses Mora</th>
                                   <th className="p-2.5 text-right">Base Imponible</th>
                                   <th className="p-2.5 text-right">IVA (16% / Exento)</th>
@@ -3573,8 +3595,7 @@ function ContribuyentesPageContent() {
                                         <span className="text-[10px] text-slate-400 font-mono block ml-5">{inm.inmueble || '---'}</span>
                                       </td>
                                       <td className="p-2.5 text-slate-600">
-                                        <div className="font-semibold text-slate-700">{inm.contribuyente || inm.actividad_principal || 'Actividad General'}</div>
-                                        <div className="text-[10px] text-slate-400">{inm.tipo || inm.clasificacion || (esRes ? "Residencial" : "Comercial")}</div>
+                                        <div className="font-semibold text-slate-700">{cleanClasificacionActividad(inm.actividad_principal || '') || inm.contribuyente || 'Servicio de Aseo Urbano'}</div>
                                       </td>
                                       <td className="p-2.5 text-center">
                                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
@@ -3655,7 +3676,7 @@ function ContribuyentesPageContent() {
                                 <thead className="bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200 sticky top-0 z-10">
                                   <tr>
                                     <th className="p-2.5 text-left">N° Local / Inmueble</th>
-                                    <th className="p-2.5 text-left">Comercio / Uso</th>
+                                    <th className="p-2.5 text-left">Actividad</th>
                                     <th className="p-2.5 text-center">Meses Mora</th>
                                     <th className="p-2.5 text-right">Base Imponible</th>
                                     <th className="p-2.5 text-right">IVA (16% / Exento)</th>
@@ -3702,8 +3723,7 @@ function ContribuyentesPageContent() {
                                           <span className="text-[10px] text-slate-400 font-mono block ml-5">{inm.inmueble || '---'}</span>
                                         </td>
                                         <td className="p-2.5 text-slate-600">
-                                          <div className="font-semibold text-slate-700 truncate max-w-[170px]">{inm.contribuyente || inm.actividad_principal || 'Actividad General'}</div>
-                                          <div className="text-[10px] text-slate-400">{inm.tipo || inm.clasificacion || (esRes ? "Residencial" : "Comercial")}</div>
+                                          <div className="font-semibold text-slate-700 truncate max-w-[170px]">{cleanClasificacionActividad(inm.actividad_principal || '') || inm.contribuyente || 'Servicio de Aseo Urbano'}</div>
                                         </td>
                                         <td className="p-2.5 text-center whitespace-nowrap">
                                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">

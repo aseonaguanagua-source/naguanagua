@@ -4,7 +4,7 @@ import { Download, FileText, Building, Handshake, AlertCircle, CheckCircle2, Wre
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
-import { getFAR, isResidencialInm, calcularMensualidad } from '@/lib/calculos';
+import { getFAR, isResidencialInm, calcularMensualidad, cleanClasificacionActividad } from '@/lib/calculos';
 import { getIdentidadVariants } from '@/lib/formatters';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -339,7 +339,7 @@ export default function EstadoCuentaPage() {
     };
 
     // === Generate one PDF per inmueble ===
-    const inmsToProcess = misInmuebles.length > 0 ? misInmuebles : [{ inmueble: 'Principal', tipo: 'Residencial', cant_inmuebles: 1 }];
+    const inmsToProcess = misInmuebles.length > 0 ? misInmuebles : [{ inmueble: 'Principal', tipo: 'Inmueble', cant_inmuebles: 1 }];
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     let pageAdded = false;
@@ -379,7 +379,7 @@ export default function EstadoCuentaPage() {
       doc.line(14, 41, 196, 41);
 
       // ── INMUEBLE INFO ROW ──
-      const uso = inm.clasificacion || inm.tipo || 'Residencial';
+      const uso = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano';
       const area = inm.area ? `${inm.area} Mt2` : '—';
       const codInm = inm.inmueble || 'Principal';
 
@@ -389,9 +389,9 @@ export default function EstadoCuentaPage() {
       doc.setFont('helvetica', 'bold');
       doc.text(codInm, 30, 47);
       doc.setFont('helvetica', 'normal');
-      doc.text('Uso:', 65, 47);
+      doc.text('Actividad:', 60, 47);
       doc.setFont('helvetica', 'bold');
-      doc.text(uso, 76, 47);
+      doc.text(uso.slice(0, 24), 76, 47);
       doc.setFont('helvetica', 'normal');
       doc.text('Área Operativa:', 115, 47);
       doc.setFont('helvetica', 'bold');
@@ -511,7 +511,8 @@ export default function EstadoCuentaPage() {
       const detalleRows = inmRecibos.map((f: any) => {
         const b = getReciboBreakdown(f);
         const monto = calcMonto(f);
-        const det = (inm as any).actividad_principal ? `Aseo ${(inm as any).actividad_principal}` : `Aseo ${((inm as any).tipo || (inm as any).clasificacion || "residencial").toLowerCase()}`;
+        const actClean = cleanClasificacionActividad((inm as any).actividad_principal || (inm as any).clasificacion || '');
+        const det = actClean ? `Aseo ${actClean}` : 'Servicio de Aseo Urbano';
         const periodoDate = f.emision ? f.emision.replace(/-/g, '-') : '—';
         return [
           periodoDate,
@@ -655,12 +656,12 @@ export default function EstadoCuentaPage() {
                   const factor = parseFloat(inm.mmv_mes) || 0;
                   const cuotaBs = factor * tasaBcv;
                   const cant = parseInt(inm.cant_inmuebles) || 1;
+                  const actClean = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano';
                   if (cant > 1 && factor > 0) {
                       for (let j = 1; j <= cant; j++) {
                           rows.push({
                               'Código': `${inm.inmueble || inm.cod_cont || '-'} - Unidad ${j}`,
-                              'Tipo': inm.tipo || 'N/A',
-                              'Actividad': inm.actividad_principal || 'Residencial',
+                              'Actividad / Inmueble': actClean,
                               'Dirección': inm.direccion || 'Sin dirección',
                               'Factor': factor.toFixed(2),
                               'Cuota Mensual (Bs)': formatBs(cuotaBs)
@@ -669,8 +670,7 @@ export default function EstadoCuentaPage() {
                   } else {
                       rows.push({
                           'Código': inm.inmueble || inm.cod_cont || '-',
-                          'Tipo': inm.tipo || 'N/A',
-                          'Actividad': inm.actividad_principal || 'Residencial',
+                          'Actividad / Inmueble': actClean,
                           'Dirección': inm.direccion || 'Sin dirección',
                           'Factor': factor.toFixed(2),
                           'Cuota Mensual (Bs)': formatBs(cuotaBs)
@@ -689,8 +689,7 @@ export default function EstadoCuentaPage() {
             <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-3">Código</th>
-                <th className="px-4 py-3">Tipo</th>
-                <th className="px-4 py-3">Actividad</th>
+                <th className="px-4 py-3">Actividad / Inmueble</th>
                 <th className="px-4 py-3">Dirección</th>
                 <th className="px-4 py-3 text-center">Factor</th>
                 <th className="px-4 py-3 text-right">Cuota Mensual</th>
@@ -698,7 +697,7 @@ export default function EstadoCuentaPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {misInmuebles.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">No se encontraron inmuebles asociados a su cuenta.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-sm">No se encontraron inmuebles asociados a su cuenta.</td></tr>
               ) : (
                 misInmuebles.map((inm: any, i: number) => {
                   const factor = parseFloat(inm.mmv_mes) || 0;
@@ -708,8 +707,7 @@ export default function EstadoCuentaPage() {
                   return (
                     <tr key={i} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-mono font-bold text-slate-700">{inm.inmueble || inm.cod_cont || '-'} {cant > 1 ? `(${cant} Unds)` : ''}</td>
-                      <td className="px-4 py-3">{inm.tipo || 'N/A'}</td>
-                      <td className="px-4 py-3">{inm.actividad_principal || 'Residencial'}</td>
+                      <td className="px-4 py-3 font-medium text-slate-700">{cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano'}</td>
                       <td className="px-4 py-3 text-xs text-slate-500 max-w-[200px]">{inm.direccion || 'Sin dirección'}</td>
                       <td className="px-4 py-3 text-center">{factor.toFixed(2)} {cant > 1 ? `x ${cant}` : ''}</td>
                       <td className="px-4 py-3 text-right font-bold text-emerald-700">Bs. {formatBs(cuotaBs)}</td>
@@ -795,7 +793,7 @@ export default function EstadoCuentaPage() {
                 {pendientes.sort((a: any, b: any) => new Date(a.emision).getTime() - new Date(b.emision).getTime()).map((f: any, i: number) => {
                   const matchedInm = misInmuebles.find((inm: any) => inm.inmueble && f.referencia.includes(inm.inmueble));
                   const inmuDesc = matchedInm
-                    ? [matchedInm.tipo, matchedInm.actividad_principal].filter(Boolean).join(' · ') || matchedInm.clasificacion || ''
+                    ? cleanClasificacionActividad(matchedInm.actividad_principal || matchedInm.clasificacion || '')
                     : '';
                   return (
                   <tr key={i} className="hover:bg-red-50/20 transition-colors">

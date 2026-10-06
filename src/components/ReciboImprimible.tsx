@@ -148,7 +148,7 @@ export function ReciboImprimible({ data }: { data: ReciboProps }) {
       <div className="recibo-preview-wrapper">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <span style={{ fontSize: 11, color: '#64748b', fontFamily: 'Arial,sans-serif' }}>
-            📄 Vista previa del Recibo de Cobro (Aseo Urbano Residencial)
+            📄 Vista previa del Recibo de Cobro (Aseo Urbano)
           </span>
         </div>
         <div className="recibo-sheet-preview">

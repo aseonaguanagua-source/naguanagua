@@ -255,7 +255,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Contar unidades/locales hijos vinculados por condominio_padre_id
       const hijosCountMap = new Map<string, number>();
       allInmuebles.forEach(i => {
-        if (i.condominio_padre_id) {
+        if (i.condominio_padre_id && i.estado !== 'Eliminado') {
           hijosCountMap.set(i.condominio_padre_id, (hijosCountMap.get(i.condominio_padre_id) || 0) + 1);
         }
       });
@@ -275,6 +275,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             codigo: inm.inmueble,
             identidad: inm.identidad,
             nombre: cleanNombre,
+            contribuyente: inm.contribuyente || rawNombre,
             direccion: inm.direccion || '',
             unidades: numHijos > 0 ? numHijos : parseInt(inm.cant_inmuebles || '0'),
             representante: contribObj?.nombre || inm.contribuyente || 'N/A',

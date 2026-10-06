@@ -7,26 +7,47 @@ import { UnidadesModal } from '@/components/UnidadesModal';
 import { DebtAdjustmentModal } from '@/components/DebtAdjustmentModal';
 import Link from 'next/link';
 
-// Genera el siguiente codigo C-XXXXXX o CH-XXXXXX unico en el sistema
-async function generarCodigoCondominio(tipo: 'padre' | 'hijo'): Promise<string> {
-  try {
-    const { supabase } = await import('@/lib/supabase');
-    const prefijo = tipo === 'padre' ? 'C' : 'CH';
-    // Buscar todos los codigos existentes con ese prefijo
-    const { data } = await supabase.from('condominios').select('codigo');
-    const existentes = (data || [])
-      .map((r: any) => r.codigo || '')
-      .filter((c: string) => c.startsWith(prefijo + '-'));
-    // Extraer numeros
-    const nums = existentes
-      .map((c: string) => parseInt(c.replace(prefijo + '-', ''), 10))
-      .filter((n: number) => !isNaN(n));
-    const maximo = nums.length > 0 ? Math.max(...nums) : 0;
-    const siguiente = maximo + 1;
-    return prefijo + '-' + String(siguiente).padStart(6, '0');
-  } catch {
-    return tipo === 'padre' ? 'C-000001' : 'CH-000001';
+const normId = (s: any) => String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+// Hijos de un condominio = inmuebles con condominio_padre_id = codigo del padre (excluye eliminados)
+async function fetchHijos(codigoPadre?: string) {
+  const { supabase } = await import('@/lib/supabase');
+  const rows: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    let q = supabase
+      .from('inmuebles')
+      .select('inmueble,identidad,contribuyente,direccion,telefono,correo_electronico,tipo,actividad_principal,estado,meses_deuda,deuda_mmv,multa_bs,condominio_padre_id')
+      .not('condominio_padre_id', 'is', null)
+      .neq('estado', 'Eliminado')
+      .order('inmueble', { ascending: true })
+      .range(from, from + 999);
+    if (codigoPadre) q = q.eq('condominio_padre_id', codigoPadre);
+    const { data, error } = await q;
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < 1000) break;
   }
+  return rows;
+}
+
+function hijoToExcelRow(u: any, padre?: any) {
+  const conDeuda = (parseInt(u.meses_deuda || '0') > 0 || parseFloat(u.deuda_mmv || '0') > 0 || parseFloat(u.multa_bs || '0') > 0);
+  return {
+    "Condominio": padre?.nombre || u.condominio_padre_id || 'Desconocido',
+    "RIF Condominio": padre?.identidad || 'N/A',
+    "Código Unidad": u.inmueble || '',
+    "Dirección / Local": u.direccion || '',
+    "Propietario": u.contribuyente || 'No asignado',
+    "RIF / Cédula": u.identidad || '',
+    "Teléfono": u.telefono || '',
+    "Correo": u.correo_electronico || '',
+    "Tipo": u.tipo || '',
+    "Actividad": u.actividad_principal || '',
+    "Meses Deuda": parseInt(u.meses_deuda || '0') || 0,
+    "Multa (Bs)": Number(parseFloat(u.multa_bs || '0').toFixed(2)),
+    "Estado Registro": u.estado || 'Activo',
+    "Estado": conDeuda ? 'Con Deuda' : 'Solvente'
+  };
 }
 
 export default function CondominiosCOBPage() {
@@ -62,11 +83,11 @@ export default function CondominiosCOBPage() {
     { key: 'actions', header: 'Gestión / Estatus', render: (row: any) => {
       // Deuda real: buscar recibos pendientes del condominio
       const pendFacturas = (recibos || []).filter((f: any) =>
-        (f.identidad || '').replace(/-/g,'') === (row.identidad || '').replace(/-/g,'') &&
+        normId(f.identidad) === normId(row.identidad) &&
         ['Pendiente','Abonado','Por Verificar'].includes(f.estado)
       );
       const hasDebt = pendFacturas.length > 0;
-      const debtAmount = pendFacturas.reduce((s: number, f: any) => s + parseFloat(String(f.monto || '0').replace(/[^\d.]/g,'')), 0).toFixed(2);
+      const debtAmount = pendFacturas.reduce((s: number, f: any) => s + (parseFloat(String(f.monto ?? '0')) || 0), 0).toFixed(2);
       const hasAgreement = false; // convenios se muestran en la tabla de convenios
 
       return (
@@ -91,56 +112,75 @@ export default function CondominiosCOBPage() {
           <button 
             onClick={async () => {
               try {
-                const pendingFacturas = (recibos || []).filter((f: any) => {
-                  const contrib = (f.contribuyente || '').toLowerCase().trim();
-                  return contrib === row.identidad.toLowerCase().trim() || contrib === row.nombre.toLowerCase().trim();
+                const hijos = await fetchHijos(row.codigo);
+                const pendientesPorRif = (rif: string) => (recibos || []).filter((f: any) =>
+                  normId(f.identidad) === normId(rif) && ['Pendiente', 'Abonado', 'Por Verificar'].includes(f.estado)
+                );
+                const unidadesGlobal = [
+                  { ...((inmuebles || []).find((i: any) => i.inmueble === row.codigo) || {}), inmueble: row.codigo, identidad: row.identidad, contribuyente: row.contribuyente || row.nombre, direccion: row.direccion, _padre: true },
+                  ...hijos
+                ];
+                const rifsContados = new Set<string>();
+                let totalRecibos = 0, totalMulta = 0;
+                const data: any[] = unidadesGlobal.map((u: any) => {
+                  const rifKey = normId(u.identidad);
+                  let recibosPend: any[] = [];
+                  if (rifKey && !rifsContados.has(rifKey)) {
+                    rifsContados.add(rifKey);
+                    recibosPend = pendientesPorRif(u.identidad);
+                  }
+                  const montoRecibos = recibosPend.reduce((s: number, f: any) => s + (parseFloat(String(f.monto ?? '0')) || 0), 0);
+                  const multa = parseFloat(u.multa_bs || '0') || 0;
+                  totalRecibos += montoRecibos;
+                  totalMulta += multa;
+                  return {
+                    "Tipo": u._padre ? 'CONDOMINIO (PADRE)' : 'UNIDAD',
+                    "Código": u.inmueble || '',
+                    "Dirección / Local": u.direccion || '',
+                    "Propietario": u.contribuyente || '',
+                    "RIF / Cédula": u.identidad || '',
+                    "Meses Deuda": parseInt(u.meses_deuda || '0') || 0,
+                    "Recibos Pendientes": recibosPend.length,
+                    "Monto Recibos Pendientes (Bs)": Number(montoRecibos.toFixed(2)),
+                    "Multa (Bs)": Number(multa.toFixed(2)),
+                    "Total (Bs)": Number((montoRecibos + multa).toFixed(2)),
+                    "Estado": (montoRecibos + multa) > 0 || (parseInt(u.meses_deuda || '0') || 0) > 0 ? 'Con Deuda' : 'Solvente'
+                  };
                 });
-                if (pendingFacturas.length === 0) {
-                  alert('Este condominio no tiene recibos registradas.');
-                  return;
-                }
+                data.push({
+                  "Tipo": 'TOTAL GLOBAL', "Código": '', "Dirección / Local": '', "Propietario": `${hijos.length} unidades`, "RIF / Cédula": '',
+                  "Meses Deuda": '', "Recibos Pendientes": '',
+                  "Monto Recibos Pendientes (Bs)": Number(totalRecibos.toFixed(2)),
+                  "Multa (Bs)": Number(totalMulta.toFixed(2)),
+                  "Total (Bs)": Number((totalRecibos + totalMulta).toFixed(2)),
+                  "Estado": ''
+                });
                 const { exportToExcelWithLogos } = await import('@/lib/excelExport');
-                const data = pendingFacturas.map((f: any) => ({
-                  "Referencia": f.referencia,
-                  "Condominio": row.nombre,
-                  "RIF": row.identidad,
-                  "Emisión": f.emision,
-                  "Vencimiento": f.vencimiento,
-                  "Monto (Bs)": parseFloat(f.monto || '0').toFixed(2),
-                  "Estado": f.estado
-                }));
-                await exportToExcelWithLogos(data, `EstadoCuenta_${row.identidad}.xlsx`, "Estado_de_Cuenta");
-              } catch (e) {
-                alert("Error exportando Estado de Cuenta a Excel");
+                await exportToExcelWithLogos(data, `EstadoCuentaGlobal_${row.codigo || row.identidad}.xlsx`, `Estado de Cuenta Global - ${row.contribuyente || row.nombre}`.slice(0, 31).replace(/[\\/*?:\[\]]/g, ''));
+              } catch (e: any) {
+                console.error(e);
+                alert("Error exportando Estado de Cuenta a Excel: " + (e?.message || e));
               }
             }}
             className="bg-orange-50 text-orange-600 hover:bg-orange-100 p-1.5 rounded transition-colors"
-            title="Exportar Estado de Cuenta a Excel"
+            title="Estado de Cuenta Global del Condominio (padre + todas las unidades) a Excel"
           >
             <Receipt className="w-4 h-4" />
           </button>
           <button 
             onClick={async () => {
               try {
-                const { supabase } = await import('@/lib/supabase');
-                const { data: unidades, error } = await supabase.from('unidades_condominio').select('*').eq('condominio_id', row.id);
-                if (error) throw error;
-                if (!unidades || unidades.length === 0) {
+                const unidades = await fetchHijos(row.codigo);
+                if (unidades.length === 0) {
                   alert('Este condominio no tiene unidades registradas.');
                   return;
                 }
                 const { exportToExcelWithLogos } = await import('@/lib/excelExport');
-                const data = unidades.map((u: any) => ({
-                  "Condominio": row.nombre,
-                  "RIF Condominio": row.identidad,
-                  "Unidad/Local": u.numero_unidad,
-                  "Propietario": u.propietario || 'No asignado',
-                  "Ocupación": u.ocupacion || 'Ocupada',
-                  "Estado": u.estado || 'Solvente'
-                }));
-                await exportToExcelWithLogos(data, `Unidades_${row.identidad}.xlsx`, "Unidades");
-              } catch (e) {
-                alert("Error exportando a Excel");
+                const data = unidades.map((u: any) => hijoToExcelRow(u, row));
+                await exportToExcelWithLogos(data, `Unidades_${row.codigo || row.identidad}.xlsx`, "Unidades");
+              } catch (e: any) {
+                console.error(e);
+                alert("Error exportando a Excel: " + (e?.message || e));
               }
             }}
             className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 p-1.5 rounded transition-colors"
@@ -179,29 +219,15 @@ export default function CondominiosCOBPage() {
           <button 
             onClick={async () => {
               try {
-                const { supabase } = await import('@/lib/supabase');
-                const { data: unidades, error } = await supabase.from('unidades_condominio').select('*');
-                if (error) throw error;
-          
+                const unidades = await fetchHijos();
                 const { exportToExcelWithLogos } = await import('@/lib/excelExport');
-                
-                const data = (unidades || []).map((u: any) => {
-                  const parent = condominios.find(c => c.id === u.condominio_id);
-                  return {
-                    "Condominio": parent?.nombre || 'Desconocido',
-                    "RIF Condominio": parent?.identidad || 'N/A',
-                    "Unidad/Local": u.numero_unidad,
-                    "Propietario": u.propietario || 'No asignado',
-                    "Ocupación": u.ocupacion || 'Ocupada',
-                    "Estado": u.estado || 'Solvente'
-                  };
-                });
-                
-                data.sort((a: any, b: any) => a.Condominio.localeCompare(b.Condominio) || a["Unidad/Local"].localeCompare(b["Unidad/Local"]));
-          
+                const padres = new Map((condominios || []).map((c: any) => [c.codigo, c]));
+                const data = unidades.map((u: any) => hijoToExcelRow(u, padres.get(u.condominio_padre_id)));
+                data.sort((a: any, b: any) => String(a.Condominio).localeCompare(String(b.Condominio)) || String(a["Código Unidad"]).localeCompare(String(b["Código Unidad"])));
                 await exportToExcelWithLogos(data, `Unidades_Condominios_${new Date().toISOString().split('T')[0]}.xlsx`, "Unidades");
-              } catch(e) {
-                alert("Error exportando a Excel");
+              } catch(e: any) {
+                console.error(e);
+                alert("Error exportando a Excel: " + (e?.message || e));
               }
             }}
             className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2 shadow-sm"
@@ -267,20 +293,10 @@ export default function CondominiosCOBPage() {
                     value={editingCondominio.codigo || ''}
                     readOnly
                     className="w-full border border-slate-200 bg-slate-50 rounded px-3 py-2 text-sm font-mono font-bold text-slate-600 cursor-not-allowed"
-                    placeholder="Auto-generado (ej: C-000001)"
+                    placeholder="Código de inmueble"
                   />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const cod = await generarCodigoCondominio('padre');
-                      setEditingCondominio({...editingCondominio, codigo: cod});
-                    }}
-                    className="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 whitespace-nowrap"
-                  >
-                    Generar
-                  </button>
                 </div>
-                <span className="text-[10px] text-slate-400 mt-1 block">Formato C-000001. Use el botón para asignar un código único.</span>
+                <span className="text-[10px] text-slate-400 mt-1 block">Código de inmueble del condominio padre (no editable).</span>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">RIF / Cédula</label>
@@ -292,20 +308,11 @@ export default function CondominiosCOBPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Nombre del Condominio</label>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Nombre / Razón Social del Condominio</label>
                 <input 
                   type="text" 
-                  value={editingCondominio.nombre}
-                  onChange={(e) => setEditingCondominio({...editingCondominio, nombre: e.target.value})}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Representante Legal</label>
-                <input 
-                  type="text" 
-                  value={editingCondominio.representante}
-                  onChange={(e) => setEditingCondominio({...editingCondominio, representante: e.target.value})}
+                  value={editingCondominio.contribuyente ?? ''}
+                  onChange={(e) => setEditingCondominio({...editingCondominio, contribuyente: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -331,15 +338,22 @@ export default function CondominiosCOBPage() {
                 onClick={async () => {
                   try {
                     const { supabase } = await import('@/lib/supabase');
-                    const { error } = await supabase.from('condominios').update({
-                      nombre: editingCondominio.nombre,
-                      identidad: editingCondominio.identidad,
-                      representante: editingCondominio.representante,
-                      direccion: editingCondominio.direccion,
-                      codigo: editingCondominio.codigo || null
-                    }).eq('id', editingCondominio.id);
+                    const identidad = String(editingCondominio.identidad || '').trim().toUpperCase();
+                    if (!identidad) throw new Error('El RIF es obligatorio.');
+                    // FK inmuebles.identidad -> contribuyentes.identidad
+                    await supabase.from('contribuyentes').upsert([{
+                      identidad,
+                      nombre: editingCondominio.contribuyente || 'Condominio'
+                    }], { onConflict: 'identidad', ignoreDuplicates: true });
+                    const { data, error } = await supabase.from('inmuebles').update({
+                      contribuyente: editingCondominio.contribuyente,
+                      identidad,
+                      direccion: editingCondominio.direccion
+                    }).eq('id', editingCondominio.id).select('id');
                     
                     if (error) throw error;
+                    if (!data || data.length === 0) throw new Error('No se actualizó ningún registro.');
+                    await addAuditLog('EDITAR_CONDOMINIO', JSON.stringify({ codigo: editingCondominio.codigo, identidad, nombre: editingCondominio.contribuyente }));
                     
                     alert('Condominio actualizado correctamente (Refresca la página para ver los cambios).');
                     setEditModalOpen(false);

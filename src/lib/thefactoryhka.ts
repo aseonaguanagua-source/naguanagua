@@ -19,11 +19,11 @@ export class TheFactoryHKA {
   }
 
   public static getUser(): string {
-    return process.env.TFHKA_USER?.trim() || 'dvktexcnjbjn_tfhka';
+    return process.env.TFHKA_USER?.trim() || '';
   }
 
   public static getPassword(): string {
-    return process.env.TFHKA_PASSWORD?.trim() || 'Qf*ILuU;QG-Y';
+    return process.env.TFHKA_PASSWORD?.trim() || '';
   }
 
   public static isEnabled(): boolean {
@@ -58,6 +58,9 @@ export class TheFactoryHKA {
     const baseUrl = this.getBaseUrl();
     const usuario = this.getUser();
     const clave = this.getPassword();
+    if (!usuario || !clave) {
+      throw new Error('Faltan TFHKA_USER / TFHKA_PASSWORD en las variables de entorno.');
+    }
 
     const response = await fetch(`${baseUrl}/api/Autenticacion`, {
       method: 'POST',
@@ -78,8 +81,9 @@ export class TheFactoryHKA {
     }
 
     this.token = data.token;
-    // Asumir 23 horas de vigencia
-    this.tokenExpiration = Date.now() + (23 * 60 * 60 * 1000);
+    // Usar la expiracion real que retorna TFHKA (aprox. 12h), con 5 min de margen
+    const exp = data.expiracion ? Date.parse(data.expiracion) : NaN;
+    this.tokenExpiration = !isNaN(exp) ? exp - 5 * 60 * 1000 : Date.now() + (11 * 60 * 60 * 1000);
 
     return this.token!;
   }

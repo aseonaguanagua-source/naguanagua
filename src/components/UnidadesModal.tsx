@@ -18,44 +18,56 @@ interface UnidadesModalProps {
   isInline?: boolean;
 }
 
-// Genera el siguiente codigo CH-{numCondo}{numUnidad_4digits}
-// Ejemplo: Condominio C-000008 (num=8) -> unidades: CH-80001, CH-80002, ...
-async function generarCodigoHijo(condominioId: number, codigoPadre: string): Promise<string> {
-  try {
-    // Extraer el numero del condominio padre desde su codigo C-000008 -> 8
-    let numCondo: number | string = condominioId;
-    if (codigoPadre) {
-      const match = codigoPadre.replace('C-', '').replace(/^0+/, '');
-      const parsed = parseInt(match, 10);
-      if (!isNaN(parsed) && parsed > 0) numCondo = parsed;
-    }
+// Los hijos de un condominio son filas de la tabla `inmuebles` con condominio_padre_id = codigo del padre.
+// Genera el siguiente codigo URBxxxxxx disponible (formato estandar de 6 digitos).
+async function generarCodigoInmueble(): Promise<string> {
+  const { data } = await supabase
+    .from('inmuebles')
+    .select('inmueble')
+    .like('inmueble', 'URB______')
+    .order('inmueble', { ascending: false })
+    .limit(1);
+  const last = data?.[0]?.inmueble || 'URB000000';
+  const num = parseInt(last.replace('URB', ''), 10) || 0;
+  return `URB${String(num + 1).padStart(6, '0')}`;
+}
 
-    // Buscar unidades existentes de ESTE condominio para determinar el siguiente numero
-    const { data } = await supabase
-      .from('unidades_condominio')
-      .select('codigo_ch, id')
-      .eq('condominio_id', condominioId);
+const normId = (s: any) => String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-    // El prefijo de los hijos de este condominio es CH-{numCondo}
-    const prefix = `CH-${numCondo}`;
-
-    // Encontrar el mayor numero de unidad ya usado para este condominio
-    const existentes = (data || [])
-      .map((r: any) => r.codigo_ch || '')
-      .filter((c: string) => c.startsWith(prefix));
-
-    const nums = existentes
-      .map((c: string) => parseInt(c.replace(prefix, ''), 10))
-      .filter((n: number) => !isNaN(n));
-
-    const maximo = nums.length > 0 ? Math.max(...nums) : 0;
-    const siguiente = maximo + 1;
-
-    // Formato: CH-{numCondo}{unidad 4 digitos} ej: CH-80001
-    return `${prefix}${String(siguiente).padStart(4, '0')}`;
-  } catch {
-    return `CH-${condominioId}0001`;
+function mapInmuebleToUnidad(inm: any, condominioId: number) {
+  const rawPropietario = inm.contribuyente || 'No asignado';
+  const isDesocupado = rawPropietario.toUpperCase().includes('DESOCUPAD') || (inm.actividad_principal || '').toUpperCase().includes('DESOCUPAD');
+  let numUnidad = inm.inmueble || '';
+  if (inm.direccion) {
+    const matchLoc = inm.direccion.match(/(?:LOCAL|LOCAL COMERCIAL|STAND|KIOSCO|APTO|NRO\.)\s+(?:NRO\.\s+)?([A-Z0-9\-]+)/i);
+    if (matchLoc && matchLoc[1]) numUnidad = `${matchLoc[1]} (${inm.inmueble})`;
   }
+  return {
+    id: inm.id,
+    condominio_id: condominioId,
+    numero_unidad: numUnidad,
+    codigo_ch: inm.inmueble,
+    cod_cont: inm.cod_cont || '',
+    direccion: inm.direccion || '',
+    propietario: isDesocupado ? 'Desocupado / Vacante' : rawPropietario,
+    propietario_raw: inm.contribuyente || '',
+    cedula_rif: inm.identidad || '',
+    telefono: inm.telefono || '',
+    correo: inm.correo_electronico || '',
+    ficha_catastral: '',
+    estado: (parseInt(inm.meses_deuda || '0') > 0 || parseFloat(inm.deuda_mmv || '0') > 0 || parseFloat(inm.multa_bs || '0') > 0) ? 'Con Deuda' : 'Solvente',
+    estado_registro: inm.estado || 'Activo',
+    activo: inm.estado !== 'Inactivo' && inm.estado !== 'Eliminado',
+    ocupacion: isDesocupado ? 'Desocupada' : 'Ocupada',
+    clave_acceso: inm.clave_portal || '',
+    es_migrado: true,
+    actividad_economica_id: inm.actividad_economica_id,
+    actividad: inm.actividad_principal || '',
+    meses_deuda: parseInt(inm.meses_deuda || '0'),
+    deuda_mmv: parseFloat(inm.deuda_mmv || '0'),
+    multa_bs: parseFloat(inm.multa_bs || '0'),
+    tipo: inm.tipo || 'COMERCIAL'
+  };
 }
 
 export function UnidadesModal({ condominioId, condominioNombre, condominioIdentidad, condominioCodigoPadre, onClose, isInline }: UnidadesModalProps) {
@@ -66,26 +78,18 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
   const [nuevoTelefono, setNuevoTelefono] = useState('');
   const [nuevoCorreo, setNuevoCorreo] = useState('');
   const [nuevaFicha, setNuevaFicha] = useState('');
-  const [codigoCH, setCodigoCH] = useState('');
-
-  // Auto-generar codigo CH al montar el modal
-  useEffect(() => {
-    generarCodigoHijo(condominioId, condominioCodigoPadre || '').then(cod => setCodigoCH(cod));
-  }, [condominioId, condominioCodigoPadre]);
   const [nuevaCedula, setNuevaCedula] = useState('');
+  const [guardando, setGuardando] = useState(false);
   
   // Edit State
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | number | null>(null);
   const [editForm, setEditForm] = useState({
-    numero_unidad: '',
+    direccion: '',
     propietario: '',
     cedula_rif: '',
     telefono: '',
     correo: '',
-    ficha_catastral: '',
-    estado: 'Solvente',
-    ocupacion: 'Ocupada',
-    activo: true
+    tipo: 'COMERCIAL'
   });
 
   // Credenciales por unidad
@@ -106,12 +110,6 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
 
   const fetchUnidades = async () => {
     setLoading(true);
-    const { data: ud, error: e1 } = await supabase
-      .from('unidades_condominio')
-      .select('*')
-      .eq('condominio_id', condominioId)
-      .order('id', { ascending: true });
-      
     const searchPadre = condominioCodigoPadre || '';
     const searchRif = condominioIdentidad || '';
 
@@ -132,86 +130,84 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
           .from('inmuebles')
           .select('*')
           .or(filterParts.join(','));
-        inms = (inmsData || []).filter((i: any) => i.inmueble !== searchPadre && i.inmueble !== searchRif);
+        inms = (inmsData || []).filter((i: any) => {
+          if (i.inmueble === searchPadre || i.inmueble === searchRif) return false;
+          if (i.estado === 'Eliminado') return false; // eliminados no cuentan como unidades
+          if (i.es_condominio) return false;
+          // Inmuebles del mismo RIF solo si no pertenecen a otro condominio
+          const padre = i.condominio_padre_id || '';
+          if (padre && padre !== searchPadre && padre !== searchRif) return false;
+          return true;
+        });
       }
     } catch (err) {
       console.error('Error fetching inmuebles hijos:', err);
     }
-      
-    let combined = [...(ud || [])];
-    
-    if (inms && inms.length > 0) {
-      const mappedInms = inms.map((inm: any) => {
-        const rawPropietario = inm.contribuyente || inm.contribuyentes?.nombre || 'No asignado';
-        const isDesocupado = (rawPropietario || '').toUpperCase().includes('DESOCUPAD') || (inm.actividad_principal || '').toUpperCase().includes('DESOCUPAD');
-        
-        let numUnidad = inm.inmueble || '';
-        if (inm.direccion) {
-          const matchLoc = inm.direccion.match(/(?:LOCAL|LOCAL COMERCIAL|STAND|KIOSCO|APTO|NRO\.)\s+(?:NRO\.\s+)?([A-Z0-9\-]+)/i);
-          if (matchLoc && matchLoc[1]) {
-            numUnidad = `${matchLoc[1]} (${inm.inmueble})`;
-          }
-        }
 
-        return {
-          id: inm.id,
-          condominio_id: condominioId,
-          numero_unidad: numUnidad,
-          codigo_ch: inm.inmueble,
-          propietario: isDesocupado ? 'Desocupado / Vacante' : rawPropietario,
-          cedula_rif: isDesocupado ? '-' : (inm.identidad || '-'),
-          telefono: inm.telefono || '',
-          correo: inm.correo_electronico || '',
-          ficha_catastral: '',
-          estado: (parseInt(inm.meses_deuda || '0') > 0 || parseFloat(inm.deuda_mmv || '0') > 0 || parseFloat(inm.multa_bs || '0') > 0) ? 'Con Deuda' : 'Solvente',
-          ocupacion: isDesocupado ? 'Desocupada' : 'Ocupada',
-          clave_acceso: '',
-          es_migrado: true,
-          actividad_economica_id: inm.actividad_economica_id,
-          actividad: inm.actividad_principal || '',
-          meses_deuda: parseInt(inm.meses_deuda || '0'),
-          deuda_mmv: parseFloat(inm.deuda_mmv || '0'),
-          multa_bs: parseFloat(inm.multa_bs || '0'),
-          tipo: inm.tipo || 'COMERCIAL'
-        };
-      });
-      combined = [...combined, ...mappedInms];
-    }
-    
-    setUnidades(combined);
+    const mapped = inms
+      .map((inm: any) => mapInmuebleToUnidad(inm, condominioId))
+      .sort((a: any, b: any) => (a.activo === b.activo ? String(a.codigo_ch).localeCompare(String(b.codigo_ch)) : a.activo ? -1 : 1));
+
+    setUnidades(mapped);
     setLoading(false);
   };
 
   const agregarUnidad = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nuevaUnidad) return;
+    if (!nuevaUnidad || guardando) return;
+    if (!condominioCodigoPadre) {
+      alert('El condominio no tiene código de inmueble padre. No se puede agregar la unidad.');
+      return;
+    }
+    setGuardando(true);
+    try {
+      const identidad = (nuevaCedula || '').trim().toUpperCase() || condominioIdentidad || '';
+      if (!identidad) throw new Error('Debe indicar la Cédula/RIF del propietario.');
 
-    const { data, error } = await supabase
-      .from('unidades_condominio')
-      .insert([{
-        condominio_id: condominioId,
-        numero_unidad: nuevaUnidad,
-        codigo_ch: codigoCH || null,
-        propietario: nuevoPropietario || 'No asignado',
-        cedula_rif: nuevaCedula || '',
+      // FK inmuebles.identidad -> contribuyentes.identidad
+      if (nuevaCedula.trim()) {
+        await supabase.from('contribuyentes').upsert([{
+          identidad,
+          nombre: nuevoPropietario || condominioNombre,
+          telefono: nuevoTelefono || '',
+          email: nuevoCorreo || ''
+        }], { onConflict: 'identidad', ignoreDuplicates: true });
+      }
+
+      const codigo = await generarCodigoInmueble();
+      const { error } = await supabase.from('inmuebles').insert([{
+        inmueble: codigo,
+        identidad,
+        contribuyente: nuevoPropietario || condominioNombre,
         telefono: nuevoTelefono || '',
-        correo: nuevoCorreo || '',
-        ficha_catastral: nuevaFicha || '',
-        estado: 'Solvente',
-        ocupacion: 'Ocupada'
-      }])
-      .select();
+        correo_electronico: nuevoCorreo || '',
+        direccion: `LOCAL ${nuevaUnidad.trim().replace(/\s+/g, '-')}`,
+        notas: nuevaFicha ? `Ficha catastral: ${nuevaFicha}` : null,
+        condominio_padre_id: condominioCodigoPadre,
+        es_condominio: false,
+        estado: 'Activo',
+        tipo: 'COMERCIAL',
+        clasificacion: 'Individual',
+        actividad_principal: 'N/A',
+        mmv_mes: 0,
+        deuda_mmv: 0,
+        meses_deuda: 0,
+        multa_bs: 0
+      }]);
+      if (error) throw error;
 
-    if (!error && data) {
-      setUnidades([...unidades, data[0]]);
+      await addAuditLog('AGREGAR_UNIDAD_CONDOMINIO', JSON.stringify({ codigo, unidad: nuevaUnidad, condominio: condominioNombre }));
       setNuevaUnidad('');
       setNuevoPropietario('');
       setNuevaCedula('');
       setNuevoTelefono('');
       setNuevoCorreo('');
       setNuevaFicha('');
-      // Regenerar codigo para la siguiente unidad
-      generarCodigoHijo(condominioId, condominioCodigoPadre || '').then(cod => setCodigoCH(cod));
+      await fetchUnidades();
+    } catch (err: any) {
+      alert('Error agregando unidad: ' + (err?.message || err));
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -228,34 +224,24 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
     setIsProcessingStatus(true);
     try {
       const { type, u } = statusModal;
+      const nuevoEstado = type === 'Eliminar' ? 'Eliminado' : 'Inactivo';
+      const { error } = await supabase.from('inmuebles').update({ estado: nuevoEstado }).eq('id', u.id);
+      if (error) throw error;
+
+      await addAuditLog(
+        type === 'Eliminar' ? 'ELIMINAR_UNIDAD_CONDOMINIO' : 'DESACTIVAR_UNIDAD_CONDOMINIO',
+        JSON.stringify({
+          unidad_id: u.id,
+          codigo: u.codigo_ch,
+          numero: u.numero_unidad,
+          condominio: condominioNombre,
+          motivo: statusNota.trim()
+        })
+      );
       if (type === 'Eliminar') {
-        const { error } = await supabase.from('unidades_condominio').delete().eq('id', u.id);
-        if (error) throw error;
-        
-        await addAuditLog(
-          'ELIMINAR_UNIDAD_CONDOMINIO',
-          JSON.stringify({
-            unidad_id: u.id,
-            numero: u.numero_unidad,
-            condominio: condominioNombre,
-            motivo: statusNota.trim()
-          })
-        );
         setUnidades(unidades.filter(x => x.id !== u.id));
-      } else if (type === 'Desactivar') {
-        const { error } = await supabase.from('unidades_condominio').update({ activo: false }).eq('id', u.id);
-        if (error) throw error;
-        
-        await addAuditLog(
-          'DESACTIVAR_UNIDAD_CONDOMINIO',
-          JSON.stringify({
-            unidad_id: u.id,
-            numero: u.numero_unidad,
-            condominio: condominioNombre,
-            motivo: statusNota.trim()
-          })
-        );
-        setUnidades(unidades.map(x => x.id === u.id ? { ...x, activo: false } : x));
+      } else {
+        setUnidades(unidades.map(x => x.id === u.id ? { ...x, activo: false, estado_registro: 'Inactivo' } : x));
       }
       setStatusModal(null);
       setStatusNota('');
@@ -269,14 +255,14 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
 
   const toggleActivoUnidad = async (u: any) => {
     if (u.activo === false) {
-      // Reactivar no pide nota, solo la desactiva
-      const { error } = await supabase
-        .from('unidades_condominio')
-        .update({ activo: true })
-        .eq('id', u.id);
-      if (!error) {
-        setUnidades(unidades.map(x => x.id === u.id ? { ...x, activo: true } : x));
+      // Reactivar no pide nota
+      const { error } = await supabase.from('inmuebles').update({ estado: 'Activo' }).eq('id', u.id);
+      if (error) {
+        alert('Error reactivando unidad: ' + error.message);
+        return;
       }
+      await addAuditLog('REACTIVAR_UNIDAD_CONDOMINIO', JSON.stringify({ codigo: u.codigo_ch, condominio: condominioNombre }));
+      setUnidades(unidades.map(x => x.id === u.id ? { ...x, activo: true, estado_registro: 'Activo' } : x));
     } else {
       setStatusModal({ type: 'Desactivar', u });
     }
@@ -285,37 +271,61 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
   const iniciarEdicion = (u: any) => {
     setEditingId(u.id);
     setEditForm({
-      numero_unidad: u.numero_unidad || '',
-      propietario: u.propietario || '',
+      direccion: u.direccion || '',
+      propietario: u.propietario_raw || u.propietario || '',
       cedula_rif: u.cedula_rif || '',
       telefono: u.telefono || '',
       correo: u.correo || '',
-      ficha_catastral: u.ficha_catastral || '',
-      estado: u.estado || 'Solvente',
-      ocupacion: u.ocupacion || 'Ocupada',
-      activo: u.activo !== false
+      tipo: (u.tipo || 'COMERCIAL').toUpperCase().includes('RESID') ? 'RESIDENCIAL' : 'COMERCIAL'
     });
   };
 
-  const guardarEdicion = async (id: number) => {
-    const { error, data } = await supabase
-      .from('unidades_condominio')
-      .update({
-        numero_unidad: editForm.numero_unidad,
-        propietario: editForm.propietario,
-        cedula_rif: editForm.cedula_rif,
-        telefono: editForm.telefono,
-        correo: editForm.correo,
-        ficha_catastral: editForm.ficha_catastral,
-        estado: editForm.estado,
-        ocupacion: editForm.ocupacion
-      })
-      .eq('id', id)
-      .select();
+  const guardarEdicion = async (id: string | number) => {
+    if (guardando) return;
+    setGuardando(true);
+    try {
+      const original = unidades.find(u => u.id === id);
+      const identidad = editForm.cedula_rif.trim().toUpperCase();
+      if (!identidad) throw new Error('La Cédula/RIF es obligatoria.');
 
-    if (!error && data) {
-      setUnidades(unidades.map(u => u.id === id ? data[0] : u));
+      if (normId(identidad) !== normId(original?.cedula_rif)) {
+        // Asegurar que el nuevo propietario exista en contribuyentes (FK)
+        const { error: eC } = await supabase.from('contribuyentes').upsert([{
+          identidad,
+          nombre: editForm.propietario || 'No asignado',
+          telefono: editForm.telefono || '',
+          email: editForm.correo || ''
+        }], { onConflict: 'identidad', ignoreDuplicates: true });
+        if (eC) throw eC;
+      }
+
+      const { data, error } = await supabase
+        .from('inmuebles')
+        .update({
+          direccion: editForm.direccion,
+          contribuyente: editForm.propietario,
+          identidad,
+          telefono: editForm.telefono,
+          correo_electronico: editForm.correo,
+          tipo: editForm.tipo
+        })
+        .eq('id', id)
+        .select();
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('No se pudo actualizar (sin permisos o registro inexistente).');
+
+      await addAuditLog('EDITAR_UNIDAD_CONDOMINIO', JSON.stringify({
+        codigo: original?.codigo_ch,
+        condominio: condominioNombre,
+        antes: { propietario: original?.propietario_raw, identidad: original?.cedula_rif, direccion: original?.direccion },
+        despues: { propietario: editForm.propietario, identidad, direccion: editForm.direccion }
+      }));
+      setUnidades(unidades.map(u => u.id === id ? mapInmuebleToUnidad(data[0], condominioId) : u));
       setEditingId(null);
+    } catch (err: any) {
+      alert('Error guardando cambios: ' + (err?.message || err));
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -323,15 +333,20 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
   // Logic to check if the entire Condominio is solvent (no pending invoices)
   // Searches by identidad AND by nombre because recibos may store either
   const hasCondominioDebt = React.useMemo(() => {
+    const rif = normId(condominioIdentidad);
     const pendingFacturas = (recibos || []).filter((f: any) => {
       if (f.estado !== 'Pendiente' && f.estado !== 'Abonado') return false;
-      const contrib = (f.contribuyente || '').toLowerCase().trim();
-      const identMatch = condominioIdentidad && contrib === condominioIdentidad.toLowerCase().trim();
-      const nombreMatch = condominioNombre && contrib === condominioNombre.toLowerCase().trim();
-      return identMatch || nombreMatch;
+      return !!rif && normId(f.identidad) === rif;
     });
     return pendingFacturas.length > 0;
-  }, [recibos, condominioIdentidad, condominioNombre]);
+  }, [recibos, condominioIdentidad]);
+
+  // Recibos de una unidad especifica (por RIF/Cedula de la unidad)
+  const recibosDeUnidad = (u: any) => {
+    const rif = normId(u.cedula_rif);
+    if (!rif) return [];
+    return (recibos || []).filter((f: any) => normId(f.identidad) === rif);
+  };
 
   // Helper to load image as base64
   const loadImage = async (src: string): Promise<string> => {
@@ -405,13 +420,13 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
       
       doc.setFont("helvetica", "normal");
       doc.text("RIF / C.I.:", 15, 68);
-      doc.text(condominioIdentidad || 'N/A', 40, 68);
+      doc.text(unidad.cedula_rif || condominioIdentidad || 'N/A', 40, 68);
       
       doc.text("Teléfono:", 15, 74);
-      doc.text('+58 412-9030238', 40, 74);
+      doc.text(formatPhoneNumber(unidad.telefono) || 'N/A', 40, 74);
       
       doc.text("Código:", 15, 80);
-      doc.text('C-000', 40, 80);
+      doc.text(unidad.codigo_ch || 'N/A', 40, 80);
       
       // Inmueble data
       doc.setFont("helvetica", "normal");
@@ -622,31 +637,6 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                   onChange={(e) => setBusqueda(e.target.value)}
                   className="px-3 py-1.5 border border-slate-300 rounded-md text-xs w-full sm:w-64 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
-                {unidades.some(u => !u.codigo_ch) && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!confirm('¿Asignar códigos CH a todas las unidades sin código? Esta acción guardará los códigos en la base de datos.')) return;
-                      const numCondo = condominioCodigoPadre
-                        ? (parseInt(condominioCodigoPadre.replace('C-','').replace(/^0+/,''), 10) || condominioId)
-                        : condominioId;
-                      let contador = 0;
-                      for (let i = 0; i < unidades.length; i++) {
-                        const u = unidades[i];
-                        if (!u.codigo_ch) {
-                          const cod = `CH-${numCondo}${String(i + 1).padStart(4, '0')}`;
-                          await supabase.from('unidades_condominio').update({ codigo_ch: cod }).eq('id', u.id);
-                          contador++;
-                        }
-                      }
-                      alert(`✅ Se asignaron ${contador} códigos CH correctamente.`);
-                      fetchUnidades();
-                    }}
-                    className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 whitespace-nowrap"
-                  >
-                    🔢 Asignar Códigos CH
-                  </button>
-                )}
               </div>
             </div>
             {loading ? (
@@ -693,21 +683,25 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                       <tr className="hover:bg-slate-50/50">
                         {editingId === u.id ? (
                           <>
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center px-2 py-1 rounded bg-slate-100 text-slate-700 font-mono text-xs font-bold">{u.codigo_ch}</span>
+                            </td>
                             <td className="px-4 py-2">
                               <input 
                                 type="text" 
-                                value={editForm.numero_unidad} 
-                                onChange={(e) => setEditForm({...editForm, numero_unidad: e.target.value})}
-                                className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 min-w-[80px]"
+                                placeholder="Dirección (ej. LOCAL A-23)"
+                                value={editForm.direccion} 
+                                onChange={(e) => setEditForm({...editForm, direccion: e.target.value})}
+                                className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 min-w-[140px]"
                               />
                             </td>
                             <td className="px-4 py-2">
                               <input 
                                 type="text" 
-                                placeholder="Nombre"
+                                placeholder="Nombre / Razón social"
                                 value={editForm.propietario} 
                                 onChange={(e) => setEditForm({...editForm, propietario: e.target.value})}
-                                className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-1 min-w-[100px]"
+                                className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-1 min-w-[120px]"
                               />
                               <input 
                                 type="text" 
@@ -733,54 +727,28 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                                 className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 min-w-[100px]"
                               />
                             </td>
-                            <td className="px-4 py-2">
-                              {/* Read-only edit mode for Aseo */}
-                            </td>
-                            <td className="px-4 py-2">
-                              {/* Read-only edit mode for Multa */}
-                            </td>
-                            <td className="px-4 py-2">
-                              {/* Read-only edit mode for Tipo */}
-                            </td>
-                            <td className="px-4 py-2">
-                              {/* Read-only edit mode for Nietos */}
-                            </td>
-                            <td className="px-4 py-2">
-                              <input 
-                                type="text" 
-                                placeholder="Ficha"
-                                value={editForm.ficha_catastral} 
-                                onChange={(e) => setEditForm({...editForm, ficha_catastral: e.target.value})}
-                                className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 min-w-[80px]"
-                              />
-                            </td>
+                            <td className="px-4 py-2"></td>
+                            <td className="px-4 py-2"></td>
+                            <td className="px-4 py-2"></td>
                             <td className="px-4 py-2">
                               <select 
-                                value={editForm.ocupacion}
-                                onChange={(e) => setEditForm({...editForm, ocupacion: e.target.value})}
-                                className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 min-w-[100px]"
+                                value={editForm.tipo}
+                                onChange={(e) => setEditForm({...editForm, tipo: e.target.value})}
+                                className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 min-w-[110px]"
                               >
-                                <option value="Ocupada">Ocupada</option>
-                                <option value="Desocupada">Desocupada</option>
+                                <option value="COMERCIAL">COMERCIAL</option>
+                                <option value="RESIDENCIAL">RESIDENCIAL</option>
                               </select>
                             </td>
-                            <td className="px-4 py-2">
-                              <select 
-                                value={editForm.estado}
-                                onChange={(e) => setEditForm({...editForm, estado: e.target.value})}
-                                className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:border-blue-500 min-w-[100px]"
-                                disabled={!hasCondominioDebt}
-                                title={!hasCondominioDebt ? "El condominio está solvente" : ""}
-                              >
-                                <option value="Solvente">Solvente</option>
-                                <option value="Con Deuda">Con Deuda</option>
-                              </select>
-                            </td>
+                            <td className="px-4 py-2"></td>
+                            <td className="px-4 py-2"></td>
+                            <td className="px-4 py-2"></td>
+                            <td className="px-4 py-2"></td>
                             <td className="px-4 py-2 text-right whitespace-nowrap">
-                              <button onClick={() => guardarEdicion(u.id)} className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors mr-1">
+                              <button onClick={() => guardarEdicion(u.id)} disabled={guardando} title="Guardar" className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors mr-1 disabled:opacity-50">
                                 <Save size={16} />
                               </button>
-                              <button onClick={() => setEditingId(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                              <button onClick={() => setEditingId(null)} title="Cancelar" className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                                 <XCircle size={16} />
                               </button>
                             </td>
@@ -919,7 +887,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                       {/* Panel Credenciales */}
                       {showCredencial === u.id && (
                         <tr className="bg-violet-50 border-b border-violet-100">
-                          <td colSpan={8} className="px-4 py-4">
+                          <td colSpan={13} className="px-4 py-4">
                             <div className="flex flex-col gap-3">
                               <div className="flex items-center gap-2">
                                 <Key size={14} className="text-violet-600" />
@@ -929,9 +897,9 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-slate-500 font-medium">Usuario:</span>
                                   <code className="text-xs font-mono bg-white border border-violet-200 px-2 py-1 rounded text-violet-800 font-bold">
-                                    {u.usuario_portal || u.cedula_rif || `COND-${condominioId}-${u.id}`}
+                                    {u.cedula_rif || 'Sin RIF'}
                                   </code>
-                                  <button onClick={() => navigator.clipboard.writeText(u.usuario_portal || u.cedula_rif || `COND-${condominioId}-${u.id}`)} className="text-violet-500 hover:text-violet-700" title="Copiar usuario">
+                                  <button onClick={() => navigator.clipboard.writeText(u.cedula_rif || '')} className="text-violet-500 hover:text-violet-700" title="Copiar usuario">
                                     <Copy size={13} />
                                   </button>
                                 </div>
@@ -970,7 +938,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                                     onClick={async () => {
                                       if (!nuevaClave.trim()) return alert('Ingrese una contraseña');
                                       setSavingClave(true);
-                                      const { error } = await supabase.from('unidades_condominio').update({ clave_acceso: nuevaClave.trim() }).eq('id', u.id);
+                                      const { error } = await supabase.from('inmuebles').update({ clave_portal: nuevaClave.trim() }).eq('id', u.id);
                                       if (!error) {
                                         setUnidades(unidades.map(x => x.id === u.id ? { ...x, clave_acceso: nuevaClave.trim() } : x));
                                         setEditingClave(null);
@@ -1006,7 +974,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                       {/* Panel Estado de Cuenta */}
                       {showEstado === u.id && (
                         <tr className="bg-orange-50/40 border-b border-orange-100">
-                          <td colSpan={8} className="px-4 py-4">
+                          <td colSpan={13} className="px-4 py-4">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
                                 <Receipt size={14} className="text-orange-600" />
@@ -1016,9 +984,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                               <button
                                 onClick={async () => {
                                   try {
-                                    const factCondominio = (recibos || []).filter((f: any) =>
-                                      f.contribuyente === condominioIdentidad || f.contribuyente === condominioNombre
-                                    );
+                                    const factCondominio = recibosDeUnidad(u);
                                     if (factCondominio.length === 0) {
                                       alert("No hay recibos registradas para emitir estado de cuenta.");
                                       return;
@@ -1046,9 +1012,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                               </button>
                             </div>
                             {(() => {
-                              const factCondominio = (recibos || []).filter((f: any) =>
-                                f.contribuyente === condominioIdentidad || f.contribuyente === condominioNombre
-                              );
+                              const factCondominio = recibosDeUnidad(u);
                               const pendientes = factCondominio.filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Abonado');
                               const pagadas = factCondominio.filter((f: any) => f.estado === 'Pagado' || f.estado === 'Pagado Parcial');
                               const totalDeuda = pendientes.reduce((a: number, f: any) => a + parseFloat(f.monto || '0'), 0);
@@ -1066,10 +1030,10 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                                     </div>
                                     <div className="bg-white border border-blue-100 rounded p-2 text-center">
                                       <p className="text-[10px] text-blue-600 font-bold uppercase">IVA Aplicable</p>
-                                      <p className="text-sm font-black text-blue-700">{u.tipo === 'COMERCIAL' ? '16% (Comercial)' : 'Exento (0%)'}</p>
+                                      <p className="text-sm font-black text-blue-700">{u.tipo === 'COMERCIAL' ? '16%' : 'Exento (0%)'}</p>
                                     </div>
                                     <div className="bg-white border border-orange-100 rounded p-2 text-center">
-                                      <p className="text-[10px] text-orange-600 font-bold uppercase">Deuda Condominio</p>
+                                      <p className="text-[10px] text-orange-600 font-bold uppercase">Deuda Unidad</p>
                                       <p className="text-sm font-black text-red-600">Bs. {totalDeuda.toLocaleString('es-VE', {minimumFractionDigits:2})}</p>
                                     </div>
                                   </div>
@@ -1105,7 +1069,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                                       </table>
                                     </div>
                                   ) : (
-                                    <p className="text-xs text-slate-400 text-center py-4">No hay recibos registradas para este condominio.</p>
+                                    <p className="text-xs text-slate-400 text-center py-4">No hay recibos registrados para esta unidad.</p>
                                   )}
                                 </div>
                               );

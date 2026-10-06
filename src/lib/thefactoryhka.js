@@ -117,8 +117,8 @@ var TheFactoryHKA = /** @class */ (function () {
     };
     TheFactoryHKA.baseUrl = process.env.TFHKA_URL || 'https://emision.thefactoryhka.com.ve';
     // Credenciales oficiales de Producción
-    TheFactoryHKA.user = process.env.TFHKA_USER || 'dvktexcnjbjn_tfhka';
-    TheFactoryHKA.password = process.env.TFHKA_PASSWORD || 'Qf*ILuU;QG-Y';
+    TheFactoryHKA.user = process.env.TFHKA_USER || '';
+    TheFactoryHKA.password = process.env.TFHKA_PASSWORD || '';
     TheFactoryHKA.token = null;
     TheFactoryHKA.tokenExpiration = null;
     return TheFactoryHKA;

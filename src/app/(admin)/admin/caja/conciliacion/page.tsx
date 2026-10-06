@@ -9,7 +9,7 @@ import { useAppContext } from '@/store/AppContext';
 import { logAudit } from '@/lib/audit';
 import AdminRetenciones from '@/components/AdminRetenciones';
 import { LISTA_BANCOS } from '@/lib/bancos';
-import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
+import { calcularMensualidad, isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 
 type Pago = {
   id: string;
@@ -263,24 +263,20 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
                 </div>
                 <div className="grid grid-cols-2 gap-0 text-sm">
                   <div className="border-b border-r border-slate-100 px-3 py-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">RIF / C�dula</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">RIF / Cédula</span>
                     <span className="font-semibold text-slate-800">{pago.identidad || '---'}</span>
                   </div>
                   <div className="border-b border-slate-100 px-3 py-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">C�digo Inmueble</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Código Inmueble</span>
                     <span className="font-semibold text-slate-800">{inmueble?.cod_cont || det.cod_inmueble || pago.cod_inmueble || '---'}</span>
                   </div>
                   <div className="border-b border-r border-slate-100 px-3 py-2 col-span-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Nombre / Raz�n Social</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Nombre / Razón Social</span>
                     <span className="font-bold text-slate-900 text-base">{inmueble?.contribuyente || pago.contribuyente || '---'}</span>
                   </div>
-                  <div className="border-b border-r border-slate-100 px-3 py-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Clasificaci�n / Uso</span>
-                    <span className="text-slate-700">{inmueble?.clasificacion || '---'}</span>
-                  </div>
-                  <div className="border-b border-slate-100 px-3 py-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Actividad Principal</span>
-                    <span className="text-slate-700">{inmueble?.actividad_principal || '---'}</span>
+                  <div className="border-b border-r border-slate-100 px-3 py-2 col-span-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Actividad / Inmueble</span>
+                    <span className="text-slate-700">{cleanClasificacionActividad(inmueble?.actividad_principal || inmueble?.clasificacion || '') || 'Servicio de Aseo Urbano'}</span>
                   </div>
                   <div className="border-b border-r border-slate-100 px-3 py-2">
                     <span className="text-[10px] font-bold text-slate-500 uppercase block">Tel�fono</span>
@@ -351,7 +347,7 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
                       return (
                         <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
                           <td className="px-3 py-2">{f.emision||'---'}</td>
-                          <td className="px-3 py-2">{inmueble?.clasificacion ? 'Aseo '+inmueble.clasificacion : 'Aseo urbano'}</td>
+                          <td className="px-3 py-2">{cleanClasificacionActividad(inmueble?.actividad_principal || '') || 'Servicio de Aseo Urbano'}</td>
                           <td className="px-3 py-2 text-right">{fmt(m)}</td>
                           <td className="px-3 py-2 text-right">0,00</td><td className="px-3 py-2 text-right">0,00</td>
                           <td className="px-3 py-2 text-right">0,00</td><td className="px-3 py-2 text-right font-bold">{fmt(m)}</td>
@@ -804,7 +800,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const identidad = pago.identidad || '---';
   const telefono = contribInfo?.telefono || '---';
   const correo = contribInfo?.correo_electronico || contribInfo?.correo || '---';
-  const actividadPrincipal = contribInfo?.actividad_principal || contribInfo?.Actividad || '---';
+  const actividadPrincipal = cleanClasificacionActividad(contribInfo?.actividad_principal || contribInfo?.Actividad || '') || 'Servicio de Aseo Urbano';
   const saldoFavor = (contribInfo?._saldoFavor || 0).toFixed(2);
   const deudaTotal = (contribInfo?._deudaTotal || 0).toFixed(2);
   const totalInmuebles = contribInfo?._totalInmuebles || 1;
@@ -850,12 +846,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   <label className={lc}>C�digo Inmueble</label>
                   <input value={codInmueble} readOnly className={icRO}/>
                 </div>
-                <div>
-                  <label className={lc}>Clasificaci�n</label>
-                  <input value={clasificacion} readOnly className={icRO}/>
-                </div>
-                <div>
-                  <label className={lc}>Actividad Principal</label>
+                <div className="col-span-2">
+                  <label className={lc}>Actividad / Inmueble</label>
                   <input value={actividadPrincipal} readOnly className={icRO}/>
                 </div>
                 <div>

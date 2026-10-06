@@ -534,7 +534,7 @@ export default function EstadoCuentaPage() {
           );
           conceptos = todasFacturas.flatMap((f: any) => {
             let mF = parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
-            let descripcionBase = `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${getMesTxt(f.emision)}`;
+            let descripcionBase = `Servicio de Aseo Urbano. Correspondiente al mes de: ${getMesTxt(f.emision)}`;
 
             if (tcmmv && tcmmv > 0 && userInmsForAll.length > 0 && f.estado !== 'Pagado' && f.estado !== 'Abonado') {
               if (f.referencia?.startsWith('CM-')) {
@@ -583,8 +583,8 @@ export default function EstadoCuentaPage() {
     // Fallback si no se cargaron meses: usar solo el mes del recibo clickeado
     if (conceptos.length === 0) {
       const descripcionConcepto = esAbono
-        ? `ABONO PARCIAL - Aseo Residencial/Comercial. Mes: ${mesTexto}`
-        : `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${mesTexto}`;
+        ? `ABONO PARCIAL - Servicio de Aseo Urbano. Mes: ${mesTexto}`
+        : `Servicio de Aseo Urbano. Correspondiente al mes de: ${mesTexto}`;
       conceptos = [{ descripcion: descripcionConcepto, precioUnit: montoNumerico, total: montoNumerico }];
       totalConceptos = montoNumerico;
     }
@@ -619,7 +619,7 @@ export default function EstadoCuentaPage() {
     const meses = ['MARZO 2026', 'ABRIL 2026', 'MAYO 2026', 'JUNIO 2026', 'JULIO 2026', 'AGOSTO 2026'];
     const montoUnitario = 150.00;
     const conceptos = meses.map(mes => ({
-      descripcion: `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${mes}`,
+      descripcion: `Servicio de Aseo Urbano. Correspondiente al mes de: ${mes}`,
       precioUnit: montoUnitario,
       total: montoUnitario
     }));
