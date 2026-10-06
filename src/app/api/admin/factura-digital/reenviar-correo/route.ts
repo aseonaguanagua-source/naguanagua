@@ -100,6 +100,17 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { pagoId, correoDestino, facturaUrl, numeroControl, contribuyente, identidad, monto, fecha } = body;
 
+    // Agente de retención: la factura solo se envía después de aprobar su comprobante de retención
+    if (pagoId) {
+      const { data: pg } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
+      let dt: any = pg?.detalles || {};
+      if (typeof dt === 'string') { try { dt = JSON.parse(dt); } catch { dt = {}; } }
+      const est = dt?.factura_digital?.retencion?.estado;
+      if (est && est !== 'aprobada') {
+        return NextResponse.json({ error: 'Esta factura es de un agente de retención: se envía automáticamente cuando se apruebe su comprobante de retención (Conciliación → Retenciones).' }, { status: 409 });
+      }
+    }
+
     const testMode = process.env.EMAIL_TEST_MODE !== 'false';
     const defaultTestEmail = process.env.TEST_EMAIL || 'aseonaguanagua@globalgreenca.com';
 

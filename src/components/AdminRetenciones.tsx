@@ -58,76 +58,37 @@ export default function AdminRetenciones() {
 
   useEffect(() => { load(); }, [load]);
 
-  const aprobar = async () => {
+  const revisar = async (accion: 'aprobar' | 'rechazar') => {
     if (!selected) return;
+    if (accion === 'rechazar' && !motivo.trim()) { setMsg('Ingrese el motivo de rechazo.'); return; }
     setProcessing(true);
-    setMsg('');
-    const { error } = await supabase.from('retenciones_iva').update({
-      estado: 'Aprobado',
-      aprobado_at: new Date().toISOString(),
-      aprobado_por: 'Administración',
-      motivo_rechazo: null,
-    }).eq('id', selected.id);
-
-    if (error) { setMsg('Error: ' + error.message); setProcessing(false); return; }
-
-    // Emitir factura digital
-    setMsg('✅ Aprobado. Emitiendo factura digital...');
+    setMsg(accion === 'aprobar' ? 'Aprobando y enviando la factura…' : 'Rechazando…');
     try {
-      const res = await fetch('/api/admin/factura-digital/emitir', {
+      const usuario = typeof window !== 'undefined' ? (sessionStorage.getItem('admin_user') || localStorage.getItem('admin_user') || 'Administración') : 'Administración';
+      const res = await fetch('/api/admin/retenciones/revisar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pagoId: selected.id,
-          recibos: [selected.numero_planilla],
-          montos: [selected.monto_retenido],
-          contribuyente: selected.contribuyente,
-          identidad: selected.identidad,
-          formasPago: ['Retención IVA'],
-          montoTotal: selected.monto_retenido,
-        }),
+        body: JSON.stringify({ retencionId: selected.id, accion, motivo: motivo.trim(), usuario }),
       });
-      const json = await res.json();
-      if (json.url) {
-        await supabase.from('retenciones_iva').update({
-          factura_url: json.url,
-          factura_control: json.numero_control || '',
-          factura_emitida: true,
-        }).eq('id', selected.id);
-        setMsg('✅ Aprobado y factura digital emitida correctamente.');
-      } else if (json.skipped) {
-        setMsg('✅ Aprobado. (No se emite factura para residenciales)');
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || 'Error');
+      if (accion === 'aprobar') {
+        setMsg(j.facturaEnviada
+          ? `✅ Aprobado. Factura enviada a ${j.correo}.`
+          : `✅ Aprobado. ⚠️ La factura NO se envió: ${j.error || 'sin correo'}`);
       } else {
-        setMsg('✅ Aprobado, pero hubo un error al emitir factura: ' + (json.error || 'desconocido'));
+        setMsg(`❌ Comprobante rechazado.${j.avisado ? ` Se avisó a ${j.correo}.` : ' (El contribuyente no tiene correo: avísele por otra vía.)'}`);
       }
     } catch (e: any) {
-      setMsg('✅ Aprobado, pero error emitiendo factura: ' + e.message);
+      setMsg('Error: ' + e.message);
     }
-
-    await load();
-    // Refresh selected
-    const { data: fresh } = await supabase.from('retenciones_iva').select('*').eq('id', selected.id).single();
-    if (fresh) setSelected(fresh);
-    setProcessing(false);
-  };
-
-  const rechazar = async () => {
-    if (!selected || !motivo.trim()) { setMsg('Ingrese el motivo de rechazo.'); return; }
-    setProcessing(true);
-    setMsg('');
-    const { error } = await supabase.from('retenciones_iva').update({
-      estado: 'Rechazado',
-      motivo_rechazo: motivo,
-      aprobado_at: new Date().toISOString(),
-      aprobado_por: 'Administración',
-    }).eq('id', selected.id);
-    if (error) setMsg('Error: ' + error.message);
-    else setMsg('❌ Planilla rechazada.');
     await load();
     const { data: fresh } = await supabase.from('retenciones_iva').select('*').eq('id', selected.id).single();
     if (fresh) setSelected(fresh);
     setProcessing(false);
   };
+  const aprobar = () => revisar('aprobar');
+  const rechazar = () => revisar('rechazar');
 
   if (selected) {
     return (
@@ -162,8 +123,8 @@ export default function AdminRetenciones() {
               <div className="font-bold text-slate-700 text-sm">{selected.periodo}</div>
             </div>
             <div className="bg-slate-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Hash className="w-3.5 h-3.5" /> Cód. Retención</div>
-              <div className="font-bold text-slate-700 text-sm">{selected.codigo_retencion}</div>
+              <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Hash className="w-3.5 h-3.5" /> {selected.codigo_retencion?.startsWith('FAC-') ? 'Factura' : 'Cód. Retención'}</div>
+              <div className="font-bold text-slate-700 text-sm">{selected.codigo_retencion?.startsWith('FAC-') ? `N° ${selected.codigo_retencion.slice(4)}${selected.factura_control ? ` · Control ${selected.factura_control}` : ''}` : selected.codigo_retencion}</div>
             </div>
             <div className="bg-slate-50 rounded-xl p-4">
               <div className="flex items-center gap-2 text-slate-400 text-xs mb-1"><Calendar className="w-3.5 h-3.5" /> Fecha Planilla</div>
@@ -208,7 +169,7 @@ export default function AdminRetenciones() {
         {selected.factura_emitida && selected.factura_url && (
           <div className="bg-emerald-50 rounded-2xl border border-emerald-200 p-5">
             <h3 className="font-bold text-emerald-700 mb-2 flex items-center gap-2">
-              <Send className="w-4 h-4" /> Factura Digital Emitida
+              <Send className="w-4 h-4" /> {selected.estado === 'Aprobado' ? 'Factura enviada al contribuyente' : 'Factura Digital'}
             </h3>
             <p className="text-sm text-emerald-600 mb-3">Control: {selected.factura_control}</p>
             <a href={selected.factura_url} target="_blank" rel="noopener noreferrer"
@@ -221,7 +182,8 @@ export default function AdminRetenciones() {
         {/* Acciones */}
         {selected.estado === 'Pendiente' && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-            <h3 className="font-black text-slate-800">Revisión de Planilla</h3>
+            <h3 className="font-black text-slate-800">Revisión del Comprobante de Retención</h3>
+            <p className="text-xs text-slate-500 -mt-2">Verifique que el comprobante coincida con la factura (RIF del emisor, N° de factura y control, base, IVA y 75% retenido). Al aprobar, la factura se envía por correo al contribuyente; al rechazar, se le avisa el motivo para que suba uno nuevo.</p>
             {msg && (
               <div className={`rounded-xl px-4 py-3 text-sm font-medium ${msg.includes('✅') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
                 {msg}
@@ -230,7 +192,7 @@ export default function AdminRetenciones() {
             <div className="flex gap-3">
               <button onClick={aprobar} disabled={processing}
                 className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl transition-all">
-                <CheckCircle2 className="w-5 h-5" /> Aprobar y Emitir Factura
+                <CheckCircle2 className="w-5 h-5" /> Aprobar y Enviar Factura por Correo
               </button>
             </div>
             <div className="space-y-2">
@@ -266,7 +228,7 @@ export default function AdminRetenciones() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-black text-slate-800">Retenciones de IVA</h2>
-          <p className="text-slate-500 text-sm mt-0.5">Planillas enviadas por agentes de retención</p>
+          <p className="text-slate-500 text-sm mt-0.5">Comprobantes de retención enviados por los agentes de retención. La factura se envía al aprobar.</p>
         </div>
         <div className="flex gap-2">
           {['Todos', 'Pendiente', 'Aprobado', 'Rechazado'].map(e => (

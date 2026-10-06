@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariants } from '@/lib/formatters';
-import { Upload, FileText, CheckCircle2, AlertCircle, Clock, ChevronRight, Plus, ShieldAlert, Building2 } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, AlertCircle, Clock, ShieldAlert, Receipt, Send } from 'lucide-react';
 
 interface Retencion {
   id: string;
@@ -21,28 +21,49 @@ interface Retencion {
   factura_control?: string;
 }
 
+/** Factura emitida que requiere comprobante de retención (datos para llenar la planilla). */
+interface FacturaRet {
+  pagoId: string;
+  fechaPago: string;
+  numeroFactura: string;
+  numeroControl: string;
+  fechaEmision: string | null;
+  base: number; iva: number; retenido: number; total: number; pagado: number;
+  estado: 'esperando_planilla' | 'planilla_recibida' | 'aprobada' | 'rechazada';
+  motivoRechazo?: string;
+  facturaUrl?: string | null;
+}
+
+const RIF_IAMEC = 'G-20000147-3';
+
 const fmt = (n: number) =>
-  n?.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00';
+  (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtFecha = (iso?: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T12:00:00-04:00` : iso);
+  return isNaN(d.getTime()) ? iso : new Intl.DateTimeFormat('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+};
+
+const ESTADO_FACT: Record<FacturaRet['estado'], { label: string; cls: string }> = {
+  esperando_planilla: { label: 'Esperando su comprobante', cls: 'text-amber-700 bg-amber-100 border-amber-300' },
+  rechazada:          { label: 'Comprobante rechazado: súbalo de nuevo', cls: 'text-red-700 bg-red-100 border-red-300' },
+  planilla_recibida:  { label: 'Comprobante en revisión', cls: 'text-blue-700 bg-blue-100 border-blue-300' },
+  aprobada:           { label: 'Aprobado: factura enviada a su correo', cls: 'text-emerald-700 bg-emerald-100 border-emerald-300' },
+};
 
 export default function RetencionesDashboard() {
   const [identidad, setIdentidad] = useState('');
   const [isAgente, setIsAgente] = useState<boolean | null>(null);
-  const [agenteInmuebles, setAgenteInmuebles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [retenciones, setRetenciones] = useState<Retencion[]>([]);
-  const [showForm, setShowForm] = useState(false);
+  const [facturas, setFacturas] = useState<FacturaRet[]>([]);
 
-  // Form state
-  const [form, setForm] = useState({
-    inmueble: '',
-    numero_planilla: '',
-    periodo: '',
-    fecha_planilla: '',
-    monto_base: '',
-    monto_iva: '',
-    codigo_retencion: '',
-  });
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  // Formulario de carga (por factura)
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const [numComp, setNumComp] = useState('');
+  const [fechaComp, setFechaComp] = useState('');
+  const [archivo, setArchivo] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
 
@@ -58,94 +79,59 @@ export default function RetencionesDashboard() {
     const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
     const { data } = await supabase
       .from('inmuebles')
-      .select('id, inmueble, contribuyente, actividad_principal, direccion, agente_retencion')
+      .select('id, inmueble, agente_retencion')
       .or(orFilter)
       .eq('agente_retencion', true);
 
     if (data && data.length > 0) {
       setIsAgente(true);
-      setAgenteInmuebles(data);
-      if (data[0]?.inmueble) {
-        setForm(f => ({ ...f, inmueble: data[0].inmueble }));
-      }
-      loadRetenciones(id);
+      await cargar(id);
     } else {
       setIsAgente(false);
-      setAgenteInmuebles([]);
     }
     setLoading(false);
   };
 
-  const loadRetenciones = async (id: string) => {
-    const { data } = await supabase
-      .from('retenciones_iva')
-      .select('*')
-      .or(`identidad.eq.${id},identidad.eq.${id.replace(/-/g, '')}`)
-      .order('created_at', { ascending: false });
+  const cargar = async (id: string) => {
+    const variantes = getIdentidadVariants(id);
+    const [{ data }, res] = await Promise.all([
+      supabase.from('retenciones_iva').select('*').in('identidad', variantes).order('created_at', { ascending: false }),
+      fetch(`/api/portal/retenciones/pendientes?identidad=${encodeURIComponent(id)}`).then(r => r.json()).catch(() => ({})),
+    ]);
     setRetenciones(data || []);
+    setFacturas(res?.facturas || []);
   };
 
-  const montoRetenido = form.monto_iva
-    ? (parseFloat(form.monto_iva || '0') * 0.75).toFixed(2)
-    : '0.00';
+  const abrir = (pagoId: string) => {
+    setAbierta(abierta === pagoId ? null : pagoId);
+    setNumComp(''); setFechaComp(''); setArchivo(null); setSaveMsg('');
+  };
 
-  const handleSubmit = async () => {
-    if (!form.inmueble || !form.numero_planilla || !form.periodo || !form.monto_base || !form.monto_iva || !form.codigo_retencion) {
-      setSaveMsg('⚠️ Complete todos los campos requeridos, incluyendo el comercio retentor autorizado.');
-      return;
-    }
-    setSaving(true);
-    setSaveMsg('');
+  const enviar = async (f: FacturaRet) => {
+    if (!numComp.trim()) { setSaveMsg('⚠️ Indique el número del comprobante de retención.'); return; }
+    if (!archivo) { setSaveMsg('⚠️ Adjunte el comprobante de retención (PDF o imagen).'); return; }
+    setSaving(true); setSaveMsg('');
     try {
-      let planilla_url = '';
+      const ext = archivo.name.split('.').pop() || 'pdf';
+      const up = new FormData();
+      up.append('file', archivo);
+      up.append('bucket', 'retenciones');
+      up.append('path', `${identidad.replace(/[^a-zA-Z0-9-]/g, '')}/FAC-${f.numeroFactura || f.pagoId.slice(0, 8)}_${Date.now()}.${ext}`);
+      const r1 = await fetch('/api/upload', { method: 'POST', body: up });
+      const j1 = await r1.json();
+      if (!r1.ok || !j1.success) throw new Error('Error subiendo el archivo: ' + (j1.error || 'desconocido'));
 
-      // Upload PDF if provided via /api/upload
-      if (pdfFile) {
-        const fileName = `${identidad}/${Date.now()}_${pdfFile.name}`;
-        const uploadData = new FormData();
-        uploadData.append('file', pdfFile);
-        uploadData.append('bucket', 'retenciones');
-        uploadData.append('path', fileName);
-
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          body: uploadData,
-        });
-        const resData = await res.json();
-        if (!res.ok || !resData.success) {
-          throw new Error('Error subiendo PDF: ' + (resData.error || 'Error desconocido'));
-        }
-        planilla_url = resData.publicUrl || '';
-      }
-
-      // Get name from inmuebles
-      const { data: inm } = await supabase.from('inmuebles').select('contribuyente').eq('identidad', identidad).limit(1);
-      const nombre = inm?.[0]?.contribuyente || identidad;
-
-      const { error } = await supabase.from('retenciones_iva').insert({
-        identidad,
-        contribuyente: nombre,
-        codigo_inmueble: form.inmueble,
-        numero_planilla: form.numero_planilla,
-        periodo: form.periodo,
-        fecha_planilla: form.fecha_planilla || null,
-        monto_base: parseFloat(form.monto_base),
-        monto_iva: parseFloat(form.monto_iva),
-        monto_retenido: parseFloat(montoRetenido),
-        codigo_retencion: form.codigo_retencion,
-        planilla_url,
-        estado: 'Pendiente',
+      const r2 = await fetch('/api/portal/retenciones/subir', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identidad, pagoId: f.pagoId, numeroComprobante: numComp.trim(), fechaComprobante: fechaComp || null, planillaUrl: j1.publicUrl || '' }),
       });
-
-      if (error) throw error;
-
-      setSaveMsg('✅ Planilla enviada exitosamente. Será revisada por el equipo de administración.');
-      setShowForm(false);
-      setForm({ inmueble: agenteInmuebles[0]?.inmueble || '', numero_planilla: '', periodo: '', fecha_planilla: '', monto_base: '', monto_iva: '', codigo_retencion: '' });
-      setPdfFile(null);
-      loadRetenciones(identidad);
+      const j2 = await r2.json();
+      if (!r2.ok) throw new Error(j2.error || 'Error');
+      setSaveMsg('✅ Comprobante enviado. Hacienda lo verificará y le enviaremos la factura a su correo.');
+      setAbierta(null);
+      await cargar(identidad);
     } catch (e: any) {
-      setSaveMsg('❌ Error: ' + e.message);
+      setSaveMsg('❌ ' + e.message);
     }
     setSaving(false);
   };
@@ -191,136 +177,142 @@ export default function RetencionesDashboard() {
     </div>
   );
 
+  const pendientes = facturas.filter(f => f.estado === 'esperando_planilla' || f.estado === 'rechazada');
+  const otras = facturas.filter(f => f.estado === 'planilla_recibida' || f.estado === 'aprobada');
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800">Retenciones de IVA</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Cargue sus comprobantes de retención (75% del IVA para comercios autorizados)</p>
-        </div>
-        <button
-          onClick={() => { setShowForm(true); setSaveMsg(''); }}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Nueva Planilla
-        </button>
+      <div>
+        <h1 className="text-2xl font-black text-slate-800">Retenciones de IVA</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Suba el comprobante de retención (75% del IVA) de cada factura. Al aprobarse, recibirá la factura fiscal en su correo.</p>
       </div>
 
-      {/* Success/error msg */}
+      {/* Pasos */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+        {[
+          ['1', 'Le enviamos los datos de la factura'],
+          ['2', 'Usted sube su comprobante de retención'],
+          ['3', 'Hacienda verifica y le enviamos la factura'],
+        ].map(([n, t]) => (
+          <div key={n} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2">
+            <span className="w-6 h-6 shrink-0 rounded-full bg-emerald-600 text-white font-black flex items-center justify-center">{n}</span>
+            <span className="text-slate-600 font-medium">{t}</span>
+          </div>
+        ))}
+      </div>
+
       {saveMsg && (
-        <div className={`rounded-xl px-5 py-4 text-sm font-medium border ${saveMsg.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+        <div className={`rounded-xl px-5 py-4 text-sm font-medium border ${saveMsg.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : saveMsg.startsWith('⚠️') ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
           {saveMsg}
         </div>
       )}
 
-      {/* Form */}
-      {showForm && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <h3 className="font-black text-slate-800 text-lg mb-4">Nueva Planilla de Retención</h3>
-
-          {/* Selector de Comercio Retentor Autorizado */}
-          <div className="mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-emerald-600" />
-              Comercio / Inmueble Retentor Autorizado *
-            </label>
-            <select
-              value={form.inmueble}
-              onChange={e => setForm({ ...form, inmueble: e.target.value })}
-              className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-medium text-slate-800"
-              required
-            >
-              <option value="">-- Seleccione el comercio calificado --</option>
-              {agenteInmuebles.map((inm: any) => (
-                <option key={inm.id} value={inm.inmueble}>
-                  {inm.inmueble} — {inm.actividad_principal || 'Local Comercial'} ({inm.direccion})
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-slate-500 mt-1.5">
-              Solo se muestran los comercios formalmente calificados con retención. Las viviendas y comercios no autorizados no admiten retención.
-            </p>
+      {/* Facturas pendientes de comprobante */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-2">
+          <Receipt className="w-4 h-4 text-amber-600" /> Facturas pendientes de comprobante ({pendientes.length})
+        </h2>
+        {pendientes.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-sm text-slate-500">
+            No tiene facturas pendientes de comprobante de retención.
           </div>
+        ) : pendientes.map(f => (
+          <div key={f.pagoId} id={`factura-ret-${f.pagoId}`} className="bg-white rounded-2xl border border-slate-200 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${ESTADO_FACT[f.estado].cls}`}>
+                  {f.estado === 'rechazada' ? <AlertCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />} {ESTADO_FACT[f.estado].label}
+                </span>
+                <p className="font-black text-slate-800 mt-2">Factura N° {f.numeroFactura || '—'}</p>
+                <p className="text-xs text-slate-500">N° de Control: <span className="font-mono">{f.numeroControl || '—'}</span> · Emitida: {fmtFecha(f.fechaEmision)}</p>
+                {f.motivoRechazo && <p className="text-xs text-red-600 font-semibold mt-1">Motivo del rechazo: {f.motivoRechazo}</p>}
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg font-black text-red-700">Bs. {fmt(f.retenido)}</div>
+                <div className="text-[11px] text-slate-400">IVA a retener (75%)</div>
+              </div>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">Nro. de Planilla SENIAT *</label>
-              <input value={form.numero_planilla} onChange={e => setForm({ ...form, numero_planilla: e.target.value })}
-                placeholder="Ej: 00100200027815" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            {/* Datos para llenar la planilla */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">
+              <div><span className="font-bold text-slate-700 block">RIF emisor</span>{RIF_IAMEC}</div>
+              <div><span className="font-bold text-slate-700 block">Base imponible</span>Bs. {fmt(f.base)}</div>
+              <div><span className="font-bold text-slate-700 block">IVA (16%)</span>Bs. {fmt(f.iva)}</div>
+              <div><span className="font-bold text-slate-700 block">Total factura</span>Bs. {fmt(f.total)}</div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">Período *</label>
-              <input value={form.periodo} onChange={e => setForm({ ...form, periodo: e.target.value })}
-                placeholder="Ej: Septiembre 2026" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">Fecha de la Planilla</label>
-              <input type="date" value={form.fecha_planilla} onChange={e => setForm({ ...form, fecha_planilla: e.target.value })}
-                className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">Código de Retención *</label>
-              <input value={form.codigo_retencion} onChange={e => setForm({ ...form, codigo_retencion: e.target.value })}
-                placeholder="Código comprobante" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">Base Imponible (Bs.) *</label>
-              <input type="number" value={form.monto_base} onChange={e => setForm({ ...form, monto_base: e.target.value })}
-                placeholder="0.00" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">IVA Total (Bs.) *</label>
-              <input type="number" value={form.monto_iva} onChange={e => setForm({ ...form, monto_iva: e.target.value })}
-                placeholder="0.00" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-          </div>
 
-          {/* IVA retenido calculado */}
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-3 flex justify-between items-center mb-4">
-            <span className="text-sm font-bold text-emerald-700">IVA Retenido (75%) calculado:</span>
-            <span className="text-lg font-black text-emerald-800">Bs. {fmt(parseFloat(montoRetenido))}</span>
-          </div>
-
-          {/* PDF Upload */}
-          <div className="mb-5">
-            <label className="block text-xs font-bold text-slate-600 mb-1.5">Planilla en PDF (opcional pero recomendado)</label>
-            <div className="border-2 border-dashed border-slate-300 rounded-xl px-6 py-5 text-center hover:border-emerald-400 transition-colors cursor-pointer"
-              onClick={() => document.getElementById('pdf-upload')?.click()}>
-              {pdfFile ? (
-                <div className="flex items-center justify-center gap-2 text-emerald-700 font-bold">
-                  <FileText className="w-5 h-5" /> {pdfFile.name}
+            {abierta === f.pagoId ? (
+              <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">N° de comprobante de retención *</label>
+                    <input id={`num-comp-${f.pagoId}`} value={numComp} onChange={e => setNumComp(e.target.value)} placeholder="Ej: 20261000001234"
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Fecha del comprobante</label>
+                    <input type="date" value={fechaComp} onChange={e => setFechaComp(e.target.value)}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white" />
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                  <p className="text-slate-500 text-sm">Haga clic para seleccionar el PDF</p>
-                </>
-              )}
-            </div>
-            <input id="pdf-upload" type="file" accept="application/pdf" className="hidden"
-              onChange={e => setPdfFile(e.target.files?.[0] || null)} />
+                <div className="border-2 border-dashed border-slate-300 rounded-xl px-4 py-4 text-center hover:border-emerald-400 transition-colors cursor-pointer bg-white"
+                  onClick={() => document.getElementById(`file-${f.pagoId}`)?.click()}>
+                  {archivo ? (
+                    <div className="flex items-center justify-center gap-2 text-emerald-700 font-bold text-sm"><FileText className="w-5 h-5" /> {archivo.name}</div>
+                  ) : (
+                    <><Upload className="w-7 h-7 text-slate-400 mx-auto mb-1" /><p className="text-slate-500 text-sm">Adjunte el comprobante (PDF o imagen) *</p></>
+                  )}
+                </div>
+                <input id={`file-${f.pagoId}`} type="file" accept="application/pdf,image/*" className="hidden" onChange={e => setArchivo(e.target.files?.[0] || null)} />
+                <div className="flex gap-2">
+                  <button id={`btn-enviar-comp-${f.pagoId}`} onClick={() => enviar(f)} disabled={saving}
+                    className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-2.5 rounded-xl transition-all">
+                    <Send className="w-4 h-4" /> {saving ? 'Enviando…' : 'Enviar comprobante'}
+                  </button>
+                  <button onClick={() => setAbierta(null)} className="px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl">Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <button id={`btn-subir-comp-${f.pagoId}`} onClick={() => abrir(f.pagoId)}
+                className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition-all shadow-sm">
+                <Upload className="w-4 h-4" /> Subir comprobante de retención
+              </button>
+            )}
           </div>
+        ))}
+      </section>
 
-          <div className="flex gap-3">
-            <button onClick={handleSubmit} disabled={saving}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl transition-all">
-              {saving ? 'Enviando...' : 'Enviar Planilla'}
-            </button>
-            <button onClick={() => setShowForm(false)}
-              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-all">
-              Cancelar
-            </button>
-          </div>
-        </div>
+      {/* Facturas en revisión / aprobadas */}
+      {otras.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-black text-slate-700 uppercase tracking-wide">Facturas en revisión o aprobadas</h2>
+          {otras.map(f => (
+            <div key={f.pagoId} className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-bold text-slate-800 text-sm">Factura N° {f.numeroFactura || '—'} <span className="text-xs text-slate-400 font-normal">· {fmtFecha(f.fechaEmision)}</span></p>
+                <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${ESTADO_FACT[f.estado].cls}`}>{ESTADO_FACT[f.estado].label}</span>
+              </div>
+              <div className="text-right">
+                <div className="font-black text-slate-800 text-sm">Bs. {fmt(f.total)}</div>
+                {f.facturaUrl && (
+                  <a href={f.facturaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:underline">
+                    <FileText className="w-3.5 h-3.5" /> Ver factura
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </section>
       )}
 
-      {/* List */}
-      <div className="space-y-3">
+      {/* Historial de comprobantes */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-black text-slate-700 uppercase tracking-wide">Comprobantes enviados</h2>
         {retenciones.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-            <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 font-medium">No ha enviado ninguna planilla todavía.</p>
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+            <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <p className="text-slate-500 font-medium text-sm">No ha enviado ningún comprobante todavía.</p>
           </div>
         ) : retenciones.map(r => (
           <div key={r.id} className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -332,16 +324,16 @@ export default function RetencionesDashboard() {
                   </span>
                   <span className="text-slate-400 text-xs">{r.periodo}</span>
                 </div>
-                <p className="font-bold text-slate-800 text-sm">Planilla: {r.numero_planilla}</p>
-                <p className="text-slate-500 text-xs mt-0.5">Cód. Retención: {r.codigo_retencion}</p>
-                {r.motivo_rechazo && (
+                <p className="font-bold text-slate-800 text-sm">Comprobante: {r.numero_planilla}</p>
+                <p className="text-slate-500 text-xs mt-0.5">{r.codigo_retencion?.startsWith('FAC-') ? `Factura N° ${r.codigo_retencion.slice(4)}` : `Cód. Retención: ${r.codigo_retencion}`}</p>
+                {r.motivo_rechazo && r.estado === 'Rechazado' && (
                   <p className="text-red-600 text-xs mt-1 font-medium">Motivo: {r.motivo_rechazo}</p>
                 )}
               </div>
               <div className="text-right shrink-0 ml-4">
                 <div className="text-lg font-black text-slate-800">Bs. {fmt(r.monto_retenido)}</div>
                 <div className="text-slate-400 text-xs">Retenido (75%)</div>
-                {r.factura_url && (
+                {r.estado === 'Aprobado' && r.factura_url && (
                   <a href={r.factura_url} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-emerald-600 hover:underline">
                     <FileText className="w-3.5 h-3.5" /> Ver Factura
@@ -358,13 +350,13 @@ export default function RetencionesDashboard() {
               <div className="mt-3">
                 <a href={r.planilla_url} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline">
-                  <FileText className="w-3.5 h-3.5" /> Ver Planilla PDF
+                  <FileText className="w-3.5 h-3.5" /> Ver comprobante
                 </a>
               </div>
             )}
           </div>
         ))}
-      </div>
+      </section>
     </div>
   );
 }

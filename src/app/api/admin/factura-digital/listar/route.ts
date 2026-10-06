@@ -106,6 +106,10 @@ export async function GET(request: Request) {
         numeroDocumento: fd?.numero_documento || null,
         fechaEmision: fd?.fecha_emision || null,
         error: det.factura_digital_error || null,
+        // Agente de retención: la factura se envía solo al aprobar su comprobante
+        conRetencion: (parseFloat(String(det.monto_retencion_iva || 0)) || 0) > 0,
+        retencionEstado: fd?.retencion?.estado || null,
+        retencionDatosEnviados: fd?.retencion?.datos_enviados_at || null,
         // Recibo por correo
         reciboEnviado,
         reciboEnviadoFecha: rd?.fecha || null,

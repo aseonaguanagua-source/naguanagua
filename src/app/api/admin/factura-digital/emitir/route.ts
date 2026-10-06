@@ -4,6 +4,7 @@ import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
 import { isFictitiousEmail } from '@/lib/formatters';
+import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, portalRetencionesUrl } from '@/lib/retencionFlujo';
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
 
 /** Siguiente N° de factura (correlativo propio, serie vacía). */
@@ -489,6 +490,8 @@ export async function POST(request: Request) {
       .maybeSingle();
     let detPago: any = pagoRow?.detalles || {};
     if (typeof detPago === 'string') { try { detPago = JSON.parse(detPago); } catch { detPago = {}; } }
+    // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
+    const conRetencion = pagoTieneRetencion(detPago);
 
     // CUADRE: la factura debe totalizar lo cobrado en caja (el monto cobrado ya incluye IVA).
     // Si los items se calcularon como base y no cuadran, se reescalan proporcionalmente.
@@ -594,6 +597,8 @@ export async function POST(request: Request) {
             Telefono:             [],
             Correo:               [(() => {
               const fallback = TheFactoryHKA.getFallbackEmail();
+              // Con retención: TFHKA notifica solo al archivo interno (la factura se envía al aprobar la planilla)
+              if (conRetencion) return TheFactoryHKA.getBackupEmail();
               const cand = (correoDestino || propRef?.correo_electronico || '').trim();
               return cand && !isFictitiousEmail(cand) ? cand : fallback;
             })()],
@@ -787,7 +792,7 @@ export async function POST(request: Request) {
     const esComodin = !candEmail || isFictitiousEmail(candEmail) || candEmail.toLowerCase() === fallbackEmail.toLowerCase();
     const emailFinal = esComodin ? fallbackEmail : candEmail;
 
-    if (enviarCorreo) {
+    if (enviarCorreo && !conRetencion) {
       try {
         const envioInfo = await enviarFacturaConCopiaInterna({
           contribuyente: contribuyente || 'Contribuyente',
@@ -810,7 +815,23 @@ export async function POST(request: Request) {
     nuevosDetalles.factura_digital.es_correo_comodin = esComodin;
     nuevosDetalles.factura_digital.requiere_actualizacion_correo = esComodin;
 
+    // ── Agente de retención: estado del flujo (la factura queda retenida hasta aprobar la planilla) ──
+    if (conRetencion && nuevosDetalles.factura_digital?.emitida) {
+      nuevosDetalles.factura_digital.retencion = {
+        ...(nuevosDetalles.factura_digital.retencion || {}),
+        estado: nuevosDetalles.factura_digital.retencion?.estado || 'esperando_planilla',
+        ...calcularRetencion(totalGravado + totalExento, totalIVA),
+      };
+    }
+
     await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
+
+    // Correo con los DATOS de la factura (no la factura) para que el agente llene su comprobante de retención
+    let retencionInfo: any = null;
+    if (conRetencion && nuevosDetalles.factura_digital?.emitida && !nuevosDetalles.factura_digital.simulated) {
+      const origin = new URL(request.url).origin;
+      retencionInfo = await enviarDatosFacturaRetencion(pagoId, portalRetencionesUrl(origin)).catch((e: any) => ({ ok: false, correo: null, error: e.message }));
+    }
 
     return NextResponse.json({
       success: true,
@@ -819,7 +840,8 @@ export async function POST(request: Request) {
       numeroControl: nuevosDetalles.factura_digital.numero_control,
       numeroDocumento: nuevosDetalles.factura_digital.numero_documento,
       correoUtilizado: emailFinal,
-      esCorreoComodin: esComodin
+      esCorreoComodin: esComodin,
+      retencion: conRetencion ? { estado: nuevosDetalles.factura_digital?.retencion?.estado, datosEnviados: retencionInfo?.ok || false, correo: retencionInfo?.correo || null, error: retencionInfo?.error } : undefined,
     });
 
   } catch (err: any) {
