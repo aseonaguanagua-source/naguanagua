@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
-import { isResidencialInm } from '@/lib/calculos';
+import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
 import { isFictitiousEmail } from '@/lib/formatters';
 
@@ -75,7 +75,7 @@ function numeroALetras(monto: number): string {
 }
 
 function formatearFecha(isoString: string): string {
-  const d = new Date(isoString);
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(isoString) ? `${isoString}T12:00:00` : isoString);
   const dia = String(d.getDate()).padStart(2, '0');
   const mes = String(d.getMonth() + 1).padStart(2, '0');
   const anio = d.getFullYear();
@@ -421,6 +421,51 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, skipped: true, message: excluidosResidenciales > 0 ? 'Emisión omitida: los conceptos pagados son residenciales.' : 'Sin items para facturar.' });
     }
 
+    // Datos reales del pago registrado en caja
+    const { data: pagoRow } = await supabase
+      .from('pagos_reportados')
+      .select('monto, banco, referencia, tipo, detalles, created_at')
+      .eq('id', pagoId)
+      .maybeSingle();
+    let detPago: any = pagoRow?.detalles || {};
+    if (typeof detPago === 'string') { try { detPago = JSON.parse(detPago); } catch { detPago = {}; } }
+
+    // CUADRE: la factura debe totalizar lo cobrado en caja (el monto cobrado ya incluye IVA).
+    // Si los items se calcularon como base y no cuadran, se reescalan proporcionalmente.
+    // No aplica a mixtos/residenciales excluidos (ahí el cobro incluye la parte residencial).
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + (parseFloat(String(detPago.monto_retencion_iva || 0)) || 0);
+    const totalCalculado = totalGravado + totalExento + totalIVA;
+    if (!esMixto && excluidosResidenciales === 0 && montoCobrado > 0 && totalCalculado > 0 && Math.abs(totalCalculado - montoCobrado) > 0.05) {
+      const f = montoCobrado / totalCalculado;
+      console.warn(`[TFHKA] Cuadre: calculado ${totalCalculado.toFixed(2)} vs cobrado ${montoCobrado.toFixed(2)} (factor ${f.toFixed(4)})`);
+      totalGravado = 0; totalExento = 0; totalIVA = 0;
+      for (const it of detallesItems as any[]) {
+        const base = r2(parseFloat(it.PrecioUnitario) * f);
+        const iva = it.CodigoImpuesto === 'G' ? r2(base * 0.16) : 0;
+        it.PrecioUnitario = base.toFixed(2);
+        it.PrecioItem = base.toFixed(2);
+        it.PrecioAntesDescuento = base.toFixed(2);
+        it.ValorIVA = iva.toFixed(2);
+        it.ValorTotalItem = (base + iva).toFixed(2);
+        if (it.CodigoImpuesto === 'G') { totalGravado += base; totalIVA += iva; } else { totalExento += base; }
+      }
+      totalGravado = r2(totalGravado); totalExento = r2(totalExento); totalIVA = r2(totalIVA);
+    }
+
+    // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
+    const comRef: any = activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
+    const codHist = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
+    const codigoContribuyente = codHist || comRef?.inmueble || '';
+    const licenciaAE = cleanClasificacionActividad(comRef?.actividad_principal || '') || '-';
+    const cajaLabel = String(detPago.cajero || '').trim() || '-';
+    const fp0: any = (formasPago && formasPago[0]) || {};
+    const tipoPago = String(pagoRow?.tipo || fp0.descripcion || 'Transferencia').trim();
+    const bancoRaw = String(pagoRow?.banco || fp0.banco || '').trim();
+    const bancoPago = bancoRaw.toLowerCase() === tipoPago.toLowerCase() ? '' : bancoRaw;
+    const refPago = String(pagoRow?.referencia || fp0.referencia || '').trim();
+    const fechaPago = detPago.fecha_transaccion || pagoRow?.created_at || fechaActual.toISOString();
+
     const docIdentificacion = identidad.replace(/[^A-Z0-9-]/gi, '');
     const primeraLetra = docIdentificacion.charAt(0).toUpperCase();
 
@@ -526,35 +571,31 @@ export async function POST(request: Request) {
               },
             ],
             OtrosImpuestosSubtotal: null,
-            // Formas de pago: usar datos reales de la caja
+            // Formas de pago: la plantilla lee Descripcion como "Forma|Banco|Referencia" (caso TFHKA 0154102)
             FormasPago: (() => {
-              const mapaForma: Record<string, {desc: string, codigo: string}> = {
-                'debito':       { desc: 'Tarjeta de Débito',      codigo: '03' },
-                'credito':      { desc: 'Tarjeta de Crédito',     codigo: '04' },
-                'transferencia':{ desc: 'Transferencia Bancaria', codigo: '05' },
-                'deposito':     { desc: 'Depósito Bancario',      codigo: '05' },
-                'depositobancario': { desc: 'Depósito Bancario',  codigo: '05' },
-              };
-              if (formasPago && formasPago.length > 0) {
-                return formasPago.map((fp: any) => {
-                  const key = (fp.descripcion || fp.forma || '').toLowerCase().replace(/[\s_-]/g,'');
-                  const mapped = mapaForma[key] || { desc: fp.descripcion || 'Transferencia', codigo: fp.forma || '05' };
-                  return {
-                    Descripcion: mapped.desc,
-                    Fecha:       formatearFecha(fp.fecha || fechaActual.toISOString()),
-                    Forma:       mapped.codigo,
-                    Monto:       totalAPagar.toFixed(2),  // DEBE coincidir con TotalAPagar exactamente
-                    Moneda:      'BSD',
-                    TipoCambio:  '0.0000',
-                  };
-                });
-              }
-              // Fallback
+              // Códigos fiscales TFHKA (mismos que SIGYR)
+              const tabla: [string, string, string[]][] = [
+                ['02', 'Pago Móvil',         ['pago movil', 'pagomovil', 'p2p', 'c2p']],
+                ['06', 'Tarjeta de crédito', ['tarjeta de credito', 'tdc', 'credito']],
+                ['05', 'Tarjeta de débito',  ['tarjeta de debito', 'tdd', 'debito', 'punto de venta', 'pos']],
+                ['03', 'Transferencia',      ['transferencia', 'zelle']],
+                ['01', 'Depósito en cuenta', ['deposito']],
+                ['07', 'Cheque',             ['cheque']],
+                ['09', 'Efectivo divisas',   ['divisa', 'dolar']],
+                ['08', 'Efectivo',           ['efectivo']],
+              ];
+              const norm = tipoPago.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              const hit = tabla.find(([, , keys]) => keys.some(k => norm.includes(k)));
+              const codigo = hit ? hit[0] : '99';
+              const casilla = (v: string, max: number) => v.replace(/\|/g, '/').trim().slice(0, max);
+              const forma = casilla(hit ? hit[1] : tipoPago, 40);
+              const ref = casilla(refPago, 25);
+              const banco = casilla(bancoPago, Math.max(0, 100 - 2 - forma.length - ref.length));
               return [{
-                Descripcion: 'Transferencia Bancaria',
-                Fecha:       formatearFecha(fechaActual.toISOString()),
-                Forma:       '05',
-                Monto:       totalAPagar.toFixed(2),
+                Descripcion: [forma, banco, ref].join('|'),
+                Fecha:       formatearFecha(fechaPago),
+                Forma:       codigo,
+                Monto:       totalAPagar.toFixed(2),  // DEBE coincidir con TotalAPagar exactamente
                 Moneda:      'BSD',
                 TipoCambio:  '0.0000',
               }];
@@ -571,15 +612,12 @@ export async function POST(request: Request) {
         DetallesItems:    detallesItems,
         DetallesRetencion: null,
         Viajes:            null,
+        // Nombres exactos de la plantilla (otros nombres TFHKA los ignora sin error)
         InfoAdicional: [
-          // Actividad Económica (Licencia)
-          ...(propRef?.actividad_principal ? [{
-            nombre: 'LicenciaActividades',
-            valor:  propRef.actividad_principal,
-          }] : []),
-          // Banco y referencia del pago (si vienen en formasPago)
-          ...(formasPago?.[0]?.banco ? [{ nombre: 'Banco', valor: formasPago[0].banco }] : []),
-          ...(formasPago?.[0]?.referencia ? [{ nombre: 'Referencia', valor: formasPago[0].referencia }] : []),
+          ...(codigoContribuyente ? [{ Campo: 'CodigoContribuyente', Valor: String(codigoContribuyente).slice(0, 255) }] : []),
+          { Campo: 'LicenciaAE', Valor: licenciaAE.slice(0, 255) },
+          { Campo: 'Caja',       Valor: cajaLabel.slice(0, 255) },
+          { Campo: 'Observaciones', Valor: `Pago ${String(pagoId).slice(0, 8).toUpperCase()}${refPago ? ' Ref. ' + refPago : ''}` },
         ],
         GuiaDespacho:      null,
         Transporte:        null,
