@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Building2, Search, RefreshCw, AlertTriangle, Wallet, CheckCircle2, X, Printer, ShieldAlert, Power,
-  Receipt, Layers, ArrowLeft, FlaskConical,
+  Receipt, Layers, ArrowLeft, FlaskConical, Users, UserSearch, FileText,
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 import { getCajeroId } from '@/lib/cajaHelpers';
@@ -41,11 +41,14 @@ function Caja() {
   const [meses, setMeses] = useState<number | ''>('');
   const [filtroU, setFiltroU] = useState('');
   const [estadoBase, setEstadoBase] = useState<any>(null);
+  // modo de pago: lo escoge el cajero
+  const [modo, setModo] = useState<'CONDOMINIO' | 'CONTRIBUYENTE'>(sp.get('cedula') ? 'CONTRIBUYENTE' : 'CONDOMINIO');
+  const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
+  const [soloMultas, setSoloMultas] = useState(false);
   // pago
   const [metodo, setMetodo] = useState('Transferencia');
   const [banco, setBanco] = useState('');
   const [referencia, setReferencia] = useState('');
-  const [pagador, setPagador] = useState<'condominio' | 'unidad'>('condominio');
   const [cobrando, setCobrando] = useState(false);
   const [recibo, setRecibo] = useState<any>(null);
   const pagoId = useRef<string>('');
@@ -69,10 +72,13 @@ function Caja() {
     return () => clearTimeout(h);
   }, [q]);
 
-  const elegir = (cod: string, unidadId?: string) => {
-    setCodigo(cod); setRes(null); setQ(''); setClaves(unidadId ? [unidadId] : []); setMeses(''); setEstadoBase(null); setRecibo(null);
-    router.replace(`/admin/condominios/caja?codigo=${cod}`);
+  const elegir = (cod: string, unidad?: any) => {
+    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setMeses(''); setEstadoBase(null); setRecibo(null); setSoloMultas(false);
+    if (unidad?.identidad) { setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase()); }
+    else { setModo('CONDOMINIO'); setIdentidad(''); }
+    router.replace(`/admin/condominios/caja?codigo=${cod}${unidad?.identidad ? `&cedula=${encodeURIComponent(unidad.identidad)}` : ''}`);
   };
+  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setSoloMultas(false); if (m === 'CONDOMINIO') setIdentidad(''); };
 
   // Calcular (cada vez que cambia la selección)
   useEffect(() => {
@@ -80,52 +86,59 @@ function Caja() {
     const h = setTimeout(async () => {
       setCalculando(true); setError('');
       try {
-        const r = await fetch('/api/admin/condominios/cobrar', { method: 'POST', body: JSON.stringify({ accion: 'calcular', codigo, claves, meses: meses || null }) });
+        const r = await fetch('/api/admin/condominios/cobrar', { method: 'POST', body: JSON.stringify({
+          accion: 'calcular', codigo, modo, claves, identidad: modo === 'CONTRIBUYENTE' ? identidad.trim() || null : null, meses: meses || null, soloMultas,
+        }) });
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || 'No se pudo calcular');
         setCobro(j); setActiva(!!j.cajaActiva);
         if (!estadoBase) setEstadoBase(j.estado);
         pagoId.current = crypto.randomUUID();
       } catch (e: any) { setError(e.message); setCobro(null); } finally { setCalculando(false); }
-    }, 250);
+    }, 300);
     return () => clearTimeout(h);
-  }, [codigo, claves, meses]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [codigo, modo, claves, identidad, meses, soloMultas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = cobro?.condo;
   const base = estadoBase || cobro?.estado;
+  const porContrib = modo === 'CONTRIBUYENTE';
   const conDeuda = useMemo(() => (base?.renglones || []).filter((r: any) => r.totalBs > 0.01), [base]);
+  const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const visiblesU = useMemo(() => {
     const t = filtroU.trim().toUpperCase();
-    return conDeuda.filter((r: any) => !t || [r.inmueble, r.numero, r.propietario, r.identidad].some((x: any) => String(x || '').toUpperCase().includes(t)));
+    return conDeuda.filter((r: any) => !t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t)));
   }, [conDeuda, filtroU]);
+  const enCobro = useMemo(() => new Set((cobro?.lineas || []).map((l: any) => l.clave)), [cobro]);
+  const multasDe = (r: any) => (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
   const mesesMax = base?.totales?.mesesMax || 0;
-  const unaUnidad = cobro?.lineas?.length === 1 && cobro.puedeElegirUnidades ? cobro.lineas[0] : null;
   const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
+  const sinSeleccion = porContrib && !claves.length && !identidad.trim();
 
   const cobrar = async () => {
     if (!cobro?.lineas?.length) return;
     if (metodo !== 'Efectivo' && referencia.trim().length < 4) { alert('Escriba la referencia del pago.'); return; }
-    if (!confirm(`¿Registrar el cobro de Bs ${fmtBs(cobro.totales.totalBs)} a ${c.nombre}?`)) return;
+    const nf = cobro.facturas?.length || 1;
+    if (!confirm(`¿Registrar el cobro de Bs ${fmtBs(cobro.totales.totalBs)}?\n\nSe emitirán ${nf} factura(s):\n${(cobro.facturas || []).map((f: any) => `• ${f.nombre} (${f.identidad}): Bs ${fmtBs(f.totalBs)}`).join('\n')}`)) return;
     setCobrando(true);
     try {
       const u = usuario();
       const r = await fetch('/api/admin/condominios/cobrar', {
         method: 'POST', body: JSON.stringify({
-          accion: 'cobrar', codigo, claves, meses: meses || null, usuario: u.usuario,
-          pago: {
-            pagoId: pagoId.current, metodo, banco, referencia, montoRecibido: cobro.totales.totalBs, cajero: getCajeroId(),
-            ...(pagador === 'unidad' && unaUnidad ? { identidadPagador: unaUnidad.identidad, nombrePagador: unaUnidad.propietario } : {}),
-          },
+          accion: 'cobrar', codigo, modo, claves, identidad: porContrib ? identidad.trim() || null : null, meses: meses || null, soloMultas, usuario: u.usuario,
+          pago: { pagoId: pagoId.current, metodo, banco, referencia, montoRecibido: cobro.totales.totalBs, cajero: getCajeroId() },
         }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo cobrar');
-      setRecibo({ ...j, metodo, banco, referencia, fecha: new Date(), prueba: false });
-      setReferencia(''); setClaves([]); setMeses(''); setEstadoBase(null);
+      setRecibo({ ...j, partes: j.pagos, metodo, banco, referencia, fecha: new Date(), prueba: false });
+      setReferencia(''); setClaves([]); setMeses(''); setEstadoBase(null); setSoloMultas(false);
     } catch (e: any) { alert(e.message); } finally { setCobrando(false); }
   };
 
-  const verReciboPrueba = () => setRecibo({ cobro, monto: cobro.totales.totalBs, reciboRef: 'PRUEBA (no registrado)', metodo, banco, referencia, fecha: new Date(), prueba: true });
+  const verReciboPrueba = () => setRecibo({
+    cobro, monto: cobro.totales.totalBs, metodo, banco, referencia, fecha: new Date(), prueba: true,
+    partes: (cobro.facturas || []).map((f: any, i: number) => ({ reciboRef: `PRUEBA-${i + 1}`, identidad: f.identidad, nombre: f.nombre, monto: f.totalBs })),
+  });
 
   const cambiarInterruptor = async () => {
     const r = await fetch('/api/admin/condominios/cobrar', { method: 'POST', body: JSON.stringify({ accion: 'interruptor', activar: !activa, motivo: motivoInt, usuario: usuario().usuario }) });
@@ -176,7 +189,7 @@ function Caja() {
             ))}
             {res.unidades.length > 0 && <div className="px-4 pt-3 text-[10px] font-black uppercase tracking-wider text-slate-400">Unidades</div>}
             {res.unidades.map((u: any) => (
-              <button key={u.id} onClick={() => elegir(u.condominios.codigo, u.id)} className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 flex items-center gap-3 cursor-pointer">
+              <button key={u.id} onClick={() => elegir(u.condominios.codigo, u)} className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 flex items-center gap-3 cursor-pointer">
                 <Layers className="w-4 h-4 text-sky-600 shrink-0" />
                 <div><div className="font-bold text-slate-900 text-sm">{u.propietario || 'Sin propietario'} <span className="font-mono text-xs text-slate-500">{u.identidad}</span></div>
                   <div className="text-[11px] text-slate-500"><span className="font-mono">{u.inmueble}{u.numero ? ` · ${u.numero}` : ''}</span> en {u.condominios.nombre}</div></div>
@@ -215,6 +228,20 @@ function Caja() {
               </div>
             </div>
 
+            {/* ══ MODO DE PAGO ══ */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button id="modo-condominio-completo" onClick={() => cambiarModo('CONDOMINIO')}
+                className={`text-left rounded-2xl border-2 p-4 cursor-pointer transition ${!porContrib ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                <div className="font-black text-slate-900 flex items-center gap-2"><Building2 className="w-4 h-4 text-emerald-600" /> Paga el condominio completo</div>
+                <div className="text-xs text-slate-600 mt-1">Una sola factura digital <b>al condominio</b> ({c.identidad}).{cobro.estado?.porActividad ? ' Las multas no van: las paga cada contribuyente.' : ''}</div>
+              </button>
+              <button id="modo-por-contribuyente" onClick={() => cambiarModo('CONTRIBUYENTE')}
+                className={`text-left rounded-2xl border-2 p-4 cursor-pointer transition ${porContrib ? 'border-sky-500 bg-sky-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                <div className="font-black text-slate-900 flex items-center gap-2"><Users className="w-4 h-4 text-sky-600" /> Paga por contribuyente / local</div>
+                <div className="text-xs text-slate-600 mt-1">Una factura digital <b>a cada dueño</b>. Incluye sus multas.</div>
+              </button>
+            </div>
+
             {cobro.avisos?.map((a: string, i: number) => <div key={i} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 text-xs font-bold">{a}</div>)}
 
             {conDeuda.length === 0 ? (
@@ -223,40 +250,51 @@ function Caja() {
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
                   <div className="font-extrabold text-slate-800 text-sm">
-                    {cobro.puedeElegirUnidades ? 'Escoja las unidades que paga' : 'El condominio paga completo'}
+                    {porContrib ? 'Escriba la cédula del contribuyente o escoja sus locales' : 'Todo lo que debe el condominio'}
                   </div>
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-bold text-slate-600">Meses a pagar</label>
-                    <select id="meses-a-pagar" value={meses} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1.5 px-2 rounded-lg border border-slate-300 text-sm bg-white">
+                    <select id="meses-a-pagar" value={meses} disabled={soloMultas} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1.5 px-2 rounded-lg border border-slate-300 text-sm bg-white disabled:opacity-50">
                       <option value="">Todos (ponerse al día)</option>
                       {Array.from({ length: mesesMax }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n} {n === 1 ? 'mes (el más viejo)' : 'meses más viejos'}</option>)}
                     </select>
                   </div>
                 </div>
-                {cobro.puedeElegirUnidades && (
-                  <div className="px-4 py-2 flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50/60">
-                    <input value={filtroU} onChange={e => setFiltroU(e.target.value)} placeholder="Filtrar unidad, dueño o cédula…" className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm w-64" />
-                    <button onClick={() => setClaves([])} className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer">Todas las unidades ({conDeuda.length})</button>
-                    {claves.length > 0 && <span className="text-xs text-slate-600"><b>{claves.length}</b> escogida(s)</span>}
+                {porContrib && (
+                  <div className="px-4 py-3 flex flex-wrap items-center gap-3 border-b border-slate-100 bg-sky-50/50">
+                    <div className="relative">
+                      <UserSearch className="w-4 h-4 text-sky-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input id="cedula-contribuyente-condominio" value={identidad} onChange={e => { setIdentidad(e.target.value.toUpperCase()); setClaves([]); }} placeholder="Cédula / RIF del contribuyente"
+                        className="pl-8 pr-3 py-1.5 rounded-lg border border-sky-300 text-sm w-60 font-mono bg-white" />
+                    </div>
+                    <input value={filtroU} onChange={e => setFiltroU(e.target.value)} placeholder="Filtrar local, dueño o actividad…" className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm w-56" />
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
+                      <input id="solo-multas-condominio" type="checkbox" checked={soloMultas} onChange={e => setSoloMultas(e.target.checked)} className="w-4 h-4 accent-red-600" /> Solo multas
+                    </label>
+                    {(claves.length > 0 || identidad) && <button onClick={() => { setClaves([]); setIdentidad(''); }} className="text-xs font-bold text-slate-500 hover:underline cursor-pointer">Limpiar</button>}
                   </div>
                 )}
                 <div className="max-h-[480px] overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 sticky top-0">
-                      <tr>{cobro.puedeElegirUnidades && <th className="w-10"></th>}<th className="text-left py-2 px-3">Unidad</th><th className="text-center px-2">Meses</th><th className="text-left px-2">Desde</th><th className="text-right px-4">Deuda</th></tr>
+                      <tr>{porContrib && <th className="w-10"></th>}<th className="text-left py-2 px-3">Local / unidad</th><th className="text-center px-2">Meses</th><th className="text-left px-2">Desde</th><th className="text-right px-2">Multas</th><th className="text-right px-4">Deuda</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {visiblesU.slice(0, 400).map((r: any) => {
-                        const sel = claves.length === 0 || claves.includes(r.clave);
+                        const va = enCobro.has(r.clave);
+                        const mismoDueno = identidad && normId(r.identidad) === normId(identidad);
                         return (
-                          <tr key={r.clave} onClick={() => cobro.puedeElegirUnidades && toggle(r.clave)} className={`${cobro.puedeElegirUnidades ? 'cursor-pointer hover:bg-emerald-50/50' : ''} ${claves.includes(r.clave) ? 'bg-emerald-50' : ''}`}>
-                            {cobro.puedeElegirUnidades && <td className="pl-4"><input type="checkbox" readOnly checked={claves.includes(r.clave)} className="w-4 h-4 accent-emerald-600" /></td>}
-                            <td className={`py-2 px-3 ${!sel ? 'opacity-40' : ''}`}>
+                          <tr key={r.clave} onClick={() => porContrib && toggle(r.clave)} className={`${porContrib ? 'cursor-pointer hover:bg-sky-50/60' : ''} ${va && porContrib ? 'bg-sky-50' : ''}`}>
+                            {porContrib && <td className="pl-4"><input type="checkbox" readOnly checked={claves.includes(r.clave) || !!mismoDueno} className="w-4 h-4 accent-sky-600" /></td>}
+                            <td className={`py-2 px-3 ${porContrib && !va ? 'opacity-50' : ''}`}>
                               <div className="font-bold text-slate-900 font-mono text-xs">{r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'Declaradas sin registrar' : 'Condominio')}{r.numero ? ` · ${r.numero}` : ''}</div>
                               <div className="text-[11px] text-slate-500">{r.propietario || ''}{r.identidad ? ` · ${r.identidad}` : ''}</div>
+                              {r.actividad && <div className="text-[10px] text-violet-700 font-bold truncate max-w-[340px]">{r.actividad}</div>}
+                              {r.multasManuales?.map((m: any) => <div key={m.id} className="text-[10px] text-red-700">• Multa: {m.concepto} (Bs {fmtBs(m.montoBs)})</div>)}
                             </td>
-                            <td className="text-center px-2"><span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black">{r.deuda.meses}</span></td>
+                            <td className="text-center px-2">{r.deuda.meses > 0 ? <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black">{r.deuda.meses}</span> : '—'}</td>
                             <td className="px-2 text-xs text-slate-600">{r.periodos[0] ? fmtPeriodo(r.periodos[0]) : '—'}</td>
+                            <td className="px-2 text-right text-xs tabular-nums text-red-600">{multasDe(r) > 0 ? fmtBs(multasDe(r)) : '—'}</td>
                             <td className="px-4 text-right font-bold tabular-nums text-red-700">Bs {fmtBs(r.totalBs)}</td>
                           </tr>
                         );
@@ -295,13 +333,22 @@ function Caja() {
                     <input id="referencia-pago-condominio" value={referencia} onChange={e => setReferencia(e.target.value)} placeholder="Referencia (obligatoria)" className="w-full rounded-xl bg-white/10 border border-white/20 px-3 py-2 text-sm placeholder:text-white/40" />
                   </>
                 )}
-                {unaUnidad && (
-                  <div className="flex gap-2 text-xs">
-                    <button onClick={() => setPagador('condominio')} className={`flex-1 rounded-lg px-2 py-1.5 font-bold border cursor-pointer ${pagador === 'condominio' ? 'bg-white text-slate-900' : 'border-white/20 text-white/70'}`}>Factura al condominio</button>
-                    <button onClick={() => setPagador('unidad')} className={`flex-1 rounded-lg px-2 py-1.5 font-bold border cursor-pointer ${pagador === 'unidad' ? 'bg-white text-slate-900' : 'border-white/20 text-white/70'}`}>Factura al dueño</button>
-                  </div>
-                )}
               </div>
+
+              {/* Facturas digitales que se van a emitir */}
+              {cobro.facturas?.length > 0 && (
+                <div className="border-t border-white/10 pt-3 space-y-1.5">
+                  <div className="text-[11px] font-black uppercase tracking-wider text-white/60 flex items-center gap-2"><FileText className="w-4 h-4" /> Factura(s) digital(es): {cobro.facturas.length}</div>
+                  {cobro.facturas.slice(0, 8).map((f: any, i: number) => (
+                    <div key={i} className="flex justify-between gap-2 text-xs bg-white/5 rounded-lg px-2.5 py-1.5">
+                      <div className="min-w-0"><div className="font-bold truncate">{f.nombre}</div><div className="font-mono text-white/60">{f.identidad} · {f.lineas.length} renglón(es)</div></div>
+                      <b className="tabular-nums shrink-0">Bs {fmtBs(f.totalBs)}</b>
+                    </div>
+                  ))}
+                  {cobro.facturas.length > 8 && <div className="text-[11px] text-white/60">… y {cobro.facturas.length - 8} más.</div>}
+                </div>
+              )}
+              {sinSeleccion && <div className="rounded-xl bg-sky-400/15 border border-sky-300/40 text-sky-100 text-xs p-2.5">Escriba la cédula del contribuyente o marque sus locales.</div>}
 
               {activa ? (
                 <button id="btn-cobrar-condominio" onClick={cobrar} disabled={cobrando || calculando || !cobro.lineas.length}
@@ -332,34 +379,46 @@ function Caja() {
                 <button onClick={() => setRecibo(null)} className="p-1.5 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-5 h-5" /></button>
               </div>
             </div>
-            <div className="p-6 text-sm space-y-4" id="recibo-condominio">
-              {recibo.prueba && <div className="text-center font-black text-amber-700 border-2 border-amber-400 rounded-lg py-1">PRUEBA — NO ES UN PAGO REGISTRADO</div>}
-              <div className="flex justify-between items-start">
-                <div><div className="font-black text-lg">Alcaldía de Naguanagua · Aseo Urbano</div><div className="text-xs text-slate-500">Recibo de pago de condominio</div></div>
-                <div className="text-right text-xs"><div className="font-mono font-bold">{recibo.reciboRef}</div><div>{recibo.fecha.toLocaleString('es-VE')}</div></div>
-              </div>
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs">
-                <div className="font-bold text-sm">{recibo.cobro.condo.nombre}</div>
-                <div className="font-mono">{recibo.cobro.condo.codigo} · {recibo.cobro.condo.identidad}</div>
-              </div>
-              <table className="w-full text-xs">
-                <thead className="border-b border-slate-300"><tr><th className="text-left py-1">Unidad</th><th className="text-left">Períodos</th><th className="text-center">Meses</th><th className="text-right">Monto Bs</th></tr></thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recibo.cobro.lineas.slice(0, 300).map((l: any) => (
-                    <tr key={l.clave}><td className="py-1 font-mono">{l.inmueble || 'Condominio'}{l.numero ? ` · ${l.numero}` : ''}</td><td>{rango(l.periodos)}</td><td className="text-center">{l.meses}</td><td className="text-right tabular-nums">{fmtBs(l.totalBs)}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-              {recibo.cobro.lineas.length > 300 && <div className="text-[11px] text-slate-500">… y {recibo.cobro.lineas.length - 300} unidades más.</div>}
-              <div className="ml-auto max-w-xs text-xs space-y-0.5">
-                <div className="flex justify-between"><span>Aseo</span><span className="tabular-nums">{fmtBs(recibo.cobro.totales.baseBs)}</span></div>
-                <div className="flex justify-between"><span>Multas</span><span className="tabular-nums">{fmtBs(recibo.cobro.totales.multaBs)}</span></div>
-                {recibo.cobro.totales.ivaBs > 0 && <div className="flex justify-between"><span>IVA 16%</span><span className="tabular-nums">{fmtBs(recibo.cobro.totales.ivaBs)}</span></div>}
-                {recibo.cobro.totales.retencionBs > 0 && <div className="flex justify-between"><span>Retención IVA</span><span className="tabular-nums">− {fmtBs(recibo.cobro.totales.retencionBs)}</span></div>}
-                <div className="flex justify-between font-black text-base border-t border-slate-300 pt-1"><span>Total</span><span className="tabular-nums">Bs {fmtBs(recibo.monto)}</span></div>
-              </div>
+            <div className="p-6 text-sm space-y-6" id="recibo-condominio">
+              {(recibo.partes?.length ? recibo.partes : [{ reciboRef: recibo.reciboRef, identidad: recibo.cobro.condo.identidad, nombre: recibo.cobro.condo.nombre, monto: recibo.monto }]).map((p: any, i: number) => {
+                const f = recibo.cobro.facturas?.[i];
+                const ls = f ? recibo.cobro.lineas.filter((l: any) => f.lineas.includes(l.clave)) : recibo.cobro.lineas;
+                const tt = (k: string) => ls.reduce((a: number, l: any) => a + (Number(l[k]) || 0), 0);
+                const n = recibo.partes?.length || 1;
+                return (
+                  <div key={i} className={`space-y-3 ${i > 0 ? 'pt-6 border-t-2 border-dashed border-slate-300 print:break-before-page' : ''}`}>
+                    {recibo.prueba && <div className="text-center font-black text-amber-700 border-2 border-amber-400 rounded-lg py-1">PRUEBA — NO ES UN PAGO REGISTRADO</div>}
+                    <div className="flex justify-between items-start">
+                      <div><div className="font-black text-lg">Alcaldía de Naguanagua · Aseo Urbano</div><div className="text-xs text-slate-500">Recibo de pago · {recibo.cobro.condo.nombre}{n > 1 ? ` · parte ${i + 1} de ${n}` : ''}</div></div>
+                      <div className="text-right text-xs"><div className="font-mono font-bold">{p.reciboRef}</div><div>{recibo.fecha.toLocaleString('es-VE')}</div></div>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs">
+                      <div className="text-[10px] uppercase font-bold text-slate-500">Factura a nombre de</div>
+                      <div className="font-bold text-sm">{p.nombre}</div>
+                      <div className="font-mono">{p.identidad}{recibo.cobro.modo === 'CONTRIBUYENTE' ? ` · en ${recibo.cobro.condo.codigo}` : ` · ${recibo.cobro.condo.codigo}`}</div>
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead className="border-b border-slate-300"><tr><th className="text-left py-1">Local / unidad</th><th className="text-left">Períodos</th><th className="text-center">Meses</th><th className="text-right">Monto Bs</th></tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {ls.slice(0, 300).map((l: any) => (
+                          <tr key={l.clave}><td className="py-1 font-mono">{l.inmueble || 'Condominio'}{l.numero ? ` · ${l.numero}` : ''}{l.actividad ? <div className="font-sans text-[10px] text-slate-500">{l.actividad}</div> : null}</td><td>{rango(l.periodos)}{l.multasAparteBs > 0 ? <div className="text-[10px] text-red-700">+ multas Bs {fmtBs(l.multasAparteBs)}</div> : null}</td><td className="text-center">{l.meses}</td><td className="text-right tabular-nums">{fmtBs(l.totalBs)}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {ls.length > 300 && <div className="text-[11px] text-slate-500">… y {ls.length - 300} unidades más.</div>}
+                    <div className="ml-auto max-w-xs text-xs space-y-0.5">
+                      <div className="flex justify-between"><span>Aseo</span><span className="tabular-nums">{fmtBs(tt('baseBs'))}</span></div>
+                      <div className="flex justify-between"><span>Multas</span><span className="tabular-nums">{fmtBs(tt('multaBs') + tt('multasAparteBs'))}</span></div>
+                      {tt('ivaBs') > 0 && <div className="flex justify-between"><span>IVA 16%</span><span className="tabular-nums">{fmtBs(tt('ivaBs'))}</span></div>}
+                      {tt('retencionBs') > 0 && <div className="flex justify-between"><span>Retención IVA</span><span className="tabular-nums">− {fmtBs(tt('retencionBs'))}</span></div>}
+                      <div className="flex justify-between font-black text-base border-t border-slate-300 pt-1"><span>Total</span><span className="tabular-nums">Bs {fmtBs(p.monto)}</span></div>
+                    </div>
+                  </div>
+                );
+              })}
+              {(recibo.partes?.length || 0) > 1 && <div className="rounded-lg bg-sky-50 border border-sky-200 p-2.5 text-xs text-sky-900">Un solo pago de <b>Bs {fmtBs(recibo.monto)}</b> repartido en {recibo.partes.length} facturas (una por dueño).</div>}
               <div className="text-xs text-slate-600">Forma de pago: <b>{recibo.metodo}</b>{recibo.banco ? ` · ${recibo.banco}` : ''}{recibo.referencia ? ` · Ref. ${recibo.referencia}` : ''} · Tasa BCV Bs {fmtBs(recibo.cobro.estado.tasa)}</div>
-              {!recibo.prueba && <div className="text-[11px] text-slate-500">La factura electrónica queda lista en Facturación Electrónica.</div>}
+              {!recibo.prueba && <div className="text-[11px] text-slate-500">Las facturas digitales quedan listas en Facturación Electrónica.</div>}
             </div>
           </div>
         </div>
@@ -370,7 +429,7 @@ function Caja() {
         <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="font-black text-lg flex items-center gap-2"><Power className="w-5 h-5" /> {activa ? 'Pasar la Caja de Condominios a modo prueba' : 'Activar la Caja de Condominios'}</div>
-            {!activa && <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-800">Al activarla, los cobros quedan <b>registrados de verdad</b>: bajan la deuda en Condominios y en Contribuyentes, y van a Facturación Electrónica.</div>}
+            {!activa && <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-800">Al activarla, los cobros quedan <b>registrados de verdad</b>: bajan la deuda en Condominios y van a Facturación Electrónica.</div>}
             <input value={motivoInt} onChange={e => setMotivoInt(e.target.value)} placeholder="Motivo (queda en Auditoría)" className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm" />
             <div className="flex justify-end gap-2">
               <button onClick={() => setModalInt(false)} className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold cursor-pointer">Cancelar</button>

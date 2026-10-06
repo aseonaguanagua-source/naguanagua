@@ -1,13 +1,22 @@
 /**
  * COBRO DE CONDOMINIOS (servidor). Un solo lugar que:
  *  1) arma el cobro con el motor (nunca confía en montos enviados por la pantalla);
- *  2) si la Caja de Condominios está ACTIVA y se confirma, registra el pago y baja la deuda
- *     en el módulo Y en `inmuebles` (para que Contribuyentes, Caja, portal y solvencias vean lo mismo).
- * Mientras el interruptor `condominios_caja_activa` esté apagado, todo es SIMULACIÓN (no escribe nada).
+ *  2) si la Caja de Condominios está ACTIVA y se confirma, registra el pago y baja la deuda EN EL MÓDULO
+ *     (no toca Contribuyentes: los datos no se cruzan).
+ *
+ * Modos (los escoge el cajero al seleccionar el condominio):
+ *  - CONDOMINIO: paga el condominio completo → UNA factura al condominio.
+ *      · Residencial centralizado: aseo + multas del condominio.
+ *      · Por actividad (comercial/mixto/individual): aseo + IVA de todas las unidades; las multas NO
+ *        (las paga cada contribuyente): las de los meses pagados quedan pendientes en su unidad.
+ *  - CONTRIBUYENTE: se escogen locales/unidades (o la cédula del dueño) → UNA factura POR DUEÑO.
+ *      Incluye su aseo y sus multas. Si un mismo pago bancario cubre a varios dueños, se registra una
+ *      fila por dueño con la misma referencia y el mismo `grupo_pago`.
+ * Mientras el interruptor `condominios_caja_activa` esté apagado, todo es SIMULACIÓN.
  */
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
-import { calcularEstado, cargarCondominio, tasaVigente, unidadesPropias, EstadoCuenta } from './servicio';
+import { calcularEstado, cargarCondominio, tasaVigente, EstadoCuenta, RenglonEstado } from './servicio';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -16,12 +25,19 @@ export async function cajaActiva(): Promise<boolean> {
   return String(data?.valor ?? '').toLowerCase() === 'true';
 }
 
+export type ModoCobro = 'CONDOMINIO' | 'CONTRIBUYENTE';
+
 export interface SolicitudCobro {
   codigo: string;
-  /** Renglones a pagar (claves del estado de cuenta). Vacío = todo lo que tenga deuda. */
+  modo?: ModoCobro;
+  /** Renglones a pagar en modo CONTRIBUYENTE (claves del estado de cuenta). */
   claves?: string[];
+  /** Cédula/RIF del dueño: toma todas sus unidades en este condominio (modo CONTRIBUYENTE). */
+  identidad?: string | null;
   /** Meses a pagar por renglón, empezando por el más viejo. Vacío = todos. */
   meses?: number | null;
+  /** Solo multas (modo CONTRIBUYENTE) */
+  soloMultas?: boolean;
 }
 
 export interface LineaCobro {
@@ -30,24 +46,38 @@ export interface LineaCobro {
   numero: string | null;
   propietario: string | null;
   identidad: string | null;
+  actividad: string | null;
+  residencial: boolean;
   meses: number;
   mesesDeuda: number;
   periodos: string[];
   baseBs: number;
+  /** multa de mora de los meses pagados */
   multaBs: number;
+  /** multas pendientes de meses ya pagados + multas manuales */
+  multasAparteBs: number;
+  multasManualesIds: string[];
   ivaBs: number;
   retencionBs: number;
   totalBs: number;
+  /** Multa de mora de estos meses que queda pendiente para el contribuyente (modo CONDOMINIO por actividad) */
+  multaMesesQueQuedan: number;
 }
+
+export interface Factura { identidad: string; nombre: string; lineas: string[]; totalBs: number }
 
 export interface Cobro {
   condo: any;
   estado: EstadoCuenta;
-  puedeElegirUnidades: boolean;
+  modo: ModoCobro;
+  puedePagarCondominio: boolean;
   lineas: LineaCobro[];
+  facturas: Factura[];
   totales: { baseBs: number; multaBs: number; ivaBs: number; retencionBs: number; totalBs: number; meses: number };
   avisos: string[];
 }
+
+const n = (s: any) => M.normId(s);
 
 /** Arma el cobro (no escribe nada). */
 export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _datos: any }> {
@@ -55,48 +85,61 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
   if (!datos) throw new Error('Condominio no encontrado');
   const tasa = await tasaVigente();
   if (!(tasa > 0)) throw new Error('No hay tasa BCV vigente configurada.');
-  const estado = calcularEstado(datos.condo, datos.unidades, tasa);
-  const propias = unidadesPropias(datos.condo);
+  const estado = calcularEstado(datos.condo, datos.unidades, tasa, new Date(), datos.multas);
+  const porAct = estado.porActividad;
   const avisos: string[] = [];
-  if (!propias && datos.condo.permite_pago_por_unidad) avisos.push('Este condominio paga como un todo (centralizado): por ahora se cobra completo.');
+  const modo: ModoCobro = sol.modo === 'CONTRIBUYENTE' || sol.identidad || (sol.claves || []).length ? (sol.modo || 'CONTRIBUYENTE') : (sol.modo || 'CONDOMINIO');
 
   const conDeuda = estado.renglones.filter(r => r.totalBs > 0.01);
-  const pedidas = new Set((sol.claves || []).filter(Boolean));
-  const elegidas = propias && pedidas.size ? conDeuda.filter(r => pedidas.has(r.clave)) : conDeuda;
+  let elegidas: RenglonEstado[];
+  if (modo === 'CONDOMINIO') elegidas = conDeuda;
+  else {
+    const pedidas = new Set((sol.claves || []).filter(Boolean));
+    const ced = sol.identidad ? n(sol.identidad) : '';
+    elegidas = conDeuda.filter(r => pedidas.has(r.clave) || (ced && n(r.identidad) === ced));
+    if (!porAct && elegidas.some(r => r.deuda.meses > 0)) avisos.push('Residencial centralizado: al pagar una unidad por separado, se descuenta solo esa unidad.');
+  }
 
   const lineas: LineaCobro[] = elegidas.map(r => {
-    const n = Math.min(r.deuda.meses, sol.meses && sol.meses > 0 ? Math.floor(sol.meses) : r.deuda.meses);
-    const meses = r.deuda.porMes.slice(0, n);
-    const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs' | 'totalBs') => r2(meses.reduce((a, m) => a + m[k], 0));
-    const extra = n === r.deuda.meses ? r.multaExtraBs : 0; // multas viejas: solo al ponerse al día
+    const nMeses = sol.soloMultas ? 0 : Math.min(r.deuda.meses, sol.meses && sol.meses > 0 ? Math.floor(sol.meses) : r.deuda.meses);
+    const meses = r.deuda.porMes.slice(0, nMeses);
+    const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs') => r2(meses.reduce((a, m) => a + m[k], 0));
+    // ¿Las multas van en este cobro?
+    const condoPorActividad = modo === 'CONDOMINIO' && porAct;
+    const multaMora = condoPorActividad ? 0 : s('multaBs');
+    const multaMesesQueQuedan = condoPorActividad ? meses.filter(m => m.multaBs > 0).length : 0;
+    const incluirAparte = !condoPorActividad && (modo === 'CONTRIBUYENTE' || !porAct);
+    const aparte = incluirAparte ? r2((nMeses === r.deuda.meses || sol.soloMultas ? r.multaExtraBs : 0) + r.multasManualesBs) : 0;
+    const base = s('baseBs'), iva = s('ivaBs'), ret = s('retencionBs');
     return {
-      clave: r.clave, inmueble: r.inmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad,
-      meses: n, mesesDeuda: r.deuda.meses, periodos: r.periodos.slice(0, n),
-      baseBs: s('baseBs'), multaBs: r2(s('multaBs') + extra), ivaBs: s('ivaBs'), retencionBs: s('retencionBs'), totalBs: r2(s('totalBs') + extra),
+      clave: r.clave, inmueble: r.inmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial,
+      meses: nMeses, mesesDeuda: r.deuda.meses, periodos: r.periodos.slice(0, nMeses),
+      baseBs: base, multaBs: multaMora, multasAparteBs: aparte, multasManualesIds: incluirAparte ? r.multasManuales.map(m => m.id) : [],
+      ivaBs: iva, retencionBs: ret, totalBs: r2(base + multaMora + iva - ret + aparte), multaMesesQueQuedan,
     };
   }).filter(l => l.totalBs > 0.01);
 
+  if (modo === 'CONDOMINIO' && porAct && conDeuda.some(r => r.deuda.multaBs + r.multaExtraBs + r.multasManualesBs > 0))
+    avisos.push('Las multas no van en el pago del condominio: las paga cada contribuyente (búsquelo por su cédula).');
+
+  // Facturas: CONDOMINIO → una al condominio. CONTRIBUYENTE → una por dueño.
+  const facturas: Factura[] = [];
+  if (modo === 'CONDOMINIO') facturas.push({ identidad: datos.condo.identidad, nombre: datos.condo.nombre, lineas: lineas.map(l => l.clave), totalBs: r2(lineas.reduce((a, l) => a + l.totalBs, 0)) });
+  else {
+    const g = new Map<string, Factura>();
+    for (const l of lineas) {
+      const k = n(l.identidad) || `SIN-${l.clave}`;
+      if (!g.has(k)) g.set(k, { identidad: l.identidad || datos.condo.identidad, nombre: l.propietario || datos.condo.nombre, lineas: [], totalBs: 0 });
+      const f = g.get(k)!; f.lineas.push(l.clave); f.totalBs = r2(f.totalBs + l.totalBs);
+    }
+    facturas.push(...g.values());
+  }
+
   const t = (k: keyof LineaCobro) => r2(lineas.reduce((a, l) => a + (Number(l[k]) || 0), 0));
   return {
-    condo: datos.condo, estado, puedeElegirUnidades: propias, lineas, avisos, _datos: datos,
-    totales: { baseBs: t('baseBs'), multaBs: t('multaBs'), ivaBs: t('ivaBs'), retencionBs: t('retencionBs'), totalBs: t('totalBs'), meses: Math.max(0, ...lineas.map(l => l.meses)) },
+    condo: datos.condo, estado, modo, puedePagarCondominio: true, lineas, facturas, avisos, _datos: datos,
+    totales: { baseBs: t('baseBs'), multaBs: r2(t('multaBs') + t('multasAparteBs')), ivaBs: t('ivaBs'), retencionBs: t('retencionBs'), totalBs: t('totalBs'), meses: Math.max(0, ...lineas.map(l => l.meses)) },
   };
-}
-
-/** Baja `n` meses de un inmueble con el mismo criterio que la Caja (proporcional en deuda_mmv y multa_bs). */
-async function bajarMesesInmueble(codigo: string, n: number) {
-  const { data: inm } = await sb.from('inmuebles').select('id,inmueble,estado,meses_deuda,deuda_mmv,multa_bs,deuda_congelada_bs').eq('inmueble', codigo).maybeSingle();
-  if (!inm || inm.estado === 'Eliminado') return null;
-  const antes = Math.max(0, parseInt(String(inm.meses_deuda ?? 0)) || 0);
-  if (antes <= 0 || n <= 0) return { inmueble: codigo, antes, despues: antes };
-  const despues = Math.max(0, antes - n);
-  const d = parseFloat(String(inm.deuda_mmv || 0)), m = parseFloat(String(inm.multa_bs || 0));
-  const upd = despues === 0
-    ? { meses_deuda: 0, deuda_mmv: 0, multa_bs: 0, deuda_congelada_bs: 0 }
-    : { meses_deuda: despues, deuda_mmv: parseFloat(((d * despues) / antes).toFixed(6)), multa_bs: parseFloat(((m * despues) / antes).toFixed(2)) };
-  const { error } = await sb.from('inmuebles').update(upd).eq('id', inm.id);
-  if (error) throw new Error(`No se pudo actualizar ${codigo}: ${error.message}`);
-  return { inmueble: codigo, antes, despues, previo: inm };
 }
 
 export interface DatosPago {
@@ -108,81 +151,94 @@ export interface DatosPago {
   montoRecibido: number;
   cajero: string;
   usuario: string;
-  /** Quién paga (para la factura). Por defecto el condominio. */
-  identidadPagador?: string;
-  nombrePagador?: string;
 }
 
-/** Registra el cobro. Solo con la Caja de Condominios activa. */
+const formaPagoCodigo = (m: string) => m === 'Debito' ? '03' : ['Credito', 'TMD', 'TVD'].includes(m) ? '02' : m === 'Efectivo' ? '01' : '05';
+
+/** Registra el cobro (solo con la Caja de Condominios activa). Baja la deuda solo en el módulo. */
 export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   const cobro = await prepararCobro(sol);
   if (!cobro.lineas.length) throw new Error('No hay deuda para cobrar con esa selección.');
-  if (Math.abs(r2(pago.montoRecibido) - cobro.totales.totalBs) > 0.05) {
-    throw new Error(`El monto cambió (ahora Bs ${cobro.totales.totalBs.toFixed(2)}). Vuelva a calcular antes de cobrar.`);
-  }
+  if (Math.abs(r2(pago.montoRecibido) - cobro.totales.totalBs) > 0.05) throw new Error(`El monto cambió (ahora Bs ${cobro.totales.totalBs.toFixed(2)}). Vuelva a calcular antes de cobrar.`);
   const ref = String(pago.referencia || '').trim();
   if (pago.metodo !== 'Efectivo') {
     if (ref.length < 4) throw new Error('Escriba la referencia del pago.');
-    const { data: rep } = await sb.from('pagos_reportados').select('id,identidad,monto,estado,created_at').eq('referencia', ref).neq('estado', 'Rechazado').limit(1);
+    const { data: rep } = await sb.from('pagos_reportados').select('id,identidad,monto').eq('referencia', ref).neq('estado', 'Rechazado').limit(1);
     if (rep?.length) throw new Error(`La referencia ${ref} ya fue usada en otro pago (${rep[0].identidad}, Bs ${rep[0].monto}).`);
   }
 
-  const c = cobro.condo;
-  const tasa = cobro.estado.tasa;
-  const identidad = pago.identidadPagador || c.identidad;
-  const reciboRef = `CONDO-${c.codigo}-${Date.now().toString().slice(-6)}`;
-  const monto = cobro.totales.totalBs;
-  const formaPago = pago.metodo === 'Debito' ? '03' : ['Credito', 'TMD', 'TVD'].includes(pago.metodo) ? '02' : pago.metodo === 'Efectivo' ? '01' : '05';
-  const detalles = {
-    modulo: 'condominios', cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
-    condominio: { codigo: c.codigo, nombre: c.nombre, modalidad: c.modalidad, lineas: cobro.lineas.map(l => ({ inmueble: l.inmueble, clave: l.clave, meses: l.meses, periodos: l.periodos, totalBs: l.totalBs })) },
-    recibos: [reciboRef], montos: { [reciboRef]: monto }, montoTotal: monto,
-    monto_retencion_iva: cobro.totales.retencionBs, contribuyente: pago.nombrePagador || c.nombre, identidad,
-    factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
-    formasPago: [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPago, banco: pago.banco || undefined, referencia: ref || undefined, monto }],
-  };
-
-  // 1) Pago (el id lo genera la pantalla: si se envía dos veces, la segunda falla y no se cobra doble)
-  const { error: ePago } = await sb.from('pagos_reportados').insert({
-    id: pago.pagoId, identidad, monto, banco: pago.banco || pago.metodo, referencia: ref || `EFECTIVO-${Date.now()}`,
-    tipo: pago.metodo, estado: 'Aprobado', modulo: 'condominios', detalles,
-  });
-  if (ePago) throw new Error(ePago.message.includes('duplicate') ? 'Este pago ya fue registrado.' : 'No se pudo registrar el pago: ' + ePago.message);
-
-  // 2) Bajar la deuda en `inmuebles` y en el módulo
-  const cambios: any[] = [];
-  const hoy = new Date();
+  const c = cobro.condo, tasa = cobro.estado.tasa, hoy = new Date();
   const datos = cobro._datos;
   const porId = new Map<string, any>(datos.unidades.map((u: any) => [u.id, u]));
-  if (unidadesPropias(c)) {
-    for (const l of cobro.lineas) {
-      const u = porId.get(l.clave);
-      if (!u) continue;
-      if (u.inmueble) cambios.push(await bajarMesesInmueble(u.inmueble, l.meses));
-      await sb.from('condominio_unidades').update({ aseo_pendiente_desde: M.avanzarPendiente(u.aseo_pendiente_desde, l.meses, hoy), ...(l.meses === l.mesesDeuda ? { multa_meses: 0 } : {}) }).eq('id', u.id);
+  const lineaPor = new Map(cobro.lineas.map(l => [l.clave, l]));
+  const grupo = cobro.facturas.length > 1 ? pago.pagoId : null;
+  const refFinal = ref || `EFECTIVO-${Date.now()}`;
+
+  // 1) Un pago por factura (el primero usa el id de la pantalla: si se envía dos veces, falla y no cobra doble)
+  const pagos: { id: string; reciboRef: string; factura: Factura }[] = [];
+  for (let i = 0; i < cobro.facturas.length; i++) {
+    const f = cobro.facturas[i];
+    const id = i === 0 ? pago.pagoId : crypto.randomUUID();
+    const reciboRef = `CONDO-${c.codigo}-${Date.now().toString().slice(-6)}${cobro.facturas.length > 1 ? `-${i + 1}` : ''}`;
+    const ls = f.lineas.map(k => lineaPor.get(k)!).filter(Boolean);
+    const ret = r2(ls.reduce((a, l) => a + l.retencionBs, 0));
+    const detalles = {
+      modulo: 'condominios', modo: cobro.modo, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
+      condominio: { codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, modalidad: c.modalidad, tipo: c.tipo,
+        lineas: ls.map(l => ({ inmueble: l.inmueble, numero: l.numero, actividad: l.actividad, residencial: l.residencial, meses: l.meses, periodos: l.periodos, aseoBs: l.baseBs, ivaBs: l.ivaBs, multaBs: r2(l.multaBs + l.multasAparteBs), retencionBs: l.retencionBs, totalBs: l.totalBs })) },
+      ...(grupo ? { grupo_pago: { id: grupo, referencia: refFinal, monto_total: cobro.totales.totalBs, partes: cobro.facturas.length, parte: i + 1 } } : {}),
+      recibos: [reciboRef], montos: { [reciboRef]: f.totalBs }, montoTotal: f.totalBs,
+      monto_retencion_iva: ret, contribuyente: f.nombre, identidad: f.identidad,
+      factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
+      formasPago: [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, referencia: ref || undefined, monto: f.totalBs }],
+    };
+    const fila: any = { id, identidad: f.identidad, monto: f.totalBs, banco: pago.banco || pago.metodo, referencia: refFinal, tipo: pago.metodo, estado: 'Aprobado', modulo: 'condominios', detalles };
+    if (grupo) fila.grupo_pago = grupo;
+    const { error } = await sb.from('pagos_reportados').insert(fila);
+    if (error) {
+      if (i === 0) throw new Error(error.message.includes('duplicate') ? 'Este pago ya fue registrado.' : 'No se pudo registrar el pago: ' + error.message);
+      throw new Error(`Se registró parte del pago pero falló la parte ${i + 1}: ${error.message}. Avise al administrador (pago ${pago.pagoId}).`);
     }
-  } else {
-    const n = cobro.totales.meses;
-    cambios.push(await bajarMesesInmueble(c.codigo, n));
-    for (const u of datos.unidades) if (u.inmueble) cambios.push(await bajarMesesInmueble(u.inmueble, n));
-    const nuevo = M.avanzarPendiente(c.aseo_pendiente_desde, n, hoy);
-    await sb.from('condominios').update({ aseo_pendiente_desde: nuevo, ...(cobro.lineas.every(l => l.meses === l.mesesDeuda) ? { multa_meses: 0 } : {}) }).eq('id', c.id);
-    const ids = datos.unidades.map((u: any) => u.id);
-    for (let i = 0; i < ids.length; i += 300) await sb.from('condominio_unidades').update({ aseo_pendiente_desde: nuevo }).in('id', ids.slice(i, i + 300));
+    pagos.push({ id, reciboRef, factura: f });
+  }
+  const pagoDe = (clave: string) => pagos.find(p => p.factura.lineas.includes(clave))?.id || pago.pagoId;
+
+  // 2) Bajar la deuda en el módulo
+  const antes: any[] = [];
+  for (const l of cobro.lineas) {
+    const u = porId.get(l.clave);
+    if (u) {
+      const upd: any = {};
+      if (l.meses > 0) upd.aseo_pendiente_desde = M.avanzarPendiente(u.aseo_pendiente_desde, l.meses, hoy);
+      if (l.multaMesesQueQuedan > 0) upd.multa_meses = (Number(u.multa_meses) || 0) + l.multaMesesQueQuedan;
+      else if (l.multasAparteBs > 0 && (l.meses === l.mesesDeuda || sol.soloMultas)) upd.multa_meses = 0;
+      if (Object.keys(upd).length) { antes.push({ unidad: u.id, inmueble: u.inmueble, aseo_pendiente_desde: u.aseo_pendiente_desde, multa_meses: u.multa_meses }); await sb.from('condominio_unidades').update(upd).eq('id', u.id); }
+    } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
+      const upd: any = {};
+      if (l.meses > 0) upd.aseo_pendiente_desde = M.avanzarPendiente(c.aseo_pendiente_desde, l.meses, hoy);
+      if (l.multasAparteBs > 0) upd.multa_meses = 0;
+      if (Object.keys(upd).length) { antes.push({ condominio: c.id, aseo_pendiente_desde: c.aseo_pendiente_desde, multa_meses: c.multa_meses }); await sb.from('condominios').update(upd).eq('id', c.id); }
+    }
+    if (l.multasManualesIds.length) await sb.from('condominio_multas').update({ estado: 'Pagada', pago_id: pagoDe(l.clave) }).in('id', l.multasManualesIds).eq('estado', 'Pendiente');
+  }
+  // Residencial centralizado pagado completo: el condominio también avanza
+  if (cobro.modo === 'CONDOMINIO' && !cobro.estado.porActividad && !cobro.lineas.some(l => l.clave === M.SIN_REGISTRAR)) {
+    const nMeses = cobro.totales.meses;
+    if (nMeses > 0 && c.aseo_pendiente_desde) await sb.from('condominios').update({ aseo_pendiente_desde: M.avanzarPendiente(c.aseo_pendiente_desde, nMeses, hoy), multa_meses: 0 }).eq('id', c.id);
   }
 
   // 3) Libro del condominio
   const movs = cobro.lineas.map(l => ({
     condominio_id: c.id, unidad_id: porId.has(l.clave) ? l.clave : null, tipo: 'PAGO', periodo: l.periodos[0] ? `${l.periodos[0]}-01` : null,
-    concepto: `Pago ${l.meses} mes(es)${l.inmueble ? ` · ${l.inmueble}` : ''}: ${l.periodos.join(', ')}`,
-    monto_bs: -l.totalBs, tasa_bcv: tasa, pago_id: pago.pagoId, usuario: pago.usuario,
+    concepto: `${cobro.modo === 'CONDOMINIO' ? 'Pago del condominio' : 'Pago del contribuyente'}${l.inmueble ? ` · ${l.inmueble}` : ''}: ${l.meses ? `${l.meses} mes(es) ${l.periodos.join(', ')}` : ''}${l.multasAparteBs > 0 ? ' + multas' : ''}`,
+    monto_bs: -l.totalBs, tasa_bcv: tasa, pago_id: pagoDe(l.clave), usuario: pago.usuario,
   }));
   for (let i = 0; i < movs.length; i += 300) await sb.from('condominio_movimientos').insert(movs.slice(i, i + 300));
 
   await sb.from('auditoria').insert({
     accion: 'Cobro en Caja de Condominios', usuario: pago.usuario, modulo: '/admin/condominios/caja',
-    detalles: { pago_id: pago.pagoId, codigo: c.codigo, condominio: c.nombre, monto, metodo: pago.metodo, referencia: ref, lineas: cobro.lineas.length,
-      deuda_previa: cambios.filter(Boolean).map((x: any) => ({ inmueble: x.inmueble, antes: x.antes, despues: x.despues, previo: x.previo })), _categoria: 'CONDOMINIOS', criticidad: 'ALTA' },
+    detalles: { pagos: pagos.map(p => ({ id: p.id, identidad: p.factura.identidad, monto: p.factura.totalBs })), codigo: c.codigo, condominio: c.nombre, modo: cobro.modo,
+      monto: cobro.totales.totalBs, metodo: pago.metodo, referencia: ref, lineas: cobro.lineas.length, deuda_previa: antes, _categoria: 'CONDOMINIOS', criticidad: 'ALTA' },
   });
-  return { pagoId: pago.pagoId, reciboRef, monto, cobro, cambios: cambios.filter(Boolean).map((x: any) => ({ inmueble: x.inmueble, antes: x.antes, despues: x.despues })) };
+  return { pagoId: pago.pagoId, pagos: pagos.map(p => ({ id: p.id, reciboRef: p.reciboRef, identidad: p.factura.identidad, nombre: p.factura.nombre, monto: p.factura.totalBs })), monto: cobro.totales.totalBs, cobro };
 }

@@ -110,6 +110,20 @@ export async function POST(request: Request) {
       if (dm?.montos && typeof dm.montos === 'object') montosMulta = { ...dm.montos, ...montos };
     }
 
+    // --- PAGOS DE LA CAJA DE CONDOMINIOS ---
+    // La factura va a nombre de quien pagó (el condominio completo, o cada dueño por separado: una fila por dueño).
+    // Los montos salen de los renglones guardados en el pago (no de Contribuyentes: los datos no se cruzan).
+    let lineasCondo: any[] | null = null;
+    let condoDet: any = null;
+    {
+      const { data: pm } = await supabase.from('pagos_reportados').select('modulo, detalles').eq('id', pagoId).maybeSingle();
+      let dm: any = pm?.detalles || {};
+      if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
+      if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
+        lineasCondo = dm.condominio.lineas; condoDet = dm.condominio;
+      }
+    }
+
     // --- BUSINESS RULE: Only emit invoices for Commercial properties ---
     const idNaked = identidad.replace(/^[VJGEP]-?/i, '');
     const idVariants = [identidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];
@@ -145,6 +159,11 @@ export async function POST(request: Request) {
       isComercial = true;
     }
 
+    if (lineasCondo) {
+      // Comercial si algún renglón del pago no es residencial (REGLA vigente: lo residencial no se factura)
+      isComercial = lineasCondo.some((l: any) => !l.residencial && ((Number(l.aseoBs) || 0) + (Number(l.multaBs) || 0)) > 0);
+    }
+
     if (!isComercial) {
       return NextResponse.json({
         success: true,
@@ -157,7 +176,7 @@ export async function POST(request: Request) {
     const fechaActual = new Date();
     const horaStr = fechaActual.toLocaleTimeString('en-US', { timeZone: 'America/Caracas', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase().replace(/[\s\u202f\u00a0]+/g, ' ');
 
-    const { data: facturasBD } = await supabase.from('facturas').select('*').in('referencia', recibos);
+    const { data: facturasBD } = lineasCondo ? { data: [] as any[] } : await supabase.from('facturas').select('*').in('referencia', recibos);
 
     // Para RECIB-HIST-*, buscar en inmuebles (no están en tabla facturas)
     const histRecibos = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
@@ -379,7 +398,33 @@ export async function POST(request: Request) {
 
     const condoRecibos = (recibos || []).filter((r: string) => r.startsWith('CONDO-'));
     const itemsCondo: any[] = [];
-    if ((isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && excluidosResidenciales === 0) {
+    // Caja de Condominios: un renglón de aseo (IVA 16%) y uno de multa (exento) por cada local/actividad comercial
+    const itemsCondoMod: any[] = [];
+    if (lineasCondo) {
+      const it = (desc: string, plu: string, base: number, gravado: boolean) => {
+        lineaNum++;
+        const iva = gravado ? parseFloat((base * 0.16).toFixed(2)) : 0;
+        if (gravado) { totalGravado += base; totalIVA += iva; } else totalExento += base;
+        return {
+          NumeroLinea: String(lineaNum), CodigoCIIU: "0198", CodigoPLU: plu, IndicadorBienoServicio: "2",
+          Descripcion: desc.slice(0, 250), Cantidad: "1", UnidadMedida: "NIU",
+          PrecioUnitario: base.toFixed(2), PrecioUnitarioDescuento: null, MontoBonificacion: null, DescripcionBonificacion: null,
+          DescuentoMonto: "0.00", RecargoMonto: "0", PrecioItem: base.toFixed(2), PrecioAntesDescuento: base.toFixed(2),
+          CodigoImpuesto: gravado ? "G" : "E", TasaIVA: gravado ? "16" : "0", ValorIVA: iva.toFixed(2),
+          ValorTotalItem: (base + iva).toFixed(2), InfoAdicionalItem: [], ListaItemOTI: null,
+        };
+      };
+      for (const l of lineasCondo) {
+        if (l.residencial) { excluidosResidenciales++; continue; }
+        const donde = [l.inmueble, l.numero].filter(Boolean).join(' ') || condoDet?.codigo || '';
+        const per = Array.isArray(l.periodos) && l.periodos.length ? ` (${l.periodos[0]}${l.periodos.length > 1 ? ` a ${l.periodos[l.periodos.length - 1]}` : ''})` : '';
+        const aseo = parseFloat((Number(l.aseoBs) || 0).toFixed(2));
+        const multa = parseFloat((Number(l.multaBs) || 0).toFixed(2));
+        if (aseo > 0) itemsCondoMod.push(it(`Servicio de Aseo Urbano - ${condoDet?.nombre || 'Condominio'} ${donde}${l.actividad ? ` - ${l.actividad}` : ''}${per}`, 'ASEO001', aseo, true));
+        if (multa > 0) itemsCondoMod.push(it(`Multa por Mora - Aseo Urbano ${donde}`, 'MULT001', multa, false));
+      }
+    }
+    if (!lineasCondo && (isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && excluidosResidenciales === 0) {
       lineaNum++;
       const totalNum = parseFloat(String(montoTotal || 0));
       const base = parseFloat((totalNum / 1.16).toFixed(2));
@@ -413,7 +458,7 @@ export async function POST(request: Request) {
     }
 
     const itemsGeneral: any[] = [];
-    if (itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && itemsCondo.length === 0 && excluidosResidenciales === 0 && (parseFloat(String(montoTotal || 0)) > 0 || parseFloat(String(montoServicio || 0)) > 0)) {
+    if (!lineasCondo && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && itemsCondo.length === 0 && excluidosResidenciales === 0 && (parseFloat(String(montoTotal || 0)) > 0 || parseFloat(String(montoServicio || 0)) > 0)) {
       lineaNum++;
       const totalNum = parseFloat(String(montoTotal || 0));
       const multaNum = parseFloat(String(montoMulta || montos?.multa || 0));
@@ -477,7 +522,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const detallesItems = [...itemsFacturas, ...itemsHist, ...itemsMulta, ...itemsCondo, ...itemsGeneral];
+    const detallesItems = [...itemsFacturas, ...itemsHist, ...itemsMulta, ...itemsCondo, ...itemsCondoMod, ...itemsGeneral];
 
     // Si no hay items, no emitir (nada que facturar)
     if (detallesItems.length === 0) {
@@ -503,7 +548,8 @@ export async function POST(request: Request) {
     const totalCalculado = totalGravado + totalExento + totalIVA;
     // Monto objetivo: el total editado a mano (si lo hay) o lo cobrado en caja
     const objetivo = totalManualNum > 0 ? totalManualNum : montoCobrado;
-    const aplicarCuadre = totalManualNum > 0 || (!esMixto && excluidosResidenciales === 0);
+    // Caja de Condominios: los renglones ya son exactos (si hubo residenciales, lo cobrado incluye esa parte)
+    const aplicarCuadre = totalManualNum > 0 || (lineasCondo ? excluidosResidenciales === 0 : (!esMixto && excluidosResidenciales === 0));
     if (aplicarCuadre && objetivo > 0 && totalCalculado > 0 && Math.abs(totalCalculado - objetivo) > 0.01) {
       const f = objetivo / totalCalculado;
       console.warn(`[TFHKA] Cuadre: calculado ${totalCalculado.toFixed(2)} vs ${totalManualNum > 0 ? 'manual' : 'cobrado'} ${objetivo.toFixed(2)} (factor ${f.toFixed(4)})`);
@@ -541,8 +587,9 @@ export async function POST(request: Request) {
     // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
     const comRef: any = activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
     const codHist = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
-    const codigoContribuyente = codHist || comRef?.inmueble || '';
-    const licenciaAE = cleanClasificacionActividad(comRef?.actividad_principal || '') || '-';
+    const lineaCom = lineasCondo?.find((l: any) => !l.residencial);
+    const codigoContribuyente = lineasCondo ? (lineaCom?.inmueble || condoDet?.codigo || '') : (codHist || comRef?.inmueble || '');
+    const licenciaAE = (lineasCondo ? cleanClasificacionActividad(lineaCom?.actividad || '') : cleanClasificacionActividad(comRef?.actividad_principal || '')) || '-';
     const cajaLabel = String(detPago.cajero || '').trim() || '-';
     const fp0: any = (formasPago && formasPago[0]) || {};
     const tipoPago = String(pagoRow?.tipo || fp0.descripcion || 'Transferencia').trim();

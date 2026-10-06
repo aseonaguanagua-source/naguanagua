@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     const query = (searchParams.get('q') || '').trim().toLowerCase();
     const filter = searchParams.get('filter') || 'todos'; // 'todos' | 'pendientes' | 'emitidas'
     const documentoFiltro = searchParams.get('documento') || ''; // '' | 'factura' | 'recibo'
+    const moduloFiltro = searchParams.get('modulo') || 'Todos'; // Todos | Contribuyentes | Condominios | Condominios residenciales | Condominios comerciales
     const fecha = (searchParams.get('fecha') || '').trim(); // YYYY-MM-DD (hora Venezuela)
 
     // Obtener los pagos reportados (de un día concreto, o los más recientes)
@@ -60,6 +61,25 @@ export async function GET(request: Request) {
 
     const fallbackEmail = process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.comercial@globalgreenca.com';
 
+    // Condominios (para reconocer pagos viejos de condominios por su RIF)
+    const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo').limit(5000);
+    const condoPorRif = new Map<string, any>();
+    (condosRows || []).forEach((c: any) => { if (c.identidad) condoPorRif.set(normId(c.identidad), c); });
+    const infoCondo = (pago: any, det: any) => {
+      const porRif = condoPorRif.get(normId(pago.identidad));
+      const esModulo = pago.modulo === 'condominios' || det.modulo === 'condominios';
+      if (!esModulo && det.isCondominio !== true && det.es_condominio !== true && !porRif) return null;
+      const c = det.condominio || {};
+      const tipo = c.tipo || porRif?.tipo || null;
+      return {
+        codigo: c.codigo || porRif?.codigo || null, nombre: c.nombre || porRif?.nombre || det.contribuyente || 'Condominio', tipo,
+        residencial: tipo ? String(tipo).toUpperCase() === 'RESIDENCIAL' : null,
+        facturaA: det.modo === 'CONTRIBUYENTE' ? 'CONTRIBUYENTE' : 'CONDOMINIO',
+        grupo: det.grupo_pago ? { id: det.grupo_pago.id, parte: det.grupo_pago.parte, partes: det.grupo_pago.partes, montoTotal: Number(det.grupo_pago.monto_total) || 0 } : null,
+      };
+    };
+
     // Mapear cada pago con sus detalles de factura digital
     const items = (pagos || []).map(pago => {
       const det = detallesPorPago.get(pago.id) || {};
@@ -92,6 +112,8 @@ export async function GET(request: Request) {
         created_at: pago.created_at,
         cajero: det.cajero || '',
         recibos: det.recibos || [],
+        // Condominio: a quién va la factura (al condominio o a cada dueño) y si es parte de un pago repartido
+        condominio: infoCondo(pago, det),
         // Clasificación del documento
         documento: clasif.documento,
         subtipo: clasif.subtipo,
@@ -132,6 +154,10 @@ export async function GET(request: Request) {
     } else if (filter === 'emitidas') {
       filtered = filtered.filter(i => i.procesado);
     }
+    if (moduloFiltro === 'Contribuyentes') filtered = filtered.filter(i => !i.condominio);
+    else if (moduloFiltro === 'Condominios') filtered = filtered.filter(i => !!i.condominio);
+    else if (moduloFiltro === 'Condominios residenciales') filtered = filtered.filter(i => i.condominio?.residencial === true);
+    else if (moduloFiltro === 'Condominios comerciales') filtered = filtered.filter(i => i.condominio?.residencial === false);
 
     if (query) {
       filtered = filtered.filter(i => 

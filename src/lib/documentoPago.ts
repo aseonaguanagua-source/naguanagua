@@ -44,6 +44,22 @@ export function parseDetalles(det: any): any {
  * @param det     detalles del pago (para heurística de IVA cuando no hay código)
  */
 export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det: any = {}): ClasificacionPago {
+  // Caja de Condominios: se clasifica por los renglones guardados en el pago (cada local / actividad)
+  const lineasCondo: any[] | null = det?.modulo === 'condominios' && Array.isArray(det?.condominio?.lineas) ? det.condominio.lineas : null;
+  if (lineasCondo) {
+    const com = lineasCondo.filter(l => !l.residencial);
+    const servicio = com.some(l => (Number(l.aseoBs) || 0) > 0);
+    const multa = com.some(l => (Number(l.multaBs) || 0) > 0);
+    const comercial = servicio || multa;
+    return {
+      documento: comercial ? 'factura' : 'recibo',
+      subtipo: servicio ? 'factura_comercial' : multa ? 'factura_multa_comercial' : 'recibo_residencial',
+      mixto: comercial && lineasCondo.some(l => l.residencial),
+      inmuebles: [...new Set(lineasCondo.map(l => l.inmueble).filter(Boolean))] as string[],
+      mesesServicio: Math.max(0, ...lineasCondo.map(l => Number(l.meses) || 0)),
+      tieneMulta: lineasCondo.some(l => (Number(l.multaBs) || 0) > 0),
+    };
+  }
   let servicioComercial = false;
   let multaComercial = false;
   let residencial = false;

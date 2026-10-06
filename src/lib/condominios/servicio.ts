@@ -1,6 +1,10 @@
 /**
  * Servicio de condominios (servidor). Lee las tablas del módulo y calcula TODO con el motor único.
  * Ninguna pantalla calcula montos por su cuenta: todas llaman a estas funciones.
+ *
+ * El módulo lleva SU PROPIA CUENTA (independiente de Contribuyentes): la deuda de cada unidad es
+ * `aseo_pendiente_desde` + `multa_meses` + multas manuales. La foto inicial se toma de `inmuebles`
+ * con `refrescarDesdeInmuebles()` (al migrar y el día de la separación).
  */
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
@@ -14,7 +18,7 @@ export async function tasaVigente(): Promise<number> {
 }
 
 /** Lee todas las filas de una consulta paginando de 1000 en 1000. */
-async function todas<T = any>(build: (from: number, to: number) => any): Promise<T[]> {
+export async function todas<T = any>(build: (from: number, to: number) => any): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await build(from, from + 999);
@@ -25,10 +29,10 @@ async function todas<T = any>(build: (from: number, to: number) => any): Promise
   return out;
 }
 
-/** ¿Cada unidad lleva su propia deuda? (INDIVIDUAL o tarifa propia por local) */
-export const unidadesPropias = (c: any) => c.modalidad === 'INDIVIDUAL' || !!c.cobro_tarifa_por_unidad;
+/** ¿Cada unidad lleva su propia deuda? (se cobra por actividad / pago individual) */
+export const unidadesPropias = (c: any) => M.porActividad(aMotorCondo(c));
 
-/** Meses de deuda actuales en `inmuebles` (fuente común con Contribuyentes, Caja y portal). */
+/** Meses de deuda actuales en `inmuebles` (solo para tomar la foto inicial). */
 export async function mesesInmuebles(codigos?: string[]): Promise<Map<string, { meses: number; estado: string; id: string }>> {
   const out = new Map<string, { meses: number; estado: string; id: string }>();
   const add = (rows: any[]) => rows.forEach(r => out.set(String(r.inmueble || '').toUpperCase(), { meses: Math.max(0, parseInt(String(r.meses_deuda ?? 0)) || 0), estado: r.estado, id: r.id }));
@@ -52,11 +56,10 @@ export async function mesesInmuebles(codigos?: string[]): Promise<Map<string, { 
 }
 
 /**
- * Mientras los condominios sigan también en Contribuyentes/Caja, la deuda del módulo se toma EN VIVO de
- * `inmuebles.meses_deuda` para que todas las pantallas muestren lo mismo:
+ * Foto de la deuda tomada de `inmuebles`:
  *  - condominio: meses del inmueble padre (si existe y no está eliminado);
- *  - unidad con deuda propia: meses de su inmueble; si no tiene inmueble (huérfano de SIGYR), lo guardado;
- *  - unidad de un condominio centralizado: sigue al condominio.
+ *  - unidad con deuda propia (por actividad): meses de su inmueble; sin inmueble (huérfano), lo guardado;
+ *  - unidad de un residencial centralizado: sigue al condominio.
  */
 export function sincronizar(condo: any, unidades: any[], meses: Map<string, { meses: number; estado: string }>, hoy = new Date()) {
   const p = meses.get(String(condo.codigo).toUpperCase());
@@ -77,10 +80,16 @@ export const aMotorCondo = (c: any): M.Condominio => ({
   agente_retencion: !!c.agente_retencion, permite_pago_por_unidad: !!c.permite_pago_por_unidad,
   permite_abonos: c.permite_abonos !== false, cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad,
 });
-export const aMotorUnidad = (u: any): M.Unidad => ({
+export const aMotorUnidad = (u: any, grupos?: Set<string>): M.Unidad => ({
   id: u.id, inmueble: u.inmueble, identidad: u.identidad, actividad: u.actividad,
   tarifa_mmv: u.tarifa_mmv != null ? Number(u.tarifa_mmv) : null, estado: u.estado,
+  es_grupo: !!u.es_grupo || !!grupos?.has(u.id),
 });
+
+/** Ids de las unidades que tienen otras colgando (locales contenedor / torres). */
+export const idsGrupo = (unidades: any[]) => new Set(unidades.filter(u => u.padre_unidad_id).map(u => u.padre_unidad_id as string));
+
+export interface MultaManual { id: string; concepto: string; montoBs: number; periodo: string | null; creada_por: string | null; created_at: string }
 
 export interface RenglonEstado {
   clave: string;
@@ -88,14 +97,22 @@ export interface RenglonEstado {
   numero: string | null;
   propietario: string | null;
   identidad: string | null;
+  actividad: string | null;
   estado: string;
   cantidad: number;
+  /** Local contenedor: no cobra por sí mismo (cobran sus actividades) */
+  esGrupo: boolean;
+  padreId: string | null;
+  residencial: boolean;
   mensualBs: number;
   pendienteDesde: string | null;
   periodos: string[];
   deuda: M.DeudaPeriodos;
-  /** Multas que quedaron pendientes aunque el aseo ya se pagó */
+  /** Multas de meses ya pagados por el condominio (las debe el contribuyente) */
   multaExtraBs: number;
+  /** Multas agregadas a mano */
+  multasManuales: MultaManual[];
+  multasManualesBs: number;
   totalBs: number;
 }
 
@@ -105,33 +122,56 @@ export interface EstadoCuenta {
   renglones: RenglonEstado[];
   totales: { baseBs: number; multaBs: number; ivaBs: number; retencionBs: number; totalBs: number; mesesMax: number; unidadesConDeuda: number };
   quienPaga: { aseo: 'CONDOMINIO' | 'UNIDAD'; multa: 'CONDOMINIO' | 'UNIDAD' };
+  porActividad: boolean;
 }
 
+/** Monto en Bs de una multa manual. */
+export const montoMulta = (m: any, tasa: number) => r2(m.monto_bs != null ? Number(m.monto_bs) : (Number(m.monto_mmv) || 0) * 57 * tasa);
+
 /** Estado de cuenta de un condominio con la tarifa vigente. */
-export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number, hoy = new Date()): EstadoCuenta {
+export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number, hoy = new Date(), multasRows: any[] = []): EstadoCuenta {
   const c = aMotorCondo(condoRow);
-  const unidades = unidadesRows.map(aMotorUnidad);
+  const grupos = idsGrupo(unidadesRows);
+  const unidades = unidadesRows.map(u => aMotorUnidad(u, grupos));
   const porId = new Map(unidadesRows.map((u: any) => [u.id, u]));
-  const res = M.esResidencial(c);
+  const motorPorId = new Map(unidades.map(u => [u.id, u]));
   const reparto = M.cargosPorUnidad(c, unidades, tasa);
-  const tMulta = res ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
+  const multasPend = multasRows.filter(m => m.estado === 'Pendiente');
 
   const renglones: RenglonEstado[] = reparto.map(r => {
     const u: any = porId.get(r.clave);
+    const mu = motorPorId.get(r.clave);
+    const res = M.unidadResidencial(c, mu || null);
+    const tMulta = res ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
     // Unidad registrada: sus propios meses. Grupo sin registrar / tarifa fija: los meses del condominio.
     const desde = u ? u.aseo_pendiente_desde : condoRow.aseo_pendiente_desde;
-    const meses = M.mesesPendientes(desde, hoy);
+    const meses = r.montoBs > 0 ? M.mesesPendientes(desde, hoy) : 0;
     const deuda = M.deudaPorMeses(meses, r.montoBs, res, c.agente_retencion);
     const multaMeses = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
     const multaExtraBs = r2(r.montoBs * tMulta * multaMeses);
+    const manuales = multasPend.filter(m => (u ? m.unidad_id === u.id : !m.unidad_id))
+      .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
+    const multasManualesBs = r2(manuales.reduce((a, m) => a + m.montoBs, 0));
     return {
       clave: r.clave, inmueble: u?.inmueble ?? null, numero: u?.numero ?? null,
-      propietario: u?.propietario ?? (r.clave === M.SIN_REGISTRAR ? `${r.cantidad} unidad(es) declaradas sin registrar` : null),
-      identidad: u?.identidad ?? null, estado: u?.estado ?? 'Declarada', cantidad: r.cantidad,
-      mensualBs: r.montoBs, pendienteDesde: desde || null, periodos: M.periodosPendientes(desde, hoy),
-      deuda, multaExtraBs, totalBs: r2(deuda.totalBs + multaExtraBs),
+      propietario: u?.propietario ?? (r.clave === M.SIN_REGISTRAR ? `${r.cantidad} unidad(es) declaradas sin registrar` : condoRow.nombre),
+      identidad: u?.identidad ?? (r.clave === M.SIN_REGISTRAR ? null : condoRow.identidad), actividad: u?.actividad ?? null,
+      estado: u?.estado ?? 'Declarada', cantidad: r.cantidad, esGrupo: !!mu?.es_grupo, padreId: u?.padre_unidad_id ?? null, residencial: res,
+      mensualBs: r.montoBs, pendienteDesde: desde || null, periodos: M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy),
+      deuda, multaExtraBs, multasManuales: manuales, multasManualesBs, totalBs: r2(deuda.totalBs + multaExtraBs + multasManualesBs),
     };
   });
+  // Multas manuales del condominio (sin unidad) cuando no hay renglón de condominio
+  const sueltas = multasPend.filter(m => !m.unidad_id);
+  if (sueltas.length && !renglones.some(r => !porId.has(r.clave))) {
+    const manuales = sueltas.map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
+    const tot = r2(manuales.reduce((a, m) => a + m.montoBs, 0));
+    renglones.push({
+      clave: '__CONDOMINIO__', inmueble: condoRow.codigo, numero: null, propietario: condoRow.nombre, identidad: condoRow.identidad, actividad: null,
+      estado: 'Condominio', cantidad: 0, esGrupo: false, padreId: null, residencial: M.esResidencial(c), mensualBs: 0, pendienteDesde: null, periodos: [],
+      deuda: M.deudaPorMeses(0, 0, true), multaExtraBs: 0, multasManuales: manuales, multasManualesBs: tot, totalBs: tot,
+    });
+  }
 
   const s = (f: (x: RenglonEstado) => number) => r2(renglones.reduce((a, x) => a + f(x), 0));
   return {
@@ -139,12 +179,13 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     mensual: M.cargoMensual(c, unidades, tasa),
     renglones,
     totales: {
-      baseBs: s(x => x.deuda.baseBs), multaBs: s(x => x.deuda.multaBs + x.multaExtraBs), ivaBs: s(x => x.deuda.ivaBs),
+      baseBs: s(x => x.deuda.baseBs), multaBs: s(x => x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs), ivaBs: s(x => x.deuda.ivaBs),
       retencionBs: s(x => x.deuda.retencionBs), totalBs: s(x => x.totalBs),
       mesesMax: Math.max(0, ...renglones.map(x => x.deuda.meses)),
-      unidadesConDeuda: renglones.filter(x => x.totalBs > 0).reduce((a, x) => a + x.cantidad, 0),
+      unidadesConDeuda: renglones.filter(x => x.totalBs > 0.01).reduce((a, x) => a + Math.max(1, x.cantidad), 0),
     },
     quienPaga: { aseo: M.aseoLoPagaLaUnidad(c) ? 'UNIDAD' : 'CONDOMINIO', multa: M.multaLaPagaLaUnidad(c) ? 'UNIDAD' : 'CONDOMINIO' },
+    porActividad: M.porActividad(c),
   };
 }
 
@@ -153,10 +194,9 @@ export async function cargarCondominio(codigo: string) {
   if (error) throw new Error(error.message);
   if (!condo) return null;
   const unidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).order('inmueble').range(a, b));
-  const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(200);
-  const meses = await mesesInmuebles([condo.codigo, ...unidades.map((u: any) => u.inmueble)]);
-  const s = sincronizar(condo, unidades, meses);
-  return { condo: s.condo, unidades: s.unidades, movimientos: movimientos || [] };
+  const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(300);
+  const { data: multas } = await sb.from('condominio_multas').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false });
+  return { condo, unidades, movimientos: movimientos || [], multas: multas || [] };
 }
 
 /** Resumen de todos los condominios (lista + panel). */
@@ -164,19 +204,20 @@ export async function resumenGeneral() {
   const tasa = await tasaVigente();
   const condos = await todas((a, b) => sb.from('condominios').select('*').order('nombre').range(a, b));
   const unidades = await todas((a, b) => sb.from('condominio_unidades')
-    .select('id,condominio_id,inmueble,identidad,actividad,tarifa_mmv,estado,aseo_pendiente_desde,multa_meses').order('id').range(a, b));
-  const meses = await mesesInmuebles();
+    .select('id,condominio_id,inmueble,identidad,actividad,tarifa_mmv,estado,aseo_pendiente_desde,multa_meses,padre_unidad_id,es_grupo').order('id').range(a, b));
+  const { data: multas } = await sb.from('condominio_multas').select('id,condominio_id,unidad_id,monto_bs,monto_mmv,estado,concepto,periodo,creada_por,created_at').eq('estado', 'Pendiente');
   const porCondo = new Map<string, any[]>();
   unidades.forEach(u => { if (!porCondo.has(u.condominio_id)) porCondo.set(u.condominio_id, []); porCondo.get(u.condominio_id)!.push(u); });
+  const multasPor = new Map<string, any[]>();
+  (multas || []).forEach(m => { if (!multasPor.has(m.condominio_id)) multasPor.set(m.condominio_id, []); multasPor.get(m.condominio_id)!.push(m); });
 
-  const filas = condos.map(c0 => {
-    const s = sincronizar(c0, porCondo.get(c0.id) || [], meses);
-    const c = s.condo, us = s.unidades;
-    const e = calcularEstado(c, us, tasa);
+  const filas = condos.map(c => {
+    const us = porCondo.get(c.id) || [];
+    const e = calcularEstado(c, us, tasa, new Date(), multasPor.get(c.id) || []);
     return {
       codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, tipo: c.tipo, modalidad: c.modalidad, estado: c.estado,
       cant_declarada: c.cant_declarada, unidades: us.length, mensualBs: e.mensual.condominioBs,
-      meses: e.totales.mesesMax, deudaBs: e.totales.totalBs, cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad,
+      meses: e.totales.mesesMax, deudaBs: e.totales.totalBs, cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad, porActividad: e.porActividad,
       permite_pago_por_unidad: !!c.permite_pago_por_unidad, permite_abonos: c.permite_abonos !== false, origen: c.origen || 'MIGRACION',
     };
   });
@@ -198,10 +239,33 @@ export async function resumenGeneral() {
   };
 }
 
-/** Unidades cuyo dueño tiene esta cédula/RIF (búsqueda del dueño). */
+/** Unidades cuyo dueño tiene esta cédula/RIF (búsqueda del dueño). Solo las que están DENTRO de un condominio. */
 export async function buscarPorDueno(identidad: string) {
   const n = M.normId(identidad);
   if (n.length < 4) return [];
-  const { data: us } = await sb.from('condominio_unidades').select('*, condominios!inner(codigo,nombre,modalidad)').ilike('identidad', `%${n}%`).limit(200);
+  const { data: us } = await sb.from('condominio_unidades').select('*, condominios!inner(codigo,nombre,modalidad,tipo)').ilike('identidad', `%${n}%`).limit(300);
   return (us || []).filter((u: any) => M.normId(u.identidad) === n);
+}
+
+/**
+ * Toma la foto de la deuda desde `inmuebles` y la guarda en el módulo (al migrar y el día de la separación).
+ * Devuelve el detalle de lo que cambiaría; solo escribe con `aplicar`.
+ */
+export async function refrescarDesdeInmuebles(aplicar = false) {
+  const condos = await todas((a, b) => sb.from('condominios').select('*').order('id').range(a, b));
+  const unidades = await todas((a, b) => sb.from('condominio_unidades').select('id,condominio_id,inmueble,aseo_pendiente_desde').order('id').range(a, b));
+  const meses = await mesesInmuebles();
+  const por = new Map<string, any[]>(); unidades.forEach(u => { if (!por.has(u.condominio_id)) por.set(u.condominio_id, []); por.get(u.condominio_id)!.push(u); });
+  const cambiosC: any[] = [], cambiosU: any[] = [];
+  for (const c of condos) {
+    const s = sincronizar(c, por.get(c.id) || [], meses);
+    if ((s.condo.aseo_pendiente_desde || null) !== (c.aseo_pendiente_desde || null)) cambiosC.push({ id: c.id, codigo: c.codigo, antes: c.aseo_pendiente_desde, despues: s.condo.aseo_pendiente_desde || null });
+    s.unidades.forEach((u: any, i: number) => { const a = (por.get(c.id) || [])[i]; if ((u.aseo_pendiente_desde || null) !== (a.aseo_pendiente_desde || null)) cambiosU.push({ id: u.id, inmueble: u.inmueble, antes: a.aseo_pendiente_desde, despues: u.aseo_pendiente_desde || null }); });
+  }
+  if (aplicar) {
+    for (const x of cambiosC) await sb.from('condominios').update({ aseo_pendiente_desde: x.despues }).eq('id', x.id);
+    const grupos = new Map<string, string[]>(); cambiosU.forEach(x => { const k = String(x.despues); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k)!.push(x.id); });
+    for (const [k, ids] of grupos) for (let i = 0; i < ids.length; i += 300) await sb.from('condominio_unidades').update({ aseo_pendiente_desde: k === 'null' ? null : k }).in('id', ids.slice(i, i + 300));
+  }
+  return { condominios: cambiosC, unidades: cambiosU };
 }

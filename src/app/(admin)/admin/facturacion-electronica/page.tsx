@@ -38,6 +38,7 @@ export default function FacturacionElectronicaPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTab, setFilterTab] = useState<'todos' | 'pendientes' | 'emitidas'>('pendientes');
+  const [moduloFiltro, setModuloFiltro] = useState<string>('Todos');
 
   // Día y tipo de documento (Facturas comerciales vs Recibos por correo)
   const [fecha, setFecha] = useState<string>(hoyCaracas());
@@ -190,9 +191,15 @@ export default function FacturacionElectronicaPage() {
     loadPagos();
   }, [loadPagos]);
 
+  // Filtro por módulo (Contribuyentes / Condominios)
+  const pasaModulo = (p: any) => moduloFiltro === 'Todos' ? true
+    : moduloFiltro === 'Contribuyentes' ? !p.condominio
+    : moduloFiltro === 'Condominios' ? !!p.condominio
+    : moduloFiltro === 'Condominios residenciales' ? p.condominio?.residencial === true
+    : p.condominio?.residencial === false;
   // Separación del día: facturas (todo lo comercial: servicio y multas) y recibos (solo residenciales)
-  const facturasDia = pagosList.filter(p => p.documento === 'factura');
-  const recibosDia = pagosList.filter(p => p.documento === 'recibo');
+  const facturasDia = pagosList.filter(p => p.documento === 'factura' && pasaModulo(p));
+  const recibosDia = pagosList.filter(p => p.documento === 'recibo' && pasaModulo(p));
   const delTipo = docTab === 'factura' ? facturasDia : recibosDia;
   const visibles = delTipo.filter(p =>
     filterTab === 'pendientes' ? !p.procesado : filterTab === 'emitidas' ? p.procesado : true
@@ -680,6 +687,12 @@ export default function FacturacionElectronicaPage() {
             </button>
           </div>
 
+          {/* Módulo */}
+          <select id="filtro-modulo-facturacion" value={moduloFiltro} onChange={e => setModuloFiltro(e.target.value)}
+            className="px-3 py-2 border border-emerald-300 bg-emerald-50/50 rounded-xl text-xs font-bold text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            {['Todos', 'Contribuyentes', 'Condominios', 'Condominios residenciales', 'Condominios comerciales'].map(x => <option key={x}>{x === 'Todos' ? 'Módulo: Todos' : x}</option>)}
+          </select>
+
           {/* Buscador */}
           <div className="relative w-full md:w-96">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -736,7 +749,16 @@ export default function FacturacionElectronicaPage() {
                           <span className="text-[10px] text-slate-400 font-mono">Ref: {pago.referencia}</span>
                         )}
                         {pago.inmuebles?.length > 0 && (
-                          <span className="block text-[10px] text-slate-400 font-mono">{pago.inmuebles.join(', ')}</span>
+                          <span className="block text-[10px] text-slate-400 font-mono">{pago.inmuebles.slice(0, 6).join(', ')}{pago.inmuebles.length > 6 ? ` +${pago.inmuebles.length - 6}` : ''}</span>
+                        )}
+                        {pago.condominio && (
+                          <span className="flex flex-wrap gap-1 mt-1">
+                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-600 text-white" title={pago.condominio.codigo || ''}>CONDOMINIO · {pago.condominio.nombre}</span>
+                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${pago.condominio.facturaA === 'CONTRIBUYENTE' ? 'bg-sky-50 text-sky-800 border-sky-300' : 'bg-emerald-50 text-emerald-800 border-emerald-300'}`}>
+                              Factura a: {pago.condominio.facturaA === 'CONTRIBUYENTE' ? 'el contribuyente' : 'el condominio'}
+                            </span>
+                            {pago.condominio.grupo && <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-sky-600 text-white">Parte {pago.condominio.grupo.parte} de {pago.condominio.grupo.partes} · pago total Bs {fmtBs(pago.condominio.grupo.montoTotal)}</span>}
+                          </span>
                         )}
                       </td>
                       <td className="py-3.5 px-4">

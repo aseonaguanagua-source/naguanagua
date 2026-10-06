@@ -43,7 +43,30 @@ export interface Unidad {
   tarifa_mmv?: number | null;
   estado: EstadoUnidad;
   tipo?: string | null;
+  /** Local que agrupa actividades (sus actividades cuelgan de él): no cobra por sí mismo */
+  es_grupo?: boolean;
 }
+
+/** Actividad vacía o "N/A": el local no tiene actividad propia (sus actividades están en otros registros). */
+export const esSinActividad = (a: any) => !a || /^(N\/?A|NA|NINGUNA|SIN ACTIVIDAD|-)$/i.test(String(a).trim());
+
+/**
+ * ¿Se cobra por la actividad económica de cada unidad? Sí en comerciales y mixtos (cada local según su
+ * actividad), en pago individual y cuando el condominio tiene "tarifa por local". Solo el residencial
+ * centralizado cobra declaradas × tarifa del condominio.
+ */
+export const porActividad = (c: Pick<Condominio, 'tipo' | 'modalidad' | 'cobro_tarifa_por_unidad'>) =>
+  c.modalidad === 'INDIVIDUAL' || !!c.cobro_tarifa_por_unidad || c.tipo !== 'RESIDENCIAL';
+
+/** ¿La unidad es residencial? (en un condominio MIXTO depende de su actividad) */
+export function unidadResidencial(c: Pick<Condominio, 'tipo'>, u?: Unidad | null): boolean {
+  if (c.tipo === 'RESIDENCIAL') return true;
+  if (c.tipo === 'COMERCIAL' || !u) return false;
+  return isResidencialInm({ tipo: u.tipo || '', actividad_principal: u.actividad || '' });
+}
+
+/** ¿Esta unidad no cobra por sí misma? (contenedor de actividades, o comercial sin actividad; la desocupada paga 1,98 MMV) */
+export const unidadNoCobra = (c: Condominio, u: Unidad) => !!u.es_grupo || (u.estado !== 'Desocupada' && !unidadResidencial(c, u) && esSinActividad(u.actividad));
 
 export const FO_DESOCUPADO = 1.98;
 export const FAC_COMERCIAL = 0.128;
@@ -59,9 +82,11 @@ export const esResidencial = (c: Pick<Condominio, 'tipo'>) => c.tipo === 'RESIDE
 
 /** Mensualidad de UNA unidad con la tarifa del condominio (o de la unidad si la tiene). */
 export function tarifaUnidadBs(c: Condominio, tasa: number, u?: Unidad): number {
+  const act = u && !esSinActividad(u.actividad) ? u.actividad : c.actividad;
+  const tipo = u ? (unidadResidencial(c, u) ? 'RESIDENCIAL' : 'COMERCIAL') : c.tipo;
   return calcularMensualidad({
-    tipo: u?.tipo || c.tipo,
-    actividad_principal: u?.actividad || c.actividad || '',
+    tipo,
+    actividad_principal: act || '',
     mmv_mes: u?.tarifa_mmv ?? c.tarifa_mmv ?? undefined,
     cant_inmuebles: 1,
   }, tasa);
@@ -87,19 +112,15 @@ export function cargoMensual(c: Condominio, unidades: Unidad[], tasa: number): C
   const tUnit = tarifaUnidadBs(c, tasa);
   const tDesoc = tarifaDesocupadaBs(tasa);
 
-  if (c.modalidad === 'INDIVIDUAL') {
-    return { condominioBs: 0, unidadesCobradas: 0, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
-      detalle: 'Pago individual: cada unidad paga su aseo y su multa' };
-  }
   if (c.modalidad === 'TARIFA_FIJA' && (c.tarifa_fija_bs || 0) > 0) {
     return { condominioBs: r2(c.tarifa_fija_bs!), unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
       detalle: 'Tarifa fija acordada' };
   }
-  if (c.cobro_tarifa_por_unidad) {
+  if (porActividad(c)) {
     const reparto = cargosPorUnidad(c, unidades, tasa);
     const total = reparto.reduce((s, r) => s + r.montoBs, 0);
-    return { condominioBs: r2(total), unidadesCobradas: reparto.length, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
-      detalle: 'Suma de la tarifa propia de cada unidad' };
+    return { condominioBs: r2(total), unidadesCobradas: reparto.filter(r => r.montoBs > 0).length, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
+      detalle: c.modalidad === 'INDIVIDUAL' ? 'Cada unidad paga lo suyo (suma de todas)' : 'Suma de la actividad económica de cada local' };
   }
   const ocupadas = declarada - desoc;
   const total = tUnit * ocupadas + tDesoc * desoc;
@@ -135,12 +156,13 @@ export function cargosPorUnidad(c: Condominio, unidades: Unidad[], tasa: number)
   if (c.modalidad === 'TARIFA_FIJA' && (c.tarifa_fija_bs || 0) > 0) {
     return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: r2(c.tarifa_fija_bs!) }];
   }
-  if (c.modalidad === 'INDIVIDUAL' || c.cobro_tarifa_por_unidad) {
-    // Cada local con su propia actividad (p. ej. HMR) o pago individual: solo se cobran las unidades
-    // registradas, porque de las no registradas no se conoce la actividad. Hay que registrarlas.
+  if (porActividad(c)) {
+    // Cada local según su actividad económica. Solo se cobran las unidades registradas (de las no
+    // registradas no se conoce la actividad). Los locales contenedor (con actividades debajo) o sin
+    // actividad no cobran por sí mismos: cobran sus actividades.
     return vivas.map((u, i) => ({
       clave: clave(u, i), inmueble: u.inmueble, cantidad: 1,
-      montoBs: r2(u.estado === 'Desocupada' ? tDesoc : tarifaUnidadBs(c, tasa, u)),
+      montoBs: unidadNoCobra(c, u) ? 0 : r2(u.estado === 'Desocupada' ? tDesoc : tarifaUnidadBs(c, tasa, u)),
     }));
   }
 
@@ -165,9 +187,9 @@ export function cargosPorUnidad(c: Condominio, unidades: Unidad[], tasa: number)
   return out;
 }
 
-/** Cargo mensual de UNA unidad (solo modalidad INDIVIDUAL; en las demás la unidad no paga aseo propio). */
+/** Cargo mensual de UNA unidad cuando se cobra por actividad (en el residencial centralizado la unidad no paga aseo propio). */
 export function cargoMensualUnidad(c: Condominio, u: Unidad, tasa: number): number {
-  if (c.modalidad !== 'INDIVIDUAL' || u.estado === 'Eliminada') return 0;
+  if (!porActividad(c) || u.estado === 'Eliminada' || unidadNoCobra(c, u)) return 0;
   return r2(u.estado === 'Desocupada' ? tarifaDesocupadaBs(tasa) : tarifaUnidadBs(c, tasa, u));
 }
 
@@ -253,13 +275,13 @@ export function aplicarAbono(montoBs: number, deuda: RenglonDeuda[]): ResultadoA
 export const normId = (s: any) => String(s || '').replace(/^[VEJPG]-?/i, '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
 
 /**
- * ¿Quién paga la multa de una unidad? En MIXTO_COMERCIAL e INDIVIDUAL la paga el dueño de la unidad
- * (se le busca por su cédula/RIF en la Caja de Condominios); en CENTRALIZADO y TARIFA_FIJA, el condominio.
+ * ¿Quién paga la multa de una unidad? Cuando se cobra por actividad, la paga cada contribuyente (se le busca
+ * por su cédula/RIF en la Caja de Condominios); en el residencial centralizado y tarifa fija, el condominio.
  */
-export const multaLaPagaLaUnidad = (c: Condominio) => c.modalidad === 'MIXTO_COMERCIAL' || c.modalidad === 'INDIVIDUAL';
+export const multaLaPagaLaUnidad = (c: Condominio) => porActividad(c);
 
-/** ¿El aseo de la unidad lo paga la propia unidad? Solo en INDIVIDUAL. */
-export const aseoLoPagaLaUnidad = (c: Condominio) => c.modalidad === 'INDIVIDUAL';
+/** ¿El aseo de la unidad lo paga la propia unidad? Cuando se cobra por actividad. */
+export const aseoLoPagaLaUnidad = (c: Condominio) => porActividad(c);
 
 /**
  * ¿Es un condominio real? Un mismo dueño con varias actividades NO es condominio

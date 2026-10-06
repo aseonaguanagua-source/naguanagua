@@ -21,24 +21,41 @@ t('Residencial centralizado: cantidad declarada × tarifa', () => {
   assert.equal(r.unidadesCobradas, 10);
 });
 
-t('Se cobra la DECLARADA aunque haya menos unidades registradas', () => {
+t('Comercial por actividad: suma de cada local; las no registradas no se cobran', () => {
   const c: Condominio = { codigo: 'URBX', tipo: 'COMERCIAL', modalidad: 'MIXTO_COMERCIAL', cant_declarada: 565, tarifa_mmv: 1.98 };
-  const r = cargoMensual(c, Array(546).fill({ estado: 'Activa' }), TASA);
-  cerca(r.condominioBs, r.tarifaUnidadBs * 565, 1);
+  const u = [{ id: 'a', estado: 'Activa' as const, actividad: 'RESTAURANTES', tarifa_mmv: 6.21 }, { id: 'b', estado: 'Activa' as const, actividad: 'FARMACIAS', tarifa_mmv: 3.1 }];
+  const rep = cargosPorUnidad(c, u, TASA);
+  assert.equal(rep.length, 2);
+  assert.ok(!rep.some(r => r.clave === SIN_REGISTRAR));
+  cerca(cargoMensual(c, u, TASA).condominioBs, rep[0].montoBs + rep[1].montoBs);
+  assert.ok(rep[0].montoBs > rep[1].montoBs);
 });
 
-t('Desocupadas pagan 1,98 MMV', () => {
+t('Local "N/A" y local contenedor no cobran; sus actividades sí', () => {
+  const c: Condominio = { codigo: 'URBX', tipo: 'COMERCIAL', modalidad: 'MIXTO_COMERCIAL', cant_declarada: 3 };
+  const u = [
+    { id: 'local', estado: 'Activa' as const, actividad: 'N/A', es_grupo: true },
+    { id: 'act1', estado: 'Activa' as const, actividad: 'RESTAURANTES', tarifa_mmv: 6.21 },
+    { id: 'na', estado: 'Activa' as const, actividad: 'N/A' },
+  ];
+  const rep = cargosPorUnidad(c, u, TASA);
+  assert.equal(rep.find(r => r.clave === 'local')!.montoBs, 0);
+  assert.equal(rep.find(r => r.clave === 'na')!.montoBs, 0);
+  assert.ok(rep.find(r => r.clave === 'act1')!.montoBs > 0);
+});
+
+t('Desocupadas pagan 1,98 MMV (aunque no tengan actividad)', () => {
   const c: Condominio = { codigo: 'URBX', tipo: 'COMERCIAL', modalidad: 'MIXTO_COMERCIAL', cant_declarada: 3, tarifa_mmv: 6.12 };
-  const r = cargoMensual(c, [{ estado: 'Activa' }, { estado: 'Desocupada' }, { estado: 'Activa' }], TASA);
-  cerca(r.condominioBs, r.tarifaUnidadBs * 2 + tarifaDesocupadaBs(TASA));
+  const rep = cargosPorUnidad(c, [{ id: 'd', estado: 'Desocupada' }], TASA);
+  cerca(rep[0].montoBs, tarifaDesocupadaBs(TASA));
   cerca(tarifaDesocupadaBs(TASA), 1.98 * 57 * TASA * 0.128);
 });
 
-t('Pago individual: el condominio no genera cargo; la unidad sí', () => {
+t('Pago individual: el condominio suma lo de cada unidad', () => {
   const c: Condominio = { codigo: 'URB014903', tipo: 'COMERCIAL', modalidad: 'INDIVIDUAL', cant_declarada: 328, tarifa_mmv: 1.98 };
   assert.equal(cargoMensual(c, [], TASA).condominioBs, 0);
-  assert.ok(cargoMensualUnidad(c, { estado: 'Activa', tarifa_mmv: 6.21 }, TASA) > 0);
-  assert.equal(cargoMensualUnidad({ ...c, modalidad: 'MIXTO_COMERCIAL' }, { estado: 'Activa' }, TASA), 0);
+  assert.ok(cargoMensualUnidad(c, { estado: 'Activa', actividad: 'RESTAURANTES', tarifa_mmv: 6.21 }, TASA) > 0);
+  assert.equal(cargoMensualUnidad({ ...c, tipo: 'RESIDENCIAL', modalidad: 'CENTRALIZADO' }, { estado: 'Activa' }, TASA), 0);
 });
 
 t('Tarifa fija acordada', () => {
@@ -83,8 +100,8 @@ t('Mismo dueño con varias actividades NO es condominio', () => {
   assert.equal(esCondominioReal({ identidad: 'J-123' }, []), true);
 });
 
-t('Reparto por unidad: suma = cargo del condominio; las no registradas van en un grupo', () => {
-  const c: Condominio = { codigo: 'URB016822', tipo: 'COMERCIAL', modalidad: 'MIXTO_COMERCIAL', cant_declarada: 565, tarifa_mmv: 1.98 };
+t('Reparto residencial: suma = cargo del condominio; las no registradas van en un grupo', () => {
+  const c: Condominio = { codigo: 'URBX', tipo: 'RESIDENCIAL', modalidad: 'CENTRALIZADO', cant_declarada: 565, actividad: 'APARTAMENTO (ZONA A)', tarifa_mmv: 0.618 };
   const unidades = Array.from({ length: 546 }, (_, i) => ({ id: `u${i}`, estado: 'Activa' as const }));
   const rep = cargosPorUnidad(c, unidades, TASA);
   assert.equal(rep.length, 547);
@@ -102,7 +119,7 @@ t('Reparto con más registradas que declaradas: total = declarada, cuadra al cé
 
 t('Cobro con tarifa propia de cada unidad (condominio paga la suma)', () => {
   const c: Condominio = { codigo: 'URBX', tipo: 'COMERCIAL', modalidad: 'CENTRALIZADO', cant_declarada: 2, tarifa_mmv: 1.98, cobro_tarifa_por_unidad: true };
-  const u = [{ id: 'a', estado: 'Activa' as const, tarifa_mmv: 82.99 }, { id: 'b', estado: 'Activa' as const, tarifa_mmv: 6.21 }];
+  const u = [{ id: 'a', estado: 'Activa' as const, actividad: 'HOTELES', tarifa_mmv: 82.99 }, { id: 'b', estado: 'Activa' as const, actividad: 'RESTAURANTES', tarifa_mmv: 6.21 }];
   const rep = cargosPorUnidad(c, u, TASA);
   cerca(cargoMensual(c, u, TASA).condominioBs, rep[0].montoBs + rep[1].montoBs);
   assert.ok(rep[0].montoBs > rep[1].montoBs * 10);
@@ -125,6 +142,7 @@ t('Abono: cubre primero los meses más viejos; aseo antes que multa', () => {
 
 t('Quién paga la multa', () => {
   assert.equal(multaLaPagaLaUnidad({ codigo: 'x', tipo: 'COMERCIAL', modalidad: 'MIXTO_COMERCIAL', cant_declarada: 1 }), true);
+  assert.equal(multaLaPagaLaUnidad({ codigo: 'x', tipo: 'MIXTO', modalidad: 'CENTRALIZADO', cant_declarada: 1 }), true);
   assert.equal(multaLaPagaLaUnidad({ codigo: 'x', tipo: 'RESIDENCIAL', modalidad: 'CENTRALIZADO', cant_declarada: 1 }), false);
 });
 

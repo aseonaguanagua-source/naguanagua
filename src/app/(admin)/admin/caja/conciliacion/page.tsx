@@ -11,6 +11,7 @@ import AdminRetenciones from '@/components/AdminRetenciones';
 import { LISTA_BANCOS } from '@/lib/bancos';
 import { calcularMensualidad, isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 import { desglosarPago } from '@/lib/desglosePago';
+import { FILTROS_MODULO, FiltroModulo, OR_CONDOMINIOS, infoCondominioPago, pasaFiltroModulo, rifsCondominios, useCondominiosLigero } from '@/lib/condominios/pagosCondominio';
 
 type Pago = {
   id: string;
@@ -38,6 +39,7 @@ type Filtros = {
   formaPago: string;
   referencia: string;
   monto: string;
+  modulo: FiltroModulo;
 };
 
 const BANCOS_DESTINO = [
@@ -1116,10 +1118,11 @@ export default function ConciliacionPage() {
   const [activeTab, setActiveTab] = useState<'pagos' | 'retenciones'>('pagos');
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [loading, setLoading] = useState(false);
+  const condos = useCondominiosLigero();
   const [filtros, setFiltros] = useState<Filtros>({
     desde: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     hasta: new Date().toISOString().split('T')[0],
-    estatus: 'Por Verificar', bancoDestino: 'Todos', formaPago: 'Todos', referencia: '', monto: '',
+    estatus: 'Por Verificar', bancoDestino: 'Todos', formaPago: 'Todos', referencia: '', monto: '', modulo: 'Todos',
   });
   const [pagoSel, setPagoSel] = useState<Pago | null>(null);
   const [mode, setMode] = useState<'conciliar'|'comprobante'|'edoCuenta'|null>(null);
@@ -1130,15 +1133,33 @@ export default function ConciliacionPage() {
       // Cuando se buscan pagos Por Verificar, NO aplicar filtro de fecha (mostrar todos)
       // El filtro de fecha solo se aplica si el estatus es 'Todos', 'Aprobado', etc.
       const soloVerificacion = filtros.estatus === 'Por Verificar';
-      let q = supabase.from('pagos_reportados').select('*').order('created_at', { ascending: false }).limit(500);
-      if (!soloVerificacion && filtros.desde) q = q.gte('created_at', filtros.desde + 'T04:00:00.000Z');
-      if (!soloVerificacion && filtros.hasta) { const d = new Date(filtros.hasta + 'T04:00:00Z'); d.setDate(d.getDate()+1); q = q.lte('created_at', d.toISOString()); }
-      if (filtros.estatus !== 'Todos') q = q.eq('estado', filtros.estatus);
-      if (filtros.formaPago !== 'Todos') q = q.eq('tipo', filtros.formaPago);
-      if (filtros.referencia) q = q.ilike('referencia', '%' + filtros.referencia + '%');
-      if (filtros.monto) q = q.eq('monto', filtros.monto);
-      const { data } = await q;
-      let result = data || [];
+      const armar = () => {
+        let q = supabase.from('pagos_reportados').select('*').order('created_at', { ascending: false }).limit(500);
+        if (!soloVerificacion && filtros.desde) q = q.gte('created_at', filtros.desde + 'T04:00:00.000Z');
+        if (!soloVerificacion && filtros.hasta) { const d = new Date(filtros.hasta + 'T04:00:00Z'); d.setDate(d.getDate()+1); q = q.lte('created_at', d.toISOString()); }
+        if (filtros.estatus !== 'Todos') q = q.eq('estado', filtros.estatus);
+        if (filtros.formaPago !== 'Todos') q = q.eq('tipo', filtros.formaPago);
+        if (filtros.referencia) q = q.ilike('referencia', '%' + filtros.referencia + '%');
+        if (filtros.monto) q = q.eq('monto', filtros.monto);
+        return q;
+      };
+      let result: any[] = [];
+      if (filtros.modulo.startsWith('Condominios')) {
+        // Pagos de condominios: del módulo / marcados, y por RIF del condominio (en lotes)
+        const lotes = [armar().or(OR_CONDOMINIOS)];
+        const rifs = rifsCondominios(condos);
+        for (let i = 0; i < rifs.length; i += 150) lotes.push(armar().in('identidad', rifs.slice(i, i + 150)));
+        const res = await Promise.all(lotes);
+        const porId = new Map<string, any>();
+        res.forEach(r => (r.data || []).forEach((p: any) => porId.set(p.id, p)));
+        result = [...porId.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 500);
+      } else {
+        let q = armar();
+        if (filtros.modulo === 'Contribuyentes') q = q.neq('modulo', 'condominios');
+        const { data } = await q;
+        result = data || [];
+      }
+      result = result.filter((p: any) => pasaFiltroModulo(p, filtros.modulo, condos));
       if (filtros.bancoDestino !== 'Todos') {
         result = result.filter((p: any) => {
           const det = parseDetalles(p.detalles);
@@ -1148,7 +1169,7 @@ export default function ConciliacionPage() {
       setPagos(result);
     } catch(e) { console.error(e); }
     setLoading(false);
-  }, [filtros]);
+  }, [filtros, condos]);
 
   useEffect(() => { fetchPagos(); }, [fetchPagos]);
 
@@ -1164,15 +1185,31 @@ export default function ConciliacionPage() {
   };
 
   const filas: React.ReactNode[] = [];
+  let totalCondo = 0, cantCondo = 0;
   pagos.forEach((pago, idx) => {
     const det = parseDetalles(pago.detalles);
+    const condo = infoCondominioPago(pago, condos);
     const docInfo = 'id pago => ' + pago.id + ' Documento Nro. => ' + (det.doc_nro || '') + ' Responsable => ' + (det.responsable || '') + ' Analista => ' + (det.analista || '');
     const esPendiente = pago.estado === 'Por Verificar' || pago.estado === 'Pendiente';
     const esAprobado = pago.estado === 'Aprobado';
     const m = parseFloat(String(pago.monto||'0').replace(/[^0-9.]/g,''));
+    if (condo) { totalCondo += m || 0; cantCondo++; }
+    const mismoGrupoQueAnterior = condo?.grupo && idx > 0 && infoCondominioPago(pagos[idx - 1], condos)?.grupo?.id === condo.grupo.id;
     filas.push(
-      <tr key={'doc'+idx} className="bg-slate-100 border-t border-slate-200">
-        <td colSpan={10} className="px-3 py-1 text-xs text-slate-600 font-mono truncate">{docInfo}</td>
+      <tr key={'doc'+idx} className={`${condo ? 'bg-emerald-50' : 'bg-slate-100'} border-t ${mismoGrupoQueAnterior ? 'border-dashed border-sky-300' : 'border-slate-200'}`}>
+        <td colSpan={10} className="px-3 py-1 text-xs text-slate-600 font-mono truncate">
+          {condo && (
+            <span className="inline-flex items-center gap-1.5 mr-2 font-sans align-middle">
+              <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-black">CONDOMINIO{condo.residencial === true ? ' · RESIDENCIAL' : condo.residencial === false ? ' · COMERCIAL' : ''}</span>
+              <span className="text-[11px] font-bold text-emerald-900">{condo.nombre}{condo.codigo ? ` (${condo.codigo})` : ''}</span>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${condo.facturaA === 'CONTRIBUYENTE' ? 'bg-sky-100 text-sky-800 border border-sky-300' : 'bg-white text-emerald-800 border border-emerald-300'}`}>
+                Factura a: {condo.facturaA === 'CONTRIBUYENTE' ? 'el contribuyente' : 'el condominio'}
+              </span>
+              {condo.grupo && <span className="px-1.5 py-0.5 rounded bg-sky-600 text-white text-[10px] font-black">Pago repartido · parte {condo.grupo.parte} de {condo.grupo.partes} · total Bs {fmt(condo.grupo.montoTotal)}</span>}
+            </span>
+          )}
+          {docInfo}
+        </td>
       </tr>,
       <tr key={'d'+idx} className="hover:bg-blue-50/30 transition-colors border-b border-slate-100">
         <td className="px-3 py-2 text-xs font-mono text-slate-700">
@@ -1183,7 +1220,9 @@ export default function ConciliacionPage() {
           })()}
           <div className="text-[10px] text-slate-500">{pago.identidad}</div>
         </td>
-        <td className="px-3 py-2 text-xs text-slate-600">{det.cod_inmueble || pago.cod_inmueble || '---'}</td>
+        <td className="px-3 py-2 text-xs text-slate-600">
+          {det.cod_inmueble || pago.cod_inmueble || (condo?.lineas?.length ? condo.lineas.slice(0, 3).map(l => l.inmueble).filter(Boolean).join(', ') + (condo.lineas.length > 3 ? ` +${condo.lineas.length - 3}` : '') : condo?.codigo) || '---'}
+        </td>
         <td className="px-3 py-2 text-xs font-mono text-slate-600">{pago.referencia || '---'}</td>
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtFecha(pago.created_at)}</td>
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{det.fecha_transaccion || (pago.fecha_transaccion||'').split('T')[0] || '---'}</td>
@@ -1236,7 +1275,7 @@ export default function ConciliacionPage() {
                 <Filter size={14}/> {loading ? 'Cargando...' : 'Aplicar Filtros'}
               </button>
             </div>
-            <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
+            <div className="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
               <div className="lg:col-span-2">
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Rango de Fechas</label>
                 <div className="flex gap-1">
@@ -1249,6 +1288,7 @@ export default function ConciliacionPage() {
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Forma de pago</label><select value={filtros.formaPago} onChange={e=>setFiltros(f=>({...f,formaPago:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{FORMAS_PAGO.map(fp=><option key={fp}>{fp}</option>)}</select></div>
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Referencia de Pago</label><input value={filtros.referencia} onChange={e=>setFiltros(f=>({...f,referencia:e.target.value}))} placeholder="Referencia..." className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Monto</label><input value={filtros.monto} onChange={e=>setFiltros(f=>({...f,monto:e.target.value}))} placeholder="Monto exacto" type="number" className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
+              <div><label className="block text-xs font-semibold text-emerald-700 mb-1">Módulo</label><select id="filtro-modulo-conciliacion" value={filtros.modulo} onChange={e=>setFiltros(f=>({...f,modulo:e.target.value as FiltroModulo}))} className="w-full border border-emerald-300 bg-emerald-50/40 rounded px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400">{FILTROS_MODULO.map(x=><option key={x}>{x}</option>)}</select></div>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1266,7 +1306,12 @@ export default function ConciliacionPage() {
                 </table>
               </div>
             )}
-            {!loading && pagos.length > 0 && <div className="px-4 py-2 border-t border-slate-100 text-xs text-slate-400 bg-slate-50">{pagos.length} registro(s) encontrados</div>}
+            {!loading && pagos.length > 0 && (
+              <div className="px-4 py-2 border-t border-slate-100 text-xs text-slate-400 bg-slate-50 flex flex-wrap justify-between gap-2">
+                <span>{pagos.length} registro(s) encontrados</span>
+                {cantCondo > 0 && <span className="text-emerald-700 font-bold">{cantCondo} de condominios · Bs {fmt(totalCondo)}</span>}
+              </div>
+            )}
           </div>
           {pagoSel && mode === 'conciliar' && <ModalConciliacion pago={pagoSel} onClose={cerrar} onSuccess={onSuccess}/>}
           {pagoSel && mode === 'comprobante' && <ModalComprobante pago={pagoSel} onClose={cerrar}/>}

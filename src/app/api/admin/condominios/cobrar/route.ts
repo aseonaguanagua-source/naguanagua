@@ -1,19 +1,27 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
-import { cajaActiva, prepararCobro, registrarCobro } from '@/lib/condominios/cobro';
+import { cajaActiva, prepararCobro, registrarCobro, SolicitudCobro } from '@/lib/condominios/cobro';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
  * POST /api/admin/condominios/cobrar
- *  { accion: 'calcular', codigo, claves?, meses? }                 → arma el cobro (no escribe)
- *  { accion: 'cobrar',   codigo, claves?, meses?, pago: {...}, usuario } → registra (solo con la Caja de Condominios activa)
+ *  { accion: 'calcular', codigo, modo?, claves?, identidad?, meses?, soloMultas? }  → arma el cobro (no escribe)
+ *  { accion: 'cobrar',   ...lo mismo, pago: {...}, usuario }                        → registra (solo con la Caja activa)
+ *  modo: 'CONDOMINIO' (una factura al condominio) | 'CONTRIBUYENTE' (una factura por dueño)
  */
 export async function POST(req: Request) {
   try {
     const b = await req.json();
-    const sol = { codigo: String(b.codigo || '').toUpperCase(), claves: Array.isArray(b.claves) ? b.claves : [], meses: b.meses ? Number(b.meses) : null };
+    const sol: SolicitudCobro = {
+      codigo: String(b.codigo || '').toUpperCase(),
+      modo: b.modo === 'CONTRIBUYENTE' ? 'CONTRIBUYENTE' : b.modo === 'CONDOMINIO' ? 'CONDOMINIO' : undefined,
+      claves: Array.isArray(b.claves) ? b.claves : [],
+      identidad: b.identidad ? String(b.identidad).trim().toUpperCase() : null,
+      meses: b.meses ? Number(b.meses) : null,
+      soloMultas: !!b.soloMultas,
+    };
     if (!sol.codigo && !['estado', 'interruptor'].includes(b.accion)) return NextResponse.json({ error: 'Falta el código del condominio' }, { status: 400 });
     const activa = await cajaActiva();
 
@@ -46,7 +54,6 @@ export async function POST(req: Request) {
     const r = await registrarCobro(sol, {
       pagoId: String(p.pagoId || ''), metodo: String(p.metodo || ''), banco: p.banco, referencia: p.referencia,
       montoRecibido: Number(p.montoRecibido) || 0, cajero: String(p.cajero || trab.usuario), usuario: `${trab.nombre || trab.usuario} (${trab.usuario})`,
-      identidadPagador: p.identidadPagador, nombrePagador: p.nombrePagador,
     });
     const { _datos, ...cobro } = r.cobro as any;
     return NextResponse.json({ ...r, cobro });
