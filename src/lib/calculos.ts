@@ -116,6 +116,38 @@ export const nivelActividad = (actividadFull: string): number => {
   return 0;
 };
 
+/** Quita el sufijo de nivel " (ALTA)/(MEDIA)/(BAJA)" de una actividad. */
+export const quitarNivelActividad = (actividad: string): string =>
+  String(actividad || '').replace(/\s*\((ALTA|MEDIA|BAJA)\)\s*$/i, '').trim();
+
+/** Guarda el nivel dentro del texto de la actividad: índice 1 → "(MEDIA)", 2 → "(ALTA)", 0 → sin sufijo (BAJA). */
+export const actividadConNivel = (actividad: string, nivelIdx: number): string => {
+  const base = quitarNivelActividad(actividad);
+  if (!base) return base;
+  if (nivelIdx === 2) return `${base} (ALTA)`;
+  if (nivelIdx === 1) return `${base} (MEDIA)`;
+  return base;
+};
+
+/**
+ * Actividad (sin sufijo) y nivel real de un inmueble comercial:
+ *  1. Si el texto trae (ALTA)/(MEDIA)/(BAJA) → ese nivel.
+ *  2. Si no, el nivel cuyo F.O. de la ordenanza coincide con la tarifa guardada (mmv_mes).
+ *  3. Si no, BAJA (0).
+ */
+export const actividadYNivelDeInmueble = (inm: any): { actividad: string; nivelIdx: number } => {
+  const texto = String(inm?.actividad_principal || inm?.actividad || '');
+  const actividad = quitarNivelActividad(texto);
+  if (/\((ALTA|MEDIA|BAJA)\)\s*$/i.test(texto)) return { actividad, nivelIdx: nivelActividad(texto) };
+  const found = buscarActividadOrdenanza(actividad);
+  const mmv = Number(inm?.mmv_mes) || 0;
+  if (found?.factores && mmv > 0) {
+    const idx = (found.factores as number[]).findIndex((f: number) => Math.abs(f - mmv) < 0.005);
+    if (idx >= 0) return { actividad, nivelIdx: Math.min(idx, 2) };
+  }
+  return { actividad, nivelIdx: 0 };
+};
+
 /** Busca la actividad en la ordenanza (exacta, contenida o equivalente con errores de escritura). */
 export const buscarActividadOrdenanza = (actividadFull: string): any | null => {
   const act = (actividadFull || '').toLowerCase().trim();

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
 
 import { ordenanzaData } from '@/data/ordenanza';
-import { isResidencialInm } from '@/lib/calculos';
+import { isResidencialInm, actividadConNivel, quitarNivelActividad } from '@/lib/calculos';
 import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
 import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants } from '@/lib/formatters';
 import { logAudit, AuditCategoria, AuditCriticidad } from '@/lib/audit';
@@ -793,10 +793,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return s;
   };
   const tipoDeUso = (uso: string) => (uso === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL');
+  const idxNivel = (nivel: string) => Math.max(0, (ordenanzaData.nivelesMetraje as string[]).findIndex(
+    (n: string) => n.toLowerCase().trim() === String(nivel || '').toLowerCase().trim()));
   const actividadDeLocal = (local: any) =>
     local.uso === 'Residencial'
       ? (local.tipoResidencia || 'No aplica')
-      : (local.estatus === 'Desocupado' ? DESOCUPADO_LABEL : (local.actividad || ''));
+      : (local.estatus === 'Desocupado' ? DESOCUPADO_LABEL : actividadConNivel(local.actividad || '', idxNivel(local.nivel)));
   /** Siguientes códigos URB###### libres (correlativo del catastro, sin colisiones). */
   const siguientesCodigosInmueble = async (n: number): Promise<string[]> => {
     const { data } = await supabase
@@ -915,7 +917,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           upd.direccion = data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion;
         }
         if (tarifaCambio) {
-          nuevaActividad = nuevaClasificacion === 'Residencial' ? (data.TipoResidencia || 'No aplica') : (data.ActividadComercial || '');
+          nuevaActividad = nuevaClasificacion === 'Residencial' ? (data.TipoResidencia || 'No aplica') : actividadConNivel(data.ActividadComercial || '', idxNivel(data.NivelMetraje));
           const mmv = calcularMmvMes(data, ordenanzasConfig);
           if (nuevaClasificacion !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${nuevaActividad}".`);
           if (!objetivo) throw new Error('No se pudo determinar qué inmueble modificar. Edite cada inmueble por separado.');
@@ -940,7 +942,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               inmueble: codigos[i], identidad: identidadExacta, contribuyente: data.Contribuyente,
               telefono: data.Telefono, correo_electronico: data.Correo, direccion: data.Direccion,
               tipo: 'COMERCIAL', clasificacion: 'Individual', estado: 'Activo',
-              actividad_principal: a.actividad, mmv_mes: mmv, cant_inmuebles: 1,
+              actividad_principal: actividadConNivel(a.actividad, idxNivel(a.nivel)), mmv_mes: mmv, cant_inmuebles: 1,
               agente_retencion: data.esAgenteRetencion === true,
             };
           });
@@ -974,7 +976,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         || config.tiposResidenciales?.find((t: any) => t.label.toLowerCase().trim() === (tipo || '').toLowerCase().trim());
       if (tarifa) mmv = tarifa.factor;
     } else {
-      const act = localOrData.actividad || localOrData.ActividadComercial || localOrData.actividad_principal;
+      // La actividad puede venir con sufijo de nivel "(MEDIA)"; la tarifa se busca por el nombre base
+      const act = quitarNivelActividad(localOrData.actividad || localOrData.ActividadComercial || localOrData.actividad_principal || '');
       // Búsqueda case-insensitive de actividad
       const tarifa = config.actividadesComerciales?.find((t: any) => t.label === act)
         || config.actividadesComerciales?.find((t: any) => t.label.toLowerCase().trim() === (act || '').toLowerCase().trim())

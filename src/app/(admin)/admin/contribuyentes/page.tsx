@@ -25,7 +25,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad, actividadYNivelDeInmueble } from '@/lib/calculos';
 import { isSameLocal, getShortAddress } from '@/lib/cajaHelpers';
 
 
@@ -1598,15 +1598,16 @@ function ContribuyentesPageContent() {
           const uso = usoDe(inm);
           const act = inm.actividad_principal || '';
           const desocupado = uso === 'Comercial' && /DESOCUPAD/i.test(act);
+          const an = actividadYNivelDeInmueble(inm);
           const loc: any = {
             id: `local-${idx}-${Date.now()}`,
             codigo: inm.inmueble,
             numeracion: inm.inmueble || `Inmueble ${idx + 1}`,
             uso,
             estatus: desocupado ? 'Desocupado' : 'Ocupado',
-            actividad: uso === 'Residencial' || desocupado ? '' : act,
+            actividad: uso === 'Residencial' || desocupado ? '' : an.actividad,
             tipoResidencia: uso === 'Residencial' ? act : '',
-            nivel: parseAreaToLevel(parseFloat(inm.area) || 0),
+            nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
             mmvActual: inm.mmv_mes,
           };
           loc.__orig = { uso: loc.uso, actividad: loc.actividad, nivel: loc.nivel, tipoResidencia: loc.tipoResidencia, estatus: loc.estatus };
@@ -1617,8 +1618,9 @@ function ContribuyentesPageContent() {
         if (usoDe(principal) === 'Residencial') {
           TipoResidencia = principal.actividad_principal || TipoResidencia;
         } else {
-          ActividadComercial = principal.actividad_principal || '';
-          NivelMetraje = parseAreaToLevel(parseFloat(principal.area) || 0);
+          const an = actividadYNivelDeInmueble(principal);
+          ActividadComercial = an.actividad;
+          NivelMetraje = ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0];
         }
       }
     }
