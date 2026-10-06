@@ -747,7 +747,15 @@ export default function CajaPage() {
           .map((i: any) => i.inmueble);
 
         // Los inmuebles cobrables son las actividades reales (excluyendo contenedores N/A)
-        const billableInms = misInmuebles.filter((i: any) => !naParentCodes.includes(i.inmueble));
+        let billableInms = misInmuebles.filter((i: any) => !naParentCodes.includes(i.inmueble));
+        // Búsqueda por CÓDIGO: solo ese inmueble y sus unidades. Antes se colaban los meses de otros
+        // inmuebles de la misma cédula, que Caja no podía calcular y aparecían como "En Verificación".
+        if (isCodeFormat && (user.CodCont || user.cod_cont)) {
+          const sc = String(user.CodCont || user.cod_cont).toUpperCase();
+          const soloCodigo = billableInms.filter((i: any) =>
+            String(i.inmueble || '').toUpperCase() === sc || String(i.condominio_padre_id || '').toUpperCase() === sc);
+          if (soloCodigo.length > 0) billableInms = soloCodigo;
+        }
 
         const hasDeuda = billableInms.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
         if (hasDeuda && !isCondominio) {
