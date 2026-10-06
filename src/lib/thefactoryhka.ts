@@ -31,11 +31,11 @@ export class TheFactoryHKA {
   }
 
   public static getBackupEmail(): string {
-    return process.env.TFHKA_BACKUP_EMAIL?.trim() || 'facturacion.naguanagua@gmail.com';
+    return process.env.TFHKA_BACKUP_EMAIL?.trim() || 'facturacion.comercial@globalgreenca.com';
   }
 
   public static getFallbackEmail(): string {
-    return process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.naguanagua@gmail.com';
+    return process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.comercial@globalgreenca.com';
   }
 
   private static token: string | null = null;

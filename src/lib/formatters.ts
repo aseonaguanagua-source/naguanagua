@@ -80,6 +80,15 @@ export function formatPhoneNumber(raw?: string | null): string {
 }
 
 /**
+ * Correos institucionales usados como comodín / copia de facturación. Si un contribuyente
+ * los tiene como correo principal se consideran "sin correo real" y la caja pide actualizarlo.
+ */
+export const CORREOS_INSTITUCIONALES = [
+  'facturacion.comercial@globalgreenca.com',
+  'facturacion.naguanagua@gmail.com',
+];
+
+/**
  * Detecta si un correo electrónico es ficticio o un placeholder de migraciones pasadas (ej. 1058@test.com)
  */
 export function isFictitiousEmail(email?: string | null): boolean {
@@ -91,7 +100,8 @@ export function isFictitiousEmail(email?: string | null): boolean {
     clean === 'sin correo' ||
     clean === 's/c' ||
     clean === 'n/a' ||
-    clean === '---'
+    clean === '---' ||
+    CORREOS_INSTITUCIONALES.includes(clean)
   ) {
     return true;
   }

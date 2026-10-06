@@ -3,6 +3,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { isResidencialInm } from '@/lib/calculos';
 import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
+import { isFictitiousEmail } from '@/lib/formatters';
 
 function numeroALetras(monto: number): string {
   const unidades = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
     const idVariants = [identidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];
     const { data: userProps, error: propsErr } = await supabase
       .from('inmuebles')
-      .select('tipo, actividad_principal, direccion, correo_electronico')
+      .select('tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado')
       .in('identidad', idVariants);
 
     if (propsErr) {
@@ -89,27 +90,23 @@ export async function POST(request: Request) {
     }
 
     let isComercial = false;
-    const propRef = userProps && userProps.length > 0 ? userProps[0] : null;
+    const activeProps = (userProps || []).filter((p: any) => p.estado !== 'Eliminado');
+    const propRef = activeProps.length > 0 ? activeProps[0] : (userProps && userProps.length > 0 ? userProps[0] : null);
 
-    if (userProps && userProps.length > 0) {
-      isComercial = userProps.some(p =>
-        (p.tipo || '').toLowerCase().includes('comercial') ||
-        (p.tipo || '').toLowerCase().includes('industrial') ||
-        (p.actividad_principal || '').toLowerCase().includes('comercial') ||
-        (p.actividad_principal || '').toLowerCase().includes('industrial')
-      );
+    if (activeProps.length > 0) {
+      // Comercial = al menos un inmueble que NO sea residencial (misma regla usada para el IVA)
+      isComercial = activeProps.some((p: any) => !isResidencialInm(p));
     }
 
-    // Condominios o RIF J/G son entidades comerciales jurídicas para facturación digital
+    // Solo si NO hay inmuebles registrados se usa el RIF J/G o el nombre como indicio comercial.
+    // Si hay inmuebles, manda la clasificación del inmueble (un condominio residencial con RIF J no se factura).
     if (
       !isComercial &&
+      activeProps.length === 0 &&
       (isCondominio ||
-        (contribuyente || '').toUpperCase().includes('CONDOMINIO') ||
         (contribuyente || '').toUpperCase().includes('CENTRO COMERCIAL') ||
         identidad.startsWith('J') ||
-        identidad.startsWith('G') ||
-        identidad.startsWith('J-') ||
-        identidad.startsWith('G-'))
+        identidad.startsWith('G'))
     ) {
       isComercial = true;
     }
@@ -455,7 +452,7 @@ export async function POST(request: Request) {
             Correo:               [(() => {
               const fallback = TheFactoryHKA.getFallbackEmail();
               const cand = (correoDestino || propRef?.correo_electronico || '').trim();
-              return cand && cand.length > 3 ? cand : fallback;
+              return cand && !isFictitiousEmail(cand) ? cand : fallback;
             })()],
             OtrosEnvios:          null,
           },
@@ -608,7 +605,7 @@ export async function POST(request: Request) {
     // Envío por correo: Cliente + Copia Interna de Respaldo Fiscal (Costo 0 en The Factory)
     const fallbackEmail = TheFactoryHKA.getFallbackEmail();
     const candEmail = (correoDestino || propRef?.correo_electronico || '').trim();
-    const esComodin = !candEmail || candEmail.length < 4 || candEmail.toLowerCase() === fallbackEmail.toLowerCase();
+    const esComodin = !candEmail || isFictitiousEmail(candEmail) || candEmail.toLowerCase() === fallbackEmail.toLowerCase();
     const emailFinal = esComodin ? fallbackEmail : candEmail;
 
     if (enviarCorreo) {

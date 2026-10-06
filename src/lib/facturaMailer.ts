@@ -168,7 +168,7 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
 
   // Determinar correo destino del cliente
   const clienteEmail = (params.correoContribuyente?.trim() || fallbackEmail).toLowerCase();
-  const esComodin = !params.correoContribuyente || params.correoContribuyente.trim() === '' || clienteEmail === fallbackEmail;
+  const esComodin = !params.correoContribuyente || params.correoContribuyente.trim() === '' || clienteEmail === fallbackEmail.toLowerCase() || clienteEmail === backupEmail.toLowerCase();
 
   let clienteEnviado = false;
   let copiaInternaEnviada = false;
@@ -176,8 +176,8 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
 
   const fromEmail = process.env.RESEND_FROM || DEFAULT_RESEND_FROM;
 
-  // 1. Envío al contribuyente
-  try {
+  // 1. Envío al contribuyente (si no tiene correo real, solo se envía la copia institucional del paso 2)
+  if (!esComodin) try {
     const htmlCliente = buildFacturaEmailTemplate({
       contribuyente: params.contribuyente,
       identidad: params.identidad,
