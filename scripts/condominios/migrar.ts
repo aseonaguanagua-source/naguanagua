@@ -46,6 +46,15 @@ const IGNORAR_HIJOS_DE_PADRES = ABSORBIDOS;
     parseFloat(String(cfg?.find((c: any) => c.id === 'tasa_bcv_semanal')?.valor || 0));
   if (!tasa) throw new Error('Sin tasa BCV');
 
+  // Sistema anterior (DATA NAGUANAGUA.xlsx): uso y monto mensual reales, a tasa 741,0183
+  const XLSX = createRequire(path.join(process.cwd(), 'package.json'))('xlsx');
+  const TASA_VIEJA = 10704.81 / (1.98 * 57 * 0.128);
+  const viejo = new Map<string, any>();
+  try {
+    const rows = XLSX.utils.sheet_to_json(XLSX.readFile(path.resolve('..', 'DATA NAGUANAGUA.xlsx')).Sheets['Record de deudas']);
+    rows.forEach((r: any) => viejo.set(String(r['Código']).toUpperCase(), r));
+  } catch { console.warn('Sin DATA NAGUANAGUA.xlsx: no se compara con el sistema anterior'); }
+
   if (APLICAR) {
     const { count } = await sb.from('condominio_movimientos').select('id', { count: 'exact', head: true });
     if ((count || 0) > 0) throw new Error(`Ya hay ${count} movimientos registrados en el módulo: no se puede re-migrar encima.`);
@@ -108,7 +117,9 @@ const IGNORAR_HIJOS_DE_PADRES = ABSORBIDOS;
     const tipo = esRes ? (tiposHijos.has('C') ? 'MIXTO' : 'RESIDENCIAL') : (tiposHijos.has('R') ? 'MIXTO' : 'COMERCIAL');
     const modalidad = (forz?.modalidad || M.modalidadSugerida(code, esRes)) as any;
     const cant = forz?.cant_declarada || Math.max(1, parseInt(p.cant_inmuebles || '1'));
-    const porUnidad = !!forz?.cobro_tarifa_por_unidad;
+    // TARIFA REAL (verificada con estados de cuenta del sistema anterior): el condominio paga la SUMA de la
+    // tarifa propia de cada unidad según su actividad. Solo si no tiene unidades registradas se usa su tarifa propia.
+    const porUnidad = hijos.length > 0;
     const mesesPadre = Math.max(0, parseInt(p.meses_deuda || '0'));
 
     const condo = {
@@ -118,11 +129,11 @@ const IGNORAR_HIJOS_DE_PADRES = ABSORBIDOS;
       cobro_tarifa_por_unidad: porUnidad,
       permite_pago_por_unidad: modalidad === 'INDIVIDUAL',
       permite_abonos: true,
-      aseo_pendiente_desde: M.pendienteDesdeParaMeses(mesesPadre),
+      aseo_pendiente_desde: porUnidad ? null : M.pendienteDesdeParaMeses(mesesPadre),
       notas: forz?.nota || null,
       migrado_desde: { inmueble: code, cant_inmuebles: p.cant_inmuebles, meses_deuda: p.meses_deuda, deuda_mmv: p.deuda_mmv, multa_bs: p.multa_bs, deuda_congelada_bs: p.deuda_congelada_bs, mmv_mes: p.mmv_mes, fecha: new Date().toISOString() },
     };
-    const propios = modalidad === 'INDIVIDUAL' || porUnidad;
+    const propios = true; // cada unidad arrastra sus propios meses (así lo llevaba el sistema anterior)
     const uRows = hijos.map((h: any) => ({
       _codigo: code,
       inmueble: String(h.inmueble).toUpperCase(), identidad: h.identidad, propietario: h.contribuyente,
@@ -152,10 +163,14 @@ const IGNORAR_HIJOS_DE_PADRES = ABSORBIDOS;
       return b * meses + b * (res ? 0.1 : 0.12) * Math.max(0, meses - 1) + (res ? 0 : b * 0.16 * meses);
     };
     const cajaHoy = r2(deudaCaja(p) + (propios ? hijos.reduce((s: number, h: any) => s + deudaCaja(h), 0) : 0));
+    const v = viejo.get(code);
+    const naMinimas = uRows.filter(u => /^N\/?A$/i.test(String(u.actividad || '').trim()) && (u.tarifa_mmv || 0) <= 1.98).length;
     reporte.push({
       codigo: code, nombre: condo.nombre, tipo, modalidad, por_unidad: porUnidad ? 'SÍ' : '', declarada: cant,
       unidades: uRows.length, sin_registrar: reparto.find(r => r.clave === M.SIN_REGISTRAR)?.cantidad || 0,
       meses: mesesPadre, mensual: r2(M.cargoMensual(cMotor, uRows as any, tasa).condominioBs),
+      uso_anterior: v?.Uso || '(no estaba)', mensual_anterior: v ? r2((v['Monto x mes'] || 0) * tasa / TASA_VIEJA) : null,
+      na_minimas: naMinimas,
       caja_hoy: cajaHoy, deuda_nueva: r2(deudaNueva), diferencia: r2(deudaNueva - cajaHoy), nota: forz?.nota || '',
     });
   }
@@ -173,14 +188,16 @@ const IGNORAR_HIJOS_DE_PADRES = ABSORBIDOS;
     { header: 'Modalidad', key: 'modalidad', width: 17 }, { header: 'Tarifa por local', key: 'por_unidad', width: 9 },
     { header: 'Declaradas', key: 'declarada', width: 10 }, { header: 'Unidades', key: 'unidades', width: 9 }, { header: 'Sin registrar', key: 'sin_registrar', width: 9 },
     { header: 'Meses', key: 'meses', width: 7 }, { header: 'Mensualidad Bs', key: 'mensual', width: 15 },
+    { header: 'Uso en sistema anterior', key: 'uso_anterior', width: 16 }, { header: 'Mensualidad sistema anterior (tasa hoy) Bs', key: 'mensual_anterior', width: 18 },
+    { header: 'Unidades N/A con tarifa mínima', key: 'na_minimas', width: 12 },
     { header: 'Deuda Caja hoy Bs', key: 'caja_hoy', width: 17 }, { header: 'Deuda nueva Bs', key: 'deuda_nueva', width: 17 },
     { header: 'Diferencia Bs', key: 'diferencia', width: 15 }, { header: 'Nota', key: 'nota', width: 50 },
   ];
   reporte.sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia)).forEach(r => h1.addRow(r));
   h1.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
   h1.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A4A2A' } };
-  ['J', 'K', 'L', 'M'].forEach(c => { h1.getColumn(c).numFmt = '#,##0.00'; });
-  h1.autoFilter = { from: 'A1', to: 'N1' };
+  ['J', 'L', 'N', 'O', 'P'].forEach(c => { h1.getColumn(c).numFmt = '#,##0.00'; });
+  h1.autoFilter = { from: 'A1', to: 'Q1' };
   const h2 = wb.addWorksheet('Se quedan en Contribuyentes');
   h2.columns = [{ header: 'Código', key: 'codigo', width: 12 }, { header: 'Nombre', key: 'nombre', width: 40 }, { header: 'Motivo', key: 'motivo', width: 60 }];
   excluidos.forEach(e => h2.addRow(e)); h2.getRow(1).font = { bold: true };
