@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     const idVariants = [identidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];
     const { data: userProps, error: propsErr } = await supabase
       .from('inmuebles')
-      .select('tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado')
+      .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes')
       .in('identidad', idVariants);
 
     if (propsErr) {
@@ -128,6 +128,7 @@ export async function POST(request: Request) {
     // Para RECIB-HIST-*, buscar en inmuebles (no están en tabla facturas)
     const histRecibos = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
     const histItems: any[] = [];
+    let excluidosResidenciales = 0;
     if (histRecibos.length > 0) {
       // Extraer códigos de inmueble de referencias: RECIB-HIST-{COD}-M{N}
       const codigosInm = [...new Set(histRecibos.map((r: string) => r.split('-').slice(2, -1).join('-')))];
@@ -166,7 +167,9 @@ export async function POST(request: Request) {
         const isUltimoMes = mesNum >= totalMeses;
         const montoMulta = (!isUltimoMes && totalMeses > 1) ? parseFloat((montoBase * pctMulta).toFixed(2)) : 0;
 
-        if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipoInm: inm?.tipo || '', esRes: esResidencial });
+        // REGLA: nada residencial se factura (ni como exento)
+        if (esResidencial) { excluidosResidenciales++; return; }
+        if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipoInm: inm?.tipo || '', esRes: false });
       });
     }
 
@@ -175,11 +178,27 @@ export async function POST(request: Request) {
     let totalIVA     = 0;
     let lineaNum     = 0;
 
-    // Items de facturas normales (Residencial Exento 0%, Comercial 16% IVA)
-    const itemsFacturas = (facturasBD || []).map((fac: any) => {
+    // Items de facturas normales: SOLO comerciales (16% IVA). Lo residencial no sale en la factura.
+    const codigosResidenciales = (userProps || [])
+      .filter((p: any) => p.inmueble && isResidencialInm(p))
+      .map((p: any) => String(p.inmueble).toUpperCase());
+    const facturasComerciales = (facturasBD || []).filter((fac: any) => {
+      const ref = String(fac.referencia || '').toUpperCase();
+      const esRes = isResidencialInm(fac) || codigosResidenciales.some((c: string) => ref.includes(c));
+      if (esRes) excluidosResidenciales++;
+      return !esRes;
+    });
+    // Contribuyente mixto (residencial + comercial): los recibos mensuales no indican el inmueble,
+    // así que solo se factura la porción comercial (proporcional al mmv_mes de cada inmueble).
+    const mmvRes = activeProps.filter((p: any) => isResidencialInm(p)).reduce((s: number, p: any) => s + (parseFloat(p.mmv_mes) || 0), 0);
+    const mmvCom = activeProps.filter((p: any) => !isResidencialInm(p)).reduce((s: number, p: any) => s + (parseFloat(p.mmv_mes) || 0), 0);
+    const esMixto = mmvRes > 0 && mmvCom > 0;
+    const porcionComercial = esMixto ? mmvCom / (mmvCom + mmvRes) : 1;
+    const itemsFacturas = facturasComerciales.map((fac: any) => {
       lineaNum++;
-      const isRes = isResidencialInm(fac) || isResidencialInm({ actividad_principal: fac.concepto, tipo: fac.tipo });
-      const montoItem = parseFloat(String(fac.monto || '0').replace(/[^0-9.]/g, ''));
+      const isRes = false;
+      const montoRecibo = parseFloat(String(fac.monto || '0').replace(/[^0-9.]/g, ''));
+      const montoItem = parseFloat((montoRecibo * porcionComercial).toFixed(2));
       const valorIVA  = isRes ? 0 : parseFloat((montoItem * 0.16).toFixed(2));
       if (isRes) {
         totalExento += montoItem;
@@ -192,7 +211,7 @@ export async function POST(request: Request) {
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             `Servicio de Aseo Urbano - ${fac.referencia}`,
+        Descripcion:             `Servicio de Aseo Urbano${esMixto ? ' (porción comercial)' : ''} - ${fac.referencia}`,
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          montoItem.toFixed(2),
@@ -279,7 +298,7 @@ export async function POST(request: Request) {
 
     const condoRecibos = (recibos || []).filter((r: string) => r.startsWith('CONDO-'));
     const itemsCondo: any[] = [];
-    if ((isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0) {
+    if ((isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && excluidosResidenciales === 0) {
       lineaNum++;
       const totalNum = parseFloat(String(montoTotal || 0));
       const base = parseFloat((totalNum / 1.16).toFixed(2));
@@ -313,7 +332,7 @@ export async function POST(request: Request) {
     }
 
     const itemsGeneral: any[] = [];
-    if (itemsFacturas.length === 0 && itemsHist.length === 0 && itemsCondo.length === 0 && (parseFloat(String(montoTotal || 0)) > 0 || parseFloat(String(montoServicio || 0)) > 0)) {
+    if (itemsFacturas.length === 0 && itemsHist.length === 0 && itemsCondo.length === 0 && excluidosResidenciales === 0 && (parseFloat(String(montoTotal || 0)) > 0 || parseFloat(String(montoServicio || 0)) > 0)) {
       lineaNum++;
       const totalNum = parseFloat(String(montoTotal || 0));
       const multaNum = parseFloat(String(montoMulta || montos?.multa || 0));
@@ -381,7 +400,7 @@ export async function POST(request: Request) {
 
     // Si no hay items, no emitir (nada que facturar)
     if (detallesItems.length === 0) {
-      return NextResponse.json({ success: true, skipped: true, message: 'Sin items para facturar.' });
+      return NextResponse.json({ success: true, skipped: true, message: excluidosResidenciales > 0 ? 'Emisión omitida: los conceptos pagados son residenciales.' : 'Sin items para facturar.' });
     }
 
     const docIdentificacion = identidad.replace(/[^A-Z0-9-]/gi, '');
