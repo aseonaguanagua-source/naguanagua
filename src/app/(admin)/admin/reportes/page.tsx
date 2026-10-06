@@ -13,6 +13,7 @@ import { generarCuadreCajaPDF } from './generators/CuadreCaja';
 import { generarMorososExcel, generarMorososPDF } from './generators/Morosos';
 import CajaIngresosMain from './views/CajaIngresosMain';
 import CuadreCaja from './views/CuadreCaja';
+import { aplicarMontoReporte } from './montoReporte';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -62,7 +63,7 @@ export default function ReportesPage() {
     const loadPagos = async () => {
       const { data } = await supabase.from('pagos_reportados').select('*').not('estado','in','(Anulado,Reversado,Condonado)').order('created_at', { ascending: false });
       if (data) {
-        setPagos(data);
+        setPagos(data.map(aplicarMontoReporte));
         if (adminCheck) {
           const cajerosSet = new Set<string>();
           data.forEach((p: any) => {
@@ -131,6 +132,7 @@ export default function ReportesPage() {
     <CuadreCaja
       pagos={pagos} cajeros={cajeros} isAdmin={isAdmin} currentUser={currentUser}
       contribuyentes={contribuyentes}
+      onPagoActualizado={(row: any) => setPagos(prev => prev.map(p => (p.id === row.id ? aplicarMontoReporte(row) : p)))}
       onBack={() => setActiveView(null)}
     />
   );

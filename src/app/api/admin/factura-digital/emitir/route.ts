@@ -89,8 +89,10 @@ export async function POST(request: Request) {
     const { 
       pagoId, recibos, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
-      correoDestino, enviarCorreo = true, dryRun = false
+      correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario
     } = await request.json();
+    // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
+    const totalManualNum = Math.round((parseFloat(String(totalManual ?? 0)) || 0) * 100) / 100;
 
     if (!pagoId) {
       return NextResponse.json({ error: 'Faltan datos obligatorios (pagoId requerido)' }, { status: 400 });
@@ -499,9 +501,12 @@ export async function POST(request: Request) {
     const r2 = (n: number) => Math.round(n * 100) / 100;
     const montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + (parseFloat(String(detPago.monto_retencion_iva || 0)) || 0);
     const totalCalculado = totalGravado + totalExento + totalIVA;
-    if (!esMixto && excluidosResidenciales === 0 && montoCobrado > 0 && totalCalculado > 0 && Math.abs(totalCalculado - montoCobrado) > 0.05) {
-      const f = montoCobrado / totalCalculado;
-      console.warn(`[TFHKA] Cuadre: calculado ${totalCalculado.toFixed(2)} vs cobrado ${montoCobrado.toFixed(2)} (factor ${f.toFixed(4)})`);
+    // Monto objetivo: el total editado a mano (si lo hay) o lo cobrado en caja
+    const objetivo = totalManualNum > 0 ? totalManualNum : montoCobrado;
+    const aplicarCuadre = totalManualNum > 0 || (!esMixto && excluidosResidenciales === 0);
+    if (aplicarCuadre && objetivo > 0 && totalCalculado > 0 && Math.abs(totalCalculado - objetivo) > 0.01) {
+      const f = objetivo / totalCalculado;
+      console.warn(`[TFHKA] Cuadre: calculado ${totalCalculado.toFixed(2)} vs ${totalManualNum > 0 ? 'manual' : 'cobrado'} ${objetivo.toFixed(2)} (factor ${f.toFixed(4)})`);
       totalGravado = 0; totalExento = 0; totalIVA = 0;
       for (const it of detallesItems as any[]) {
         const base = r2(parseFloat(it.PrecioUnitario) * f);
@@ -514,6 +519,23 @@ export async function POST(request: Request) {
         if (it.CodigoImpuesto === 'G') { totalGravado += base; totalIVA += iva; } else { totalExento += base; }
       }
       totalGravado = r2(totalGravado); totalExento = r2(totalExento); totalIVA = r2(totalIVA);
+      // Ajuste de céntimos: el total debe ser EXACTAMENTE el objetivo (se corrige en el último ítem gravado o exento)
+      const dif = r2(objetivo - (totalGravado + totalExento + totalIVA));
+      if (Math.abs(dif) >= 0.01) {
+        const it: any = [...(detallesItems as any[])].reverse().find((x: any) => x.CodigoImpuesto !== 'G') || (detallesItems as any[])[detallesItems.length - 1];
+        if (it.CodigoImpuesto === 'G') {
+          // en un ítem gravado se ajusta el IVA para no romper base × 16%
+          const iva = r2(parseFloat(it.ValorIVA) + dif);
+          it.ValorIVA = iva.toFixed(2);
+          it.ValorTotalItem = (parseFloat(it.PrecioUnitario) + iva).toFixed(2);
+          totalIVA = r2(totalIVA + dif);
+        } else {
+          const base = r2(parseFloat(it.PrecioUnitario) + dif);
+          it.PrecioUnitario = base.toFixed(2); it.PrecioItem = base.toFixed(2); it.PrecioAntesDescuento = base.toFixed(2);
+          it.ValorTotalItem = base.toFixed(2);
+          totalExento = r2(totalExento + dif);
+        }
+      }
     }
 
     // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
@@ -704,10 +726,16 @@ export async function POST(request: Request) {
     const tol = 0.05;
     const sumItems = (detallesItems as any[]).reduce((s, it) => s + (parseFloat(it.ValorTotalItem) || 0), 0);
     if (!(montoCobrado > 0)) erroresFiscales.push('El pago no tiene monto cobrado registrado; no se puede verificar el total.');
-    if (montoCobrado > 0 && totalAPagar > montoCobrado + tol)
-      erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja (${montoCobrado.toFixed(2)}).`);
-    if (montoCobrado > 0 && !esMixto && excluidosResidenciales === 0 && Math.abs(totalAPagar - montoCobrado) > tol)
-      erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con lo cobrado (${montoCobrado.toFixed(2)}).`);
+    if (totalManualNum > 0) {
+      // Monto editado a mano (con motivo y auditoría): debe totalizar EXACTAMENTE lo escrito
+      if (Math.abs(totalAPagar - totalManualNum) > tol)
+        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con el monto editado (${totalManualNum.toFixed(2)}).`);
+    } else {
+      if (montoCobrado > 0 && totalAPagar > montoCobrado + tol)
+        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja (${montoCobrado.toFixed(2)}).`);
+      if (montoCobrado > 0 && !esMixto && excluidosResidenciales === 0 && Math.abs(totalAPagar - montoCobrado) > tol)
+        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con lo cobrado (${montoCobrado.toFixed(2)}).`);
+    }
     if (Math.abs(sumItems - totalAPagar) > tol + 0.01 * detallesItems.length)
       erroresFiscales.push(`La suma de los ítems (${sumItems.toFixed(2)}) no coincide con el total (${totalAPagar.toFixed(2)}).`);
     if (Math.abs(totalIVA - totalGravado * 0.16) > tol + 0.01 * detallesItems.length)
@@ -763,7 +791,14 @@ export async function POST(request: Request) {
           tfhka_seq:        parseInt(finalDoc, 10) || seq,
           fecha_emision:    new Date().toISOString(),
           raw_response:     tfhkaResponse,
+          ...(totalManualNum > 0 ? { total_manual: totalManualNum, monto_cobrado: montoCobrado, motivo_ajuste: motivoAjuste || null, ajustado_por: usuario || null } : {}),
         };
+        if (totalManualNum > 0 && Math.abs(totalManualNum - montoCobrado) > 0.01) {
+          await supabase.from('auditoria').insert({
+            accion: 'Factura emitida con monto editado', usuario: usuario || 'Facturación electrónica',
+            detalles: { pago_id: pagoId, identidad, contribuyente, monto_cobrado: montoCobrado, total_factura: totalManualNum, motivo: motivoAjuste || null, numero_control: finalControl, _categoria: 'FACTURACION', criticidad: 'ALTA' },
+          });
+        }
       } catch (err: any) {
         console.error("[TFHKA] Error en emisión real:", err.message);
         nuevosDetalles.factura_digital_error = err.message;
