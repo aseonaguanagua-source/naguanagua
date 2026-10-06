@@ -1606,7 +1606,14 @@ export default function CajaPage() {
         // ── LIMPIAR O REDUCIR DEUDA DE INMUEBLES (RECIB-HIST-* o RECIB-DEUDA) ──
         const histRefs = selectedRecibos.filter(r => r.startsWith('RECIB-HIST-'));
         if (selectedRecibos.includes('RECIB-DEUDA') || histRefs.length > 0) {
-          const sourceInms = freshInmuebles.length > 0 ? freshInmuebles : inmuebles;
+          // Leer la deuda ACTUAL de la BD (no la cargada en pantalla): en un pago múltiple el comprobante
+          // anterior ya redujo la deuda, y usar datos viejos hacía que el siguiente no se aplicara bien.
+          const { data: inmsBD, error: inmsBDErr } = await supabase
+            .from('inmuebles')
+            .select('*')
+            .eq('identidad', foundUser.Identidad);
+          if (inmsBDErr) throw new Error('No se pudo leer la deuda actual del inmueble: ' + inmsBDErr.message);
+          const sourceInms = (inmsBD && inmsBD.length > 0) ? inmsBD : (freshInmuebles.length > 0 ? freshInmuebles : inmuebles);
           const userInmsClean = sourceInms.filter((i: any) =>
             (i.identidad || '').replace(/-/g,'').toUpperCase() === 
             (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
@@ -1671,8 +1678,12 @@ export default function CajaPage() {
               const ivaMes = esRes ? 0 : Math.round((bMes * 0.16) * 100) / 100;
               const tasaMora = esRes ? 0.10 : 0.12;
 
+              // Sobrante de un comprobante anterior (pago múltiple): se suma para completar meses
+              const saldoActual = parseFloat(String(inm.saldo_favor_bs || '0')) || 0;
+              dineroParaInms += saldoActual;
+
               let mesesCubiertos = 0;
-              const maxMeses = histRefsThisInm.length > 0 ? histRefsThisInm.length : numMesesInm;
+              const maxMeses = Math.min(numMesesInm, histRefsThisInm.length > 0 ? histRefsThisInm.length : numMesesInm);
               for (let m = 1; m <= maxMeses; m++) {
                 const isUltimo = (m >= numMesesInm);
                 const multaMes = isUltimo ? 0 : Math.round((bMes * tasaMora) * 100) / 100;
@@ -1696,16 +1707,17 @@ export default function CajaPage() {
               const saldoSobrante = dineroParaInms > 0.01 ? parseFloat(dineroParaInms.toFixed(2)) : 0;
               dineroParaInms = 0; // asignado
 
-              const saldoActual = parseFloat(String(inm.saldo_favor_bs || '0')) || 0;
-              const nuevoSaldo = saldoActual + saldoSobrante;
+              // El saldo previo ya se sumó arriba: el nuevo saldo es solo lo que sobró
+              const nuevoSaldo = saldoSobrante;
 
-              await supabase.from('inmuebles').update({
+              const { error: eAbono } = await supabase.from('inmuebles').update({
                 meses_deuda: nuevoMeses,
                 deuda_mmv: nuevaDeudaMMV,
                 multa_bs: nuevaMultaBs,
                 saldo_favor_bs: nuevoSaldo,
                 ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
               }).eq('id', inm.id);
+              if (eAbono) throw new Error(`El pago quedó registrado pero no se pudo descontar la deuda de ${inm.inmueble}: ${eAbono.message}. Avise a soporte.`);
             }
           }
 
