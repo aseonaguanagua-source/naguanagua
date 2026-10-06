@@ -3,7 +3,7 @@
  *   npx tsx --tsconfig tsconfig.json src/lib/condominios/motor.test.ts
  */
 import assert from 'node:assert/strict';
-import { cargoMensual, cargoMensualUnidad, cargosPorUnidad, aplicarAbono, multaLaPagaLaUnidad, SIN_REGISTRAR, deudaPorMeses, esCondominioReal, modalidadSugerida, tarifaDesocupadaBs, Condominio } from './motor';
+import { pendienteDesdeParaMeses, mesesPendientes, periodosPendientes, avanzarPendiente, cargoMensual, cargoMensualUnidad, cargosPorUnidad, aplicarAbono, multaLaPagaLaUnidad, SIN_REGISTRAR, deudaPorMeses, esCondominioReal, modalidadSugerida, tarifaDesocupadaBs, Condominio } from './motor';
 
 const TASA = 977.22;
 let ok = 0;
@@ -126,6 +126,26 @@ t('Abono: cubre primero los meses más viejos; aseo antes que multa', () => {
 t('Quién paga la multa', () => {
   assert.equal(multaLaPagaLaUnidad({ codigo: 'x', tipo: 'COMERCIAL', modalidad: 'MIXTO_COMERCIAL', cant_declarada: 1 }), true);
   assert.equal(multaLaPagaLaUnidad({ codigo: 'x', tipo: 'RESIDENCIAL', modalidad: 'CENTRALIZADO', cant_declarada: 1 }), false);
+});
+
+t('Períodos: N meses ↔ pendiente desde (último mes = mes anterior)', () => {
+  const hoy = new Date('2026-10-06T15:00:00Z');
+  assert.equal(pendienteDesdeParaMeses(1, hoy), '2026-09-01');
+  assert.equal(pendienteDesdeParaMeses(13, hoy), '2025-09-01');
+  assert.equal(pendienteDesdeParaMeses(0, hoy), null);
+  assert.equal(mesesPendientes('2025-09-01', hoy), 13);
+  assert.deepEqual(periodosPendientes('2026-07-01', hoy), ['2026-07', '2026-08', '2026-09']);
+  assert.equal(avanzarPendiente('2026-07-01', 2, hoy), '2026-09-01');
+  assert.equal(avanzarPendiente('2026-07-01', 3, hoy), null);
+  // 1 de octubre a las 02:00 Caracas sigue siendo octubre
+  assert.equal(pendienteDesdeParaMeses(1, new Date('2026-10-01T06:00:00Z')), '2026-09-01');
+});
+
+t('Tarifa por unidad (HMR): las unidades sin registrar no se cobran', () => {
+  const c: Condominio = { codigo: 'URB009841', tipo: 'COMERCIAL', modalidad: 'CENTRALIZADO', cant_declarada: 39, tarifa_mmv: 62.13, cobro_tarifa_por_unidad: true };
+  const rep = cargosPorUnidad(c, [{ id: 'hotel', estado: 'Activa', tarifa_mmv: 82.99 }, { id: 'dep', estado: 'Desocupada' }], TASA);
+  assert.equal(rep.length, 2);
+  assert.ok(!rep.some(r => r.clave === SIN_REGISTRAR));
 });
 
 console.log(`\n${ok} pruebas OK`);

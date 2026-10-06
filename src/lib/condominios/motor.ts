@@ -136,13 +136,12 @@ export function cargosPorUnidad(c: Condominio, unidades: Unidad[], tasa: number)
     return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: r2(c.tarifa_fija_bs!) }];
   }
   if (c.modalidad === 'INDIVIDUAL' || c.cobro_tarifa_por_unidad) {
-    const propios = vivas.map((u, i) => ({
+    // Cada local con su propia actividad (p. ej. HMR) o pago individual: solo se cobran las unidades
+    // registradas, porque de las no registradas no se conoce la actividad. Hay que registrarlas.
+    return vivas.map((u, i) => ({
       clave: clave(u, i), inmueble: u.inmueble, cantidad: 1,
       montoBs: r2(u.estado === 'Desocupada' ? tDesoc : tarifaUnidadBs(c, tasa, u)),
     }));
-    const faltan = Math.max(0, declarada - vivas.length);
-    if (faltan > 0) propios.push({ clave: SIN_REGISTRAR, inmueble: null, cantidad: faltan, montoBs: r2(tUnit * faltan) });
-    return propios;
   }
 
   // CENTRALIZADO / MIXTO_COMERCIAL: tarifa del condominio por unidad, se cobra la DECLARADA
@@ -274,3 +273,48 @@ export function esCondominioReal(padre: { identidad?: string | null }, unidadesA
 }
 
 export { isResidencialInm };
+
+/** Mes actual en Caracas como {y, m} (m: 1–12). */
+export function mesActualCaracas(hoy: Date = new Date()): { y: number; m: number } {
+  const t = new Date(hoy.getTime() - 4 * 3600 * 1000);
+  return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1 };
+}
+
+const aIndice = (y: number, m: number) => y * 12 + (m - 1);
+const deIndice = (i: number) => `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}-01`;
+
+/**
+ * Primer mes pendiente para N meses de deuda. El último mes facturado es el MES ANTERIOR
+ * (igual que Caja: un pago del 06/10 con 1 mes cubre septiembre). 0 meses → null (al día).
+ */
+export function pendienteDesdeParaMeses(meses: number, hoy: Date = new Date()): string | null {
+  const n = Math.max(0, Math.floor(meses || 0));
+  if (n === 0) return null;
+  const { y, m } = mesActualCaracas(hoy);
+  return deIndice(aIndice(y, m) - n);
+}
+
+/** Meses pendientes desde `desde` ('YYYY-MM-DD') hasta el mes anterior, inclusive. */
+export function mesesPendientes(desde: string | null | undefined, hoy: Date = new Date()): number {
+  if (!desde) return 0;
+  const [y, m] = desde.split('-').map(Number);
+  const { y: ya, m: ma } = mesActualCaracas(hoy);
+  return Math.max(0, aIndice(ya, ma) - aIndice(y, m));
+}
+
+/** Lista de períodos 'YYYY-MM' pendientes desde `desde` hasta el mes anterior. */
+export function periodosPendientes(desde: string | null | undefined, hoy: Date = new Date()): string[] {
+  const n = mesesPendientes(desde, hoy);
+  if (!desde || n === 0) return [];
+  const [y, m] = desde.split('-').map(Number);
+  return Array.from({ length: n }, (_, i) => deIndice(aIndice(y, m) + i).slice(0, 7));
+}
+
+/** Nuevo `aseo_pendiente_desde` después de pagar `n` meses (null = queda al día). */
+export function avanzarPendiente(desde: string | null | undefined, n: number, hoy: Date = new Date()): string | null {
+  if (!desde) return null;
+  const restantes = mesesPendientes(desde, hoy) - Math.max(0, Math.floor(n));
+  if (restantes <= 0) return null;
+  const [y, m] = desde.split('-').map(Number);
+  return deIndice(aIndice(y, m) + Math.floor(n));
+}
