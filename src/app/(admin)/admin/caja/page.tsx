@@ -1872,6 +1872,25 @@ export default function CajaPage() {
           ? `Abono de Bs. ${formatBs(montoReal)} procesado. La deuda restante quedó actualizada.`
           : `Pago procesado exitosamente por ${paymentMethod === 'TMD' ? 'TMD (Tarjeta Crédito Master)' : paymentMethod === 'TVD' ? 'TVD (Tarjeta Crédito Visa)' : paymentMethod === 'Credito' ? 'Tarjeta de Crédito' : paymentMethod}. La deuda ha sido conciliada automáticamente.`
         );
+        // ── CONCILIAR FACTURAS VIEJAS: si tras el cobro no queda deuda en inmuebles activos,
+        // las facturas "Pendiente" del RIF quedan pagadas (si no, Contribuyentes y Solvencias mostrarían deuda que Caja no ve).
+        if (!esAbonoDebito && foundUser?.Identidad) {
+          (async () => {
+            try {
+              const variantes = getIdentidadVariants(foundUser.Identidad);
+              const { data: inmsPost } = await supabase.from('inmuebles')
+                .select('estado, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs').in('identidad', variantes);
+              const quedaDeuda = (inmsPost || []).some((i: any) => i.estado !== 'Eliminado' && (
+                parseInt(i.meses_deuda || '0') > 0 || parseFloat(i.deuda_mmv || '0') > 0.0001 ||
+                parseFloat(i.multa_bs || '0') > 0.01 || parseFloat(i.deuda_congelada_bs || '0') > 0.01));
+              if (!quedaDeuda) {
+                await supabase.from('facturas')
+                  .update({ estado: 'Pagado', fecha_pago: new Date().toISOString(), metodo_pago: 'Conciliado con Caja', referencia_pago: String(ultimoPagoIdRef.current || '') })
+                  .in('identidad', variantes).in('estado', ['Pendiente', 'Abonado']);
+              }
+            } catch (e) { console.warn('Conciliación de facturas viejas:', e); }
+          })();
+        }
         // ── AUDITORÍA: Cobro completado ──
         logAudit(
           esAbonoDebito ? 'Abono Parcial en Caja' : `Cobro por ${paymentMethod} en Caja`,
