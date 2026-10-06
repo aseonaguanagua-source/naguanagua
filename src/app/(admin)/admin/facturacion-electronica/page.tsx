@@ -126,6 +126,12 @@ export default function FacturacionElectronicaPage() {
   const [selectedPagoForEmit, setSelectedPagoForEmit] = useState<any | null>(null);
   const [ajusteMontoServicio, setAjusteMontoServicio] = useState<string>('');
   const [ajusteMontoMulta, setAjusteMontoMulta] = useState<string>('0');
+  // Total editado a mano en la verificación (con IVA) y motivo del ajuste
+  const [totalEditado, setTotalEditado] = useState<string>('');
+  const [motivoAjuste, setMotivoAjuste] = useState<string>('');
+  const [totalForzado, setTotalForzado] = useState<number | null>(null);
+  // Total de referencia (el real de la factura según la verificación; si no hubo verificación, lo cobrado)
+  const [totalReferencia, setTotalReferencia] = useState<number>(0);
   const [ajusteConcepto, setAjusteConcepto] = useState<string>('');
   const [isEmitting, setIsEmitting] = useState(false);
   const [enviarCorreoAlEmitir, setEnviarCorreoAlEmitir] = useState(true);
@@ -290,6 +296,8 @@ export default function FacturacionElectronicaPage() {
     setSelectedPagoForVerify(pago);
     setIsVerifying(true);
     setVerificationResult(null);
+    setTotalEditado('');
+    setMotivoAjuste('');
 
     try {
       const res = await fetch('/api/admin/factura-digital/verificar', {
@@ -317,12 +325,16 @@ export default function FacturacionElectronicaPage() {
   };
 
   // 2. Abrir Modal de Emisión Manual
-  const handleOpenEmitModal = (pago: any) => {
+  const handleOpenEmitModal = (pago: any, totalOverride?: number, totalRef?: number) => {
     setSelectedPagoForEmit(pago);
-    const montoTotal = pago.monto || 0;
+    const ref = totalRef && totalRef > 0 ? totalRef : (parseFloat(pago.monto) || 0);
+    setTotalReferencia(ref);
+    const montoTotal = totalOverride && totalOverride > 0 ? totalOverride : ref;
     const baseEstimada = (montoTotal / 1.16).toFixed(2);
     setAjusteMontoServicio(baseEstimada);
     setAjusteMontoMulta('0.00');
+    if (!totalOverride) setMotivoAjuste('');
+    setTotalForzado(totalOverride && totalOverride > 0 ? totalOverride : null);
     setAjusteConcepto(`Servicio de Aseo Urbano Comercial - ${getMesActual()}`);
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
@@ -336,7 +348,19 @@ export default function FacturacionElectronicaPage() {
       const base = parseFloat(ajusteMontoServicio) || 0;
       const multa = parseFloat(ajusteMontoMulta) || 0;
       const iva = parseFloat((base * 0.16).toFixed(2));
-      const total = base + multa + iva;
+      let total = parseFloat((base + multa + iva).toFixed(2));
+      // Total escrito en la verificación: si no se tocaron base/multa, se usa EXACTO (sin desvío por redondeo)
+      if ((totalForzado || totalReferencia) && multa === 0 && !totalForzado && Math.abs(base - parseFloat((totalReferencia / 1.16).toFixed(2))) < 0.005) total = totalReferencia;
+      if (totalForzado && multa === 0 && Math.abs(base - parseFloat((totalForzado / 1.16).toFixed(2))) < 0.005) total = totalForzado;
+      // Si el total difiere de lo cobrado, la factura se emite con ESTE total (requiere motivo)
+      const editado = Math.abs(total - (totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0)) > 0.02; // 0,02: redondeo base×1,16
+      if (editado && motivoAjuste.trim().length < 5) {
+        alert('El total de la factura es distinto a lo cobrado en Caja. Escriba el motivo del ajuste.');
+        setIsEmitting(false);
+        return;
+      }
+      let usuarioActual = '';
+      try { const u = JSON.parse(localStorage.getItem('admin_user_data') || 'null'); usuarioActual = u ? `${u.nombre || u.usuario} (${u.usuario})` : ''; } catch {}
 
       const res = await fetch('/api/admin/factura-digital/emitir', {
         method: 'POST',
@@ -360,7 +384,8 @@ export default function FacturacionElectronicaPage() {
             monto: total
           }],
           enviarCorreo: enviarCorreoAlEmitir,
-          correoDestino: correoDestinoEmision
+          correoDestino: correoDestinoEmision,
+          ...(editado ? { totalManual: total, motivoAjuste: motivoAjuste.trim(), usuario: usuarioActual } : {})
         })
       });
 
@@ -989,25 +1014,61 @@ export default function FacturacionElectronicaPage() {
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-200 pt-3 space-y-1.5 text-xs">
-                      <div className="flex justify-between text-slate-600">
-                        <span>Base Imponible Gravada (16% IVA):</span>
-                        <strong className="font-mono">Bs {verificationResult.totales?.baseImponible?.toFixed(2)}</strong>
-                      </div>
-                      <div className="flex justify-between text-blue-700">
-                        <span>Impuesto al Valor Agregado (IVA):</span>
-                        <strong className="font-mono">Bs {verificationResult.totales?.iva?.toFixed(2)}</strong>
-                      </div>
-                      <div className="flex justify-between text-slate-900 text-sm font-black border-t border-slate-200 pt-1.5">
-                        <span>Total Documento Fiscal:</span>
-                        <strong className="font-mono text-emerald-700 text-base">
-                          Bs {verificationResult.totales?.montoTotal?.toFixed(2)}
-                        </strong>
-                      </div>
-                      <p className="text-[11px] text-slate-500 italic pt-1">
-                        &laquo;{verificationResult.totales?.montoEnLetras}&raquo;
-                      </p>
-                    </div>
+                    {(() => {
+                      const original = verificationResult.totales?.montoTotal || 0;
+                      const t = totalEditado !== '' ? (parseFloat(totalEditado) || 0) : original;
+                      const base = parseFloat((t / 1.16).toFixed(2));
+                      const iva = parseFloat((t - base).toFixed(2));
+                      const editado = totalEditado !== '' && Math.abs(t - original) > 0.01;
+                      return (
+                        <div className="border-t border-slate-200 pt-3 space-y-1.5 text-xs">
+                          <div className="flex justify-between text-slate-600">
+                            <span>Base Imponible Gravada (16% IVA):</span>
+                            <strong className="font-mono">Bs {base.toFixed(2)}</strong>
+                          </div>
+                          <div className="flex justify-between text-blue-700">
+                            <span>Impuesto al Valor Agregado (IVA):</span>
+                            <strong className="font-mono">Bs {iva.toFixed(2)}</strong>
+                          </div>
+                          <div className="flex justify-between items-center text-slate-900 text-sm font-black border-t border-slate-200 pt-1.5 gap-3">
+                            <label htmlFor="total-factura-editable">Total Documento Fiscal:</label>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-emerald-700 text-base">Bs</span>
+                              <input
+                                id="total-factura-editable"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={totalEditado !== '' ? totalEditado : original.toFixed(2)}
+                                onChange={e => setTotalEditado(e.target.value)}
+                                className={`w-40 text-right font-mono text-base font-black rounded-lg px-2 py-1 border focus:outline-none focus:ring-2 focus:ring-emerald-500 ${editado ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-300 bg-white text-emerald-700'}`}
+                                title="Puede corregir el total; la base y el IVA se recalculan"
+                              />
+                            </div>
+                          </div>
+                          {editado ? (
+                            <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 space-y-1.5">
+                              <div className="text-[11px] text-amber-900">
+                                Cobrado en Caja: <b className="font-mono">Bs {original.toFixed(2)}</b> → la factura saldrá por <b className="font-mono">Bs {t.toFixed(2)}</b>
+                                {' '}(<b>{t > original ? '+' : ''}{(t - original).toFixed(2)}</b>).
+                                <button type="button" onClick={() => setTotalEditado('')} className="ml-2 underline font-bold cursor-pointer">Restablecer</button>
+                              </div>
+                              <input
+                                id="motivo-ajuste-total"
+                                value={motivoAjuste}
+                                onChange={e => setMotivoAjuste(e.target.value)}
+                                placeholder="Motivo del ajuste (obligatorio)"
+                                className="w-full rounded-lg border border-amber-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
+                              />
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-500 italic pt-1">
+                              &laquo;{verificationResult.totales?.montoEnLetras}&raquo;
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Estado de Conexión The Factory */}
@@ -1040,7 +1101,13 @@ export default function FacturacionElectronicaPage() {
               {verificationResult?.ok && (
                 <button
                   onClick={() => {
-                    handleOpenEmitModal(selectedPagoForVerify);
+                    const t = totalEditado !== '' ? parseFloat(totalEditado) || 0 : 0;
+                    const original = verificationResult.totales?.montoTotal || 0;
+                    if (t > 0 && Math.abs(t - original) > 0.01 && motivoAjuste.trim().length < 5) {
+                      alert('Escriba el motivo del ajuste del total.');
+                      return;
+                    }
+                    handleOpenEmitModal(selectedPagoForVerify, t > 0 && Math.abs(t - original) > 0.01 ? t : undefined, original);
                   }}
                   className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-sm cursor-pointer"
                 >
@@ -1248,6 +1315,21 @@ export default function FacturacionElectronicaPage() {
                     </span>
                   </div>
                 </div>
+                {Math.abs(((parseFloat(ajusteMontoServicio) || 0) * 1.16 + (parseFloat(ajusteMontoMulta) || 0)) - (totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0)) > 0.02 && (
+                  <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 space-y-1.5">
+                    <div className="text-[11px] text-amber-900 flex items-start gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <span>El total es distinto al de la factura calculada (Bs {(totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0).toFixed(2)}). La factura se emitirá y enviará con el <b>monto nuevo</b> y quedará registrado en la Auditoría.</span>
+                    </div>
+                    <input
+                      id="motivo-ajuste-emision"
+                      value={motivoAjuste}
+                      onChange={e => setMotivoAjuste(e.target.value)}
+                      placeholder="Motivo del ajuste (obligatorio)"
+                      className="w-full rounded-lg border border-amber-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                )}
 
                 {/* CORREO DE ENVÍO */}
                 <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50 space-y-2">

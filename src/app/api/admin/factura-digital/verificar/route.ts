@@ -137,10 +137,43 @@ export async function POST(request: Request) {
       advertencias.push(`El contribuyente NO tiene correo personal registrado. Se asignará automáticamente el correo comodín (${fallbackEmail}). Requiere actualización de correo.`);
     }
 
-    // 6. Estimación fiscal (Base imponible vs IVA)
-    const baseImponible = parseFloat((montoTotal / 1.16).toFixed(2));
-    const ivaEstimado = parseFloat((montoTotal - baseImponible).toFixed(2));
-    const montoLetras = numeroALetras(montoTotal);
+    // 6. Totales: la MISMA simulación que usa la emisión (dryRun) → incluye retención de IVA, multas exentas
+    //    y porción comercial. Si falla, se estima con cobrado / 1,16.
+    let baseImponible = parseFloat((montoTotal / 1.16).toFixed(2));
+    let ivaEstimado = parseFloat((montoTotal - baseImponible).toFixed(2));
+    let exento = 0;
+    let totalFactura = montoTotal;
+    let retencionIva = 0;
+    if (pagoData) {
+      try {
+        let det: any = pagoData.detalles || {};
+        if (typeof det === 'string') { try { det = JSON.parse(det); } catch { det = {}; } }
+        const origin = new URL(request.url).origin;
+        const r = await fetch(`${origin}/api/admin/factura-digital/emitir`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pagoId, identidad: docIdentidad, contribuyente: nombreContrib,
+            recibos: Array.isArray(det.recibos) ? det.recibos : (recibos || []), montos: det.montos,
+            montoTotal: pagoData.monto, dryRun: true, enviarCorreo: false,
+          }),
+        });
+        const sim = await r.json();
+        const t = sim?.payload?.documentoElectronico?.Encabezado?.Totales;
+        if (t && sim.totalAPagar > 0) {
+          baseImponible = parseFloat(t.MontoGravadoTotal || '0') || 0;
+          ivaEstimado = parseFloat(t.TotalIVA || '0') || 0;
+          exento = parseFloat(t.MontoExentoTotal || '0') || 0;
+          totalFactura = Math.round(sim.totalAPagar * 100) / 100;
+          retencionIva = parseFloat(String(det.monto_retencion_iva || 0)) || 0;
+          (sim.errores || []).forEach((e: string) => advertencias.push(e));
+        } else if (sim?.skipped) {
+          advertencias.push(sim.message || 'Este pago no genera factura fiscal.');
+        }
+      } catch (e: any) {
+        advertencias.push('No se pudo simular la factura; se muestra una estimación: ' + e.message);
+      }
+    }
+    const montoLetras = numeroALetras(totalFactura);
 
     const reporteValidacion = {
       ok: errores.length === 0,
@@ -157,9 +190,12 @@ export async function POST(request: Request) {
         requiereActualizacionCorreo: usaCorreoComodin,
       },
       totales: {
-        montoTotal,
+        montoTotal: totalFactura,
+        montoCobrado: montoTotal,
+        retencionIva,
         baseImponible,
         iva: ivaEstimado,
+        exento,
         montoEnLetras: montoLetras,
         moneda: 'BSD'
       },
