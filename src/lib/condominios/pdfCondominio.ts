@@ -140,6 +140,7 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
 
   autoTable(doc, {
     startY: y,
+    margin: { top: 43 },
     head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', 'Total Bs']],
     body: rows,
     theme: 'grid',
@@ -246,6 +247,7 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
 
   autoTable(doc, {
     startY: y,
+    margin: { top: 43 },
     head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', 'Total Multas']],
     body: rows,
     theme: 'grid',
