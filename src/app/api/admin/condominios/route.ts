@@ -34,7 +34,7 @@ export async function GET(req: Request) {
       const ors = [`nombre.ilike.%${t}%`, `codigo.ilike.%${t}%`, `identidad.ilike.%${t}%`];
       if (digitos.length >= 5) ors.push(`identidad.ilike.%${digitos}%`);
       const { data: cs } = await sb.from('condominios').select('codigo,nombre,identidad,modalidad,tipo,cant_declarada').or(ors.join(',')).limit(25);
-      const uors = [`inmueble.ilike.%${t}%`, `propietario.ilike.%${t}%`];
+      const uors = [`inmueble.ilike.%${t}%`, `numero.ilike.%${t}%`, `propietario.ilike.%${t}%`];
       if (digitos.length >= 5) uors.push(`identidad.ilike.%${digitos}%`);
       const { data: us } = await sb.from('condominio_unidades').select('id,inmueble,numero,propietario,identidad,condominios!inner(codigo,nombre)').or(uors.join(',')).limit(25);
       return NextResponse.json({ condominios: cs || [], unidades: us || [] });
