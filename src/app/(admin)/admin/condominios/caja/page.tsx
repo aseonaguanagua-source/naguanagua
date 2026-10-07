@@ -37,12 +37,12 @@ function Caja() {
   const [cobro, setCobro] = useState<any>(null);
   const [calculando, setCalculando] = useState(false);
   const [error, setError] = useState('');
-  const [claves, setClaves] = useState<string[]>([]);
+  const [claves, setClaves] = useState<string[]>(sp.get('unidad') ? [sp.get('unidad') as string] : []);
   const [meses, setMeses] = useState<number | ''>('');
   const [filtroU, setFiltroU] = useState('');
   const [estadoBase, setEstadoBase] = useState<any>(null);
   // modo de pago: lo escoge el cajero
-  const [modo, setModo] = useState<'CONDOMINIO' | 'CONTRIBUYENTE'>(sp.get('cedula') ? 'CONTRIBUYENTE' : 'CONDOMINIO');
+  const [modo, setModo] = useState<'CONDOMINIO' | 'CONTRIBUYENTE'>(sp.get('cedula') || sp.get('unidad') ? 'CONTRIBUYENTE' : 'CONDOMINIO');
   const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
   const [soloMultas, setSoloMultas] = useState(false);
   // pago
@@ -72,11 +72,19 @@ function Caja() {
     return () => clearTimeout(h);
   }, [q]);
 
-  const elegir = (cod: string, unidad?: any) => {
+  /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
+  const elegir = (cod: string, unidad?: any, todos = false) => {
     setCodigo(cod); setRes(null); setQ(''); setClaves([]); setMeses(''); setEstadoBase(null); setRecibo(null); setSoloMultas(false);
-    if (unidad?.identidad) { setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase()); }
-    else { setModo('CONDOMINIO'); setIdentidad(''); }
-    router.replace(`/admin/condominios/caja?codigo=${cod}${unidad?.identidad ? `&cedula=${encodeURIComponent(unidad.identidad)}` : ''}`);
+    if (unidad && todos && unidad.identidad) {
+      setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
+      router.replace(`/admin/condominios/caja?codigo=${cod}&cedula=${encodeURIComponent(unidad.identidad)}`);
+    } else if (unidad) {
+      setModo('CONTRIBUYENTE'); setIdentidad(''); setClaves([unidad.id]);
+      router.replace(`/admin/condominios/caja?codigo=${cod}&unidad=${unidad.id}`);
+    } else {
+      setModo('CONDOMINIO'); setIdentidad('');
+      router.replace(`/admin/condominios/caja?codigo=${cod}`);
+    }
   };
   const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setSoloMultas(false); if (m === 'CONDOMINIO') setIdentidad(''); };
 
@@ -189,11 +197,18 @@ function Caja() {
             ))}
             {res.unidades.length > 0 && <div className="px-4 pt-3 text-[10px] font-black uppercase tracking-wider text-slate-400">Unidades</div>}
             {res.unidades.map((u: any) => (
-              <button key={u.id} onClick={() => elegir(u.condominios.codigo, u)} className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 flex items-center gap-3 cursor-pointer">
-                <Layers className="w-4 h-4 text-sky-600 shrink-0" />
-                <div><div className="font-bold text-slate-900 text-sm">{u.propietario || 'Sin propietario'} <span className="font-mono text-xs text-slate-500">{u.identidad}</span></div>
-                  <div className="text-[11px] text-slate-500"><span className="font-mono">{u.inmueble}{u.numero ? ` · ${u.numero}` : ''}</span> en {u.condominios.nombre}</div></div>
-              </button>
+              <div key={u.id} className="w-full px-4 py-2.5 hover:bg-emerald-50 flex items-center gap-3">
+                <button onClick={() => elegir(u.condominios.codigo, u)} className="flex-1 text-left flex items-center gap-3 cursor-pointer" title="Cobrar solo este local">
+                  <Layers className="w-4 h-4 text-sky-600 shrink-0" />
+                  <div><div className="font-bold text-slate-900 text-sm"><span className="font-mono">{u.inmueble}{u.numero ? ` · ${u.numero}` : ''}</span> — {u.propietario || 'Sin propietario'} <span className="font-mono text-xs text-slate-500">{u.identidad}</span></div>
+                    <div className="text-[11px] text-slate-500">en {u.condominios.nombre} · <b className="text-sky-700">cobrar solo este local</b></div></div>
+                </button>
+                {u.identidad && (
+                  <button onClick={() => elegir(u.condominios.codigo, u, true)} className="shrink-0 px-2.5 py-1 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-600 hover:border-sky-300 hover:text-sky-800 cursor-pointer">
+                    Todos los locales de {u.identidad}
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}

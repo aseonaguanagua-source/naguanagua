@@ -275,6 +275,10 @@ function Ficha() {
                                 <div className="font-bold text-slate-900 flex items-center gap-2">{sinReg ? <span className="text-amber-800">Unidades declaradas sin registrar</span> : <span className="font-mono">{r.inmueble}{r.numero ? ` · ${r.numero}` : ''}</span>}
                                   {admin && unidadDe(r.clave) && (
                                     <button title="Editar unidad" onClick={ev => { ev.stopPropagation(); setEditorU(unidadDe(r.clave)); }} className="p-1 rounded-md text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                                  )}
+                                  {unidadDe(r.clave) && r.totalBs > 0.01 && (
+                                    <Link href={`/admin/condominios/caja?codigo=${c.codigo}&unidad=${r.clave}`} onClick={ev => ev.stopPropagation()} title="Cobrar solo este local"
+                                      className="px-2 py-0.5 rounded-md border border-sky-200 bg-sky-50 text-sky-800 text-[10px] font-extrabold hover:bg-sky-100 inline-flex items-center gap-1"><WalletIcon className="w-3 h-3" /> Cobrar</Link>
                                   )}</div>
                                 <div className="text-[11px] text-slate-500">
                                   {sinReg ? `${r.cantidad} unidad(es) — regístrelas para cobrarlas por separado` : `${r.propietario || 'Sin propietario'}${r.identidad ? ` · ${r.identidad}` : ''}`}
