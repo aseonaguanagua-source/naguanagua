@@ -149,7 +149,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     // Multas exoneradas ("quitar todas las multas"): los meses hasta esa fecha no llevan multa
     const hasta = String((u ? u.multa_exonerada_hasta : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
     const exonerados = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
-    const esAgente = u ? (u.agente_retencion || c.agente_retencion) : c.agente_retencion;
+    const esAgente = u ? !!u.agente_retencion : !!c.agente_retencion;
     const deuda = M.deudaPorMeses(meses, r.montoBs, res, esAgente, exonerados);
     const multaMeses = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
     const multaExtraBs = r2(r.montoBs * tMulta * multaMeses);
