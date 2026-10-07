@@ -4,6 +4,7 @@ import { DataTable } from '@/components/DataTable';
 import { FileSpreadsheet, Download, Filter, RefreshCw, Zap, Printer, X, CheckCircle, XCircle } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
+import { actualizarPago } from '@/lib/actualizarPago';
 import { logAudit } from '@/lib/audit';
 import tarifasData from '@/data/tarifas.json';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
@@ -117,7 +118,7 @@ export default function EstadoCuentaPage() {
 
     try {
       // 1. Update the pago record
-      await supabase.from('pagos_reportados').update({ estado: accion === 'Aprobar' ? 'Aprobado' : 'Rechazado' }).eq('id', pago.id);
+      await actualizarPago(pago.id, { estado: accion === 'Aprobar' ? 'Aprobado' : 'Rechazado' }, { soloSiEstado: pago.estado || 'Por Verificar' });
 
       // 2. Parse details
       const detalles = { ...{ recibos: [] as string[], cuotas: [] as any[] }, ...parseDetalles(pago.detalles) };

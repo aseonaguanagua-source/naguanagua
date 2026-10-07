@@ -12,6 +12,7 @@ import { LISTA_BANCOS } from '@/lib/bancos';
 import { calcularMensualidad, isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 import { desglosarPago } from '@/lib/desglosePago';
 import { FILTROS_MODULO, FiltroModulo, OR_CONDOMINIOS, infoCondominioPago, pasaFiltroModulo, rifsCondominios, useCondominiosLigero } from '@/lib/condominios/pagosCondominio';
+import { actualizarPago } from '@/lib/actualizarPago';
 
 type Pago = {
   id: string;
@@ -608,15 +609,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         }
       }
 
-      // Actualizar el pago
-      const { error } = await supabase.from('pagos_reportados').update({
+      // Actualizar el pago (por el servidor; solo si sigue en su estado actual → no se aprueba dos veces)
+      if (pago.estado === 'Aprobado' && estatus === 'Aprobado') throw new Error('Este pago ya está aprobado; aprobarlo otra vez descontaría la deuda dos veces.');
+      await actualizarPago(pago.id, {
         estado: estatus,
         banco: bancoEmisor,
         tipo: pago.tipo,
         detalles: updatedDet,
         created_at: new Date().toISOString() // Actualiza para los reportes diarios
-      }).eq('id', pago.id);
-      if (error) throw error;
+      }, { soloSiEstado: pago.estado || 'Por Verificar' });
 
       // Auditoría: Registro de conciliación de pago
       await logAudit(
@@ -781,7 +782,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             forma:       '03',   // 03 = Transferencia bancaria
             monto:       montoConciliadoNum
           }];
-          await supabase.from('pagos_reportados').update({ detalles: curDet }).eq('id', pago.id);
+          await actualizarPago(pago.id, { detalles: curDet });
         } catch(e) {
           console.error('Error guardando datos para factura digital conciliada:', e);
         }

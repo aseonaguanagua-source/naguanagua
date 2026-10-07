@@ -5,6 +5,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X, Building2, Store, Receipt, CheckSquare, Square, Filter, ChevronRight, DollarSign, Sparkles, AlertCircle, Coins } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
+import { actualizarPago } from '@/lib/actualizarPago';
 import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants } from '@/lib/formatCurrency';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
@@ -70,6 +71,12 @@ export default function CajaPage() {
   // Condominio State
   const [isCondominio, setIsCondominio] = useState(false);
   const [condominioHijos, setCondominioHijos] = useState<any[]>([]);
+  // Separación de condominios: códigos que solo se cobran en la Caja de Condominios
+  const [codigosSeparados, setCodigosSeparados] = useState<Set<string>>(new Set());
+  React.useEffect(() => {
+    fetch('/api/admin/condominios/separados', { cache: 'no-store' }).then(r => r.json())
+      .then(j => setCodigosSeparados(new Set(j?.separados ? (j.codigos || []) : []))).catch(() => {});
+  }, []);
   const [condominioModo, setCondominioModo] = useState<'Total' | 'Local' | 'Abono'>('Total');
   const [condominioSearch, setCondominioSearch] = useState("");
   const [montoAbonoCondo, setMontoAbonoCondo] = useState("");
@@ -158,8 +165,7 @@ export default function CajaPage() {
         if (typeof det === 'string') { try { det = JSON.parse(det); } catch { det = {}; } }
         det.recibo_caja = Array.isArray(reciboData) ? reciboData : [reciboData];
         det.recibo_caja_at = new Date().toISOString();
-        const { error } = await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pagoIdRecibo);
-        if (error) console.warn('No se pudo guardar el recibo en el pago:', error.message);
+        await actualizarPago(pagoIdRecibo, { detalles: det });
       } catch (e) { console.warn('No se pudo guardar el recibo en el pago:', e); }
     })();
   }, [reciboData]);
@@ -1262,7 +1268,27 @@ export default function CajaPage() {
     return 0;
   })();
 
+  /** Códigos de inmueble que toca el cobro actual / el contribuyente buscado. */
+  const codigosDelCobro = (soloSeleccion: boolean): string[] => {
+    const s = new Set<string>();
+    const refs: string[] = soloSeleccion ? selectedRecibos : recibos.map((r: any) => r.referencia);
+    refs.forEach((ref: string) => {
+      const m = String(ref || '').toUpperCase().match(/^(?:RECIB-HIST-(.+)-M\d+|MULTA-(.+?)(?:-M\d+)?)$/);
+      if (m) s.add(m[1] || m[2]);
+    });
+    if (!soloSeleccion || isCondominio) {
+      const cod = String(foundUser?.CodCont || foundUser?.cod_cont || '').toUpperCase();
+      if (cod) s.add(cod);
+      condominioHijos.forEach((h: any) => h?.inmueble && s.add(String(h.inmueble).toUpperCase()));
+    }
+    return [...s].filter(c => codigosSeparados.has(c));
+  };
+
   const handlePayment = async () => {
+    const separadosEnCobro = codigosSeparados.size ? codigosDelCobro(true) : [];
+    if (separadosEnCobro.length) {
+      return alert(`Estos inmuebles pertenecen al módulo de CONDOMINIOS y se cobran en "Caja de Condominios":\n${separadosEnCobro.slice(0, 15).join(', ')}${separadosEnCobro.length > 15 ? '…' : ''}\n\nQuite esos meses de la selección o cobre en Condominios → Caja de Condominios.`);
+    }
     const isAbonoCondo = isCondominio && condominioModo === 'Abono';
     if (!isAbonoCondo && totalBs <= 0) {
       if (isCondominio && condominioModo === 'Local') {
@@ -1626,7 +1652,7 @@ export default function CajaPage() {
                 monto: montoReal
               }
             ];
-            await supabase.from('pagos_reportados').update({ detalles: currentDetalles }).eq('id', pagoId);
+            await actualizarPago(pagoId, { detalles: currentDetalles });
           } catch(err) {
             console.error('Error guardando datos para factura digital', err);
           }
@@ -2674,6 +2700,15 @@ export default function CajaPage() {
         </div>
       )}
 
+      {foundUser && codigosSeparados.size > 0 && codigosDelCobro(false).length > 0 && (
+        <div id="aviso-condominio-separado" className="bg-amber-50 text-amber-900 p-4 rounded-lg border border-amber-300 flex items-start gap-2 text-sm">
+          <Building2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <b>Inmuebles de condominio:</b> {codigosDelCobro(false).slice(0, 12).join(', ')}{codigosDelCobro(false).length > 12 ? '…' : ''} se cobran en{' '}
+            <Link href="/admin/condominios/caja" className="underline font-bold">Caja de Condominios</Link>. Aquí no se pueden cobrar.
+          </div>
+        </div>
+      )}
       {/* Buscador */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
         <div className="flex items-center justify-between mb-2">
