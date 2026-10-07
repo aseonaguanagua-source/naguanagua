@@ -38,6 +38,8 @@ export interface SolicitudCobro {
   meses?: number | null;
   /** Solo multas (modo CONTRIBUYENTE) */
   soloMultas?: boolean;
+  tasaOverride?: number;
+  fechaOverride?: string;
 }
 
 export interface LineaCobro {
@@ -83,9 +85,10 @@ const n = (s: any) => M.normId(s);
 export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _datos: any }> {
   const datos = await cargarCondominio(sol.codigo);
   if (!datos) throw new Error('Condominio no encontrado');
-  const tasa = await tasaVigente();
+  const tasa = sol.tasaOverride && sol.tasaOverride > 0 ? sol.tasaOverride : await tasaVigente();
   if (!(tasa > 0)) throw new Error('No hay tasa BCV vigente configurada.');
-  const estado = calcularEstado(datos.condo, datos.unidades, tasa, new Date(), datos.multas);
+  const fecha = sol.fechaOverride ? new Date(sol.fechaOverride) : new Date();
+  const estado = calcularEstado(datos.condo, datos.unidades, tasa, fecha, datos.multas);
   const porAct = estado.porActividad;
   const avisos: string[] = [];
   const modo: ModoCobro = sol.modo === 'CONTRIBUYENTE' || sol.identidad || (sol.claves || []).length ? (sol.modo || 'CONTRIBUYENTE') : (sol.modo || 'CONDOMINIO');

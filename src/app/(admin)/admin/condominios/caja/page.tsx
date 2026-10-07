@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Building2, Search, RefreshCw, AlertTriangle, Wallet, CheckCircle2, X, Printer, ShieldAlert, Power,
-  Receipt, Layers, ArrowLeft, FlaskConical, Users, UserSearch, FileText,
+  Receipt, Layers, ArrowLeft, FlaskConical, Users, UserSearch, FileText, Calendar,
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 import { getCajeroId } from '@/lib/cajaHelpers';
@@ -46,6 +46,8 @@ function Caja() {
   const [modo, setModo] = useState<'CONDOMINIO' | 'CONTRIBUYENTE'>(sp.get('cedula') || sp.get('unidad') ? 'CONTRIBUYENTE' : 'CONDOMINIO');
   const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
   const [soloMultas, setSoloMultas] = useState(false);
+  const [tasaOverrideStr, setTasaOverrideStr] = useState('');
+  const [fechaOverrideStr, setFechaOverrideStr] = useState(new Date().toISOString().slice(0, 10));
   // pago
   const [metodo, setMetodo] = useState('Transferencia');
   const [banco, setBanco] = useState('');
@@ -65,7 +67,7 @@ function Caja() {
   const [motivoInt, setMotivoInt] = useState('');
 
   const sumaPagos = useMemo(() => pagosAgregados.reduce((a, p) => a + p.monto, 0), [pagosAgregados]);
-  const faltaPagar = useMemo(() => Math.max(0, (cobro?.totales?.totalBs || 0) - sumaPagos), [cobro, sumaPagos]);
+  const faltaPagar = useMemo(() => Math.max(0, Math.round(((cobro?.totales?.totalBs || 0) - sumaPagos) * 100) / 100), [cobro, sumaPagos]);
 
   // Se resetean los pagos si cambia la deuda
   useEffect(() => { setPagosAgregados([]); }, [cobro?.totales?.totalBs]);
@@ -109,8 +111,12 @@ function Caja() {
     const h = setTimeout(async () => {
       setCalculando(true); setError('');
       try {
+        let tasaParsed = parseFloat(tasaOverrideStr.replace(/\./g, '').replace(',', '.'));
+        if (isNaN(tasaParsed)) tasaParsed = 0;
         const r = await fetch('/api/admin/condominios/cobrar', { method: 'POST', body: JSON.stringify({
           accion: 'calcular', codigo, modo, claves, identidad: modo === 'CONTRIBUYENTE' ? identidad.trim() || null : null, meses: meses || null, soloMultas,
+          tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
+          fechaOverride: fechaOverrideStr || undefined,
         }) });
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || 'No se pudo calcular');
@@ -120,7 +126,7 @@ function Caja() {
       } catch (e: any) { setError(e.message); setCobro(null); } finally { setCalculando(false); }
     }, 300);
     return () => clearTimeout(h);
-  }, [codigo, modo, claves, identidad, meses, soloMultas]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [codigo, modo, claves, identidad, meses, soloMultas, tasaOverrideStr, fechaOverrideStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = cobro?.condo;
   const base = estadoBase || cobro?.estado;
@@ -232,17 +238,52 @@ function Caja() {
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2"><Wallet className="w-7 h-7 text-emerald-600" /> Caja de Condominios</h1>
           <p className="text-xs text-slate-500">Busque el condominio (nombre, código o RIF) o el dueño de una unidad. El monto lo calcula el sistema con la tarifa y la tasa BCV vigentes.</p>
         </div>
-        <div className="flex items-center gap-2">
-          {activa === null ? null : activa ? (
-            <span className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-black flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> ACTIVA: registra pagos reales</span>
-          ) : (
-            <span className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-black flex items-center gap-2"><FlaskConical className="w-4 h-4" /> MODO PRUEBA: solo calcula, no registra</span>
-          )}
-          {admin && activa !== null && (
-            <button id="btn-interruptor-caja-condominios" onClick={() => setModalInt(true)} className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
-              <Power className="w-4 h-4" /> {activa ? 'Pasar a prueba' : 'Activar'}
-            </button>
-          )}
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex items-center gap-2">
+            {activa === null ? null : activa ? (
+              <span className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-black flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> ACTIVA: registra pagos reales</span>
+            ) : (
+              <span className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-black flex items-center gap-2"><FlaskConical className="w-4 h-4" /> MODO PRUEBA: solo calcula, no registra</span>
+            )}
+            {admin && activa !== null && (
+              <button id="btn-interruptor-caja-condominios" onClick={() => setModalInt(true)} className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
+                <Power className="w-4 h-4" /> {activa ? 'Pasar a prueba' : 'Activar'}
+              </button>
+            )}
+          </div>
+          <div className="bg-[#f0fdf4] border border-[#86efac] rounded-xl p-3 flex flex-col gap-2 shadow-sm min-w-[280px]">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[#166534] font-bold text-sm">Tasa BCV Aplicada:</span>
+              <input type="text" value={tasaOverrideStr} onChange={e => {
+                let v = e.target.value.replace(/[^0-9,.]/g, '');
+                setTasaOverrideStr(v);
+              }} onBlur={e => {
+                 let v = e.target.value;
+                 if (v.includes(',') && v.includes('.')) {
+                   if (v.lastIndexOf(',') > v.lastIndexOf('.')) v = v.replace(/\./g, '').replace(',', '.');
+                   else v = v.replace(/,/g, '');
+                 } else if (v.includes(',')) {
+                   v = v.replace(',', '.');
+                 }
+                 let p = parseFloat(v);
+                 if(!isNaN(p) && p > 0) setTasaOverrideStr(p.toFixed(2).replace('.', ','));
+                 else setTasaOverrideStr('');
+              }} placeholder="Automática" className="bg-white border border-[#86efac] rounded-lg px-2 py-1.5 text-right font-bold text-[#166534] text-sm w-24 outline-none focus:ring-1 focus:ring-[#166534]" />
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-[#86efac]/50">
+              <div className="flex items-center gap-1.5 text-[#166534]">
+                <Calendar className="w-4 h-4" />
+                <input type="date" value={fechaOverrideStr} onChange={e => setFechaOverrideStr(e.target.value)} className="bg-transparent border-none text-xs font-bold text-[#166534] outline-none cursor-pointer" />
+              </div>
+              <button onClick={() => {
+                if (!codigo) return;
+                // Force re-calculation by toggling a dummy state or relying on the useEffect dependency
+                setCobro(null); setEstadoBase(null);
+              }} className="bg-[#059669] hover:bg-[#047857] text-white px-3 py-1 rounded-lg text-xs font-bold transition-colors">
+                Fijar Día
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

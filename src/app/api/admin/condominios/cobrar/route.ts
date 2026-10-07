@@ -21,6 +21,8 @@ export async function POST(req: Request) {
       identidad: b.identidad ? String(b.identidad).trim().toUpperCase() : null,
       meses: b.meses ? Number(b.meses) : null,
       soloMultas: !!b.soloMultas,
+      tasaOverride: b.tasaOverride ? Number(b.tasaOverride) : undefined,
+      fechaOverride: b.fechaOverride ? String(b.fechaOverride) : undefined,
     };
     if (!sol.codigo && !['estado', 'interruptor'].includes(b.accion)) return NextResponse.json({ error: 'Falta el código del condominio' }, { status: 400 });
     const activa = await cajaActiva();
