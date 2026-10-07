@@ -42,11 +42,13 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState('');
 
-  // Multas
-  const [mConcepto, setMConcepto] = useState('');
-  const [mMonto, setMMonto] = useState('');
-  const [mUnidad, setMUnidad] = useState<'Bs' | 'MMV'>('Bs');
+  // Multas: siempre por meses — 10% (residencial) o 12% (comercial) de la mensualidad por cada mes
   const multasPend = useMemo(() => (unidad ? multas.filter(m => m.unidad_id === unidad.id && m.estado === 'Pendiente') : []), [multas, unidad]);
+  const esRes = renglon ? !!renglon.residencial : clase === 'RES';
+  const pctMulta = esRes ? 0.10 : 0.12;
+  const mensualBs = Number(renglon?.mensualBs) || 0;
+  const multaPorMesBs = Math.round(mensualBs * pctMulta * 100) / 100;
+  const multaMesesN = Math.max(0, parseInt(f.multa_meses) || 0);
 
   const actividad = clase === 'RES' ? actRes : (actCom.trim() ? actividadConNivel(actCom.trim().toUpperCase(), nivel) : '');
   const tarifaSugerida = clase === 'RES'
@@ -87,22 +89,6 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     } catch (e: any) { setErr(e.message); } finally { setGuardando(false); }
   };
 
-  const agregarMulta = async () => {
-    setErr('');
-    if (motivo.trim().length < 5) { setErr('Escriba el motivo (abajo) antes de agregar la multa.'); return; }
-    const monto = Number(String(mMonto).replace(',', '.')) || 0;
-    if (!mConcepto.trim() || monto <= 0) { setErr('Indique concepto y monto de la multa.'); return; }
-    setGuardando(true);
-    try {
-      const r = await fetch('/api/admin/condominios/multas', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigo: condo.codigo, unidad_id: unidad.id, concepto: mConcepto, [mUnidad === 'Bs' ? 'monto_bs' : 'monto_mmv']: monto, usuario, motivo }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'No se pudo agregar');
-      setMConcepto(''); setMMonto(''); onSaved(false);
-    } catch (e: any) { setErr(e.message); } finally { setGuardando(false); }
-  };
 
   const anularMulta = async (m: any) => {
     const mot = prompt(`Motivo para anular la multa "${m.concepto}":`);
@@ -184,11 +170,9 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           </div>
 
           {/* Deuda */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block"><span className={lbl}>Meses pendientes de aseo</span>
               <input id="unidad-meses" type="number" min={0} value={f.meses} onChange={e => setF({ ...f, meses: e.target.value })} className={inp} /></label>
-            <label className="block"><span className={lbl}>Meses con multa (ya pagados)</span>
-              <input id="unidad-multa-meses" type="number" min={0} value={f.multa_meses} onChange={e => setF({ ...f, multa_meses: e.target.value })} className={inp} /></label>
             <label className="block"><span className={lbl}>Estado</span>
               <select id="unidad-estado" value={f.estado} onChange={e => setF({ ...f, estado: e.target.value })} className={inp}>
                 <option value="Activa">Activa</option><option value="Desocupada">Desocupada</option><option value="Eliminada">Eliminada (no cobra)</option>
@@ -212,33 +196,39 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           </div>
 
           {/* Multas */}
-          {!nueva && (
-            <div className="rounded-xl border border-slate-200 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-500">Multas de esta unidad</span>
-                {renglon && <span className="text-[11px] text-slate-500">Deuda actual: <b className="text-red-700">Bs {fmtBs(renglon.totalBs)}</b></span>}
-              </div>
-              {multasPend.length === 0 ? <div className="text-xs text-slate-500">No tiene multas agregadas a mano.</div> : (
-                <div className="space-y-1.5">
-                  {multasPend.map(m => (
-                    <div key={m.id} className="flex items-center justify-between rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs">
-                      <span><b>{m.concepto}</b> · {m.monto_bs != null ? `Bs ${fmtBs(m.monto_bs)}` : `${m.monto_mmv} MMV`} <span className="text-slate-500">({m.creada_por})</span></span>
-                      <button onClick={() => anularMulta(m)} disabled={guardando} className="text-red-700 hover:text-red-900 font-bold flex items-center gap-1 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /> Anular</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px_80px_auto] gap-2 items-end">
-                <label className="block"><span className={lbl}>Concepto</span>
-                  <input id="multa-concepto" value={mConcepto} onChange={e => setMConcepto(e.target.value)} placeholder="Ej. Multa por bote de basura" className={inp} /></label>
-                <label className="block"><span className={lbl}>Monto</span>
-                  <input id="multa-monto" value={mMonto} onChange={e => setMMonto(e.target.value)} placeholder="0,00" className={inp} /></label>
-                <label className="block"><span className={lbl}>En</span>
-                  <select value={mUnidad} onChange={e => setMUnidad(e.target.value as any)} className={inp}><option>Bs</option><option>MMV</option></select></label>
-                <button id="btn-agregar-multa" onClick={agregarMulta} disabled={guardando} className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"><Plus className="w-4 h-4" /> Agregar</button>
+          <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-800">Multa por meses ({esRes ? '10% residencial' : '12% comercial'})</span>
+              {renglon && <span className="text-[11px] text-slate-500">Deuda actual: <b className="text-red-700">Bs {fmtBs(renglon.totalBs)}</b></span>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3 items-end">
+              <label className="block"><span className={lbl}>Meses de multa</span>
+                <div className="mt-1 flex items-center gap-1">
+                  <button type="button" onClick={() => setF({ ...f, multa_meses: Math.max(0, multaMesesN - 1) })} className="w-9 h-9 rounded-lg border border-slate-300 bg-white font-black cursor-pointer hover:bg-slate-50">−</button>
+                  <input id="unidad-multa-meses" type="number" min={0} value={f.multa_meses} onChange={e => setF({ ...f, multa_meses: e.target.value })} className="w-16 h-9 text-center border border-slate-300 rounded-lg text-sm" />
+                  <button type="button" onClick={() => setF({ ...f, multa_meses: multaMesesN + 1 })} className="w-9 h-9 rounded-lg border border-slate-300 bg-white font-black cursor-pointer hover:bg-slate-50">+</button>
+                </div></label>
+              <div className="text-xs text-slate-700">
+                {mensualBs > 0 ? (
+                  <>{multaMesesN} mes(es) × Bs {fmtBs(multaPorMesBs)} <span className="text-slate-500">({esRes ? '10' : '12'}% de la mensualidad Bs {fmtBs(mensualBs)})</span> = <b className="text-red-700">Bs {fmtBs(multaPorMesBs * multaMesesN)}</b></>
+                ) : (
+                  <>Cada mes de multa = {esRes ? '10' : '12'}% de la mensualidad de la unidad.</>
+                )}
               </div>
             </div>
-          )}
+            <div className="text-[11px] text-slate-500">Los meses de aseo pendientes ya llevan su multa automática (todos menos el más reciente). Aquí se agregan multas de meses adicionales; se guardan con “Guardar cambios”.</div>
+            {multasPend.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold text-slate-600">Multas anteriores con monto fijo:</div>
+                {multasPend.map(m => (
+                  <div key={m.id} className="flex items-center justify-between rounded-lg bg-white border border-amber-200 px-3 py-1.5 text-xs">
+                    <span><b>{m.concepto}</b> · {m.monto_bs != null ? `Bs ${fmtBs(m.monto_bs)}` : `${m.monto_mmv} MMV`} <span className="text-slate-500">({m.creada_por})</span></span>
+                    <button onClick={() => anularMulta(m)} disabled={guardando} className="text-red-700 hover:text-red-900 font-bold flex items-center gap-1 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /> Anular</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <label className="block"><span className="text-xs font-bold text-red-700">Motivo del cambio (obligatorio)</span>
             <input id="unidad-motivo" value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Queda registrado en la Auditoría" className="mt-1 w-full border border-red-200 rounded-xl px-3 py-2" /></label>
