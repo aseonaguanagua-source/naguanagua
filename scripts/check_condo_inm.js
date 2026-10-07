@@ -12,11 +12,9 @@ const sb = createClient(supabaseUrl, supabaseKey);
 
 async function check() {
   const { data: condo } = await sb.from('condominios').select('*').eq('codigo', 'URB004304').limit(1).maybeSingle();
-  console.log('Condominio URB004304:', condo);
-
   if (condo && condo.identidad) {
-    const { data: contrib } = await sb.from('contribuyentes').select('*').eq('identidad', condo.identidad).maybeSingle();
-    console.log('Contribuyente URB004304:', contrib);
+    const { data: inms } = await sb.from('inmuebles').select('inmueble, identidad, agente_retencion').eq('identidad', condo.identidad);
+    console.log('Inmuebles para RIF del condominio:', inms);
   }
 }
 check().catch(console.error);

@@ -200,8 +200,8 @@ export async function cargarCondominio(codigo: string) {
   if (!condo) return null;
 
   if (condo.identidad) {
-    const { data: contrib } = await sb.from('contribuyentes').select('agente_retencion').eq('identidad', condo.identidad).maybeSingle();
-    condo.agente_retencion = !!contrib?.agente_retencion;
+    const { data: inm } = await sb.from('inmuebles').select('agente_retencion').eq('identidad', condo.identidad).maybeSingle();
+    condo.agente_retencion = !!inm?.agente_retencion;
   }
 
   const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).order('inmueble').range(a, b));
@@ -234,9 +234,9 @@ export async function resumenGeneral() {
   const multasPor = new Map<string, any[]>();
   (multas || []).forEach(m => { if (!multasPor.has(m.condominio_id)) multasPor.set(m.condominio_id, []); multasPor.get(m.condominio_id)!.push(m); });
 
-  const { data: contribuyentes } = await sb.from('contribuyentes').select('identidad, agente_retencion');
+  const { data: inmueblesGlobal } = await sb.from('inmuebles').select('identidad, agente_retencion').eq('agente_retencion', true);
   const agentes = new Map<string, boolean>();
-  (contribuyentes || []).forEach(c => agentes.set(c.identidad, !!c.agente_retencion));
+  (inmueblesGlobal || []).forEach(c => c.identidad && agentes.set(c.identidad, true));
 
   const filas = condos.map(c => {
     const us = porCondo.get(c.id) || [];
