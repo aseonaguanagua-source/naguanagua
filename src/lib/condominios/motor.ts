@@ -80,16 +80,16 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export const esResidencial = (c: Pick<Condominio, 'tipo'>) => c.tipo === 'RESIDENCIAL';
 
-/** Mensualidad de UNA unidad con la tarifa del condominio (o de la unidad si la tiene). */
+/** Mensualidad de UNA unidad con su propia tarifa/actividad (o la del condominio si la unidad no la tiene). */
 export function tarifaUnidadBs(c: Condominio, tasa: number, u?: Unidad): number {
-  const act = u && !esSinActividad(u.actividad) ? u.actividad : c.actividad;
-  const tipo = u ? (unidadResidencial(c, u) ? 'RESIDENCIAL' : 'COMERCIAL') : c.tipo;
-  return calcularMensualidad({
-    tipo,
-    actividad_principal: act || '',
-    mmv_mes: u?.tarifa_mmv ?? c.tarifa_mmv ?? undefined,
-    cant_inmuebles: 1,
-  }, tasa);
+  const conAct = !!u && !esSinActividad(u.actividad);
+  const act = conAct ? u!.actividad : c.actividad;
+  const res = u ? unidadResidencial(c, u) : c.tipo === 'RESIDENCIAL';
+  const tipo = res ? 'RESIDENCIAL' : 'COMERCIAL';
+  // Residencial con tipo y zona (APARTAMENTO (ZONA A), QUINTA (ZONA B)…) y sin tarifa propia: el F.O. sale de
+  // la ordenanza por su actividad, NO de la tarifa genérica del condominio (así lo cobra SIGYR).
+  const mmv = u?.tarifa_mmv ?? (res && conAct ? undefined : c.tarifa_mmv ?? undefined);
+  return calcularMensualidad({ tipo, actividad_principal: act || '', mmv_mes: mmv, cant_inmuebles: 1 }, tasa);
 }
 
 /** Mensualidad de una unidad desocupada (1,98 MMV con FAC comercial). */
@@ -122,11 +122,13 @@ export function cargoMensual(c: Condominio, unidades: Unidad[], tasa: number): C
     return { condominioBs: r2(total), unidadesCobradas: reparto.filter(r => r.montoBs > 0).length, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
       detalle: c.modalidad === 'INDIVIDUAL' ? 'Cada unidad paga lo suyo (suma de todas)' : 'Suma de la actividad económica de cada local' };
   }
-  const ocupadas = declarada - desoc;
-  const total = tUnit * ocupadas + tDesoc * desoc;
+  const reparto = cargosPorUnidad(c, unidades, tasa);
+  const total = reparto.reduce((s, r) => s + r.montoBs, 0);
+  const registradas = reparto.filter(r => r.clave !== SIN_REGISTRAR && r.montoBs > 0).length;
+  const sinReg = reparto.find(r => r.clave === SIN_REGISTRAR)?.cantidad || 0;
   return {
-    condominioBs: r2(total), unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
-    detalle: `${ocupadas} unidad(es) × Bs ${r2(tUnit)}${desoc ? ` + ${desoc} desocupada(s) × Bs ${r2(tDesoc)}` : ''}`,
+    condominioBs: r2(total), unidadesCobradas: registradas + sinReg, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
+    detalle: `${registradas} unidad(es) según su tipo y zona${sinReg ? ` + ${sinReg} declarada(s) sin registrar` : ''}${desoc ? ` (${desoc} desocupada(s))` : ''}`,
   };
 }
 
@@ -166,24 +168,19 @@ export function cargosPorUnidad(c: Condominio, unidades: Unidad[], tasa: number)
     }));
   }
 
-  // CENTRALIZADO / MIXTO_COMERCIAL: tarifa del condominio por unidad, se cobra la DECLARADA
-  if (vivas.length >= declarada) {
-    // Más (o igual) registradas que declaradas: el total sigue siendo la declarada, repartido entre las registradas
-    const total = cargoMensual(c, vivas, tasa).condominioBs;
-    const cuota = total / vivas.length;
-    const out = vivas.map((u, i) => ({ clave: clave(u, i), inmueble: u.inmueble, cantidad: 1, montoBs: r2(cuota) }));
-    const dif = r2(total - out.reduce((s, o) => s + o.montoBs, 0));
-    if (out.length && dif !== 0) out[out.length - 1].montoBs = r2(out[out.length - 1].montoBs + dif); // cuadre de céntimos
-    return out;
-  }
+  // CENTRALIZADO: lo paga el condominio, pero cada unidad registrada vale según su propio tipo y zona
+  // (APARTAMENTO ZONA A ≠ ZONA B), igual que SIGYR. Las declaradas que no están registradas se cobran con
+  // la tarifa más común de las registradas (o la del condominio si no hay ninguna).
   const out: CargoUnidad[] = vivas.map((u, i) => ({
-    clave: clave(u, i), inmueble: u.inmueble, cantidad: 1, montoBs: r2(u.estado === 'Desocupada' ? tDesoc : tUnit),
+    clave: clave(u, i), inmueble: u.inmueble, cantidad: 1,
+    montoBs: unidadNoCobra(c, u) ? 0 : r2(u.estado === 'Desocupada' ? tDesoc : tarifaUnidadBs(c, tasa, u)),
   }));
-  out.push({ clave: SIN_REGISTRAR, inmueble: null, cantidad: declarada - vivas.length, montoBs: r2(tUnit * (declarada - vivas.length)) });
-  // Cuadre de céntimos: la suma por unidad debe ser exactamente el cargo del condominio
-  const total = cargoMensual(c, vivas, tasa).condominioBs;
-  const dif = r2(total - out.reduce((s, o) => s + o.montoBs, 0));
-  if (dif !== 0) out[out.length - 1].montoBs = r2(out[out.length - 1].montoBs + dif);
+  const cobran = vivas.filter(u => !unidadNoCobra(c, u)).length;
+  // Como SIGYR: si hay unidades registradas se cobran solo ellas; la cantidad declarada se usa
+  // únicamente cuando el condominio todavía no tiene ninguna unidad registrada.
+  if (cobran === 0) {
+    out.push({ clave: SIN_REGISTRAR, inmueble: null, cantidad: declarada, montoBs: r2(tUnit * declarada) });
+  }
   return out;
 }
 

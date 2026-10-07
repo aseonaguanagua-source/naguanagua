@@ -195,17 +195,23 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
             <div className="text-[11px] text-slate-500 -mt-2">Este condominio paga centralizado: los meses que cuentan son los del condominio (botón Opciones).</div>
           )}
 
-          {/* Estructura */}
+          {/* Estructura y Retención */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block"><span className={lbl}>Pertenece a la torre / local</span>
               <select id="unidad-torre" value={f.padre_unidad_id} onChange={e => setF({ ...f, padre_unidad_id: e.target.value })} className={inp}>
                 <option value="">— Directo en el condominio —</option>
                 {torres.map(t => <option key={t.id} value={t.id}>{t.inmueble || ''} {t.numero || ''} {t.propietario ? `· ${t.propietario}` : ''}</option>)}
               </select></label>
-            <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 cursor-pointer hover:bg-slate-50 self-end">
-              <input type="checkbox" checked={f.es_grupo} onChange={e => setF({ ...f, es_grupo: e.target.checked })} className="w-4 h-4 accent-emerald-600" />
-              <span className="text-xs font-bold text-slate-700">Es una torre / local contenedor (no cobra; cobran sus unidades)</span>
-            </label>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 cursor-pointer hover:bg-slate-50 self-end w-full">
+                <input type="checkbox" checked={f.es_grupo} onChange={e => setF({ ...f, es_grupo: e.target.checked })} className="w-4 h-4 accent-emerald-600" />
+                <span className="text-xs font-bold text-slate-700">Es una torre / local (no cobra)</span>
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 cursor-pointer hover:bg-blue-100 self-end w-full">
+                <input type="checkbox" checked={f.agente_retencion} onChange={e => setF({ ...f, agente_retencion: e.target.checked })} className="w-4 h-4 accent-blue-600" />
+                <span className="text-xs font-bold text-blue-900">Agente de retención (75% IVA)</span>
+              </label>
+            </div>
           </div>
 
           {/* Multas */}

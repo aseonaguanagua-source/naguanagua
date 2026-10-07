@@ -149,7 +149,8 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     // Multas exoneradas ("quitar todas las multas"): los meses hasta esa fecha no llevan multa
     const hasta = String((u ? u.multa_exonerada_hasta : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
     const exonerados = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
-    const deuda = M.deudaPorMeses(meses, r.montoBs, res, c.agente_retencion, exonerados);
+    const esAgente = u ? (u.agente_retencion || c.agente_retencion) : c.agente_retencion;
+    const deuda = M.deudaPorMeses(meses, r.montoBs, res, esAgente, exonerados);
     const multaMeses = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
     const multaExtraBs = r2(r.montoBs * tMulta * multaMeses);
     const manuales = multasPend.filter(m => (u ? m.unidad_id === u.id : !m.unidad_id))
@@ -196,7 +197,19 @@ export async function cargarCondominio(codigo: string) {
   const { data: condo, error } = await sb.from('condominios').select('*').eq('codigo', codigo.toUpperCase()).maybeSingle();
   if (error) throw new Error(error.message);
   if (!condo) return null;
-  const unidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).order('inmueble').range(a, b));
+  const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).order('inmueble').range(a, b));
+  
+  // Fetch agente_retencion manually since there's no FK relation
+  const codigosUnidades = rawUnidades.map((u: any) => u.inmueble).filter(Boolean);
+  const agentes = new Map<string, boolean>();
+  if (codigosUnidades.length > 0) {
+    for (let i = 0; i < codigosUnidades.length; i += 300) {
+      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion').in('inmueble', codigosUnidades.slice(i, i + 300));
+      (inm || []).forEach(r => agentes.set(r.inmueble, !!r.agente_retencion));
+    }
+  }
+  const unidades = rawUnidades.map((u: any) => ({ ...u, agente_retencion: agentes.get(u.inmueble) || false }));
+  
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(300);
   const { data: multas } = await sb.from('condominio_multas').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false });
   return { condo, unidades, movimientos: movimientos || [], multas: multas || [] };

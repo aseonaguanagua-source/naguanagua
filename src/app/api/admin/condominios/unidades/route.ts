@@ -81,20 +81,30 @@ export async function PATCH(req: Request) {
     if (!antes) return NextResponse.json({ error: 'Unidad no encontrada' }, { status: 404 });
 
     const upd = limpiar(cambios || {});
+    const esAgente = cambios.agente_retencion === true;
     delete (upd as any).condominio_id;
     if (upd.padre_unidad_id === id) return NextResponse.json({ error: 'Una unidad no puede depender de sí misma.' }, { status: 400 });
     if (upd.inmueble && upd.inmueble !== antes.inmueble) {
       const { data: ya } = await sb.from('condominio_unidades').select('id').eq('inmueble', upd.inmueble).maybeSingle();
       if (ya) return NextResponse.json({ error: `El inmueble ${upd.inmueble} ya está registrado en otra unidad.` }, { status: 409 });
     }
+    
+    // Actualizar agente de retencion en el inmueble si tiene
+    const inmuebleAActualizar = upd.inmueble || antes.inmueble;
+    if (inmuebleAActualizar && 'agente_retencion' in cambios) {
+      await sb.from('inmuebles').update({ agente_retencion: esAgente }).eq('inmueble', inmuebleAActualizar);
+    }
     // Quitar lo que no cambió
     for (const k of Object.keys(upd)) if (String(upd[k] ?? '') === String(antes[k] ?? '')) delete upd[k];
-    if (!Object.keys(upd).length) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
+    if (!Object.keys(upd).length && !('agente_retencion' in cambios)) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
 
-    const { error } = await sb.from('condominio_unidades').update(upd).eq('id', id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (Object.keys(upd).length > 0) {
+      const { error } = await sb.from('condominio_unidades').update(upd).eq('id', id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     const diff: Record<string, any> = Object.fromEntries(Object.keys(upd).map(k => [k, { antes: antes[k], despues: upd[k] }]));
+    if ('agente_retencion' in cambios) diff.agente_retencion = { antes: '?', despues: esAgente };
     if ('aseo_pendiente_desde' in upd) diff.meses = { antes: mesesPendientes(antes.aseo_pendiente_desde), despues: mesesPendientes(upd.aseo_pendiente_desde) };
     await sb.from('auditoria').insert({
       accion: 'Modificación de unidad de condominio', usuario: `${t.nombre || t.usuario} (${t.usuario})`,

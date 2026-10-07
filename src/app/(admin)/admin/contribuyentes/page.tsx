@@ -1494,7 +1494,7 @@ function ContribuyentesPageContent() {
             DeudaCongelada: 0,
             DeudaBs: 0,
             MesesDeuda: 0,
-            Estado: 'Activo',
+            Estado: 'Inactivo',
             FechaRegistro: c.created_at || null
           });
         }
@@ -2583,6 +2583,23 @@ function ContribuyentesPageContent() {
                              </select>
                            </div>
                          )}
+                       </div>
+                       
+                       {/* Botón de Eliminar Actividad/Inmueble */}
+                       <div className="flex items-center justify-center">
+                         <button
+                           type="button"
+                           onClick={() => {
+                             if(window.confirm(`¿Está seguro de que desea eliminar este inmueble/actividad (${local.codigo || local.numeracion})? Al guardar los cambios, esta actividad será dada de baja.`)) {
+                               const newLocales = formData.locales.filter((_: any, i: number) => i !== index);
+                               setFormData({ ...formData, locales: newLocales, cantidadInmuebles: newLocales.length });
+                             }
+                           }}
+                           className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                           title="Eliminar Actividad/Inmueble"
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </button>
                        </div>
                     </div>
                   ))}

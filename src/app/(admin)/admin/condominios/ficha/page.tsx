@@ -139,15 +139,10 @@ function Ficha() {
   };
 
   const exportar = async () => {
-    const XLSX = await import('xlsx');
-    const ws = XLSX.utils.json_to_sheet(e.renglones.map((r: any) => ({
-      Unidad: r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'SIN REGISTRAR' : ''), Número: r.numero || '', Propietario: r.propietario || '',
-      'Cédula/RIF': r.identidad || '', Estado: r.estado, Cantidad: r.cantidad, 'Mensualidad Bs': r.mensualBs, Meses: r.deuda.meses,
-      'Aseo Bs': r.deuda.baseBs, 'Multa Bs': r.deuda.multaBs + r.multaExtraBs, 'IVA Bs': r.deuda.ivaBs, 'Retención Bs': r.deuda.retencionBs, 'Total Bs': r.totalBs,
-      Períodos: r.periodos.map(fmtPeriodo).join(', '),
-    })));
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Estado de cuenta');
-    XLSX.writeFile(wb, `Estado_cuenta_${c.codigo}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    // Generate PDF state of account
+    const { generarPdfEstadoCuentaCondominio } = await import('@/lib/condominios/pdfCondominio');
+    const cajero = usuarioActual() || 'Administrador';
+    generarPdfEstadoCuentaCondominio(c, e, cajero, true);
   };
 
   if (!codigo) return <div className="p-6">Falta el código del condominio.</div>;

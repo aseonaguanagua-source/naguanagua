@@ -802,8 +802,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { data } = await supabase
       .from('inmuebles')
       .select('inmueble')
-      .like('inmueble', 'URB0%')
-      .lt('inmueble', 'URB099000')
+      .gte('inmueble', 'URB000000')
+      .lt('inmueble', 'URB100000')
       .order('inmueble', { ascending: false })
       .limit(200);
     const max = (data || [])
@@ -851,20 +851,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // 2. Datos de contacto en sus inmuebles (no toca tarifas)
       const contacto: any = { contribuyente: data.Contribuyente, telefono: data.Telefono, correo_electronico: data.Correo };
       if (notaToSave) contacto.notas = notaToSave;
-      let qc = supabase.from('inmuebles').update(contacto);
-      qc = codigosPropios.length > 0 ? qc.in('inmueble', codigosPropios) : qc.eq('identidad', identidadExacta);
-      const { error: errCont } = await qc;
-      if (errCont) throw errCont;
+      
+      if (codigosPropios.length > 0) {
+        const { error: errCont } = await supabase.from('inmuebles').update(contacto).in('inmueble', codigosPropios);
+        if (errCont) throw errCont;
+      }
 
       const nuevaClasificacion = data.Clasificacion || 'Residencial';
       let nuevaActividad = '';
       const cambios: string[] = [];
 
       if (data.isCondominio && Array.isArray(data.locales) && data.locales.length > 0) {
-        // 3a. Varios inmuebles/actividades: actualizar SOLO los que cambiaron; insertar los nuevos
+        // 3a. Varios inmuebles/actividades: actualizar SOLO los que cambiaron; insertar los nuevos; dar de baja los eliminados
         const nuevos = data.locales.filter((l: any) => !l.codigo);
         const codigosNuevos = nuevos.length > 0 ? await siguientesCodigosInmueble(nuevos.length) : [];
         let iNuevo = 0;
+        
+        // Dar de baja (Eliminar) los inmuebles/actividades que fueron removidos en la interfaz
+        const codigosActuales = data.locales.map((l: any) => l.codigo).filter(Boolean);
+        const codigosEliminados = codigosPropios.filter(c => !codigosActuales.includes(c));
+        
+        for (const codEliminado of codigosEliminados) {
+          const { error: eDel } = await supabase.from('inmuebles').update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0 }).eq('inmueble', codEliminado);
+          if (eDel) throw eDel;
+          cambios.push(`ELIMINADO: ${codEliminado} dado de baja`);
+        }
+        
         for (const local of data.locales) {
           const act = actividadDeLocal(local);
           if (local.codigo) {
@@ -918,11 +930,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
           nuevaActividad = nuevaClasificacion === 'Residencial' ? (data.TipoResidencia || 'No aplica') : actividadConNivel(data.ActividadComercial || '', idxNivel(data.NivelMetraje));
           const mmv = calcularMmvMes(data, ordenanzasConfig);
           if (nuevaClasificacion !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${nuevaActividad}".`);
-          if (!objetivo) throw new Error('No se pudo determinar qué inmueble modificar. Edite cada inmueble por separado.');
-          upd.actividad_principal = nuevaActividad;
-          upd.tipo = nuevaClasificacion === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL';
-          upd.mmv_mes = mmv;
-          cambios.push(`${objetivo}: ${orig.ActividadComercial || orig.TipoResidencia || '-'} → ${nuevaActividad} (${mmv} MMV)`);
+          
+          if (!objetivo) {
+            if (codigosPropios.length > 1) {
+              throw new Error('No se pudo determinar qué inmueble modificar. Edite cada inmueble por separado.');
+            } else {
+              // El contribuyente no tiene ningún inmueble. Creamos uno nuevo.
+              const codigos = await siguientesCodigosInmueble(1);
+              const nuevoCodigo = codigos[0];
+              const { error: eI } = await supabase.from('inmuebles').insert([{
+                inmueble: nuevoCodigo,
+                identidad: identidadExacta,
+                contribuyente: data.Contribuyente,
+                telefono: data.Telefono,
+                correo_electronico: data.Correo,
+                direccion: upd.direccion || data.Direccion,
+                tipo: nuevaClasificacion === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL',
+                clasificacion: 'Individual',
+                estado: 'Activo',
+                actividad_principal: nuevaActividad,
+                mmv_mes: mmv,
+                cant_inmuebles: 1,
+                agente_retencion: data.esAgenteRetencion === true,
+              }]);
+              if (eI) throw eI;
+              cambios.push(`NUEVO ${nuevoCodigo}: ${nuevaActividad} (${mmv} MMV)`);
+            }
+          } else {
+            upd.actividad_principal = nuevaActividad;
+            upd.tipo = nuevaClasificacion === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL';
+            upd.mmv_mes = mmv;
+            cambios.push(`${objetivo}: ${orig.ActividadComercial || orig.TipoResidencia || '-'} → ${nuevaActividad} (${mmv} MMV)`);
+          }
         }
         if (Object.keys(upd).length > 0 && objetivo) {
           const { error: eU } = await supabase.from('inmuebles').update(upd).eq('inmueble', objetivo);
