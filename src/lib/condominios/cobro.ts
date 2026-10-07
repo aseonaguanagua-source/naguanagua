@@ -151,6 +151,7 @@ export interface DatosPago {
   montoRecibido: number;
   cajero: string;
   usuario: string;
+  pagosAgregados?: any[];
 }
 
 const formaPagoCodigo = (m: string) => m === 'Debito' ? '03' : ['Credito', 'TMD', 'TVD'].includes(m) ? '02' : m === 'Efectivo' ? '01' : '05';
@@ -182,6 +183,15 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const reciboRef = `CONDO-${c.codigo}-${Date.now().toString().slice(-6)}${cobro.facturas.length > 1 ? `-${i + 1}` : ''}`;
     const ls = f.lineas.map(k => lineaPor.get(k)!).filter(Boolean);
     const ret = r2(ls.reduce((a, l) => a + l.retencionBs, 0));
+    let formasPago = [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, referencia: ref || undefined, monto: f.totalBs }];
+    if (pago.pagosAgregados && pago.pagosAgregados.length > 0) {
+      // Si el cobro tiene múltiples facturas y múltiples pagos agregados, se prorratea. 
+      // Por simplicidad, guardamos los métodos en los detalles. 
+      formasPago = pago.pagosAgregados.map(pa => ({
+        descripcion: pa.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pa.metodo), banco: pa.banco || undefined, referencia: pa.referencia || undefined, monto: pa.monto
+      }));
+    }
+
     const detalles = {
       modulo: 'condominios', modo: cobro.modo, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
       condominio: { codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, modalidad: c.modalidad, tipo: c.tipo,
@@ -190,7 +200,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       recibos: [reciboRef], montos: { [reciboRef]: f.totalBs }, montoTotal: f.totalBs,
       monto_retencion_iva: ret, contribuyente: f.nombre, identidad: f.identidad,
       factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
-      formasPago: [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, referencia: ref || undefined, monto: f.totalBs }],
+      formasPago,
+      pagos_agregados: pago.pagosAgregados
     };
     const fila: any = { id, identidad: f.identidad, monto: f.totalBs, banco: pago.banco || pago.metodo, referencia: refFinal, tipo: pago.metodo, estado: 'Aprobado', modulo: 'condominios', detalles };
     if (grupo) fila.grupo_pago = grupo;

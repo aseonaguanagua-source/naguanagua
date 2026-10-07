@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 import { getCajeroId } from '@/lib/cajaHelpers';
+import { LISTA_BANCOS } from '@/lib/bancos';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -16,7 +17,7 @@ const fmtPeriodo = (p: string) => { const [y, m] = String(p).split('-'); return 
 const rango = (ps: string[]) => !ps?.length ? '' : ps.length === 1 ? fmtPeriodo(ps[0]) : `${fmtPeriodo(ps[0])} – ${fmtPeriodo(ps[ps.length - 1])}`;
 const METODOS = [
   ['Transferencia', 'Transferencia'], ['Pago Movil', 'Pago Móvil'], ['Debito', 'Tarjeta de débito'], ['Credito', 'Tarjeta de crédito'],
-  ['TMD', 'Punto TMD (Master)'], ['TVD', 'Punto TVD (Visa)'], ['Efectivo', 'Efectivo'],
+  ['TMD', 'Punto TMD (Master)'], ['TVD', 'Punto TVD (Visa)'], ['Deposito', 'Depósito'],
 ] as const;
 const MODALIDAD: Record<string, string> = {
   CENTRALIZADO: 'Centralizado: el condominio paga todo', MIXTO_COMERCIAL: 'Mixto comercial',
@@ -52,9 +53,23 @@ function Caja() {
   const [cobrando, setCobrando] = useState(false);
   const [recibo, setRecibo] = useState<any>(null);
   const pagoId = useRef<string>('');
+  // multipago
+  const [pagosAgregados, setPagosAgregados] = useState<any[]>([]);
+  const [metodoAct, setMetodoAct] = useState('Transferencia');
+  const [bancoAct, setBancoAct] = useState('Banco de Venezuela');
+  const [referenciaAct, setReferenciaAct] = useState('');
+  const [montoAct, setMontoAct] = useState('');
+  const [comprobanteAct, setComprobanteAct] = useState<File | null>(null);
   // interruptor
   const [modalInt, setModalInt] = useState(false);
   const [motivoInt, setMotivoInt] = useState('');
+
+  const sumaPagos = useMemo(() => pagosAgregados.reduce((a, p) => a + p.monto, 0), [pagosAgregados]);
+  const faltaPagar = useMemo(() => Math.max(0, (cobro?.totales?.totalBs || 0) - sumaPagos), [cobro, sumaPagos]);
+
+  // Se resetean los pagos si cambia la deuda
+  useEffect(() => { setPagosAgregados([]); }, [cobro?.totales?.totalBs]);
+
 
   useEffect(() => {
     const u = usuario(); setAdmin(u.rol === 'Administrador' || u.usuario === 'dzara');
@@ -122,24 +137,69 @@ function Caja() {
   const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
   const sinSeleccion = porContrib && !claves.length && !identidad.trim();
 
+  const agregarPago = () => {
+    if (!montoAct || Number(montoAct) <= 0) return alert('Monto inválido.');
+    if (['Transferencia', 'Pago Movil', 'Deposito'].includes(metodoAct)) {
+      if (referenciaAct.trim().length < 4) return alert('Escriba la referencia.');
+      if (!comprobanteAct) return alert('Debe adjuntar el comprobante.');
+    }
+    const monto = Number(montoAct);
+    if (monto > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
+    setPagosAgregados([...pagosAgregados, { metodo: metodoAct, banco: bancoAct, referencia: referenciaAct, monto, comprobante: comprobanteAct }]);
+    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null);
+  };
+
+  const quitarPago = (idx: number) => {
+    setPagosAgregados(pagosAgregados.filter((_, i) => i !== idx));
+  };
+
   const cobrar = async () => {
     if (!cobro?.lineas?.length) return;
-    if (metodo !== 'Efectivo' && referencia.trim().length < 4) { alert('Escriba la referencia del pago.'); return; }
+    if (Math.abs(faltaPagar) > 0.05) { alert('Aún falta por pagar Bs ' + fmtBs(faltaPagar)); return; }
+    
     const nf = cobro.facturas?.length || 1;
     if (!confirm(`¿Registrar el cobro de Bs ${fmtBs(cobro.totales.totalBs)}?\n\nSe emitirán ${nf} factura(s):\n${(cobro.facturas || []).map((f: any) => `• ${f.nombre} (${f.identidad}): Bs ${fmtBs(f.totalBs)}`).join('\n')}`)) return;
+    
     setCobrando(true);
     try {
+      // Subir comprobantes
+      const pagosSubidos = [];
+      for (const p of pagosAgregados) {
+        let url = '';
+        if (p.comprobante) {
+          const ext = p.comprobante.name.split('.').pop() || 'jpg';
+          const uId = usuario().usuario || 'caja';
+          const fileName = `condominios/${codigo}_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+          const fd = new FormData();
+          fd.append('file', p.comprobante);
+          fd.append('bucket', 'comprobantes');
+          fd.append('path', fileName);
+          const rUp = await fetch('/api/upload', { method: 'POST', body: fd });
+          const jUp = await rUp.json();
+          if (rUp.ok && jUp.publicUrl) url = jUp.publicUrl;
+        }
+        pagosSubidos.push({ ...p, comprobante_url: url, comprobante_nombre: p.comprobante?.name });
+      }
+
       const u = usuario();
       const r = await fetch('/api/admin/condominios/cobrar', {
         method: 'POST', body: JSON.stringify({
           accion: 'cobrar', codigo, modo, claves, identidad: porContrib ? identidad.trim() || null : null, meses: meses || null, soloMultas, usuario: u.usuario,
-          pago: { pagoId: pagoId.current, metodo, banco, referencia, montoRecibido: cobro.totales.totalBs, cajero: getCajeroId() },
+          pago: { 
+            pagoId: pagoId.current, 
+            metodo: pagosSubidos[0]?.metodo || 'MÚLTIPLE', 
+            banco: pagosSubidos[0]?.banco || '', 
+            referencia: pagosSubidos[0]?.referencia || '', 
+            montoRecibido: cobro.totales.totalBs, 
+            cajero: getCajeroId(),
+            pagosAgregados: pagosSubidos
+          },
         }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo cobrar');
-      setRecibo({ ...j, partes: j.pagos, metodo, banco, referencia, fecha: new Date(), prueba: false });
-      setReferencia(''); setClaves([]); setMeses(''); setEstadoBase(null); setSoloMultas(false);
+      setRecibo({ ...j, partes: j.pagos, metodo: 'MÚLTIPLE', banco: '', referencia: '', fecha: new Date(), prueba: false });
+      setReferencia(''); setClaves([]); setMeses(''); setEstadoBase(null); setSoloMultas(false); setPagosAgregados([]);
     } catch (e: any) { alert(e.message); } finally { setCobrando(false); }
   };
 
@@ -339,14 +399,43 @@ function Caja() {
               </div>
 
               <div className="border-t border-white/10 pt-3 space-y-2">
-                <select id="metodo-pago-condominio" value={metodo} onChange={e => setMetodo(e.target.value)} className="w-full rounded-xl bg-white/10 border border-white/20 px-3 py-2 text-sm">
-                  {METODOS.map(([k, v]) => <option key={k} value={k} className="text-slate-900">{v}</option>)}
-                </select>
-                {metodo !== 'Efectivo' && (
-                  <>
-                    <input id="banco-pago-condominio" value={banco} onChange={e => setBanco(e.target.value)} placeholder="Banco" className="w-full rounded-xl bg-white/10 border border-white/20 px-3 py-2 text-sm placeholder:text-white/40" />
-                    <input id="referencia-pago-condominio" value={referencia} onChange={e => setReferencia(e.target.value)} placeholder="Referencia (obligatoria)" className="w-full rounded-xl bg-white/10 border border-white/20 px-3 py-2 text-sm placeholder:text-white/40" />
-                  </>
+                <div className="text-[11px] font-black uppercase tracking-wider text-white/60">Método de pago (Abonos)</div>
+                {pagosAgregados.map((p, i) => (
+                  <div key={i} className="flex justify-between items-center bg-white/5 rounded-lg px-2.5 py-1.5 text-xs border border-white/10">
+                    <div>
+                      <div className="font-bold">{p.metodo} {p.banco ? `- ${p.banco}` : ''}</div>
+                      <div className="text-white/60 font-mono">Ref: {p.referencia || 'N/A'} {p.comprobante ? '📎' : ''}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="font-bold tabular-nums text-emerald-400">Bs {fmtBs(p.monto)}</div>
+                      <button onClick={() => quitarPago(i)} className="text-red-400 hover:text-red-300 cursor-pointer"><X className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))}
+                
+                {faltaPagar > 0.05 && (
+                  <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-2 mt-2">
+                    <div className="flex gap-2">
+                      <select value={metodoAct} onChange={e => setMetodoAct(e.target.value)} className="flex-1 rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white">
+                        {METODOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                      <input type="number" placeholder="Monto Bs" value={montoAct} onChange={e => setMontoAct(e.target.value)} className="w-24 rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-right font-mono text-white placeholder:text-white/40" />
+                    </div>
+                    {['Transferencia', 'Pago Movil', 'Deposito'].includes(metodoAct) && (
+                      <>
+                        <select value={bancoAct} onChange={e => setBancoAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white">
+                          <option value="">Seleccione banco</option>
+                          {LISTA_BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                        <input type="text" maxLength={8} placeholder="Referencia (8 números)" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value.replace(/\D/g, ''))} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
+                        <label className="block w-full text-center py-1.5 border border-dashed border-white/30 rounded-lg text-xs text-white/70 hover:bg-white/10 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-2">
+                          {comprobanteAct ? comprobanteAct.name : 'Subir comprobante'}
+                          <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => setComprobanteAct(e.target.files?.[0] || null)} />
+                        </label>
+                      </>
+                    )}
+                    <button onClick={agregarPago} className="w-full py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"><Layers className="w-3 h-3" /> Añadir Abono</button>
+                  </div>
                 )}
               </div>
 
@@ -366,9 +455,9 @@ function Caja() {
               {sinSeleccion && <div className="rounded-xl bg-sky-400/15 border border-sky-300/40 text-sky-100 text-xs p-2.5">Escriba la cédula del contribuyente o marque sus locales.</div>}
 
               {activa ? (
-                <button id="btn-cobrar-condominio" onClick={cobrar} disabled={cobrando || calculando || !cobro.lineas.length}
+                <button id="btn-cobrar-condominio" onClick={cobrar} disabled={cobrando || calculando || !cobro.lineas.length || faltaPagar > 0.05}
                   className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black text-base flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                  {cobrando ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} Cobrar Bs {fmtBs(cobro.totales.totalBs)}
+                  {cobrando ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} {faltaPagar > 0.05 ? `Falta Bs ${fmtBs(faltaPagar)}` : `Registrar Cobro`}
                 </button>
               ) : (
                 <>

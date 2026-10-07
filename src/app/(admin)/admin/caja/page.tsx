@@ -581,8 +581,8 @@ export default function CajaPage() {
         .select('*')
         .or(orFilterInms);
       
-      // Filtrar los inmuebles eliminados
-      const activeInmFresh = (inmFresh || []).filter((i: any) => i.estado !== 'Eliminado');
+      // Filtrar los inmuebles eliminados y restringir los locales de condominios (solo operables en Caja Condominios)
+      const activeInmFresh = (inmFresh || []).filter((i: any) => i.estado !== 'Eliminado' && !i.condominio_padre_id);
 
       // Adoptar la Identidad real y actualizada desde los inmuebles frescos en base de datos
       if (activeInmFresh.length > 0 && activeInmFresh[0].identidad) {
