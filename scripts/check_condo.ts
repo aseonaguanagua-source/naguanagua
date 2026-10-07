@@ -1,4 +1,4 @@
-import { supabaseAdmin as sb } from './src/lib/supabaseAdmin.ts';
+import { supabaseAdmin as sb } from '../src/lib/supabaseAdmin';
 
 async function check() {
   const { data: condo } = await sb.from('condominios').select('*').ilike('nombre', '%MAÑONGO%').limit(1).maybeSingle();

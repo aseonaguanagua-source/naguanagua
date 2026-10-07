@@ -1,0 +1,3 @@
+ALTER TABLE inmuebles
+ADD COLUMN IF NOT EXISTS licencia TEXT,
+ADD COLUMN IF NOT EXISTS numero_local TEXT;

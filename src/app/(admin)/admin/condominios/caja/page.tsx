@@ -16,7 +16,7 @@ const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'O
 const fmtPeriodo = (p: string) => { const [y, m] = String(p).split('-'); return `${MESES[parseInt(m) - 1]} ${y}`; };
 const rango = (ps: string[]) => !ps?.length ? '' : ps.length === 1 ? fmtPeriodo(ps[0]) : `${fmtPeriodo(ps[0])} – ${fmtPeriodo(ps[ps.length - 1])}`;
 const METODOS = [
-  ['Transferencia', 'Transferencia'], ['Pago Movil', 'Pago Móvil'], ['Debito', 'Tarjeta de débito'], ['Credito', 'Tarjeta de crédito'],
+  ['Transferencia', 'Transferencia'], ['Debito', 'Tarjeta de débito'], ['Credito', 'Tarjeta de crédito'],
   ['TMD', 'Punto TMD (Master)'], ['TVD', 'Punto TVD (Visa)'], ['Deposito', 'Depósito'],
 ] as const;
 const MODALIDAD: Record<string, string> = {
@@ -138,14 +138,15 @@ function Caja() {
   const sinSeleccion = porContrib && !claves.length && !identidad.trim();
 
   const agregarPago = () => {
-    if (!montoAct || Number(montoAct) <= 0) return alert('Monto inválido.');
-    if (['Transferencia', 'Pago Movil', 'Deposito'].includes(metodoAct)) {
-      if (referenciaAct.trim().length < 4) return alert('Escriba la referencia.');
-      if (!comprobanteAct) return alert('Debe adjuntar el comprobante.');
+    let montoParsed = parseFloat(montoAct.replace(',', '.'));
+    if (!montoParsed || montoParsed <= 0) return alert('Monto inválido.');
+    if (['Transferencia', 'Deposito'].includes(metodoAct)) {
+      if (!bancoAct) return alert('Seleccione banco.');
+      if (referenciaAct.trim().length !== 8) return alert('La referencia debe tener exactamente 8 caracteres.');
+      if (metodoAct === 'Transferencia' && !comprobanteAct) return alert('Es obligatorio adjuntar el comprobante para Transferencia.');
     }
-    const monto = Number(montoAct);
-    if (monto > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
-    setPagosAgregados([...pagosAgregados, { metodo: metodoAct, banco: bancoAct, referencia: referenciaAct, monto, comprobante: comprobanteAct }]);
+    if (montoParsed > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
+    setPagosAgregados([...pagosAgregados, { metodo: metodoAct, banco: bancoAct, referencia: referenciaAct, monto: montoParsed, comprobante: comprobanteAct }]);
     setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null);
   };
 
@@ -419,17 +420,29 @@ function Caja() {
                       <select value={metodoAct} onChange={e => setMetodoAct(e.target.value)} className="flex-1 rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white">
                         {METODOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
-                      <input type="number" placeholder="Monto Bs" value={montoAct} onChange={e => setMontoAct(e.target.value)} className="w-24 rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-right font-mono text-white placeholder:text-white/40" />
+                    <div className="flex bg-slate-800 rounded-lg p-1">
+                      <input type="text" placeholder="Monto Bs" value={montoAct} onChange={e => {
+                        let v = e.target.value.replace(/[^0-9,.]/g, ''); // permitir coma y punto
+                        setMontoAct(v);
+                      }} onBlur={e => {
+                         let p = parseFloat(e.target.value.replace(',', '.'));
+                         if(!isNaN(p)) setMontoAct(p.toFixed(2).replace('.', ','));
+                      }} className="w-full bg-transparent outline-none text-right font-mono text-white placeholder:text-white/40 text-xs px-2" />
+                      <button onClick={() => {
+                        let rest = (cobro.estado.totales.falta || 0);
+                        if (rest > 0) setMontoAct(rest.toFixed(2).replace('.', ','));
+                      }} className="px-2 border-l border-white/10 text-xs font-bold text-sky-400 hover:text-sky-300">TODO</button>
                     </div>
-                    {['Transferencia', 'Pago Movil', 'Deposito'].includes(metodoAct) && (
+                    </div>
+                    {['Transferencia', 'Deposito'].includes(metodoAct) && (
                       <>
                         <select value={bancoAct} onChange={e => setBancoAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white">
                           <option value="">Seleccione banco</option>
                           {LISTA_BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
                         </select>
-                        <input type="text" maxLength={8} placeholder="Referencia (8 números)" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value.replace(/\D/g, ''))} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
+                        <input type="text" maxLength={8} placeholder="Referencia (8 números)" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value.replace(/\D/g, '').substring(0, 8))} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
                         <label className="block w-full text-center py-1.5 border border-dashed border-white/30 rounded-lg text-xs text-white/70 hover:bg-white/10 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-2">
-                          {comprobanteAct ? comprobanteAct.name : 'Subir comprobante'}
+                          {comprobanteAct ? comprobanteAct.name : (metodoAct === 'Transferencia' ? 'Subir comprobante (Obligatorio)' : 'Subir comprobante')}
                           <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => setComprobanteAct(e.target.files?.[0] || null)} />
                         </label>
                       </>

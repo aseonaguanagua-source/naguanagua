@@ -579,6 +579,20 @@ function ContribuyentesPageContent() {
 
             if (errInm) throw errInm;
 
+            // Si el inmueble es condominio padre, propagar la reducción de meses a todos sus hijos
+            if (inmData.es_condominio) {
+              const { data: hijos } = await supabase.from('inmuebles').select('*').eq('condominio_padre_id', inmCode);
+              if (hijos && hijos.length > 0) {
+                for (const hijo of hijos) {
+                  const mActuales = Math.max(0, parseInt(String(hijo.meses_deuda || '1'), 10));
+                  const nM = Math.max(0, mActuales - 1);
+                  const hMmvMes = parseFloat(hijo.mmv_mes || '0');
+                  const nDeudaMmv = nM > 0 ? parseFloat((nM * hMmvMes).toFixed(5)) : 0;
+                  await supabase.from('inmuebles').update({ meses_deuda: nM, deuda_mmv: nDeudaMmv }).eq('id', hijo.id);
+                }
+              }
+            }
+
             // Si tiene condominio_padre_id, recalcular también la deuda_mmv del padre
             if (inmData.condominio_padre_id) {
               const { data: hermanos } = await supabase

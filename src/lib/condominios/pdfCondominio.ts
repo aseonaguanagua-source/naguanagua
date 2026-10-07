@@ -15,10 +15,9 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
   const docNro = Math.floor(100000 + Math.random() * 900000).toString();
   
   const drawHeader = (pageNumber: number, totalPages: number) => {
-    // ── LOGOS ──
     try {
       if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 20, 25, undefined, 'FAST');
-      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 170, 10, 26, 25, undefined, 'FAST');
+      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
     } catch (err) {}
 
     // ── TÍTULO ──
@@ -103,13 +102,40 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
 
   // Primero los que no tienen padre (o el condominio principal)
   const roots = e.renglones.filter(r => !r.padreId);
+  
+  let sumTotalNA = 0;
+  const validRoots: typeof roots = [];
+
   for (const root of roots) {
+    const isNA = !root.propietario && !root.identidad;
+    if (isNA && mostrarNA && root.clave !== '__SIN_REGISTRAR__') {
+      sumTotalNA += root.totalBs;
+      const children = e.renglones.filter(r => r.padreId === root.clave);
+      for (const child of children) {
+        sumTotalNA += child.totalBs;
+      }
+    } else {
+      validRoots.push(root);
+    }
+  }
+
+  for (const root of validRoots) {
     renderRenglon(root);
-    // Hijos de este root
     const children = e.renglones.filter(r => r.padreId === root.clave);
     for (const child of children) {
       renderRenglon(child, '  ↳ ');
     }
+  }
+
+  if (sumTotalNA > 0) {
+    rows.push([
+      'VARIOS',
+      'N/A',
+      'N/A (AGRUPADO)',
+      'N/A',
+      '—',
+      `Bs. ${fmtBs(sumTotalNA)}`
+    ]);
   }
 
   autoTable(doc, {
@@ -152,4 +178,113 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
   }
 
   doc.save(`Estado_Cuenta_Condominio_${c.codigo}_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: string) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const docNro = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  const drawHeader = (pageNumber: number, totalPages: number) => {
+    try {
+      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 20, 25, undefined, 'FAST');
+      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
+    } catch (err) {}
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORTE DE MULTAS CONDOMINIO', 105, 18, { align: 'center' });
+    
+    doc.setFontSize(8);
+    doc.setTextColor(220, 38, 38);
+    doc.text(`TASA VIGENTE HASTA: ${e.tasa}`, 105, 23, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+
+    doc.setLineWidth(0.3);
+    doc.line(14, 32, 196, 32);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Generado por: ${cajero}`, 14, 36);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Página ${pageNumber} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
+    doc.line(14, 38, 196, 38);
+  };
+
+  drawHeader(1, 1);
+  let y = 43;
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text(c.nombre, 14, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Código: ${c.codigo}    |    RIF: ${c.identidad}`, 14, y);
+  y += 5;
+  
+  doc.setDrawColor(210, 210, 210);
+  doc.line(14, y, 196, y);
+  doc.setDrawColor(0, 0, 0);
+  y += 8;
+
+  const rows: any[] = [];
+  let totalMultas = 0;
+
+  for (const r of e.renglones) {
+    const sumMultas = r.deuda.multaBs + r.multaExtraBs + (r.multasManualesBs || 0);
+    if (sumMultas > 0.01) {
+      totalMultas += sumMultas;
+      rows.push([
+        r.inmueble || '',
+        r.numero || 'N/A',
+        r.propietario || 'N/A',
+        r.identidad || 'N/A',
+        r.periodos.map(fmtPeriodo).join(', '),
+        `Bs. ${fmtBs(sumMultas)}`
+      ]);
+    }
+  }
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', 'Total Multas']],
+    body: rows,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [254, 226, 226], textColor: [153, 27, 27],
+      fontStyle: 'bold', lineColor: [252, 165, 165], lineWidth: 0.2, halign: 'center', fontSize: 7.5
+    },
+    styles: { fontSize: 7, cellPadding: 1.5 },
+    columnStyles: {
+      0: { cellWidth: 30 },
+      1: { cellWidth: 15 },
+      2: { cellWidth: 55 },
+      3: { cellWidth: 20 },
+      4: { cellWidth: 42 },
+      5: { cellWidth: 20, halign: 'right', fontStyle: 'bold', textColor: [153, 27, 27] }
+    },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+        drawHeader(data.pageNumber, (doc.internal as any).getNumberOfPages());
+      }
+    }
+  });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 8;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(153, 27, 27);
+  doc.text(`TOTAL MULTAS: Bs. ${fmtBs(totalMultas)}`, 196, finalY, { align: 'right' });
+
+  const totalPages = (doc.internal as any).getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFillColor(255, 255, 255);
+    doc.rect(170, 34, 30, 4, 'F');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Página ${i} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
+  }
+
+  doc.save(`Multas_Condominio_${c.codigo}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }

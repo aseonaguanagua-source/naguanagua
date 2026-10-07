@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil,
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText
 } from 'lucide-react';
 import EditorUnidad from './EditorUnidad';
 import { mesesPendientes } from '@/lib/condominios/motor';
@@ -145,6 +145,29 @@ function Ficha() {
     generarPdfEstadoCuentaCondominio(c, e, cajero, true);
   };
 
+  const exportarUnidad = async (r: any, ev: any) => {
+    ev.stopPropagation();
+    const { generarPdfEstadoCuentaCondominio } = await import('@/lib/condominios/pdfCondominio');
+    const cajero = usuarioActual() || 'Administrador';
+    const renglones = [r, ...e.renglones.filter((h: any) => h.padreId === r.clave)];
+    const totales = {
+      baseBs: renglones.reduce((s, x) => s + x.deuda.baseBs, 0),
+      multaBs: renglones.reduce((s, x) => s + x.deuda.multaBs + x.multaExtraBs + (x.multasManualesBs || 0), 0),
+      ivaBs: renglones.reduce((s, x) => s + x.deuda.ivaBs, 0),
+      retencionBs: renglones.reduce((s, x) => s + x.deuda.retencionBs, 0),
+      totalBs: renglones.reduce((s, x) => s + x.totalBs, 0),
+      meses: r.deuda.meses
+    };
+    const eCustom = { ...e, renglones, totales };
+    generarPdfEstadoCuentaCondominio(c, eCustom, cajero, true);
+  };
+
+  const exportarMultas = async () => {
+    const { generarPdfMultasCondominio } = await import('@/lib/condominios/pdfCondominio');
+    const cajero = usuarioActual() || 'Administrador';
+    generarPdfMultasCondominio(c, e, cajero);
+  };
+
   if (!codigo) return <div className="p-6">Falta el código del condominio.</div>;
 
   return (
@@ -191,6 +214,9 @@ function Ficha() {
               </Link>
               <button onClick={exportar} className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-2 cursor-pointer">
                 <Download className="w-4 h-4" /> Estado de cuenta
+              </button>
+              <button onClick={exportarMultas} className="px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
+                <FileText className="w-4 h-4" /> Reporte de Multas
               </button>
               <button onClick={cargar} className="p-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer" title="Recargar">
                 <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
@@ -282,6 +308,9 @@ function Ficha() {
                                 <div className="font-bold text-slate-900 flex items-center gap-2">{sinReg ? <span className="text-amber-800">Unidades declaradas sin registrar</span> : <span className="font-mono">{r.inmueble}{r.numero ? ` · ${r.numero}` : ''}</span>}
                                   {admin && unidadDe(r.clave) && (
                                     <button title="Editar unidad" onClick={ev => { ev.stopPropagation(); setEditorU(unidadDe(r.clave)); }} className="p-1 rounded-md text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                                  )}
+                                  {unidadDe(r.clave) && (
+                                    <button onClick={(ev) => exportarUnidad(r, ev)} title="Descargar Estado de Cuenta" className="p-1 rounded-md text-slate-400 hover:text-red-700 hover:bg-red-50 cursor-pointer"><FileText className="w-3.5 h-3.5" /></button>
                                   )}
                                   {unidadDe(r.clave) && r.totalBs > 0.01 && (
                                     <Link href={`/admin/condominios/caja?codigo=${c.codigo}&unidad=${r.clave}`} onClick={ev => ev.stopPropagation()} title="Cobrar solo este local"

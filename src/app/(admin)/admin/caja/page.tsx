@@ -344,6 +344,12 @@ export default function CajaPage() {
     setRateAuthError('');
     setIsAuthorizing(true);
     
+    if (rateNote.trim().length !== 8) {
+      setRateAuthError('La nota/motivo debe tener exactamente 8 caracteres.');
+      setIsAuthorizing(false);
+      return;
+    }
+    
     const adminPass = process.env.NEXT_PUBLIC_ADMIN_PASS || 'dzara';
     if (adminPassword !== adminPass) {
       const { data, error } = await supabase
@@ -1333,7 +1339,7 @@ export default function CajaPage() {
 
     if (reqRef) {
       if (!banco) return alert("Debe seleccionar el banco emisor.");
-      if (referencia.length < 4) return alert("Debe ingresar la referencia de la transacción.");
+      if (referencia.length !== 8) return alert("La referencia debe tener exactamente 8 caracteres.");
       if (!fechaTransaccion) return alert("La fecha de transacción es obligatoria.");
       
       // Verificar referencia duplicada
@@ -1346,7 +1352,7 @@ export default function CajaPage() {
         return alert(`⚠️ ADVERTENCIA: El número de referencia "${referencia}" ya fue registrado previamente en el sistema. Verifique antes de continuar.`);
       }
 
-      const transferido = parseFloat(montoTransferido);
+      const transferido = parseFloat(montoTransferido.replace(',', '.'));
       if (isNaN(transferido) || transferido <= 0) return alert("Debe ingresar un monto transferido válido.");
       
       if (transferido < finalTotal || isPagoMultiple) {
@@ -1361,13 +1367,13 @@ export default function CajaPage() {
     } else if (['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod)) {
       const cardLabel = paymentMethod === 'TMD' ? 'Tarjeta Master (TMD)' : paymentMethod === 'TVD' ? 'Tarjeta Visa (TVD)' : paymentMethod === 'Credito' ? 'Tarjeta de Crédito' : 'Punto de Venta';
       if (!referenciaDebito.trim()) return alert(`Debe ingresar el número de comprobante o referencia del pago por ${cardLabel}.`);
-      if (referenciaDebito.trim().length > 8) return alert(`El número de referencia para ${cardLabel} no puede superar los 8 dígitos.`);
-      if (montoDebito && (parseFloat(montoDebito) <= 0 || isNaN(parseFloat(montoDebito)))) {
+      if (referenciaDebito.trim().length !== 8) return alert(`El número de referencia para ${cardLabel} debe tener exactamente 8 caracteres.`);
+      if (montoDebito && (parseFloat(montoDebito.replace(',', '.')) <= 0 || isNaN(parseFloat(montoDebito.replace(',', '.'))))) {
         return alert("Si ingresa un monto manual, debe ser un valor válido mayor a 0.");
       }
       // Use manual debit amount if provided
-      if (montoDebito && parseFloat(montoDebito) > 0) {
-        montoReal = parseFloat(montoDebito);
+      if (montoDebito && parseFloat(montoDebito.replace(',', '.')) > 0) {
+        montoReal = parseFloat(montoDebito.replace(',', '.'));
       }
     } else if (paymentMethod === 'Saldo a Favor') {
       // El método paga con el saldo directamente (totalBs completo, sin descuento previo)
@@ -2412,7 +2418,7 @@ export default function CajaPage() {
 
   const handleCrearNotaManual = async () => {
     if (!notaManualMonto || parseFloat(notaManualMonto) <= 0) return alert('Ingrese un monto válido');
-    if (!notaManualRef) return alert('Ingrese la referencia origen');
+    if (!notaManualRef || notaManualRef.trim().length !== 8) return alert('La referencia debe tener exactamente 8 caracteres.');
     if (!foundUser) return;
     
     try {
@@ -4368,9 +4374,14 @@ export default function CajaPage() {
                             {paymentMethod === 'TMD' ? 'Monto Tarjeta Master (Bs)' : paymentMethod === 'TVD' ? 'Monto Tarjeta Visa (Bs)' : paymentMethod === 'Credito' ? 'Monto Tarjeta de Crédito (Bs)' : 'Monto a Pagar por Punto (Bs)'}
                           </span>
                           <input type="text" value={montoDebito} onChange={e => {
-                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            const val = e.target.value.replace(/[^0-9,.]/g, '');
                             setMontoDebito(val);
-                          }} placeholder="Ej. 1500.00" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                          }} 
+                          onBlur={e => {
+                            let p = parseFloat(e.target.value.replace(',', '.'));
+                            if(!isNaN(p)) setMontoDebito(p.toFixed(2).replace('.', ','));
+                          }}
+                          placeholder="Ej. 1500,00" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
                         </label>
                       )}
                       <label className="block">
@@ -4464,14 +4475,20 @@ export default function CajaPage() {
                   <label className="block">
                     <span className="text-xs font-semibold text-slate-600 mb-1 block">Monto Total Pagado (Bs)</span>
                     <input 
-                      type="number" 
-                      step="0.01"
-                      placeholder="Ej: 500.00"
+                      type="text" 
+                      placeholder="Ej: 500,00"
                       value={montoTransferido}
-                      onChange={(e) => setMontoTransferido(e.target.value)}
+                      onChange={(e) => {
+                        let v = e.target.value.replace(/[^0-9,.]/g, '');
+                        setMontoTransferido(v);
+                      }}
+                      onBlur={(e) => {
+                         let p = parseFloat(e.target.value.replace(',', '.'));
+                         if(!isNaN(p)) setMontoTransferido(p.toFixed(2).replace('.', ','));
+                      }}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
-                    {parseFloat(montoTransferido) > Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)) && (
+                    {parseFloat(montoTransferido.replace(',', '.')) > Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)) && (
                       <p className="text-[10px] text-emerald-600 mt-1 font-bold">
                         * Se generará un saldo a favor de Bs. {formatBs(parseFloat(montoTransferido) - Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)))}
                       </p>
@@ -4843,12 +4860,13 @@ export default function CajaPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Motivo / Referencia Origen</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Motivo / Referencia Origen (8 caracteres)</label>
                 <input 
                   type="text" 
-                  value={notaManualRef} onChange={e => setNotaManualRef(e.target.value)}
+                  maxLength={8}
+                  value={notaManualRef} onChange={e => setNotaManualRef(e.target.value.slice(0, 8))}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                  placeholder="Ej. Transferencia no facturada #12345678"
+                  placeholder="Ej. 12345678"
                 />
               </div>
             </div>
@@ -4897,15 +4915,17 @@ export default function CajaPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Nota / Motivo del Cambio</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Nota / Motivo del Cambio (8 caracteres)</label>
                 <textarea 
+                  maxLength={8}
                   value={rateNote} 
-                  onChange={e => setRateNote(e.target.value)}
+                  onChange={e => setRateNote(e.target.value.slice(0, 8))}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
                   rows={2}
                   placeholder="Justifique el cambio de tasa..."
                   required
                 />
+                <div className="text-[10px] text-slate-500 text-right">{rateNote.length}/8 caracteres</div>
               </div>
               <div className="pt-2 flex justify-end gap-3">
                 <button type="button" onClick={() => setShowRateModal(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded">Cancelar</button>
