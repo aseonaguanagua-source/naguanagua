@@ -69,6 +69,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       padre_unidad_id: f.padre_unidad_id || null, es_grupo: f.es_grupo, meses: f.meses, multa_meses: f.multa_meses,
       actividad: f.estado === 'Desocupada' && clase === 'COM' && !actCom.trim() ? 'INMUEBLES DESOCUPADOS' : actividad,
       tarifa_mmv: tarifa === '' ? null : tarifa,
+      agente_retencion: f.agente_retencion === true,
     };
     let cambios = datos;
     if (!nueva) {
