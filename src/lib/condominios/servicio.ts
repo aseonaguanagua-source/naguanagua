@@ -237,9 +237,19 @@ export async function resumenGeneral() {
   const multasPor = new Map<string, any[]>();
   (multas || []).forEach(m => { if (!multasPor.has(m.condominio_id)) multasPor.set(m.condominio_id, []); multasPor.get(m.condominio_id)!.push(m); });
 
-  const { data: inmueblesGlobal } = await sb.from('inmuebles').select('identidad, agente_retencion').eq('agente_retencion', true);
+  const { data: inmueblesGlobal } = await sb.from('inmuebles').select('identidad, agente_retencion, inmueble, multa_bs');
   const agentes = new Map<string, boolean>();
-  (inmueblesGlobal || []).forEach(c => c.identidad && agentes.set(c.identidad, true));
+  const infoInmuebles = new Map<string, any>();
+  (inmueblesGlobal || []).forEach(c => {
+    if (c.identidad && c.agente_retencion) agentes.set(c.identidad, true);
+    if (c.inmueble) infoInmuebles.set(c.inmueble, c);
+  });
+
+  unidades.forEach(u => {
+    const inf = infoInmuebles.get(u.inmueble) || {};
+    u.agente_retencion = !!inf.agente_retencion;
+    u.multa_bs = parseFloat(inf.multa_bs || '0');
+  });
 
   const filas = condos.map(c => {
     const us = porCondo.get(c.id) || [];
