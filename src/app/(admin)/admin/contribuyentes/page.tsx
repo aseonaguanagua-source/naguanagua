@@ -2484,7 +2484,7 @@ function ContribuyentesPageContent() {
 
                 <div className="max-h-[400px] overflow-y-auto p-4 space-y-4 bg-white">
                   {formData.locales?.map((local: any, index: number) => (
-                    <div key={local.id || index} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 border border-slate-100 bg-slate-50 rounded items-end">
+                    <div key={local.id || index} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1.5fr_auto] gap-3 p-3 border border-slate-100 bg-slate-50 rounded items-start md:items-end">
                        <div>
                          <label className="block text-[10px] font-medium text-slate-500 mb-1">Numeración / Identificador</label>
                          <input type="text" value={local.numeracion} onChange={e => {
@@ -2595,7 +2595,7 @@ function ContribuyentesPageContent() {
                        </div>
                        
                        {/* Botón de Eliminar Actividad/Inmueble */}
-                       <div className="flex items-center justify-center">
+                       <div className="flex items-center justify-center pb-1">
                          <button
                            type="button"
                            onClick={() => {
