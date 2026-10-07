@@ -149,7 +149,8 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     // Multas exoneradas ("quitar todas las multas"): los meses hasta esa fecha no llevan multa
     const hasta = String((u ? u.multa_exonerada_hasta : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
     const exonerados = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
-    const esAgente = u ? !!u.agente_retencion : !!c.agente_retencion;
+    // En INDIVIDUAL, cada unidad paga lo suyo, así que se usa su retención. En las demás, el condominio factura el Aseo.
+    const esAgente = c.modalidad === 'INDIVIDUAL' ? (u ? !!u.agente_retencion : false) : !!c.agente_retencion;
     const deuda = M.deudaPorMeses(meses, r.montoBs, res, esAgente, exonerados);
     const multaMeses = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
     const multaExtraBs = r2(r.montoBs * tMulta * multaMeses);
@@ -197,6 +198,12 @@ export async function cargarCondominio(codigo: string) {
   const { data: condo, error } = await sb.from('condominios').select('*').eq('codigo', codigo.toUpperCase()).maybeSingle();
   if (error) throw new Error(error.message);
   if (!condo) return null;
+
+  if (condo.identidad) {
+    const { data: contrib } = await sb.from('contribuyentes').select('agente_retencion').eq('identidad', condo.identidad).maybeSingle();
+    condo.agente_retencion = !!contrib?.agente_retencion;
+  }
+
   const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).order('inmueble').range(a, b));
   
   // Fetch agente_retencion manually since there's no FK relation
@@ -227,8 +234,13 @@ export async function resumenGeneral() {
   const multasPor = new Map<string, any[]>();
   (multas || []).forEach(m => { if (!multasPor.has(m.condominio_id)) multasPor.set(m.condominio_id, []); multasPor.get(m.condominio_id)!.push(m); });
 
+  const { data: contribuyentes } = await sb.from('contribuyentes').select('identidad, agente_retencion');
+  const agentes = new Map<string, boolean>();
+  (contribuyentes || []).forEach(c => agentes.set(c.identidad, !!c.agente_retencion));
+
   const filas = condos.map(c => {
     const us = porCondo.get(c.id) || [];
+    c.agente_retencion = agentes.get(c.identidad) || false;
     const e = calcularEstado(c, us, tasa, new Date(), multasPor.get(c.id) || []);
     return {
       codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, tipo: c.tipo, modalidad: c.modalidad, estado: c.estado,
