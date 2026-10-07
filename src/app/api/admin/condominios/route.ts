@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import { buscarPorDueno, calcularEstado, cargarCondominio, resumenGeneral, tasaVigente } from '@/lib/condominios/servicio';
+import { mesesPendientes, pendienteDesdeParaMeses } from '@/lib/condominios/motor';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
       const datos = await cargarCondominio(codigo);
       if (!datos) return NextResponse.json({ error: 'Condominio no encontrado' }, { status: 404 });
       const tasa = await tasaVigente();
-      return NextResponse.json({ ...datos, estado: calcularEstado(datos.condo, datos.unidades, tasa) });
+      return NextResponse.json({ ...datos, estado: calcularEstado(datos.condo, datos.unidades, tasa, new Date(), datos.multas) });
     }
 
     return NextResponse.json(await resumenGeneral());
@@ -53,7 +54,8 @@ export async function GET(req: Request) {
 }
 
 const EDITABLES = ['modalidad', 'cant_declarada', 'tarifa_mmv', 'tarifa_fija_bs', 'actividad', 'agente_retencion',
-  'permite_pago_por_unidad', 'permite_abonos', 'cobro_tarifa_por_unidad', 'correo', 'telefono', 'administradora', 'notas', 'estado'] as const;
+  'permite_pago_por_unidad', 'permite_abonos', 'cobro_tarifa_por_unidad', 'correo', 'telefono', 'administradora', 'notas', 'estado',
+  'tipo', 'nombre', 'identidad', 'multa_meses'] as const;
 
 /** PATCH { codigo, cambios, usuario, motivo } — solo administrador; queda en auditoría con el antes/después. */
 export async function PATCH(req: Request) {
@@ -71,6 +73,12 @@ export async function PATCH(req: Request) {
     for (const k of EDITABLES) if (cambios && k in cambios) upd[k] = cambios[k];
     if ('cant_declarada' in upd) upd.cant_declarada = Math.max(1, parseInt(upd.cant_declarada) || 1);
     if ('tarifa_mmv' in upd) upd.tarifa_mmv = upd.tarifa_mmv === '' || upd.tarifa_mmv == null ? null : Number(upd.tarifa_mmv);
+    if ('tipo' in upd && !['RESIDENCIAL', 'COMERCIAL', 'MIXTO'].includes(upd.tipo)) return NextResponse.json({ error: 'Tipo no válido' }, { status: 400 });
+    if ('multa_meses' in upd) upd.multa_meses = Math.max(0, parseInt(upd.multa_meses) || 0);
+    if (cambios && 'meses' in cambios) {
+      const nuevo = pendienteDesdeParaMeses(Math.max(0, parseInt(cambios.meses) || 0));
+      if (mesesPendientes(nuevo) !== mesesPendientes(antes.aseo_pendiente_desde)) upd.aseo_pendiente_desde = nuevo;
+    }
     if (Object.keys(upd).length === 0) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
 
     const { error } = await sb.from('condominios').update(upd).eq('id', antes.id);

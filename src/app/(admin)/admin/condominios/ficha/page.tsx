@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon,
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil,
 } from 'lucide-react';
+import EditorUnidad from './EditorUnidad';
+import { mesesPendientes } from '@/lib/condominios/motor';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -46,6 +48,8 @@ function Ficha() {
   const [form, setForm] = useState<any>({});
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
+  // Editor de unidad: undefined = cerrado, null = unidad nueva, objeto = editar
+  const [editorU, setEditorU] = useState<any | null | undefined>(undefined);
 
   const cargar = async () => {
     setCargando(true); setError('');
@@ -61,6 +65,14 @@ function Ficha() {
 
   const c = d?.condo;
   const e = d?.estado;
+  const unidadDe = (clave: string) => (d?.unidades || []).find((u: any) => u.id === clave) || null;
+  // Al llegar desde la búsqueda con ?unidad=…, se abre su editor una sola vez (administrador)
+  const [focoAbierto, setFocoAbierto] = useState(false);
+  useEffect(() => {
+    if (focoAbierto || !admin || !unidadFoco || !d?.unidades) return;
+    const u = d.unidades.find((x: any) => x.inmueble === unidadFoco || x.numero === unidadFoco);
+    if (u) { setEditorU(u); setFocoAbierto(true); }
+  }, [d, admin, unidadFoco, focoAbierto]);
 
   const renglones = useMemo(() => {
     if (!e) return [];
@@ -89,13 +101,15 @@ function Ficha() {
       agente_retencion: !!c.agente_retencion, permite_pago_por_unidad: !!c.permite_pago_por_unidad,
       permite_abonos: c.permite_abonos !== false, cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad,
       correo: c.correo || '', telefono: c.telefono || '', notas: c.notas || '',
+      tipo: c.tipo, nombre: c.nombre || '', identidad: c.identidad || '',
+      meses: mesesPendientes(c.aseo_pendiente_desde), multa_meses: c.multa_meses || 0,
     });
     setMotivo(''); setEditando(true);
   };
   const guardar = async () => {
     const cambios: any = {};
     Object.keys(form).forEach(k => {
-      const antes = c[k] ?? (typeof form[k] === 'boolean' ? false : '');
+      const antes = k === 'meses' ? mesesPendientes(c.aseo_pendiente_desde) : (c[k] ?? (typeof form[k] === 'boolean' ? false : ''));
       if (String(form[k]) !== String(antes)) cambios[k] = form[k];
     });
     if (!Object.keys(cambios).length) { setEditando(false); return; }
@@ -155,6 +169,11 @@ function Ficha() {
               {c.notas && <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 inline-block">{c.notas}</div>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {admin && (
+                <button id="btn-agregar-unidad" onClick={() => setEditorU(null)} className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
+                  <Plus className="w-4 h-4" /> Agregar unidad
+                </button>
+              )}
               {admin && (
                 <button id="btn-editar-condominio" onClick={abrirEdicion} className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-2 cursor-pointer">
                   <Settings className="w-4 h-4" /> Opciones
@@ -253,7 +272,10 @@ function Ficha() {
                             <tr onClick={() => setAbierto(open ? null : r.clave)} className={`cursor-pointer hover:bg-emerald-50/40 ${sinReg ? 'bg-amber-50/50' : ''} ${unidadFoco && r.inmueble === unidadFoco ? 'bg-emerald-50' : ''}`}>
                               <td className="pl-3 text-slate-400">{r.deuda.meses > 0 ? (open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />) : null}</td>
                               <td className="py-2.5 px-3">
-                                <div className="font-bold text-slate-900">{sinReg ? <span className="text-amber-800">Unidades declaradas sin registrar</span> : <span className="font-mono">{r.inmueble}{r.numero ? ` · ${r.numero}` : ''}</span>}</div>
+                                <div className="font-bold text-slate-900 flex items-center gap-2">{sinReg ? <span className="text-amber-800">Unidades declaradas sin registrar</span> : <span className="font-mono">{r.inmueble}{r.numero ? ` · ${r.numero}` : ''}</span>}
+                                  {admin && unidadDe(r.clave) && (
+                                    <button title="Editar unidad" onClick={ev => { ev.stopPropagation(); setEditorU(unidadDe(r.clave)); }} className="p-1 rounded-md text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                                  )}</div>
                                 <div className="text-[11px] text-slate-500">
                                   {sinReg ? `${r.cantidad} unidad(es) — regístrelas para cobrarlas por separado` : `${r.propietario || 'Sin propietario'}${r.identidad ? ` · ${r.identidad}` : ''}`}
                                   {r.estado === 'Desocupada' && <span className="ml-1 px-1.5 rounded bg-slate-200 text-slate-700 font-bold">Desocupada</span>}
@@ -262,11 +284,11 @@ function Ficha() {
                               <td className="py-2.5 px-3 text-right tabular-nums">Bs {fmtBs(r.mensualBs)}</td>
                               <td className="py-2.5 px-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-black ${r.deuda.meses === 0 ? 'bg-emerald-100 text-emerald-800' : r.deuda.meses > 12 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{r.deuda.meses}</span></td>
                               <td className="py-2.5 px-3 text-right tabular-nums">{fmtBs(r.deuda.baseBs)}</td>
-                              <td className="py-2.5 px-3 text-right tabular-nums">{fmtBs(r.deuda.multaBs + r.multaExtraBs)}</td>
+                              <td className="py-2.5 px-3 text-right tabular-nums">{fmtBs(r.deuda.multaBs + r.multaExtraBs + (r.multasManualesBs || 0))}</td>
                               {e.totales.ivaBs > 0 && <td className="py-2.5 px-3 text-right tabular-nums text-blue-700">{fmtBs(r.deuda.ivaBs)}</td>}
                               <td className={`py-2.5 px-4 text-right font-black tabular-nums ${r.totalBs > 0.01 ? 'text-red-700' : 'text-emerald-700'}`}>{r.totalBs > 0.01 ? `Bs ${fmtBs(r.totalBs)}` : 'Al día'}</td>
                             </tr>
-                            {open && r.deuda.meses > 0 && (
+                            {open && (r.deuda.meses > 0 || (r.multasManuales || []).length > 0) && (
                               <tr className="bg-slate-50/70">
                                 <td></td>
                                 <td colSpan={7} className="py-3 px-3">
@@ -280,6 +302,7 @@ function Ficha() {
                                     ))}
                                   </div>
                                   {r.multaExtraBs > 0 && <div className="text-[11px] text-amber-800 mt-2">Incluye Bs {fmtBs(r.multaExtraBs)} de multas pendientes de meses ya pagados.</div>}
+                                  {(r.multasManuales || []).map((m: any) => <div key={m.id} className="text-[11px] text-amber-800 mt-1">Multa: {m.concepto} — Bs {fmtBs(m.montoBs)}</div>)}
                                 </td>
                               </tr>
                             )}
@@ -301,11 +324,12 @@ function Ficha() {
 
             {tab === 'unidades' && (() => {
               const t = q.trim().toUpperCase();
-              const coincide = (u: any) => !t || [u.inmueble, u.numero, u.propietario, u.identidad].some((x: any) => String(x || '').toUpperCase().includes(t));
-              const fila = (u: any, nivel: number) => {
+              const coincide = (u: any) => !t || [u.inmueble, u.numero, u.propietario, u.identidad, u.actividad].some((x: any) => String(x || '').toUpperCase().includes(t));
+              const enRama = (u: any, prof = 0): boolean => coincide(u) || (prof < 6 && (arbol.hijos.get(u.id) || []).some(h => enRama(h, prof + 1)));
+              const fila = (u: any, nivel: number): React.ReactNode => {
                 const hs = arbol.hijos.get(u.id) || [];
                 const abierta = torresAbiertas.has(u.id) || !!t;
-                const visiblesH = hs.filter(coincide);
+                const visiblesH = hs.filter(h => enRama(h));
                 if (!coincide(u) && visiblesH.length === 0) return null;
                 return (
                   <React.Fragment key={u.id}>
@@ -325,6 +349,9 @@ function Ficha() {
                       <td className="py-2 px-3 text-xs text-slate-600">{u.actividad || '—'}</td>
                       <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${u.estado === 'Activa' ? 'bg-emerald-100 text-emerald-800' : u.estado === 'Desocupada' ? 'bg-slate-200 text-slate-700' : 'bg-red-100 text-red-700'}`}>{u.estado}</span></td>
                       <td className="py-2 px-4 text-xs">{u.aseo_pendiente_desde ? fmtPeriodo(String(u.aseo_pendiente_desde).slice(0, 7)) : <span className="text-emerald-700 font-bold">Al día</span>}</td>
+                      {admin && <td className="py-2 pr-4 text-right">
+                        <button id={`editar-${u.inmueble || u.id}`} onClick={ev => { ev.stopPropagation(); setEditorU(u); }} className="px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50 inline-flex items-center gap-1 cursor-pointer"><Pencil className="w-3.5 h-3.5" /> Editar</button>
+                      </td>}
                     </tr>
                     {hs.length > 0 && abierta && (t ? visiblesH : hs).map((h: any) => fila(h, nivel + 1))}
                   </React.Fragment>
@@ -338,13 +365,14 @@ function Ficha() {
                       <tr>
                         <th className="text-left py-2.5 px-4">Código</th><th className="text-left py-2.5 px-3">Número</th><th className="text-left py-2.5 px-3">Propietario</th>
                         <th className="text-left py-2.5 px-3">Cédula/RIF</th><th className="text-left py-2.5 px-3">Actividad</th><th className="text-left py-2.5 px-3">Estado</th><th className="text-left py-2.5 px-4">Pendiente desde</th>
+                        {admin && <th></th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {arbol.raiz.slice(0, 600).map((u: any) => fila(u, 0))}
+                      {(() => { const rs = arbol.raiz.filter(u => enRama(u)); return rs.length ? rs.slice(0, 600).map((u: any) => fila(u, 0)) : <tr><td colSpan={8} className="py-10 text-center text-slate-500">Ninguna unidad coincide con “{q}”.</td></tr>; })()}
                     </tbody>
                   </table>
-                  {arbol.raiz.length > 600 && <div className="px-4 py-2 text-xs text-slate-500">Mostrando 600 de {arbol.raiz.length}. Use el buscador para encontrar una unidad.</div>}
+                  {arbol.raiz.filter(u => enRama(u)).length > 600 && <div className="px-4 py-2 text-xs text-slate-500">Mostrando 600 de {arbol.raiz.filter(u => enRama(u)).length}. Use el buscador para encontrar una unidad.</div>}
                 </div>
               );
             })()}
@@ -379,6 +407,22 @@ function Ficha() {
               <button onClick={() => setEditando(false)} className="text-white/70 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className="block"><span className="text-xs font-bold text-slate-700">Nombre del condominio</span>
+                  <input value={form.nombre} onChange={ev => setForm({ ...form, nombre: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2" /></label>
+                <label className="block"><span className="text-xs font-bold text-slate-700">RIF</span>
+                  <input value={form.identidad} onChange={ev => setForm({ ...form, identidad: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2 font-mono" /></label>
+                <label className="block"><span className="text-xs font-bold text-slate-700">Clasificación</span>
+                  <select value={form.tipo} onChange={ev => setForm({ ...form, tipo: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2">
+                    <option value="RESIDENCIAL">Residencial</option><option value="COMERCIAL">Comercial</option><option value="MIXTO">Mixto (residencial y comercial)</option>
+                  </select></label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block"><span className="text-xs font-bold text-slate-700">Meses pendientes</span>
+                    <input id="condo-meses" type="number" min={0} value={form.meses} onChange={ev => setForm({ ...form, meses: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2" /></label>
+                  <label className="block"><span className="text-xs font-bold text-slate-700">Meses con multa</span>
+                    <input type="number" min={0} value={form.multa_meses} onChange={ev => setForm({ ...form, multa_meses: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2" /></label>
+                </div>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="block"><span className="text-xs font-bold text-slate-700">Modalidad de cobro</span>
                   <select value={form.modalidad} onChange={ev => setForm({ ...form, modalidad: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2">
@@ -421,6 +465,14 @@ function Ficha() {
             </div>
           </div>
         </div>
+      )}
+      {editorU !== undefined && c && (
+        <EditorUnidad
+          condo={c} unidad={editorU} unidades={d.unidades} multas={d.multas || []} usuario={usuarioActual()} porActividad={!!e?.porActividad}
+          renglon={editorU ? e?.renglones.find((r: any) => r.clave === editorU.id) || null : null}
+          onClose={() => setEditorU(undefined)}
+          onSaved={async (cerrar: boolean) => { await cargar(); if (cerrar) setEditorU(undefined); }}
+        />
       )}
     </div>
   );

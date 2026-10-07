@@ -46,6 +46,21 @@ export default function CondominiosPage() {
   };
   useEffect(() => { cargar(); }, []);
 
+  // La búsqueda principal también encuentra unidades (hijos) por código, propietario o cédula
+  const [unidadesQ, setUnidadesQ] = useState<any[]>([]);
+  useEffect(() => {
+    const t = q.trim();
+    if (t.length < 3) { setUnidadesQ([]); return; }
+    const h = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/admin/condominios?buscar=${encodeURIComponent(t)}`, { cache: 'no-store' });
+        const j = await r.json();
+        setUnidadesQ(j.unidades || []);
+      } catch { setUnidadesQ([]); }
+    }, 350);
+    return () => clearTimeout(h);
+  }, [q]);
+
   const buscarDueno = async () => {
     if (dueno.replace(/\D/g, '').length < 4) return;
     setBuscandoDueno(true);
@@ -142,7 +157,7 @@ export default function CondominiosPage() {
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[240px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input id="buscar-condominio" value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre, código o RIF del condominio…"
+            <input id="buscar-condominio" value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar condominio, o unidad por código, propietario o cédula…"
               className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <select id="filtro-modalidad" value={modalidad} onChange={e => setModalidad(e.target.value)} className="py-2.5 px-3 rounded-xl border border-slate-300 text-sm bg-white">
@@ -177,6 +192,22 @@ export default function CondominiosPage() {
           </div>
         </div>
       </div>
+
+      {unidadesQ.length > 0 && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-200">
+          <div className="font-extrabold text-slate-800 text-sm mb-2">Unidades que coinciden con “{q.trim()}”: {unidadesQ.length}{unidadesQ.length >= 25 ? '+' : ''}</div>
+          <div className="flex flex-wrap gap-2">
+            {unidadesQ.map((u: any) => (
+              <button key={u.id} id={`unidad-${u.inmueble || u.id}`} onClick={() => router.push(`/admin/condominios/ficha?codigo=${u.condominios.codigo}&unidad=${encodeURIComponent(u.inmueble || u.numero || '')}`)}
+                className="text-left px-3 py-2 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors cursor-pointer">
+                <div className="font-mono text-xs font-bold text-slate-800">{u.inmueble || '—'}{u.numero ? ` · ${u.numero}` : ''}</div>
+                <div className="text-[11px] text-slate-600">{u.propietario || 'Sin propietario'}{u.identidad ? ` · ${u.identidad}` : ''}</div>
+                <div className="text-[11px] text-emerald-700 font-bold">{u.condominios.nombre}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {duenoRes && (
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-200">
