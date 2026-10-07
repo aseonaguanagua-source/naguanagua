@@ -1618,8 +1618,9 @@ function ContribuyentesPageContent() {
             tipoResidencia: uso === 'Residencial' ? act : '',
             nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
             mmvActual: inm.mmv_mes,
+            agente_retencion: inm.agente_retencion === true || String(inm.agente_retencion) === 'true'
           };
-          loc.__orig = { uso: loc.uso, actividad: loc.actividad, nivel: loc.nivel, tipoResidencia: loc.tipoResidencia, estatus: loc.estatus };
+          loc.__orig = { uso: loc.uso, actividad: loc.actividad, nivel: loc.nivel, tipoResidencia: loc.tipoResidencia, estatus: loc.estatus, agente_retencion: loc.agente_retencion };
           return loc;
         });
       } else {
@@ -2516,10 +2517,18 @@ function ContribuyentesPageContent() {
                             newLocales[index].estatus = e.target.value;
                             if(e.target.value === 'Desocupado') newLocales[index].actividad = '';
                             setFormData({...formData, locales: newLocales});
-                         }} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none">
+                         }} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none mb-2">
                            <option value="Desocupado">Desocupado</option>
                            <option value="Ocupado">Ocupado</option>
                          </select>
+                         <label className="flex items-center gap-1.5 mt-1 cursor-pointer hover:bg-blue-50 p-1 -ml-1 rounded">
+                           <input type="checkbox" checked={local.agente_retencion === true} onChange={e => {
+                             const newLocales = [...formData.locales];
+                             newLocales[index].agente_retencion = e.target.checked;
+                             setFormData({...formData, locales: newLocales});
+                           }} className="w-3.5 h-3.5 accent-blue-600" />
+                           <span className="text-[10px] font-bold text-blue-900 leading-tight">Agente Retención (75% IVA)</span>
+                         </label>
                        </div>
                        <div className="min-w-[150px]">
                          {local.uso === 'Comercial' ? (

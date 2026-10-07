@@ -882,12 +882,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (local.codigo) {
             const o = local.__orig || {};
             const cambio = o.uso !== local.uso || o.actividad !== local.actividad || o.nivel !== local.nivel ||
-              o.tipoResidencia !== local.tipoResidencia || o.estatus !== local.estatus;
+              o.tipoResidencia !== local.tipoResidencia || o.estatus !== local.estatus || o.agente_retencion !== local.agente_retencion;
             if (!cambio) continue;
             const mmv = calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
             if (local.uso !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}" (${local.codigo}).`);
             const { error: eU } = await supabase.from('inmuebles')
-              .update({ actividad_principal: act, tipo: tipoDeUso(local.uso), mmv_mes: mmv })
+              .update({ actividad_principal: act, tipo: tipoDeUso(local.uso), mmv_mes: mmv, agente_retencion: local.agente_retencion === true })
               .eq('inmueble', local.codigo);
             if (eU) throw eU;
             cambios.push(`${local.codigo}: ${o.actividad || o.tipoResidencia || '-'} → ${act} (${mmv} MMV)`);
@@ -908,7 +908,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               actividad_principal: act,
               mmv_mes: mmv,
               cant_inmuebles: 1,
-              agente_retencion: data.esAgenteRetencion === true,
+              agente_retencion: local.agente_retencion === true,
             }]);
             if (eI) throw eI;
             cambios.push(`NUEVO ${codigo}: ${act} (${mmv} MMV)`);

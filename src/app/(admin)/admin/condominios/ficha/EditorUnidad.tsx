@@ -31,7 +31,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     inmueble: unidad?.inmueble || '', numero: unidad?.numero || '', propietario: unidad?.propietario || '', identidad: unidad?.identidad || '',
     estado: unidad?.estado || 'Activa', padre_unidad_id: unidad?.padre_unidad_id || '', es_grupo: !!unidad?.es_grupo,
     meses: unidad ? mesesPendientes(unidad.aseo_pendiente_desde) : 0, multa_meses: unidad?.multa_meses || 0,
-    tarifa_mmv: unidad?.tarifa_mmv ?? '',
+    tarifa_mmv: unidad?.tarifa_mmv ?? '', agente_retencion: !!unidad?.agente_retencion,
   });
   const [actRes, setActRes] = useState(claseIni === 'RES' && actIni ? actIni.toUpperCase() : RESIDENCIALES[1].label);
   const [actCom, setActCom] = useState(claseIni === 'COM' ? quitarNivelActividad(actIni) : '');
