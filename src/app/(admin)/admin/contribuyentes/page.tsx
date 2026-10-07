@@ -2604,10 +2604,10 @@ function ContribuyentesPageContent() {
                                setFormData({ ...formData, locales: newLocales, cantidadInmuebles: newLocales.length });
                              }
                            }}
-                           className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded shadow-sm transition-colors w-full md:w-auto justify-center mt-2 md:mt-0"
                            title="Eliminar Actividad/Inmueble"
                          >
-                           <Trash2 className="w-4 h-4" />
+                           <Trash2 className="w-4 h-4" /> <span>Eliminar</span>
                          </button>
                        </div>
                     </div>
@@ -3061,7 +3061,7 @@ function ContribuyentesPageContent() {
               className="bg-red-50 text-red-600 hover:bg-red-100 p-1.5 rounded transition-colors"
               title="Eliminar Contribuyente"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" /> <span>Eliminar</span>
             </button>
           </div>
         );
