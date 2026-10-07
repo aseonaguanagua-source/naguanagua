@@ -90,6 +90,19 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   };
 
 
+  const quitarTodas = async () => {
+    setErr('');
+    if (motivo.trim().length < 5) { setErr('Escriba el motivo (abajo) para quitar las multas.'); return; }
+    if (!confirm('¿Quitar TODAS las multas de esta unidad? (multas de los meses pendientes, meses de multa y multas fijas)')) return;
+    setGuardando(true);
+    try {
+      const r = await fetch('/api/admin/condominios/quitar-multas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: condo.codigo, unidad_id: unidad.id, usuario, motivo }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'No se pudieron quitar');
+      onSaved(true);
+    } catch (e: any) { setErr(e.message); } finally { setGuardando(false); }
+  };
+
   const anularMulta = async (m: any) => {
     const mot = prompt(`Motivo para anular la multa "${m.concepto}":`);
     if (!mot || mot.trim().length < 5) return;
@@ -199,7 +212,12 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase tracking-wider text-amber-800">Multa por meses ({esRes ? '10% residencial' : '12% comercial'})</span>
-              {renglon && <span className="text-[11px] text-slate-500">Deuda actual: <b className="text-red-700">Bs {fmtBs(renglon.totalBs)}</b></span>}
+              <div className="flex items-center gap-3">
+                {renglon && <span className="text-[11px] text-slate-500">Deuda actual: <b className="text-red-700">Bs {fmtBs(renglon.totalBs)}</b></span>}
+                {!nueva && (
+                  <button id="btn-quitar-multas-unidad" type="button" onClick={quitarTodas} disabled={guardando} className="px-2.5 py-1 rounded-lg border border-red-300 bg-white text-red-700 hover:bg-red-50 text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /> Quitar todas las multas</button>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3 items-end">
               <label className="block"><span className={lbl}>Meses de multa</span>

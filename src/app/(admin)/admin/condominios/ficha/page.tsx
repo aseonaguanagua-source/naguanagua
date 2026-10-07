@@ -106,6 +106,18 @@ function Ficha() {
     });
     setMotivo(''); setEditando(true);
   };
+  const quitarMultasCondo = async () => {
+    if (motivo.trim().length < 5) { alert('Escriba el motivo del cambio.'); return; }
+    if (!confirm(`¿Quitar TODAS las multas de ${c.nombre} y de sus ${d.unidades.length} unidades? Queda en la Auditoría.`)) return;
+    setGuardando(true);
+    try {
+      const r = await fetch('/api/admin/condominios/quitar-multas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: c.codigo, usuario: usuarioActual(), motivo }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'No se pudieron quitar');
+      alert(`Listo: multas quitadas a ${j.unidades} unidad(es)${j.multasAnuladas ? ` y ${j.multasAnuladas} multa(s) fija(s) anuladas` : ''}.`);
+      setEditando(false); await cargar();
+    } catch (err: any) { alert(err.message); } finally { setGuardando(false); }
+  };
   const guardar = async () => {
     const cambios: any = {};
     Object.keys(form).forEach(k => {
@@ -461,11 +473,14 @@ function Ficha() {
               <label className="block"><span className="text-xs font-bold text-red-700">Motivo del cambio (obligatorio)</span>
                 <input id="motivo-cambio-condominio" value={motivo} onChange={ev => setMotivo(ev.target.value)} placeholder="Queda registrado en la Auditoría" className="mt-1 w-full border border-red-200 rounded-xl px-3 py-2" /></label>
             </div>
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between gap-2">
+              <button id="btn-quitar-multas-condominio" onClick={quitarMultasCondo} disabled={guardando} className="px-4 py-2 border border-red-300 bg-white text-red-700 hover:bg-red-50 rounded-xl text-xs font-extrabold cursor-pointer disabled:opacity-50">Quitar todas las multas del condominio</button>
+              <div className="flex gap-2">
               <button onClick={() => setEditando(false)} className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancelar</button>
               <button id="btn-guardar-condominio" onClick={guardar} disabled={guardando} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 cursor-pointer disabled:opacity-50">
                 {guardando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
               </button>
+              </div>
             </div>
           </div>
         </div>

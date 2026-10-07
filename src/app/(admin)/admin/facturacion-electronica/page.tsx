@@ -6,7 +6,8 @@ import {
   RefreshCw, Receipt, Search, Mail, Filter, Eye, ShieldCheck, 
   Sliders, ArrowUpRight, Check, X, Building, CheckCircle2,
   AlertCircle, Key, Layers, ArrowRight, ShieldAlert, Sparkles,
-  Info, Printer, Download, Trash2
+  Info, Printer, Download, Trash2,
+  CheckSquare,
 } from 'lucide-react';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 
@@ -109,6 +110,8 @@ export default function FacturacionElectronicaPage() {
   // Lote del día (revisión + envío)
   const [loteModal, setLoteModal] = useState<null | 'factura' | 'recibo'>(null);
   const [loteSeleccion, setLoteSeleccion] = useState<Set<string>>(new Set());
+  // Selección en la tabla principal (para emitir/enviar solo las marcadas)
+  const [selTabla, setSelTabla] = useState<Set<string>>(new Set());
   const [loteRunning, setLoteRunning] = useState(false);
   const [loteProgreso, setLoteProgreso] = useState<{ total: number; hechos: number; ok: number; fallidos: number } | null>(null);
   const [loteResultados, setLoteResultados] = useState<any[]>([]);
@@ -190,6 +193,8 @@ export default function FacturacionElectronicaPage() {
   useEffect(() => {
     loadPagos();
   }, [loadPagos]);
+  // Al cambiar de día o de tipo, se limpia la selección de la tabla
+  useEffect(() => { setSelTabla(new Set()); }, [fecha, docTab]);
 
   // Filtro por módulo (Contribuyentes / Condominios)
   const pasaModulo = (p: any) => moduloFiltro === 'Todos' ? true
@@ -556,6 +561,19 @@ export default function FacturacionElectronicaPage() {
               <span>{docTab === 'factura' ? `Emitir facturas del día (${totalPendientes})` : `Enviar recibos del día (${totalPendientes})`}</span>
             </button>
 
+            {/* Emitir / enviar solo las seleccionadas en la tabla */}
+            {(() => {
+              const n = delTipo.filter((p: any) => !p.procesado && selTabla.has(p.id)).length;
+              return n > 0 ? (
+                <button id="btn-emitir-seleccionadas" onClick={() => {
+                  setLoteSeleccion(new Set(delTipo.filter((p: any) => !p.procesado && selTabla.has(p.id)).map((p: any) => p.id)));
+                  setLoteProgreso(null); setLoteResultados([]); setLoteModal(docTab);
+                }} className="px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-600 text-white font-extrabold text-xs flex items-center gap-2 shadow-md cursor-pointer">
+                  <CheckSquare className="w-4 h-4" /> {docTab === 'factura' ? `Emitir seleccionadas (${n})` : `Enviar seleccionados (${n})`}
+                </button>
+              ) : null;
+            })()}
+
             {/* Botón Credenciales The Factory */}
             <button
               onClick={() => setShowConfigModal(true)}
@@ -711,6 +729,16 @@ export default function FacturacionElectronicaPage() {
           <table className="w-full text-left text-xs text-slate-600">
             <thead className="bg-slate-100/80 text-[11px] uppercase font-black text-slate-600 border-b border-slate-200 tracking-wider">
               <tr>
+                <th className="py-3.5 pl-4 w-8">
+                  {(() => {
+                    const pend = visibles.filter((p: any) => !p.procesado);
+                    const todos = pend.length > 0 && pend.every((p: any) => selTabla.has(p.id));
+                    return (
+                      <input id="seleccionar-todas" type="checkbox" title="Seleccionar todas las pendientes" checked={todos} disabled={pend.length === 0}
+                        onChange={() => setSelTabla(todos ? new Set() : new Set(pend.map((p: any) => p.id)))} className="w-4 h-4 cursor-pointer accent-emerald-600" />
+                    );
+                  })()}
+                </th>
                 <th className="py-3.5 px-4">C.I. / R.I.F.</th>
                 <th className="py-3.5 px-4">Contribuyente / Razón Social</th>
                 <th className="py-3.5 px-4">Documento</th>
@@ -724,14 +752,14 @@ export default function FacturacionElectronicaPage() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-14 text-slate-400">
+                  <td colSpan={9} className="text-center py-14 text-slate-400">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
                     Cargando listado de facturas y pagos...
                   </td>
                 </tr>
               ) : visibles.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-14 text-slate-400">
+                  <td colSpan={9} className="text-center py-14 text-slate-400">
                     No hay {docTab === 'factura' ? 'facturas' : 'recibos'} con los filtros seleccionados para el {fecha.split('-').reverse().join('/')}.
                   </td>
                 </tr>
@@ -739,7 +767,13 @@ export default function FacturacionElectronicaPage() {
                 visibles.map((pago: any) => {
                   const sub = SUBTIPO_LABEL[pago.subtipo] || SUBTIPO_LABEL.recibo_residencial;
                   return (
-                    <tr key={pago.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={pago.id} className={`hover:bg-slate-50/80 transition-colors ${selTabla.has(pago.id) ? 'bg-emerald-50/60' : ''}`}>
+                      <td className="py-3.5 pl-4">
+                        {!pago.procesado && (
+                          <input type="checkbox" checked={selTabla.has(pago.id)} onChange={() => { const s = new Set(selTabla); if (s.has(pago.id)) s.delete(pago.id); else s.add(pago.id); setSelTabla(s); }}
+                            className="w-4 h-4 cursor-pointer accent-emerald-600" />
+                        )}
+                      </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
                         {pago.identidad}
                       </td>

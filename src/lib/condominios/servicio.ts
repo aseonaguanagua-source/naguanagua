@@ -146,7 +146,10 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     // Unidad registrada: sus propios meses. Grupo sin registrar / tarifa fija: los meses del condominio.
     const desde = u ? u.aseo_pendiente_desde : condoRow.aseo_pendiente_desde;
     const meses = r.montoBs > 0 ? M.mesesPendientes(desde, hoy) : 0;
-    const deuda = M.deudaPorMeses(meses, r.montoBs, res, c.agente_retencion);
+    // Multas exoneradas ("quitar todas las multas"): los meses hasta esa fecha no llevan multa
+    const hasta = String((u ? u.multa_exonerada_hasta : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
+    const exonerados = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
+    const deuda = M.deudaPorMeses(meses, r.montoBs, res, c.agente_retencion, exonerados);
     const multaMeses = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
     const multaExtraBs = r2(r.montoBs * tMulta * multaMeses);
     const manuales = multasPend.filter(m => (u ? m.unidad_id === u.id : !m.unidad_id))
@@ -204,7 +207,7 @@ export async function resumenGeneral() {
   const tasa = await tasaVigente();
   const condos = await todas((a, b) => sb.from('condominios').select('*').order('nombre').range(a, b));
   const unidades = await todas((a, b) => sb.from('condominio_unidades')
-    .select('id,condominio_id,inmueble,identidad,actividad,tarifa_mmv,estado,aseo_pendiente_desde,multa_meses,padre_unidad_id,es_grupo').order('id').range(a, b));
+    .select('*').order('id').range(a, b));
   const { data: multas } = await sb.from('condominio_multas').select('id,condominio_id,unidad_id,monto_bs,monto_mmv,estado,concepto,periodo,creada_por,created_at').eq('estado', 'Pendiente');
   const porCondo = new Map<string, any[]>();
   unidades.forEach(u => { if (!porCondo.has(u.condominio_id)) porCondo.set(u.condominio_id, []); porCondo.get(u.condominio_id)!.push(u); });
