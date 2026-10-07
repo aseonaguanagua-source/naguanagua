@@ -84,6 +84,13 @@ export async function PATCH(req: Request) {
     const { error } = await sb.from('condominios').update(upd).eq('id', antes.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // Sincronizar el campo agente_retencion en la tabla inmuebles para el inmueble principal del condominio
+    if ('agente_retencion' in upd) {
+      await sb.from('inmuebles')
+        .update({ agente_retencion: upd.agente_retencion })
+        .eq('inmueble', antes.codigo);
+    }
+
     const diff = Object.fromEntries(Object.keys(upd).map(k => [k, { antes: antes[k], despues: upd[k] }]));
     await sb.from('auditoria').insert({
       accion: 'Modificación de condominio', usuario: `${trab.nombre || trab.usuario} (${trab.usuario})`,

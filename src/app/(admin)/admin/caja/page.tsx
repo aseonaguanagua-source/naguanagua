@@ -1181,6 +1181,15 @@ export default function CajaPage() {
       const c = cuotasMap.get(`${sc.convId}:${sc.cuotaId}`);
       if (c) sb += parseFloat(c.monto || '0');
     });
+    const isAgenteGlobal = foundUser?.agente_retencion || (freshInmuebles || []).some((i: any) => {
+      // Si el usuario es un condominio, la retención de los servicios a nombre del condominio
+      // depende únicamente del estatus del condominio en sí (no de si un local/apartamento es agente)
+      if (foundUser?.es_condominio || foundUser?.Clasificacion?.toLowerCase().includes('condo')) {
+        return i.es_condominio === true && i.agente_retencion === true;
+      }
+      return i.agente_retencion === true;
+    });
+
     selectedServicios.forEach(ref => {
       const s = serviciosMap.get(ref);
       if (s) {
@@ -1188,7 +1197,7 @@ export default function CajaPage() {
         const ivaMonto = parseFloat((baseMonto * ivaPercent).toFixed(2));
         sb += baseMonto;
         siva += ivaMonto;
-        if (foundUser?.agente_retencion || (freshInmuebles || []).some((i: any) => i.agente_retencion)) {
+        if (isAgenteGlobal) {
           sivaRetencionable += ivaMonto;
         }
       }
@@ -1200,7 +1209,7 @@ export default function CajaPage() {
         const ivaMonto = parseFloat((baseMonto * ivaPercent).toFixed(2));
         sb += baseMonto;
         siva += ivaMonto;
-        if (foundUser?.agente_retencion || (freshInmuebles || []).some((i: any) => i.agente_retencion)) {
+        if (isAgenteGlobal) {
           sivaRetencionable += ivaMonto;
         }
       }
