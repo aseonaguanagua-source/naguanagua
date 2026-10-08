@@ -191,7 +191,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       // Si el cobro tiene múltiples facturas y múltiples pagos agregados, se prorratea. 
       // Por simplicidad, guardamos los métodos en los detalles. 
       formasPago = pago.pagosAgregados.map(pa => ({
-        descripcion: pa.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pa.metodo), banco: pa.banco || undefined, referencia: pa.referencia || undefined, monto: pa.monto
+        descripcion: pa.metodo, fecha: pa.fecha ? new Date(pa.fecha + 'T12:00:00Z').toISOString() : new Date().toISOString(), forma: formaPagoCodigo(pa.metodo), banco: pa.banco || undefined, referencia: pa.referencia || undefined, monto: pa.monto
       }));
     }
 

@@ -62,6 +62,7 @@ function Caja() {
   const [referenciaAct, setReferenciaAct] = useState('');
   const [montoAct, setMontoAct] = useState('');
   const [comprobanteAct, setComprobanteAct] = useState<File | null>(null);
+  const [fechaAct, setFechaAct] = useState(new Date().toISOString().slice(0, 10));
   // interruptor
   const [modalInt, setModalInt] = useState(false);
   const [motivoInt, setMotivoInt] = useState('');
@@ -159,8 +160,8 @@ function Caja() {
       if (metodoAct === 'Transferencia' && !comprobanteAct) return alert('Es obligatorio adjuntar el comprobante para Transferencia.');
     }
     if (montoParsed > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
-    setPagosAgregados([...pagosAgregados, { metodo: metodoAct, banco: bancoAct, referencia: referenciaAct, monto: montoParsed, comprobante: comprobanteAct }]);
-    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null);
+    setPagosAgregados([...pagosAgregados, { metodo: metodoAct, banco: bancoAct, referencia: referenciaAct, monto: montoParsed, comprobante: comprobanteAct, fecha: fechaAct }]);
+    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null); setFechaAct(new Date().toISOString().slice(0, 10));
   };
 
   const quitarPago = (idx: number) => {
@@ -457,7 +458,7 @@ function Caja() {
                   <div key={i} className="flex justify-between items-center bg-white/5 rounded-lg px-2.5 py-1.5 text-xs border border-white/10">
                     <div>
                       <div className="font-bold">{p.metodo} {p.banco ? `- ${p.banco}` : ''}</div>
-                      <div className="text-white/60 font-mono">Ref: {p.referencia || 'N/A'} {p.comprobante ? '📎' : ''}</div>
+                      <div className="text-white/60 font-mono">Ref: {p.referencia || 'N/A'} · {p.fecha?.split('-').reverse().join('/') || ''} {p.comprobante ? '📎' : ''}</div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="font-bold tabular-nums text-emerald-400">Bs {fmtBs(p.monto)}</div>
@@ -498,7 +499,10 @@ function Caja() {
                         <option value="">Seleccione banco</option>
                         {LISTA_BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
-                      <input type="text" placeholder="Referencia / Comprobante" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
+                      <div className="flex gap-2">
+                        <input type="text" placeholder="Referencia / Comprobante" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
+                        <input type="date" value={fechaAct} onChange={e => setFechaAct(e.target.value)} className="w-32 rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
+                      </div>
                       <label className="block w-full text-center py-1.5 border border-dashed border-white/30 rounded-lg text-xs text-white/70 hover:bg-white/10 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-2">
                         {comprobanteAct ? comprobanteAct.name : (metodoAct === 'Transferencia' ? 'Subir comprobante (Obligatorio)' : 'Subir comprobante')}
                         <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => setComprobanteAct(e.target.files?.[0] || null)} />
