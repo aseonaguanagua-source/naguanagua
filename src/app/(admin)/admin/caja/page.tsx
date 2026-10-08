@@ -2776,9 +2776,33 @@ export default function CajaPage() {
             <div className="flex-1 w-full overflow-hidden">
               <div className="flex items-center gap-4 flex-wrap">
                 <h2 className="text-xl font-bold text-slate-800">{foundUser.Contribuyente}</h2>
-                <button onClick={() => setIsNotaModalOpen(true)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-full border border-slate-300 transition-colors">
-                  + Agregar Saldo a Favor / Nota Manual
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setIsNotaModalOpen(true)} className="text-[10px] sm:text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-full border border-slate-300 transition-colors">
+                    + Agregar Saldo a Favor / Nota Manual
+                  </button>
+                  <label className="flex items-center gap-1.5 cursor-pointer bg-violet-50 hover:bg-violet-100 border border-violet-200 px-3 py-1.5 rounded-full transition-colors">
+                    <input 
+                      type="checkbox" 
+                      className="w-3.5 h-3.5 accent-violet-600 rounded"
+                      checked={foundUser.agente_retencion || foundUser.esAgenteRetencion || false}
+                      onChange={async (e) => {
+                        const val = e.target.checked;
+                        const ok = confirm(`¿${val ? 'Marcar' : 'Desmarcar'} a este contribuyente como Agente de Retención (75% IVA)?`);
+                        if (!ok) return;
+                        try {
+                          await supabase.from('inmuebles').update({ agente_retencion: val }).eq('identidad', foundUser.Identidad);
+                          if (foundUser.CodCont) {
+                            await supabase.from('inmuebles').update({ agente_retencion: val }).eq('inmueble', foundUser.CodCont);
+                          }
+                          alert('Estado de Agente de Retención actualizado. Actualice la página o vuelva a buscar para ver los cambios reflejados en el cobro.');
+                        } catch(err) {
+                          alert('Error al actualizar: ' + err);
+                        }
+                      }}
+                    />
+                    <span className="text-[10px] sm:text-xs font-bold text-violet-800">Agente de Retención</span>
+                  </label>
+                </div>
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-500 flex-wrap mt-0.5">
                 <span className="font-semibold text-slate-700">{foundUser.Identidad}</span>
