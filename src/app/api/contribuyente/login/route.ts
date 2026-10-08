@@ -17,6 +17,17 @@ export async function POST(request: Request) {
     const variantes = getIdentidadVariants(identidad);
     const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
 
+    // Verificar si el usuario pertenece a un condominio
+    const { data: condoUser, error: condoErr } = await supabase
+      .from('condominio_unidades')
+      .select('id')
+      .or(orFilter)
+      .limit(1);
+
+    if (condoUser && condoUser.length > 0) {
+      return NextResponse.json({ error: "Actualizando...", mantenimiento: true }, { status: 503 });
+    }
+
     // Buscar en inmuebles
     const { data: records, error } = await supabase
       .from("inmuebles")
