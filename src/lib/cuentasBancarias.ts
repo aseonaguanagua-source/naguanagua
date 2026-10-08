@@ -28,10 +28,10 @@ export const CUENTAS_BANCARIAS_OFICIALES: CuentaBancariaOficial[] = [
     banco: 'Banesco',
     codigoBanco: '0134',
     tipoCuenta: 'Cuenta Corriente',
-    numeroCuenta: '01340415144151031715',
-    titular: 'Instituto Autónomo Municipal de Ecosocialismo (IAMEC)',
-    rif: 'G-200076739',
-    alias: 'BANESCO - 0134 - 1715',
+    numeroCuenta: '01341089590001008636',
+    titular: 'IAMEC BANESCO',
+    rif: 'G-200086149',
+    alias: 'BANESCO - 0134 - 8636',
     color: 'emerald'
   }
 ];
@@ -39,7 +39,7 @@ export const CUENTAS_BANCARIAS_OFICIALES: CuentaBancariaOficial[] = [
 export const BANCOS_DESTINO_LIST = [
   'Todos',
   'BANCAMIGA - 0172 - 0717',
-  'BANESCO - 0134 - 1715',
+  'BANESCO - 0134 - 8636',
   'BANCO DE VENEZUELA - 0102',
   'BANCO MERCANTIL - 0105',
   'BANCO PROVINCIAL - 0108',

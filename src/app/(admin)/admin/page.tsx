@@ -113,12 +113,12 @@ export default async function AdminHome() {
               </div>
               <div className="flex items-center justify-between text-xs text-slate-700">
                 <span className="font-semibold">Cuenta:</span>
-                <span className="font-mono font-bold text-slate-900">01340415144151031715</span>
-                <CopyButton text="01340415144151031715" className="text-emerald-600 hover:text-emerald-800 ml-1 p-1 bg-white rounded border border-emerald-200" />
+                <span className="font-mono font-bold text-slate-900">01341089590001008636</span>
+                <CopyButton text="01341089590001008636" className="text-emerald-600 hover:text-emerald-800 ml-1 p-1 bg-white rounded border border-emerald-200" />
               </div>
               <div className="text-xs text-slate-600 pt-2 border-t border-emerald-100">
                 <p>Titular: <strong className="text-slate-800">Inst. Soc. Mun. para el Ambiente</strong></p>
-                <p className="text-[11px] text-slate-500 font-mono">RIF: G-200076739</p>
+                <p className="text-[11px] text-slate-500 font-mono">RIF: G-200086149</p>
               </div>
             </div>
           </div>

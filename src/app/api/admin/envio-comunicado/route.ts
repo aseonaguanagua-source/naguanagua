@@ -133,10 +133,10 @@ function buildHtml(nombre: string): string {
               <tr style="background:#047857;">
                 <td colspan="2" style="color:#ffffff;font-weight:bold;padding:8px 12px;border-radius:6px 6px 0 0;">2. Cuenta Oficial Banesco (0134)</td>
               </tr>
-              <tr><td style="padding:6px 12px;font-weight:bold;color:#047857;width:100px;">Titular:</td><td style="padding:6px 12px;">INST SOC MUN PARA EL AMBIENTE (IAMEC)</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;color:#047857;width:100px;">Titular:</td><td style="padding:6px 12px;">IAMEC BANESCO</td></tr>
               <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#047857;">Banco:</td><td style="padding:6px 12px;">Banesco Banco Universal</td></tr>
-              <tr><td style="padding:6px 12px;font-weight:bold;color:#047857;">Cta. Cte:</td><td style="padding:6px 12px;font-family:monospace;font-size:14px;font-weight:bold;color:#047857;">0134 0415 14 4151031715</td></tr>
-              <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#047857;">R.I.F.:</td><td style="padding:6px 12px;font-family:monospace;">G-200076739</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;color:#047857;">Cta. Cte:</td><td style="padding:6px 12px;font-family:monospace;font-size:14px;font-weight:bold;color:#047857;">0134 1089 59 0001008636</td></tr>
+              <tr style="background:#f8fafc;"><td style="padding:6px 12px;font-weight:bold;color:#047857;">R.I.F.:</td><td style="padding:6px 12px;font-family:monospace;">G-200086149</td></tr>
             </table>
           </td>
         </tr>

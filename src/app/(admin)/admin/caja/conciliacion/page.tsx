@@ -46,7 +46,7 @@ type Filtros = {
 const BANCOS_DESTINO = [
   'Todos',
   'BANCAMIGA - 0172 - 0717',
-  'BANESCO - 0134 - 1715',
+  'BANESCO - 0134 - 8636',
   'BANCO DE VENEZUELA - 0102',
   'BANCO MERCANTIL - 0105',
   'BANCO PROVINCIAL - 0108',
@@ -408,9 +408,9 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
                   <p className="font-bold text-emerald-900 mb-1 uppercase text-[11px]">Cuenta Oficial Banesco</p>
                   <p><span className="font-semibold">Banco:</span> Banesco (0134)</p>
                   <p><span className="font-semibold">Tipo:</span> Cuenta Corriente</p>
-                  <p><span className="font-semibold">Cta:</span> <span className="font-mono font-bold text-slate-900">01340415144151031715</span></p>
+                  <p><span className="font-semibold">Cta:</span> <span className="font-mono font-bold text-slate-900">01341089590001008636</span></p>
                   <p className="mt-1">Titular: <strong>INST. SOC. MUN. PARA EL AMBIENTE</strong></p>
-                  <p className="text-[11px] text-slate-500">R.I.F.: <strong>G-200076739</strong></p>
+                  <p className="text-[11px] text-slate-500">R.I.F.: <strong>G-200086149</strong></p>
                 </div>
               </div>
             </>
@@ -1229,7 +1229,7 @@ export default function ConciliacionPage() {
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{det.fecha_transaccion || (pago.fecha_transaccion||'').split('T')[0] || '---'}</td>
         <td className="px-3 py-2 text-xs text-slate-600">{pago.tipo || '---'}</td>
         <td className="px-3 py-2 text-xs text-slate-600">{pago.banco || '---'}</td>
-        <td className="px-3 py-2 text-xs text-slate-600">{pago.banco_destino || det.banco_destino || 'BANESCO - 0134 - 1715'}</td>
+        <td className="px-3 py-2 text-xs text-slate-600">{pago.banco_destino || det.banco_destino || 'BANESCO - 0134 - 8636'}</td>
         <td className={'px-3 py-2 text-xs '+estatusCls(pago.estado||'')}>{pago.estado || '---'}</td>
         <td className="px-3 py-2 text-sm font-bold text-right text-slate-800">
           <div className="flex items-center justify-end gap-2">

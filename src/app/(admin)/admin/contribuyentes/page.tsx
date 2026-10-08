@@ -1384,7 +1384,7 @@ function ContribuyentesPageContent() {
       doc.setFontSize(7);
       doc.text('1) Banco: BANCAMIGA (0172)  |  Cta: 01720110711101340717  |  Beneficiario: IAMEC BANCAMIGA  |  RIF: G-200086149', 14, y);
       y += 3.5;
-      doc.text('2) Banco: BANESCO (0134)    |  Cta: 01340415144151031715  |  Beneficiario: IAMEC            |  RIF: G-200076739', 14, y);
+      doc.text('2) Banco: BANESCO (0134)    |  Cta: 01341089590001008636  |  Beneficiario: IAMEC BANESCO    |  RIF: G-200086149', 14, y);
       y += 4;
 
       // ── AVISO DE VIGENCIA DE TASA ──

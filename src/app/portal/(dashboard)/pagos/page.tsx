@@ -821,13 +821,13 @@ export default function DondePagarPage() {
                   <span className="text-slate-500 font-medium block text-[11px]">Número de Cuenta (20 dígitos):</span>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="font-mono bg-white px-2.5 py-1.5 rounded-lg text-slate-800 font-bold border border-emerald-200 text-xs tracking-wider flex-1 select-all">
-                      01340415144151031715
+                      01341089590001008636
                     </span>
                     <button 
                       type="button"
                       className="text-emerald-600 hover:text-emerald-800 transition-colors p-1.5 bg-white hover:bg-emerald-100 rounded-lg border border-emerald-200" 
                       title="Copiar número de cuenta Banesco"
-                      onClick={() => navigator.clipboard?.writeText('01340415144151031715')}
+                      onClick={() => navigator.clipboard?.writeText('01341089590001008636')}
                     >
                       <FileText className="w-3.5 h-3.5" />
                     </button>
@@ -836,7 +836,7 @@ export default function DondePagarPage() {
                 <div className="mt-3 pt-2.5 border-t border-emerald-200/60 text-[11px] text-slate-600 leading-tight">
                   <span className="text-slate-400 block text-[10px]">Beneficiario / R.I.F.:</span>
                   <strong className="text-slate-800">Inst. Socialista Municipal para el Ambiente</strong>
-                  <span className="text-slate-500 block font-mono text-[10px] mt-0.5">R.I.F.: G-200076739</span>
+                  <span className="text-slate-500 block font-mono text-[10px] mt-0.5">R.I.F.: G-200086149</span>
                 </div>
               </div>
             </div>
@@ -1256,7 +1256,7 @@ export default function DondePagarPage() {
                       required
                     >
                       <option value="BANCAMIGA - 0172 - 0717">Bancamiga (0172) - 01720110711101340717 (IAMEC BANCAMIGA)</option>
-                      <option value="BANESCO - 0134 - 1715">Banesco (0134) - 01340415144151031715 (IAMEC)</option>
+                      <option value="BANESCO - 0134 - 8636">Banesco (0134) - 01341089590001008636 (IAMEC)</option>
                     </select>
                   </div>
 

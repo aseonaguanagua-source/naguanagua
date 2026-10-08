@@ -153,7 +153,7 @@ export default function InmueblesPage() {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                <th className="px-6 py-4 font-bold">Código Inmueble</th>
+                <th className="px-6 py-4 font-bold">Inmueble / Cédula</th>
                 <th className="px-6 py-4 font-bold">Uso / Clasificación</th>
                 <th className="px-6 py-4 font-bold">Actividad Económica</th>
                 <th className="px-6 py-4 font-bold">Dirección Fiscal / Ubicación</th>
@@ -185,9 +185,12 @@ export default function InmueblesPage() {
 
                   return (
                     <tr key={inm.id} className="hover:bg-slate-50/80 transition-colors text-sm">
-                      <td className="px-6 py-4">
-                        <span className="font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 rounded-md">
+                      <td className="px-6 py-4 flex flex-col gap-1">
+                        <span className="font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 rounded-md w-max">
                           {inm.inmueble}
+                        </span>
+                        <span className="text-xs text-slate-500 font-medium">
+                          C.I./RIF: {inm.identidad}
                         </span>
                       </td>
                       <td className="px-6 py-4">

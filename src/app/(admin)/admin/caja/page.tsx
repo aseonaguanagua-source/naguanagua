@@ -4423,7 +4423,7 @@ export default function CajaPage() {
                       className="w-full border border-blue-300 bg-blue-50/40 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-semibold text-slate-800"
                     >
                       <option value="BANCAMIGA - 0172 - 0717">Bancamiga (0172) - 01720110711101340717 (IAMEC BANCAMIGA)</option>
-                      <option value="BANESCO - 0134 - 1715">Banesco (0134) - 01340415144151031715 (IAMEC)</option>
+                      <option value="BANESCO - 0134 - 8636">Banesco (0134) - 01341089590001008636 (IAMEC)</option>
                       <option value="BANCO DE VENEZUELA - 0102">Banco de Venezuela (0102)</option>
                       <option value="BANCO MERCANTIL - 0105">Banco Mercantil (0105)</option>
                       <option value="BANCO PROVINCIAL - 0108">Banco Provincial (0108)</option>
