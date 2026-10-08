@@ -428,6 +428,11 @@ export default function CajaPage() {
         es_condominio: matchedInm.es_condominio,
         isSearchByCode: true
       };
+      if (user.es_condominio || user.condominio_padre_id) {
+        alert('Este código pertenece a un condominio o a un local de condominio. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
+        setIsSearching(false);
+        return;
+      }
     }
 
     // Si tiene formato de código y no estaba en memoria, buscar en Supabase por coincidencia exacta
@@ -457,6 +462,11 @@ export default function CajaPage() {
           es_condominio: inmDirect.es_condominio,
           isSearchByCode: true
         };
+        if (user.es_condominio || user.condominio_padre_id) {
+          alert('Este código pertenece a un condominio o a un local de condominio. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
+          setIsSearching(false);
+          return;
+        }
       }
     }
 
@@ -522,6 +532,11 @@ export default function CajaPage() {
             condominio_padre_id: inmFallback.condominio_padre_id,
             es_condominio: inmFallback.es_condominio
           };
+          if (user.es_condominio || user.condominio_padre_id) {
+            alert('El contribuyente encontrado pertenece a un condominio o es un condominio. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
+            setIsSearching(false);
+            return;
+          }
         } else {
           // Fallback 2: buscar en tabla contribuyentes directamente (por palabras del nombre o por cédula)
           let contribFallback: any = null;
@@ -587,8 +602,8 @@ export default function CajaPage() {
         .select('*')
         .or(orFilterInms);
       
-      // Filtrar los inmuebles eliminados y restringir los locales de condominios (solo operables en Caja Condominios)
-      const activeInmFresh = (inmFresh || []).filter((i: any) => i.estado !== 'Eliminado' && !i.condominio_padre_id);
+      // Filtrar los inmuebles eliminados y restringir los locales de condominios y condominios en sí
+      const activeInmFresh = (inmFresh || []).filter((i: any) => i.estado !== 'Eliminado' && !i.condominio_padre_id && !i.es_condominio);
 
       // Adoptar la Identidad real y actualizada desde los inmuebles frescos en base de datos
       if (activeInmFresh.length > 0 && activeInmFresh[0].identidad) {

@@ -177,10 +177,8 @@ function ContribuyentesPageContent() {
       result = result.filter((c: any) => c.Observaciones && c.Observaciones.trim().length > 0);
     }
     
-    // Si está activa la agrupación, ocultar los locales hijos independientes para no saturar la tabla
-    if (groupCondoChildren && !isShowingServerResults) {
-      result = result.filter((c: any) => !c.isCondoChild);
-    }
+    // Siempre ocultar condominios (es_condominio/isCondominio) y sus locales (condominio_padre_id/isCondoChild)
+    result = result.filter((c: any) => !c.es_condominio && !c.isCondominio && !c.condominio_padre_id && !c.isCondoChild);
 
     setFilteredContribuyentes(result);
   }, [activeTab, contribuyentes, showWithNotes, isShowingServerResults, serverResults, groupCondoChildren]);

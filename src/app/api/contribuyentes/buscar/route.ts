@@ -63,8 +63,8 @@ export async function GET(request: Request) {
       inmuebles = byName || [];
     }
 
-    // Restringir: ocultar inmuebles que están dentro de un condominio
-    inmuebles = inmuebles.filter((i: any) => !i.condominio_padre_id);
+    // Restringir: ocultar inmuebles que están dentro de un condominio o que son condominios
+    inmuebles = inmuebles.filter((i: any) => !i.condominio_padre_id && !i.es_condominio);
 
     if (inmuebles.length === 0) {
       return NextResponse.json({ found: false, contribuyente: null, inmuebles: [] });
