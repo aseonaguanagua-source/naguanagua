@@ -211,13 +211,20 @@ export async function cargarCondominio(codigo: string) {
   const agentes = new Map<string, any>();
   if (codigosUnidades.length > 0) {
     for (let i = 0; i < codigosUnidades.length; i += 300) {
-      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion, multa_bs').in('inmueble', codigosUnidades.slice(i, i + 300));
+      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion, multa_bs, telefono, correo_electronico, notas').in('inmueble', codigosUnidades.slice(i, i + 300));
       (inm || []).forEach(r => agentes.set(r.inmueble, r));
     }
   }
   const unidades = rawUnidades.map((u: any) => {
     const inf = agentes.get(u.inmueble) || {};
-    return { ...u, agente_retencion: !!inf.agente_retencion, multa_bs: parseFloat(inf.multa_bs || '0') };
+    let extras = [];
+    try {
+      if (inf.notas) {
+        const j = JSON.parse(inf.notas);
+        if (j.actividades_extra) extras = j.actividades_extra;
+      }
+    } catch (e) {}
+    return { ...u, agente_retencion: !!inf.agente_retencion, multa_bs: parseFloat(inf.multa_bs || '0'), telefono: inf.telefono || '', correo: inf.correo_electronico || '', actividades_extra: extras };
   });
   
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(300);

@@ -1,22 +1,19 @@
 const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
-const path = require('path');
+require('dotenv').config({ path: '.env.local' });
+const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-let SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-let SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  try {
-    const envContent = fs.readFileSync(path.join(__dirname, '../.env.local'), 'utf-8');
-    const urlMatch = envContent.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/);
-    const keyMatch = envContent.match(/NEXT_PUBLIC_SUPABASE_ANON_KEY=(.*)/);
-    if(urlMatch) SUPABASE_URL = urlMatch[1].trim();
-    if(keyMatch) SUPABASE_KEY = keyMatch[1].trim();
-  } catch(e) {}
+async function alterTable() {
+  const query = `
+    ALTER TABLE public.condominio_unidades 
+    ADD COLUMN IF NOT EXISTS telefono TEXT,
+    ADD COLUMN IF NOT EXISTS email TEXT,
+    ADD COLUMN IF NOT EXISTS actividades_extra JSONB DEFAULT '[]'::jsonb;
+  `;
+  const { data, error } = await sb.rpc('exec_sql', { sql: query });
+  if (error) {
+    console.error("Please run this in Supabase SQL Editor:", query);
+  } else {
+    console.log("Success");
+  }
 }
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-(async () => {
-  const { data, error } = await supabase.from('pagos_reportados').select('id, factura_emitida').limit(1);
-  console.log(error || data);
-})();
+alterTable();

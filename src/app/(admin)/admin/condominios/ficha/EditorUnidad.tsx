@@ -32,7 +32,9 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     estado: unidad?.estado || 'Activa', padre_unidad_id: unidad?.padre_unidad_id || '', es_grupo: !!unidad?.es_grupo,
     meses: unidad ? mesesPendientes(unidad.aseo_pendiente_desde) : 0, multa_meses: unidad?.multa_meses || 0,
     tarifa_mmv: unidad?.tarifa_mmv ?? '', agente_retencion: !!unidad?.agente_retencion,
+    telefono: unidad?.telefono || '', correo: unidad?.correo || '',
   });
+  const [actividadesExtra, setActividadesExtra] = useState<any[]>(unidad?.actividades_extra || []);
   const [actRes, setActRes] = useState(claseIni === 'RES' && actIni ? actIni.toUpperCase() : RESIDENCIALES[1].label);
   const [actCom, setActCom] = useState(claseIni === 'COM' ? quitarNivelActividad(actIni) : '');
   const [nivel, setNivel] = useState(claseIni === 'COM' ? nivelActividad(actIni) : 1);
@@ -50,10 +52,13 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const multaPorMesBs = Math.round(mensualBs * pctMulta * 100) / 100;
   const multaMesesN = Math.max(0, parseInt(f.multa_meses) || 0);
 
+  const esNA = actCom.trim().toUpperCase() === 'N/A' || actCom.trim() === '';
   const actividad = clase === 'RES' ? actRes : (actCom.trim() ? actividadConNivel(actCom.trim().toUpperCase(), nivel) : '');
   const tarifaSugerida = clase === 'RES'
     ? (RESIDENCIALES.find(r => r.label === actRes)?.factor ?? 0.91)
-    : (actCom.trim() ? resolverFOComercial(actividad) : null);
+    : (esNA && actividadesExtra.length > 0 
+        ? actividadesExtra.reduce((sum, a) => sum + (resolverFOComercial(actividadConNivel(a.actividad, a.nivel)) || 0), 0)
+        : (actCom.trim() ? resolverFOComercial(actividad) : null));
   const tarifa = tarifaManual ? f.tarifa_mmv : (tarifaSugerida ?? f.tarifa_mmv);
 
   const torres = unidades.filter(u => u.id !== unidad?.id && u.estado !== 'Eliminada' && (u.es_grupo || unidades.some(h => h.padre_unidad_id === u.id)));
@@ -70,12 +75,19 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       actividad: f.estado === 'Desocupada' && clase === 'COM' && !actCom.trim() ? 'INMUEBLES DESOCUPADOS' : actividad,
       tarifa_mmv: tarifa === '' ? null : tarifa,
       agente_retencion: f.agente_retencion === true,
+      telefono: f.telefono, correo: f.correo, actividades_extra: actividadesExtra,
     };
     let cambios = datos;
     if (!nueva) {
       cambios = {};
-      const antes: any = { ...unidad, meses: mesesPendientes(unidad.aseo_pendiente_desde), padre_unidad_id: unidad.padre_unidad_id || null };
-      for (const k of Object.keys(datos)) if (String(datos[k] ?? '').toUpperCase() !== String(antes[k] ?? '').toUpperCase()) cambios[k] = datos[k];
+      const antes: any = { ...unidad, meses: mesesPendientes(unidad.aseo_pendiente_desde), padre_unidad_id: unidad.padre_unidad_id || null, telefono: unidad.telefono || '', correo: unidad.correo || '', actividades_extra: unidad.actividades_extra || [] };
+      for (const k of Object.keys(datos)) {
+        if (k === 'actividades_extra') {
+          if (JSON.stringify(datos[k]) !== JSON.stringify(antes[k])) cambios[k] = datos[k];
+        } else if (String(datos[k] ?? '').toUpperCase() !== String(antes[k] ?? '').toUpperCase()) {
+          cambios[k] = datos[k];
+        }
+      }
       if (!Object.keys(cambios).length) { onClose(); return; }
     }
     setGuardando(true);
@@ -131,13 +143,17 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           {/* Datos */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block"><span className={lbl}>Código del inmueble</span>
-              <input id="unidad-inmueble" value={f.inmueble} onChange={e => setF({ ...f, inmueble: e.target.value })} placeholder="Ej. AURI012345 (opcional)" className={inp + ' font-mono'} /></label>
+              <input id="unidad-inmueble" value={f.inmueble} onChange={e => setF({ ...f, inmueble: e.target.value })} placeholder="Ej. AURI012345 (se auto-genera si queda vacío)" className={inp + ' font-mono'} /></label>
             <label className="block"><span className={lbl}>Número (apto / local / oficina)</span>
               <input id="unidad-numero" value={f.numero} onChange={e => setF({ ...f, numero: e.target.value })} placeholder="Ej. Local 12 / Apto 4-B" className={inp} /></label>
             <label className="block"><span className={lbl}>Propietario / contribuyente</span>
               <input id="unidad-propietario" value={f.propietario} onChange={e => setF({ ...f, propietario: e.target.value })} className={inp} /></label>
             <label className="block"><span className={lbl}>Cédula / RIF</span>
               <input id="unidad-identidad" value={f.identidad} onChange={e => setF({ ...f, identidad: e.target.value })} placeholder="V-12345678 / J-123456789" className={inp + ' font-mono'} /></label>
+            <label className="block"><span className={lbl}>Teléfono</span>
+              <input id="unidad-telefono" value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} placeholder="Ej. 0414-1234567" className={inp} /></label>
+            <label className="block"><span className={lbl}>Correo electrónico</span>
+              <input id="unidad-correo" value={f.correo} onChange={e => setF({ ...f, correo: e.target.value })} placeholder="correo@ejemplo.com" type="email" className={inp} /></label>
           </div>
 
           {/* Clasificación y actividad */}
@@ -160,13 +176,32 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
                 <label className="block"><span className={lbl}>Actividad comercial (ordenanza)</span>
-                  <input id="unidad-actividad" list="lista-actividades" value={actCom} onChange={e => { setActCom(e.target.value); setTarifaManual(false); }} placeholder="Escriba para buscar…" className={inp} />
-                  <datalist id="lista-actividades">{COMERCIALES.map(a => <option key={a} value={a} />)}</datalist></label>
+                  <input id="unidad-actividad" list="lista-actividades" value={actCom} onChange={e => { setActCom(e.target.value); setTarifaManual(false); }} placeholder="Escriba para buscar (N/A para múltiples)…" className={inp} />
+                  <datalist id="lista-actividades"><option value="N/A" />{COMERCIALES.map(a => <option key={a} value={a} />)}</datalist></label>
                 <label className="block"><span className={lbl}>Generación</span>
-                  <select id="unidad-nivel" value={nivel} onChange={e => { setNivel(Number(e.target.value)); setTarifaManual(false); }} className={inp}>
+                  <select id="unidad-nivel" value={nivel} onChange={e => { setNivel(Number(e.target.value)); setTarifaManual(false); }} className={inp} disabled={esNA}>
                     {NIVELES.map((n, i) => <option key={n} value={i}>{n}</option>)}
                   </select></label>
               </div>
+              {esNA && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                  <span className={lbl}>Actividades Adicionales (suman a la tarifa final)</span>
+                  {actividadesExtra.map((ax: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <select value={ax.actividad} onChange={e => { const arr = [...actividadesExtra]; arr[i].actividad = e.target.value; setActividadesExtra(arr); setTarifaManual(false); }} className={inp + " py-1.5"}>
+                        <option value="">Seleccione...</option>
+                        {COMERCIALES.map(a => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                      <select value={ax.nivel} onChange={e => { const arr = [...actividadesExtra]; arr[i].nivel = Number(e.target.value); setActividadesExtra(arr); setTarifaManual(false); }} className={inp + " py-1.5 w-24"}>
+                        {NIVELES.map((n, idx) => <option key={n} value={idx}>{n}</option>)}
+                      </select>
+                      <button type="button" onClick={() => { const arr = [...actividadesExtra]; arr.splice(i, 1); setActividadesExtra(arr); setTarifaManual(false); }} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setActividadesExtra([...actividadesExtra, { actividad: '', nivel: 1 }])} className="text-xs font-bold text-emerald-700 flex items-center gap-1 hover:underline"><Plus className="w-3.5 h-3.5" /> Agregar actividad extra</button>
+                </div>
+              )}
+
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
               <label className="block"><span className={lbl}>Tarifa (F.O. en MMV)</span>

@@ -31,6 +31,10 @@ function limpiar(c: any) {
   if ('es_grupo' in c) out.es_grupo = !!c.es_grupo;
   if ('multa_meses' in c) out.multa_meses = Math.max(0, parseInt(c.multa_meses) || 0);
   if ('meses' in c) out.aseo_pendiente_desde = pendienteDesdeParaMeses(Math.max(0, parseInt(c.meses) || 0));
+  // Save extras temporarily to process in route
+  if ('telefono' in c) out._telefono = txt(c.telefono);
+  if ('correo' in c) out._correo = txt(c.correo);
+  if ('actividades_extra' in c) out._actividades_extra = c.actividades_extra;
   return out;
 }
 
@@ -54,10 +58,39 @@ export async function POST(req: Request) {
       const { data: ya } = await sb.from('condominio_unidades').select('id, condominio_id, estado, condominios(codigo,nombre)').eq('inmueble', fila.inmueble).maybeSingle();
       if (ya) return NextResponse.json({ error: `El inmueble ${fila.inmueble} ya está registrado en ${(ya as any).condominios?.nombre || 'otro condominio'} (${ya.estado}). Búsquelo y edítelo.` }, { status: 409 });
     }
+    // Extra fields processing
+    const _tel = fila._telefono; const _cor = fila._correo; const _actExt = fila._actividades_extra;
+    delete fila._telefono; delete fila._correo; delete fila._actividades_extra;
+
+    // Generate code if missing
+    if (!fila.inmueble) {
+      // Find max child
+      const { data: maxU } = await sb.from('condominio_unidades').select('inmueble').eq('condominio_id', c.id).ilike('inmueble', `${c.codigo}-%`).order('inmueble', { ascending: false }).limit(1).maybeSingle();
+      let nextNum = 1;
+      if (maxU && maxU.inmueble) {
+        const p = maxU.inmueble.split('-');
+        if (p.length > 1) nextNum = (parseInt(p[p.length-1]) || 0) + 1;
+      }
+      fila.inmueble = `${c.codigo}-${String(nextNum).padStart(3, '0')}`;
+    }
+
     const { data: nueva, error } = await sb.from('condominio_unidades').insert(fila).select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Si ya hay más unidades registradas que declaradas, sube la cantidad declarada.
+    // Ensure it exists in inmuebles
+    const notasStr = _actExt && _actExt.length > 0 ? JSON.stringify({ actividades_extra: _actExt }) : null;
+    await sb.from('inmuebles').upsert({
+      inmueble: fila.inmueble,
+      tipo: 'COMERCIAL',
+      actividad_principal: fila.actividad,
+      estado: 'ACTIVO',
+      identidad: fila.identidad,
+      telefono: _tel,
+      correo_electronico: _cor,
+      notas: notasStr,
+      condominio_padre_id: c.codigo,
+      es_condominio: false
+    }, { onConflict: 'inmueble' });
     const { count } = await sb.from('condominio_unidades').select('id', { count: 'exact', head: true }).eq('condominio_id', c.id).neq('estado', 'Eliminada').eq('es_grupo', false);
     if ((count || 0) > (c.cant_declarada || 0)) await sb.from('condominios').update({ cant_declarada: count }).eq('id', c.id);
 
@@ -82,21 +115,35 @@ export async function PATCH(req: Request) {
 
     const upd = limpiar(cambios || {});
     const esAgente = cambios.agente_retencion === true;
+    
+    const _tel = upd._telefono; const _cor = upd._correo; const _actExt = upd._actividades_extra;
+    delete upd._telefono; delete upd._correo; delete upd._actividades_extra;
     delete (upd as any).condominio_id;
+
     if (upd.padre_unidad_id === id) return NextResponse.json({ error: 'Una unidad no puede depender de sí misma.' }, { status: 400 });
     if (upd.inmueble && upd.inmueble !== antes.inmueble) {
       const { data: ya } = await sb.from('condominio_unidades').select('id').eq('inmueble', upd.inmueble).maybeSingle();
       if (ya) return NextResponse.json({ error: `El inmueble ${upd.inmueble} ya está registrado en otra unidad.` }, { status: 409 });
     }
     
-    // Actualizar agente de retencion en el inmueble si tiene
+    // Actualizar campos en inmuebles
     const inmuebleAActualizar = upd.inmueble || antes.inmueble;
-    if (inmuebleAActualizar && 'agente_retencion' in cambios) {
-      await sb.from('inmuebles').update({ agente_retencion: esAgente }).eq('inmueble', inmuebleAActualizar);
+    if (inmuebleAActualizar) {
+      const inmUpd: any = {};
+      if ('agente_retencion' in cambios) inmUpd.agente_retencion = esAgente;
+      if (_tel !== undefined) inmUpd.telefono = _tel;
+      if (_cor !== undefined) inmUpd.correo_electronico = _cor;
+      if (_actExt !== undefined) {
+         inmUpd.notas = _actExt && _actExt.length > 0 ? JSON.stringify({ actividades_extra: _actExt }) : null;
+      }
+      if ('actividad' in upd) inmUpd.actividad_principal = upd.actividad;
+      if (Object.keys(inmUpd).length > 0) {
+        await sb.from('inmuebles').update(inmUpd).eq('inmueble', inmuebleAActualizar);
+      }
     }
     // Quitar lo que no cambió
     for (const k of Object.keys(upd)) if (String(upd[k] ?? '') === String(antes[k] ?? '')) delete upd[k];
-    if (!Object.keys(upd).length && !('agente_retencion' in cambios)) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
+    if (!Object.keys(upd).length && !('agente_retencion' in cambios) && _tel === undefined && _cor === undefined && _actExt === undefined) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
 
     if (Object.keys(upd).length > 0) {
       const { error } = await sb.from('condominio_unidades').update(upd).eq('id', id);
