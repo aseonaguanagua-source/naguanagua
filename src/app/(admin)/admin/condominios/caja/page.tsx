@@ -138,7 +138,6 @@ function Caja() {
   }, [conDeuda, filtroU]);
   const enCobro = useMemo(() => new Set((cobro?.lineas || []).map((l: any) => l.clave)), [cobro]);
   const mapLineas = useMemo(() => new Map((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
-  const mapLineas = useMemo(() => new Map((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
   const multasDe = (r: any) => (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
   const mesesMax = base?.totales?.mesesMax || 0;
   const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
