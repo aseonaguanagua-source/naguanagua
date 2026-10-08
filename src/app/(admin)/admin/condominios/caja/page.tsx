@@ -91,7 +91,7 @@ function Caja() {
 
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
-    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setMeses(''); setEstadoBase(null); setRecibo(null); setSoloMultas(false);
+    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setMeses(''); setRecibo(null); setSoloMultas(false);
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
       router.replace(`/admin/condominios/caja?codigo=${cod}&cedula=${encodeURIComponent(unidad.identidad)}`);
@@ -121,7 +121,6 @@ function Caja() {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || 'No se pudo calcular');
         setCobro(j); setActiva(!!j.cajaActiva);
-        if (!estadoBase) setEstadoBase(j.estado);
         pagoId.current = crypto.randomUUID();
       } catch (e: any) { setError(e.message); setCobro(null); } finally { setCalculando(false); }
     }, 300);
@@ -129,7 +128,7 @@ function Caja() {
   }, [codigo, modo, claves, identidad, meses, soloMultas, tasaOverrideStr, fechaOverrideStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = cobro?.condo;
-  const base = estadoBase || cobro?.estado;
+  const base = cobro?.estado;
   const porContrib = modo === 'CONTRIBUYENTE';
   const conDeuda = useMemo(() => (base?.renglones || []).filter((r: any) => r.totalBs > 0.01), [base]);
   const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -138,6 +137,8 @@ function Caja() {
     return conDeuda.filter((r: any) => !t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t)));
   }, [conDeuda, filtroU]);
   const enCobro = useMemo(() => new Set((cobro?.lineas || []).map((l: any) => l.clave)), [cobro]);
+  const mapLineas = useMemo(() => new Map((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
+  const mapLineas = useMemo(() => new Map((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
   const multasDe = (r: any) => (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
   const mesesMax = base?.totales?.mesesMax || 0;
   const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
@@ -155,7 +156,7 @@ function Caja() {
     if (!montoParsed || montoParsed <= 0) return alert('Monto inválido.');
     if (['Transferencia', 'Deposito'].includes(metodoAct)) {
       if (!bancoAct) return alert('Seleccione banco.');
-      if (referenciaAct.trim().length !== 8) return alert('La referencia debe tener exactamente 8 caracteres.');
+      if (referenciaAct.trim().length < 4) return alert('La referencia debe tener al menos 4 caracteres.');
       if (metodoAct === 'Transferencia' && !comprobanteAct) return alert('Es obligatorio adjuntar el comprobante para Transferencia.');
     }
     if (montoParsed > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
@@ -213,7 +214,7 @@ function Caja() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo cobrar');
       setRecibo({ ...j, partes: j.pagos, metodo: 'MÚLTIPLE', banco: '', referencia: '', fecha: new Date(), prueba: false });
-      setReferencia(''); setClaves([]); setMeses(''); setEstadoBase(null); setSoloMultas(false); setPagosAgregados([]);
+      setReferencia(''); setClaves([]); setMeses(''); setSoloMultas(false); setPagosAgregados([]);
     } catch (e: any) { alert(e.message); } finally { setCobrando(false); }
   };
 
@@ -406,7 +407,11 @@ function Caja() {
                     <tbody className="divide-y divide-slate-100">
                       {visiblesU.slice(0, 400).map((r: any) => {
                         const va = enCobro.has(r.clave);
+                        const lc = mapLineas.get(r.clave);
                         const mismoDueno = identidad && normId(r.identidad) === normId(identidad);
+                        const dMeses = lc ? lc.meses : r.deuda.meses;
+                        const dMultas = lc ? (lc.multaBs + lc.multasAparteBs) : multasDe(r);
+                        const dTotal = lc ? lc.totalBs : r.totalBs;
                         return (
                           <tr key={r.clave} onClick={() => porContrib && toggle(r.clave)} className={`${porContrib ? 'cursor-pointer hover:bg-sky-50/60' : ''} ${va && porContrib ? 'bg-sky-50' : ''}`}>
                             {porContrib && <td className="pl-4"><input type="checkbox" readOnly checked={claves.includes(r.clave) || !!mismoDueno} className="w-4 h-4 accent-sky-600" /></td>}
@@ -416,10 +421,10 @@ function Caja() {
                               {r.actividad && <div className="text-[10px] text-violet-700 font-bold truncate max-w-[340px]">{r.actividad}</div>}
                               {r.multasManuales?.map((m: any) => <div key={m.id} className="text-[10px] text-red-700">• Multa: {m.concepto} (Bs {fmtBs(m.montoBs)})</div>)}
                             </td>
-                            <td className="text-center px-2">{r.deuda.meses > 0 ? <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black">{r.deuda.meses}</span> : '—'}</td>
-                            <td className="px-2 text-xs text-slate-600">{r.periodos[0] ? fmtPeriodo(r.periodos[0]) : '—'}</td>
-                            <td className="px-2 text-right text-xs tabular-nums text-red-600">{multasDe(r) > 0 ? fmtBs(multasDe(r)) : '—'}</td>
-                            <td className="px-4 text-right font-bold tabular-nums text-red-700">Bs {fmtBs(r.totalBs)}</td>
+                            <td className="text-center px-2">{dMeses > 0 ? <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black">{dMeses}</span> : '—'}</td>
+                            <td className="px-2 text-xs text-slate-600">{lc && lc.periodos[0] ? fmtPeriodo(lc.periodos[0]) : (r.periodos[0] ? fmtPeriodo(r.periodos[0]) : '—')}</td>
+                            <td className="px-2 text-right text-xs tabular-nums text-red-600">{dMultas > 0 ? fmtBs(dMultas) : '—'}</td>
+                            <td className="px-4 text-right font-bold tabular-nums text-red-700">Bs {fmtBs(dTotal)}</td>
                           </tr>
                         );
                       })}
@@ -489,19 +494,17 @@ function Caja() {
                       }} className="px-2 border-l border-white/10 text-xs font-bold text-sky-400 hover:text-sky-300">TODO</button>
                     </div>
                     </div>
-                    {['Transferencia', 'Deposito'].includes(metodoAct) && (
-                      <>
-                        <select value={bancoAct} onChange={e => setBancoAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white">
-                          <option value="">Seleccione banco</option>
-                          {LISTA_BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                        <input type="text" maxLength={8} placeholder="Referencia (8 números)" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value.replace(/\D/g, '').substring(0, 8))} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
-                        <label className="block w-full text-center py-1.5 border border-dashed border-white/30 rounded-lg text-xs text-white/70 hover:bg-white/10 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-2">
-                          {comprobanteAct ? comprobanteAct.name : (metodoAct === 'Transferencia' ? 'Subir comprobante (Obligatorio)' : 'Subir comprobante')}
-                          <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => setComprobanteAct(e.target.files?.[0] || null)} />
-                        </label>
-                      </>
-                    )}
+                    <>
+                      <select value={bancoAct} onChange={e => setBancoAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white">
+                        <option value="">Seleccione banco</option>
+                        {LISTA_BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                      <input type="text" placeholder="Referencia / Comprobante" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
+                      <label className="block w-full text-center py-1.5 border border-dashed border-white/30 rounded-lg text-xs text-white/70 hover:bg-white/10 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-2">
+                        {comprobanteAct ? comprobanteAct.name : (metodoAct === 'Transferencia' ? 'Subir comprobante (Obligatorio)' : 'Subir comprobante')}
+                        <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => setComprobanteAct(e.target.files?.[0] || null)} />
+                      </label>
+                    </>
                     <button onClick={agregarPago} className="w-full py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"><Layers className="w-3 h-3" /> Añadir Abono</button>
                   </div>
                 )}
