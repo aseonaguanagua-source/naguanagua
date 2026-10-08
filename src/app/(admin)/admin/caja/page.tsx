@@ -2794,7 +2794,8 @@ export default function CajaPage() {
                           if (foundUser.CodCont) {
                             await supabase.from('inmuebles').update({ agente_retencion: val }).eq('inmueble', foundUser.CodCont);
                           }
-                          alert('Estado de Agente de Retención actualizado. Actualice la página o vuelva a buscar para ver los cambios reflejados en el cobro.');
+                          await refreshUserData(foundUser.Identidad);
+                          alert('Estado de Agente de Retención actualizado.');
                         } catch(err) {
                           alert('Error al actualizar: ' + err);
                         }

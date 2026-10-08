@@ -657,7 +657,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
               ...c,
               Correo: freshContrib.email || freshContrib.correo_electronico || c.Correo,
               Telefono: freshContrib.telefono || c.Telefono,
-              Contribuyente: freshContrib.nombre || c.Contribuyente
+              Contribuyente: freshContrib.nombre || c.Contribuyente,
+              esAgenteRetencion: freshInms?.some((i: any) => i.agente_retencion === true) || c.esAgenteRetencion
             };
           }
           return c;
