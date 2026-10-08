@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Building2, Search, RefreshCw, AlertTriangle, CheckCircle2, Wallet, CalendarClock,
-  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download,
+  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download, Pencil
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 

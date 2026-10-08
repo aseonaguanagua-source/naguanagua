@@ -174,6 +174,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                   {RESIDENCIALES.map(r => <option key={r.label} value={r.label}>{r.label} — F.O. {r.factor}</option>)}
                 </select></label>
             ) : (
+              <>
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
                 <label className="block"><span className={lbl}>Actividad comercial (ordenanza)</span>
                   <input id="unidad-actividad" list="lista-actividades" value={actCom} onChange={e => { setActCom(e.target.value); setTarifaManual(false); }} placeholder="Escriba para buscar (N/A para múltiples)…" className={inp} />
@@ -201,7 +202,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                   <button type="button" onClick={() => setActividadesExtra([...actividadesExtra, { actividad: '', nivel: 1 }])} className="text-xs font-bold text-emerald-700 flex items-center gap-1 hover:underline"><Plus className="w-3.5 h-3.5" /> Agregar actividad extra</button>
                 </div>
               )}
-
+              </>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
               <label className="block"><span className={lbl}>Tarifa (F.O. en MMV)</span>
