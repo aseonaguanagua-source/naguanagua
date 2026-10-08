@@ -1699,8 +1699,7 @@ function ContribuyentesPageContent() {
       TipoIdentidad: 'V',
       coordenadas: null,
       Nota: '',
-      
-      
+      esAgenteRetencion: false,
     };
     setFormData(defaultData);
     setOriginalData(defaultData);
@@ -2040,7 +2039,7 @@ function ContribuyentesPageContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Número de Patente (Si aplica)</label>
                 <input type="text" value={formData.Patente || ''} onChange={e => setFormData({...formData, Patente: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" placeholder="Ej: P-12345" />
@@ -2048,6 +2047,20 @@ function ContribuyentesPageContent() {
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Ficha Catastral</label>
                 <input type="text" value={formData.FichaCatastral || ''} onChange={e => setFormData({...formData, FichaCatastral: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" placeholder="Ej: 01-23-456-789" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-slate-500 mb-1">Agente de Retención</label>
+                <div className="flex items-center h-[38px] border border-slate-300 rounded px-3 bg-white">
+                  <label className="flex items-center gap-2 cursor-pointer w-full">
+                    <input 
+                      type="checkbox" 
+                      checked={formData.esAgenteRetencion || false} 
+                      onChange={e => setFormData({...formData, esAgenteRetencion: e.target.checked})} 
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-slate-700">Es Agente de Retención</span>
+                  </label>
+                </div>
               </div>
             </div>
 

@@ -1191,7 +1191,7 @@ export default function CajaPage() {
       foundUser?.Clasificacion?.toLowerCase().includes('condo') ||
       (freshInmuebles || []).some((i: any) => i.es_condominio === true && (i.identidad === foundUser?.Identidad || i.inmueble === foundUser?.CodCont || i.inmueble === foundUser?.cod_cont));
 
-    const isAgenteGlobal = foundUser?.agente_retencion || (freshInmuebles || []).some((i: any) => {
+    const isAgenteGlobal = foundUser?.agente_retencion || foundUser?.esAgenteRetencion || (freshInmuebles || []).some((i: any) => {
       // Si el usuario es un condominio, la retención de los servicios a nombre del condominio
       // depende únicamente del estatus del condominio en sí (no de si un local/apartamento es agente)
       if (isCondominioPayer) {

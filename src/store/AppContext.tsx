@@ -444,6 +444,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ActividadComercial: (clase.includes('Comercial') || clase === 'Industrial' || clase === 'Mixto') ? (act || '') : '',
             TipoResidencia: clase === 'Residencial' ? (act || '') : '',
             Clasificacion: clase,
+            esAgenteRetencion: row.agente_retencion === true,
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
             DeudaMMV: rowDeudaMMV,
             MultaBs: rowMultaBs,
@@ -468,6 +469,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           existing.DeudaCongelada += rowCongelada;
           existing.MultaBs = (existing.MultaBs || 0) + rowMultaBs;
           existing.DeudaBs = (existing.DeudaBs || 0) + rowDeudaBs;
+          if (row.agente_retencion === true) existing.esAgenteRetencion = true;
           if (!existing.condominio_padre_id && row.condominio_padre_id) {
             existing.condominio_padre_id = row.condominio_padre_id;
             existing.condominio_padre_nombre = pInfo?.nombre || null;
@@ -962,6 +964,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             upd.mmv_mes = mmv;
             cambios.push(`${objetivo}: ${orig.ActividadComercial || orig.TipoResidencia || '-'} → ${nuevaActividad} (${mmv} MMV)`);
           }
+        }
+        if (data.esAgenteRetencion !== undefined) {
+          upd.agente_retencion = data.esAgenteRetencion === true;
         }
         if (Object.keys(upd).length > 0 && objetivo) {
           const { error: eU } = await supabase.from('inmuebles').update(upd).eq('inmueble', objetivo);
