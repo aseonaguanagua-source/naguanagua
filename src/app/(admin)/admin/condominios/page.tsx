@@ -261,6 +261,9 @@ export default function CondominiosPage() {
                   <td className="py-3 px-4">
                     <div className="font-bold text-slate-900">{f.nombre}</div>
                     <div className="text-[11px] text-slate-500 font-mono">{f.codigo} · {f.identidad} · {f.tipo === 'RESIDENCIAL' ? 'Residencial' : f.tipo === 'COMERCIAL' ? 'Comercial' : 'Mixto'}</div>
+                    <div className="text-[10px] mt-1 text-blue-600 font-bold hover:underline flex items-center gap-1">
+                      <Pencil className="w-3 h-3" /> Editar y agregar unidades (clic aquí o en la fila)
+                    </div>
                   </td>
                   <td className="py-3 px-3">
                     <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${MODALIDAD[f.modalidad]?.cls || ''}`}>{MODALIDAD[f.modalidad]?.label || f.modalidad}</span>
