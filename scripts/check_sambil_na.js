@@ -2,17 +2,21 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config({ path: '.env.local' });
 const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-async function checkNA() {
-  const { data: condo } = await sb.from('condominios').select('id').eq('codigo', 'URB016119').single();
-  const { data: units } = await sb.from('condominio_unidades').select('inmueble').eq('condominio_id', condo.id);
-  const ids = units.map(u => u.inmueble);
+async function checkSambil() {
+  const sambilCondoId = '7567ec01-6d34-4341-bc5b-5a69c64cba93';
+  const { data, error } = await sb.from('condominio_unidades').select('inmueble, actividad').eq('condominio_id', sambilCondoId);
   
-  const { data: inms } = await sb.from('inmuebles').select('inmueble, actividad_principal, tarifa_aseo, nombre').in('inmueble', ids);
+  if (error) {
+    console.error(error);
+    return;
+  }
   
-  const naUnits = inms.filter(u => !u.actividad_principal || u.actividad_principal === 'N/A' || u.actividad_principal === '');
-  console.log(`Total N/A units: ${naUnits.length}`);
-  for (let i = 0; i < Math.min(10, naUnits.length); i++) {
-    console.log(naUnits[i].inmueble, naUnits[i]);
+  const na = data.filter(d => !d.actividad || d.actividad === 'N/A');
+  console.log(`Total units: ${data.length}`);
+  console.log(`Units with N/A: ${na.length}`);
+  
+  if (na.length > 0) {
+    console.log("Sample N/A units:", na.slice(0, 10).map(u => u.inmueble));
   }
 }
-checkNA();
+checkSambil();

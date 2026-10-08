@@ -137,7 +137,7 @@ function Caja() {
     return conDeuda.filter((r: any) => !t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t)));
   }, [conDeuda, filtroU]);
   const enCobro = useMemo(() => new Set((cobro?.lineas || []).map((l: any) => l.clave)), [cobro]);
-  const mapLineas = useMemo(() => new Map((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
+  const mapLineas = useMemo(() => new Map<string, any>((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
   const multasDe = (r: any) => (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
   const mesesMax = base?.totales?.mesesMax || 0;
   const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
@@ -406,7 +406,7 @@ function Caja() {
                     <tbody className="divide-y divide-slate-100">
                       {visiblesU.slice(0, 400).map((r: any) => {
                         const va = enCobro.has(r.clave);
-                        const lc = mapLineas.get(r.clave);
+                        const lc = mapLineas.get(r.clave) as any;
                         const mismoDueno = identidad && normId(r.identidad) === normId(identidad);
                         const dMeses = lc ? lc.meses : r.deuda.meses;
                         const dMultas = lc ? (lc.multaBs + lc.multasAparteBs) : multasDe(r);

@@ -1,22 +1,9 @@
-require('dotenv').config({ path: '.env.local' });
-const { createClient } = require('@supabase/supabase-js');
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing Supabase credentials");
-  process.exit(1);
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+async function run() {
+  const { data, error } = await sb.from('condominios').select('*').eq('codigo', 'URB033271').single();
+  console.log(error ? error.message : JSON.stringify(data, null, 2));
 }
-
-const sb = createClient(supabaseUrl, supabaseKey);
-
-async function check() {
-  const { data: condo } = await sb.from('condominios').select('*').eq('codigo', 'URB004304').limit(1).maybeSingle();
-  console.log('Condominio URB004304:', condo);
-
-  if (condo && condo.identidad) {
-    const { data: contrib } = await sb.from('contribuyentes').select('*').eq('identidad', condo.identidad).maybeSingle();
-    console.log('Contribuyente URB004304:', contrib);
-  }
-}
-check().catch(console.error);
+run();
