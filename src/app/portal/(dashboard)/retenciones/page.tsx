@@ -115,8 +115,8 @@ export default function RetencionesDashboard() {
       const ext = archivo.name.split('.').pop() || 'pdf';
       const up = new FormData();
       up.append('file', archivo);
-      up.append('bucket', 'retenciones');
-      up.append('path', `${identidad.replace(/[^a-zA-Z0-9-]/g, '')}/FAC-${f.numeroFactura || f.pagoId.slice(0, 8)}_${Date.now()}.${ext}`);
+      up.append('bucket', 'documentos');
+      up.append('path', `retenciones/${identidad.replace(/[^a-zA-Z0-9-]/g, '')}/FAC-${f.numeroFactura || f.pagoId.slice(0, 8)}_${Date.now()}.${ext}`);
       const r1 = await fetch('/api/upload', { method: 'POST', body: up });
       const j1 = await r1.json();
       if (!r1.ok || !j1.success) throw new Error('Error subiendo el archivo: ' + (j1.error || 'desconocido'));
