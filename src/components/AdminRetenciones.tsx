@@ -52,7 +52,54 @@ export default function AdminRetenciones() {
     let q = supabase.from('retenciones_iva').select('*').order('created_at', { ascending: false });
     if (filtroEstado !== 'Todos') q = q.eq('estado', filtroEstado);
     const { data } = await q;
-    setRetenciones(data || []);
+    const arr = data || [];
+
+    // Cargar también las retenciones cobradas directamente en Caja (que no están en retenciones_iva)
+    let pq = supabase.from('pagos_reportados').select('id, created_at, identidad, detalles').not('detalles->>monto_retencion_iva', 'is', null).order('created_at', { ascending: false });
+    const { data: pagos } = await pq;
+    
+    if (pagos) {
+      for (const p of pagos) {
+        const det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles;
+        const m = parseFloat(String(det.monto_retencion_iva || 0));
+        if (m > 0) {
+          // Si ya existe en retenciones_iva (porque el contribuyente subió la planilla), omitimos
+          if (det.factura_digital?.retencion?.retencion_id) continue;
+          
+          // Si hay filtro de estado, y la retención de caja es 'Aprobado', lo respetamos
+          if (filtroEstado !== 'Todos' && filtroEstado !== 'Aprobado') continue;
+
+          // Estimamos la base e iva a partir del monto retenido asumiendo 75%
+          const baseIVA = m / 0.75;
+          const baseImponible = baseIVA / (det.iva_percent || 0.16);
+
+          arr.push({
+            id: p.id,
+            created_at: p.created_at,
+            identidad: p.identidad,
+            contribuyente: det.contribuyente || det.recibo_caja?.[0]?.razonSocial || p.identidad,
+            codigo_inmueble: det.recibo_caja?.[0]?.codContribuyente || det.recibos?.[0]?.split('-')[2] || '',
+            numero_planilla: 'CAJA',
+            periodo: det.recibo_caja?.[0]?.periodo || '—',
+            fecha_planilla: p.created_at.split('T')[0],
+            monto_base: baseImponible,
+            monto_iva: baseIVA,
+            monto_retenido: m,
+            codigo_retencion: 'COBRO CAJA',
+            estado: 'Aprobado',
+            factura_emitida: det.factura_digital?.emitida || false,
+            factura_url: det.factura_digital?.url,
+            factura_control: det.factura_digital?.numero_control,
+            planilla_url: undefined
+          } as Retencion);
+        }
+      }
+    }
+
+    // Ordenar combinados por fecha descendente
+    arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    
+    setRetenciones(arr);
     setLoading(false);
   }, [filtroEstado]);
 

@@ -96,11 +96,11 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
       }
       try {
         const { data: files } = await supabase.storage
-          .from('comprobantes').list('pagos/' + pago.id, { limit: 20 });
+          .from('documentos').list('comprobantes', { limit: 20 }); // Note: Caja saves them in `comprobantes/` folder inside `documentos` bucket
         if (files && files.length > 0) {
           for (const f of files) {
-            const { data: sd } = await supabase.storage.from('comprobantes')
-              .createSignedUrl('pagos/' + pago.id + '/' + f.name, 3600);
+            const { data: sd } = await supabase.storage.from('documentos')
+              .createSignedUrl('comprobantes/' + f.name, 3600);
             if (sd?.signedUrl) urls.push({ name: f.name, url: sd.signedUrl });
           }
         }
