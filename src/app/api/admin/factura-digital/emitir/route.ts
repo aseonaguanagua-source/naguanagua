@@ -251,8 +251,9 @@ export async function POST(request: Request) {
       lineaNum++;
       const isRes = false;
       const montoRecibo = parseFloat(String(fac.monto || '0').replace(/[^0-9.]/g, ''));
-      const montoItem = parseFloat((montoRecibo * porcionComercial).toFixed(2));
-      const valorIVA  = isRes ? 0 : parseFloat((montoItem * 0.16).toFixed(2));
+      const montoTotalLinea = parseFloat((montoRecibo * porcionComercial).toFixed(2));
+      const montoItem = isRes ? montoTotalLinea : parseFloat((montoTotalLinea / 1.16).toFixed(2));
+      const valorIVA  = isRes ? 0 : parseFloat((montoTotalLinea - montoItem).toFixed(2));
       if (isRes) {
         totalExento += montoItem;
       } else {
@@ -289,11 +290,12 @@ export async function POST(request: Request) {
       const items = [];
       lineaNum++;
       const isRes = h.esRes;
-      const valorIVAHist = isRes ? 0 : parseFloat((h.montoBase * 0.16).toFixed(2));
+      const baseFinal = isRes ? h.montoBase : parseFloat((h.montoBase / 1.16).toFixed(2));
+      const valorIVAHist = isRes ? 0 : parseFloat((h.montoBase - baseFinal).toFixed(2));
       if (isRes) {
-        totalExento += h.montoBase;
+        totalExento += baseFinal;
       } else {
-        totalGravado += h.montoBase;
+        totalGravado += baseFinal;
         totalIVA     += valorIVAHist;
       }
       items.push({
@@ -304,18 +306,18 @@ export async function POST(request: Request) {
         Descripcion:             `Servicio de Aseo Urbano (Histórico) - ${h.ref}`,
         Cantidad:                "1",
         UnidadMedida:            "NIU",
-        PrecioUnitario:          h.montoBase.toFixed(2),
+        PrecioUnitario:          baseFinal.toFixed(2),
         PrecioUnitarioDescuento: null,
         MontoBonificacion:       null,
         DescripcionBonificacion: null,
         DescuentoMonto:          "0.00",
         RecargoMonto:            "0",
-        PrecioItem:              h.montoBase.toFixed(2),
-        PrecioAntesDescuento:    h.montoBase.toFixed(2),
+        PrecioItem:              baseFinal.toFixed(2),
+        PrecioAntesDescuento:    baseFinal.toFixed(2),
         CodigoImpuesto:          isRes ? "E" : "G",
         TasaIVA:                 isRes ? "0" : "16",
         ValorIVA:                valorIVAHist.toFixed(2),
-        ValorTotalItem:          String(parseFloat((h.montoBase + valorIVAHist).toFixed(2))),
+        ValorTotalItem:          String(parseFloat((baseFinal + valorIVAHist).toFixed(2))),
         InfoAdicionalItem:       [],
         ListaItemOTI:            null,
       });
@@ -570,11 +572,15 @@ export async function POST(request: Request) {
       if (Math.abs(dif) >= 0.01) {
         const it: any = [...(detallesItems as any[])].reverse().find((x: any) => x.CodigoImpuesto !== 'G') || (detallesItems as any[])[detallesItems.length - 1];
         if (it.CodigoImpuesto === 'G') {
-          // en un ítem gravado se ajusta el IVA para no romper base × 16%
-          const iva = r2(parseFloat(it.ValorIVA) + dif);
+          const oldBase = parseFloat(it.PrecioUnitario);
+          const oldIVA = parseFloat(it.ValorIVA);
+          const base = r2((oldBase * 1.16 + dif) / 1.16);
+          const iva = r2(base * 0.16);
+          it.PrecioUnitario = base.toFixed(2); it.PrecioItem = base.toFixed(2); it.PrecioAntesDescuento = base.toFixed(2);
           it.ValorIVA = iva.toFixed(2);
-          it.ValorTotalItem = (parseFloat(it.PrecioUnitario) + iva).toFixed(2);
-          totalIVA = r2(totalIVA + dif);
+          it.ValorTotalItem = (base + iva).toFixed(2);
+          totalGravado = r2(totalGravado - oldBase + base);
+          totalIVA = r2(totalIVA - oldIVA + iva);
         } else {
           const base = r2(parseFloat(it.PrecioUnitario) + dif);
           it.PrecioUnitario = base.toFixed(2); it.PrecioItem = base.toFixed(2); it.PrecioAntesDescuento = base.toFixed(2);
