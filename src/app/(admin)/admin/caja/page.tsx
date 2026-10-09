@@ -975,9 +975,10 @@ export default function CajaPage() {
 
       // Un contribuyente comercial ordinario (ej. AGROAPA C A) NO es un condominio aunque sus inmuebles tengan código padre
       const isTrueCondoUser = isCondoByName || isCondoByClasif || (isCondoByFlag && isResidencialUser) || user.es_condominio === true;
+      const hasNAGroup = activeInmFresh.some((i: any) => i.actividad_principal === 'N/A' || i.es_grupo === true);
       const codCont = user.cod_cont || user.CodCont || user.Identidad || user.identidad;
 
-      if (isTrueCondoUser && parentCodes.length > 0) {
+      if ((isTrueCondoUser || hasNAGroup) && parentCodes.length > 0) {
         const searchFilters: string[] = [];
         parentCodes.forEach((c: string) => {
           searchFilters.push(`condominio_padre_id.eq.${c}`);
@@ -1010,7 +1011,8 @@ export default function CajaPage() {
         const userIdNaked = (user.Identidad || '').replace(/^[VEJPG]-?/i, '').trim().toUpperCase();
         const esMultiplesActividades = distinctIdentidades.size <= 1 && (distinctIdentidades.has(userIdNaked) || distinctIdentidades.size === 0);
 
-        if (hijosData && hijosData.length > 0 && !esMultiplesActividades) {
+        // ALWAYS group children under the parent N/A, regardless of whether it's "multiples actividades" or a real condominio
+        if (hijosData && hijosData.length > 0) {
           setIsCondominio(true);
           setCondominioHijos(hijosData);
           setSelectedHijos(hijosData.map(h => h.id));
