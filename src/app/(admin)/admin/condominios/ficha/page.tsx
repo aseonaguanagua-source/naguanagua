@@ -86,13 +86,58 @@ function Ficha() {
 
   // Árbol torre → unidad
   const arbol = useMemo(() => {
-    const us: any[] = (d?.unidades || []).filter((u: any) => u.estado !== 'Eliminada');
+    const us: any[] = (d?.unidades || []).filter((u: any) => u.estado !== 'Eliminada' && u.estado !== 'Inactiva');
     const hijos = new Map<string, any[]>();
-    us.forEach(u => { if (u.padre_unidad_id) { if (!hijos.has(u.padre_unidad_id)) hijos.set(u.padre_unidad_id, []); hijos.get(u.padre_unidad_id)!.push(u); } });
+    
+    // Relacionar hijos con sus padres explícitos
+    us.forEach(u => { 
+      if (u.padre_unidad_id) { 
+        if (!hijos.has(u.padre_unidad_id)) hijos.set(u.padre_unidad_id, []); 
+        hijos.get(u.padre_unidad_id)!.push(u); 
+      } 
+    });
+    
     const ids = new Set(us.map(u => u.id));
-    const raiz = us.filter(u => !u.padre_unidad_id || !ids.has(u.padre_unidad_id))
-      .sort((a, b) => Number(!!(hijos.get(b.id)?.length)) - Number(!!(hijos.get(a.id)?.length)) || String(a.inmueble).localeCompare(String(b.inmueble)));
-    return { raiz, hijos, torres: us.filter(u => hijos.get(u.id)?.length).length };
+    const byRif = new Map<string, any[]>();
+    
+    // Agrupar unidades sin padre que comparten el mismo RIF (ej: N/A de Sambil)
+    us.forEach(u => {
+      if (!u.padre_unidad_id || !ids.has(u.padre_unidad_id)) {
+        if (u.identidad && u.identidad.trim() !== '') {
+          if (!byRif.has(u.identidad)) byRif.set(u.identidad, []);
+          byRif.get(u.identidad)!.push(u);
+        }
+      }
+    });
+
+    const raiz: any[] = [];
+    us.forEach(u => {
+      if (!u.padre_unidad_id || !ids.has(u.padre_unidad_id)) {
+        if (u.identidad && byRif.has(u.identidad) && byRif.get(u.identidad)!.length > 1) {
+          const group = byRif.get(u.identidad)!;
+          if (group[0].id === u.id) {
+            const virtualId = `virtual-${u.identidad}`;
+            const isN_A = u.inmueble ? false : true; // Si quisieramos marcar si es N/A oficial
+            hijos.set(virtualId, group);
+            raiz.push({
+              id: virtualId,
+              inmueble: group.find(g => g.padre_id)?.padre_id || group[0].inmueble || 'N/A', // Intentamos usar el codigo padre
+              numero: 'N/A',
+              propietario: u.propietario,
+              identidad: u.identidad,
+              actividad: 'Múltiples Actividades (Agrupadas)',
+              estado: 'Activa',
+              aseo_pendiente_desde: u.aseo_pendiente_desde
+            });
+          }
+        } else {
+          raiz.push(u);
+        }
+      }
+    });
+
+    raiz.sort((a, b) => Number(!!(hijos.get(b.id)?.length)) - Number(!!(hijos.get(a.id)?.length)) || String(a.inmueble).localeCompare(String(b.inmueble)));
+    return { raiz, hijos, torres: raiz.filter(u => hijos.get(u.id)?.length).length };
   }, [d]);
 
   const abrirEdicion = () => {

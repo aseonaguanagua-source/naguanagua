@@ -4046,7 +4046,17 @@ function ContribuyentesPageContent() {
                               </tr>
                             </thead>
                             <tbody>
-                              {deudas.map((d: any, idx: number) => {
+                              {deudas.filter((d: any) => {
+                                const actual = getMontoActual(d);
+                                if (actual > 0 || d.estado === 'Abonado' || d.estado === 'Pagado') return true;
+                                let hayPagoPendiente = false;
+                                viewPagos.filter((p: any) => p.estado === 'Por Verificar').forEach((p: any) => {
+                                  let det: any = {};
+                                  try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch(e){}
+                                  if ((det.recibos || []).includes(d.referencia)) hayPagoPendiente = true;
+                                });
+                                return hayPagoPendiente;
+                              }).map((d: any, idx: number) => {
                                 const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
                                 let mesLabel = d.emision || 'N/A';
                                 let monthKey = '';
@@ -4083,11 +4093,23 @@ function ContribuyentesPageContent() {
                                       </span>
                                     </td>
                                     <td className="px-4 py-2 text-right font-bold text-slate-800">
-                                      {getMontoActual(d) <= 0 && d.estado !== 'Abonado' && d.estado !== 'Pagado' ? (
-                                        <span className="text-emerald-600">En Verificación</span>
-                                      ) : (
-                                        getMontoActual(d).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})
-                                      )}
+                                      {(() => {
+                                        const actual = getMontoActual(d);
+                                        // Si la base original era 0 (ej. inmueble eliminado), simplemente mostrar 0.00
+                                        if (actual <= 0 && d.estado !== 'Abonado' && d.estado !== 'Pagado') {
+                                          // Determinar si realmente hay un pago pendiente cubriendo esto
+                                          let hayPagoPendiente = false;
+                                          viewPagos.filter((p: any) => p.estado === 'Por Verificar').forEach((p: any) => {
+                                            let det: any = {};
+                                            try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch(e){}
+                                            if ((det.recibos || []).includes(d.referencia)) hayPagoPendiente = true;
+                                          });
+                                          if (hayPagoPendiente) {
+                                            return <span className="text-emerald-600">En Verificación</span>;
+                                          }
+                                        }
+                                        return actual.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2});
+                                      })()}
                                     </td>
                                     <td className="px-4 py-2 text-center">
                                       <button 
