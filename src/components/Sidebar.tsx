@@ -10,8 +10,12 @@ export default function Sidebar() {
   const pathname = usePathname();
   const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/audit');
   const [user, setUser] = useState<any>(null);
+  const [devMode, setDevMode] = useState(false);
 
   useEffect(() => {
+    if (localStorage.getItem('dev_mode_active') === '1') {
+      setDevMode(true);
+    }
     try {
       const raw = localStorage.getItem('admin_user_data');
       if (raw) {
@@ -23,6 +27,26 @@ export default function Sidebar() {
   if (!isAdminPath) {
     return null;
   }
+
+  const handleLogoDoubleClick = () => {
+    if (devMode) {
+      if (confirm('¿Desactivar Modo Desarrollador?')) {
+        localStorage.removeItem('dev_mode_active');
+        setDevMode(false);
+        window.location.reload();
+      }
+    } else {
+      const pw = prompt('Ingrese contraseña de desarrollador:');
+      if (pw === '1756762') {
+        localStorage.setItem('dev_mode_active', '1');
+        setDevMode(true);
+        alert('Modo Desarrollador Activado');
+        window.location.reload();
+      } else if (pw !== null) {
+        alert('Contraseña incorrecta');
+      }
+    }
+  };
 
   const isSuperAdmin = user?.rol === 'Administrador' || user?.usuario === 'dzara';
   const isRecaudacion = pathname.startsWith('/admin/recaudacion');
@@ -128,13 +152,22 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 bg-[#111827] h-screen text-slate-300 flex flex-col fixed left-0 top-0 z-50">
-      <div className="flex items-center justify-center border-b border-white/10 bg-[#111827] px-4 py-4">
+      <div 
+        className="flex items-center justify-center border-b border-white/10 bg-[#111827] px-4 py-4 cursor-pointer relative"
+        onDoubleClick={handleLogoDoubleClick}
+        title="Doble clic para opciones de desarrollo"
+      >
         <img
           src="/logos/logo_global_rec.png"
           alt="Global Rec"
           className="w-40 max-w-full h-auto object-contain"
           style={{ filter: 'brightness(0) invert(1)' }}
         />
+        {devMode && (
+          <div className="absolute top-1 right-1 bg-fuchsia-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
+            DEV
+          </div>
+        )}
       </div>
 
       {/* Información del funcionario activo */}
