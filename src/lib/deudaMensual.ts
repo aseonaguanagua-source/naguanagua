@@ -145,7 +145,7 @@ export function codigosContenedoresNA(inms: any[]): string[] {
   return (inms || [])
     .filter((i: any) =>
       String(i.actividad_principal || '').trim().toUpperCase() === 'N/A' &&
-      (parseInt(String(i.cant_inmuebles || '0')) > 0 || inms.some((c: any) => c.condominio_padre_id === i.inmueble))
+      (parseInt(String(i.cant_inmuebles || '0')) > 0 || inms.some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble))
     )
     .map((i: any) => i.inmueble);
 }

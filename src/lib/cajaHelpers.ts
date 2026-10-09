@@ -64,7 +64,8 @@ export const getUserInmuebles = (
     return source.filter((i) => {
       const iCode = String(i.inmueble || '').toUpperCase();
       const pCode = String((i as any).condominio_padre_id || '').toUpperCase();
-      return iCode === sCode || pCode === sCode;
+      const nCode = String((i as any).padre_id || '').toUpperCase();
+      return iCode === sCode || pCode === sCode || nCode === sCode;
     });
   }
 
@@ -141,11 +142,11 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
 
   for (const inm of userInms) {
     const rawDir = (inm.direccion || '').trim();
-    const padreId = (inm as any).condominio_padre_id;
+    const padreId = (inm as any).condominio_padre_id || (inm as any).padre_id;
 
     // Buscar si ya pertenece a un cluster existente por mismo padre o misma dirección
     const matchedCluster = clusters.find((c) => {
-      if (padreId && c.inms.some((i: any) => i.condominio_padre_id === padreId || i.inmueble === padreId)) {
+      if (padreId && c.inms.some((i: any) => i.condominio_padre_id === padreId || i.padre_id === padreId || i.inmueble === padreId)) {
         return true;
       }
       if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {

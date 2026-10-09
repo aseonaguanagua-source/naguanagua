@@ -28,7 +28,7 @@ export async function evaluarSolvencia(identidad: string, inmuebleSpec: string =
 
   const { data: inmsRif, error } = await supabase
     .from('inmuebles')
-    .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id')
+    .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
     .in('identidad', variantes);
   if (error) return { solvente: false, mensaje: 'No se pudo verificar la deuda: ' + error.message, inmueblesConDeuda: [] };
 
@@ -37,8 +37,8 @@ export async function evaluarSolvencia(identidad: string, inmuebleSpec: string =
     const principal = alcance.find((i: any) => i.inmueble === especifico);
     const { data: hijos } = await supabase
       .from('inmuebles')
-      .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id')
-      .in('condominio_padre_id', [especifico, principal?.id].filter(Boolean) as string[]);
+      .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
+      .or(`condominio_padre_id.in.(${[especifico, principal?.id].filter(Boolean).join(',')}),padre_id.in.(${[especifico, principal?.id].filter(Boolean).join(',')})`);
     alcance = [...(principal ? [principal] : []), ...(hijos || [])];
     if (!principal) return { solvente: false, mensaje: `El inmueble ${especifico} no pertenece a ${identidad}.`, inmueblesConDeuda: [] };
     if (principal.estado === 'Eliminado') return { solvente: false, mensaje: `El inmueble ${especifico} está ELIMINADO. Reactívelo antes de emitir la solvencia.`, inmueblesConDeuda: [] };

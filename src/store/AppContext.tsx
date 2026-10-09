@@ -235,7 +235,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Descarga concurrente de Inmuebles y Contribuyentes
       const [rawInmuebles, rawContribuyentes] = await Promise.all([
-        fetchAllClientParallel('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,created_at'),
+        fetchAllClientParallel('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,padre_id,created_at'),
         fetchAllClientParallel('contribuyentes', '*')
       ]);
 
@@ -249,9 +249,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Contar unidades/locales hijos vinculados por condominio_padre_id
       const hijosCountMap = new Map<string, number>();
+      const hijosNormalesCountMap = new Map<string, number>();
       allInmuebles.forEach(i => {
         if (i.condominio_padre_id && i.estado !== 'Eliminado') {
           hijosCountMap.set(i.condominio_padre_id, (hijosCountMap.get(i.condominio_padre_id) || 0) + 1);
+        }
+        if (i.padre_id && i.estado !== 'Eliminado') {
+          hijosNormalesCountMap.set(i.padre_id, (hijosNormalesCountMap.get(i.padre_id) || 0) + 1);
         }
       });
 
@@ -375,7 +379,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           'Actividad Principal': row.actividad || 'No aplica',
           'Direccion': row.direccion,
           condominio_padre_id: row.condominio_padre_id || null,
-          condominio_padre_nombre: pInfo?.nombre || null
+          condominio_padre_nombre: pInfo?.nombre || null,
+          padre_id: row.padre_id || null,
+          padre_nombre: row.padre_id ? parentInfoMap.get(row.padre_id)?.nombre || null : null
         };
       });
       setInmuebles(mappedInmuebles);
@@ -389,6 +395,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const isCommercialChild = isCondoChild && (pInfo?.isComercial || (row.tipo || '').toUpperCase().includes('COMERCIAL'));
         const isParentCondo = Boolean(row.es_condominio || row.clasificacion === 'Condominio' || (hijosCountMap.get(cod) || 0) > 0);
         const childCount = hijosCountMap.get(cod) || parseInt(row.cant_inmuebles || '1') || 1;
+        
+        const childNormalCount = hijosNormalesCountMap.get(cod) || 0;
+        const isParentNormal = childNormalCount > 0;
+        const isChildNormal = Boolean(row.padre_id);
+        const pNormalInfo = row.padre_id ? parentInfoMap.get(row.padre_id) : null;
 
         // Regla Condominios Comerciales:
         // Aseo urbano se paga separado por condominio (centralizado en el padre).
@@ -460,7 +471,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
             isCondoChild: isCondoChild,
             condominio_padre_id: row.condominio_padre_id || null,
             condominio_padre_nombre: pInfo?.nombre || null,
-            isCommercialChild: isCommercialChild
+            isCommercialChild: isCommercialChild,
+            padre_id: row.padre_id || null,
+            padre_nombre: pNormalInfo?.nombre || null,
+            isParentNormal: isParentNormal,
+            isChildNormal: isChildNormal,
+            childNormalCount: childNormalCount
           });
         } else if (row.identidad && map.has(row.identidad)) {
           const existing = map.get(row.identidad);
@@ -480,6 +496,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
             existing.es_condominio = true;
             existing.cant_inmuebles = Math.max(existing.cant_inmuebles || 1, childCount);
             existing.unidadesCount = Math.max(existing.unidadesCount || 1, childCount);
+          }
+          if (!existing.padre_id && row.padre_id) {
+            existing.padre_id = row.padre_id;
+            existing.padre_nombre = pNormalInfo?.nombre || null;
+            existing.isChildNormal = true;
+          }
+          if (isParentNormal) {
+            existing.isParentNormal = true;
+            existing.childNormalCount = Math.max(existing.childNormalCount || 0, childNormalCount);
           }
           const rowEstado = row.estado || 'Activo';
           if (rowEstado === 'Activo') {

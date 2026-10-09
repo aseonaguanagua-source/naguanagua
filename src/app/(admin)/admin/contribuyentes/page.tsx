@@ -2854,7 +2854,23 @@ function ContribuyentesPageContent() {
                 🏢 Filial de {row.condominio_padre_id}
               </span>
             )}
-            {!isCondo && otherCount > 0 && (
+            {row.isParentNormal && (
+              <span 
+                className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-200 mt-0.5 inline-flex items-center gap-1 w-fit shadow-2xs"
+                title={`Matriz de ${row.childNormalCount || 1} actividades vinculadas`}
+              >
+                🏢 Matriz de {row.childNormalCount || 1} actividades
+              </span>
+            )}
+            {row.isChildNormal && (
+              <span 
+                className="text-[10px] bg-teal-50 text-teal-800 font-bold px-2 py-0.5 rounded border border-teal-200 mt-1 inline-flex items-center gap-1 w-fit shadow-2xs"
+                title={`Sucursal de: ${row.padre_nombre || row.padre_id}`}
+              >
+                🏢 Sucursal de {row.padre_id}
+              </span>
+            )}
+            {!isCondo && !row.isParentNormal && otherCount > 0 && (
               <span 
                 className="text-[10px] bg-blue-50 text-blue-700 font-semibold px-1.5 py-0.5 rounded border border-blue-200 mt-0.5 inline-block w-fit cursor-help shadow-2xs"
                 title={`Inmuebles vinculados: ${rawCodes.join(', ')}`}
@@ -3417,6 +3433,11 @@ function ContribuyentesPageContent() {
                               {inm.condominio_padre_id && (
                                 <span className="bg-indigo-50 text-indigo-800 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-bold" title={`Condominio: ${inm.condominio_padre_nombre || inm.condominio_padre_id}`}>
                                   🏢 Filial de: {inm.condominio_padre_nombre || (inmuebles.find((p: any) => p.inmueble === inm.condominio_padre_id)?.contribuyente) || inm.condominio_padre_id}
+                                </span>
+                              )}
+                              {inm.padre_id && (
+                                <span className="bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded text-[10px] font-bold" title={`Matriz: ${inm.padre_nombre || inm.padre_id}`}>
+                                  🏢 Sucursal de: {inm.padre_nombre || (inmuebles.find((p: any) => p.inmueble === inm.padre_id)?.contribuyente) || inm.padre_id}
                                 </span>
                               )}
                             </div>
