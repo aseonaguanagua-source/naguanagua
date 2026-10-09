@@ -42,10 +42,18 @@ export async function POST(req: Request) {
     if (unidad_id && !us?.length) return NextResponse.json({ error: 'La unidad no pertenece a este condominio.' }, { status: 400 });
 
     const ids = (us || []).map(u => u.id);
+    const inms = (us || []).map(u => u.inmueble).filter(Boolean);
+
     for (let i = 0; i < ids.length; i += 300) {
       const { error } = await sb.from('condominio_unidades').update({ multa_meses: 0, multa_exonerada_hasta: hasta }).in('id', ids.slice(i, i + 300));
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Limpiar también las multas heredadas en la tabla inmuebles
+    for (let i = 0; i < inms.length; i += 300) {
+      await sb.from('inmuebles').update({ multa_bs: 0 }).in('inmueble', inms.slice(i, i + 300));
+    }
+
     if (!unidad_id) {
       const { error } = await sb.from('condominios').update({ multa_meses: 0, multa_exonerada_hasta: hasta }).eq('id', c.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
