@@ -137,7 +137,9 @@ export async function GET(request: Request) {
       domicilioFiscal: String(inmPrincipal?.direccion || cont?.direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
       rifCi: pago.identidad,
       caja: det.cajero || '',
-      periodo: desglose.periodoTexto || periodo,
+      periodo: det.es_condominio && Array.isArray(det.condominio?.lineas) 
+        ? [...new Set(det.condominio.lineas.flatMap((l: any) => l.periodos || []))].join(', ') || periodo 
+        : desglose.periodoTexto || periodo,
       conceptos: lineas,
       subTotal: monto,
       exento: monto,
