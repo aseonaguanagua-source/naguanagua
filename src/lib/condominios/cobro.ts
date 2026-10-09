@@ -149,6 +149,7 @@ export interface DatosPago {
   pagoId: string;
   metodo: string;
   banco?: string;
+  bancoDestino?: string;
   referencia?: string;
   /** Monto que el cajero dice haber recibido; debe coincidir con el calculado */
   montoRecibido: number;
@@ -186,12 +187,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const reciboRef = `CONDO-${c.codigo}-${Date.now().toString().slice(-6)}${cobro.facturas.length > 1 ? `-${i + 1}` : ''}`;
     const ls = f.lineas.map(k => lineaPor.get(k)!).filter(Boolean);
     const ret = r2(ls.reduce((a, l) => a + l.retencionBs, 0));
-    let formasPago = [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, referencia: ref || undefined, monto: f.totalBs }];
+    let formasPago = [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, bancoDestino: pago.bancoDestino || undefined, referencia: ref || undefined, monto: f.totalBs }];
     if (pago.pagosAgregados && pago.pagosAgregados.length > 0) {
       // Si el cobro tiene múltiples facturas y múltiples pagos agregados, se prorratea. 
       // Por simplicidad, guardamos los métodos en los detalles. 
       formasPago = pago.pagosAgregados.map(pa => ({
-        descripcion: pa.metodo, fecha: pa.fecha ? new Date(pa.fecha + 'T12:00:00Z').toISOString() : new Date().toISOString(), forma: formaPagoCodigo(pa.metodo), banco: pa.banco || undefined, referencia: pa.referencia || undefined, monto: pa.monto
+        descripcion: pa.metodo, fecha: pa.fecha ? new Date(pa.fecha + 'T12:00:00Z').toISOString() : new Date().toISOString(), forma: formaPagoCodigo(pa.metodo), banco: pa.banco || undefined, bancoDestino: pa.bancoDestino || undefined, referencia: pa.referencia || undefined, monto: pa.monto
       }));
     }
 
@@ -204,7 +205,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       monto_retencion_iva: ret, contribuyente: f.nombre, identidad: f.identidad,
       factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
       formasPago,
-      pagos_agregados: pago.pagosAgregados
+      pagos_agregados: pago.pagosAgregados,
+      banco_destino: pago.bancoDestino || (pago.pagosAgregados?.[0]?.bancoDestino) || undefined
     };
     const esTransferencia = pago.metodo.toLowerCase().includes('transferencia') || pago.metodo.toLowerCase().includes('pago móvil') || (pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => pa.metodo.toLowerCase().includes('transferencia') || pa.metodo.toLowerCase().includes('pago móvil')));
     const fila: any = { id, identidad: f.identidad, monto: f.totalBs, banco: pago.banco || pago.metodo, referencia: refFinal, tipo: pago.metodo, estado: esTransferencia ? 'Por Verificar' : 'Aprobado', modulo: 'condominios', detalles };

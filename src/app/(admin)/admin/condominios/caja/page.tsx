@@ -59,6 +59,7 @@ function Caja() {
   const [pagosAgregados, setPagosAgregados] = useState<any[]>([]);
   const [metodoAct, setMetodoAct] = useState('Transferencia');
   const [bancoAct, setBancoAct] = useState('Banco de Venezuela');
+  const [bancoDestinoAct, setBancoDestinoAct] = useState('BANCAMIGA - 0172 - 0717');
   const [referenciaAct, setReferenciaAct] = useState('');
   const [montoAct, setMontoAct] = useState('');
   const [comprobanteAct, setComprobanteAct] = useState<File | null>(null);
@@ -160,8 +161,8 @@ function Caja() {
       if (metodoAct === 'Transferencia' && !comprobanteAct) return alert('Es obligatorio adjuntar el comprobante para Transferencia.');
     }
     if (montoParsed > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
-    setPagosAgregados([...pagosAgregados, { metodo: metodoAct, banco: bancoAct, referencia: referenciaAct, monto: montoParsed, comprobante: comprobanteAct, fecha: fechaAct }]);
-    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null); setFechaAct(new Date().toISOString().slice(0, 10));
+    setPagosAgregados([...pagosAgregados, { metodo: metodoAct, banco: bancoAct, bancoDestino: bancoDestinoAct, referencia: referenciaAct, monto: montoParsed, comprobante: comprobanteAct, fecha: fechaAct }]);
+    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setBancoDestinoAct('BANCAMIGA - 0172 - 0717'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null); setFechaAct(new Date().toISOString().slice(0, 10));
   };
 
   const quitarPago = (idx: number) => {
@@ -211,6 +212,7 @@ function Caja() {
             referencia: pagosSubidos[0]?.referencia || '', 
             montoRecibido: cobro.totales.totalBs, 
             cajero: getCajeroId(),
+            bancoDestino: pagosSubidos[0]?.bancoDestino || '',
             pagosAgregados: pagosSubidos
           },
         }),
@@ -462,6 +464,7 @@ function Caja() {
                   <div key={i} className="flex justify-between items-center bg-white/5 rounded-lg px-2.5 py-1.5 text-xs border border-white/10">
                     <div>
                       <div className="font-bold">{p.metodo} {p.banco ? `- ${p.banco}` : ''}</div>
+                      {p.bancoDestino && ['Transferencia', 'Deposito'].includes(p.metodo) && <div className="text-[10px] text-sky-200">A: {p.bancoDestino}</div>}
                       <div className="text-white/60 font-mono">Ref: {p.referencia || 'N/A'} · {p.fecha?.split('-').reverse().join('/') || ''} {p.comprobante ? '📎' : ''}</div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -499,6 +502,18 @@ function Caja() {
                     </div>
                     </div>
                     <>
+                      {['Transferencia', 'Deposito'].includes(metodoAct) && (
+                        <div className="mb-2">
+                          <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">Cuenta Bancaria Receptora (Alcaldía / IAMEC)</span>
+                          <select value={bancoDestinoAct} onChange={e => setBancoDestinoAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-sky-400/50 px-2 py-1.5 text-xs outline-none text-white font-semibold">
+                            <option value="BANCAMIGA - 0172 - 0717">Bancamiga (0172) - 01720110711101340717 (IAMEC BANCAMIGA)</option>
+                            <option value="BANESCO - 0134 - 8636">Banesco (0134) - 01341089590001008636 (IAMEC)</option>
+                            <option value="BANCO DE VENEZUELA - 0102">Banco de Venezuela (0102)</option>
+                            <option value="BANCO MERCANTIL - 0105">Banco Mercantil (0105)</option>
+                            <option value="BANCO PROVINCIAL - 0108">Banco Provincial (0108)</option>
+                          </select>
+                        </div>
+                      )}
                       <select value={bancoAct} onChange={e => setBancoAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white">
                         <option value="">Seleccione banco</option>
                         {LISTA_BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
