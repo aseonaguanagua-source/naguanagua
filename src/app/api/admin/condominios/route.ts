@@ -84,6 +84,11 @@ export async function PATCH(req: Request) {
     const { error } = await sb.from('condominios').update(upd).eq('id', antes.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // Sincronizar meses en todas las unidades si se actualizaron los meses del condominio
+    if ('aseo_pendiente_desde' in upd) {
+      await sb.from('condominio_unidades').update({ aseo_pendiente_desde: upd.aseo_pendiente_desde }).eq('condominio_id', antes.id);
+    }
+
     // Sincronizar el campo agente_retencion en la tabla inmuebles para el inmueble principal del condominio
     if ('agente_retencion' in upd) {
       await sb.from('inmuebles')
