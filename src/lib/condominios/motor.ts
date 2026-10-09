@@ -66,7 +66,7 @@ export function unidadResidencial(c: Pick<Condominio, 'tipo'>, u?: Unidad | null
 }
 
 /** ¿Esta unidad no cobra por sí misma? (contenedor de actividades, o comercial sin actividad; la desocupada paga 1,98 MMV) */
-export const unidadNoCobra = (c: Condominio, u: Unidad) => !!u.es_grupo || (u.estado !== 'Desocupada' && !unidadResidencial(c, u) && esSinActividad(u.actividad));
+export const unidadNoCobra = (c: Condominio, u: Unidad) => !!u.es_grupo || (u.estado !== 'Desocupada' && !unidadResidencial(c, u) && esSinActividad(u.actividad) && !(Number(u.tarifa_mmv) > 0));
 
 export const FO_DESOCUPADO = 1.98;
 export const FAC_COMERCIAL = 0.128;

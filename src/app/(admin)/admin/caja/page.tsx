@@ -428,7 +428,9 @@ export default function CajaPage() {
         es_condominio: matchedInm.es_condominio,
         isSearchByCode: true
       };
-      if (user.es_condominio || user.condominio_padre_id) {
+      
+      // Si buscaron exactamente por un CÓDIGO (AURI / URB) y resulta ser un condominio, bloqueamos con alerta.
+      if (user.isSearchByCode && (user.es_condominio || user.condominio_padre_id)) {
         alert('Este código pertenece a un condominio o a un local de condominio. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
         setIsSearching(false);
         return;
@@ -462,7 +464,8 @@ export default function CajaPage() {
           es_condominio: inmDirect.es_condominio,
           isSearchByCode: true
         };
-        if (user.es_condominio || user.condominio_padre_id) {
+        
+        if (user.isSearchByCode && (user.es_condominio || user.condominio_padre_id)) {
           alert('Este código pertenece a un condominio o a un local de condominio. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
           setIsSearching(false);
           return;
@@ -532,11 +535,8 @@ export default function CajaPage() {
             condominio_padre_id: inmFallback.condominio_padre_id,
             es_condominio: inmFallback.es_condominio
           };
-          if (user.es_condominio || user.condominio_padre_id) {
-            alert('El contribuyente encontrado pertenece a un condominio o es un condominio. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
-            setIsSearching(false);
-            return;
-          }
+          // Eliminado el bloqueo estricto aquí: si es una búsqueda por cédula/nombre,
+          // no bloqueamos. Simplemente el filtro más abajo ocultará los inmuebles de condominio.
         } else {
           // Fallback 2: buscar en tabla contribuyentes directamente (por palabras del nombre o por cédula)
           let contribFallback: any = null;
@@ -604,6 +604,12 @@ export default function CajaPage() {
       
       // Filtrar los inmuebles eliminados y restringir los locales de condominios y condominios en sí
       const activeInmFresh = (inmFresh || []).filter((i: any) => i.estado !== 'Eliminado' && !i.condominio_padre_id && !i.es_condominio);
+
+      if (activeInmFresh.length === 0 && (inmFresh || []).some((i:any) => i.condominio_padre_id || i.es_condominio)) {
+         alert('El usuario no posee inmuebles individuales activos. Sus propiedades pertenecen a condominios, los cuales deben cobrarse por el módulo Condominios -> Caja.');
+         setIsSearching(false);
+         return;
+      }
 
       // Adoptar la Identidad real y actualizada desde los inmuebles frescos en base de datos
       if (activeInmFresh.length > 0 && activeInmFresh[0].identidad) {
