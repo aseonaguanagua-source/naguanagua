@@ -199,9 +199,9 @@ export async function cargarCondominio(codigo: string) {
   if (error) throw new Error(error.message);
   if (!condo) return null;
 
-  if (condo.identidad) {
-    const { data: inm } = await sb.from('inmuebles').select('agente_retencion').eq('identidad', condo.identidad).maybeSingle();
-    condo.agente_retencion = !!inm?.agente_retencion;
+  const { data: inm } = await sb.from('inmuebles').select('agente_retencion').eq('inmueble', condo.codigo).maybeSingle();
+  if (inm) {
+    condo.agente_retencion = !!inm.agente_retencion;
   }
 
   const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).order('inmueble').range(a, b));
@@ -260,7 +260,7 @@ export async function resumenGeneral() {
 
   const filas = condos.map(c => {
     const us = porCondo.get(c.id) || [];
-    c.agente_retencion = agentes.get(c.identidad) || false;
+    c.agente_retencion = !!infoInmuebles.get(c.codigo)?.agente_retencion;
     const e = calcularEstado(c, us, tasa, new Date(), multasPor.get(c.id) || []);
     return {
       codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, tipo: c.tipo, modalidad: c.modalidad, estado: c.estado,
