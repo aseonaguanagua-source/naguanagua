@@ -237,7 +237,7 @@ function Caja() {
         <div className="space-y-2">
           <SelectorModulo activo="caja" />
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2"><Wallet className="w-7 h-7 text-emerald-600" /> Caja de Condominios</h1>
-          <p className="text-xs text-slate-500">Busque el condominio (nombre, código o RIF) o el dueño de una unidad. El monto lo calcula el sistema con la tarifa y la tasa BCV vigentes.</p>
+          <p className="text-xs text-slate-500">Busque el condominio (nombre, código o RIF) o el dueño de una unidad. El monto lo calcula el sistema con la tarifa y la tasa Euro vigentes.</p>
         </div>
         <div className="flex flex-col items-end gap-3">
           <div className="flex items-center gap-2">
@@ -254,7 +254,7 @@ function Caja() {
           </div>
           <div className="bg-[#f0fdf4] border border-[#86efac] rounded-xl p-3 flex flex-col gap-2 shadow-sm min-w-[280px]">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[#166534] font-bold text-sm">Tasa BCV Aplicada:</span>
+              <span className="text-[#166534] font-bold text-sm">Tasa Euro Aplicada:</span>
               <input type="text" value={tasaOverrideStr} onChange={e => {
                 let v = e.target.value.replace(/[^0-9,.]/g, '');
                 setTasaOverrideStr(v);
@@ -444,7 +444,7 @@ function Caja() {
                 {calculando && <RefreshCw className="w-4 h-4 animate-spin text-white/60" />}
               </div>
               <div className="text-4xl font-black tabular-nums">Bs {fmtBs(cobro.totales.totalBs)}</div>
-              <div className="text-xs text-white/70">{cobro.lineas.length} renglón(es) · hasta {cobro.totales.meses} mes(es) · tasa BCV Bs {fmtBs(cobro.estado.tasa)}</div>
+              <div className="text-xs text-white/70">{cobro.lineas.length} renglón(es) · hasta {cobro.totales.meses} mes(es) · tasa Euro Bs {fmtBs(cobro.estado.tasa)}</div>
               <div className="text-xs space-y-1 border-t border-white/10 pt-3">
                 <div className="flex justify-between"><span className="text-white/70">Aseo</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.baseBs)}</b></div>
                 <div className="flex justify-between"><span className="text-white/70">Multas</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.multaBs)}</b></div>
@@ -595,7 +595,7 @@ function Caja() {
                 );
               })}
               {(recibo.partes?.length || 0) > 1 && <div className="rounded-lg bg-sky-50 border border-sky-200 p-2.5 text-xs text-sky-900">Un solo pago de <b>Bs {fmtBs(recibo.monto)}</b> repartido en {recibo.partes.length} facturas (una por dueño).</div>}
-              <div className="text-xs text-slate-600">Forma de pago: <b>{recibo.metodo}</b>{recibo.banco ? ` · ${recibo.banco}` : ''}{recibo.referencia ? ` · Ref. ${recibo.referencia}` : ''} · Tasa BCV Bs {fmtBs(recibo.cobro.estado.tasa)}</div>
+              <div className="text-xs text-slate-600">Forma de pago: <b>{recibo.metodo}</b>{recibo.banco ? ` · ${recibo.banco}` : ''}{recibo.referencia ? ` · Ref. ${recibo.referencia}` : ''} · Tasa Euro Bs {fmtBs(recibo.cobro.estado.tasa)}</div>
               {!recibo.prueba && <div className="text-[11px] text-slate-500">Las facturas digitales quedan listas en Facturación Electrónica.</div>}
             </div>
           </div>
