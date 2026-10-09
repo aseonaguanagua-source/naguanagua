@@ -1,9 +1,13 @@
-const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config({ path: '.env.local' });
-const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const { createClient } = require('@supabase/supabase-js');
 
-async function findSambil() {
-  const { data } = await sb.from('condominios').select('id, codigo, nombre').ilike('nombre', '%sambil%');
-  console.log("Condominios Sambil:", data);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+async function run() {
+  const { data } = await supabase.from('condominios').select('id, codigo, nombre').ilike('nombre', '%CENTRO COMERCIAL%');
+  console.log(data.filter(c => c.nombre.includes('SAMBIL') || c.nombre.includes('Sambil')));
+  
+  const { data: d2 } = await supabase.from('inmuebles').select('id, inmueble, contribuyente, es_condominio').ilike('contribuyente', '%SAMBIL%');
+  console.log("Inmuebles con Sambil:", d2.length);
 }
-findSambil();
+run();

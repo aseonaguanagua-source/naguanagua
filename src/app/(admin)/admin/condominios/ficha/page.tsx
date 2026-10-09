@@ -86,7 +86,7 @@ function Ficha() {
 
   // Árbol torre → unidad
   const arbol = useMemo(() => {
-    const us: any[] = d?.unidades || [];
+    const us: any[] = (d?.unidades || []).filter((u: any) => u.estado !== 'Eliminada');
     const hijos = new Map<string, any[]>();
     us.forEach(u => { if (u.padre_unidad_id) { if (!hijos.has(u.padre_unidad_id)) hijos.set(u.padre_unidad_id, []); hijos.get(u.padre_unidad_id)!.push(u); } });
     const ids = new Set(us.map(u => u.id));
@@ -241,7 +241,13 @@ function Ficha() {
                 <WalletIcon className="w-4 h-4" /> Cobrar
               </Link>
               <button onClick={exportar} className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-2 cursor-pointer">
-                <Download className="w-4 h-4" /> Estado de cuenta
+                <Download className="w-4 h-4" /> PDF
+              </button>
+              <button onClick={async () => {
+                const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
+                exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador');
+              }} className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
+                <FileText className="w-4 h-4" /> Excel
               </button>
               <button onClick={exportarMultas} className="px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
                 <FileText className="w-4 h-4" /> Reporte de Multas
@@ -315,7 +321,8 @@ function Ficha() {
                         <th className="w-8"></th>
                         <th className="text-left py-2.5 px-3">Unidad / propietario</th>
                         <th className="text-right py-2.5 px-3">Mensualidad</th>
-                        <th className="text-center py-2.5 px-3">Meses</th>
+                        <th className="text-center py-2.5 px-3">Meses Aseo</th>
+                        <th className="text-center py-2.5 px-3">Meses Multa</th>
                         <th className="text-right py-2.5 px-3">Aseo</th>
                         <th className="text-right py-2.5 px-3">Multa</th>
                         {e.totales.ivaBs > 0 && <th className="text-right py-2.5 px-3">IVA</th>}
@@ -359,6 +366,7 @@ function Ficha() {
                               </td>
                               <td className="py-2.5 px-3 text-right tabular-nums">Bs {fmtBs(r.mensualBs)}</td>
                               <td className="py-2.5 px-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-black ${r.deuda.meses === 0 ? 'bg-emerald-100 text-emerald-800' : r.deuda.meses > 12 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{r.deuda.meses}</span></td>
+                              <td className="py-2.5 px-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-black ${r.multaMeses === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{r.multaMeses}</span></td>
                               <td className="py-2.5 px-3 text-right tabular-nums">{fmtBs(r.deuda.baseBs)}</td>
                               <td className="py-2.5 px-3 text-right tabular-nums">{fmtBs(r.deuda.multaBs + r.multaExtraBs + (r.multasManualesBs || 0))}</td>
                               {e.totales.ivaBs > 0 && <td className="py-2.5 px-3 text-right tabular-nums text-blue-700">{fmtBs(r.deuda.ivaBs)}</td>}

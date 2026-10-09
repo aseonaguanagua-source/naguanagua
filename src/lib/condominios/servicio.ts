@@ -108,6 +108,7 @@ export interface RenglonEstado {
   pendienteDesde: string | null;
   periodos: string[];
   deuda: M.DeudaPeriodos;
+  multaMeses: number;
   /** Multas de meses ya pagados por el condominio (las debe el contribuyente) */
   multaExtraBs: number;
   /** Multas agregadas a mano */
@@ -163,7 +164,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
       identidad: u?.identidad ?? (r.clave === M.SIN_REGISTRAR ? null : condoRow.identidad), actividad: u?.actividad ?? null,
       estado: u?.estado ?? 'Declarada', cantidad: r.cantidad, esGrupo: !!mu?.es_grupo, padreId: u?.padre_unidad_id ?? null, residencial: res,
       mensualBs: r.montoBs, pendienteDesde: desde || null, periodos: M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy),
-      deuda, multaExtraBs, multasManuales: manuales, multasManualesBs, totalBs: r2(deuda.totalBs + multaExtraBs + multasManualesBs),
+      deuda, multaMeses, multaExtraBs, multasManuales: manuales, multasManualesBs, totalBs: r2(deuda.totalBs + multaExtraBs + multasManualesBs),
     };
   });
   // Multas manuales del condominio (sin unidad) cuando no hay renglón de condominio
@@ -174,7 +175,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     renglones.push({
       clave: '__CONDOMINIO__', inmueble: condoRow.codigo, numero: null, propietario: condoRow.nombre, identidad: condoRow.identidad, actividad: null,
       estado: 'Condominio', cantidad: 0, esGrupo: false, padreId: null, residencial: M.esResidencial(c), mensualBs: 0, pendienteDesde: null, periodos: [],
-      deuda: M.deudaPorMeses(0, 0, true), multaExtraBs: 0, multasManuales: manuales, multasManualesBs: tot, totalBs: tot,
+      deuda: M.deudaPorMeses(0, 0, true), multaMeses: 0, multaExtraBs: 0, multasManuales: manuales, multasManualesBs: tot, totalBs: tot,
     });
   }
 

@@ -4,7 +4,7 @@ const { createClient } = require('@supabase/supabase-js');
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 async function run() {
-  const { data: condo } = await supabase.from('condominios').select('*').ilike('nombre', '%sambil%');
+  const { data: condo } = await supabase.from('condominios').select('*').eq('codigo', 'URB016119').single();
   console.log(condo);
 }
 run();
