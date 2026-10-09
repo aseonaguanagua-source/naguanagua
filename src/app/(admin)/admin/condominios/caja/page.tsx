@@ -196,10 +196,14 @@ function Caja() {
         pagosSubidos.push({ ...p, comprobante_url: url, comprobante_nombre: p.comprobante?.name });
       }
 
+      let tasaParsed = parseFloat(tasaOverrideStr.replace(/\./g, '').replace(',', '.'));
+      if (isNaN(tasaParsed)) tasaParsed = 0;
+
       const u = usuario();
       const r = await fetch('/api/admin/condominios/cobrar', {
         method: 'POST', body: JSON.stringify({
           accion: 'cobrar', codigo, modo, claves, identidad: porContrib ? identidad.trim() || null : null, meses: meses || null, soloMultas, usuario: u.usuario,
+          tasaOverride: tasaParsed > 0 ? tasaParsed : undefined, fechaOverride: fechaOverrideStr || undefined,
           pago: { 
             pagoId: pagoId.current, 
             metodo: pagosSubidos[0]?.metodo || 'MÚLTIPLE', 
