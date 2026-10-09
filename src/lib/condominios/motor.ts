@@ -112,9 +112,14 @@ export function cargoMensual(c: Condominio, unidades: Unidad[], tasa: number): C
   const tUnit = tarifaUnidadBs(c, tasa);
   const tDesoc = tarifaDesocupadaBs(tasa);
 
-  if (c.modalidad === 'TARIFA_FIJA' && (c.tarifa_fija_bs || 0) > 0) {
-    return { condominioBs: r2(c.tarifa_fija_bs!), unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
-      detalle: 'Tarifa fija acordada' };
+  if (c.modalidad === 'TARIFA_FIJA') {
+    if ((c.tarifa_fija_bs || 0) > 0) {
+      return { condominioBs: r2(c.tarifa_fija_bs!), unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
+        detalle: 'Tarifa fija acordada en Bs' };
+    } else {
+      return { condominioBs: r2(tUnit), unidadesCobradas: declarada, unidadesDesocupadas: desoc, tarifaUnidadBs: tUnit, tarifaDesocupadaBs: tDesoc,
+        detalle: 'Tarifa plana acordada en MMV/UCD' };
+    }
   }
   if (porActividad(c)) {
     const reparto = cargosPorUnidad(c, unidades, tasa);
@@ -155,8 +160,12 @@ export function cargosPorUnidad(c: Condominio, unidades: Unidad[], tasa: number)
   const tDesoc = tarifaDesocupadaBs(tasa);
   const clave = (u: Unidad, i: number) => u.id || u.inmueble || `U${i}`;
 
-  if (c.modalidad === 'TARIFA_FIJA' && (c.tarifa_fija_bs || 0) > 0) {
-    return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: r2(c.tarifa_fija_bs!) }];
+  if (c.modalidad === 'TARIFA_FIJA') {
+    if ((c.tarifa_fija_bs || 0) > 0) {
+      return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: r2(c.tarifa_fija_bs!) }];
+    } else {
+      return [{ clave: '__CONDOMINIO__', cantidad: declarada, montoBs: r2(tUnit) }];
+    }
   }
   if (porActividad(c)) {
     // Cada local según su actividad económica. Solo se cobran las unidades registradas (de las no
