@@ -117,7 +117,11 @@ export default function DevGodMode() {
     try {
       let matchObj = null;
       if (searchMatch.trim()) {
-        matchObj = JSON.parse(searchMatch);
+        try {
+          matchObj = JSON.parse(searchMatch);
+        } catch (e: any) {
+          throw new Error(`El Filtro Match no es un JSON válido. Asegúrate de usar comillas dobles (Ej: {"id": 1}). Error original: ${e.message}`);
+        }
       }
       
       const res = await fetch('/api/admin/dev/table', {
