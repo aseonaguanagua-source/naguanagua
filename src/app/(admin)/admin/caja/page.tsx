@@ -2553,7 +2553,7 @@ export default function CajaPage() {
       setNotaManualMonto('');
       setNotaManualRef('');
       setTimeout(() => setSuccessMsg(''), 4000);
-      fetchUserData(foundUser.Identidad, true); // Refresh user data properly
+      refreshUserData(foundUser.Identidad); // Refresh user data properly
     } catch (e: any) {
       alert('Error creando nota: ' + e.message);
     }
