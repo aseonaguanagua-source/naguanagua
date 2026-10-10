@@ -620,14 +620,17 @@ export default function CajaPage() {
       // Adoptar la Identidad real y actualizada desde los inmuebles frescos en base de datos
       if (activeInmFresh.length > 0 && activeInmFresh[0].identidad) {
         user.Identidad = activeInmFresh[0].identidad;
-        if (!isCodeFormat && activeInmFresh[0].contribuyente) user.Contribuyente = activeInmFresh[0].contribuyente;
+        if (activeInmFresh[0].contribuyente) user.Contribuyente = activeInmFresh[0].contribuyente;
       }
+
+      // Recalcular variantes porque la Identidad pudo haber cambiado al tomarla de Supabase
+      const updatedUserIdentVariants = getIdentidadVariants(user.Identidad);
 
       // También consultar en contribuyentes para tener los datos oficiales más recientes
       const { data: freshContrib } = await supabase
         .from('contribuyentes')
         .select('*')
-        .or(userIdentVariants.map(v => `identidad.eq.${v}`).join(','))
+        .or(updatedUserIdentVariants.map(v => `identidad.eq.${v}`).join(','))
         .limit(1)
         .maybeSingle();
 
