@@ -558,6 +558,16 @@ export default function KioskPage() {
       }
     }
 
+    if (inmsDB && inmsDB.length > 0) {
+      const activeInms = inmsDB.filter((i: any) => !i.condominio_padre_id && !i.es_condominio);
+      if (activeInms.length === 0 && inmsDB.some((i: any) => i.condominio_padre_id || i.es_condominio)) {
+        setSearchError('Sus propiedades pertenecen a Condominios. El cobro móvil solo está habilitado para inmuebles regulares.');
+        setIsSearching(false);
+        return;
+      }
+      inmsDB = activeInms;
+    }
+
     if (!inmsDB || inmsDB.length === 0) {
       setSearchError('No encontrado. Verifique su Cédula o RIF.');
       setIsSearching(false);

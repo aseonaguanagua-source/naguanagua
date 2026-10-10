@@ -1,0 +1,21 @@
+{
+  "name": "Soy Contribuyente",
+  "short_name": "Soy Contribuyente",
+  "description": "Portal de autogestión para contribuyentes.",
+  "start_url": "/portal",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "/logos/logo_global_rec.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logos/logo_global_rec.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

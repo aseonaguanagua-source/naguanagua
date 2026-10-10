@@ -161,12 +161,8 @@ export default function PortalLogin() {
           
           {/* Header */}
           <div className="pt-10 pb-6 px-8 text-center">
-            {/* Logo SVG — mismo logo que en la imagen */}
             <div className="flex justify-center mb-3">
-              <svg viewBox="0 0 80 60" width="72" height="54" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="40" cy="30" r="28" fill="#111827"/>
-                <text x="40" y="37" textAnchor="middle" fill="white" fontSize="20" fontWeight="bold" fontFamily="Arial">GR</text>
-              </svg>
+              <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-16 w-auto object-contain" />
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Global Rec</h1>
             <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-400 uppercase mt-0.5">Collection System</p>

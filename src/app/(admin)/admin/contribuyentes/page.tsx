@@ -177,9 +177,32 @@ function ContribuyentesPageContent() {
       result = result.filter((c: any) => c.Observaciones && c.Observaciones.trim().length > 0);
     }
     
-    // Siempre ocultar condominios (es_condominio/isCondominio) y sus locales (condominio_padre_id/isCondoChild)
-    result = result.filter((c: any) => !c.es_condominio && !c.isCondominio && !c.condominio_padre_id && !c.isCondoChild);
-
+    // Siempre ocultar condominios y sus locales de la vista principal
+    result = result.filter((c: any) => {
+      // 1. Marcas directas
+      if (c.es_condominio || c.isCondominio || c.condominio_padre_id || c.isCondoChild) return false;
+      
+      // 2. Por nombre o clasificación evidente
+      const nombreLC = (c.Contribuyente || c.nombre || '').toLowerCase();
+      const clasifLC = (c.Clasificacion || c.clasificacion || '').toLowerCase();
+      if (nombreLC.includes('condominio') || nombreLC.includes('conjunto residencial') || clasifLC.includes('condominio')) return false;
+      
+      // 3. Por relación de inmuebles
+      if (inmuebles && inmuebles.length > 0) {
+        const userInms = inmuebles.filter((i: any) => (i.identidad === c.Identidad || i.identidad === c.identidad) && i.estado !== 'Eliminado');
+        if (userInms.length > 0) {
+          const onlyHasCondoProperties = userInms.every((i: any) => 
+            i.es_condominio || 
+            i.condominio_padre_id || 
+            parseInt(i.cant_inmuebles || '1') > 1
+          );
+          // Ocultar si TODAS sus propiedades son de condominio
+          if (onlyHasCondoProperties) return false;
+        }
+      }
+      
+      return true;
+    });
     setFilteredContribuyentes(result);
   }, [activeTab, contribuyentes, showWithNotes, isShowingServerResults, serverResults, groupCondoChildren]);
 
@@ -1448,6 +1471,19 @@ function ContribuyentesPageContent() {
         }
       }
       
+      // Detección de Condominios: si la búsqueda coincide con un condominio (padre o hijo)
+      const isCondoSearch = allFoundInmuebles.some((i: any) => 
+        (i.inmueble === term || i.condominio_padre_id === term) && 
+        (i.es_condominio || i.condominio_padre_id || parseInt(i.cant_inmuebles || '0') > 1)
+      );
+      
+      if (isCondoSearch) {
+        alert('Este código o contribuyente pertenece a un condominio. Por favor, realice la gestión desde el módulo de Condominios -> Ficha.');
+        setIsSearchingServer(false);
+        setServerSearchTerm('');
+        return;
+      }
+
       const mapResults = new Map();
 
       allFoundInmuebles.forEach((row: any) => {
@@ -3373,42 +3409,69 @@ function ContribuyentesPageContent() {
                   </div>
                 );
               })()}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">R.I.F. / Cédula</span>
-                  <p className="text-sm font-semibold text-slate-700">{viewData.Identidad}</p>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Razón Social</span>
-                  <p className="text-sm font-semibold text-slate-700">{viewData.Contribuyente}</p>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Teléfono</span>
-                  <p className="text-sm font-semibold text-slate-700">{viewData.Telefono || 'N/A'}</p>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Correo Electrónico</span>
-                  <p className="text-sm font-semibold text-slate-700">{viewData.Correo || 'N/A'}</p>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 col-span-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Dirección</span>
-                  <p className="text-sm font-medium text-slate-700">{viewData.Direccion || 'N/A'}</p>
-                </div>
-                {viewData.Observaciones && (
-                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 col-span-2">
-                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1 block">Observaciones Históricas (Sistema Anterior)</span>
-                    <p className="text-sm font-medium text-amber-900 whitespace-pre-wrap">{viewData.Observaciones}</p>
+              {/* Profile Card Header */}
+              <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-5 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-bl-full -mr-10 -mt-10" />
+                <div className="flex flex-col md:flex-row justify-between gap-6">
+                  <div className="flex-1 space-y-4 relative z-10">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Building2 className="w-4 h-4 text-slate-400" />
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Razón Social / Nombre</span>
+                      </div>
+                      <h2 className="text-xl font-black text-slate-800 leading-tight">{viewData.Contribuyente}</h2>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <FileText className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">R.I.F. / Cédula</span>
+                        </div>
+                        <p className="text-sm font-semibold text-slate-700">{viewData.Identidad}</p>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <Store className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Actividad / Clasificación</span>
+                        </div>
+                        <p className="text-sm font-semibold text-slate-700 truncate" title={viewData.Actividad || 'N/A'}>{viewData.Actividad || 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Dirección</span>
+                      </div>
+                      <p className="text-sm font-medium text-slate-600 leading-snug">{viewData.Direccion || 'N/A'}</p>
+                    </div>
                   </div>
-                )}
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 col-span-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Actividad Económica / Clasificación</span>
-                  <p className="text-sm font-semibold text-slate-700">{viewData.Actividad || 'N/A'}</p>
-                </div>
-                <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100 col-span-1">
-                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1 block">Saldo a Favor</span>
-                  <p className="text-lg font-black text-emerald-700">Bs. {viewData.SaldoFavor ? Number(viewData.SaldoFavor).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2}) : '0,00'}</p>
+
+                  <div className="flex flex-col gap-3 min-w-[200px] relative z-10 border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 md:pl-6">
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block mb-0.5">Saldo a Favor</span>
+                      <p className="text-lg font-black text-emerald-700">Bs. {viewData.SaldoFavor ? Number(viewData.SaldoFavor).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2}) : '0,00'}</p>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Contacto</span>
+                      <p className="text-xs font-medium text-slate-600 truncate mb-1">📞 {viewData.Telefono || 'N/A'}</p>
+                      <p className="text-xs font-medium text-slate-600 truncate">✉️ {viewData.Correo || 'N/A'}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {viewData.Observaciones && (
+                <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-200 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block mb-1">Observaciones Históricas</span>
+                    <p className="text-sm font-medium text-amber-900 whitespace-pre-wrap leading-relaxed">{viewData.Observaciones}</p>
+                  </div>
+                </div>
+              )}
+              
               
               {/* Ficha de Censo Inmobiliario */}
               {(() => {
@@ -3424,7 +3487,7 @@ function ContribuyentesPageContent() {
                       <FileText className="w-4 h-4 text-slate-500" /> Ficha del Censo Inmobiliario
                     </h4>
                     <div className="space-y-3">
-                      {userInms.map((inm: any, idx: number) => (
+                      {userInms.filter((i: any) => !i.es_condominio && !i.condominio_padre_id && parseInt(i.cant_inmuebles || '1') <= 1).map((inm: any, idx: number) => (
                         <div key={idx} className="bg-white p-3 rounded border border-slate-200 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                           <div className="col-span-2 md:col-span-4 border-b border-slate-100 pb-2 mb-1 flex items-center justify-between flex-wrap gap-2">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -3810,7 +3873,10 @@ function ContribuyentesPageContent() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
-                                {userInms.filter((inm: any) => parseFloat(inm.deuda_mmv || 0) > 0 || parseFloat(inm.deuda_congelada_bs || 0) > 0 || parseInt(inm.meses_deuda || 0) > 0).map((inm: any, idx: number) => {
+                                {userInms
+                                  .filter((i: any) => !i.es_condominio && !i.condominio_padre_id && parseInt(i.cant_inmuebles || '1') <= 1)
+                                  .filter((inm: any) => parseFloat(inm.deuda_mmv || 0) > 0 || parseFloat(inm.deuda_congelada_bs || 0) > 0 || parseInt(inm.meses_deuda || 0) > 0)
+                                  .map((inm: any, idx: number) => {
                                   const meses = Math.max(1, parseInt(inm.meses_deuda || 0));
                                   const esRes = isResidencialInm(inm);
                                   const baseUnMes = calcularMensualidad(inm, tcmmv);
@@ -3951,7 +4017,7 @@ function ContribuyentesPageContent() {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                  {userInms.map((inm: any, idx: number) => {
+                                  {userInms.filter((i: any) => !i.es_condominio && !i.condominio_padre_id && parseInt(i.cant_inmuebles || '1') <= 1).map((inm: any, idx: number) => {
                                     const meses = Math.max(1, parseInt(inm.meses_deuda || '1'));
                                     const esRes = isResidencialInm(inm);
                                     const baseUnMes = calcularMensualidad(inm, tcmmv);

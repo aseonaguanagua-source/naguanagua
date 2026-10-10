@@ -609,6 +609,11 @@ export default function CajaPage() {
          alert('El usuario no posee inmuebles individuales activos. Sus propiedades pertenecen a condominios, los cuales deben cobrarse por el módulo Condominios -> Caja.');
          setIsSearching(false);
          return;
+      } else if (activeInmFresh.length > 0 && (inmFresh || []).some((i:any) => i.condominio_padre_id || i.es_condominio)) {
+         // Notificar a los cajeros si el usuario tiene propiedades mixtas
+         setTimeout(() => {
+           alert('⚠️ NOTIFICACIÓN AL CAJERO:\n\nEste contribuyente posee inmuebles regulares aquí, pero TAMBIÉN posee propiedades vinculadas a Condominios.\n\nPara cobrar las propiedades de condominio, debe dirigirse al módulo de Condominios -> Caja.');
+         }, 500);
       }
 
       // Adoptar la Identidad real y actualizada desde los inmuebles frescos en base de datos
