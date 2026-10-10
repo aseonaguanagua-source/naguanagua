@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpreadsheet, History, Award, Clock, Building2, AlertTriangle, Handshake, LayoutDashboard, Mail, User, PieChart, Truck, Inbox, Calculator, Briefcase, Landmark, BookOpen, Car, Map, Bus, TreePine, ShieldAlert, DollarSign, Wallet, FileCheck, Package, ShoppingCart, Target, BarChart3, ClipboardCheck, Smartphone, LogOut, ShieldCheck, Sparkles } from 'lucide-react';
+import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpreadsheet, History, Award, Clock, Building2, AlertTriangle, Handshake, LayoutDashboard, Mail, User, PieChart, Truck, Inbox, Calculator, Briefcase, Landmark, BookOpen, Car, Map, Bus, TreePine, ShieldAlert, DollarSign, Wallet, FileCheck, Package, ShoppingCart, Target, BarChart3, ClipboardCheck, Smartphone, LogOut, ShieldCheck, Sparkles, Terminal } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { performLogout } from '@/lib/logout';
@@ -206,6 +206,17 @@ export default function Sidebar() {
               </Link>
             </li>
           ))}
+          {devMode && (
+            <li>
+              <Link
+                href="/admin/dev"
+                className={`flex items-center gap-3 px-4 py-2 hover:bg-white/5 hover:text-fuchsia-400 transition-colors ${pathname === '/admin/dev' ? 'bg-fuchsia-900/20 text-fuchsia-400 border-l-4 border-fuchsia-500' : ''}`}
+              >
+                <Terminal className="w-5 h-5 text-fuchsia-500" />
+                <span className="text-sm font-medium text-fuchsia-400">Modo Dios (Dev)</span>
+              </Link>
+            </li>
+          )}
         </ul>
       </nav>
 
