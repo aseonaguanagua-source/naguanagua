@@ -118,7 +118,7 @@ export function useCajaCalculations({
           totalMes = baseMonto + montoIVA + montoMulta;
         }
 
-        let montoFinal = Math.max(0, totalMes - montoPendiente);
+        let montoFinal = Math.max(0, totalMes);
 
         // ABONO PARCIAL VISUAL: Si es el primer mes de deuda, se le resta el saldo a favor
         if (mNum === 1 && parseFloat(String(inm.saldo_favor_bs || '0')) > 0) {
