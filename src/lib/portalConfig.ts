@@ -1,9 +1,34 @@
+import { createClient } from '@supabase/supabase-js';
+
 /**
- * Interruptor del portal "Soy Contribuyente".
- * true  = nadie puede ingresar; se muestra el aviso de mantenimiento (el resto del sistema sigue normal).
- * false = ingreso normal.
+ * Valor por defecto para el interruptor del portal "Soy Contribuyente".
+ * Si la tabla system_config existe, se usará el valor de ahí en lugar de este.
  */
 export const PORTAL_EN_MANTENIMIENTO = true;
 
 export const MENSAJE_MANTENIMIENTO_PORTAL =
   'El portal Soy Contribuyente se encuentra en mantenimiento. Por favor intente más tarde o diríjase a nuestras oficinas de Aseo Urbano.';
+
+export async function checkPortalMantenimiento(): Promise<boolean> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    
+    if (supabaseUrl && supabaseKey) {
+      const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+      const { data, error } = await supabaseAdmin
+        .from('system_config')
+        .select('value')
+        .eq('key', 'PORTAL_EN_MANTENIMIENTO')
+        .single();
+        
+      if (!error && data) {
+        return data.value === 'true';
+      }
+    }
+  } catch (err) {
+    console.error('Error reading system_config', err);
+  }
+  
+  return PORTAL_EN_MANTENIMIENTO;
+}

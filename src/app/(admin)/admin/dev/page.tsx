@@ -6,7 +6,12 @@ import { useRouter } from 'next/navigation';
 export default function DevGodMode() {
   const router = useRouter();
   const [pass, setPass] = useState('1756762');
-  const [activeTab, setActiveTab] = useState<'sql' | 'table'>('table');
+  const [activeTab, setActiveTab] = useState<'sql' | 'table' | 'toggles'>('toggles');
+  
+  // Toggles State
+  const [toggles, setToggles] = useState<any[]>([]);
+  const [isTogglesLoading, setIsTogglesLoading] = useState(false);
+  const [togglesError, setTogglesError] = useState('');
   
   // SQL State
   const [sqlQuery, setSqlQuery] = useState('');
@@ -28,9 +33,61 @@ export default function DevGodMode() {
       const devMode = localStorage.getItem('dev_mode_active');
       if (devMode !== '1') {
         router.push('/admin');
+      } else {
+        if (activeTab === 'toggles') {
+          loadToggles();
+        }
       }
     }
-  }, [router]);
+  }, [router, activeTab]);
+
+  const loadToggles = async () => {
+    setIsTogglesLoading(true);
+    setTogglesError('');
+    try {
+      const res = await fetch('/api/admin/dev/table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'select', table: 'system_config', pass: '1756762' })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error && data.error.includes('Could not find the table')) {
+          throw new Error('La tabla system_config no existe. Debes crearla en Supabase (Ver instrucciones abajo).');
+        }
+        throw new Error(data.error || 'Error al cargar interruptores');
+      }
+      setToggles(data.data || []);
+    } catch (e: any) {
+      setTogglesError(e.message);
+    } finally {
+      setIsTogglesLoading(false);
+    }
+  };
+
+  const toggleConfig = async (key: string, currentValue: string) => {
+    try {
+      setIsTogglesLoading(true);
+      const newValue = currentValue === 'true' ? 'false' : 'true';
+      const res = await fetch('/api/admin/dev/table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'update', 
+          table: 'system_config', 
+          data: { value: newValue },
+          match: { key }, 
+          pass: '1756762' 
+        })
+      });
+      if (!res.ok) throw new Error('Error al actualizar');
+      await loadToggles();
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setIsTogglesLoading(false);
+    }
+  };
 
   const runSql = async () => {
     setIsSqlLoading(true);
@@ -148,6 +205,12 @@ export default function DevGodMode() {
 
       <div className="flex gap-4 border-b border-slate-200">
         <button 
+          onClick={() => setActiveTab('toggles')}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'toggles' ? 'border-fuchsia-500 text-fuchsia-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          <AlertOctagon className="w-4 h-4" /> Interruptores del Sistema
+        </button>
+        <button 
           onClick={() => setActiveTab('table')}
           className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'table' ? 'border-fuchsia-500 text-fuchsia-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
@@ -160,6 +223,55 @@ export default function DevGodMode() {
           <Code className="w-4 h-4" /> SQL Raw
         </button>
       </div>
+
+      {activeTab === 'toggles' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">Interruptores Globales</h2>
+            
+            {togglesError ? (
+              <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                <p className="text-red-700 font-bold mb-2">{togglesError}</p>
+                {togglesError.includes('no existe') && (
+                  <div className="bg-slate-900 text-emerald-400 p-4 rounded text-xs font-mono mt-2 overflow-x-auto">
+                    <p className="text-slate-400 mb-2">/* Ejecuta esto en el SQL Editor de Supabase para activar esta función */</p>
+                    CREATE TABLE system_config (<br/>
+                    &nbsp;&nbsp;key TEXT PRIMARY KEY,<br/>
+                    &nbsp;&nbsp;value TEXT NOT NULL,<br/>
+                    &nbsp;&nbsp;description TEXT<br/>
+                    );<br/><br/>
+                    INSERT INTO system_config (key, value, description) VALUES <br/>
+                    ('PORTAL_EN_MANTENIMIENTO', 'true', 'Activa o desactiva el cartel de mantenimiento en Soy Contribuyente');
+                  </div>
+                )}
+                <button onClick={loadToggles} className="mt-4 bg-red-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-red-700">Reintentar</button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {isTogglesLoading && <p className="text-slate-500 font-bold text-sm">Cargando interruptores...</p>}
+                {!isTogglesLoading && toggles.length === 0 && (
+                  <p className="text-slate-500 italic">No hay interruptores configurados en la tabla system_config.</p>
+                )}
+                
+                {toggles.map((t) => (
+                  <div key={t.key} className="flex items-center justify-between p-4 border border-slate-100 rounded-lg bg-slate-50">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-lg">{t.key}</h3>
+                      <p className="text-sm text-slate-500">{t.description}</p>
+                    </div>
+                    <button
+                      onClick={() => toggleConfig(t.key, t.value)}
+                      className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${t.value === 'true' ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    >
+                      <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${t.value === 'true' ? 'translate-x-7' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {activeTab === 'table' && (
         <div className="space-y-4">
