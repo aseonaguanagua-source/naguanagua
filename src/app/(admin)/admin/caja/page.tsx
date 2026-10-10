@@ -2986,8 +2986,6 @@ export default function CajaPage() {
                 </div>
               ) : null}
 
-              {!foundUser.es_condominio && (
-                <>
               <div className="mt-2 text-xs bg-slate-100 text-slate-600 px-3 py-2 rounded border border-slate-200 w-full max-h-[400px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2 sticky top-0 bg-slate-100 z-10 py-1">
                   <span className="font-bold">Fórmula Aplicada:</span>
@@ -4665,8 +4663,6 @@ export default function CajaPage() {
           </div>
         </div>
         </div>
-      )}
-      </>
       )}
       </div>
       )}
