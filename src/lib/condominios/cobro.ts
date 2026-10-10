@@ -17,7 +17,7 @@
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
 import { calcularEstado, cargarCondominio, tasaVigente, EstadoCuenta, RenglonEstado } from './servicio';
-import { descontarSaldoFavor } from '@/lib/saldoFavor';
+import { descontarSaldoFavor, acreditarSaldoFavor } from '@/lib/saldoFavor';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -157,6 +157,7 @@ export interface DatosPago {
   cajero: string;
   usuario: string;
   pagosAgregados?: any[];
+  saldoFavorGenerado?: number;
 }
 
 const formaPagoCodigo = (m: string) => m === 'Debito' ? '03' : ['Credito', 'TMD', 'TVD'].includes(m) ? '02' : m === 'Efectivo' ? '01' : '05';
@@ -221,7 +222,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   }
   const pagoDe = (clave: string) => pagos.find(p => p.factura.lineas.includes(clave))?.id || pago.pagoId;
 
-  // 1.5) Descontar Saldo a Favor si fue usado
+  // 1.5) Descontar o Acreditar Saldo a Favor
   let montoSaldoFavor = 0;
   if (pago.metodo === 'Saldo a Favor') montoSaldoFavor = pago.montoRecibido;
   if (pago.pagosAgregados) {
@@ -229,12 +230,22 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       if (pa.metodo === 'Saldo a Favor') montoSaldoFavor += (Number(pa.monto) || 0);
     }
   }
-  if (montoSaldoFavor > 0) {
-    const pagadorIdentidad = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : c.identidad;
-    if (pagadorIdentidad) {
-      const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor);
-      if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
-    }
+  const pagadorIdentidad = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : c.identidad;
+  
+  if (montoSaldoFavor > 0 && pagadorIdentidad) {
+    const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor);
+    if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
+  }
+
+  if (pago.saldoFavorGenerado && pago.saldoFavorGenerado > 0 && pagadorIdentidad) {
+    const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, pago.saldoFavorGenerado);
+    if (!resAcreditar.ok) throw new Error('Error al acreditar Saldo a Favor generado por exceso: ' + resAcreditar.error);
+    
+    // Dejar rastro en auditoría
+    await sb.from('auditoria').insert({
+      accion: 'Saldo a Favor Generado Automáticamente', usuario: pago.usuario, modulo: '/admin/condominios/caja',
+      detalles: { identidad: pagadorIdentidad, monto: pago.saldoFavorGenerado, referencia: refFinal, _categoria: 'CONDOMINIOS', criticidad: 'MEDIA' },
+    });
   }
 
   // 2) Bajar la deuda en el módulo

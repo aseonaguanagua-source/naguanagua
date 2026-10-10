@@ -203,7 +203,7 @@ function Caja() {
       if (referenciaAct.trim().length < 4) return alert('La referencia debe tener al menos 4 caracteres.');
       if (metodoAct === 'Transferencia' && !comprobanteAct) return alert('Es obligatorio adjuntar el comprobante para Transferencia.');
     }
-    if (montoParsed > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
+    // if (montoParsed > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
     setPagosAgregados([...pagosAgregados, { metodo: metodoAct, banco: bancoAct, bancoDestino: bancoDestinoAct, referencia: referenciaAct, monto: montoParsed, comprobante: comprobanteAct, fecha: fechaAct }]);
     setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setBancoDestinoAct('BANCAMIGA - 0172 - 0717'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null); setFechaAct(new Date().toISOString().slice(0, 10));
   };
@@ -214,7 +214,7 @@ function Caja() {
 
   const cobrar = async () => {
     if (!cobro?.lineas?.length) return;
-    if (Math.abs(faltaPagar) > 0.05) { alert('Aún falta por pagar Bs ' + fmtBs(faltaPagar)); return; }
+    if (faltaPagar > 0.05) { alert('Aún falta por pagar Bs ' + fmtBs(faltaPagar)); return; }
     
     const nf = cobro.facturas?.length || 1;
     if (!confirm(`¿Registrar el cobro de Bs ${fmtBs(cobro.totales.totalBs)}?\n\nSe emitirán ${nf} factura(s):\n${(cobro.facturas || []).map((f: any) => `• ${f.nombre} (${f.identidad}): Bs ${fmtBs(f.totalBs)}`).join('\n')}`)) return;
@@ -267,7 +267,8 @@ function Caja() {
             montoRecibido: cobro.totales.totalBs, 
             cajero: getCajeroId(),
             bancoDestino: realPagosSubidos[0]?.bancoDestino || '',
-            pagosAgregados: realPagosSubidos
+            pagosAgregados: realPagosSubidos,
+            saldoFavorGenerado: faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0
           },
         }),
       });
@@ -632,6 +633,12 @@ function Caja() {
                     </div>
                   </div>
                 ))}
+                {faltaPagar < -0.05 && (
+                  <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-center mb-2">
+                    <p className="text-emerald-300 text-xs font-bold uppercase tracking-wide">Genera Saldo a Favor</p>
+                    <p className="text-emerald-400 text-base font-black">Bs {fmtBs(Math.abs(faltaPagar))}</p>
+                  </div>
+                )}
                 
                 {faltaPagar > 0.05 && (
                   <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-2 mt-2">
