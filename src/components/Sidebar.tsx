@@ -207,15 +207,27 @@ export default function Sidebar() {
             </li>
           ))}
           {devMode && (
-            <li>
-              <Link
-                href="/admin/dev"
-                className={`flex items-center gap-3 px-4 py-2 hover:bg-white/5 hover:text-fuchsia-400 transition-colors ${pathname === '/admin/dev' ? 'bg-fuchsia-900/20 text-fuchsia-400 border-l-4 border-fuchsia-500' : ''}`}
-              >
-                <Terminal className="w-5 h-5 text-fuchsia-500" />
-                <span className="text-sm font-medium text-fuchsia-400">Modo Dios (Dev)</span>
-              </Link>
-            </li>
+            <div className="flex flex-col space-y-2">
+              <li>
+                <Link
+                  href="/admin/dev"
+                  className={`flex items-center gap-3 px-4 py-2 hover:bg-white/5 hover:text-fuchsia-400 transition-colors ${pathname === '/admin/dev' ? 'bg-fuchsia-900/20 text-fuchsia-400 border-l-4 border-fuchsia-500' : ''}`}
+                >
+                  <Terminal className="w-5 h-5 text-fuchsia-500" />
+                  <span className="text-sm font-medium text-fuchsia-400">Modo Dios (Dev)</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="#"
+                  onClick={() => alert('hola soy prueba a ver si funciona')}
+                  className={`flex items-center gap-3 px-4 py-2 hover:bg-white/5 hover:text-fuchsia-400 transition-colors ${pathname === '/admin/dev' ? 'bg-fuchsia-900/20 text-fuchsia-400 border-l-4 border-fuchsia-500' : ''}`}
+                >
+                  <Sparkles className="w-5 h-5 text-fuchsia-500" />
+                  <span className="text-sm font-medium text-fuchsia-400">Prueba Rápida</span>
+                </Link>
+              </li>
+            </div>
           )}
         </ul>
       </nav>
