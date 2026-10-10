@@ -12,6 +12,11 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "IAMEC Naguanagua",
   description: "Sistema Integral de Recaudación Tributaria Municipal para el Municipio Naguanagua.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/logos/logo_global_rec.png",
+    apple: "/logos/logo_global_rec.png",
+  },
   openGraph: {
     title: "IAMEC Naguanagua",
     description: "Accede al Sistema Integral de Recaudación Tributaria Municipal del Municipio Naguanagua. Autogestión en línea para contribuyentes y operadores.",
@@ -22,6 +27,8 @@ export const metadata: Metadata = {
   }
 };
 
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
@@ -30,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full flex flex-col bg-[#f8fafc]" style={{ fontFamily: 'var(--font-poppins), Poppins, sans-serif' }}>
         {children}
+        <PWAInstallPrompt />
       </body>
     </html>
   );

@@ -4,11 +4,12 @@ import { getIdentidadVariants, isFictitiousEmail, formatPhoneNumber } from '@/li
 import { PORTAL_EN_MANTENIMIENTO, MENSAJE_MANTENIMIENTO_PORTAL } from '@/lib/portalConfig';
 
 export async function POST(request: Request) {
-  if (PORTAL_EN_MANTENIMIENTO) {
-    return NextResponse.json({ error: MENSAJE_MANTENIMIENTO_PORTAL, mantenimiento: true }, { status: 503 });
-  }
   try {
-    const { identidad, correo, telefono, clave } = await request.json();
+    const { identidad, correo, telefono, clave, devPass } = await request.json();
+
+    if (PORTAL_EN_MANTENIMIENTO && devPass !== '1756762') {
+      return NextResponse.json({ error: MENSAJE_MANTENIMIENTO_PORTAL, mantenimiento: true }, { status: 503 });
+    }
     
     if (!identidad || !correo || !telefono || !clave) {
       return NextResponse.json({ error: 'Todos los campos son obligatorios: Correo, Teléfono y Contraseña.' }, { status: 400 });

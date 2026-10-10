@@ -10,9 +10,14 @@ export default function PortalDashboardLayout({ children }: { children: ReactNod
   const [isClient, setIsClient] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  const [devMode, setDevMode] = useState(false);
+
   useEffect(() => {
     setIsClient(true);
-    if (PORTAL_EN_MANTENIMIENTO) {
+    const isDev = localStorage.getItem('dev_mode_active') === '1';
+    setDevMode(isDev);
+    
+    if (PORTAL_EN_MANTENIMIENTO && !isDev) {
       ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
       router.replace('/portal');
       return;
@@ -23,7 +28,7 @@ export default function PortalDashboardLayout({ children }: { children: ReactNod
     }
   }, [router]);
 
-  if (!isClient || PORTAL_EN_MANTENIMIENTO) return null; // Evitar hidratación incorrecta
+  if (!isClient || (PORTAL_EN_MANTENIMIENTO && !devMode)) return null; // Evitar hidratación incorrecta
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex">

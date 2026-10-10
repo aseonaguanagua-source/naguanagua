@@ -21,8 +21,36 @@ export default function PortalLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const [devMode, setDevMode] = useState(false);
+
   useEffect(() => {
-    if (PORTAL_EN_MANTENIMIENTO) {
+    if (localStorage.getItem('dev_mode_active') === '1') {
+      setDevMode(true);
+    }
+  }, []);
+
+  const handleLogoDoubleClick = () => {
+    if (devMode) {
+      if (confirm('¿Desactivar Modo Desarrollador?')) {
+        localStorage.removeItem('dev_mode_active');
+        setDevMode(false);
+        window.location.reload();
+      }
+    } else {
+      const pw = prompt('Ingrese contraseña de desarrollador:');
+      if (pw === '1756762') {
+        localStorage.setItem('dev_mode_active', '1');
+        setDevMode(true);
+        alert('Modo Desarrollador Activado');
+        window.location.reload();
+      } else if (pw !== null) {
+        alert('Contraseña incorrecta');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (PORTAL_EN_MANTENIMIENTO && localStorage.getItem('dev_mode_active') !== '1') {
       ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
       return;
     }
@@ -48,10 +76,11 @@ export default function PortalLogin() {
     if (!clave) {
       // Si no ingresó contraseña, verificar si califica para primer ingreso
       try {
+        const devPass = devMode ? '1756762' : '';
         const res = await fetch(`/api/contribuyente/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identidad: fullDoc, clave: '', primerIngreso: true })
+          body: JSON.stringify({ identidad: fullDoc, clave: '', primerIngreso: true, devPass })
         });
         const data = await res.json();
         if (res.ok && data.status === 'setup_required') {
@@ -68,10 +97,11 @@ export default function PortalLogin() {
     }
 
     try {
+      const devPass = devMode ? '1756762' : '';
       const res = await fetch(`/api/contribuyente/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identidad: fullDoc, clave })
+        body: JSON.stringify({ identidad: fullDoc, clave, devPass })
       });
       
       const data = await res.json();
@@ -130,10 +160,11 @@ export default function PortalLogin() {
 
     try {
       const fullDoc = `${docType}${docNum}`;
+      const devPass = devMode ? '1756762' : '';
       const res = await fetch(`/api/contribuyente/setup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identidad: fullDoc, correo, telefono, clave })
+        body: JSON.stringify({ identidad: fullDoc, correo, telefono, clave, devPass })
       });
       
       const data = await res.json();
@@ -162,7 +193,18 @@ export default function PortalLogin() {
           {/* Header */}
           <div className="pt-10 pb-6 px-8 text-center">
             <div className="flex justify-center mb-3">
-              <img src="/logos/logo_global_rec.png" alt="Global Rec" className="h-16 w-auto object-contain" />
+              <img 
+                src="/logos/logo_global_rec.png" 
+                alt="Global Rec" 
+                className="h-16 w-auto object-contain cursor-pointer relative" 
+                onDoubleClick={handleLogoDoubleClick}
+                title="Doble clic para opciones de desarrollo"
+              />
+              {devMode && (
+                <div className="absolute top-2 right-2 bg-fuchsia-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                  DEV
+                </div>
+              )}
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Global Rec</h1>
             <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-400 uppercase mt-0.5">Collection System</p>
@@ -185,7 +227,7 @@ export default function PortalLogin() {
               </div>
             )}
 
-            {PORTAL_EN_MANTENIMIENTO ? (
+            {(PORTAL_EN_MANTENIMIENTO && !devMode) ? (
               <div className="p-5 bg-amber-50 border border-amber-200 rounded-xl text-center">
                 <p className="text-3xl mb-2">🛠️</p>
                 <p className="font-bold text-amber-800 mb-1">Portal en mantenimiento</p>
