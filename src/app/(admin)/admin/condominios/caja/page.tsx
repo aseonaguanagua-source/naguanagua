@@ -10,6 +10,9 @@ import {
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 import { getCajeroId } from '@/lib/cajaHelpers';
 import { LISTA_BANCOS } from '@/lib/bancos';
+import { supabase } from '@/lib/supabase';
+import { formatBs } from '@/lib/formatCurrency';
+import { acreditarSaldoFavor } from '@/lib/saldoFavor';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -17,7 +20,7 @@ const fmtPeriodo = (p: string) => { const [y, m] = String(p).split('-'); return 
 const rango = (ps: string[]) => !ps?.length ? '' : ps.length === 1 ? fmtPeriodo(ps[0]) : `${fmtPeriodo(ps[0])} – ${fmtPeriodo(ps[ps.length - 1])}`;
 const METODOS = [
   ['Transferencia', 'Transferencia'], ['Debito', 'Tarjeta de débito'], ['Credito', 'Tarjeta de crédito'],
-  ['TMD', 'Punto TMD (Master)'], ['TVD', 'Punto TVD (Visa)'], ['Deposito', 'Depósito'],
+  ['TMD', 'Punto TMD (Master)'], ['TVD', 'Punto TVD (Visa)'], ['Deposito', 'Depósito'], ['Saldo a Favor', 'Saldo a Favor']
 ] as const;
 const MODALIDAD: Record<string, string> = {
   CENTRALIZADO: 'Centralizado: el condominio paga todo', MIXTO_COMERCIAL: 'Mixto comercial',
@@ -69,10 +72,40 @@ function Caja() {
   const [motivoInt, setMotivoInt] = useState('');
 
   const sumaPagos = useMemo(() => pagosAgregados.reduce((a, p) => a + p.monto, 0), [pagosAgregados]);
-  const faltaPagar = useMemo(() => Math.max(0, Math.round(((cobro?.totales?.totalBs || 0) - sumaPagos) * 100) / 100), [cobro, sumaPagos]);
+  
+  // Saldo a Favor & Notas Crédito
+  const [activeTab, setActiveTab] = useState<'Pagos' | 'NotasCredito'>('Pagos');
+  const [saldoFavorActivo, setSaldoFavorActivo] = useState(0);
+  const [useSaldoFavor, setUseSaldoFavor] = useState(true);
+  const [isNotaModalOpen, setIsNotaModalOpen] = useState(false);
+  const [notaManualMonto, setNotaManualMonto] = useState('');
+  const [notaManualRef, setNotaManualRef] = useState('');
+  const [notasCredito, setNotasCredito] = useState<any[]>([]);
+  const [isLoadingNotas, setIsLoadingNotas] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+
+  // Computado de deuda tras aplicar Saldo a Favor
+  const totalConImpuestos = cobro?.totales?.totalBs || 0;
+  const descuentoSaldoFavor = (metodoAct !== 'Saldo a Favor' && useSaldoFavor) 
+    ? Math.min(totalConImpuestos, saldoFavorActivo) 
+    : 0;
+  const totalNetoAbonable = Math.max(0, totalConImpuestos - descuentoSaldoFavor);
+  
+  const faltaPagar = useMemo(() => Math.max(0, Math.round((totalNetoAbonable - sumaPagos) * 100) / 100), [totalNetoAbonable, sumaPagos]);
 
   // Se resetean los pagos si cambia la deuda
-  useEffect(() => { setPagosAgregados([]); }, [cobro?.totales?.totalBs]);
+  useEffect(() => { setPagosAgregados([]); }, [cobro?.totales?.totalBs, descuentoSaldoFavor]);
+
+  useEffect(() => {
+    if (activeTab === 'NotasCredito') fetchNotasCredito();
+  }, [activeTab]);
+
+  const fetchNotasCredito = async () => {
+    setIsLoadingNotas(true);
+    const { data } = await supabase.from('documentos').select('*').eq('tipo', 'Nota de Credito').order('created_at', { ascending: false });
+    if (data) setNotasCredito(data);
+    setIsLoadingNotas(false);
+  };
 
 
   useEffect(() => {
@@ -124,7 +157,17 @@ function Caja() {
         if (!r.ok) throw new Error(j.error || 'No se pudo calcular');
         setCobro(j); setActiva(!!j.cajaActiva);
         pagoId.current = crypto.randomUUID();
-      } catch (e: any) { setError(e.message); setCobro(null); } finally { setCalculando(false); }
+        
+        // Fetch Saldo Favor
+        let currId = j.modo === 'CONTRIBUYENTE' ? j.facturas[0]?.identidad : j.condo.identidad;
+        if (currId) {
+          const { data } = await supabase.from('inmuebles').select('saldo_favor_bs').eq('identidad', currId);
+          const totalSF = (data || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
+          setSaldoFavorActivo(totalSF);
+        } else {
+          setSaldoFavorActivo(0);
+        }
+      } catch (e: any) { setError(e.message); setCobro(null); setSaldoFavorActivo(0); } finally { setCalculando(false); }
     }, 300);
     return () => clearTimeout(h);
   }, [codigo, modo, claves, identidad, meses, soloMultas, tasaOverrideStr, fechaOverrideStr]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -201,24 +244,41 @@ function Caja() {
       if (isNaN(tasaParsed)) tasaParsed = 0;
 
       const u = usuario();
+      
+      const realPagosSubidos = [];
+      if (descuentoSaldoFavor > 0) {
+         realPagosSubidos.push({
+            metodo: 'Saldo a Favor',
+            monto: descuentoSaldoFavor,
+            referencia: 'Desc. Saldo Favor',
+         });
+      }
+      realPagosSubidos.push(...pagosSubidos);
+      
       const r = await fetch('/api/admin/condominios/cobrar', {
         method: 'POST', body: JSON.stringify({
           accion: 'cobrar', codigo, modo, claves, identidad: porContrib ? identidad.trim() || null : null, meses: meses || null, soloMultas, usuario: u.usuario,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined, fechaOverride: fechaOverrideStr || undefined,
           pago: { 
             pagoId: pagoId.current, 
-            metodo: pagosSubidos[0]?.metodo || 'MÚLTIPLE', 
-            banco: pagosSubidos[0]?.banco || '', 
-            referencia: pagosSubidos[0]?.referencia || '', 
+            metodo: realPagosSubidos[0]?.metodo || 'MÚLTIPLE', 
+            banco: realPagosSubidos[0]?.banco || '', 
+            referencia: realPagosSubidos[0]?.referencia || '', 
             montoRecibido: cobro.totales.totalBs, 
             cajero: getCajeroId(),
-            bancoDestino: pagosSubidos[0]?.bancoDestino || '',
-            pagosAgregados: pagosSubidos
+            bancoDestino: realPagosSubidos[0]?.bancoDestino || '',
+            pagosAgregados: realPagosSubidos
           },
         }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo cobrar');
+      
+      // Actualizar Saldo Favor en UI post-cobro
+      if (descuentoSaldoFavor > 0 || realPagosSubidos.some(p => p.metodo === 'Saldo a Favor')) {
+        setSaldoFavorActivo(Math.max(0, saldoFavorActivo - descuentoSaldoFavor - realPagosSubidos.filter(p=>p.metodo==='Saldo a Favor').reduce((a,b)=>a+b.monto,0)));
+      }
+
       setRecibo({ ...j, partes: j.pagos, metodo: 'MÚLTIPLE', banco: '', referencia: '', fecha: new Date(), prueba: false });
       setReferencia(''); setClaves([]); setMeses(''); setSoloMultas(false); setPagosAgregados([]);
     } catch (e: any) { alert(e.message); } finally { setCobrando(false); }
@@ -234,6 +294,44 @@ function Caja() {
     const j = await r.json();
     if (!r.ok) { alert(j.error); return; }
     setActiva(!!j.cajaActiva); setModalInt(false); setMotivoInt('');
+  };
+
+  const handleCrearNotaManual = async () => {
+    if (!notaManualMonto || parseFloat(notaManualMonto) <= 0) return alert('Ingrese un monto válido');
+    if (!notaManualRef || notaManualRef.trim().length !== 8) return alert('La referencia debe tener exactamente 8 caracteres.');
+    if (!cobro) return;
+
+    let targetId = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : cobro.condo.identidad;
+    let targetName = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.nombre : cobro.condo.nombre;
+
+    if (!targetId) return alert('No hay un identificador válido para acreditar el saldo.');
+
+    try {
+      await supabase.from('documentos').insert([{
+        identidad: targetId,
+        contribuyente: targetName,
+        tipo: 'Nota de Credito',
+        estado: 'Vigente',
+        detalles: JSON.stringify({
+          monto: formatBs(notaManualMonto),
+          origen_referencia: `Manual: ${notaManualRef}`,
+          fecha_emision: new Date().toISOString()
+        })
+      }]);
+      const montoNota = parseFloat(notaManualMonto);
+      const result = await acreditarSaldoFavor(targetId, montoNota);
+      if (!result.ok) console.error('Error acreditando saldo en nota manual:', result.error);
+      
+      setSaldoFavorActivo(prev => prev + montoNota);
+      setSuccessMsg('Nota de crédito manual generada exitosamente.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      setIsNotaModalOpen(false);
+      setNotaManualMonto('');
+      setNotaManualRef('');
+      if (activeTab === 'NotasCredito') fetchNotasCredito();
+    } catch (e: any) {
+      alert(e.message);
+    }
   };
 
   return (
@@ -252,6 +350,12 @@ function Caja() {
             ) : (
               <span className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-black flex items-center gap-2"><FlaskConical className="w-4 h-4" /> MODO PRUEBA: solo calcula, no registra</span>
             )}
+            
+            <div className="flex bg-slate-100 rounded-lg p-1 mr-2 border border-slate-200">
+              <button onClick={() => setActiveTab('Pagos')} className={`px-4 py-1.5 text-xs font-bold rounded transition ${activeTab === 'Pagos' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`}>Pagos</button>
+              <button onClick={() => setActiveTab('NotasCredito')} className={`px-4 py-1.5 text-xs font-bold rounded transition ${activeTab === 'NotasCredito' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`}>Notas de Crédito</button>
+            </div>
+            
             {admin && activa !== null && (
               <button id="btn-interruptor-caja-condominios" onClick={() => setModalInt(true)} className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
                 <Power className="w-4 h-4" /> {activa ? 'Pasar a prueba' : 'Activar'}
@@ -338,7 +442,32 @@ function Caja() {
       )}
       {codigo && !cobro && calculando && <div className="py-16 text-center text-slate-500 print:hidden"><RefreshCw className="w-6 h-6 animate-spin inline mr-2" /> Calculando…</div>}
 
-      {c && cobro && (
+      {c && cobro && activeTab === 'NotasCredito' && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 print:hidden">
+          <h2 className="text-lg font-semibold text-slate-800 mb-6">Control de Saldos a Favor (Notas de Crédito)</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-slate-600 uppercase bg-slate-50 border-b">
+                <tr><th className="px-4 py-3">Fecha</th><th className="px-4 py-3">Cédula / RIF</th><th className="px-4 py-3">Contribuyente</th><th className="px-4 py-3 text-right">Monto (Bs)</th><th className="px-4 py-3 text-center">Ref. Origen</th><th className="px-4 py-3 text-center">Estado</th></tr>
+              </thead>
+              <tbody>
+                {isLoadingNotas ? <tr><td colSpan={6} className="text-center py-4 text-slate-500">Cargando...</td></tr> :
+                notasCredito.map(n => {
+                  let details: any = {};
+                  try { details = JSON.parse(n.detalles); } catch(e){}
+                  return (
+                    <tr key={n.id} className="border-b hover:bg-slate-50">
+                      <td className="px-4 py-3">{new Date(n.created_at).toLocaleDateString()}</td><td className="px-4 py-3 font-medium">{n.identidad}</td><td className="px-4 py-3">{n.contribuyente}</td><td className="px-4 py-3 text-right font-bold text-emerald-600">Bs. {details.monto}</td><td className="px-4 py-3 text-center">{details.origen_referencia}</td><td className="px-4 py-3 text-center"><span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-semibold">{n.estado}</span></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {c && cobro && activeTab === 'Pagos' && (
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-5 print:hidden">
           {/* ══ IZQUIERDA: condominio y selección ══ */}
           <div className="space-y-4">
@@ -351,11 +480,15 @@ function Caja() {
                   <span className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700">{c.cant_declarada} unidades declaradas</span>
                   {c.agente_retencion && <span className="px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-800">Agente de retención</span>}
                 </div>
+                {successMsg && <div className="mt-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded inline-block">{successMsg}</div>}
               </div>
               <div className="text-right">
                 <div className="text-[11px] font-bold uppercase text-slate-500">Deuda total</div>
-                <div className={`text-2xl font-black tabular-nums ${base?.totales?.totalBs > 0.01 ? 'text-red-700' : 'text-emerald-700'}`}>{base?.totales?.totalBs > 0.01 ? `Bs ${fmtBs(base.totales.totalBs)}` : 'Al día'}</div>
-                <Link href={`/admin/condominios/ficha?codigo=${c.codigo}`} className="text-xs font-bold text-emerald-700 hover:underline">Ver ficha y estado de cuenta →</Link>
+                <div className={`text-2xl font-black tabular-nums ${base?.totales?.totalBs > 0.01 ? 'text-red-700' : 'text-emerald-700'}`}>{base?.totales?.totalBs > 0.01 ? `Bs ${formatBs(base.totales.totalBs)}` : 'Al día'}</div>
+                <Link href={`/admin/condominios/ficha?codigo=${c.codigo}`} className="text-xs font-bold text-emerald-700 hover:underline block mb-2">Ver ficha y estado de cuenta →</Link>
+                <button onClick={() => setIsNotaModalOpen(true)} className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-full border border-slate-300 transition-colors">
+                  + Agregar Saldo a Favor Manual
+                </button>
               </div>
             </div>
 
@@ -449,8 +582,34 @@ function Caja() {
                 <div className="text-[11px] font-black uppercase tracking-wider text-white/60 flex items-center gap-2"><Receipt className="w-4 h-4" /> A cobrar</div>
                 {calculando && <RefreshCw className="w-4 h-4 animate-spin text-white/60" />}
               </div>
-              <div className="text-4xl font-black tabular-nums">Bs {fmtBs(cobro.totales.totalBs)}</div>
-              <div className="text-xs text-white/70">{cobro.lineas.length} renglón(es) · hasta {cobro.totales.meses} mes(es) · tasa Euro Bs {fmtBs(cobro.estado.tasa)}</div>
+              <div className="text-4xl font-black tabular-nums">Bs {formatBs(totalConImpuestos)}</div>
+              
+              {saldoFavorActivo > 0 && (
+                <div className="bg-emerald-500/20 border border-emerald-400/50 p-2 rounded-lg flex justify-between items-center mt-2">
+                  <div className="flex flex-col">
+                    <span className="text-emerald-300 font-bold text-[10px] uppercase tracking-wider">Saldo a Favor Disp.</span>
+                    <span className="text-emerald-100 font-mono font-bold text-sm">Bs. {formatBs(saldoFavorActivo)}</span>
+                  </div>
+                  <label className="text-[10px] flex items-center gap-1 text-emerald-200 cursor-pointer font-bold bg-emerald-900/40 px-2 py-1 rounded">
+                    <input type="checkbox" checked={useSaldoFavor} onChange={e => setUseSaldoFavor(e.target.checked)} className="accent-emerald-500" />
+                    Aplicar Abono
+                  </label>
+                </div>
+              )}
+              {descuentoSaldoFavor > 0 && (
+                <div className="flex justify-between items-center text-emerald-300 font-medium text-sm pt-2">
+                  <span>Saldo a Favor Aplicado:</span>
+                  <span className="font-mono font-bold">- Bs. {formatBs(descuentoSaldoFavor)}</span>
+                </div>
+              )}
+              {descuentoSaldoFavor > 0 && (
+                <div className="flex justify-between items-center text-white font-black text-xl pt-2 border-t border-white/20 mt-2">
+                  <span>NETO A PAGAR:</span>
+                  <span className="font-mono">Bs. {formatBs(totalNetoAbonable)}</span>
+                </div>
+              )}
+              
+              <div className="text-xs text-white/70">{cobro.lineas.length} renglón(es) · hasta {cobro.totales.meses} mes(es) · tasa Euro Bs {formatBs(cobro.estado.tasa)}</div>
               <div className="text-xs space-y-1 border-t border-white/10 pt-3">
                 <div className="flex justify-between"><span className="text-white/70">Aseo</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.baseBs)}</b></div>
                 <div className="flex justify-between"><span className="text-white/70">Multas</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.multaBs)}</b></div>
@@ -622,6 +781,33 @@ function Caja() {
       )}
 
       {/* ══ INTERRUPTOR ══ */}
+      {isNotaModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
+              <h3 className="font-bold text-slate-800">Generar Nota de Crédito Manual</h3>
+              <button onClick={() => setIsNotaModalOpen(false)} className="text-slate-500 hover:text-slate-700 font-bold">&times;</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Monto (Bs)</label>
+                <input type="number" step="0.01" value={notaManualMonto} onChange={e => setNotaManualMonto(e.target.value)}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Ej. 1000.00" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Motivo / Referencia Origen (8 caracteres)</label>
+                <input type="text" maxLength={8} value={notaManualRef} onChange={e => setNotaManualRef(e.target.value.slice(0, 8))}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Ej. 12345678" />
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-end gap-3">
+              <button onClick={() => setIsNotaModalOpen(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded">Cancelar</button>
+              <button onClick={handleCrearNotaManual} className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded shadow-sm">Generar Nota</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalInt && (
         <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">

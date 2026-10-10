@@ -2482,6 +2482,9 @@ export default function CajaPage() {
         referencia_origen: notaManualRef
       }, 'CAJA', 'CRITICA');
 
+      // Update local state to avoid needing to search again
+      setFoundUser({ ...foundUser, SaldoFavor: (foundUser.SaldoFavor || 0) + montoNota });
+      
       setSuccessMsg('Nota de crédito manual generada exitosamente.');
       setIsNotaModalOpen(false);
       setNotaManualMonto('');

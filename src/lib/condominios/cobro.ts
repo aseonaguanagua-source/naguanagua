@@ -17,6 +17,7 @@
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
 import { calcularEstado, cargarCondominio, tasaVigente, EstadoCuenta, RenglonEstado } from './servicio';
+import { descontarSaldoFavor } from '@/lib/saldoFavor';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -219,6 +220,22 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     pagos.push({ id, reciboRef, factura: f });
   }
   const pagoDe = (clave: string) => pagos.find(p => p.factura.lineas.includes(clave))?.id || pago.pagoId;
+
+  // 1.5) Descontar Saldo a Favor si fue usado
+  let montoSaldoFavor = 0;
+  if (pago.metodo === 'Saldo a Favor') montoSaldoFavor = pago.montoRecibido;
+  if (pago.pagosAgregados) {
+    for (const pa of pago.pagosAgregados) {
+      if (pa.metodo === 'Saldo a Favor') montoSaldoFavor += (Number(pa.monto) || 0);
+    }
+  }
+  if (montoSaldoFavor > 0) {
+    const pagadorIdentidad = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : c.identidad;
+    if (pagadorIdentidad) {
+      const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor);
+      if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
+    }
+  }
 
   // 2) Bajar la deuda en el módulo
   const antes: any[] = [];

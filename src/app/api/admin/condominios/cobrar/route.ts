@@ -56,6 +56,7 @@ export async function POST(req: Request) {
     const r = await registrarCobro(sol, {
       pagoId: String(p.pagoId || ''), metodo: String(p.metodo || ''), banco: p.banco, referencia: p.referencia,
       montoRecibido: Number(p.montoRecibido) || 0, cajero: String(p.cajero || trab.usuario), usuario: `${trab.nombre || trab.usuario} (${trab.usuario})`,
+      pagosAgregados: p.pagosAgregados
     });
     const { _datos, ...cobro } = r.cobro as any;
     return NextResponse.json({ ...r, cobro });
