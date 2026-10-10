@@ -46,14 +46,13 @@ export async function POST(request: Request) {
     }
 
     const { data: existe } = await supabase.from('contribuyentes').select('identidad, nombre').eq('identidad', idNueva).maybeSingle();
-    if (existe) {
-      return NextResponse.json({ error: `La identidad ${idNueva} ya pertenece a "${existe.nombre}". No se puede duplicar.` }, { status: 409 });
-    }
 
-    // 1. Nuevo registro de contribuyente (copia exacta con la nueva identidad)
-    const { id: _omit, created_at: _c, identidad: _i, ...resto } = viejo as any;
-    const { error: eIns } = await supabase.from('contribuyentes').insert([{ ...resto, identidad: idNueva }]);
-    if (eIns) throw new Error('No se pudo crear el registro con la nueva identidad: ' + eIns.message);
+    // 1. Nuevo registro de contribuyente (solo si no existe)
+    if (!existe) {
+      const { id: _omit, created_at: _c, identidad: _i, ...resto } = viejo as any;
+      const { error: eIns } = await supabase.from('contribuyentes').insert([{ ...resto, identidad: idNueva }]);
+      if (eIns) throw new Error('No se pudo crear el registro con la nueva identidad: ' + eIns.message);
+    }
 
     // 2. Mover todas las tablas hijas
     const movidos: Record<string, number> = {};

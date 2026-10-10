@@ -686,10 +686,12 @@ function Caja() {
                         <input type="text" placeholder="Referencia / Comprobante" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
                         <input type="date" value={fechaAct} onChange={e => setFechaAct(e.target.value)} className="w-32 rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
                       </div>
-                      <label className="block w-full text-center py-1.5 border border-dashed border-white/30 rounded-lg text-xs text-white/70 hover:bg-white/10 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-2">
-                        {comprobanteAct ? comprobanteAct.name : (metodoAct === 'Transferencia' ? 'Subir comprobante (Obligatorio)' : 'Subir comprobante')}
-                        <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => setComprobanteAct(e.target.files?.[0] || null)} />
-                      </label>
+                      {['Transferencia', 'Deposito'].includes(metodoAct) && (
+                        <label className="block w-full text-center py-1.5 border border-dashed border-white/30 rounded-lg text-xs text-white/70 hover:bg-white/10 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-2">
+                          {comprobanteAct ? comprobanteAct.name : (metodoAct === 'Transferencia' ? 'Subir comprobante (Obligatorio)' : 'Subir comprobante')}
+                          <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => setComprobanteAct(e.target.files?.[0] || null)} />
+                        </label>
+                      )}
                     </>
                     <button onClick={agregarPago} className="w-full py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"><Layers className="w-3 h-3" /> Añadir Abono</button>
                   </div>
