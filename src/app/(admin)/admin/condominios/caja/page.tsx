@@ -15,6 +15,19 @@ import { formatBs } from '@/lib/formatCurrency';
 import { acreditarSaldoFavor } from '@/lib/saldoFavor';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Formato venezolano: punto = miles, coma = decimales
+const parseLocalFloat = (val: string) => {
+  if (!val) return 0;
+  return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+};
+const formatLocalNumberInput = (val: string) => {
+  if (!val) return '';
+  const clean = val.replace(/[^0-9,]/g, '');
+  const parts = clean.split(',');
+  const intPart = (parts[0].replace(/^0+(?=\d)/, '')).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  if (parts.length > 1) return intPart + ',' + parts[1].substring(0, 2);
+  return intPart;
+};
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const fmtPeriodo = (p: string) => { const [y, m] = String(p).split('-'); return `${MESES[parseInt(m) - 1]} ${y}`; };
 const rango = (ps: string[]) => !ps?.length ? '' : ps.length === 1 ? fmtPeriodo(ps[0]) : `${fmtPeriodo(ps[0])} – ${fmtPeriodo(ps[ps.length - 1])}`;
@@ -181,14 +194,7 @@ function Caja() {
   const sinSeleccion = porContrib && !claves.length && !identidad.trim();
 
   const agregarPago = () => {
-    let v = montoAct;
-    if (v.includes(',') && v.includes('.')) {
-      if (v.lastIndexOf(',') > v.lastIndexOf('.')) v = v.replace(/\./g, '').replace(',', '.');
-      else v = v.replace(/,/g, '');
-    } else if (v.includes(',')) {
-      v = v.replace(',', '.');
-    }
-    let montoParsed = parseFloat(v);
+    let montoParsed = parseLocalFloat(montoAct);
     if (!montoParsed || montoParsed <= 0) return alert('Monto inválido.');
     if (['Transferencia', 'Deposito'].includes(metodoAct)) {
       if (!bancoAct) return alert('Seleccione banco.');
@@ -645,23 +651,15 @@ function Caja() {
                         {METODOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
                     <div className="flex bg-slate-800 rounded-lg p-1">
-                      <input type="text" placeholder="Monto Bs" value={montoAct} onChange={e => {
-                        let v = e.target.value.replace(/[^0-9,.]/g, ''); // permitir coma y punto
-                        setMontoAct(v);
+                      <input type="text" inputMode="decimal" placeholder="0,00" value={montoAct} onChange={e => {
+                        setMontoAct(formatLocalNumberInput(e.target.value));
                       }} onBlur={e => {
-                         let v = e.target.value;
-                         if (v.includes(',') && v.includes('.')) {
-                           if (v.lastIndexOf(',') > v.lastIndexOf('.')) v = v.replace(/\./g, '').replace(',', '.');
-                           else v = v.replace(/,/g, '');
-                         } else if (v.includes(',')) {
-                           v = v.replace(',', '.');
-                         }
-                         let p = parseFloat(v);
-                         if(!isNaN(p)) setMontoAct(p.toFixed(2).replace('.', ','));
+                         const p = parseLocalFloat(e.target.value);
+                         if (p > 0) setMontoAct(fmtBs(p));
                       }} className="w-full bg-transparent outline-none text-right font-mono text-white placeholder:text-white/40 text-xs px-2" />
                       <button onClick={() => {
                         let rest = faltaPagar;
-                        if (rest > 0) setMontoAct(rest.toFixed(2).replace('.', ','));
+                        if (rest > 0) setMontoAct(fmtBs(rest));
                       }} className="px-2 border-l border-white/10 text-xs font-bold text-sky-400 hover:text-sky-300">TODO</button>
                     </div>
                     </div>
