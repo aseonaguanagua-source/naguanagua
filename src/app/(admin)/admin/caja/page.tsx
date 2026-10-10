@@ -770,7 +770,7 @@ export default function CajaPage() {
             const nakedIi = ii.replace(/^[VEJPG]/i, '');
             return ui === ii || nakedUi === nakedIi;
           });
-      if (combined.length === 0 && misInmuebles && misInmuebles.length > 0) {
+      if (misInmuebles && misInmuebles.length > 0) {
         // Identificar si existen contenedores "N/A" que solo envuelven actividades nietos/hijos
         const naParentCodes = misInmuebles
           .filter((i: any) => 
@@ -852,8 +852,16 @@ export default function CajaPage() {
             // 2. Generar sus meses de aseo (RECIB-HIST-)
             const deudaMMV = parseFloat(inm.deuda_mmv || '0');
             const meses = parseInt(inm.meses_deuda || 0);
-            if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
-              const numMeses = Math.max(1, meses);
+            
+            const recibosFormales = combined.filter((r: any) => 
+              (r.referencia || '').includes(inm.inmueble) && 
+              !r.referencia?.startsWith('RECIB-HIST-') && 
+              !r.referencia?.startsWith('MULTA-')
+            ).length;
+            
+            const numMeses = Math.max(0, (meses > 0 ? meses : (deudaMMV > 0 ? 1 : 0)) - recibosFormales);
+
+            if (numMeses > 0) {
               // Generar un recibo dummy por cada mes de mora con fecha uniforme de calendario
               for (let i = 1; i <= numMeses; i++) {
                 const targetDate = new Date(now.getFullYear(), now.getMonth() - numMeses + i - 1, 1, 12, 0, 0);
@@ -3172,22 +3180,35 @@ export default function CajaPage() {
                               </div>
 
                               {/* Panel de Tarifa Mensual Unificada */}
-                              <div className={`p-2.5 rounded-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 ${isUnifiedSelected ? 'bg-gradient-to-r from-emerald-100 via-emerald-50 to-teal-100 border-emerald-400 shadow-sm' : 'bg-slate-100 border-slate-200'}`}>
-                                <div className="text-xs">
-                                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                                    ⚡ {isResCluster ? 'Tarifa Mensual Total del Condominio:' : 'Tarifa Mensual Unificada del Local:'}
-                                  </span>
-                                  <p className="text-[10px] text-slate-500 mt-0.5">
+                              <div className={`p-3 rounded-xl border flex flex-col gap-2 ${isUnifiedSelected ? 'bg-emerald-50/80 border-emerald-400 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`p-1.5 rounded-md ${isUnifiedSelected ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}>
+                                      <Zap className="w-4 h-4" />
+                                    </div>
+                                    <span className="font-bold text-slate-800 text-xs uppercase tracking-wide">
+                                      {isResCluster ? 'Tarifa Mensual Total del Condominio' : 'Tarifa Mensual Unificada del Local'}
+                                    </span>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="font-black text-slate-900 text-lg">
+                                      Bs. {formatBs(isResCluster ? totalClusterBs : totalClusterBs * 1.16)}
+                                    </div>
+                                    <div className="text-[10px] font-semibold text-slate-500">
+                                      {isResCluster ? 'Exento de IVA' : 'IVA Incluido (16%)'}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="mt-1 pt-2 border-t border-slate-200/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[10px]">
+                                  <p className="text-slate-500 font-medium">
                                     {isResCluster 
-                                      ? `${cluster.inms.length} Unidades Residenciales a ${formatBs(activitiesCalc[0]?.bsMensual || 0)} Bs c/u (Exento de IVA)`
-                                      : activitiesCalc.map(a => `${a.inm.actividad_principal?.split(' ')[0] || 'Actividad'}: ${formatBs(a.bsMensual * 1.16)} Bs`).join(' + ')
+                                      ? `${cluster.inms.length} Unidades Residenciales a Bs. ${formatBs(activitiesCalc[0]?.bsMensual || 0)} c/u`
+                                      : activitiesCalc.map(a => `${a.inm.actividad_principal?.split(' ')[0] || 'Act.'}: Bs. ${formatBs(a.bsMensual * 1.16)}`).join(' + ')
                                     }
                                   </p>
-                                </div>
-                                <div className="text-right">
-                                  <span className="font-black text-emerald-800 text-sm">
-                                    {totalClusterUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = Bs. {formatBs(totalClusterBs)} / mes {isResCluster ? '(Exento)' : `| con IVA: Bs. ${formatBs(totalClusterBs * 1.16)}`}
-                                  </span>
+                                  <p className="text-slate-400 font-mono">
+                                    Base: {totalClusterUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs
+                                  </p>
                                 </div>
                               </div>
                             </div>
@@ -4100,7 +4121,14 @@ export default function CajaPage() {
                                       className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
                                     />
                                     <div>
-                                      <p className="font-bold text-xs text-slate-700">{r.referencia}</p>
+                                      <p className="font-bold text-xs text-slate-700 flex items-center gap-1.5 flex-wrap">
+                                        {r.referencia?.startsWith('RECIB-HIST-') || r.referencia?.startsWith('CM-') ? (
+                                          <>
+                                            <span className="text-emerald-800">Recibo de Aseo</span>
+                                            <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1 py-0.5 rounded">Ref: {r.referencia}</span>
+                                          </>
+                                        ) : r.referencia}
+                                      </p>
                                       <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1 mt-0.5">
                                         {r.referencia?.startsWith('MULTA-')
                                           ? (r.descripcion_periodo || `MULTA POR MORA (HASTA ${formatMonthYear(r.emision)})`)
@@ -4659,7 +4687,14 @@ export default function CajaPage() {
                       const f = recibos.find((r: any) => r.referencia === ref);
                       return (
                         <div key={ref} className="flex justify-between items-center text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-2xs">
-                          <span className="text-slate-700 font-semibold">{ref}</span>
+                          <span className="text-slate-700 font-semibold flex items-center gap-1.5 flex-wrap">
+                            {ref?.startsWith('RECIB-HIST-') || ref?.startsWith('CM-') ? (
+                              <>
+                                <span className="text-emerald-800">Recibo de Aseo</span>
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1 py-0.5 rounded">Ref: {ref}</span>
+                              </>
+                            ) : ref}
+                          </span>
                           <span className="font-bold text-slate-900">Bs. {formatBs(getReciboMonto(f))}</span>
                         </div>
                       );
