@@ -118,8 +118,15 @@ export function useCajaCalculations({
           totalMes = baseMonto + montoIVA + montoMulta;
         }
 
-        const montoPendiente = _calcularMontoPendienteEnVuelo(r.referencia, pagosPendientes);
-        return String(Math.max(0, totalMes - montoPendiente).toFixed(2));
+        let montoFinal = Math.max(0, totalMes - montoPendiente);
+
+        // ABONO PARCIAL VISUAL: Si es el primer mes de deuda, se le resta el saldo a favor
+        if (mNum === 1 && parseFloat(String(inm.saldo_favor_bs || '0')) > 0) {
+          const saldoFavor = parseFloat(String(inm.saldo_favor_bs));
+          montoFinal = Math.max(0, montoFinal - saldoFavor);
+        }
+
+        return String(montoFinal.toFixed(2));
       }
       return '0.00';
     }

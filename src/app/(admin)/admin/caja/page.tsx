@@ -672,7 +672,12 @@ export default function CajaPage() {
       setFreshInmuebles(activeInmFresh);
       
       const saldoFavorFresh = activeInmFresh.reduce(
-        (sum: number, i: any) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0), 0
+        (sum: number, i: any) => {
+          const mesesDeuda = parseInt(String(i.meses_deuda || '0'));
+          // Si tiene meses_deuda, el saldo a favor (abono parcial) se descuenta visualmente de M1
+          if (mesesDeuda > 0) return sum;
+          return sum + (parseFloat(i.saldo_favor_bs || '0') || 0);
+        }, 0
       );
       
       // Calcular deuda total fresca (excluyendo contenedores N/A para evitar duplicar montos con sus actividades hijas)
@@ -1744,7 +1749,7 @@ export default function CajaPage() {
 
         // ── LIMPIAR O REDUCIR DEUDA DE INMUEBLES (RECIB-HIST-* o RECIB-DEUDA) ──
         const histRefs = selectedRecibos.filter(r => r.startsWith('RECIB-HIST-'));
-        if (selectedRecibos.includes('RECIB-DEUDA') || histRefs.length > 0) {
+        if (selectedRecibos.includes('RECIB-DEUDA') || histRefs.length > 0 || esAbonoDebito) {
           // Leer la deuda ACTUAL de la BD (no la cargada en pantalla): en un pago múltiple el comprobante
           // anterior ya redujo la deuda, y usar datos viejos hacía que el siguiente no se aplicara bien.
           const { data: inmsBD, error: inmsBDErr } = await supabase
@@ -1764,7 +1769,7 @@ export default function CajaPage() {
               const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
               const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
               if (selectedRecibos.includes('RECIB-DEUDA') || (histRefsThisInm.length >= numMesesInm && numMesesInm > 0)) {
-                await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', inm.id);
+                await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0, saldo_favor_bs: 0 }).eq('id', inm.id);
               } else if (histRefsThisInm.length > 0) {
                 const nuevoMeses = Math.max(0, numMesesInm - histRefsThisInm.length);
                 const d = parseFloat(String(inm.deuda_mmv || 0));
@@ -1775,6 +1780,7 @@ export default function CajaPage() {
                   meses_deuda: nuevoMeses,
                   deuda_mmv: nuevaDeudaMMV,
                   multa_bs: nuevaMultaBs,
+                  saldo_favor_bs: 0,
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                 }).eq('id', inm.id);
               }
