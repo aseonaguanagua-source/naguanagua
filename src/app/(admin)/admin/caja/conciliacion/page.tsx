@@ -1046,17 +1046,17 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-blue-600 font-semibold">Total Documento</span>
-                <span className="text-blue-600 font-bold">{fmt(montoReportadoNum + parseFloat(String(det.retencion_iva || 0)))}</span>
+                <span className="text-blue-600 font-bold">{fmt(montoReportadoNum + parseFloat(String(det.retencion_iva || det.monto_retencion_iva || 0)))}</span>
               </div>
-              {det.es_agente_retencion ? (
+              {(det.es_agente_retencion || parseFloat(String(det.monto_retencion_iva || 0)) > 0) ? (
                 <>
                   <div className="flex justify-between text-xs text-slate-500 ml-4">
                     <span>IVA Total (16%)</span>
-                    <span>{fmt(parseFloat(String(det.iva_total || 0)))}</span>
+                    <span>{fmt(parseFloat(String(det.iva_total || (parseFloat(String(det.monto_retencion_iva || 0)) / 0.75) || 0)))}</span>
                   </div>
                   <div className="flex justify-between text-sm ml-4">
                     <span className="text-amber-600 font-semibold">Retención IVA (75%)</span>
-                    <span className="text-amber-600 font-bold">- {fmt(parseFloat(String(det.retencion_iva || 0)))}</span>
+                    <span className="text-amber-600 font-bold">- {fmt(parseFloat(String(det.retencion_iva || det.monto_retencion_iva || 0)))}</span>
                   </div>
                 </>
               ) : (
