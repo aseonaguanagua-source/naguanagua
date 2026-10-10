@@ -105,6 +105,7 @@ export default function KioskPage() {
   const [payError, setPayError] = useState('');
   const [showBancamigaSim, setShowBancamigaSim] = useState(false);
   const [expandedInms, setExpandedInms] = useState<Record<string, boolean>>({});
+  const [fechaCaja, setFechaCaja] = useState<string>(new Date().toISOString().split('T')[0]);
 
   const isResidencialGlobal = isResidencialInm(foundUser) || (userInms.length > 0 && userInms.every((i: any) => isResidencialInm(i)));
   const esAgenteGlobal = foundUser?.EsAgente ?? false;
@@ -656,10 +657,12 @@ export default function KioskPage() {
         inmueble: i.inmueble, meses_deuda: i.meses_deuda ?? null, deuda_mmv: i.deuda_mmv ?? null,
         multa_bs: i.multa_bs ?? null, deuda_congelada_bs: i.deuda_congelada_bs ?? null,
       }));
+      const fechaUTC = new Date(`${fechaCaja}T12:00:00-04:00`).toISOString();
       await supabase.from('pagos_reportados').insert({
         identidad: foundUser?.Identidad, monto: pagoTotalCalculado,
         banco: method === 'Bancamiga' ? 'Bancamiga' : 'Punto de Venta',
         referencia: ref || `POS-${Date.now()}`, tipo: method, estado: 'Aprobado',
+        created_at: fechaUTC,
         detalles: JSON.stringify({ 
           recibos: selectedRefs, 
           origen: 'kiosco',
@@ -1303,6 +1306,12 @@ export default function KioskPage() {
               className={`flex flex-col items-center gap-4 py-8 rounded-3xl border-2 font-bold transition-all active:scale-95 ${payMethod==='Bancamiga' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
               <Landmark className="w-12 h-12" /><span className="text-xl">Bancamiga</span>
             </button>
+          </div>
+          <div className="mb-7 bg-slate-800 p-4 rounded-2xl border border-slate-700">
+            <label className="block text-slate-400 text-sm font-bold mb-2">Fecha de Ingreso a Caja (Corte):</label>
+            <input type="date" value={fechaCaja} onChange={(e) => setFechaCaja(e.target.value)} 
+              className="w-full bg-slate-900 border-2 border-slate-700 text-white rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-blue-500 transition-colors" />
+            <p className="text-xs text-slate-500 mt-2">Esta fecha determina en qué reporte de caja diaria aparecerá el cobro.</p>
           </div>
           {payMethod === 'Punto de Venta' && (
             <div className="bg-slate-800 rounded-3xl p-7 border border-slate-700">

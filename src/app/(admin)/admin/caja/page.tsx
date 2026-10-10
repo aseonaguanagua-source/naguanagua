@@ -121,6 +121,7 @@ export default function CajaPage() {
   const [referencia, setReferencia] = useState('');
   const [montoTransferido, setMontoTransferido] = useState<string>('');
   const [fechaTransaccion, setFechaTransaccion] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [fechaCorteCaja, setFechaCorteCaja] = useState<string>(new Date().toISOString().split('T')[0]);
   const [dupRefWarning, setDupRefWarning] = useState<string>('');
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -1427,8 +1428,7 @@ export default function CajaPage() {
     
     // ── Abrir modal de confirmación en lugar de confirm() nativo ──
     setConfirmPayload({
-      montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor,
-      reqRef,
+      montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion,
       recibosSeleccionados: selectedRecibos,
       cuotasSeleccionadas: selectedCuotas,
       serviciosSeleccionados: selectedServicios,
@@ -1439,7 +1439,7 @@ export default function CajaPage() {
 
   const handleConfirmAndPay = async () => {
     if (!confirmPayload) return;
-    const { montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef } = confirmPayload;
+    const { montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion } = confirmPayload;
     setIsConfirmModalOpen(false);
     setIsProcessing(true);
     ultimoPagoIdRef.current = null;
@@ -1629,6 +1629,7 @@ export default function CajaPage() {
 
         const pagoId = crypto.randomUUID();
         const deudaPrevia = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
+        const fechaUTC = new Date(`${fechaCorteCaja}T12:00:00-04:00`).toISOString();
         const { error: insertErr } = await supabase.from('pagos_reportados').insert({
           id: pagoId,
           identidad: foundUser.Identidad,
@@ -1637,6 +1638,7 @@ export default function CajaPage() {
           referencia: reqRef ? referencia : referenciaDebito,
           tipo: paymentMethod,
           estado: 'Aprobado',
+          created_at: fechaUTC,
           detalles: JSON.stringify({
             recibos: selectedRecibos,
             cuotas: selectedCuotas,
@@ -1663,6 +1665,27 @@ export default function CajaPage() {
           throw new Error('No se pudo registrar el pago: ' + insertErr.message);
         }
         ultimoPagoIdRef.current = pagoId;
+        // ── GENERAR COMPROBANTE DE RETENCIÓN DE IVA COMO NOTA DE CRÉDITO ──
+        if (realMontoRetencionIVA > 0) {
+          const pagoRetId = crypto.randomUUID();
+          await supabase.from('pagos_reportados').insert({
+            id: pagoRetId,
+            identidad: foundUser.Identidad,
+            monto: realMontoRetencionIVA,
+            banco: 'N/A',
+            referencia: comprobanteRetencion || 'RET-' + Date.now().toString().slice(-6),
+            tipo: 'Retencion de IVA',
+            estado: 'Aprobado',
+            created_at: fechaUTC,
+            detalles: JSON.stringify({
+              cajero: cajero_id,
+              es_abono: false,
+              pago_vinculado: pagoId,
+              nota: 'Generado automáticamente por retención de agente.'
+            })
+          });
+        }
+
 
         // ── TFHKA FACTURACIÓN DIGITAL (antes de limpiar deuda para tener los montos) ──
         if (pagoId) {
@@ -2284,6 +2307,7 @@ export default function CajaPage() {
 
         const deudaPreviaT = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
         const pagoIdT = crypto.randomUUID();
+        const fechaUTC = new Date(`${fechaCorteCaja}T12:00:00-04:00`).toISOString();
         const { error: pErr } = await supabase.from('pagos_reportados').insert({
           id: pagoIdT,
           identidad: foundUser.Identidad,
@@ -2292,6 +2316,7 @@ export default function CajaPage() {
           referencia: referencia,
           tipo: paymentMethod,
           estado: 'Por Verificar',
+          created_at: fechaUTC,
           detalles: JSON.stringify({ 
             recibos: selectedRecibos, 
             cuotas: selectedCuotas,
@@ -2318,6 +2343,27 @@ export default function CajaPage() {
         
         if (pErr) throw pErr;
         ultimoPagoIdRef.current = pagoIdT;
+        // ── GENERAR COMPROBANTE DE RETENCIÓN DE IVA COMO NOTA DE CRÉDITO ──
+        if (realMontoRetencionIVA > 0) {
+          const pagoRetId = crypto.randomUUID();
+          await supabase.from('pagos_reportados').insert({
+            id: pagoRetId,
+            identidad: foundUser.Identidad,
+            monto: realMontoRetencionIVA,
+            banco: 'N/A',
+            referencia: comprobanteRetencion || 'RET-' + Date.now().toString().slice(-6),
+            tipo: 'Retencion de IVA',
+            estado: 'Aprobado', // Siempre Aprobado porque es un descuento matemático directo
+            created_at: fechaUTC,
+            detalles: JSON.stringify({
+              cajero: cajero_id,
+              es_abono: false,
+              pago_vinculado: pagoIdT,
+              nota: 'Generado automáticamente por retención de agente.'
+            })
+          });
+        }
+
         
         // Update items to 'Por Verificar'
         if (selectedRecibos.length > 0 && !esAbono) {
@@ -4497,6 +4543,15 @@ export default function CajaPage() {
                         />
                       </label>
                       <label className="block">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Fecha de Ingreso a Caja (Corte) <span className="text-red-500">*</span></span>
+                        <input
+                          type="date"
+                          value={fechaCorteCaja}
+                          onChange={(e) => setFechaCorteCaja(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                      </label>
+                      <label className="block">
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">
                           {paymentMethod === 'TMD' ? 'Número de Aprobación / Referencia TMD (Master)' : paymentMethod === 'TVD' ? 'Número de Aprobación / Referencia TVD (Visa)' : paymentMethod === 'Credito' ? 'Número de Aprobación / Referencia Tarjeta Crédito' : 'Número de Comprobante / Referencia POS'} <span className="text-red-500">*</span> (máx. 8 dígitos)
                         </span>
@@ -4538,6 +4593,15 @@ export default function CajaPage() {
                       type="date"
                       value={fechaTransaccion}
                       onChange={(e) => setFechaTransaccion(e.target.value)}
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 mb-1 block">Fecha de Ingreso a Caja (Corte) <span className="text-red-500">*</span></span>
+                    <input
+                      type="date"
+                      value={fechaCorteCaja}
+                      onChange={(e) => setFechaCorteCaja(e.target.value)}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
                   </label>

@@ -32,7 +32,8 @@
     "react-leaflet": "^5.0.0",
     "react-select": "^5.10.2",
     "recharts": "^3.10.1",
-    "resend": "^6.26.0"
+    "resend": "^6.26.0",
+    "string-similarity": "^4.0.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
