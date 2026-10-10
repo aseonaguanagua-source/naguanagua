@@ -31,7 +31,16 @@ export async function POST(req: Request) {
 
     if (b.accion !== 'cobrar' && b.accion !== 'interruptor') {
       const { _datos, ...cobro } = await prepararCobro(sol);
-      return NextResponse.json({ ...cobro, cajaActiva: activa });
+      
+      // Extraer saldo a favor con admin
+      let saldoFavorDisp = 0;
+      let currId = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : cobro.condo?.identidad;
+      if (currId) {
+         const { data } = await sb.from('inmuebles').select('saldo_favor_bs').eq('identidad', currId);
+         saldoFavorDisp = (data || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
+      }
+      
+      return NextResponse.json({ ...cobro, cajaActiva: activa, saldoFavorActivo: saldoFavorDisp });
     }
 
     const u = String(b.usuario || '').trim().toLowerCase();

@@ -177,6 +177,20 @@ function ContribuyentesPageContent() {
       result = result.filter((c: any) => c.Observaciones && c.Observaciones.trim().length > 0);
     }
     
+    // Optimize inmuebles lookup to prevent O(N^2) freezes
+    const inmueblesById = new Map();
+    if (inmuebles && inmuebles.length > 0) {
+      for (const i of inmuebles) {
+        if (i.estado !== 'Eliminado') {
+          const id = i.identidad;
+          if (id) {
+            if (!inmueblesById.has(id)) inmueblesById.set(id, []);
+            inmueblesById.get(id).push(i);
+          }
+        }
+      }
+    }
+
     // Siempre ocultar condominios y sus locales de la vista principal
     result = result.filter((c: any) => {
       // 1. Marcas directas
@@ -188,8 +202,8 @@ function ContribuyentesPageContent() {
       if (nombreLC.includes('condominio') || nombreLC.includes('conjunto residencial') || clasifLC.includes('condominio')) return false;
       
       // 3. Por relación de inmuebles
-      if (inmuebles && inmuebles.length > 0) {
-        const userInms = inmuebles.filter((i: any) => (i.identidad === c.Identidad || i.identidad === c.identidad) && i.estado !== 'Eliminado');
+      if (inmueblesById.size > 0) {
+        const userInms = inmueblesById.get(c.Identidad) || inmueblesById.get(c.identidad) || [];
         if (userInms.length > 0) {
           const onlyHasCondoProperties = userInms.every((i: any) => 
             i.es_condominio || 
@@ -204,7 +218,7 @@ function ContribuyentesPageContent() {
       return true;
     });
     setFilteredContribuyentes(result);
-  }, [activeTab, contribuyentes, showWithNotes, isShowingServerResults, serverResults, groupCondoChildren]);
+  }, [activeTab, contribuyentes, showWithNotes, isShowingServerResults, serverResults, groupCondoChildren, inmuebles]);
 
   useEffect(() => {
     if (searchParams.get('action') === 'new') {

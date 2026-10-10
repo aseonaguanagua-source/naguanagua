@@ -90,8 +90,7 @@ function Caja() {
     ? Math.min(totalConImpuestos, saldoFavorActivo) 
     : 0;
   const totalNetoAbonable = Math.max(0, totalConImpuestos - descuentoSaldoFavor);
-  
-  const faltaPagar = useMemo(() => Math.max(0, Math.round((totalNetoAbonable - sumaPagos) * 100) / 100), [totalNetoAbonable, sumaPagos]);
+  const faltaPagar = useMemo(() => Math.round((totalNetoAbonable - sumaPagos) * 100) / 100, [totalNetoAbonable, sumaPagos]);
 
   // Se resetean los pagos si cambia la deuda
   useEffect(() => { setPagosAgregados([]); }, [cobro?.totales?.totalBs, descuentoSaldoFavor]);
@@ -159,14 +158,7 @@ function Caja() {
         pagoId.current = crypto.randomUUID();
         
         // Fetch Saldo Favor
-        let currId = j.modo === 'CONTRIBUYENTE' ? j.facturas[0]?.identidad : j.condo.identidad;
-        if (currId) {
-          const { data } = await supabase.from('inmuebles').select('saldo_favor_bs').eq('identidad', currId);
-          const totalSF = (data || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
-          setSaldoFavorActivo(totalSF);
-        } else {
-          setSaldoFavorActivo(0);
-        }
+        setSaldoFavorActivo(j.saldoFavorActivo || 0);
       } catch (e: any) { setError(e.message); setCobro(null); setSaldoFavorActivo(0); } finally { setCalculando(false); }
     }, 300);
     return () => clearTimeout(h);
@@ -598,10 +590,16 @@ function Caja() {
                 </div>
               )}
               {descuentoSaldoFavor > 0 && (
-                <div className="flex justify-between items-center text-emerald-300 font-medium text-sm pt-2">
-                  <span>Saldo a Favor Aplicado:</span>
-                  <span className="font-mono font-bold">- Bs. {formatBs(descuentoSaldoFavor)}</span>
-                </div>
+                <>
+                  <div className="flex justify-between items-center text-emerald-300 font-medium text-sm pt-2">
+                    <span>Saldo a Favor Aplicado:</span>
+                    <span className="font-mono font-bold">- Bs. {formatBs(descuentoSaldoFavor)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-emerald-200/70 font-medium text-xs pt-1">
+                    <span>Quedan disponibles:</span>
+                    <span className="font-mono">Bs. {formatBs(Math.max(0, saldoFavorActivo - descuentoSaldoFavor))}</span>
+                  </div>
+                </>
               )}
               {descuentoSaldoFavor > 0 && (
                 <div className="flex justify-between items-center text-white font-black text-xl pt-2 border-t border-white/20 mt-2">
