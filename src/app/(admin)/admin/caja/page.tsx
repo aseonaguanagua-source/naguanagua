@@ -1632,7 +1632,10 @@ export default function CajaPage() {
 
         const pagoId = crypto.randomUUID();
         const deudaPrevia = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
-        const fechaUTC = new Date(`${fechaCorteCaja}T12:00:00-04:00`).toISOString();
+        const hoyStr = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+        const fechaUTC = fechaCorteCaja === hoyStr 
+          ? new Date().toISOString() 
+          : new Date(`${fechaCorteCaja}T12:00:00-04:00`).toISOString();
         const { error: insertErr } = await supabase.from('pagos_reportados').insert({
           id: pagoId,
           identidad: foundUser.Identidad,
@@ -2324,7 +2327,10 @@ export default function CajaPage() {
 
         const deudaPreviaT = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
         const pagoIdT = crypto.randomUUID();
-        const fechaUTC = new Date(`${fechaCorteCaja}T12:00:00-04:00`).toISOString();
+        const hoyStr = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+        const fechaUTC = fechaCorteCaja === hoyStr 
+          ? new Date().toISOString() 
+          : new Date(`${fechaCorteCaja}T12:00:00-04:00`).toISOString();
         const { error: pErr } = await supabase.from('pagos_reportados').insert({
           id: pagoIdT,
           identidad: foundUser.Identidad,
@@ -4555,7 +4561,10 @@ export default function CajaPage() {
                         <input
                           type="date"
                           value={fechaTransaccion}
-                          onChange={(e) => setFechaTransaccion(e.target.value)}
+                          onChange={(e) => {
+                            setFechaTransaccion(e.target.value);
+                            setFechaCorteCaja(e.target.value);
+                          }}
                           className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                       </label>
@@ -4609,7 +4618,10 @@ export default function CajaPage() {
                     <input
                       type="date"
                       value={fechaTransaccion}
-                      onChange={(e) => setFechaTransaccion(e.target.value)}
+                      onChange={(e) => {
+                        setFechaTransaccion(e.target.value);
+                        setFechaCorteCaja(e.target.value);
+                      }}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
                   </label>
