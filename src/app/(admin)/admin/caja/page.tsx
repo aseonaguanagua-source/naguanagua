@@ -55,6 +55,23 @@ const snapshotDeudaPrevia = async (identidad: string, hijosIds: string[] = []) =
   }
 };
 
+const parseLocalFloat = (val: string) => {
+  if (!val) return 0;
+  return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+};
+
+const formatLocalNumberInput = (val: string) => {
+  if (!val) return '';
+  let clean = val.replace(/[^0-9,]/g, '');
+  const parts = clean.split(',');
+  let intPart = parts[0];
+  intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  if (parts.length > 1) {
+    return intPart + ',' + parts[1].substring(0, 2);
+  }
+  return intPart;
+};
+
 export default function CajaPage() {
   const { inmuebles, convenios, contribuyentes, documentos, tcmmv, refreshData, refreshUserData } = useAppContext();
   
@@ -1121,7 +1138,7 @@ export default function CajaPage() {
 
     if (isCondominio && selectedRecibos.length === 0) {
       if (condominioModo === 'Abono') {
-        const abonoVal = parseFloat(montoAbonoCondo) || 0;
+        const abonoVal = parseLocalFloat(montoAbonoCondo) || 0;
         total += abonoVal;
         sb += abonoVal;
       } else {
@@ -1360,7 +1377,7 @@ export default function CajaPage() {
       }
       return alert("Debe seleccionar al menos una deuda a pagar.");
     }
-    if (isAbonoCondo && (parseFloat(montoAbonoCondo) <= 0 || isNaN(parseFloat(montoAbonoCondo)))) {
+    if (isAbonoCondo && (parseLocalFloat(montoAbonoCondo) <= 0 || isNaN(parseLocalFloat(montoAbonoCondo)))) {
       return alert("Debe ingresar un monto válido a abonar para el condominio.");
     }
     
@@ -1378,7 +1395,7 @@ export default function CajaPage() {
     
     let saldoAFavorNuevo = 0;
     let esAbono = isAbonoCondo;
-    let montoReal = isAbonoCondo ? parseFloat(montoAbonoCondo) : finalTotal;
+    let montoReal = isAbonoCondo ? parseLocalFloat(montoAbonoCondo) : finalTotal;
     
     const reqRef = ['Transferencia', 'Deposito'].includes(paymentMethod);
 
@@ -1397,7 +1414,7 @@ export default function CajaPage() {
         return alert(`⚠️ ADVERTENCIA: El número de referencia "${referencia}" ya fue registrado previamente en el sistema. Verifique antes de continuar.`);
       }
 
-      const transferido = parseFloat(montoTransferido.replace(',', '.'));
+      const transferido = parseLocalFloat(montoTransferido);
       if (isNaN(transferido) || transferido <= 0) return alert("Debe ingresar un monto transferido válido.");
       
       if (transferido < finalTotal || isPagoMultiple) {
@@ -1413,12 +1430,12 @@ export default function CajaPage() {
       const cardLabel = paymentMethod === 'TMD' ? 'Tarjeta Master (TMD)' : paymentMethod === 'TVD' ? 'Tarjeta Visa (TVD)' : paymentMethod === 'Credito' ? 'Tarjeta de Crédito' : 'Punto de Venta';
       if (!referenciaDebito.trim()) return alert(`Debe ingresar el número de comprobante o referencia del pago por ${cardLabel}.`);
       if (referenciaDebito.trim().length !== 8) return alert(`El número de referencia para ${cardLabel} debe tener exactamente 8 caracteres.`);
-      if (montoDebito && (parseFloat(montoDebito.replace(',', '.')) <= 0 || isNaN(parseFloat(montoDebito.replace(',', '.'))))) {
+      if (montoDebito && (parseLocalFloat(montoDebito) <= 0 || isNaN(parseLocalFloat(montoDebito)))) {
         return alert("Si ingresa un monto manual, debe ser un valor válido mayor a 0.");
       }
       // Use manual debit amount if provided
-      if (montoDebito && parseFloat(montoDebito.replace(',', '.')) > 0) {
-        montoReal = parseFloat(montoDebito.replace(',', '.'));
+      if (montoDebito && parseLocalFloat(montoDebito) > 0) {
+        montoReal = parseLocalFloat(montoDebito);
       }
     } else if (paymentMethod === 'Saldo a Favor') {
       // El método paga con el saldo directamente (totalBs completo, sin descuento previo)
@@ -1533,7 +1550,7 @@ export default function CajaPage() {
 
       const isAutoAprobado = ['Debito', 'Credito', 'Saldo a Favor', 'TMD', 'TVD'].includes(paymentMethod);
       // Detect abono: montoDebito provided and < totalBs, o marcado como abono/pago multiple
-      const esAbonoParcial = !!(montoDebito && parseFloat(montoDebito) > 0 && parseFloat(montoDebito) < confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor - 0.01) || !!confirmPayload.esAbono || (montoReal < confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor - 0.01);
+      const esAbonoParcial = !!(montoDebito && parseLocalFloat(montoDebito) > 0 && parseLocalFloat(montoDebito) < confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor - 0.01) || !!confirmPayload.esAbono || (montoReal < confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor - 0.01);
       const esAbonoDebito = esAbonoParcial;
 
       if (isAutoAprobado) {
@@ -1609,7 +1626,7 @@ export default function CajaPage() {
               const f = recibos.find(r => r.referencia === ref);
               if (f) dineroPagado += parseFloat(getReciboMonto(f) || '0');
             }
-            let dineroRestanteParaServicios = Math.max(0, parseFloat(montoDebito) - dineroPagado);
+            let dineroRestanteParaServicios = Math.max(0, parseLocalFloat(montoDebito) - dineroPagado);
             
             for (const ref of selectedServicios) {
               const s = serviciosEsp.find(sv => sv.referencia === ref);
@@ -1827,32 +1844,41 @@ export default function CajaPage() {
               }
             }
 
-            for (const inm of userInmsClean) {
+            const inmsToProcess = userInmsClean.filter(inm => {
+              const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
+              return histRefsThisInm.length > 0 || selectedRecibos.includes('RECIB-DEUDA');
+            });
+
+            for (let idx = 0; idx < inmsToProcess.length; idx++) {
+              const inm = inmsToProcess[idx];
+              const isLastInm = idx === inmsToProcess.length - 1;
+
               const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
               const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
-              if (numMesesInm <= 0 || dineroParaInms <= 0) continue;
+              
+              if (numMesesInm <= 0) continue;
 
               const bMes = calcularMensualidad(inm, currentBcvRate);
               const esRes = isResidencialInm(inm);
               const ivaMes = esRes ? 0 : Math.round((bMes * 0.16) * 100) / 100;
               const tasaMora = esRes ? 0.10 : 0.12;
 
-              // Sobrante de un comprobante anterior (pago múltiple): se suma para completar meses
               const saldoActual = parseFloat(String(inm.saldo_favor_bs || '0')) || 0;
-              dineroParaInms += saldoActual;
+              let dineroLocal = dineroParaInms + saldoActual;
 
               let mesesCubiertos = 0;
               const maxMeses = Math.min(numMesesInm, histRefsThisInm.length > 0 ? histRefsThisInm.length : numMesesInm);
+              
               for (let m = 1; m <= maxMeses; m++) {
                 const isUltimo = (m >= numMesesInm);
                 const multaMes = isUltimo ? 0 : Math.round((bMes * tasaMora) * 100) / 100;
                 const costoMes = Math.round((bMes + ivaMes) * 100) / 100 + multaMes;
 
-                if (dineroParaInms >= costoMes - 0.01) {
-                  dineroParaInms = Math.max(0, dineroParaInms - costoMes);
+                if (dineroLocal >= costoMes - 0.01) {
+                  dineroLocal = Math.max(0, dineroLocal - costoMes);
                   mesesCubiertos++;
                 } else {
-                  break; // no alcanza para un mes completo adicional
+                  break; 
                 }
               }
 
@@ -1862,12 +1888,23 @@ export default function CajaPage() {
               const nuevaDeudaMMV = nuevoMeses === 0 ? 0 : parseFloat(((d * nuevoMeses) / (numMesesInm || 1)).toFixed(6));
               const nuevaMultaBs = nuevoMeses === 0 ? 0 : parseFloat(((m * nuevoMeses) / (numMesesInm || 1)).toFixed(2));
 
-              // El sobrante que no completó otro mes se acredita a saldo_favor_bs para dejar "lo que falta"
-              const saldoSobrante = dineroParaInms > 0.01 ? parseFloat(dineroParaInms.toFixed(2)) : 0;
-              dineroParaInms = 0; // asignado
+              let nuevoSaldo = 0;
+              if (dineroLocal > dineroParaInms) {
+                // We didn't consume all of saldoActual
+                nuevoSaldo = dineroLocal - dineroParaInms;
+              } else {
+                // We consumed all of saldoActual, AND some of dineroParaInms
+                dineroParaInms = dineroLocal; // Remaining global money
+                nuevoSaldo = 0;
+              }
 
-              // El saldo previo ya se sumó arriba: el nuevo saldo es solo lo que sobró
-              const nuevoSaldo = saldoSobrante;
+              // Si es el último inmueble que estamos procesando, el sobrante global se le abona a él
+              if (isLastInm && dineroParaInms > 0.01) {
+                nuevoSaldo += dineroParaInms;
+                dineroParaInms = 0;
+              }
+              
+              nuevoSaldo = parseFloat(nuevoSaldo.toFixed(2));
 
               const { error: eAbono } = await supabase.from('inmuebles').update({
                 meses_deuda: nuevoMeses,
@@ -3952,7 +3989,7 @@ export default function CajaPage() {
                             min="0.01"
                             placeholder="0.00"
                             value={montoAbonoCondo}
-                            onChange={e => setMontoAbonoCondo(e.target.value)}
+                            onChange={e => setMontoAbonoCondo(formatLocalNumberInput(e.target.value))}
                             className="w-full pl-10 pr-3 py-2 text-xl font-black text-emerald-700 border border-emerald-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
                           />
                         </div>
@@ -3962,7 +3999,7 @@ export default function CajaPage() {
                             <button
                               key={pct}
                               type="button"
-                              onClick={() => setMontoAbonoCondo((totalDeudaCondominio * pct).toFixed(2))}
+                              onClick={() => setMontoAbonoCondo(formatLocalNumberInput((totalDeudaCondominio * pct).toFixed(2).replace('.', ',')))}
                               className="flex-1 text-[10px] font-bold bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 py-1 rounded border border-slate-200 transition-colors"
                             >
                               {pct * 100}%
@@ -3974,10 +4011,10 @@ export default function CajaPage() {
                       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">3. Deuda Restante Proyectada</span>
                         <span className="text-2xl font-black text-rose-600 my-2">
-                          Bs. {formatBs(Math.max(0, totalDeudaCondominio - (parseFloat(montoAbonoCondo) || 0)))}
+                          Bs. {formatBs(Math.max(0, totalDeudaCondominio - (parseLocalFloat(montoAbonoCondo) || 0)))}
                         </span>
                         <span className="text-[11px] text-slate-400">
-                          {parseFloat(montoAbonoCondo) >= totalDeudaCondominio ? '¡Deuda cancelada en su totalidad!' : 'Quedará pendiente en la cuenta'}
+                          {parseLocalFloat(montoAbonoCondo) >= totalDeudaCondominio ? '¡Deuda cancelada en su totalidad!' : 'Quedará pendiente en la cuenta'}
                         </span>
                       </div>
                     </div>
@@ -4552,14 +4589,10 @@ export default function CajaPage() {
                             {paymentMethod === 'TMD' ? 'Monto Tarjeta Master (Bs)' : paymentMethod === 'TVD' ? 'Monto Tarjeta Visa (Bs)' : paymentMethod === 'Credito' ? 'Monto Tarjeta de Crédito (Bs)' : 'Monto a Pagar por Punto (Bs)'}
                           </span>
                           <input type="text" value={montoDebito} onChange={e => {
-                            const val = e.target.value.replace(/[^0-9,.]/g, '');
-                            setMontoDebito(val);
+                            setMontoDebito(formatLocalNumberInput(e.target.value));
                           }} 
-                          onBlur={e => {
-                            let p = parseFloat(e.target.value.replace(',', '.'));
-                            if(!isNaN(p)) setMontoDebito(p.toFixed(2).replace('.', ','));
-                          }}
-                          placeholder="Ej. 1500,00" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                          onBlur={e => { const p = parseLocalFloat(e.target.value); if (p > 0) setMontoDebito(formatLocalNumberInput(p.toFixed(2).replace('.', ','))); }}
+                          placeholder="Ej. 1.500,00" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
                         </label>
                       )}
                       <label className="block">
@@ -4690,14 +4723,14 @@ export default function CajaPage() {
                       }}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
-                    {parseFloat(montoTransferido.replace(',', '.')) > Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)) && (
+                    {parseLocalFloat(montoTransferido) > Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)) && (
                       <p className="text-[10px] text-emerald-600 mt-1 font-bold">
-                        * Se generará un saldo a favor de Bs. {formatBs(parseFloat(montoTransferido) - Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)))}
+                        * Se generará un saldo a favor de Bs. {formatBs(parseLocalFloat(montoTransferido) - Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)))}
                       </p>
                     )}
-                    {(parseFloat(montoTransferido) > 0 && parseFloat(montoTransferido) < Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0))) && (
+                    {(parseLocalFloat(montoTransferido) > 0 && parseLocalFloat(montoTransferido) < Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0))) && (
                       <p className="text-[10px] text-orange-600 mt-1 font-bold">
-                        * Es un ABONO. Quedará un saldo pendiente de Bs. {formatBs(Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)) - parseFloat(montoTransferido))}
+                        * Es un ABONO. Quedará un saldo pendiente de Bs. {formatBs(Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)) - parseLocalFloat(montoTransferido))}
                       </p>
                     )}
                   </label>
@@ -4733,7 +4766,7 @@ export default function CajaPage() {
 
             <button 
               onClick={handlePayment}
-              disabled={isProcessing || (!isCondominio && totalBs <= 0) || (isCondominio && condominioModo === 'Local' && selectedHijos.length === 0) || (isCondominio && condominioModo === 'Abono' && (!montoAbonoCondo || parseFloat(montoAbonoCondo) <= 0))}
+              disabled={isProcessing || (!isCondominio && totalBs <= 0) || (isCondominio && condominioModo === 'Local' && selectedHijos.length === 0) || (isCondominio && condominioModo === 'Abono' && (!montoAbonoCondo || parseLocalFloat(montoAbonoCondo) <= 0))}
               className="w-full bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-slate-900 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
               <CreditCard className="w-5 h-5" /> 

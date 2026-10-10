@@ -2988,15 +2988,49 @@ function ContribuyentesPageContent() {
       render: (row: any) => {
         const clase = row.Clasificacion || 'Residencial';
         const isChild = Boolean(row.isCondoChild);
-        const detalle = clase.includes('Comercial') 
+        
+        // Extraer todas las actividades de los inmuebles vinculados
+        const ident = row.Identidad || row.identidad;
+        const linkedInms = (inmuebles || []).filter((i: any) => i.identidad === ident && i.estado !== 'Eliminado');
+        const actividades = new Set<string>();
+        
+        if (linkedInms.length > 0) {
+          linkedInms.forEach((i: any) => {
+             const act = i.actividad_principal || i.Actividad || i.ActividadComercial;
+             if (act && act !== 'No asignado') actividades.add(act);
+          });
+        }
+        
+        // Fallback al detalle original si no hay inmuebles
+        const originalDetalle = clase.includes('Comercial') 
           ? (row.ActividadComercial || row.Actividad || row.actividad_principal || 'No asignado') 
           : (row.TipoResidencia || row.Actividad || row.actividad_principal || 'No asignado');
+          
+        if (actividades.size === 0 && originalDetalle && originalDetalle !== 'No asignado') {
+          actividades.add(originalDetalle);
+        }
+
+        const actividadesArr = Array.from(actividades);
+
         return (
           <div className="flex flex-col">
             <span className={`text-xs font-semibold ${clase === 'Residencial' ? 'text-emerald-600' : 'text-blue-600'}`}>
               {clase} {isChild ? '(Filial)' : ''}
             </span>
-            <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{detalle}</span>
+            {actividadesArr.length > 0 ? (
+              <div className="flex flex-col gap-0.5 mt-0.5">
+                {actividadesArr.slice(0, 3).map((act, idx) => (
+                  <span key={idx} className="text-[10px] text-slate-500 truncate max-w-[180px] bg-slate-50 border border-slate-100 rounded px-1 w-fit" title={act}>
+                    • {act}
+                  </span>
+                ))}
+                {actividadesArr.length > 3 && (
+                  <span className="text-[9px] text-slate-400 italic">+{actividadesArr.length - 3} más...</span>
+                )}
+              </div>
+            ) : (
+              <span className="text-[10px] text-slate-500">No asignado</span>
+            )}
             {isChild && row.isCommercialChild && (
               <div className="text-[9px] text-slate-500 mt-0.5">
                 Aseo: <span className="text-blue-600 font-medium">Por Condominio</span>
