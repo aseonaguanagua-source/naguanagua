@@ -3790,18 +3790,48 @@ function ContribuyentesPageContent() {
                     }, 0);
                     const tieneDeudaReal = deudaInmuebleBs > 0.01;
                     // Inmuebles al día (mismo criterio que Caja): pueden tener su propia solvencia aunque otro inmueble del RIF deba
-                    const inmsSolventes = userInms.filter((inm: any) => inm.inmueble && !inmuebleTieneDeuda(inm));
+                    const basePadreId = viewData.condominio_padre_id || userInms.find((i: any) => i.condominio_padre_id)?.condominio_padre_id || userInms[0]?.inmueble;
+                    const allInmsParaSolvencia = viewData.isCondominio ? inmuebles.filter((i: any) => 
+                      i.inmueble === basePadreId || i.condominio_padre_id === basePadreId || i.padre_id === basePadreId || userInms.some((b: any) => b.inmueble === i.inmueble)
+                    ) : userInms;
+                    
+                    const inmsSolventes = allInmsParaSolvencia.filter((inm: any) => inm.inmueble && inm.estado !== 'Eliminado' && !inmuebleTieneDeuda(inm));
+                    
                     const bloqueSolvenciaPorInmueble = inmsSolventes.length > 0 ? (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
                         <p className="text-xs font-bold text-green-800 mb-2">Inmuebles al día — puede emitir su solvencia individual:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {inmsSolventes.map((inm: any) => (
-                            <button key={inm.inmueble} onClick={() => generarSolvenciaIndividual(viewData, inm.inmueble)}
-                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5">
-                              <Download className="w-3.5 h-3.5" /> Solvencia {inm.inmueble}
+                        {inmsSolventes.length > 5 ? (
+                          <div className="flex flex-col gap-2">
+                            <select 
+                              className="w-full text-sm p-2 border border-green-200 rounded text-slate-700 bg-white"
+                              value={selectedSolvenciaInmueble}
+                              onChange={(e) => setSelectedSolvenciaInmueble(e.target.value)}
+                            >
+                              <option value="">-- Seleccione Inmueble Solvente --</option>
+                              {inmsSolventes.map((inm: any) => (
+                                <option key={inm.inmueble} value={inm.inmueble}>
+                                  {inm.inmueble} - {inm.actividad_principal || 'Residencial'} {inm.es_condominio ? '(Padre)' : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <button 
+                              disabled={!selectedSolvenciaInmueble}
+                              onClick={() => generarSolvenciaIndividual(viewData, selectedSolvenciaInmueble)}
+                              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white py-1.5 rounded text-xs font-bold flex items-center justify-center gap-1.5"
+                            >
+                              <Download className="w-3.5 h-3.5" /> Descargar Solvencia
                             </button>
-                          ))}
-                        </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {inmsSolventes.map((inm: any) => (
+                              <button key={inm.inmueble} onClick={() => generarSolvenciaIndividual(viewData, inm.inmueble)}
+                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5">
+                                <Download className="w-3.5 h-3.5" /> Solvencia {inm.inmueble}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ) : null;
                     // Agente de retención: IVA completo, IVA retenido (75%) y monto a cancelar
@@ -3831,16 +3861,17 @@ function ContribuyentesPageContent() {
                                   value={selectedSolvenciaInmueble}
                                   onChange={(e) => setSelectedSolvenciaInmueble(e.target.value)}
                                 >
-                                  <option value="">-- Condominio General --</option>
-                                  {viewCalculo?.misInmuebles?.map((inm: any, idx: number) => (
-                                    <option key={idx} value={inm.inmueble || `Local ${idx+1}`}>
-                                      {inm.inmueble || `Local ${idx+1}`} - {inm.actividad_principal || 'Residencial'}
+                                  <option value="">-- Seleccione Inmueble Solvente --</option>
+                                  {inmsSolventes.map((inm: any) => (
+                                    <option key={inm.inmueble} value={inm.inmueble}>
+                                      {inm.inmueble} - {inm.actividad_principal || 'Residencial'} {inm.es_condominio ? '(Padre)' : ''}
                                     </option>
                                   ))}
                                 </select>
                                 <button 
+                                  disabled={!selectedSolvenciaInmueble}
                                   onClick={() => generarSolvenciaIndividual(viewData, selectedSolvenciaInmueble)}
-                                  className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded shadow-sm text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                                  className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white py-2 rounded shadow-sm text-sm font-bold flex items-center justify-center gap-2 transition-colors"
                                 >
                                   <Download className="w-4 h-4" />
                                   Descargar Solvencia

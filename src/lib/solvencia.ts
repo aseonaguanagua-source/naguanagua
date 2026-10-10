@@ -34,13 +34,24 @@ export async function evaluarSolvencia(identidad: string, inmuebleSpec: string =
 
   let alcance = inmsRif || [];
   if (especifico) {
-    const principal = alcance.find((i: any) => i.inmueble === especifico);
+    let principal = alcance.find((i: any) => i.inmueble === especifico);
+    if (!principal) {
+      const { data: pDb } = await supabase
+        .from('inmuebles')
+        .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
+        .eq('inmueble', especifico)
+        .maybeSingle();
+      if (pDb) principal = pDb;
+    }
+
     const { data: hijos } = await supabase
       .from('inmuebles')
       .select('id, inmueble, estado, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, condominio_padre_id, padre_id')
       .or(`condominio_padre_id.in.(${[especifico, principal?.id].filter(Boolean).join(',')}),padre_id.in.(${[especifico, principal?.id].filter(Boolean).join(',')})`);
+    
     alcance = [...(principal ? [principal] : []), ...(hijos || [])];
-    if (!principal) return { solvente: false, mensaje: `El inmueble ${especifico} no pertenece a ${identidad}.`, inmueblesConDeuda: [] };
+    
+    if (!principal) return { solvente: false, mensaje: `El inmueble ${especifico} no fue encontrado.`, inmueblesConDeuda: [] };
     if (principal.estado === 'Eliminado') return { solvente: false, mensaje: `El inmueble ${especifico} está ELIMINADO. Reactívelo antes de emitir la solvencia.`, inmueblesConDeuda: [] };
   }
 
