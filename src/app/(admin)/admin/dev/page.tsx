@@ -241,7 +241,12 @@ export default function DevGodMode() {
                     &nbsp;&nbsp;description TEXT<br/>
                     );<br/><br/>
                     INSERT INTO system_config (key, value, description) VALUES <br/>
-                    ('PORTAL_EN_MANTENIMIENTO', 'true', 'Activa o desactiva el cartel de mantenimiento en Soy Contribuyente');
+                    ('PORTAL_EN_MANTENIMIENTO', 'true', 'Aviso de mantenimiento en Portal Soy Contribuyente'),<br/>
+                    ('FACTURACION_DIGITAL_ACTIVA', 'true', 'Emisión de Facturas The Factory HKA'),<br/>
+                    ('PAGOS_TRANSFERENCIA_ACTIVO', 'true', 'Permitir pagos por Transferencia Bancaria'),<br/>
+                    ('PAGOS_PAGO_MOVIL_ACTIVO', 'true', 'Permitir pagos por Pago Móvil'),<br/>
+                    ('DECLARACIONES_ACTIVAS', 'true', 'Habilitar declaraciones de Ingresos Brutos a Contribuyentes'),<br/>
+                    ('REGISTRO_NUEVOS_USUARIOS', 'true', 'Permitir registro de nuevos contribuyentes en el portal');
                   </div>
                 )}
                 <button onClick={loadToggles} className="mt-4 bg-red-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-red-700">Reintentar</button>

@@ -9,7 +9,7 @@ export const PORTAL_EN_MANTENIMIENTO = true;
 export const MENSAJE_MANTENIMIENTO_PORTAL =
   'El portal Soy Contribuyente se encuentra en mantenimiento. Por favor intente más tarde o diríjase a nuestras oficinas de Aseo Urbano.';
 
-export async function checkPortalMantenimiento(): Promise<boolean> {
+export async function checkSystemConfig(key: string, defaultValue: boolean): Promise<boolean> {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -19,7 +19,7 @@ export async function checkPortalMantenimiento(): Promise<boolean> {
       const { data, error } = await supabaseAdmin
         .from('system_config')
         .select('value')
-        .eq('key', 'PORTAL_EN_MANTENIMIENTO')
+        .eq('key', key)
         .single();
         
       if (!error && data) {
@@ -27,8 +27,12 @@ export async function checkPortalMantenimiento(): Promise<boolean> {
       }
     }
   } catch (err) {
-    console.error('Error reading system_config', err);
+    console.error(`Error reading system_config for ${key}`, err);
   }
   
-  return PORTAL_EN_MANTENIMIENTO;
+  return defaultValue;
+}
+
+export async function checkPortalMantenimiento(): Promise<boolean> {
+  return checkSystemConfig('PORTAL_EN_MANTENIMIENTO', PORTAL_EN_MANTENIMIENTO);
 }
