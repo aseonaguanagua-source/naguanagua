@@ -522,149 +522,63 @@ export default function KioskPage() {
       setDocNumber(inputClean);
     }
 
-    const variants = getIdentidadVariants(inputClean, activePrefix);
-    const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
-
-    // 1. Buscar en inmuebles con todas las variantes
-    let { data: inmsDB } = await supabase.from('inmuebles')
-      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
-      .or(orFilter);
-
-    // 2. Si no se encontró por identidad directa, buscar por código de inmueble (ej: URB002290)
-    if (!inmsDB || inmsDB.length === 0) {
-      const { data: byInmCode } = await supabase.from('inmuebles')
-        .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
-        .ilike('inmueble', `%${inputClean}%`)
-        .limit(10);
-      if (byInmCode && byInmCode.length > 0) inmsDB = byInmCode;
-    }
-
-    // 3. Si aún no se encontró, resolver identidad oficial en la tabla contribuyentes
-    if (!inmsDB || inmsDB.length === 0) {
-      const { data: cMatches } = await supabase.from('contribuyentes')
-        .select('*')
-        .or(orFilter)
-        .limit(1);
-
-      if (cMatches && cMatches.length > 0) {
-        const officialId = cMatches[0].identidad;
-        const cVariants = getIdentidadVariants(officialId);
-        const { data: inmsByContrib } = await supabase.from('inmuebles')
-          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
-          .or(cVariants.map(v => `identidad.eq.${v}`).join(','));
-        if (inmsByContrib && inmsByContrib.length > 0) {
-          inmsDB = inmsByContrib;
-        }
-      }
-    }
-
-    if (inmsDB && inmsDB.length > 0) {
-      const activeInms = inmsDB.filter((i: any) => !i.condominio_padre_id && !i.es_condominio);
-      if (activeInms.length === 0 && inmsDB.some((i: any) => i.condominio_padre_id || i.es_condominio)) {
-        setSearchError('Sus propiedades pertenecen a Condominios. El cobro móvil solo está habilitado para inmuebles regulares.');
+        try {
+      const res = await fetch(`/api/cobro-movil/buscar?q=${encodeURIComponent(inputClean)}`);
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setSearchError(data.error || 'Error al buscar el contribuyente.');
         setIsSearching(false);
         return;
       }
-      inmsDB = activeInms;
-    }
 
-    if (!inmsDB || inmsDB.length === 0) {
-      setSearchError('No encontrado. Verifique su Cédula o RIF.');
-      setIsSearching(false);
-      return;
-    }
+      const inmsDB = data.inmuebles;
+      const user = data.foundUser as Contribuyente;
 
-    const p = inmsDB[0];
-
-    // Sincronizar el prefijo visual en el dropdown si es distinto
-    if (p.identidad && /^[A-Z]-/i.test(p.identidad)) {
-      const detectedPrefix = p.identidad.charAt(0).toUpperCase();
-      if (detectedPrefix !== docType) setDocType(detectedPrefix);
-    }
-
-    let nombreCont = p.contribuyente;
-    
-    // Si no tiene contribuyente en el inmueble, intentar buscar en facturas
-    if (!nombreCont) {
-      const { data: fNombre } = await supabase.from('facturas')
-        .select('contribuyente').eq('identidad', p.identidad)
-        .not('contribuyente', 'is', null).limit(1);
-      if (fNombre && fNombre.length > 0 && fNombre[0].contribuyente) {
-        nombreCont = fNombre[0].contribuyente;
+      if (user.Identidad && /^[A-Z]-/i.test(user.Identidad)) {
+        const detectedPrefix = user.Identidad.charAt(0).toUpperCase();
+        if (detectedPrefix !== docType) setDocType(detectedPrefix);
       }
-    }
 
-    // Si aún no tiene nombre, buscar en la tabla oficial de contribuyentes
-    if (!nombreCont) {
-      const { data: cNombre } = await supabase.from('contribuyentes')
-        .select('nombre')
-        .or(orFilter)
-        .not('nombre', 'is', null)
-        .limit(1);
-      if (cNombre && cNombre.length > 0 && cNombre[0].nombre) {
-        nombreCont = cNombre[0].nombre;
-      }
-    }
+      setFoundUser(user);
 
-    const user: Contribuyente = {
-      Identidad: p.identidad,
-      Contribuyente: nombreCont || 'Cont. No Registrado',
-      Direccion: p.direccion || '',
-      Clasificacion: ((p.tipo && p.tipo.toUpperCase().includes('RESIDENCIAL')) || isResidencialInm(p)) ? 'Residencial' : 'Comercial',
-      Actividad: p.actividad_principal || '',
-      EsAgente: (inmsDB as any[]).some(i => i.agente_retencion === true),
-    };
-    setFoundUser(user);
+      let inmsFinal = [...inmsDB];
+      const isCondoByFlag = inmsDB.some((i: any) => i.es_condominio === true);
+      const isCondoByName = (user.Contribuyente || '').toLowerCase().includes('condominio') || (user.Actividad || '').toLowerCase().includes('condominio');
 
-    let inmsFinal = [...inmsDB];
-    const isCondoByFlag = inmsDB.some((i: any) => i.es_condominio === true);
-    const isCondoByName = (user.Contribuyente || '').toLowerCase().includes('condominio') || (user.Actividad || '').toLowerCase().includes('condominio');
-
-    if (isCondoByFlag || isCondoByName) {
-      const condoCodes = inmsDB.map((i: any) => i.inmueble).filter(Boolean);
-      if (condoCodes.length > 0) {
-        const { data: hijos } = await supabase
-          .from('inmuebles')
-          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
-          .in('condominio_padre_id', condoCodes);
-        if (hijos && hijos.length > 0) {
-          const ids = new Set(inmsFinal.map(x => x.id));
-          hijos.forEach(h => {
-            if (!ids.has(h.id)) inmsFinal.push(h);
-          });
+      if (isCondoByFlag || isCondoByName) {
+        const condoCodes = inmsDB.map((i: any) => i.inmueble).filter(Boolean);
+        if (condoCodes.length > 0) {
+          const { data: hijos } = await supabase
+            .from('inmuebles')
+            .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
+            .in('condominio_padre_id', condoCodes);
+          if (hijos && hijos.length > 0) {
+            const ids = new Set(inmsFinal.map(x => x.id));
+            hijos.forEach(h => {
+              if (!ids.has(h.id)) inmsFinal.push(h);
+            });
+          }
         }
       }
-    }
-    // Filtrar contenedores N/A que solo envuelven otras actividades (ej: URB033481)
-    const naParentCodes = inmsFinal
-      .filter((i: any) => 
-        (i.actividad_principal || '').trim().toUpperCase() === 'N/A' && 
-        (parseInt(i.cant_inmuebles || '0') > 0 || inmsFinal.some((c: any) => c.condominio_padre_id === i.inmueble))
-      )
-      .map((i: any) => i.inmueble);
 
-    const billableInms = inmsFinal.filter((i: any) => !naParentCodes.includes(i.inmueble));
-    const finalInmsToUse = billableInms.length > 0 ? billableInms : inmsFinal;
-    setUserInms(finalInmsToUse as Inmueble[]);
+      const naParentCodes = inmsFinal
+        .filter((i: any) => 
+          (i.actividad_principal || '').trim().toUpperCase() === 'N/A' && 
+          (parseInt(i.cant_inmuebles || '0') > 0 || inmsFinal.some((c: any) => c.condominio_padre_id === i.inmueble))
+        )
+        .map((i: any) => i.inmueble);
 
-    const totalDeudaMMV = finalInmsToUse.reduce((s: number, i: any) => s + parseFloat(i.deuda_mmv || 0), 0);
-    const totalCongelada = inmsDB.reduce((s: number, i: any) => s + parseFloat(i.deuda_congelada_bs || 0), 0);
+      const billableInms = inmsFinal.filter((i: any) => !naParentCodes.includes(i.inmueble));
+      const finalInmsToUse = billableInms.length > 0 ? billableInms : inmsFinal;
+      setUserInms(finalInmsToUse as Inmueble[]);
 
-    const userVariants = getIdentidadVariants(p.identidad || user.Identidad);
-    const facturasOrFilter = userVariants.map(v => `identidad.eq.${v}`).join(',');
-    const { data: allUserFacturas } = await supabase
-      .from('facturas').select('referencia, emision, estado, monto, identidad')
-      .in('estado', ['Pendiente', 'Por Verificar', 'Abonado'])
-      .or(facturasOrFilter)
-      .order('emision', { ascending: true });
+      const totalDeudaMMV = finalInmsToUse.reduce((s: number, i: any) => s + parseFloat(i.deuda_mmv || 0), 0);
+      const totalCongelada = inmsDB.reduce((s: number, i: any) => s + parseFloat(i.deuda_congelada_bs || 0), 0);
 
-    let fallbackFacturas: Recibo[] = [];
-    if ((allUserFacturas || []).length === 0 && user.Contribuyente) {
-      const { data: fByName } = await supabase.from('facturas')
-        .select('referencia, emision, estado, monto, identidad').in('estado', ['Pendiente', 'Por Verificar'])
-        .eq('contribuyente', user.Contribuyente).order('emision', { ascending: true });
-      if (fByName && fByName.length > 0) fallbackFacturas = fByName as Recibo[];
-    }
+      const allUserFacturas = data.facturas.filter((f: any) => ['Pendiente', 'Por Verificar', 'Abonado'].includes(f.estado));
+      let fallbackFacturas: Recibo[] = [];
+
 
     const combined = [...(allUserFacturas || []), ...fallbackFacturas] as Recibo[];
     
@@ -727,6 +641,11 @@ export default function KioskPage() {
     setExpandedInms({});
     setStep('account');
     setIsSearching(false);
+    } catch (e: any) {
+      console.error(e);
+      setSearchError('Hubo un error al buscar el usuario.');
+      setIsSearching(false);
+    }
   };
 
   const processPayment = async (ref: string, method: PayMethod) => {
