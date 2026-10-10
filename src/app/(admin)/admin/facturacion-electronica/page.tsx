@@ -76,6 +76,10 @@ export default function FacturacionElectronicaPage() {
   const [adminUser, setAdminUser] = useState<any>(null);
   useEffect(() => { try { setAdminUser(JSON.parse(localStorage.getItem('admin_user_data') || 'null')); } catch {} }, []);
   const esAdmin = adminUser?.rol === 'Administrador' || adminUser?.usuario === 'dzara';
+  const usr = String(adminUser?.usuario || '').toLowerCase();
+  const cleanUsr = usr.includes('(') ? usr.split('(')[1].replace(')','').trim() : usr;
+  const puedeAnular = esAdmin || cleanUsr === 'isamar' || cleanUsr === 'raquel';
+
   const [eliminar, setEliminar] = useState<null | { pago: any; preview?: any; error?: string; cargando: boolean; motivo: string; hecho?: boolean }>(null);
   const pedirEliminar = async (pago: any) => {
     setEliminar({ pago, cargando: true, motivo: '' });
@@ -104,6 +108,31 @@ export default function FacturacionElectronicaPage() {
       loadPagos();
     } catch (e: any) {
       setEliminar({ ...eliminar, cargando: false, error: e.message });
+    }
+  };
+
+  const [anularEstado, setAnularEstado] = useState<null | { pago: any; cargando: boolean; error?: string; hecho?: boolean; notaCreditoUrl?: string }>(null);
+  const confirmarAnulacion = async () => {
+    if (!anularEstado) return;
+    if (!confirm('¿Está seguro que desea anular esta factura electrónica y generar una Nota de Crédito en The Factory HKA? Esto no se puede deshacer.')) return;
+    setAnularEstado({ ...anularEstado, cargando: true });
+    try {
+      const pago = anularEstado.pago;
+      const r = await fetch('/api/admin/factura-digital/anular', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagoId: pago.id,
+          usuario: adminUser?.usuario,
+          contribuyente: pago.contribuyente,
+          identidad: pago.identidad
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setAnularEstado({ ...anularEstado, cargando: false, error: d.error || 'No se pudo anular' }); return; }
+      setAnularEstado({ ...anularEstado, cargando: false, hecho: true, notaCreditoUrl: d.url });
+      loadPagos();
+    } catch (e: any) {
+      setAnularEstado({ ...anularEstado, cargando: false, error: e.message });
     }
   };
 
@@ -866,10 +895,17 @@ export default function FacturacionElectronicaPage() {
                           )
                         ) : pago.facturaEmitida ? (
                           <div className="space-y-1">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Emitida SENIAT
-                            </span>
+                            {pago.facturaAnulada ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800 border border-rose-300">
+                                <X className="w-3.5 h-3.5 text-rose-600" />
+                                Anulada (NC)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                Emitida SENIAT
+                              </span>
+                            )}
                             {pago.numeroControl && (
                               <span className="block font-mono text-[10px] text-slate-500">
                                 Ctrl: {pago.numeroControl}
@@ -899,6 +935,16 @@ export default function FacturacionElectronicaPage() {
                               onClick={() => pedirEliminar(pago)}
                               className="text-[11px] bg-white hover:bg-red-50 text-red-700 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-red-300 transition-colors cursor-pointer"
                               title="Eliminar este pago y devolverle la deuda al contribuyente (solo administrador)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Eliminar</span>
+                            </button>
+                          )}
+                          {esAdmin && pago.facturaAnulada && (
+                            <button
+                              onClick={() => pedirEliminar(pago)}
+                              className="text-[11px] bg-white hover:bg-red-50 text-red-700 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-red-300 transition-colors cursor-pointer"
+                              title="Eliminar pago (ya la factura fue anulada)"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                               <span>Eliminar</span>
@@ -934,20 +980,62 @@ export default function FacturacionElectronicaPage() {
                                   title="Ver factura oficial en formato PDF del SENIAT"
                                 >
                                   <Eye className="w-3.5 h-3.5 text-blue-600" />
-                                  <span>PDF</span>
+                                  <span>{pago.facturaAnulada ? 'Factura' : 'PDF'}</span>
                                 </a>
                               )}
-                              <button
-                                onClick={() => {
-                                  setSelectedPagoForEmail(pago);
-                                  setCustomEmailDestino(pago.correo || fallbackEmail);
-                                }}
-                                className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer"
-                                title="Reenviar copia de la factura por correo electrónico"
-                              >
-                                <Mail className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Reenviar</span>
-                              </button>
+                              {pago.notaCreditoUrl && (
+                                <a
+                                  href={pago.notaCreditoUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-rose-300 transition-colors"
+                                  title="Ver Nota de Crédito oficial en formato PDF del SENIAT"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>PDF N/C</span>
+                                </a>
+                              )}
+                              {!pago.facturaAnulada && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedPagoForEmail(pago);
+                                    setCustomEmailDestino(pago.correo || fallbackEmail);
+                                  }}
+                                  className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer"
+                                  title="Reenviar copia de la factura por correo electrónico"
+                                >
+                                  <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Reenviar</span>
+                                </button>
+                              )}
+                              {!pago.facturaAnulada && puedeAnular && (
+                                <button
+                                  onClick={async () => { 
+                                    if (!confirm('¿Está seguro que desea anular esta factura electrónica y generar una Nota de Crédito en The Factory HKA? Esto no se puede deshacer.')) return;
+                                    setAnularEstado({ pago, cargando: true });
+                                    try {
+                                      const r = await fetch('/api/admin/factura-digital/anular', {
+                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ pagoId: pago.id, usuario: adminUser?.usuario, contribuyente: pago.contribuyente, identidad: pago.identidad }),
+                                      });
+                                      const d = await r.json();
+                                      if (!r.ok) { alert(d.error || 'No se pudo anular'); setAnularEstado(null); return; }
+                                      alert('Factura anulada correctamente (Nota de Crédito generada).');
+                                      setAnularEstado(null);
+                                      loadPagos();
+                                    } catch (e: any) {
+                                      alert(e.message);
+                                      setAnularEstado(null);
+                                    }
+                                  }}
+                                  disabled={anularEstado?.pago?.id === pago.id && anularEstado?.cargando}
+                                  className="text-[11px] bg-white hover:bg-rose-50 text-rose-700 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-rose-300 transition-colors cursor-pointer disabled:opacity-50"
+                                  title="Anular Factura Digital"
+                                >
+                                  {anularEstado?.pago?.id === pago.id && anularEstado?.cargando ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" /> : <X className="w-3.5 h-3.5 text-rose-600" />}
+                                  <span>{anularEstado?.pago?.id === pago.id && anularEstado?.cargando ? 'Anulando...' : 'Anular'}</span>
+                                </button>
+                              )}
                             </>
                           ) : (
                             <>

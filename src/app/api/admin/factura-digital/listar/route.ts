@@ -128,6 +128,9 @@ export async function GET(request: Request) {
         numeroDocumento: fd?.numero_documento || null,
         fechaEmision: fd?.fecha_emision || null,
         error: det.factura_digital_error || null,
+        facturaAnulada: !!fd?.anulada,
+        notaCreditoUrl: fd?.nota_credito?.url || null,
+        notaCreditoControl: fd?.nota_credito?.numero_control || null,
         // Agente de retención: la factura se envía solo al aprobar su comprobante
         conRetencion: (parseFloat(String(det.monto_retencion_iva || 0)) || 0) > 0,
         retencionEstado: fd?.retencion?.estado || null,
