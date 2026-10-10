@@ -1544,7 +1544,7 @@ export default function CajaPage() {
           }
         } else {
           // === ABONO PARCIAL: descontar monto de las recibos formales ===
-          let dineroDisponibleFacs = montoReal;
+          let dineroDisponibleFacs = montoReal + (confirmPayload.realMontoRetencionIVA || 0) + (confirmPayload.descuentoSaldoFavor || 0);
           for (const ref of formalRefs) {
             const f = recibos.find(r => r.referencia === ref);
             if (!f) continue;
@@ -1778,7 +1778,7 @@ export default function CajaPage() {
             }
           } else {
             // === ABONO PARCIAL / PAGO MÚLTIPLE: DESCONTAR MES A MES LO QUE ALCANCE ===
-            let dineroParaInms = montoReal;
+            let dineroParaInms = montoReal + (confirmPayload.realMontoRetencionIVA || 0) + (confirmPayload.descuentoSaldoFavor || 0);
 
             // Descontar facturas formales no históricas
             const formalRefs = selectedRecibos.filter(r => !r.startsWith('RECIB-HIST-') && !r.startsWith('MULTA-') && r !== 'RECIB-DEUDA');
@@ -1801,6 +1801,20 @@ export default function CajaPage() {
                 const baseS = parseFloat(s.monto || '0');
                 const totS = baseS + parseFloat((baseS * ivaPercent).toFixed(2));
                 dineroParaInms = Math.max(0, dineroParaInms - totS);
+              }
+            }
+
+            // Descontar multas separadas
+            const multaRefsAbono = selectedRecibos.filter(r => r.startsWith('MULTA-'));
+            for (const mRef of multaRefsAbono) {
+              const f = recibos.find((r: any) => r.referencia === mRef);
+              if (f) {
+                const montoM = parseFloat(getReciboMonto(f) || '0');
+                if (dineroParaInms >= montoM - 0.01) {
+                  dineroParaInms = Math.max(0, dineroParaInms - montoM);
+                  const inmCode = mRef.replace('MULTA-', '');
+                  await supabase.from('inmuebles').update({ multa_bs: 0, deuda_congelada_bs: 0 }).eq('inmueble', inmCode);
+                }
               }
             }
 
@@ -2539,7 +2553,7 @@ export default function CajaPage() {
       setNotaManualMonto('');
       setNotaManualRef('');
       setTimeout(() => setSuccessMsg(''), 4000);
-      handleSearch(); // Refresh user data
+      fetchUserData(foundUser.Identidad, true); // Refresh user data properly
     } catch (e: any) {
       alert('Error creando nota: ' + e.message);
     }
