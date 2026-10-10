@@ -2759,8 +2759,17 @@ export default function CajaPage() {
         <div id="aviso-condominio-separado" className="bg-amber-50 text-amber-900 p-4 rounded-lg border border-amber-300 flex items-start gap-2 text-sm">
           <Building2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <b>Inmuebles de condominio:</b> {codigosDelCobro(false).slice(0, 12).join(', ')}{codigosDelCobro(false).length > 12 ? '…' : ''} se cobran en{' '}
-            <Link href="/admin/condominios/caja" className="underline font-bold">Caja de Condominios</Link>. Aquí no se pueden cobrar.
+            {foundUser.es_condominio ? (
+              <>
+                <b>Este perfil es un CONDOMINIO MATRIZ.</b> Los pagos de sus filiales ({codigosDelCobro(false).slice(0, 12).join(', ')}{codigosDelCobro(false).length > 12 ? '…' : ''}) se gestionan exclusivamente en la{' '}
+                <Link href="/admin/condominios/caja" className="underline font-bold text-emerald-800">Caja de Condominios</Link>. Aquí no se pueden cobrar.
+              </>
+            ) : (
+              <>
+                <b>Inmuebles de condominio:</b> {codigosDelCobro(false).slice(0, 12).join(', ')}{codigosDelCobro(false).length > 12 ? '…' : ''} se cobran en{' '}
+                <Link href="/admin/condominios/caja" className="underline font-bold text-emerald-800">Caja de Condominios</Link>. Aquí no se pueden cobrar.
+              </>
+            )}
           </div>
         </div>
       )}
@@ -2889,7 +2898,31 @@ export default function CajaPage() {
                 )}
               </div>
 
-              {foundUser.condominio_padre_id && (
+              {foundUser.es_condominio ? (
+                <div className="mt-3 p-3.5 rounded-xl border shadow-xs bg-emerald-50/90 border-emerald-300 text-emerald-950">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 bg-emerald-700 text-white">
+                          🏢 CONDOMINIO MATRIZ
+                        </span>
+                        <span className="font-extrabold text-sm text-slate-900">
+                          {foundUser.RazonSocial || foundUser.Razon_Social}
+                        </span>
+                      </div>
+                      <p className="text-xs leading-relaxed opacity-90">
+                        Este contribuyente es la matriz administradora del condominio. Todas las facturas de sus filiales se agrupan bajo su perfil.
+                      </p>
+                    </div>
+                    <Link
+                      href="/admin/condominios/caja"
+                      className="shrink-0 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+                    >
+                      Ir a Caja de Condominios →
+                    </Link>
+                  </div>
+                </div>
+              ) : foundUser.condominio_padre_id ? (
                 <div className={`mt-3 p-3.5 rounded-xl border shadow-xs ${
                   isCondominioPagoIndividual(foundUser.condominio_padre_id)
                     ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
@@ -2951,7 +2984,7 @@ export default function CajaPage() {
                     </button>
                   </div>
                 </div>
-              )}
+              ) : null}
 
               <div className="mt-2 text-xs bg-slate-100 text-slate-600 px-3 py-2 rounded border border-slate-200 w-full max-h-[400px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2 sticky top-0 bg-slate-100 z-10 py-1">
