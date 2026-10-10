@@ -2989,6 +2989,7 @@ export default function CajaPage() {
                 </div>
               ) : null}
 
+              {!foundUser.es_condominio && (
               <div className="mt-2 text-xs bg-slate-100 text-slate-600 px-3 py-2 rounded border border-slate-200 w-full max-h-[400px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2 sticky top-0 bg-slate-100 z-10 py-1">
                   <span className="font-bold">Fórmula Aplicada:</span>
@@ -3305,6 +3306,7 @@ export default function CajaPage() {
                   );
                 })()}
               </div>
+              )}
             </div>
             {foundUser.SaldoFavor > 0 && (
               <div className="bg-emerald-100 border-2 border-emerald-500 p-4 rounded-xl flex flex-col items-center justify-center min-w-[200px]">
@@ -3317,7 +3319,7 @@ export default function CajaPage() {
               </div>
             )}
           </div>
-
+          {!foundUser.es_condominio && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Listado de Deudas */}
             <div className="lg:col-span-2 space-y-6">
@@ -4663,9 +4665,10 @@ export default function CajaPage() {
                 </div>
               </div>
             )}
-          </div>
         </div>
         </div>
+        )}
+      </div>
       )}
       </div>
       )}
