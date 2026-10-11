@@ -1,58 +1,26 @@
 'use client';
 import { CalendarDays, Map, Clock, AlertCircle, Truck } from 'lucide-react';
 import { useState } from 'react';
+import { RUTAS_NAGUANAGUA } from '@/data/rutasNaguanagua';
 
 export default function RutasPage() {
   const [diaSeleccionado, setDiaSeleccionado] = useState('Lunes');
 
-  const cronograma = [
-    { 
-      dia: 'Lunes', 
-      rutas: [
-        { id: 'Ruta #1', sectores: 'Casco Central de Naguanagua, Av. Universidad, Calle Puerto Cabello, La Begoña.' },
-        { id: 'Ruta #2', sectores: 'Urb. La Granja, Av. Salvador Feo La Cruz, C.C. La Granja, C.C. Cristal.' },
-        { id: 'Ruta #3', sectores: 'Urb. Las Quintas (I, II y III), Capremco, Av. Valencia, Guayabal.' }
-      ]
-    },
-    {
-      dia: 'Martes',
-      rutas: [
-        { id: 'Ruta #1', sectores: 'Urb. Mañongo, Palma Real, Piedras Pintadas, C.C. Sambil Naguanagua.' },
-        { id: 'Ruta #2', sectores: 'Tazajal, Los Guayabitos, Rotaria, Altos de Guere.' },
-        { id: 'Ruta #3', sectores: 'Tarapío, Brisas de Tarapío, San Teodoro, Barrio Unión.' }
-      ]
-    },
-    {
-      dia: 'Miércoles',
-      rutas: [
-        { id: 'Ruta #1', sectores: 'Vivienda Rural de Bárbula, Colinas de Girardot, Guere.' },
-        { id: 'Ruta #2', sectores: 'Nueva Esparta, Santa Eduviges, Fundación Carabobo.' },
-        { id: 'Ruta #3', sectores: 'Av. Universidad Norte, Arco de Bárbula, Redoma de Guaparo.' }
-      ]
-    },
-    {
-      dia: 'Jueves',
-      rutas: [
-        { id: 'Ruta #1', sectores: 'El Rincón, Los Mangos, Los Samanes, Sector El Salto.' },
-        { id: 'Ruta #2', sectores: 'Carialinda, Lomas del Este Naguanagua, Monte Sión.' },
-        { id: 'Ruta #3', sectores: 'La Entrada, Las Marías, Sector Girardot.' }
-      ]
-    },
-    {
-      dia: 'Viernes',
-      rutas: [
-        { id: 'Ruta #1', sectores: 'Trincheras (Centro, Las Rosas, El Salto, Sector Termas).' },
-        { id: 'Ruta #2', sectores: 'Corredor Comercial Av. Universidad y Casco Histórico.' }
-      ]
-    },
-    {
-      dia: 'Sábado',
-      rutas: [
-        { id: 'Ruta #1', sectores: 'Grandes Generadores Comerciales, Av. Feo La Cruz y C.C. Vía Veneto.' },
-        { id: 'Ruta #2', sectores: 'Operativo Especial de Mantenimiento y Aseo General Naguanagua.' }
-      ]
-    }
-  ];
+  // Rutas oficiales (RUTAS DE NAGUANAGUA.xlsx). Se reparten por día según su frecuencia.
+  const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const ABR: Record<string, string> = { Lun: 'Lunes', Mar: 'Martes', 'Mié': 'Miércoles', Jue: 'Jueves', Vie: 'Viernes', 'Sáb': 'Sábado', Dom: 'Domingo' };
+  const cronograma = DIAS.map(dia => ({
+    dia,
+    rutas: RUTAS_NAGUANAGUA.filter((r: any) => {
+      const f = String(r.frecuencia || '');
+      if (f.startsWith('Diario')) return true;
+      return f.split(' ')[0].split('-').some(a => ABR[a] === dia);
+    }).map((r: any) => ({
+      id: String(r.nombre || '').replace(/^Ruta\s*/i, '') || r.id,
+      turno: (String(r.frecuencia).match(/\((.*)\)/) || [])[1] || '',
+      sectores: r.sectores,
+    })),
+  }));
 
   return (
     <div className="space-y-6">
@@ -106,11 +74,11 @@ export default function RutasPage() {
                 <div key={i} className="flex gap-4 p-5 bg-white border border-slate-200 rounded-xl hover:border-emerald-200 hover:shadow-md transition-all">
                   <div className="w-16 h-16 bg-slate-50 rounded-lg flex flex-col items-center justify-center shrink-0 border border-slate-100">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ruta</span>
-                    <span className="text-xl font-black text-slate-700">{r.id.split('#')[1]}</span>
+                    <span className="text-sm font-black text-slate-700 text-center leading-tight">{r.id}</span>
                   </div>
                   <div className="flex-1 flex flex-col justify-center">
                     <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                      <Map className="w-3.5 h-3.5" /> Sectores Atendidos
+                      <Map className="w-3.5 h-3.5" /> Sectores Atendidos{r.turno ? ` · Turno ${r.turno}` : ''}
                     </h3>
                     <p className="text-slate-800 font-medium leading-relaxed">{r.sectores}</p>
                   </div>

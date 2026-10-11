@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Truck, Map, Edit, Check, X, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { RUTAS_NAGUANAGUA } from './rutasNaguanagua';
+import { RUTAS_NAGUANAGUA } from '@/data/rutasNaguanagua';
 
 const RUTAS_POR_DEFECTO: any[] = RUTAS_NAGUANAGUA;
 
