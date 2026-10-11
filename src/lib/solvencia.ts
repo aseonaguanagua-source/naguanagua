@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { getIdentidadVariants } from '@/lib/formatters';
+import { getIdentidadVariantsExact as getIdentidadVariants } from '@/lib/formatters';
 
 /**
  * Regla ÚNICA de solvencia (Contribuyentes, Certificados, reimpresión).

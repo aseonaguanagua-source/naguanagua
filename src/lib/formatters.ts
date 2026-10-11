@@ -229,3 +229,23 @@ export function getIdentidadVariants(rawInput: string, defaultPrefix = 'V'): str
   return Array.from(variants);
 }
 
+/**
+ * Variantes de una identidad YA CONOCIDA (ej. la de un contribuyente seleccionado).
+ * Solo tolera guion y ceros a la izquierda; NUNCA cambia el prefijo.
+ * Usar para cargar inmuebles/facturas/pagos de un contribuyente, de modo que
+ * V-12345678, E-12345678 y J-123456789 (personas distintas) no se mezclen.
+ *
+ * Ej: "V-07092587" -> V-07092587, V07092587, V-7092587, V7092587, V-007092587, V007092587
+ */
+export function getIdentidadVariantsExact(identidad: string): string[] {
+  if (!identidad || !identidad.trim()) return [];
+  const raw = identidad.trim().toUpperCase();
+  const m = raw.match(/^([VEJPG])[-_\s]?0*(\d+)$/);
+  if (!m) return [raw];
+  const [, p, n] = m;
+  const forms = new Set<string>([n, n.padStart(8, '0'), n.padStart(9, '0')]);
+  const out = new Set<string>([raw]);
+  forms.forEach(f => { out.add(`${p}-${f}`); out.add(`${p}${f}`); });
+  return Array.from(out);
+}
+

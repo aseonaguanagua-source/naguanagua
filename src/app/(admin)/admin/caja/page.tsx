@@ -7,6 +7,7 @@ import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { actualizarPago } from '@/lib/actualizarPago';
 import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants } from '@/lib/formatCurrency';
+import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, getFAR, isResidencialInm, isCondominioPagoIndividual, isMesExoneradoMulta } from '@/lib/calculos';
@@ -495,12 +496,17 @@ export default function CajaPage() {
     if (!user) {
       const searchVariants = getIdentidadVariants(inputClean, activePrefix);
       const searchVariantsSet = new Set(searchVariants.map(v => v.replace(/-/g, '').toUpperCase()));
+      // Primero: coincidencia exacta con el prefijo seleccionado (evita tomar a otra persona con E-/J- y mismo número)
+      const exactSet = /^\d+$/.test(inputClean)
+        ? new Set(getIdentidadVariantsExact(`${activePrefix}-${inputClean}`).map(v => v.replace(/-/g, '').toUpperCase()))
+        : new Set<string>();
 
-      user = contribuyentes.find((c: any) => {
-        if (!c.Identidad) return false;
-        const idClean = String(c.Identidad).replace(/-/g, '').toUpperCase();
-        return searchVariantsSet.has(idClean);
-      });
+      user = contribuyentes.find((c: any) => c.Identidad && exactSet.has(String(c.Identidad).replace(/-/g, '').toUpperCase()))
+        || contribuyentes.find((c: any) => {
+          if (!c.Identidad) return false;
+          const idClean = String(c.Identidad).replace(/-/g, '').toUpperCase();
+          return searchVariantsSet.has(idClean);
+        });
 
       // 3. Si no encontró por cédula, y se ingresó un nombre de más de 2 letras (no dígitos), buscar por nombre
       if (!user && !/^\d+$/.test(inputClean) && inputClean.length >= 3) {
@@ -602,7 +608,7 @@ export default function CajaPage() {
       }
 
       // Obtener TODOS los datos frescos del inmueble desde Supabase
-      const userIdentVariants = getIdentidadVariants(user.Identidad);
+      const userIdentVariants = getIdentidadVariantsExact(user.Identidad);
       let orFilterInms = '';
       if (isCodeFormat && (user.CodCont || user.cod_cont)) {
         const specificCode = user.CodCont || user.cod_cont;
@@ -641,7 +647,7 @@ export default function CajaPage() {
       }
 
       // Recalcular variantes porque la Identidad pudo haber cambiado al tomarla de Supabase
-      const updatedUserIdentVariants = getIdentidadVariants(user.Identidad);
+      const updatedUserIdentVariants = getIdentidadVariantsExact(user.Identidad);
 
       // También consultar en contribuyentes para tener los datos oficiales más recientes
       const { data: freshContrib } = await supabase
@@ -2052,7 +2058,7 @@ export default function CajaPage() {
         if (!esAbonoDebito && foundUser?.Identidad) {
           (async () => {
             try {
-              const variantes = getIdentidadVariants(foundUser.Identidad);
+              const variantes = getIdentidadVariantsExact(foundUser.Identidad);
               const { data: inmsPost } = await supabase.from('inmuebles')
                 .select('estado, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs').in('identidad', variantes);
               const quedaDeuda = (inmsPost || []).some((i: any) => i.estado !== 'Eliminado' && (

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { getIdentidadVariants } from '@/lib/formatters';
+import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Búsqueda muy corta' }, { status: 400 });
     }
 
-    const variants = getIdentidadVariants(q);
+    const variants = /^[VEJPG][-\s]?\d+$/i.test(q) ? getIdentidadVariantsExact(q) : getIdentidadVariants(q);
     const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
     // 1. Buscar en inmuebles con todas las variantes
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 
       if (cMatches && cMatches.length > 0) {
         const officialId = cMatches[0].identidad;
-        const cVariants = getIdentidadVariants(officialId);
+        const cVariants = getIdentidadVariantsExact(officialId);
         const { data: inmsByContrib } = await supabaseAdmin
           .from('inmuebles')
           .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')

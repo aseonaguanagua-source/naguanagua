@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * Busca por: identidad, inmueble, nombre del contribuyente.
  * Retorna inmuebles + datos del contribuyente fusionados.
  */
-import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants } from '@/lib/formatters';
+import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
 
 export async function GET(request: Request) {
   try {
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Búsqueda muy corta (mínimo 2 caracteres)' }, { status: 400 });
     }
 
-    const variants = getIdentidadVariants(q);
+    const variants = /^[VEJPG][-\s]?\d+$/i.test(q) ? getIdentidadVariantsExact(q) : getIdentidadVariants(q);
     const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
     // Buscar por variantes de identidad (tolerante a V/J/ceros/guiones)
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
         .limit(1);
 
       if (cMatches && cMatches.length > 0) {
-        const cVars = getIdentidadVariants(cMatches[0].identidad);
+        const cVars = getIdentidadVariantsExact(cMatches[0].identidad);
         const { data: inmsByOfficial } = await supabaseAdmin
           .from('inmuebles')
           .select('*')

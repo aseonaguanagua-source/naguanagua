@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
 import { calcularMensualidad, isResidencialInm, getFO, resolverFOComercial } from '@/lib/calculos';
 import { logAudit } from '@/lib/audit';
-import { getIdentidadVariants } from '@/lib/formatters';
+import { getIdentidadVariantsExact as getIdentidadVariants } from '@/lib/formatters';
 
 interface MonthItem {
   key: string;        // '2024-01'

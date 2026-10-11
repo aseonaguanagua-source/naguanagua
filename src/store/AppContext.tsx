@@ -1086,8 +1086,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addContribuyente = async (data: any) => {
     try {
-      const identidad = normalizarIdentidad(data.Identidad, data.TipoIdentidad || 'V');
+      let identidad = normalizarIdentidad(data.Identidad, data.TipoIdentidad || 'V');
       if (!/^[VJGEP]-\d{5,10}$/.test(identidad)) throw new Error(`Identidad inválida: "${data.Identidad}".`);
+
+      // ── Bloqueo de fichas duplicadas ──
+      {
+        const numero = identidad.split('-')[1].replace(/^0+/, '');
+        const formas = Array.from(new Set([numero, numero.padStart(8, '0'), numero.padStart(9, '0')]));
+        const candidatos = ['V', 'E', 'J', 'G', 'P'].flatMap(p => formas.flatMap(f => [`${p}-${f}`, `${p}${f}`]));
+        const { data: existentes } = await supabase.from('contribuyentes').select('identidad, nombre').in('identidad', candidatos);
+        const mismoPrefijo = (existentes || []).find((c: any) => c.identidad[0] === identidad[0]);
+        const otroPrefijo = (existentes || []).find((c: any) => c.identidad[0] !== identidad[0]);
+        if (mismoPrefijo) {
+          identidad = mismoPrefijo.identidad; // misma persona con otro formato (ceros / guion): usar la ficha existente
+        } else if (otroPrefijo && !data.__confirmarOtroPrefijo) {
+          throw new Error(`Ya existe la ficha ${otroPrefijo.identidad} (${otroPrefijo.nombre}) con el mismo número. ` +
+            `Búsquela en Contribuyentes y agregue el inmueble allí, o corrija el prefijo, para no crear una ficha duplicada.`);
+        }
+      }
       const codCont = data.CodCont || `N-${Math.floor(10000 + Math.random() * 90000)}`;
       const direccionBase = data.DireccionExacta ? `${data.Direccion} | Exacta: ${data.DireccionExacta}` : data.Direccion;
 
