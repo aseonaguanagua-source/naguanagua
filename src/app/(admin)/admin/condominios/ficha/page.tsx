@@ -319,6 +319,14 @@ function Ficha() {
               }} className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
                 <FileText className="w-4 h-4" /> Excel
               </button>
+              {admin && (
+                <button id="btn-excel-ucd-condominio" onClick={async () => {
+                  const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
+                  exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador', 'UCD');
+                }} className="px-4 py-2.5 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center gap-2 cursor-pointer" title="Estado de cuenta expresado en UCD (Euro × 57) — sólo administradores">
+                  <FileText className="w-4 h-4" /> Excel UCD
+                </button>
+              )}
               <button onClick={exportarMultas} className="px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
                 <FileText className="w-4 h-4" /> Reporte de Multas
               </button>
