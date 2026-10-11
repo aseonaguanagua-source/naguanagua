@@ -192,7 +192,28 @@ export default function ConveniosPagoPage() {
         }
       }
 
-      // Actualizar inmuebles
+      // 1. Crear el convenio PRIMERO. Si falla, no se toca la deuda (antes la deuda se congelaba
+      //    y el insert fallaba en silencio, dejando al contribuyente sin deuda y sin convenio).
+      const nroConvenio = `CONV-${Date.now().toString().slice(-6)}`;
+      const { error: convErr } = await supabase.from('convenios').insert({
+        numero: nroConvenio,
+        contribuyente: foundUser.contribuyente,
+        identidad: foundUser.identidad,
+        monto_total: `${totalFijado.toFixed(2)} Bs`,
+        cuotas: cuotas,
+        frecuencia: frecuencia,
+        inicio: fechaInicio,
+        estado: 'Al Día',
+        documento_url: docUrl,
+        detalle_cuotas: JSON.stringify(listaCuotas)
+      });
+      if (convErr) {
+        alert('No se pudo registrar el convenio (' + convErr.message + '). La deuda NO fue modificada.');
+        setIsProcessing(false);
+        return;
+      }
+
+      // 2. Actualizar inmuebles
       for (const inm of foundUser.inmuebles) {
         const mmv = inm.DeudaMMV || inm.deuda_mmv || 0;
         if (mmv > 0) {
@@ -217,20 +238,6 @@ export default function ConveniosPagoPage() {
           .in('referencia', referencias);
       }
 
-      // Crear registro en convenios
-      const nroConvenio = `CONV-${Date.now().toString().slice(-6)}`;
-      await supabase.from('convenios').insert({
-        numero: nroConvenio,
-        contribuyente: foundUser.contribuyente,
-        identidad: foundUser.identidad,
-        monto_total: `${totalFijado.toFixed(2)} Bs`,
-        cuotas: cuotas,
-        frecuencia: frecuencia,
-        inicio: fechaInicio,
-        estado: 'Al Día',
-        documento_url: docUrl,
-        detalle_cuotas: JSON.stringify(listaCuotas)
-      });
 
       // Registrar en auditoria
       await logAudit('Convenio de Pago Creado', {

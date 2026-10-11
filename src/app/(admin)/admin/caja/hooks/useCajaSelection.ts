@@ -162,10 +162,21 @@ export function useCajaSelection({
                 (pr) => !selectedRecibos.includes(pr) && !refsToToggle.includes(pr) && !isItemPending(pr)
               );
               if (missingPrevious) {
-                alert(
-                  '¡No se puede adelantar meses! Debe seleccionar y pagar las deudas más antiguas de este inmueble primero.'
-                );
-                return;
+                // Excepción: convenio de pago. Los meses viejos están en el convenio y el
+                // contribuyente debe poder pagar el MES EN CURSO (el último recibo del inmueble).
+                const posteriores = sortedRecibos
+                  .slice(cIdx + 1)
+                  .filter((r: any) => (r.referencia || '').includes(inmuebleId));
+                const esMesEnCurso = posteriores.length === 0;
+                if (!(esMesEnCurso && confirm(
+                  'Este inmueble tiene meses anteriores pendientes.\n\n' +
+                  '¿El contribuyente tiene un CONVENIO DE PAGO vigente y desea cobrar SOLO el mes en curso?'
+                ))) {
+                  alert(
+                    '¡No se puede adelantar meses! Debe seleccionar y pagar las deudas más antiguas de este inmueble primero.'
+                  );
+                  return;
+                }
               }
             } else {
               const previousRefs = sortedRecibos.slice(0, cIdx).map((r: any) => r.referencia);

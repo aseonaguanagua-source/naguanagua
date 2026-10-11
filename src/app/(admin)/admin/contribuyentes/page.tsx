@@ -368,7 +368,8 @@ function ContribuyentesPageContent() {
       );
 
       if (misInmuebles.length > 0) {
-        const isCondominio = misInmuebles.some((i: any) => (parseInt(i.cant_inmuebles) || 1) > 1);
+        // Solo es condominio si está marcado como tal (no por tener varios locales / cant_inmuebles)
+        const isCondominio = misInmuebles.some((i: any) => i.es_condominio === true || String(i.clasificacion || '').toLowerCase() === 'condominio');
         leyenda = isCondominio ? `Condominio / Complejo Habitacional` : misInmuebles.map((i: any) => cleanClasificacionActividad(i.actividad_principal || '')).filter(Boolean).join(', ') || 'Servicio de Aseo Urbano';
         
         misInmuebles.forEach((inm: any) => {
@@ -813,11 +814,11 @@ function ContribuyentesPageContent() {
         }
 
         const rawDir = (inm.direccion || '').trim();
-        const padreId = inm.condominio_padre_id;
+        const padreId = inm.condominio_padre_id || inm.padre_id;
 
         const matched = clusters.find(c => {
           if (c.tipo === 'RESIDENCIAL') return false;
-          if (padreId && c.inmuebles.some((ci: any) => ci.condominio_padre_id === padreId || ci.inmueble === padreId)) {
+          if (padreId && c.inmuebles.some((ci: any) => (ci.condominio_padre_id || ci.padre_id) === padreId || ci.inmueble === padreId)) {
             return true;
           }
           if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
@@ -865,13 +866,19 @@ function ContribuyentesPageContent() {
         const esRes = isResidencialInm(inm);
         const rawDir = (inm.direccion || '').trim();
         const tipoCluster = esRes ? 'RESIDENCIAL' : ((inm.tipo || 'COMERCIAL').toUpperCase().includes('IND') ? 'INDUSTRIAL' : 'COMERCIAL');
-        const padreId = inm.condominio_padre_id && ownCodes.has(inm.condominio_padre_id) ? inm.condominio_padre_id : null;
+        // Padre propio: condominio o contenedor N/A (padre_id). Las actividades de un mismo N/A
+        // salen en UN solo estado de cuenta (la tarifa del N/A es la suma de sus actividades).
+        const padreDe = (x: any) => {
+          const p = x.condominio_padre_id || x.padre_id;
+          return p && ownCodes.has(p) ? p : null;
+        };
+        const padreId = padreDe(inm);
         const dirKey = rawDir && rawDir !== '0 0' ? normDir(rawDir) : '';
 
         const matched = esRes ? undefined : clusters.find(c => {
           if (c.tipo === 'RESIDENCIAL') return false;
           return c.inmuebles.some((ci: any) => {
-            const ciPadre = ci.condominio_padre_id && ownCodes.has(ci.condominio_padre_id) ? ci.condominio_padre_id : null;
+            const ciPadre = padreDe(ci);
             if (padreId && ciPadre === padreId) return true;
             const ciDir = ci.direccion && ci.direccion !== '0 0' ? normDir(ci.direccion) : '';
             return !!dirKey && ciDir === dirKey;
@@ -1636,8 +1643,9 @@ function ContribuyentesPageContent() {
     // Auto-detectar condominio si viene de una importación con clasificación 'A'
     if (autoClasificacion !== 'Condominio') {
       const nombreLC = (row.Contribuyente || '').toLowerCase();
-      const cant = parseInt(row.Cant_Inmuebles) || 1;
-      if (nombreLC.includes('condominio') || nombreLC.includes('residencias') || nombreLC.includes('conjunto') || cant > 1) {
+      // Antes: cant > 1 lo convertía en Condominio y al guardar quedaba marcado como tal.
+      // Varios locales/actividades del mismo dueño NO son un condominio.
+      if (nombreLC.includes('condominio') || nombreLC.includes('residencias') || nombreLC.includes('conjunto')) {
         autoClasificacion = 'Condominio';
       }
     }

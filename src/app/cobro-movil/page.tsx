@@ -566,7 +566,7 @@ export default function KioskPage() {
       const naParentCodes = inmsFinal
         .filter((i: any) => 
           (i.actividad_principal || '').trim().toUpperCase() === 'N/A' && 
-          (parseInt(i.cant_inmuebles || '0') > 0 || inmsFinal.some((c: any) => c.condominio_padre_id === i.inmueble))
+          (parseInt(i.cant_inmuebles || '0') > 0 || inmsFinal.some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble))
         )
         .map((i: any) => i.inmueble);
 
