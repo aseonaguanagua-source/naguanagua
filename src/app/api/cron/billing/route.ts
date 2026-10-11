@@ -47,14 +47,23 @@ export async function GET(request: Request) {
     const vencimientoDate = new Date(mesFacturacionDate.getFullYear(), mesFacturacionDate.getMonth(), 30).toISOString().split('T')[0];
     const modoTexto = testMode ? ' [MODO PRUEBA]' : '';
 
-    // ── PASO 1: Obtener todos los inmuebles activos de una sola vez ──
-    const { data: inmuebles, error: inmueblesError } = await supabase
+    // ── PASO 1: Obtener inmuebles facturables ──
+    // Reglas:
+    //  - Solo estado 'Activo' (Inactivo/Eliminado no generan deuda).
+    //  - NUNCA contenedores "N/A": su tarifa es la suma de sus hijos (fuera de condominio)
+    //    o de sus nietos (condominio → N/A → actividades). Facturarlos duplicaría el cobro.
+    //  - NUNCA el código padre de un condominio (es_condominio): se cobra por el módulo de Condominios.
+    // TODO(saneamiento): esta consulta devuelve máx. 1000 filas (límite de Supabase) y solo suma deuda_mmv,
+    // no meses_deuda. Se rediseña junto con el libro de deuda mensual antes del próximo cierre.
+    const { data: inmRaw, error: inmueblesError } = await supabase
       .from('inmuebles')
-      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, clasificacion, actividad_principal')
-      .gt('mmv_mes', 0);
-
+      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, clasificacion, actividad_principal, estado, es_condominio')
+      .gt('mmv_mes', 0)
+      .eq('estado', 'Activo');
     if (inmueblesError) throw inmueblesError;
-    if (!inmuebles || inmuebles.length === 0) {
+    const inmuebles: any[] = (inmRaw || []).filter((i: any) =>
+      (i.actividad_principal || '').trim().toUpperCase() !== 'N/A' && i.es_condominio !== true);
+    if (inmuebles.length === 0) {
       return NextResponse.json({ success: true, procesados: 0, omitidos: 0, message: 'No hay inmuebles activos' });
     }
 
@@ -64,11 +73,15 @@ export async function GET(request: Request) {
       .filter((inm: any) => inm.inmueble)
       .map((inm: any) => `CM-${inm.inmueble}-${periodoKey}`);
 
-    // Buscar referencias que ya existen (formato CM-I-)
-    const { data: existentesNuevo } = await supabase
-      .from('facturas')
-      .select('referencia, identidad')
-      .in('referencia', todasLasRefs);
+    // Buscar referencias que ya existen (formato CM-I-) — por lotes para no exceder el largo de URL
+    const existentesNuevo: any[] = [];
+    for (let k = 0; k < todasLasRefs.length; k += 300) {
+      const { data: lote } = await supabase
+        .from('facturas')
+        .select('referencia, identidad')
+        .in('referencia', todasLasRefs.slice(k, k + 300));
+      existentesNuevo.push(...(lote || []));
+    }
 
     // Buscar referencias en formato viejo (CM-C-{cod_cont}) para el mismo período
     const { data: existentesViejo } = await supabase
