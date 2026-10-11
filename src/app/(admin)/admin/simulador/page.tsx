@@ -8,8 +8,24 @@ import {
 } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
-import { formatBs, getIdentidadVariants } from '@/lib/formatCurrency';
-import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
+import { formatBs } from '@/lib/formatCurrency';
+import { getIdentidadVariantsExact } from '@/lib/formatters';
+import { calcularMensualidad, isResidencialInm, isCondominioPagoIndividual } from '@/lib/calculos';
+import { calcularDeudaInmueble, mesesHistoricos, reglaCobroInmueble, r2 } from '@/lib/deudaMensual';
+
+/** Renglón de deuda real (uno por inmueble cobrable o por unidad del módulo de condominios). */
+interface ItemDeuda {
+  codigo: string;
+  mensual: number;
+  meses: number;
+  esRes: boolean;
+  base: number;
+  iva: number;
+  multa: number;
+  fuente: 'CAJA' | 'CONDOMINIO';
+}
+
+const esNA = (i: any) => String(i?.actividad_principal || '').trim().toUpperCase() === 'N/A';
 
 export default function SimuladorPage() {
   const { tcmmv } = useAppContext();
@@ -20,6 +36,8 @@ export default function SimuladorPage() {
   const [searching, setSearching] = useState(false);
   const [foundUser, setFoundUser] = useState<any>(null);
   const [userInmueblesList, setUserInmueblesList] = useState<any[]>([]);
+  /** Deuda según el módulo de condominios (si el inmueble es unidad de un condominio) */
+  const [condoData, setCondoData] = useState<any>(null);
 
   // Simulation parameters
   const [simMesesDeuda, setSimMesesDeuda] = useState<number>(0);
@@ -44,12 +62,27 @@ export default function SimuladorPage() {
     if (!rawSearch) return;
 
     setSearching(true);
+    setCondoData(null);
     try {
       const isCodeFormat = /^[A-Z]{3,4}\d{4,8}$/i.test(rawSearch);
       let matchedUser: any = null;
       let inmsFound: any[] = [];
+      const mk = (i: any, nombre?: string) => ({
+        Identidad: i.identidad,
+        Contribuyente: nombre || i.contribuyente || 'Contribuyente',
+        inmueble: i.inmueble,
+        direccion: i.direccion,
+        tipo: i.tipo,
+        clasificacion: i.clasificacion,
+        actividad_principal: i.actividad_principal,
+        deuda_mmv: i.deuda_mmv,
+        meses_deuda: i.meses_deuda,
+        multa_bs: i.multa_bs,
+        saldo_favor_bs: i.saldo_favor_bs,
+        cant_inmuebles: i.cant_inmuebles,
+      });
 
-      // 1. Search directly by property code
+      // 1. Por código: SOLO ese inmueble y sus actividades (si es un contenedor N/A, cobran sus actividades)
       if (isCodeFormat) {
         const { data: inmDirect } = await supabase
           .from('inmuebles')
@@ -59,99 +92,66 @@ export default function SimuladorPage() {
           .maybeSingle();
 
         if (inmDirect) {
-          matchedUser = {
-            Identidad: inmDirect.identidad,
-            Contribuyente: inmDirect.contribuyente || 'Contribuyente',
-            inmueble: inmDirect.inmueble,
-            direccion: inmDirect.direccion,
-            tipo: inmDirect.tipo,
-            clasificacion: inmDirect.clasificacion,
-            actividad_principal: inmDirect.actividad_principal,
-            deuda_mmv: inmDirect.deuda_mmv,
-            meses_deuda: inmDirect.meses_deuda,
-            multa_bs: inmDirect.multa_bs,
-            saldo_favor_bs: inmDirect.saldo_favor_bs,
-            cant_inmuebles: inmDirect.cant_inmuebles
-          };
-          inmsFound = [inmDirect];
+          matchedUser = mk(inmDirect);
+          const { data: hijos } = await supabase
+            .from('inmuebles')
+            .select('*')
+            .eq('padre_id', inmDirect.inmueble)
+            .neq('estado', 'Eliminado');
+          inmsFound = [inmDirect, ...(hijos || [])];
+          // ¿Es unidad de un condominio? Entonces el monto es EXACTAMENTE el del módulo de condominios
+          try {
+            const r = await fetch(`/api/admin/condominios/deuda-unidad?inmueble=${encodeURIComponent(inmDirect.inmueble)}`);
+            const j = await r.json();
+            if (r.ok && j.enCondominio) setCondoData(j);
+          } catch { /* sin módulo: se calcula como Caja */ }
         }
       }
 
-      // 2. Search by identity (Cédula / RIF)
+      // 2. Por cédula / RIF (mismo prefijo: no mezcla V/E/J de otras personas)
       if (!matchedUser) {
-        const fullId = /^[VEJPG]-/i.test(rawSearch) ? rawSearch : `${docType}-${rawSearch.replace(/\D/g, '')}`;
-        const variants = getIdentidadVariants(fullId, docType);
-        
+        const fullId = /^[VEJPG]-?/i.test(rawSearch) ? rawSearch.toUpperCase() : `${docType}-${rawSearch.replace(/\D/g, '')}`;
+        const variants = getIdentidadVariantsExact(fullId);
+
         const { data: contrib } = await supabase
           .from('contribuyentes')
           .select('*')
-          .or(variants.map(v => `identidad.eq.${v}`).join(','))
+          .in('identidad', variants)
           .limit(1)
           .maybeSingle();
 
         const { data: dbInms } = await supabase
           .from('inmuebles')
           .select('*')
-          .or(variants.map(v => `identidad.eq.${v}`).join(','))
+          .in('identidad', variants)
           .neq('estado', 'Eliminado');
 
         inmsFound = dbInms || [];
-
         if (contrib || inmsFound.length > 0) {
-          matchedUser = {
-            Identidad: contrib?.identidad || inmsFound[0]?.identidad || fullId,
-            Contribuyente: contrib?.nombre || inmsFound[0]?.contribuyente || 'Contribuyente',
-            inmueble: inmsFound[0]?.inmueble,
-            direccion: inmsFound[0]?.direccion,
-            tipo: inmsFound[0]?.tipo || 'RESIDENCIAL',
-            clasificacion: inmsFound[0]?.clasificacion,
-            actividad_principal: inmsFound[0]?.actividad_principal,
-            deuda_mmv: inmsFound[0]?.deuda_mmv,
-            meses_deuda: inmsFound[0]?.meses_deuda,
-            multa_bs: inmsFound[0]?.multa_bs,
-            saldo_favor_bs: inmsFound[0]?.saldo_favor_bs,
-            cant_inmuebles: inmsFound[0]?.cant_inmuebles
-          };
+          matchedUser = { ...mk(inmsFound[0] || {}, contrib?.nombre), Identidad: contrib?.identidad || inmsFound[0]?.identidad || fullId };
         }
       }
 
-      // 3. Search by name keywords fallback
+      // 3. Por nombre (último recurso)
       if (!matchedUser && rawSearch.length >= 3 && !/^\d+$/.test(rawSearch)) {
         const { data: byName } = await supabase
           .from('inmuebles')
           .select('*')
           .ilike('contribuyente', `%${rawSearch}%`)
+          .neq('estado', 'Eliminado')
           .limit(5);
 
         if (byName && byName.length > 0) {
-          matchedUser = {
-            Identidad: byName[0].identidad,
-            Contribuyente: byName[0].contribuyente,
-            inmueble: byName[0].inmueble,
-            direccion: byName[0].direccion,
-            tipo: byName[0].tipo,
-            clasificacion: byName[0].clasificacion,
-            actividad_principal: byName[0].actividad_principal,
-            deuda_mmv: byName[0].deuda_mmv,
-            meses_deuda: byName[0].meses_deuda,
-            multa_bs: byName[0].multa_bs,
-            saldo_favor_bs: byName[0].saldo_favor_bs,
-            cant_inmuebles: byName[0].cant_inmuebles
-          };
-          inmsFound = byName;
+          matchedUser = mk(byName[0]);
+          inmsFound = byName.filter((i: any) => i.identidad === byName[0].identidad);
         }
       }
 
       if (matchedUser) {
         setFoundUser(matchedUser);
         setUserInmueblesList(inmsFound);
-
-        // Calculate total real months of debt across associated properties
-        const maxMonths = inmsFound.reduce((max, i) => Math.max(max, parseInt(i.meses_deuda || '0')), 0);
-        const initialMonths = maxMonths > 0 ? maxMonths : (parseInt(matchedUser.meses_deuda || '0') || 0);
-
-        // Reset simulation controls to baseline
-        setSimMesesDeuda(initialMonths);
+        // Restablecer controles (los meses se ajustan al calcular la línea base)
+        setSimMesesDeuda(-1);
         setExonerarMultas(false);
         setDescuentoMultaPct(0);
         setDescuentoBasePct(0);
@@ -168,60 +168,73 @@ export default function SimuladorPage() {
     }
   };
 
+  /**
+   * Renglones de deuda REAL, con la misma regla que Caja:
+   *  - cada inmueble con SUS meses (no el mayor de todos);
+   *  - los contenedores N/A con actividades adentro NO cobran (su tarifa es la suma de sus actividades);
+   *  - solo inmuebles Activos; padres de condominio no cobran por sí mismos;
+   *  - unidades del módulo de condominios: el monto del módulo (igual que la ficha del condominio).
+   */
+  const items: ItemDeuda[] = useMemo(() => {
+    if (!foundUser) return [];
+    const tasa = customBcv > 0 ? customBcv : (tcmmv || 57);
+    if (condoData?.enCondominio) {
+      const k = condoData.tasa > 0 ? tasa / condoData.tasa : 1;
+      return (condoData.renglones || [])
+        .filter((r: any) => !r.esGrupo && (r.totalBs > 0.009 || r.mensualBs > 0.009))
+        .map((r: any) => ({
+          codigo: r.inmueble || r.clave, mensual: r2(r.mensualBs * k), meses: r.meses, esRes: !!r.residencial,
+          base: r2(r.baseBs * k), iva: r2(r.ivaBs * k), multa: r2(r.multaBs * k), fuente: 'CONDOMINIO' as const,
+        }));
+    }
+    const lista = userInmueblesList.filter((i: any) => i.estado !== 'Eliminado' && i.estado !== 'Inactivo');
+    const contenedores = new Set(lista.filter((i: any) => esNA(i) && (parseInt(String(i.cant_inmuebles || 0)) > 0 ||
+      lista.some((c: any) => c.padre_id === i.inmueble || c.condominio_padre_id === i.inmueble))).map((i: any) => i.inmueble));
+    const out: ItemDeuda[] = [];
+    for (const inm of lista) {
+      if (contenedores.has(inm.inmueble) || inm.es_condominio === true) continue;
+      const regla = reglaCobroInmueble(inm, [...contenedores], foundUser.Identidad || '');
+      const multaFija = (parseFloat(String(inm.multa_bs || 0)) || 0) + (parseFloat(String(inm.deuda_congelada_bs || 0)) || 0);
+      const esRes = isResidencialInm(inm);
+      const mensual = calcularMensualidad(inm, tasa);
+      const mesesInm = parseInt(String(inm.meses_deuda || 0)) || (parseFloat(String(inm.deuda_mmv || 0)) > 0 ? 1 : 0);
+      if (regla === 'solo_multa') {
+        if (multaFija > 0) out.push({ codigo: inm.inmueble, mensual: 0, meses: 0, esRes, base: 0, iva: 0, multa: r2(multaFija), fuente: 'CAJA' });
+        continue;
+      }
+      const d = mesesInm > 0 ? calcularDeudaInmueble(inm, tasa, mesesHistoricos({ ...inm, meses_deuda: mesesInm })) : null;
+      out.push({
+        codigo: inm.inmueble, mensual, meses: mesesInm, esRes,
+        base: d?.base || 0, iva: d?.iva || 0,
+        multa: r2((d?.multa || 0) + (isCondominioPagoIndividual(inm) ? multaFija : 0)),
+        fuente: 'CAJA',
+      });
+    }
+    return out;
+  }, [foundUser, userInmueblesList, condoData, customBcv, tcmmv]);
+
   // Baseline (Real DB) calculations
   const baseline = useMemo(() => {
-    if (!foundUser || userInmueblesList.length === 0) {
-      return {
-        baseMensual: 0,
-        ivaMensual: 0,
-        mesesReales: 0,
-        baseTotalReal: 0,
-        ivaTotalReal: 0,
-        multaTotalReal: 0,
-        totalReal: 0,
-        esRes: true
-      };
-    }
-
-    const currentTasa = customBcv > 0 ? customBcv : (tcmmv || 57);
-    let totalBaseMes = 0;
-    let totalIvaMes = 0;
-    let maxMeses = 0;
-    let allRes = true;
-
-    userInmueblesList.forEach((inm) => {
-      const esRes = isResidencialInm(inm);
-      if (!esRes) allRes = false;
-      const bMes = calcularMensualidad(inm, currentTasa);
-      const ivaMes = esRes ? 0 : bMes * 0.16;
-      totalBaseMes += bMes;
-      totalIvaMes += ivaMes;
-      const m = parseInt(inm.meses_deuda || '0');
-      if (m > maxMeses) maxMeses = m;
-    });
-
-    const meses = Math.max(0, maxMeses);
-    const baseTotalReal = totalBaseMes * meses;
-    const ivaTotalReal = totalIvaMes * meses;
-
-    // Multa oficial en BD: 10% (res) / 12% (com) sobre meses vencidos (mes actual sin multa)
-    const mesesConMulta = Math.max(0, meses - 1);
-    const pctMulta = allRes ? 0.10 : 0.12;
-    const multaTotalReal = totalBaseMes * pctMulta * mesesConMulta;
-
-    const totalReal = baseTotalReal + ivaTotalReal + multaTotalReal;
-
+    const sum = (f: (x: ItemDeuda) => number) => r2(items.reduce((a, x) => a + f(x), 0));
+    const baseTotalReal = sum(x => x.base);
+    const ivaTotalReal = sum(x => x.iva);
+    const multaTotalReal = sum(x => x.multa);
     return {
-      baseMensual: totalBaseMes,
-      ivaMensual: totalIvaMes,
-      mesesReales: meses,
+      baseMensual: sum(x => x.mensual),
+      ivaMensual: sum(x => (x.esRes ? 0 : x.mensual * 0.16)),
+      mesesReales: Math.max(0, ...items.map(x => x.meses)),
       baseTotalReal,
       ivaTotalReal,
       multaTotalReal,
-      totalReal,
-      esRes: allRes
+      totalReal: r2(baseTotalReal + ivaTotalReal + multaTotalReal),
+      esRes: items.length === 0 || items.every(x => x.esRes),
     };
-  }, [foundUser, userInmueblesList, customBcv, tcmmv]);
+  }, [items]);
+
+  // Al buscar: los meses simulados arrancan en los meses reales
+  useEffect(() => {
+    if (simMesesDeuda === -1 && foundUser) setSimMesesDeuda(baseline.mesesReales);
+  }, [simMesesDeuda, foundUser, baseline.mesesReales]);
 
   // Simulation calculations
   const simulation = useMemo(() => {
@@ -240,21 +253,28 @@ export default function SimuladorPage() {
     }
 
     const meses = Math.max(0, simMesesDeuda);
-    const baseBruta = baseline.baseMensual * meses;
-    
+    const delta = meses - baseline.mesesReales;
+    // Sin cambiar meses: exactamente la deuda real. Cambiando meses: se suman/restan los mismos meses a cada inmueble.
+    let baseBruta = 0, ivaBruto = 0, multaBruta = 0;
+    for (const x of items) {
+      if (delta === 0) { baseBruta += x.base; ivaBruto += x.iva; multaBruta += x.multa; continue; }
+      const m = Math.max(0, x.meses + delta);
+      const tMora = x.esRes ? 0.10 : 0.12;
+      baseBruta += x.mensual * m;
+      ivaBruto += x.esRes ? 0 : x.mensual * 0.16 * m;
+      multaBruta += x.mensual * tMora * Math.max(0, m - 1);
+    }
+
     // Descuento en Base
     const descuentoBase = baseBruta * (Math.min(100, Math.max(0, descuentoBasePct)) / 100);
     const baseConDescuento = Math.max(0, baseBruta - descuentoBase - descuentoMontoFijoBs);
-    
-    // IVA (0% si es residencial)
-    const ivaSimulado = baseline.esRes ? 0 : baseConDescuento * 0.16;
+
+    // IVA proporcional a la base con descuento (0% si es residencial)
+    const ivaSimulado = baseBruta > 0 ? ivaBruto * (baseConDescuento / baseBruta) : 0;
 
     // Multa Simulada
     let multaSimulada = 0;
-    if (!exonerarMultas && meses > 1) {
-      const mesesConMulta = meses - 1;
-      const pctMulta = baseline.esRes ? 0.10 : 0.12;
-      const multaBruta = baseline.baseMensual * pctMulta * mesesConMulta;
+    if (!exonerarMultas) {
       const descMulta = multaBruta * (Math.min(100, Math.max(0, descuentoMultaPct)) / 100);
       multaSimulada = Math.max(0, multaBruta - descMulta);
     }
@@ -277,7 +297,7 @@ export default function SimuladorPage() {
       ahorroPct,
       montoPorCuota
     };
-  }, [foundUser, baseline, simMesesDeuda, exonerarMultas, descuentoMultaPct, descuentoBasePct, descuentoMontoFijoBs, deudaAdicionalBs, simCuotas]);
+  }, [foundUser, items, baseline, simMesesDeuda, exonerarMultas, descuentoMultaPct, descuentoBasePct, descuentoMontoFijoBs, deudaAdicionalBs, simCuotas]);
 
   // Reset to original values
   const handleResetToBaseline = () => {
@@ -440,7 +460,7 @@ export default function SimuladorPage() {
                   <span className="text-[11px] font-bold text-slate-500">Inmuebles ({userInmueblesList.length}):</span>
                   {userInmueblesList.map(inm => (
                     <span key={inm.id || inm.inmueble} className="text-[10px] font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
-                      {inm.inmueble} ({inm.meses_deuda || 0}m)
+                      {inm.inmueble} ({inm.meses_deuda || 0}m){esNA(inm) ? ' · N/A (cobran sus actividades)' : ''}
                     </span>
                   ))}
                 </div>
@@ -860,9 +880,6 @@ export default function SimuladorPage() {
       <div className="hidden print:block fixed inset-0 bg-white p-8 z-50 text-slate-900">
         <div className="border-b-2 border-slate-800 pb-4 mb-4 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-black uppercase tracking-wider text-slate-900">
-              ALCALDÍA BOLIVARIANA DE NAGUANAGUA
-            </h1>
             <h2 className="text-sm font-bold text-slate-700">
               INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO (IAMEC)
             </h2>

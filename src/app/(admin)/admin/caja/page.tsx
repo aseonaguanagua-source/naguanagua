@@ -363,8 +363,8 @@ export default function CajaPage() {
     setRateAuthError('');
     setIsAuthorizing(true);
     
-    if (rateNote.trim().length !== 8) {
-      setRateAuthError('La nota/motivo debe tener exactamente 8 caracteres.');
+    if (rateNote.trim().length < 5) {
+      setRateAuthError('Escriba la nota/motivo del cambio (mínimo 5 caracteres).');
       setIsAuthorizing(false);
       return;
     }
@@ -812,7 +812,7 @@ export default function CajaPage() {
         const naParentCodes = misInmuebles
           .filter((i: any) => 
             (i.actividad_principal || '').trim().toUpperCase() === 'N/A' && 
-            (parseInt(i.cant_inmuebles || '0') > 0 || misInmuebles.some((c: any) => c.condominio_padre_id === i.inmueble))
+            (parseInt(i.cant_inmuebles || '0') > 0 || misInmuebles.some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble))
           )
           .map((i: any) => i.inmueble);
 
@@ -5164,17 +5164,17 @@ export default function CajaPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Nota / Motivo del Cambio (8 caracteres)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Nota / Motivo del Cambio</label>
                 <textarea 
-                  maxLength={8}
+                  maxLength={250}
                   value={rateNote} 
-                  onChange={e => setRateNote(e.target.value.slice(0, 8))}
+                  onChange={e => setRateNote(e.target.value.slice(0, 250))}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
-                  rows={2}
+                  rows={3}
                   placeholder="Justifique el cambio de tasa..."
                   required
                 />
-                <div className="text-[10px] text-slate-500 text-right">{rateNote.length}/8 caracteres</div>
+                <div className="text-[10px] text-slate-500 text-right">{rateNote.length}/250 caracteres</div>
               </div>
               <div className="pt-2 flex justify-end gap-3">
                 <button type="button" onClick={() => setShowRateModal(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded">Cancelar</button>

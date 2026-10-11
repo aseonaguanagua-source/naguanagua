@@ -31,12 +31,16 @@ export async function getSaldoFavorTotal(identidad: string): Promise<{
   total: number;
   inmueblePrincipalId: string | null;
 }> {
+  // NOTA: la tabla inmuebles NO tiene columna `principal` (consultarla hacía fallar TODAS las notas de crédito).
+  const id = String(identidad || '').trim().toUpperCase();
+  const sinGuion = id.replace(/-/g, '');
+  const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
+  const variantes = [...new Set([id, sinGuion, conGuion].filter(Boolean))];
   const { data, error } = await supabase
     .from('inmuebles')
-    .select('id, saldo_favor_bs, principal')
-    .eq('identidad', identidad)
-    .order('principal', { ascending: false }) // principal=true primero
-    .order('id', { ascending: true });         // luego el más antiguo
+    .select('id, saldo_favor_bs, estado')
+    .in('identidad', variantes)
+    .order('id', { ascending: true });
 
   if (error || !data || data.length === 0) {
     return { total: 0, inmueblePrincipalId: null };
@@ -47,8 +51,10 @@ export async function getSaldoFavorTotal(identidad: string): Promise<{
     0
   );
 
-  // Usar el primer resultado (principal=true o más antiguo)
-  return { total, inmueblePrincipalId: data[0].id };
+  // Consolidar en el inmueble que ya tenga saldo, si no en el primer inmueble no eliminado (o el más antiguo)
+  const conSaldo = data.find(i => (parseFloat(i.saldo_favor_bs || '0') || 0) > 0.009);
+  const vivo = data.find(i => i.estado !== 'Eliminado');
+  return { total, inmueblePrincipalId: (conSaldo || vivo || data[0]).id };
 }
 
 /**
@@ -92,25 +98,30 @@ export async function descontarSaldoFavor(
   identidad: string,
   monto: number
 ): Promise<SaldoUpdateResult> {
-  const { inmueblePrincipalId } = await getSaldoFavorTotal(identidad);
-  if (!inmueblePrincipalId) {
+  const id = String(identidad || '').trim().toUpperCase();
+  const sinGuion = id.replace(/-/g, '');
+  const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
+  const { data: inms, error: e1 } = await supabase
+    .from('inmuebles')
+    .select('id, saldo_favor_bs')
+    .in('identidad', [...new Set([id, sinGuion, conGuion].filter(Boolean))])
+    .order('id', { ascending: true });
+  if (e1) return { ok: false, error: e1.message };
+  if (!inms || inms.length === 0) {
     return { ok: false, error: 'No se encontraron inmuebles para el contribuyente' };
   }
 
-  const { data: inm } = await supabase
-    .from('inmuebles')
-    .select('saldo_favor_bs')
-    .eq('id', inmueblePrincipalId)
-    .single();
-
-  const currentSaldo = parseFloat(inm?.saldo_favor_bs || '0') || 0;
-  const nuevoSaldo = Math.max(0, currentSaldo - monto);
-
-  const { error } = await supabase
-    .from('inmuebles')
-    .update({ saldo_favor_bs: nuevoSaldo })
-    .eq('id', inmueblePrincipalId);
-
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, nuevoSaldo };
+  // El saldo puede estar repartido en varios inmuebles: se descuenta de cada uno hasta cubrir el monto
+  let resto = Math.round((Number(monto) || 0) * 100) / 100;
+  let total = 0;
+  for (const inm of inms) {
+    const s = parseFloat(inm.saldo_favor_bs || '0') || 0;
+    total += s;
+    if (resto <= 0.009 || s <= 0.009) continue;
+    const usa = Math.min(s, resto);
+    const { error } = await supabase.from('inmuebles').update({ saldo_favor_bs: Math.round((s - usa) * 100) / 100 }).eq('id', inm.id);
+    if (error) return { ok: false, error: error.message };
+    resto = Math.round((resto - usa) * 100) / 100;
+  }
+  return { ok: true, nuevoSaldo: Math.max(0, Math.round((total - (Number(monto) || 0)) * 100) / 100) };
 }

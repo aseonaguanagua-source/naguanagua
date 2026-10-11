@@ -13,11 +13,16 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Locales');
   
+  // Anchos fijos para que los logos no queden pegados/encimados
+  worksheet.columns = [
+    { width: 14 }, { width: 16 }, { width: 34 }, { width: 15 }, { width: 40 }, { width: 12 }, { width: 18 },
+    { width: 11 }, { width: 11 }, { width: 15 }, { width: 15 }, { width: 14 }, { width: 16 }, { width: 16 },
+  ] as any;
   try {
     const al = workbook.addImage({ base64: logos.alcaldia, extension: 'jpeg' });
-    worksheet.addImage(al, { tl: { col: 0, row: 0 }, ext: { width: 100, height: 100 } });
+    worksheet.addImage(al, { tl: { col: 0, row: 0 }, ext: { width: 95, height: 95 } });
     const ia = workbook.addImage({ base64: logos.iamec, extension: 'jpeg' });
-    worksheet.addImage(ia, { tl: { col: 1, row: 0 }, ext: { width: 100, height: 100 } });
+    worksheet.addImage(ia, { tl: { col: 2.4, row: 0 }, ext: { width: 95, height: 95 } });
   } catch (e) {}
   
   worksheet.addRow([]); worksheet.addRow([]); worksheet.addRow([]); worksheet.addRow([]); worksheet.addRow([]);
@@ -33,7 +38,7 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     'Cédula/RIF',
     'Actividad',
     'Estado',
-    'Mensualidad (Bs)',
+    'Mensualidad con IVA (Bs)',
     'Meses Aseo',
     'Meses Multa',
     'Base Aseo (Bs)',
@@ -44,15 +49,19 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   ]).font = { bold: true };
   
   for (const r of e.renglones) {
-    if (r.clave === 'SIN_REGISTRAR') continue;
+    const sinReg = r.clave === '__SIN_REGISTRAR__';
+    // Residenciales: sin categoría (ALTA/MEDIA/BAJA) ni zona (ZONA A/B…)
+    const actividad = r.esGrupo ? `${r.actividad || 'N/A'} (no cobra: cobran sus actividades)`
+      : r.residencial ? String(r.actividad || '').replace(/\s*\((ALTA|MEDIA|BAJA)\)/gi, '').replace(/\s*\(?\s*ZONA\s+[A-Z]\s*\)?/gi, '').trim()
+      : (r.actividad || '');
     worksheet.addRow([
-      r.inmueble || r.clave,
+      sinReg ? 'Declaradas sin registrar' : (r.inmueble || r.clave),
       r.numero || '',
       r.propietario || '',
       r.identidad || '',
-      r.actividad || '',
+      actividad,
       r.estado,
-      r.mensualBs,
+      Math.round(r.mensualBs * (r.residencial ? 1 : 1.16) * 100) / 100,
       r.deuda.meses,
       r.multaMeses,
       r.deuda.baseBs,

@@ -13,6 +13,15 @@ import { calcularMensualidad, isResidencialInm, cleanClasificacionActividad } fr
 import { desglosarPago } from '@/lib/desglosePago';
 import { FILTROS_MODULO, FiltroModulo, OR_CONDOMINIOS, infoCondominioPago, pasaFiltroModulo, rifsCondominios, useCondominiosLigero } from '@/lib/condominios/pagosCondominio';
 import { actualizarPago } from '@/lib/actualizarPago';
+import { acreditarSaldoFavor } from '@/lib/saldoFavor';
+
+/** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios. */
+const fechaTransaccionDe = (det: any): string => {
+  const f = det?.fecha_transaccion
+    || (det?.pagos_agregados || []).find((p: any) => p?.fecha && p?.metodo !== 'Saldo a Favor')?.fecha
+    || (det?.formasPago || []).find((p: any) => p?.fecha && p?.descripcion !== 'Saldo a Favor')?.fecha;
+  return f ? String(f).slice(0, 10) : '';
+};
 
 type Pago = {
   id: string;
@@ -456,7 +465,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [referenciaOrigen, setReferenciaOrigen] = useState(pago.referencia || '');
   const [correoResponsable, setCorreoResponsable] = useState(det.correo || '');
   const [telefonoResponsable, setTelefonoResponsable] = useState(det.telefono || '');
-  const [fechaTransaccion, setFechaTransaccion] = useState(det.fecha_transaccion || new Date().toISOString().split('T')[0]);
+  const [fechaTransaccion, setFechaTransaccion] = useState(fechaTransaccionDe(det) || new Date().toISOString().split('T')[0]);
   const [fechaBanco, setFechaBanco] = useState(det.fecha_banco || new Date().toISOString().split('T')[0]);
   const [enviarCorreo, setEnviarCorreo] = useState(true);
   const [observaciones, setObservaciones] = useState(det.observaciones || '');
@@ -684,13 +693,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               }
             }
 
-            // Si sobro saldo despues de pagar todo, registrar como saldo a favor
+            // Si sobro saldo despues de pagar todo, registrar como saldo a favor (nota de crédito)
             if (dineroDisponible > 0.01) {
-              const { data: inmList } = await supabase.from('inmuebles').select('id, saldo_favor_bs').eq('identidad', pago.identidad);
-              if (inmList && inmList.length > 0) {
-                const saldoActual = parseFloat(inmList[0].saldo_favor_bs || '0') || 0;
-                await supabase.from('inmuebles').update({ saldo_favor_bs: saldoActual + dineroDisponible }).eq('id', inmList[0].id);
-              }
+              const rSF = await acreditarSaldoFavor(pago.identidad, Math.round(dineroDisponible * 100) / 100);
+              if (!rSF.ok) throw new Error('No se pudo guardar la nota de crédito: ' + rSF.error);
             }
           } else {
             // Pago completo: marcar todas como Pagado
@@ -719,7 +725,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               const isLastInm = idx === inmsToProcess.length - 1;
 
               const histRefsThisInm = histRefsConcil.filter((r: string) => r.includes(`-${inm.inmueble || inm.codigo}-`));
-              const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+              // Igual que Caja: si meses_deuda = 0 pero hay deuda_mmv (mes facturado por el cron), es 1 mes adeudado
+              const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0))) || (parseFloat(String(inm.deuda_mmv || 0)) > 0 ? 1 : 0);
               
               if (recibos.includes('RECIB-DEUDA') && !esAbonoParcialConcil) {
                 await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', inm.id);
@@ -739,6 +746,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 const bMes = calcularMensualidad(inm, tasaParaGuardar || 981.18);
                 const esRes = isResidencialInm(inm);
                 const ivaMes = esRes ? 0 : Math.round((bMes * 0.16) * 100) / 100;
+                // Agente de retención: el contribuyente paga el IVA menos el 75% retenido (igual que Caja)
+                const retMes = !esRes && inm.agente_retencion === true ? Math.round((ivaMes * 0.75) * 100) / 100 : 0;
                 const tasaMora = esRes ? 0.10 : 0.12;
                 
                 const sAct = parseFloat(String(inm.saldo_favor_bs || '0')) || 0;
@@ -750,7 +759,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 for (let m = 1; m <= maxM; m++) {
                   const isUltimo = (m >= numMesesInm);
                   const multaMes = isUltimo ? 0 : Math.round((bMes * tasaMora) * 100) / 100;
-                  const costoMes = Math.round((bMes + ivaMes) * 100) / 100 + multaMes;
+                  const costoMes = Math.round((bMes + ivaMes - retMes) * 100) / 100 + multaMes;
                   if (dineroLocal >= costoMes - 0.01) {
                     dineroLocal = Math.max(0, dineroLocal - costoMes);
                     cubiertos++;
@@ -785,9 +794,32 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   saldo_favor_bs: parseFloat(nuevoSaldo.toFixed(2)),
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                 }).eq('id', inm.id);
+                if (nuevoSaldo - sAct > 0.01) {
+                  await supabase.from('documentos').insert([{
+                    identidad: pago.identidad,
+                    contribuyente: contribInfo?.contribuyente || contribInfo?.Contribuyente || pago.contribuyente || '',
+                    tipo: 'Nota de Credito',
+                    estado: 'Vigente',
+                    detalles: JSON.stringify({
+                      monto: (nuevoSaldo - sAct).toFixed(2),
+                      origen_referencia: `Excedente conciliado. Referencia: ${pago.referencia || pago.id}`,
+                      fecha_emision: new Date().toISOString(),
+                      analista: updatedDet.analista,
+                    })
+                  }]);
+                }
               }
             }
           }
+        }
+
+        // Excedente de una transferencia (registrado en Caja como saldo a favor): se acredita al aprobar.
+        // Antes nunca se acreditaba para transferencias (solo para punto de venta).
+        const excedenteCaja = parseFloat(String(det.saldo_favor || 0)) || 0;
+        if (excedenteCaja > 0.01 && !det.saldo_favor_acreditado && det.modulo !== 'condominios') {
+          const rSF = await acreditarSaldoFavor(pago.identidad, Math.round(excedenteCaja * 100) / 100);
+          if (!rSF.ok) throw new Error('No se pudo acreditar la nota de crédito: ' + rSF.error);
+          await actualizarPago(pago.id, { detalles: { ...updatedDet, saldo_favor_acreditado: true } });
         }
         
         // ── FACTURACIÓN DIGITAL THE FACTORY HKA (EN COLA PARA REVISIÓN / EMISIÓN MANUAL) ──
@@ -803,16 +835,22 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             preparada_at: new Date().toISOString()
           };
           curDet.recibos = recibos;
-          curDet.montos = { total: montoConciliadoNum };
-          curDet.montoTotal = montoConciliadoNum;
-          curDet.contribuyente = contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad;
+          // Pagos de la Caja de Condominios: conservar montos y formas de pago originales (varios pagos, fechas reales)
+          const esCondo = curDet.modulo === 'condominios' || det.modulo === 'condominios';
+          if (!esCondo) {
+            curDet.montos = { total: montoConciliadoNum };
+            curDet.montoTotal = montoConciliadoNum;
+          }
+          curDet.contribuyente = curDet.contribuyente || contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad;
           curDet.identidad = pago.identidad;
-          curDet.formasPago = [{
-            descripcion: pago.tipo || 'Transferencia',
-            fecha:       new Date().toISOString(),
-            forma:       '03',   // 03 = Transferencia bancaria
-            monto:       montoConciliadoNum
-          }];
+          if (!esCondo || !Array.isArray(curDet.formasPago) || curDet.formasPago.length === 0) {
+            curDet.formasPago = [{
+              descripcion: pago.tipo || 'Transferencia',
+              fecha:       fechaTransaccion ? new Date(`${fechaTransaccion}T12:00:00-04:00`).toISOString() : new Date().toISOString(),
+              forma:       '03',   // 03 = Transferencia bancaria
+              monto:       montoConciliadoNum
+            }];
+          }
           await actualizarPago(pago.id, { detalles: curDet });
         } catch(e) {
           console.error('Error guardando datos para factura digital conciliada:', e);

@@ -86,8 +86,23 @@ export const aMotorUnidad = (u: any, grupos?: Set<string>): M.Unidad => ({
   es_grupo: !!u.es_grupo || !!grupos?.has(u.id),
 });
 
-/** Ids de las unidades que tienen otras colgando (locales contenedor / torres). */
-export const idsGrupo = (unidades: any[]) => new Set(unidades.filter(u => u.padre_unidad_id).map(u => u.padre_unidad_id as string));
+/**
+ * Ids de las unidades que tienen otras colgando (locales contenedor N/A / torres).
+ * Regla N/A: un contenedor con actividades adentro NO cobra nada propio; cobran sus actividades.
+ * Se detecta por `padre_unidad_id` y también por `padre_inmueble` (inmuebles.padre_id), porque muchas
+ * actividades migradas no tienen `padre_unidad_id` y el N/A terminaba cobrando doble.
+ */
+export const idsGrupo = (unidades: any[]) => {
+  const s = new Set(unidades.filter(u => u.padre_unidad_id).map(u => u.padre_unidad_id as string));
+  const porInm = new Map<string, string>();
+  unidades.forEach(u => { if (u.inmueble) porInm.set(String(u.inmueble).toUpperCase(), u.id); });
+  unidades.forEach(u => {
+    if (u.estado === 'Eliminada' || !u.padre_inmueble) return;
+    const p = porInm.get(String(u.padre_inmueble).toUpperCase());
+    if (p && p !== u.id) s.add(p);
+  });
+  return s;
+};
 
 export interface MultaManual { id: string; concepto: string; montoBs: number; periodo: string | null; creada_por: string | null; created_at: string }
 
@@ -212,7 +227,7 @@ export async function cargarCondominio(codigo: string) {
   const agentes = new Map<string, any>();
   if (codigosUnidades.length > 0) {
     for (let i = 0; i < codigosUnidades.length; i += 300) {
-      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion, multa_bs, telefono, correo_electronico, notas').in('inmueble', codigosUnidades.slice(i, i + 300));
+      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion, multa_bs, telefono, correo_electronico, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
       (inm || []).forEach(r => agentes.set(r.inmueble, r));
     }
   }
@@ -225,7 +240,7 @@ export async function cargarCondominio(codigo: string) {
         if (j.actividades_extra) extras = j.actividades_extra;
       }
     } catch (e) {}
-    return { ...u, agente_retencion: !!inf.agente_retencion, multa_bs: parseFloat(inf.multa_bs || '0'), telefono: inf.telefono || '', correo: inf.correo_electronico || '', actividades_extra: extras };
+    return { ...u, padre_inmueble: inf.padre_id || null, agente_retencion: !!inf.agente_retencion, multa_bs: parseFloat(inf.multa_bs || '0'), telefono: inf.telefono || '', correo: inf.correo_electronico || '', actividades_extra: extras };
   });
   
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(300);
@@ -245,10 +260,11 @@ export async function resumenGeneral() {
   const multasPor = new Map<string, any[]>();
   (multas || []).forEach(m => { if (!multasPor.has(m.condominio_id)) multasPor.set(m.condominio_id, []); multasPor.get(m.condominio_id)!.push(m); });
 
-  const { data: inmueblesGlobal } = await sb.from('inmuebles').select('identidad, agente_retencion, inmueble, multa_bs');
+  // Paginado: antes solo leía los primeros 1000 inmuebles (límite de Supabase)
+  const inmueblesGlobal = await todas((a, b) => sb.from('inmuebles').select('identidad, agente_retencion, inmueble, multa_bs, padre_id').order('id').range(a, b));
   const agentes = new Map<string, boolean>();
   const infoInmuebles = new Map<string, any>();
-  (inmueblesGlobal || []).forEach(c => {
+  (inmueblesGlobal || []).forEach((c: any) => {
     if (c.identidad && c.agente_retencion) agentes.set(c.identidad, true);
     if (c.inmueble) infoInmuebles.set(c.inmueble, c);
   });
@@ -257,6 +273,7 @@ export async function resumenGeneral() {
     const inf = infoInmuebles.get(u.inmueble) || {};
     u.agente_retencion = !!inf.agente_retencion;
     u.multa_bs = parseFloat(inf.multa_bs || '0');
+    u.padre_inmueble = inf.padre_id || null;
   });
 
   const filas = condos.map(c => {

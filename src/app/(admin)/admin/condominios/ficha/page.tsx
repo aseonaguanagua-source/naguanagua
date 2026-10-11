@@ -122,7 +122,7 @@ function Ficha() {
             raiz.push({
               id: virtualId,
               inmueble: group.find(g => g.padre_id)?.padre_id || group[0].inmueble || 'N/A', // Intentamos usar el codigo padre
-              numero: 'N/A',
+              numero: [...new Set(group.map((g: any) => String(g.numero || '').trim()).filter((x: string) => x && !/^N\/?A$/i.test(x)))].join(', ') || '—',
               propietario: u.propietario,
               identidad: u.identidad,
               actividad: 'Múltiples Actividades (Agrupadas)',
@@ -233,6 +233,31 @@ function Ficha() {
     };
     const eCustom = { ...e, renglones, totales };
     generarPdfEstadoCuentaCondominio(c, eCustom, cajero, true);
+  };
+
+  /** Renglón del estado de cuenta de una unidad */
+  const renglonDe = (id: string) => e?.renglones?.find((x: any) => x.clave === id);
+  /** Meses con multa = meses en mora del aseo pendiente + meses de multa pendientes de meses ya pagados */
+  const mesesMultaDe = (r: any) => (r?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length + (Number(r?.multaMeses) || 0);
+
+  /** Estado de cuenta individual desde la pestaña Unidades (incluye las actividades que cuelgan de la unidad / grupo) */
+  const exportarUnidadTree = async (u: any, ev: any) => {
+    ev.stopPropagation();
+    const ids = new Set<string>();
+    const add = (x: any, prof = 0) => { if (!x || prof > 6) return; ids.add(x.id); (arbol.hijos.get(x.id) || []).forEach((h: any) => add(h, prof + 1)); };
+    add(u);
+    const renglones = (e?.renglones || []).filter((x: any) => ids.has(x.clave));
+    if (!renglones.length) { alert('Esta unidad no tiene renglones de deuda.'); return; }
+    const { generarPdfEstadoCuentaCondominio } = await import('@/lib/condominios/pdfCondominio');
+    const totales = {
+      baseBs: renglones.reduce((s: number, x: any) => s + x.deuda.baseBs, 0),
+      multaBs: renglones.reduce((s: number, x: any) => s + x.deuda.multaBs + x.multaExtraBs + (x.multasManualesBs || 0), 0),
+      ivaBs: renglones.reduce((s: number, x: any) => s + x.deuda.ivaBs, 0),
+      retencionBs: renglones.reduce((s: number, x: any) => s + x.deuda.retencionBs, 0),
+      totalBs: renglones.reduce((s: number, x: any) => s + x.totalBs, 0),
+      meses: Math.max(0, ...renglones.map((x: any) => x.deuda.meses)),
+    };
+    generarPdfEstadoCuentaCondominio(c, { ...e, renglones, totales }, usuarioActual() || 'Administrador', true);
   };
 
   const exportarMultas = async () => {
@@ -411,7 +436,7 @@ function Ficha() {
                               </td>
                               <td className="py-2.5 px-3 text-right tabular-nums">Bs {fmtBs(r.mensualBs)}</td>
                               <td className="py-2.5 px-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-black ${r.deuda.meses === 0 ? 'bg-emerald-100 text-emerald-800' : r.deuda.meses > 12 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{r.deuda.meses}</span></td>
-                              <td className="py-2.5 px-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-black ${r.multaMeses === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{r.multaMeses}</span></td>
+                              <td className="py-2.5 px-3 text-center">{(() => { const mm = mesesMultaDe(r); return <span className={`px-2 py-0.5 rounded-full text-xs font-black ${mm === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{mm}</span>; })()}</td>
                               <td className="py-2.5 px-3 text-right tabular-nums">{fmtBs(r.deuda.baseBs)}</td>
                               <td className="py-2.5 px-3 text-right tabular-nums">{fmtBs(r.deuda.multaBs + r.multaExtraBs + (r.multasManualesBs || 0))}</td>
                               {e.totales.ivaBs > 0 && <td className="py-2.5 px-3 text-right tabular-nums text-blue-700">{fmtBs(r.deuda.ivaBs)}</td>}
@@ -478,6 +503,12 @@ function Ficha() {
                       <td className="py-2 px-3 text-xs text-slate-600">{u.actividad || '—'}</td>
                       <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${u.estado === 'Activa' ? 'bg-emerald-100 text-emerald-800' : u.estado === 'Desocupada' ? 'bg-slate-200 text-slate-700' : 'bg-red-100 text-red-700'}`}>{u.estado}</span></td>
                       <td className="py-2 px-4 text-xs">{u.aseo_pendiente_desde ? fmtPeriodo(String(u.aseo_pendiente_desde).slice(0, 7)) : <span className="text-emerald-700 font-bold">Al día</span>}</td>
+                      <td className="py-2 px-3 text-center">{(() => { const rr = renglonDe(u.id); const mm = rr ? mesesMultaDe(rr) : (Number(u.multa_meses) || 0); return <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${mm === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{mm}</span>; })()}</td>
+                      <td className="py-2 px-2 text-right" onClick={ev => ev.stopPropagation()}>
+                        {(renglonDe(u.id) || (arbol.hijos.get(u.id) || []).length > 0) && (
+                          <button title="Estado de cuenta de esta unidad" onClick={(ev) => exportarUnidadTree(u, ev)} className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-sky-800 hover:border-sky-300 hover:bg-sky-50 cursor-pointer bg-white shadow-sm"><FileText className="w-3.5 h-3.5" /></button>
+                        )}
+                      </td>
                       {admin && <td className="py-2 pr-4 text-right">
                         <div className="flex justify-end gap-1" onClick={ev => ev.stopPropagation()}>
                           <button id={`editar-${u.inmueble || u.id}`} onClick={() => setEditorU(u)} title="Editar" className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50 cursor-pointer bg-white shadow-sm"><Pencil className="w-3.5 h-3.5" /></button>
@@ -497,7 +528,7 @@ function Ficha() {
                     <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
                       <tr>
                         <th className="text-left py-2.5 px-4">Código</th><th className="text-left py-2.5 px-3">Número</th><th className="text-left py-2.5 px-3">Propietario</th>
-                        <th className="text-left py-2.5 px-3">Cédula/RIF</th><th className="text-left py-2.5 px-3">Actividad</th><th className="text-left py-2.5 px-3">Estado</th><th className="text-left py-2.5 px-4">Pendiente desde</th>
+                        <th className="text-left py-2.5 px-3">Cédula/RIF</th><th className="text-left py-2.5 px-3">Actividad</th><th className="text-left py-2.5 px-3">Estado</th><th className="text-left py-2.5 px-4">Pendiente desde</th><th className="text-center py-2.5 px-3">Meses multa</th><th className="py-2.5 px-2">Edo. cuenta</th>
                         {admin && <th></th>}
                       </tr>
                     </thead>

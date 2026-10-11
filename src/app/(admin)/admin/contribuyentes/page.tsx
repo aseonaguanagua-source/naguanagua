@@ -3829,7 +3829,9 @@ function ContribuyentesPageContent() {
                       i.inmueble === basePadreId || i.condominio_padre_id === basePadreId || i.padre_id === basePadreId || userInms.some((b: any) => b.inmueble === i.inmueble)
                     ) : userInms;
                     
-                    const inmsSolventes = allInmsParaSolvencia.filter((inm: any) => inm.inmueble && inm.estado !== 'Eliminado' && !inmuebleTieneDeuda(inm));
+                    // Condominios y sus unidades: su deuda real está en el módulo de condominios; el servidor la verifica al emitir.
+                    const esDeCondominio = (inm: any) => inm.es_condominio === true || !!inm.condominio_padre_id || !!viewData.isCondominio;
+                    const inmsSolventes = allInmsParaSolvencia.filter((inm: any) => inm.inmueble && inm.estado !== 'Eliminado' && (!inmuebleTieneDeuda(inm) || esDeCondominio(inm)));
                     
                     const bloqueSolvenciaPorInmueble = inmsSolventes.length > 0 ? (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">

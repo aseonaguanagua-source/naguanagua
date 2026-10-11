@@ -62,10 +62,15 @@ export async function POST(req: Request) {
     if (!activa) return NextResponse.json({ error: 'La Caja de Condominios está en MODO PRUEBA: solo calcula, no registra pagos. El administrador la activa en la fecha aprobada.' }, { status: 409 });
 
     const p = b.pago || {};
+    // Excedente (nota de crédito): lo recibido de más sobre el total. Se calcula en el servidor, no se confía en la pantalla.
+    const recibido = Array.isArray(p.pagosAgregados) ? p.pagosAgregados.reduce((a: number, x: any) => a + (Number(x?.monto) || 0), 0) : 0;
+    const previo = await prepararCobro(sol);
+    const excedente = Math.max(0, Math.round((recibido - previo.totales.totalBs) * 100) / 100);
     const r = await registrarCobro(sol, {
-      pagoId: String(p.pagoId || ''), metodo: String(p.metodo || ''), banco: p.banco, referencia: p.referencia,
+      pagoId: String(p.pagoId || ''), metodo: String(p.metodo || ''), banco: p.banco, bancoDestino: p.bancoDestino, referencia: p.referencia,
       montoRecibido: Number(p.montoRecibido) || 0, cajero: String(p.cajero || trab.usuario), usuario: `${trab.nombre || trab.usuario} (${trab.usuario})`,
-      pagosAgregados: p.pagosAgregados
+      pagosAgregados: p.pagosAgregados,
+      saldoFavorGenerado: excedente > 0.05 ? excedente : 0,
     });
     const { _datos, ...cobro } = r.cobro as any;
     return NextResponse.json({ ...r, cobro });

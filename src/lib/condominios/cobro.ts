@@ -183,6 +183,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
 
   // 1) Un pago por factura (el primero usa el id de la pantalla: si se envía dos veces, falla y no cobra doble)
   const pagos: { id: string; reciboRef: string; factura: Factura }[] = [];
+  const fechaPagoReal = (pago.pagosAgregados || []).find((pa: any) => pa?.fecha && pa?.metodo !== 'Saldo a Favor')?.fecha;
+  const fechaTransaccion = String(fechaPagoReal || sol.fechaOverride || new Date(Date.now() - 4 * 3600 * 1000).toISOString()).slice(0, 10);
   for (let i = 0; i < cobro.facturas.length; i++) {
     const f = cobro.facturas[i];
     const id = i === 0 ? pago.pagoId : crypto.randomUUID();
@@ -208,7 +210,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
       formasPago,
       pagos_agregados: pago.pagosAgregados,
-      banco_destino: pago.bancoDestino || (pago.pagosAgregados?.[0]?.bancoDestino) || undefined
+      banco_destino: pago.bancoDestino || (pago.pagosAgregados?.[0]?.bancoDestino) || undefined,
+      // Fecha REAL de la transacción (la que escribió el cajero); Conciliación la muestra tal cual
+      fecha_transaccion: fechaTransaccion,
+      fecha_banco: fechaTransaccion,
+      ...(i === 0 && (pago.saldoFavorGenerado || 0) > 0.01 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
     };
     const esTransferencia = pago.metodo.toLowerCase().includes('transferencia') || pago.metodo.toLowerCase().includes('pago móvil') || (pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => pa.metodo.toLowerCase().includes('transferencia') || pa.metodo.toLowerCase().includes('pago móvil')));
     const fechaRegistro = sol.fechaOverride ? new Date(sol.fechaOverride + 'T12:00:00-04:00') : new Date();
@@ -239,8 +245,16 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   }
 
   if (pago.saldoFavorGenerado && pago.saldoFavorGenerado > 0 && pagadorIdentidad) {
-    const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, pago.saldoFavorGenerado);
+    const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, r2(pago.saldoFavorGenerado));
     if (!resAcreditar.ok) throw new Error('Error al acreditar Saldo a Favor generado por exceso: ' + resAcreditar.error);
+    // Nota de crédito visible en Caja / Conciliación
+    await sb.from('documentos').insert([{
+      identidad: pagadorIdentidad,
+      contribuyente: cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.nombre : c.nombre,
+      tipo: 'Nota de Credito',
+      estado: 'Vigente',
+      detalles: JSON.stringify({ monto: r2(pago.saldoFavorGenerado).toFixed(2), origen_referencia: `Excedente Caja de Condominios ${c.codigo}. Referencia: ${refFinal}`, fecha_emision: new Date().toISOString(), analista: pago.usuario }),
+    }]);
     
     // Dejar rastro en auditoría
     await sb.from('auditoria').insert({

@@ -181,11 +181,15 @@ function Caja() {
   const base = cobro?.estado;
   const porContrib = modo === 'CONTRIBUYENTE';
   const conDeuda = useMemo(() => (base?.renglones || []).filter((r: any) => r.totalBs > 0.01), [base]);
-  const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // Cédula con o sin prefijo (7436881 = V-7436881): se compara solo el número
+  const normId = (s: any) => String(s || '').toUpperCase().trim().replace(/^[VEJPG]-?/, '').replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
   const visiblesU = useMemo(() => {
     const t = filtroU.trim().toUpperCase();
-    return conDeuda.filter((r: any) => !t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t)));
-  }, [conDeuda, filtroU]);
+    const ced = porContrib ? normId(identidad) : '';
+    return conDeuda.filter((r: any) =>
+      (!ced || ced.length < 5 || normId(r.identidad) === ced) &&
+      (!t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t))));
+  }, [conDeuda, filtroU, identidad, porContrib]); // eslint-disable-line react-hooks/exhaustive-deps
   const enCobro = useMemo(() => new Set((cobro?.lineas || []).map((l: any) => l.clave)), [cobro]);
   const mapLineas = useMemo(() => new Map<string, any>((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
   const multasDe = (r: any) => (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
@@ -710,6 +714,16 @@ function Caja() {
                 </div>
               )}
               {sinSeleccion && <div className="rounded-xl bg-sky-400/15 border border-sky-300/40 text-sky-100 text-xs p-2.5">Escriba la cédula del contribuyente o marque sus locales.</div>}
+
+              {/* Nota de crédito que le quedará al contribuyente */}
+              {cobro.lineas?.length > 0 && (faltaPagar < -0.05 || (saldoFavorActivo > 0 && descuentoSaldoFavor > 0)) && (
+                <div id="nota-credito-quedara" className="rounded-xl bg-amber-400/15 border border-amber-300/40 text-amber-100 text-xs p-2.5 space-y-1">
+                  {faltaPagar < -0.05 && (
+                    <div className="flex justify-between gap-2"><span className="font-bold">Nota de crédito por excedente</span><b className="tabular-nums">Bs {fmtBs(Math.abs(faltaPagar))}</b></div>
+                  )}
+                  <div className="flex justify-between gap-2"><span>Saldo a favor que le quedará</span><b className="tabular-nums">Bs {fmtBs(Math.max(0, saldoFavorActivo - descuentoSaldoFavor) + (faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0))}</b></div>
+                </div>
+              )}
 
               {activa ? (
                 <button id="btn-cobrar-condominio" onClick={cobrar} disabled={cobrando || calculando || !cobro.lineas.length || faltaPagar > 0.05}

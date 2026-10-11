@@ -23,6 +23,20 @@ export interface ResultadoSolvencia {
 }
 
 export async function evaluarSolvencia(identidad: string, inmuebleSpec: string = 'general'): Promise<ResultadoSolvencia> {
+  // 1) Verificación en el servidor (módulo de condominios, regla N/A, sin timeouts de la llave pública)
+  if (typeof window !== 'undefined') {
+    try {
+      const r = await fetch('/api/solvencia', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identidad, inmueble: inmuebleSpec }) });
+      if (r.ok) {
+        const j = await r.json();
+        if (typeof j?.solvente === 'boolean') return j as ResultadoSolvencia;
+      }
+    } catch { /* sin conexión al servidor: se usa la verificación local */ }
+  }
+  return evaluarSolvenciaLocal(identidad, inmuebleSpec);
+}
+
+async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = 'general'): Promise<ResultadoSolvencia> {
   const variantes = getIdentidadVariants((identidad || '').trim());
   const especifico = inmuebleSpec && inmuebleSpec !== 'general' ? inmuebleSpec.trim() : '';
 
