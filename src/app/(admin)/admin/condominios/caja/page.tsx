@@ -13,7 +13,7 @@ import { LISTA_BANCOS } from '@/lib/bancos';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { acreditarSaldoFavor } from '@/lib/saldoFavor';
-import { obtenerTasaEuroFecha, fechaDMY } from '@/lib/tasaHistorica';
+import { obtenerTasaEuroFecha, fechaDMY, valorUCD } from '@/lib/tasaHistorica';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 // Formato venezolano: punto = miles, coma = decimales
@@ -420,6 +420,10 @@ function Caja() {
               </button>
             </div>
             {tasaFechaInfo && <div className="text-[10px] font-semibold text-[#166534]">{tasaFechaInfo}</div>}
+            {(() => {
+              const t = parseFloat(tasaOverrideStr.replace(/\./g, '').replace(',', '.')) || Number(cobro?.estado?.tasa || estadoBase?.tasa || 0);
+              return t > 0 ? <div className="text-[10px] font-semibold text-[#166534]">UCD (Euro × 57): Bs {fmtBs(valorUCD(t))}</div> : null;
+            })()}
           </div>
         </div>
       </div>
@@ -641,7 +645,7 @@ function Caja() {
                 </div>
               )}
               
-              <div className="text-xs text-white/70">{cobro.lineas.length} renglón(es) · hasta {cobro.totales.meses} mes(es) · tasa Euro Bs {formatBs(cobro.estado.tasa)}</div>
+              <div className="text-xs text-white/70">{cobro.lineas.length} renglón(es) · hasta {cobro.totales.meses} mes(es) · tasa Euro Bs {formatBs(cobro.estado.tasa)} · UCD Bs {formatBs(valorUCD(cobro.estado.tasa))}</div>
               <div className="text-xs space-y-1 border-t border-white/10 pt-3">
                 <div className="flex justify-between"><span className="text-white/70">Aseo</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.baseBs)}</b></div>
                 <div className="flex justify-between"><span className="text-white/70">Multas</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.multaBs)}</b></div>

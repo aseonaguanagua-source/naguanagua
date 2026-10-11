@@ -16,7 +16,7 @@ import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
 import { useCajaSelection } from './hooks/useCajaSelection';
 import { LISTA_BANCOS } from '@/lib/bancos';
-import { obtenerTasaEuroFecha, fechaDMY } from '@/lib/tasaHistorica';
+import { obtenerTasaEuroFecha, fechaDMY, valorUCD } from '@/lib/tasaHistorica';
 import { generarCorteCajaPDF } from '../reportes/generators/PdfReports';
 
 // ─ Constante oficial de bancos de Venezuela actualizada ─
@@ -2797,6 +2797,9 @@ export default function CajaPage() {
                 className="w-24 px-2 py-0.5 rounded border border-emerald-300 bg-white text-emerald-900 font-bold outline-none cursor-pointer hover:bg-emerald-100 transition-colors"
                 title="Tasa BCV Manual (Requiere Autorización)"
               />
+            </div>
+            <div className="text-[10px] font-semibold text-emerald-800">
+              UCD (Euro × 57): Bs {valorUCD(currentBcvRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             {customBcvRate && (
               <div className="text-xs px-2 py-1 bg-emerald-100 border border-emerald-300 rounded text-emerald-800 break-words">
