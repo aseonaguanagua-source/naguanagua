@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, Lock, CheckCircle, Loader2, Printer, ArrowLeft, FileSpreadsheet, FileText } from 'lucide-react';
 import { generarCorteCajaPDF } from '../generators/PdfReports';
 import { generarLibroVentas } from '../generators/LibroVentas';
+import { generarTotalPuntosVenta, generarConciliacionTransferencias } from '../generators/ReportesCaja';
 import { useEditarMontoReporte } from './EditarMontoReporte';
 
 interface Props {
@@ -217,6 +218,26 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           title="Descargar Excel"
         >
           <FileSpreadsheet size={13}/> Excel
+        </button>
+      )}
+      {showExcel && (
+        <button
+          id="btn-total-puntos-venta"
+          onClick={() => generarTotalPuntosVenta(getFilteredPagos(), fechaInicio, fechaFin)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#1f4e78', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 4, fontWeight: 600, cursor: 'pointer', fontSize: 12 }}
+          title="Total de puntos de venta por día y por caja (Excel)"
+        >
+          <FileSpreadsheet size={13}/> Puntos de venta
+        </button>
+      )}
+      {showExcel && (
+        <button
+          id="btn-conciliacion-transferencias"
+          onClick={() => generarConciliacionTransferencias(getFilteredPagos(), contribuyentes, fechaInicio, fechaFin)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#7c3aed', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 4, fontWeight: 600, cursor: 'pointer', fontSize: 12 }}
+          title="Conciliación de transferencias por mes del pago + conciliación del punto (Excel)"
+        >
+          <FileSpreadsheet size={13}/> Conciliación transf.
         </button>
       )}
     </div>

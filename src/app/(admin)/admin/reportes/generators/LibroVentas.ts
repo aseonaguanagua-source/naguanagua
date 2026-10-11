@@ -15,7 +15,7 @@ const ORGANISMO = 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
-const parseDet = (p: any) => { try { return typeof p.detalles === 'string' ? JSON.parse(p.detalles || '{}') : (p.detalles || {}); } catch { return {}; } };
+export const parseDet = (p: any) => { try { return typeof p.detalles === 'string' ? JSON.parse(p.detalles || '{}') : (p.detalles || {}); } catch { return {}; } };
 const esRetencion = (p: any) => /retenci/i.test(String(p.tipo || ''));
 const esContribuyente = (id: string) => /^[JG]/i.test(String(id || '').trim());
 const fechaISO = (d: any) => {
@@ -24,7 +24,7 @@ const fechaISO = (d: any) => {
 };
 const dmy = (iso: string) => { const [y, m, d] = String(iso || '').split('-'); return d ? `${d}/${m}/${y}` : iso; };
 
-const codigosDePago = (det: any): string[] => {
+export const codigosDePago = (det: any): string[] => {
   const s = new Set<string>();
   (Array.isArray(det.recibos) ? det.recibos : []).forEach((ref: string) => {
     const m = String(ref || '').toUpperCase().match(/^(?:RECIB-HIST-(.+)-M\d+|MULTA-(.+?)(?:-M\d+)?)$/);
@@ -34,12 +34,23 @@ const codigosDePago = (det: any): string[] => {
   return [...s];
 };
 
+/** Inmuebles (columnas de desglose) de los códigos que aparecen en los pagos. */
+export async function cargarInmMapPagos(pagos: any[]): Promise<Map<string, any>> {
+  const inmMap = new Map<string, any>();
+  const todosCods = [...new Set(pagos.flatMap(p => codigosDePago(parseDet(p))))];
+  for (let i = 0; i < todosCods.length; i += 200) {
+    const { data } = await supabase.from('inmuebles').select(COLS_INMUEBLE_DESGLOSE).in('inmueble', todosCods.slice(i, i + 200));
+    (data || []).forEach((r: any) => inmMap.set(String(r.inmueble).toUpperCase(), r));
+  }
+  return inmMap;
+}
+
 /**
  * Montos fiscales de un pago: base gravada, IVA, exento (residencial + multas) y total con IVA.
  * Usa el desglose oficial de Caja (misma fórmula del cobro); si no cuadra (abonos, pagos sin detalle)
  * reparte el monto según el tipo de inmueble.
  */
-function montosPago(p: any, det: any, inmMap: Map<string, any>, retConocida: number) {
+export function montosPago(p: any, det: any, inmMap: Map<string, any>, retConocida: number) {
   const monto = Number(p.monto) || 0;
   try {
     const d = desglosarPago(p, inmMap);
@@ -81,12 +92,7 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 
   // Inmuebles de los pagos (para el desglose fiscal)
-  const inmMap = new Map<string, any>();
-  const todosCods = [...new Set(ventas.flatMap(p => codigosDePago(parseDet(p))))];
-  for (let i = 0; i < todosCods.length; i += 200) {
-    const { data } = await supabase.from('inmuebles').select(COLS_INMUEBLE_DESGLOSE).in('inmueble', todosCods.slice(i, i + 200));
-    (data || []).forEach((r: any) => inmMap.set(String(r.inmueble).toUpperCase(), r));
-  }
+  const inmMap = await cargarInmMapPagos(ventas);
 
   const nombreDe = (id: string, det: any) => {
     const c = contribuyentes.find((x: any) => x.Identidad === id);
