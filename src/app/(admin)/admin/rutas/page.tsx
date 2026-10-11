@@ -3,24 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Truck, Map, Edit, Check, X, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { RUTAS_NAGUANAGUA } from './rutasNaguanagua';
 
-const RUTAS_POR_DEFECTO = [
-  { id: 'DIAR', nombre: 'Ruta DIARIA', frecuencia: 'Diario', sectores: 'Sector Mañongo (calles 101-104) y cobertura completa del municipio', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'I', nombre: 'Ruta I', frecuencia: 'Lunes-Mi-Vie', sectores: 'Av. Urdaneta (tramo específico)', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'II', nombre: 'Ruta II', frecuencia: 'Lunes-Mi-Vie', sectores: 'Viviendas Rurales de Bárbula (1ª a 5ª Ave + Transversal)', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'III', nombre: 'Ruta III', frecuencia: 'Mar-Jue-Sab', sectores: 'Barrio la Luz, Chaguaramal, Palmeras, Piñal', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'IV', nombre: 'Ruta IV', frecuencia: 'Mar-Jue-Sab', sectores: 'Arturo I y II, Brisas de Carabobo, Mangos II', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'V', nombre: 'Ruta V', frecuencia: 'Mar-Jue-Sab', sectores: 'Barrio Coromoto, Valles de Girardot', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'VI', nombre: 'Ruta VI', frecuencia: 'Mar-Jue-Sab', sectores: 'Sector los Chorros, Callejón Pecoraro', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'VII', nombre: 'Ruta VII', frecuencia: 'Mar-Jue-Sab', sectores: 'Casco de Naguanagua (Plaza Bolívar a Campiña I)', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'VIII', nombre: 'Ruta VIII', frecuencia: 'Mar-Jue-Sab', sectores: 'CC. La Granja, Urb. La Granja (Villa Olímpica a Imdenaguanagua)', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'IX', nombre: 'Ruta IX', frecuencia: 'Mar-Jue-Sab', sectores: 'UNEFA, Claveles, Paz', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'X', nombre: 'Ruta X', frecuencia: 'Mar-Jue-Sab', sectores: 'Colinas de González Plaza, Comunidad González Plaza', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'XI', nombre: 'Ruta XI', frecuencia: 'Mar-Jue-Sab', sectores: 'Bomboná, Comunidad Simon Bolívar I y II', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'XII', nombre: 'Ruta XII', frecuencia: 'Mar-Jue-Sab', sectores: 'Bayona, Camino Real, Guayabal (Colinas de Guayabal, Praderas y la Esperanza)', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'XIII', nombre: 'Ruta XIII', frecuencia: 'Mar-Jue-Sab', sectores: 'Trincheras (Av. Principal, Caracoles, El Salto, el Topo, la Belen, la Línea, la Unión, las Marías y Terrazas)', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' },
-  { id: 'XIV', nombre: 'Ruta XIV', frecuencia: 'Sábado opcional', sectores: 'Lomas Del Roscio, Villas Del Roscio, Terrazas Del Roscio, Altos Del Café, Brisas Del Café, Terminal La Entrada', chofer: 'Por asignar', vehiculo: 'Compactador', estado: 'Activa' }
-];
+const RUTAS_POR_DEFECTO: any[] = RUTAS_NAGUANAGUA;
 
 export default function RutasCamionesPage() {
   const [rutas, setRutas] = useState<any[]>(RUTAS_POR_DEFECTO);
