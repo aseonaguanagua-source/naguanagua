@@ -16,6 +16,7 @@ import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
 import { useCajaSelection } from './hooks/useCajaSelection';
 import { LISTA_BANCOS } from '@/lib/bancos';
+import { obtenerTasaEuroFecha, fechaDMY } from '@/lib/tasaHistorica';
 import { generarCorteCajaPDF } from '../reportes/generators/PdfReports';
 
 // ─ Constante oficial de bancos de Venezuela actualizada ─
@@ -147,7 +148,7 @@ export default function CajaPage() {
   const [comprobante, setComprobante] = useState<File | null>(null);
   const [customBcvRate, setCustomBcvRate] = useState<string>('');
   const [justificacionBcv, setJustificacionBcv] = useState<string>('');
-  const [selectedUcdDate, setSelectedUcdDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedUcdDate, setSelectedUcdDate] = useState<string>(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()));
   const [useSaldoFavor, setUseSaldoFavor] = useState<boolean>(true);
   
   const [isNotaModalOpen, setIsNotaModalOpen] = useState(false);
@@ -1328,10 +1329,28 @@ export default function CajaPage() {
     isItemPending,
   });
 
-  const fetchTasaHistorica = async () => {
-    if (!selectedUcdDate) return;
-    // Lógica para obtener tasa de días anteriores (simulada por ahora)
-    alert(`Se buscará la tasa BCV del día ${selectedUcdDate}`);
+  const [cargandoTasaFecha, setCargandoTasaFecha] = useState(false);
+  const fetchTasaHistorica = async (fechaParam?: string) => {
+    const fecha = fechaParam || selectedUcdDate;
+    if (!fecha) return;
+    const hoyVE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+    if (fecha > hoyVE) { alert('No se puede usar una fecha futura.'); return; }
+    if (fecha === hoyVE) {
+      // Hoy: tasa automática del día (sin ajuste manual)
+      setCustomBcvRate('');
+      setJustificacionBcv('');
+      return;
+    }
+    setCargandoTasaFecha(true);
+    try {
+      const { euro, fechaValor } = await obtenerTasaEuroFecha(fecha);
+      setCustomBcvRate(String(euro));
+      setJustificacionBcv(`Tasa BCV Euro del ${fechaDMY(fecha)}${fechaValor !== fecha ? ` (publicada con fecha valor ${fechaDMY(fechaValor)})` : ''}`);
+    } catch (e: any) {
+      alert(e?.message || 'No se pudo obtener la tasa de esa fecha');
+    } finally {
+      setCargandoTasaFecha(false);
+    }
   };
 
   // ── Monto acordado puntual (autorizado por la administración) ──
@@ -2767,7 +2786,7 @@ export default function CajaPage() {
               <input 
                 type="text"
                 readOnly
-                value={customBcvRate || tcmmv.toFixed(2)}
+                value={customBcvRate ? (parseFloat(customBcvRate) || 0).toFixed(2) : tcmmv.toFixed(2)}
                 onClick={() => {
                   setTempBcvRate(customBcvRate || tcmmv.toFixed(2));
                   setShowRateModal(true);
@@ -2787,10 +2806,11 @@ export default function CajaPage() {
               <input 
                 type="date" 
                 value={selectedUcdDate}
-                onChange={e => setSelectedUcdDate(e.target.value)}
+                onChange={e => { setSelectedUcdDate(e.target.value); if (e.target.value) fetchTasaHistorica(e.target.value); }}
+                max={new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date())}
                 className="bg-transparent border-none text-[10px] outline-none text-emerald-700 font-bold"
               />
-              <button onClick={fetchTasaHistorica} className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded ml-auto">Fijar Día</button>
+              <button onClick={() => fetchTasaHistorica()} disabled={cargandoTasaFecha} className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded ml-auto disabled:opacity-50">{cargandoTasaFecha ? '...' : 'Fijar Día'}</button>
             </div>
           </div>
           <div className="flex bg-slate-100 rounded-lg p-1 items-center gap-1">

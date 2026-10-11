@@ -13,6 +13,7 @@ import { LISTA_BANCOS } from '@/lib/bancos';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { acreditarSaldoFavor } from '@/lib/saldoFavor';
+import { obtenerTasaEuroFecha, fechaDMY } from '@/lib/tasaHistorica';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 // Formato venezolano: punto = miles, coma = decimales
@@ -63,7 +64,27 @@ function Caja() {
   const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
   const [soloMultas, setSoloMultas] = useState(false);
   const [tasaOverrideStr, setTasaOverrideStr] = useState('');
-  const [fechaOverrideStr, setFechaOverrideStr] = useState(new Date().toISOString().slice(0, 10));
+  const hoyCaracas = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+  const [fechaOverrideStr, setFechaOverrideStr] = useState(hoyCaracas);
+  const [tasaFechaInfo, setTasaFechaInfo] = useState('');
+  const [cargandoTasaFecha, setCargandoTasaFecha] = useState(false);
+  /** Carga la tasa oficial BCV del Euro vigente en la fecha elegida (hoy = tasa automática). */
+  const aplicarTasaDeFecha = async (fecha: string) => {
+    if (!fecha) return;
+    const hoy = hoyCaracas();
+    if (fecha > hoy) { alert('No se puede usar una fecha futura.'); return; }
+    if (fecha === hoy) { setTasaOverrideStr(''); setTasaFechaInfo(''); return; }
+    setCargandoTasaFecha(true);
+    try {
+      const { euro, fechaValor } = await obtenerTasaEuroFecha(fecha);
+      setTasaOverrideStr(String(euro).replace('.', ','));
+      setTasaFechaInfo(`Tasa BCV Euro del ${fechaDMY(fecha)}${fechaValor !== fecha ? ` (fecha valor ${fechaDMY(fechaValor)})` : ''}`);
+    } catch (e: any) {
+      alert(e?.message || 'No se pudo obtener la tasa de esa fecha');
+    } finally {
+      setCargandoTasaFecha(false);
+    }
+  };
   // pago
   const [metodo, setMetodo] = useState('Transferencia');
   const [banco, setBanco] = useState('');
@@ -370,7 +391,7 @@ function Caja() {
               <span className="text-[#166534] font-bold text-sm">Tasa Euro Aplicada:</span>
               <input type="text" value={tasaOverrideStr} onChange={e => {
                 let v = e.target.value.replace(/[^0-9,.]/g, '');
-                setTasaOverrideStr(v);
+                setTasaOverrideStr(v); setTasaFechaInfo('');
               }} onBlur={e => {
                  let v = e.target.value;
                  if (v.includes(',') && v.includes('.')) {
@@ -387,16 +408,18 @@ function Caja() {
             <div className="flex items-center justify-between pt-2 border-t border-[#86efac]/50">
               <div className="flex items-center gap-1.5 text-[#166534]">
                 <Calendar className="w-4 h-4" />
-                <input type="date" value={fechaOverrideStr} onChange={e => setFechaOverrideStr(e.target.value)} className="bg-transparent border-none text-xs font-bold text-[#166534] outline-none cursor-pointer" />
+                <input type="date" value={fechaOverrideStr} max={hoyCaracas()} onChange={e => { setFechaOverrideStr(e.target.value); aplicarTasaDeFecha(e.target.value); }} className="bg-transparent border-none text-xs font-bold text-[#166534] outline-none cursor-pointer" />
               </div>
-              <button onClick={() => {
+              <button disabled={cargandoTasaFecha} onClick={() => {
+                aplicarTasaDeFecha(fechaOverrideStr);
                 if (!codigo) return;
                 // Force re-calculation by toggling a dummy state or relying on the useEffect dependency
                 setCobro(null); setEstadoBase(null);
-              }} className="bg-[#059669] hover:bg-[#047857] text-white px-3 py-1 rounded-lg text-xs font-bold transition-colors">
-                Fijar Día
+              }} className="bg-[#059669] hover:bg-[#047857] text-white px-3 py-1 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
+                {cargandoTasaFecha ? '...' : 'Fijar Día'}
               </button>
             </div>
+            {tasaFechaInfo && <div className="text-[10px] font-semibold text-[#166534]">{tasaFechaInfo}</div>}
           </div>
         </div>
       </div>
