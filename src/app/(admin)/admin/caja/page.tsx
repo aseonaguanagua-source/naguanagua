@@ -1879,7 +1879,10 @@ export default function CajaPage() {
               const isLastInm = idx === inmsToProcess.length - 1;
 
               const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
-              const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+              const mesesBD = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+              // meses_deuda = 0 con deuda guardada (deuda_mmv / congelada) = 1 mes pendiente (misma regla que muestra la Caja).
+              const tieneResiduo = parseFloat(String(inm.deuda_mmv || 0)) > 0 || parseFloat(String(inm.deuda_congelada_bs || 0)) > 0;
+              const numMesesInm = mesesBD > 0 ? mesesBD : (tieneResiduo ? 1 : 0);
               
               if (numMesesInm <= 0) continue;
 
