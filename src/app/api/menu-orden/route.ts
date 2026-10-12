@@ -22,17 +22,25 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const tok = (await cookies()).get(SESSION_COOKIE)?.value;
-    const s = tok ? verifySession(tok) : null;
-    if (!s || (s.rol !== 'Administrador' && String(s.usuario).toLowerCase() !== 'dzara'))
-      return NextResponse.json({ error: 'Solo un administrador puede cambiar el orden del menú.' }, { status: 401 });
     const body = await req.json();
     if (body.pass !== DEV_PASS) return NextResponse.json({ error: 'Clave de desarrollador inválida' }, { status: 401 });
+    // La clave de desarrollador autoriza. Si hay sesión, debe ser de administrador (un cajero no puede cambiarlo).
+    const tok = (await cookies()).get(SESSION_COOKIE)?.value;
+    const sesion = tok ? verifySession(tok) : null;
+    if (sesion && !/admin/i.test(String(sesion.rol || '')) && String(sesion.usuario).toLowerCase() !== 'dzara')
+      return NextResponse.json({ error: 'Solo un administrador puede cambiar el orden del menú.' }, { status: 401 });
+    const s = sesion || { nombre: String(body.usuario || 'DEV'), usuario: String(body.usuario || 'dev') };
 
-    const limpio: Record<string, string[]> = {};
+    const limpio: Record<string, any> = {};
     for (const k of ['aseo', 'recaudacion', 'administracion', 'ocultos']) {
       const arr = body.orden?.[k];
-      if (Array.isArray(arr)) limpio[k] = arr.map(String).filter(h => h.startsWith('/'));
+      if (Array.isArray(arr)) limpio[k] = arr.map(String).filter(h => h.startsWith('/') || h.startsWith('g:'));
+    }
+    if (Array.isArray(body.orden?.grupos)) {
+      limpio.grupos = body.orden.grupos
+        .filter((g: any) => g && g.id && ['aseo', 'recaudacion', 'administracion'].includes(g.menu) && Array.isArray(g.items))
+        .map((g: any) => ({ id: String(g.id).slice(0, 40), nombre: String(g.nombre || 'Menú').slice(0, 60), menu: g.menu, items: g.items.map(String).filter((h: string) => h.startsWith('/')) }))
+        .filter((g: any) => g.items.length);
     }
     const { data: antes } = await sb.from('system_config').select('value').eq('key', KEY).maybeSingle();
     const valor = JSON.stringify(limpio);

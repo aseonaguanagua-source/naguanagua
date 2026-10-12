@@ -4,7 +4,10 @@ import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpre
 
 export type MenuItem = { icon: any; name: string; href: string };
 export type MenuKey = 'aseo' | 'recaudacion' | 'administracion';
-export type MenuOrden = Partial<Record<MenuKey, string[]>> & { /** rutas ocultas del menú (en modo DEV se ven oscuras/deshabilitadas) */ ocultos?: string[] };
+export type MenuOrden = Partial<Record<MenuKey, string[]>> & {
+  /** rutas ocultas del menú (en modo DEV se ven oscuras/deshabilitadas) */ ocultos?: string[];
+  /** menús desplegables creados al soltar una opción encima de otra */ grupos?: MenuGrupo[];
+};
 
 export const MENU_ASEO: MenuItem[] = [
   { icon: Home, name: 'Inicio Aseo', href: '/admin' },
@@ -85,4 +88,29 @@ export function ordenarMenu(items: MenuItem[], orden?: string[]): MenuItem[] {
     .map((it, i) => ({ it, k: pos.has(it.href) ? pos.get(it.href)! : 10000 + i }))
     .sort((x, y) => x.k - y.k)
     .map(x => x.it);
+}
+
+// ── Menús desplegables (grupos) ──────────────────────────────────────────────
+export type MenuGrupo = { id: string; nombre: string; menu: MenuKey; items: string[] };
+export type Entrada = { tipo: 'item'; href: string } | { tipo: 'grupo'; id: string; nombre: string; items: string[] };
+export const claveEntrada = (e: Entrada) => (e.tipo === 'item' ? e.href : `g:${e.id}`);
+
+/**
+ * Arma el menú en el orden guardado: opciones sueltas y menús desplegables (grupos).
+ * Lo que no esté en el orden guardado se agrega al final en su orden original.
+ */
+export function construirEntradas(items: MenuItem[], orden: MenuOrden, menu: MenuKey): Entrada[] {
+  const existe = new Set(items.map(i => i.href));
+  const grupos = (orden.grupos || []).filter(g => g.menu === menu)
+    .map(g => ({ ...g, items: g.items.filter(h => existe.has(h)) })).filter(g => g.items.length > 0);
+  const enGrupo = new Set(grupos.flatMap(g => g.items));
+  const out: Entrada[] = []; const puesto = new Set<string>();
+  const poner = (e: Entrada) => { const k = claveEntrada(e); if (!puesto.has(k)) { puesto.add(k); out.push(e); } };
+  for (const k of orden[menu] || []) {
+    if (k.startsWith('g:')) { const g = grupos.find(x => x.id === k.slice(2)); if (g) poner({ tipo: 'grupo', id: g.id, nombre: g.nombre, items: g.items }); }
+    else if (existe.has(k) && !enGrupo.has(k)) poner({ tipo: 'item', href: k });
+  }
+  grupos.forEach(g => poner({ tipo: 'grupo', id: g.id, nombre: g.nombre, items: g.items }));
+  items.forEach(i => { if (!enGrupo.has(i.href)) poner({ tipo: 'item', href: i.href }); });
+  return out;
 }
