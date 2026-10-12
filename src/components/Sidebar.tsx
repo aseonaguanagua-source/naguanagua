@@ -5,12 +5,22 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { performLogout } from '@/lib/logout';
 import { ROUTE_PERMISSIONS_MAP } from '@/lib/permissionsMap';
+import { MENU_ASEO, MENU_RECAUDACION, MENU_ADMINISTRACION, ordenarMenu, type MenuOrden } from '@/lib/menuItems';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/audit');
   const [user, setUser] = useState<any>(null);
   const [devMode, setDevMode] = useState(false);
+  const [menuOrden, setMenuOrden] = useState<MenuOrden>({});
+
+  // Orden del menú definido en Modo Dios (cache local para que no "salte" al cargar)
+  useEffect(() => {
+    try { const c = localStorage.getItem('menu_orden'); if (c) setMenuOrden(JSON.parse(c)); } catch {}
+    fetch('/api/menu-orden').then(r => r.ok ? r.json() : null).then(j => {
+      if (j?.orden) { setMenuOrden(j.orden); try { localStorage.setItem('menu_orden', JSON.stringify(j.orden)); } catch {} }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (localStorage.getItem('dev_mode_active') === '1') {
@@ -52,69 +62,9 @@ export default function Sidebar() {
   const isRecaudacion = pathname.startsWith('/admin/recaudacion');
   const isAdministracion = pathname.startsWith('/admin/administracion');
 
-  const menuAseo = [
-    { icon: Home, name: 'Inicio Aseo', href: '/admin' },
-    { icon: PieChart, name: 'Administrativo', href: '/admin/administrativo' },
-    { icon: FileText, name: 'Tarifas / Ordenanza', href: '/admin/tarifas' },
-    { icon: ClipboardCheck, name: 'Censo de Contribuyentes', href: '/admin/censo' },
-    { icon: User, name: 'Contribuyentes', href: '/admin/contribuyentes' },
-    { icon: Building2, name: 'Condominios (nuevo)', href: '/admin/condominios' },
-    { icon: Wallet, name: 'Caja Condominios', href: '/admin/condominios/caja' },
-    { icon: Users, name: 'Condominios COB', href: '/admin/condominios-cob' },
-    { icon: FileText, name: 'Pre-registros WEB', href: '/admin/pre-registros' },
-
-    { icon: Map, name: 'Jornadas de Campo', href: '/admin/jornadas' },
-    { icon: TreePine, name: 'Visto Bueno Ambiental', href: '/admin/ambiental' },
-    { icon: BarChart3, name: 'Análisis de Deudas', href: '/admin/herramientas' },
-    { icon: Calculator, name: 'Cálculo y Proyección', href: '/admin/calculo' },
-    { icon: Sparkles, name: 'Simulador de Deuda', href: '/admin/simulador' },
-    { icon: Briefcase, name: 'Caja / Pagos', href: '/admin/caja' },
-    { icon: Landmark, name: 'Conciliacion Bancaria', href: '/admin/caja/conciliacion' },
-    { icon: FileText, name: 'Facturación Electrónica', href: '/admin/facturacion-electronica' },
-    { icon: FileSpreadsheet, name: 'Emisión de recibos', href: '/admin/estado-cuenta' },
-    { icon: Handshake, name: 'Convenios de Pago', href: '/admin/convenios-pago' },
-    { icon: Award, name: 'Certificados Emitidos', href: '/admin/certificados' },
-    { icon: History, name: 'Historial Documentos', href: '/admin/historial-documentos' },
-    { icon: Inbox, name: 'Buzón de Solicitudes', href: '/admin/buzon' },
-    { icon: AlertTriangle, name: 'Denuncias Ciudadanas', href: '/admin/denuncias' },
-    { icon: Truck, name: 'Rutas Camiones', href: '/admin/rutas' },
-    { icon: Wrench, name: 'Servicios Especiales', href: '/admin/servicios-especiales' },
-    { icon: PieChart, name: 'Reportes Generales', href: '/admin/reportes' },
-    { icon: Mail, name: 'Correos Informativos', href: '/admin/correos' },
-    { icon: UserPlus, name: 'Trabajadores Aseo', href: '/admin/trabajadores' },
-    { icon: Smartphone, name: 'Cobro Móvil', href: '/cobro-movil' },
-    { icon: Map, name: 'Plan de Acción', href: '/admin/plan-accion' },
-    { icon: ShieldAlert, name: 'Auditoría', href: '/admin/auditoria' }
-  ];
-
-  const menuRecaudacion = [
-    { icon: Landmark, name: 'Dashboard Hacienda', href: '/admin/recaudacion' },
-    { icon: Briefcase, name: 'Actividades Económicas', href: '/admin/recaudacion/actividades-economicas' },
-    { icon: Building2, name: 'Catastro y Propiedad', href: '/admin/recaudacion/catastro' },
-    { icon: Car, name: 'Vehículos y Patentes', href: '/admin/recaudacion/vehiculos' },
-    { icon: Map, name: 'Ordenamiento Territorial', href: '/admin/recaudacion/ordenamiento' },
-    { icon: Truck, name: 'Vialidad y Tránsito', href: '/admin/recaudacion/vialidad' },
-    { icon: Bus, name: 'Terminal de Pasajeros', href: '/admin/recaudacion/terminal' },
-    { icon: Users, name: 'Servicios Públicos', href: '/admin/recaudacion/servicios' },
-    { icon: TreePine, name: 'Ambiente', href: '/admin/recaudacion/ambiente' },
-    { icon: ShieldAlert, name: 'Policía Municipal', href: '/admin/recaudacion/policia' },
-    { icon: Handshake, name: 'Convenios y Exoneraciones', href: '/admin/recaudacion/convenios' },
-    { icon: Search, name: 'Fiscalización / Auditoría', href: '/admin/recaudacion/fiscalizacion' },
-    { icon: FileSpreadsheet, name: 'Pasarela de Pagos', href: '/admin/recaudacion/pagos' }
-  ];
-
-  const menuAdministracion = [
-    { icon: LayoutDashboard, name: 'Dashboard Admin', href: '/admin/administracion' },
-    { icon: Calculator, name: 'Presupuesto Público', href: '/admin/administracion/presupuesto' },
-    { icon: Wallet, name: 'Finanzas y Pagos', href: '/admin/administracion/finanzas' },
-    { icon: Users, name: 'RRHH y Nómina', href: '/admin/administracion/rrhh' },
-    { icon: ShoppingCart, name: 'Compras y Servicios', href: '/admin/administracion/compras' },
-    { icon: FileCheck, name: 'Contrataciones', href: '/admin/administracion/contrataciones' },
-    { icon: Package, name: 'Almacén e Inventario', href: '/admin/administracion/almacen' },
-    { icon: Building2, name: 'Bienes Nacionales', href: '/admin/administracion/bienes' },
-    { icon: Target, name: 'Plan Operativo Anual', href: '/admin/administracion/poa' },
-    { icon: ShieldAlert, name: 'Auditoría', href: '/admin/auditoria' }
-  ];
+  const menuAseo = ordenarMenu(MENU_ASEO, menuOrden.aseo);
+  const menuRecaudacion = ordenarMenu(MENU_RECAUDACION, menuOrden.recaudacion);
+  const menuAdministracion = ordenarMenu(MENU_ADMINISTRACION, menuOrden.administracion);
 
   let activeMenu = menuAseo;
   let title = 'Aseo Urbano';

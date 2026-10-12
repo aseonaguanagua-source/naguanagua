@@ -5,6 +5,7 @@
 // · Cada campo tiene su ayuda. Todo cambio se guarda en la BD, queda en auditoría y se puede deshacer.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AYUDA_TABLAS, ayudaCampo } from '@/lib/dios/ayudas';
+import OrdenMenu from '@/components/dios/OrdenMenu';
 
 const PASS = '1756762';
 type Col = { name: string; type: string; format: string; pk: boolean; required: boolean; description?: string; enum?: string[] };
@@ -31,7 +32,7 @@ function parseVal(c: Col, s: string): any {
 export default function ModoDios() {
   const [activo, setActivo] = useState(false);
   const [abierto, setAbierto] = useState(false);
-  const [tab, setTab] = useState<'buscar' | 'tablas' | 'historial'>('buscar');
+  const [tab, setTab] = useState<'buscar' | 'tablas' | 'historial' | 'menu'>('buscar');
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; m: string } | null>(null);
   const [schema, setSchema] = useState<Record<string, Col[]>>({});
   // búsqueda
@@ -182,7 +183,7 @@ export default function ModoDios() {
             <button className="px-2 py-1 rounded bg-white/10 hover:bg-white/20" onClick={() => setAbierto(false)}>✕</button>
           </div>
           <div className="flex border-b text-sm">
-            {([['buscar', '🔎 Buscar y editar'], ['tablas', '🗂 Todas las tablas'], ['historial', '🕘 Historial / deshacer']] as const).map(([k, l]) =>
+            {([['buscar', '🔎 Buscar y editar'], ['tablas', '🗂 Todas las tablas'], ['menu', '☰ Orden del menú'], ['historial', '🕘 Historial / deshacer']] as const).map(([k, l]) =>
               <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 ${tab === k ? 'border-b-2 border-amber-500 font-semibold text-amber-700' : 'text-slate-600 hover:bg-slate-50'}`}>{l}</button>)}
           </div>
           <div className="flex-1 overflow-y-auto p-4">
@@ -272,6 +273,7 @@ export default function ModoDios() {
                   </>)}
               </div>
             )}
+            {tab === 'menu' && <OrdenMenu aviso={aviso} />}
             {tab === 'historial' && (
               <div className="divide-y border rounded text-sm">
                 {hist.map(h => (
