@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { performLogout } from '@/lib/logout';
 import { ROUTE_PERMISSIONS_MAP } from '@/lib/permissionsMap';
-import { MENU_ASEO, MENU_RECAUDACION, MENU_ADMINISTRACION, ordenarMenu, type MenuOrden } from '@/lib/menuItems';
+import { MENU_ASEO, MENU_RECAUDACION, MENU_ADMINISTRACION, ordenarMenu, type MenuOrden, type MenuKey } from '@/lib/menuItems';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -13,6 +13,11 @@ export default function Sidebar() {
   const [user, setUser] = useState<any>(null);
   const [devMode, setDevMode] = useState(false);
   const [menuOrden, setMenuOrden] = useState<MenuOrden>({});
+  // Modo "Ordenar menú" (solo administrador con modo desarrollador): mover opciones directamente aquí
+  const [editando, setEditando] = useState(false);
+  const [editLista, setEditLista] = useState<string[]>([]);
+  const [arrastrando, setArrastrando] = useState<number | null>(null);
+  const [guardandoOrden, setGuardandoOrden] = useState(false);
 
   // Orden del menú definido en Modo Dios (cache local para que no "salte" al cargar)
   useEffect(() => {
@@ -68,14 +73,36 @@ export default function Sidebar() {
 
   let activeMenu = menuAseo;
   let title = 'Aseo Urbano';
+  let menuKey: MenuKey = 'aseo';
   
   if (isRecaudacion) {
     activeMenu = menuRecaudacion;
     title = 'Hacienda Municipal';
+    menuKey = 'recaudacion';
   } else if (isAdministracion) {
     activeMenu = menuAdministracion;
     title = 'Administración Interna';
+    menuKey = 'administracion';
   }
+
+  const puedeOrdenar = devMode && isSuperAdmin;
+  const empezarOrden = () => { setEditLista(activeMenu.map(i => i.href)); setEditando(true); };
+  const moverItem = (i: number, j: number) => {
+    if (j < 0 || j >= editLista.length || i === j) return;
+    setEditLista(l => { const n = [...l]; const [x] = n.splice(i, 1); n.splice(j, 0, x); return n; });
+  };
+  const guardarOrden = async (lista: string[] | null) => {
+    setGuardandoOrden(true);
+    try {
+      const nuevo: MenuOrden = { ...menuOrden };
+      if (lista) nuevo[menuKey] = lista; else delete nuevo[menuKey];
+      const r = await fetch('/api/menu-orden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: '1756762', orden: nuevo }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'No se pudo guardar');
+      setMenuOrden(j.orden); localStorage.setItem('menu_orden', JSON.stringify(j.orden));
+      setEditando(false);
+    } catch (e: any) { alert(e.message); } finally { setGuardandoOrden(false); }
+  };
 
   // Filtrar el menú por los permisos reales del trabajador
   const filteredMenu = activeMenu.filter((item) => {
@@ -140,12 +167,44 @@ export default function Sidebar() {
         </div>
       )}
 
-      <div className="p-3 bg-[#111827] border-b border-white/10 text-xs text-[#c8e64c] text-center uppercase tracking-wider font-semibold">
+      <div className="p-3 bg-[#111827] border-b border-white/10 text-xs text-[#c8e64c] text-center uppercase tracking-wider font-semibold relative">
         {title}
+        {puedeOrdenar && !editando && (
+          <button onClick={empezarOrden} title="Cambiar el orden de este menú"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] normal-case font-bold px-2 py-0.5 rounded bg-fuchsia-600/80 hover:bg-fuchsia-600 text-white">
+            ⇅ Ordenar
+          </button>
+        )}
       </div>
+      {editando && (
+        <div className="px-3 py-2 bg-fuchsia-950/60 border-b border-fuchsia-700/40 text-[11px] text-fuchsia-100 space-y-2">
+          <p>Arrastre las opciones o use ▲ ▼. Al guardar, el orden aplica para todos los usuarios.</p>
+          <div className="flex gap-1.5">
+            <button disabled={guardandoOrden} onClick={() => guardarOrden(editLista)} className="flex-1 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-50">{guardandoOrden ? 'Guardando…' : '💾 Guardar'}</button>
+            <button disabled={guardandoOrden} onClick={() => setEditando(false)} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">Cancelar</button>
+            <button disabled={guardandoOrden} onClick={() => { if (confirm('¿Volver al orden original de este menú?')) guardarOrden(null); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20" title="Orden original">↺</button>
+          </div>
+        </div>
+      )}
       <nav className="flex-1 overflow-y-auto py-3 sidebar-scroll">
         <ul className="space-y-1">
-          {filteredMenu.map((item) => (
+          {editando && editLista.map((href, i) => {
+            const item = activeMenu.find(x => x.href === href); if (!item) return null;
+            return (
+              <li key={href} draggable
+                onDragStart={() => setArrastrando(i)}
+                onDragOver={e => { e.preventDefault(); if (arrastrando !== null && arrastrando !== i) { moverItem(arrastrando, i); setArrastrando(i); } }}
+                onDragEnd={() => setArrastrando(null)}
+                className={`flex items-center gap-2 px-2 py-1.5 mx-1 rounded cursor-move select-none ${arrastrando === i ? 'bg-fuchsia-800/50' : 'hover:bg-white/5'}`}>
+                <span className="text-slate-500 text-xs">⠿</span>
+                <item.icon className="w-4 h-4 shrink-0" />
+                <span className="text-xs font-medium flex-1 truncate">{item.name}</span>
+                <button onClick={() => moverItem(i, i - 1)} disabled={i === 0} className="px-1 text-xs hover:text-[#c8e64c] disabled:opacity-20">▲</button>
+                <button onClick={() => moverItem(i, i + 1)} disabled={i === editLista.length - 1} className="px-1 text-xs hover:text-[#c8e64c] disabled:opacity-20">▼</button>
+              </li>
+            );
+          })}
+          {!editando && filteredMenu.map((item) => (
             <li key={item.name}>
               <Link
                 href={item.href}
