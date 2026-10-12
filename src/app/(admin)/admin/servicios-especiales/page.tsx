@@ -4,6 +4,8 @@ import { Wrench, Search, Plus, Trash2, CheckCircle2, AlertCircle, FlaskConical, 
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { useAppContext } from '@/store/AppContext';
 import { ordenanzaData } from '@/data/ordenanza';
+import { TARIFAS_ESPECIAL, TARIFAS_EXTRAORDINARIO, generarPlanillaServicio } from '@/lib/planillaServicio';
+import { FileDown } from 'lucide-react';
 
 type TipoServicio = 'especial' | 'extraordinario' | 'inspeccion' | 'visto_bueno' | 'tala_poda';
 
@@ -72,7 +74,18 @@ export default function ServiciosEspecialesPage() {
     tipoPermiso: '',
     alturaArbol: '',
     unidadesArboreas: '1',
-    habilitadoVB: false
+    habilitadoVB: false,
+    // Planilla Servicio Especial / Extraordinario
+    vehiculo: '',
+    nivel: '',
+    nve: '1',
+    contacto: '',
+    telefono: '',
+    nombreEvento: '',
+    fechaEvento: '',
+    lugar: '',
+    horario: '',
+    aforo: ''
   });
   const [searchContrib, setSearchContrib] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,28 +105,30 @@ export default function ServiciosEspecialesPage() {
   useEffect(() => { loadServicios(); }, []);
 
   // Calculo tarifas desde ordenanza
-  const getTarifaSugerida = () => {
-    if (form.tipo === 'extraordinario' && form.camion && form.distancia) {
-      const t = (ordenanzaData as any).serviciosExtraordinarios?.find(
-        (s: any) => s.camion === form.camion && s.distancia === form.distancia
-      );
-      if (t) return { tcmv: t.tcmv, label: t.label };
+  // Cálculo de la planilla: Especial TSE = F.O.Es × NVE × 1 ; Extraordinario TSEX = C.E.V × NVE × F.llenado
+  const calcPlanilla = () => {
+    const nve = Math.max(1, parseFloat(form.nve || '1') || 1);
+    if (form.tipo === 'especial' && form.vehiculo && form.nivel) {
+      const t = TARIFAS_ESPECIAL.find(x => x.vehiculo === form.vehiculo);
+      const ucd = t ? (t as any)[form.nivel] as number : 0;
+      if (t && ucd) return { vehiculoLabel: t.label, nivel: form.nivel, valorUcd: ucd, nve, factor: 1 };
     }
-    if (form.tipo === 'especial') {
-      if (form.codigoServicio) {
-        const t = (ordenanzaData as any).serviciosEspeciales?.find((s: any) => s.codigo === form.codigoServicio);
-        if (t && t.tcmvBase > 0) return { tcmv: t.tcmvBase, label: t.label };
-      }
-      if (form.camion) {
-        const factoresEspecial: Record<string, number> = {
-          '350': 80,
-          '600': 100,
-          '750': 120,
-          'compactador': 260
-        };
-        const ucd = factoresEspecial[form.camion] || 80;
-        return { tcmv: ucd, label: `Servicio Especial — Camión ${form.camion}` };
-      }
+    if (form.tipo === 'extraordinario' && form.vehiculo) {
+      const t = TARIFAS_EXTRAORDINARIO.find(x => x.vehiculo === form.vehiculo);
+      if (t) return { vehiculoLabel: t.label, nivel: t.nivel, valorUcd: t.ucd, nve, factor: t.factor };
+    }
+    return null;
+  };
+
+  const getTarifaSugerida = () => {
+    const p = calcPlanilla();
+    if (p) {
+      const total = p.valorUcd * p.nve * p.factor;
+      return { tcmv: total, label: `${form.tipo === 'especial' ? 'Servicio Especial' : 'Servicio Extraordinario'} — ${p.vehiculoLabel} (${p.nivel}) × ${p.nve} viaje(s)` };
+    }
+    if (form.tipo === 'especial' && form.codigoServicio) {
+      const t = (ordenanzaData as any).serviciosEspeciales?.find((s: any) => s.codigo === form.codigoServicio);
+      if (t && t.tcmvBase > 0) return { tcmv: t.tcmvBase, label: t.label };
     }
     if (form.tipo === 'inspeccion' && form.tipoInspeccion) {
       const t = (ordenanzaData as any).inspeccionesTecnicas?.find((s: any) => s.codigo === form.tipoInspeccion);
@@ -180,6 +195,9 @@ export default function ServiciosEspecialesPage() {
     form.tipoPermiso,
     form.alturaArbol,
     form.unidadesArboreas,
+    form.vehiculo,
+    form.nivel,
+    form.nve,
     tcmmv
   ]);
 
@@ -217,14 +235,27 @@ export default function ServiciosEspecialesPage() {
           notas: form.notas,
           estado: 'Pendiente',
           referencia: `SRV-${form.tipo.toUpperCase().slice(0,3)}-${Date.now()}`,
-          origen: 'funcionario'
+          origen: 'funcionario',
+          ...(() => {
+            const p = calcPlanilla();
+            if (!p || (form.tipo !== 'especial' && form.tipo !== 'extraordinario')) return {};
+            return {
+              categoria: form.tipo === 'especial' ? 'ESPECIAL' : 'EXTRAORDINARIO',
+              vehiculo: form.vehiculo, nivel: p.nivel, valor_ucd: p.valorUcd, nve: p.nve, factor: p.factor,
+              tasa_euro: tcmmv || null,
+              nombre_evento: form.nombreEvento || null, fecha_evento: form.fechaEvento || null,
+              hora_evento: form.horario || null, direccion_evento: form.lugar || null,
+              aforo: form.aforo ? parseInt(form.aforo) : null, telefono: form.telefono || null,
+              notas: `${form.notas || ''}${form.contacto ? ` [CONTACTO:${form.contacto}]` : ''}`.trim(),
+            };
+          })()
         })
       });
 
       if (res.ok) {
         setMsg({ type: 'ok', text: 'Servicio registrado y notificado al contribuyente exitosamente.' });
         setShowModal(false);
-        setForm({ tipo: 'especial', identidad: '', contribuyenteNombre: '', descripcion: '', monto: '', fecha: new Date().toISOString().split('T')[0], notas: '', camion: '', distancia: '', area: '', tipoVistoBueno: '', tipoInspeccion: '', codigoServicio: '', tipoPermiso: '', alturaArbol: '', unidadesArboreas: '1', habilitadoVB: false });
+        setForm({ tipo: 'especial', identidad: '', contribuyenteNombre: '', descripcion: '', monto: '', fecha: new Date().toISOString().split('T')[0], notas: '', camion: '', distancia: '', area: '', tipoVistoBueno: '', tipoInspeccion: '', codigoServicio: '', tipoPermiso: '', alturaArbol: '', unidadesArboreas: '1', habilitadoVB: false, vehiculo: '', nivel: '', nve: '1', contacto: '', telefono: '', nombreEvento: '', fechaEvento: '', lugar: '', horario: '', aforo: '' });
         setSearchContrib('');
         loadServicios();
       } else {
@@ -242,6 +273,37 @@ export default function ServiciosEspecialesPage() {
     if (!id || !confirm('¿Eliminar este registro?')) return;
     await fetch(`/api/admin/servicios-especiales?id=${id}`, { method: 'DELETE' });
     loadServicios();
+  };
+
+  /** Descarga la planilla oficial (llena con el registro, o en blanco si no se pasa registro). */
+  const descargarPlanilla = (categoria: 'especial' | 'extraordinario', s?: any) => {
+    if (!s) { generarPlanillaServicio({ categoria }); return; }
+    const tEsp = TARIFAS_ESPECIAL.find(x => x.vehiculo === s.vehiculo);
+    const tExt = TARIFAS_EXTRAORDINARIO.find(x => x.vehiculo === s.vehiculo);
+    const valorUcd = s.valor_ucd != null ? Number(s.valor_ucd) : null;
+    const tasa = s.tasa_euro != null ? Number(s.tasa_euro) : null;
+    const contacto = String(s.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '';
+    generarPlanillaServicio({
+      categoria,
+      fechaEmision: s.fecha || s.created_at,
+      referencia: s.referencia,
+      nombre: s.contribuyente,
+      identidad: s.identidad,
+      contacto,
+      telefono: s.telefono || '',
+      nombreEvento: s.nombre_evento || (categoria === 'especial' ? s.descripcion : ''),
+      fechaEvento: s.fecha_evento || '',
+      lugar: s.direccion_evento || '',
+      horario: s.hora_evento || '',
+      aforo: s.aforo ?? '',
+      direccion: s.direccion_evento || '',
+      vehiculoLabel: tEsp?.label || tExt?.label || s.descripcion,
+      nivel: s.nivel || '',
+      valorUcd,
+      nve: valorUcd != null ? Number(s.nve ?? 1) : null,
+      factor: valorUcd != null ? Number(s.factor ?? 1) : null,
+      tasaEuro: tasa,
+    });
   };
 
   const serviciosFiltrados = servicios.filter(s =>
@@ -285,6 +347,15 @@ export default function ServiciosEspecialesPage() {
           <button onClick={loadServicios} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded text-sm text-slate-600 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" /> Actualizar
           </button>
+          {(tab === 'especial' || tab === 'extraordinario') && (
+            <button
+              onClick={() => descargarPlanilla(tab as 'especial' | 'extraordinario')}
+              className="flex items-center gap-1 px-3 py-2 border border-emerald-300 rounded text-sm text-emerald-700 hover:bg-emerald-50"
+              title="Descargar la planilla oficial en blanco para llenar a mano"
+            >
+              <FileDown className="w-4 h-4" /> Planilla en blanco
+            </button>
+          )}
           <button
             onClick={() => { setShowModal(true); setForm(prev => ({ ...prev, tipo: tab })); setMsg(null); }}
             className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors"
@@ -386,7 +457,12 @@ export default function ServiciosEspecialesPage() {
                           {s.estado}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        {(s.tipo === 'especial' || s.tipo === 'extraordinario') && (
+                          <button onClick={() => descargarPlanilla(s.tipo as 'especial' | 'extraordinario', s)} className="text-emerald-600 hover:text-emerald-800 p-1 rounded" title="Descargar planilla">
+                            <FileDown className="w-4 h-4" />
+                          </button>
+                        )}
                         <button onClick={() => handleDelete(s.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all p-1 rounded">
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -421,7 +497,7 @@ export default function ServiciosEspecialesPage() {
                         key={t}
                         type="button"
                         onClick={() => {
-                          setForm(prev => ({ ...prev, tipo: t, camion: '', distancia: '' }));
+                          setForm(prev => ({ ...prev, tipo: t, camion: '', distancia: '', vehiculo: '', nivel: '' }));
                           setMsg(null);
                         }}
                         className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${
@@ -473,46 +549,88 @@ export default function ServiciosEspecialesPage() {
                 )}
               </div>
 
-              {/* Campos específicos por tipo desde la Ordenanza */}
-              {form.tipo === 'extraordinario' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Tipo de Camión</label>
-                    <select value={form.camion} onChange={e => setForm(prev => ({ ...prev, camion: e.target.value }))}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white">
-                      <option value="">Seleccione...</option>
-                      <option value="350">Camión 350</option>
-                      <option value="600">Camión 600</option>
-                      <option value="750">Camión 750 / Volteo</option>
-                    </select>
+              {/* Servicio Especial / Extraordinario — campos de la planilla oficial */}
+              {(form.tipo === 'especial' || form.tipo === 'extraordinario') && (() => {
+                const inp = "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white";
+                const lbl = "block text-xs font-bold text-slate-600 uppercase mb-1";
+                const esp = form.tipo === 'especial';
+                const p = calcPlanilla();
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className={esp ? '' : 'col-span-2'}>
+                        <label className={lbl}>{esp ? 'Capacidad y tipo de unidad' : 'C.E.V (Volteo)'}</label>
+                        <select value={form.vehiculo} onChange={e => setForm(prev => ({ ...prev, vehiculo: e.target.value }))} className={inp}>
+                          <option value="">Seleccione...</option>
+                          {(esp ? TARIFAS_ESPECIAL : TARIFAS_EXTRAORDINARIO).map(t => (
+                            <option key={t.vehiculo} value={t.vehiculo}>{t.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {esp && (
+                        <div>
+                          <label className={lbl}>Nivel (F.O.Es)</label>
+                          <select value={form.nivel} onChange={e => setForm(prev => ({ ...prev, nivel: e.target.value }))} className={inp}>
+                            <option value="">Seleccione...</option>
+                            {(['BAJA', 'MEDIA', 'ALTA'] as const).map(n => {
+                              const t = TARIFAS_ESPECIAL.find(x => x.vehiculo === form.vehiculo);
+                              return <option key={n} value={n}>{n}{t ? ` — ${t[n]} UCD` : ''}</option>;
+                            })}
+                          </select>
+                        </div>
+                      )}
+                      <div>
+                        <label className={lbl}>NVE (N° de viajes)</label>
+                        <input type="number" min="1" value={form.nve} onChange={e => setForm(prev => ({ ...prev, nve: e.target.value }))} className={inp} />
+                      </div>
+                      <div>
+                        <label className={lbl}>{esp ? 'FAEs' : 'F. llenado'}</label>
+                        <input disabled value={p ? String(p.factor).replace('.', ',') : (esp ? '1' : '—')} className={`${inp} bg-slate-100`} />
+                      </div>
+                    </div>
+                    {p && (
+                      <div className="text-xs bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-emerald-800">
+                        {esp ? 'TSE' : 'TSEX'} = {p.valorUcd} × {p.nve} × {String(p.factor).replace('.', ',')} = <b>{(p.valorUcd * p.nve * p.factor).toLocaleString('es-VE')} UCD</b>
+                        {tcmmv > 0 && <> · × Tasa Euro {tcmmv.toLocaleString('es-VE', { minimumFractionDigits: 2 })} = <b>Bs. {(p.valorUcd * p.nve * p.factor * tcmmv).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></>}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={lbl}>Persona de contacto</label>
+                        <input value={form.contacto} onChange={e => setForm(prev => ({ ...prev, contacto: e.target.value }))} className={inp} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Teléfono</label>
+                        <input value={form.telefono} onChange={e => setForm(prev => ({ ...prev, telefono: e.target.value }))} className={inp} />
+                      </div>
+                      {esp && (
+                        <div className="col-span-2">
+                          <label className={lbl}>Nombre del evento</label>
+                          <input value={form.nombreEvento} onChange={e => setForm(prev => ({ ...prev, nombreEvento: e.target.value }))} className={inp} />
+                        </div>
+                      )}
+                      <div className="col-span-2">
+                        <label className={lbl}>{esp ? 'Lugar' : 'Dirección'}</label>
+                        <input value={form.lugar} onChange={e => setForm(prev => ({ ...prev, lugar: e.target.value }))} className={inp} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Fecha del servicio</label>
+                        <input type="date" value={form.fechaEvento} onChange={e => setForm(prev => ({ ...prev, fechaEvento: e.target.value }))} className={inp} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Horario</label>
+                        <input placeholder="Ej: 8:00 am a 4:00 pm" value={form.horario} onChange={e => setForm(prev => ({ ...prev, horario: e.target.value }))} className={inp} />
+                      </div>
+                      {esp && (
+                        <div>
+                          <label className={lbl}>Aforo</label>
+                          <input type="number" min="0" value={form.aforo} onChange={e => setForm(prev => ({ ...prev, aforo: e.target.value }))} className={inp} />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Distancia</label>
-                    <select value={form.distancia} onChange={e => setForm(prev => ({ ...prev, distancia: e.target.value }))}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white">
-                      <option value="">Seleccione...</option>
-                      <option value="menor">Menor a 20 Km</option>
-                      <option value="mayor">Mayor a 20 Km</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {form.tipo === 'especial' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Tipo de Servicio (Ordenanza Tabla 4)</label>
-                  <select value={form.codigoServicio} onChange={e => {
-                    const t = (ordenanzaData as any).serviciosEspeciales?.find((s: any) => s.codigo === e.target.value);
-                    setForm(prev => ({ ...prev, codigoServicio: e.target.value, descripcion: t ? t.label : prev.descripcion }));
-                  }}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white">
-                    <option value="">Seleccione o escriba descripción libre...</option>
-                    {((ordenanzaData as any).serviciosEspeciales || []).map((s: any) => (
-                      <option key={s.codigo} value={s.codigo}>{s.codigo} — {s.label}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                );
+              })()}
 
               {form.tipo === 'inspeccion' && (
                 <div>

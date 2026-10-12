@@ -220,43 +220,20 @@ export default function TransferenciaAlarm() {
   // ── UI ──
   return (
     <>
-      {/* Indicador de conexión + botón de silencio (siempre visible) */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
-        {/* Botón silenciar/activar */}
-        <button
-          onClick={() => { setSilenced(s => !s); unlockAudio(); }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow transition-all ${
-            silenced
-              ? 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-              : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-          }`}
-          title={silenced ? 'Activar alarma' : 'Silenciar alarma'}
-        >
-          {silenced ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-          {silenced ? 'Alarma silenciada' : 'Alarma activa'}
-          <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-emerald-500' : 'bg-yellow-400'} animate-pulse`} />
-        </button>
-
-        {/* Botón probar sonido */}
-        <button
-          onClick={() => { unlockAudio(); setTimeout(() => playAlarm(undefined), 100); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 shadow transition-all"
-          title="Probar sonido de alarma"
-        >
-          <BellRing className="w-3 h-3" /> Probar sonido
-        </button>
-
-        {/* Badge de alertas pendientes */}
-        {alertas.length > 0 && !visible && (
+      {/* Solo aparece cuando hay notificaciones pendientes (no estorba en pantalla).
+          Silenciar y Probar sonido están dentro del panel de notificaciones. */}
+      {alertas.length > 0 && !visible && (
+        <div className="fixed bottom-6 right-6 z-50">
           <button
             onClick={() => { setVisible(true); unlockAudio(); }}
             className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-3 py-2 shadow-lg flex items-center gap-2 transition-all"
+            title={connected ? 'Notificaciones en vivo' : 'Reconectando…'}
           >
             <BellRing className="w-4 h-4 animate-bounce" />
             <span className="text-xs font-bold">{alertas.length} pendiente{alertas.length > 1 ? 's' : ''}</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Panel de alarma */}
       {visible && alertas.length > 0 && (
@@ -311,6 +288,13 @@ export default function TransferenciaAlarm() {
                 Ver detalles <ChevronRight className="w-3 h-3" />
               </a>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { unlockAudio(); setTimeout(() => playAlarm(undefined), 100); }}
+                  className="text-slate-400 hover:text-slate-600 text-[11px] flex items-center gap-1"
+                  title="Probar sonido de alarma"
+                >
+                  <BellRing className="w-3 h-3" /> Probar
+                </button>
                 <button
                   onClick={() => { setSilenced(s => !s); }}
                   className="text-slate-400 hover:text-slate-600 text-[11px] flex items-center gap-1"

@@ -284,6 +284,12 @@ export const calcularMensualidad = (
       fo = getFO(actividad, true);
     }
   } else {
+    // REGLA N/A: un registro "N/A" no tiene actividad propia; su tarifa es la SUMA de sus actividades
+    // (que se cobran en sus propios registros). Si no tiene tarifa guardada válida, NO se cobra nada
+    // (nunca aplicar el F.O. por defecto 1.98 a un N/A).
+    const esNAInm = actividad.trim().toUpperCase() === 'N/A' &&
+      !(typeof clasificacionOrInm === 'object' && clasificacionOrInm?.es_condominio === true);
+    if (esNAInm && !(mmv !== undefined && mmv >= 1.54)) return 0;
     // Comercial / Industrial / Institucional:
     // DECISIÓN DEL MUNICIPIO: se cobra SIEMPRE la tarifa guardada en el inmueble (mmv_mes),
     // para que el sistema nunca cambie la tarifa de un usuario por el texto de la actividad.

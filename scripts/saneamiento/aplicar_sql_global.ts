@@ -53,18 +53,19 @@ const val = (v: string): any => {
       const f = `${BK}/${t}.json`; if (!fs.existsSync(f)) { const rows = await all(t, c); fs.writeFileSync(f, JSON.stringify(rows)); console.log('respaldo', t, rows.length); }
     }
   }
-  const files = fs.readdirSync(DIR).filter(f => /^0[1-6]_.*\.sql$/.test(f)).sort();
+  const SOLO = process.argv.find(a => a.startsWith('--solo='))?.slice(7);
+  const files = fs.readdirSync(DIR).filter(f => /^0[1-6]_.*\.sql$/.test(f) && (!SOLO || f.startsWith(SOLO))).sort();
   const stats: Record<string, { ok: number; sinCambio: number; err: number }> = {};
   for (const f of files) {
     const st = stats[f] = { ok: 0, sinCambio: 0, err: 0 };
     const lines = fs.readFileSync(f.startsWith('/') ? f : `${DIR}/${f}`, 'utf8').split(/\r?\n/).filter(l => /^(UPDATE|INSERT)/.test(l));
-    for (const line of lines) {
+    const run = async (line: string) => {
       try {
         const stmt = splitTop(line, ';')[0];
         if (stmt.startsWith('UPDATE')) {
           const m = stmt.match(/^UPDATE (\w+) SET ([\s\S]+)$/)!; const [set, where] = splitTop(m[2], ' WHERE ');
           const data: any = {}; for (const a of splitTop(set, ',')) { const i = a.indexOf('='); data[a.slice(0, i).trim()] = val(a.slice(i + 1)); }
-          if (DRY) { const { data: r } = await conds(sb.from(m[1]).select('id'), where).limit(1); r?.length ? st.ok++ : st.sinCambio++; continue; }
+          if (DRY) { const { data: r } = await conds(sb.from(m[1]).select('id'), where).limit(1); r?.length ? st.ok++ : st.sinCambio++; return; }
           const { data: r, error } = await conds(sb.from(m[1]).update(data), where).select('id');
           if (error) throw error; r?.length ? st.ok++ : st.sinCambio++;
         } else {
@@ -73,14 +74,16 @@ const val = (v: string): any => {
           const [vals, ne] = splitTop(m[3], ' WHERE NOT EXISTS ');
           const nm = ne.match(/^\(SELECT 1 FROM (\w+) WHERE (.+)\)$/)!;
           const { data: ex } = await conds(sb.from(nm[1]).select('id'), nm[2]).limit(1);
-          if (ex?.length) { st.sinCambio++; continue; }
+          if (ex?.length) { st.sinCambio++; return; }
           const row: any = {}; const vs = splitTop(vals, ',');
           for (let i = 0; i < cols.length; i++) { const v = val(vs[i]); row[cols[i]] = v && typeof v === 'object' ? await subId(vs[i]) : v; }
-          if (DRY) { st.ok++; continue; }
+          if (DRY) { st.ok++; return; }
           const { error } = await sb.from(m[1]).insert(row); if (error) throw error; st.ok++;
         }
       } catch (e: any) { st.err++; if (st.err <= 3) console.log('ERR', f, e.message, line.slice(0, 160)); }
-    }
+    };
+    const B = f.startsWith('06_') ? 1 : Number(process.env.B || 25);
+    for (let i = 0; i < lines.length; i += B) await Promise.all(lines.slice(i, i + B).map(run));
     console.log(f, st);
   }
   fs.writeFileSync(`${DIR}/aplicado${DRY ? '_prueba' : ''}.json`, JSON.stringify(stats, null, 1));

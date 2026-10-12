@@ -73,6 +73,10 @@ export async function POST(request: Request) {
       estado: estado || 'Pendiente',
       referencia: referencia || `SRV-${Date.now()}`
     };
+    // Campos de la planilla (Servicio Especial / Extraordinario). Solo se envían si vienen.
+    const EXTRA = ['categoria', 'inmueble', 'tarifa_id', 'vehiculo', 'nivel', 'valor_ucd', 'nve', 'factor', 'tasa_euro',
+      'nombre_evento', 'fecha_evento', 'hora_evento', 'direccion_evento', 'aforo', 'telefono', 'correo', 'creado_por'];
+    for (const k of EXTRA) if (body[k] !== undefined && body[k] !== null && body[k] !== '') baseRow[k] = body[k];
 
     // Intentar primero con la columna origen por si existe en el esquema
     let result = await supabase
