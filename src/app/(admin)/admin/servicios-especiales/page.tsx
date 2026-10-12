@@ -3,8 +3,7 @@ import { useState, useEffect } from 'react';
 import { Wrench, Search, Plus, Trash2, CheckCircle2, AlertCircle, FlaskConical, ClipboardCheck, ShieldCheck, X, RefreshCw, BookOpen, FileSpreadsheet, TreePine } from 'lucide-react';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { useAppContext } from '@/store/AppContext';
-import { ordenanzaData } from '@/data/ordenanza';
-import { TARIFAS_ESPECIAL, TARIFAS_EXTRAORDINARIO, generarPlanillaServicio } from '@/lib/planillaServicio';
+import { TARIFAS_ESPECIAL, TARIFAS_EXTRAORDINARIO, CONCEPTOS_IAMEC, generarPlanillaServicio } from '@/lib/planillaServicio';
 import { FileDown } from 'lucide-react';
 
 type TipoServicio = 'especial' | 'extraordinario' | 'inspeccion' | 'visto_bueno' | 'tala_poda';
@@ -85,7 +84,8 @@ export default function ServiciosEspecialesPage() {
     fechaEvento: '',
     lugar: '',
     horario: '',
-    aforo: ''
+    aforo: '',
+    incluyePermiso: true
   });
   const [searchContrib, setSearchContrib] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -126,43 +126,23 @@ export default function ServiciosEspecialesPage() {
       const total = p.valorUcd * p.nve * p.factor;
       return { tcmv: total, label: `${form.tipo === 'especial' ? 'Servicio Especial' : 'Servicio Extraordinario'} — ${p.vehiculoLabel} (${p.nivel}) × ${p.nve} viaje(s)` };
     }
-    if (form.tipo === 'especial' && form.codigoServicio) {
-      const t = (ordenanzaData as any).serviciosEspeciales?.find((s: any) => s.codigo === form.codigoServicio);
-      if (t && t.tcmvBase > 0) return { tcmv: t.tcmvBase, label: t.label };
+    const C = CONCEPTOS_IAMEC;
+    if (form.tipo === 'inspeccion' && parseFloat(form.area || '0') > 0) {
+      const m2 = parseFloat(form.area);
+      return { tcmv: Math.round(C.inspeccionUcdPorM2 * m2 * 10000) / 10000, label: `Inspección técnica — ${m2} m² × ${C.inspeccionUcdPorM2} UCD` };
     }
-    if (form.tipo === 'inspeccion' && form.tipoInspeccion) {
-      const t = (ordenanzaData as any).inspeccionesTecnicas?.find((s: any) => s.codigo === form.tipoInspeccion);
-      if (t) return { tcmv: t.tcmv, label: t.label };
+    if (form.tipo === 'visto_bueno' && (form.tipoVistoBueno === 'VISTO_BUENO' || form.tipoVistoBueno === 'VARIABLE')) {
+      const t = C.vistoBueno[form.tipoVistoBueno as 'VISTO_BUENO' | 'VARIABLE'];
+      const ucd = (form.incluyePermiso ? t.fo : 0) + (form.habilitadoVB ? C.vistoBueno.multaImpago : 0);
+      if (ucd > 0) return { tcmv: ucd, label: `${form.incluyePermiso ? t.label : ''}${form.incluyePermiso && form.habilitadoVB ? ' + ' : ''}${form.habilitadoVB ? `Multa por impago (${t.label})` : ''}` };
     }
-    if (form.tipo === 'visto_bueno' && form.tipoVistoBueno && form.area) {
-      const t = (ordenanzaData as any).vistoBueno?.find((s: any) => s.codigo === form.tipoVistoBueno);
-      if (t) {
-         let baseTcmv = t.tcmvPorM2 * parseFloat(form.area || '0');
-         let finalLabel = `${t.label} — ${form.area} m²`;
-         if (form.habilitadoVB) {
-           baseTcmv += 100;
-           finalLabel += ' (+ Habilitado 100 TCMV)';
-         }
-         return { tcmv: baseTcmv, label: finalLabel };
-      }
-    }
-    if (form.tipo === 'tala_poda' && form.tipoPermiso) {
-      if (form.tipoPermiso === 'Tala y Poda' && form.alturaArbol) {
-         let base = 0;
-         let altLabel = '';
-         if (form.alturaArbol === 'hasta_3') { base = 7; altLabel = 'Hasta 3m'; }
-         else if (form.alturaArbol === 'de_4_a_5') { base = 10; altLabel = 'De 4m a 5m'; }
-         else if (form.alturaArbol === 'mayor_5') { base = 15; altLabel = 'Mayor de 5m'; }
-         
-         const unis = parseInt(String(form.unidadesArboreas) || '1') || 1;
-         return { tcmv: base * unis, label: `Tala y Poda (${altLabel}) x ${unis} arb.` };
-      }
-      else if (form.tipoPermiso === 'Limpieza') {
-         return { tcmv: 15, label: 'Autorización de Limpieza' };
-      }
-      else if (form.tipoPermiso === 'Variables') {
-         return { tcmv: 15, label: 'Variables Ambientales' };
-      }
+    if (form.tipo === 'tala_poda' && (form.tipoPermiso === 'PODA' || form.tipoPermiso === 'TALA')) {
+      const t = form.tipoPermiso === 'PODA' ? C.poda : C.tala;
+      const tramo = form.alturaArbol as '5' | '20' | 'MAS20' | '';
+      const multa = tramo ? t.multas[tramo] : 0;
+      const ucd = (form.incluyePermiso ? t.permiso : 0) + multa;
+      const nombre = form.tipoPermiso === 'PODA' ? 'Poda' : 'Tala';
+      if (ucd > 0) return { tcmv: ucd, label: `${form.incluyePermiso ? `Permiso de ${nombre}` : ''}${form.incluyePermiso && multa ? ' + ' : ''}${multa ? `Multa por ${nombre} sin autorización (${C.tramosMulta[tramo as '5']})` : ''}` };
     }
     return null;
   };
@@ -178,7 +158,7 @@ export default function ServiciosEspecialesPage() {
       setForm(prev => ({
         ...prev,
         monto: bs.toFixed(2),
-        descripcion: (!prev.descripcion.trim() || prev.descripcion.startsWith('Camión') || prev.descripcion.startsWith('Servicio') || prev.descripcion.startsWith('Tala'))
+        descripcion: (!prev.descripcion.trim() || /^(Camión|Servicio|Tala|Poda|Permiso|Multa|Inspección|Visto|Variable)/.test(prev.descripcion))
           ? tarifa.label
           : prev.descripcion
       }));
@@ -198,6 +178,7 @@ export default function ServiciosEspecialesPage() {
     form.vehiculo,
     form.nivel,
     form.nve,
+    form.incluyePermiso,
     tcmmv
   ]);
 
@@ -255,7 +236,7 @@ export default function ServiciosEspecialesPage() {
       if (res.ok) {
         setMsg({ type: 'ok', text: 'Servicio registrado y notificado al contribuyente exitosamente.' });
         setShowModal(false);
-        setForm({ tipo: 'especial', identidad: '', contribuyenteNombre: '', descripcion: '', monto: '', fecha: new Date().toISOString().split('T')[0], notas: '', camion: '', distancia: '', area: '', tipoVistoBueno: '', tipoInspeccion: '', codigoServicio: '', tipoPermiso: '', alturaArbol: '', unidadesArboreas: '1', habilitadoVB: false, vehiculo: '', nivel: '', nve: '1', contacto: '', telefono: '', nombreEvento: '', fechaEvento: '', lugar: '', horario: '', aforo: '' });
+        setForm({ tipo: 'especial', identidad: '', contribuyenteNombre: '', descripcion: '', monto: '', fecha: new Date().toISOString().split('T')[0], notas: '', camion: '', distancia: '', area: '', tipoVistoBueno: '', tipoInspeccion: '', codigoServicio: '', tipoPermiso: '', alturaArbol: '', unidadesArboreas: '1', habilitadoVB: false, vehiculo: '', nivel: '', nve: '1', contacto: '', telefono: '', nombreEvento: '', fechaEvento: '', lugar: '', horario: '', aforo: '', incluyePermiso: true });
         setSearchContrib('');
         loadServicios();
       } else {
@@ -341,7 +322,7 @@ export default function ServiciosEspecialesPage() {
             <Wrench className="w-6 h-6 text-purple-600" />
             Servicios Especiales / Extraordinarios / Inspecciones
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Asigne servicios a contribuyentes con tarifas manuales. Se sincronizan automáticamente al portal del ciudadano.</p>
+          <p className="text-sm text-slate-500 mt-1">Solo servicios oficiales de la Ordenanza / IAMEC; monto = UCD × Tasa Euro BCV. Se sincronizan automáticamente al portal del ciudadano.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={loadServicios} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded text-sm text-slate-600 hover:bg-slate-50">
@@ -497,7 +478,7 @@ export default function ServiciosEspecialesPage() {
                         key={t}
                         type="button"
                         onClick={() => {
-                          setForm(prev => ({ ...prev, tipo: t, camion: '', distancia: '', vehiculo: '', nivel: '' }));
+                          setForm(prev => ({ ...prev, tipo: t, camion: '', distancia: '', vehiculo: '', nivel: '', tipoPermiso: '', alturaArbol: '', tipoVistoBueno: '', area: '' }));
                           setMsg(null);
                         }}
                         className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${
@@ -632,104 +613,76 @@ export default function ServiciosEspecialesPage() {
                 );
               })()}
 
-              {form.tipo === 'inspeccion' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Tipo de Inspección (Ordenanza Tabla 5)</label>
-                  <select value={form.tipoInspeccion} onChange={e => {
-                    const t = (ordenanzaData as any).inspeccionesTecnicas?.find((s: any) => s.codigo === e.target.value);
-                    setForm(prev => ({ ...prev, tipoInspeccion: e.target.value, descripcion: t ? t.label : prev.descripcion }));
-                  }}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white">
-                    <option value="">Seleccione tipo de inspección...</option>
-                    {((ordenanzaData as any).inspeccionesTecnicas || []).map((s: any) => (
-                      <option key={s.codigo} value={s.codigo}>{s.codigo} — {s.label} ({s.tcmv} TCMV)</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {form.tipo === 'visto_bueno' && (
-                <div className="grid grid-cols-2 gap-3">
+              {/* Inspección, Visto Bueno / Variable Ambiental, Poda / Tala — SOLO conceptos oficiales del IAMEC */}
+              {(form.tipo === 'inspeccion' || form.tipo === 'visto_bueno' || form.tipo === 'tala_poda') && (() => {
+                const inp = "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white";
+                const lbl = "block text-xs font-bold text-slate-600 uppercase mb-1";
+                const C = CONCEPTOS_IAMEC;
+                if (form.tipo === 'inspeccion') return (
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Tipo Visto Bueno (Tabla 6)</label>
-                    <select value={form.tipoVistoBueno} onChange={e => {
-                      const t = (ordenanzaData as any).vistoBueno?.find((s: any) => s.codigo === e.target.value);
-                      setForm(prev => ({ ...prev, tipoVistoBueno: e.target.value, descripcion: t ? t.label : prev.descripcion }));
-                    }}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white">
-                      <option value="">Seleccione tipo...</option>
-                      {((ordenanzaData as any).vistoBueno || []).map((s: any) => (
-                        <option key={s.codigo} value={s.codigo}>{s.codigo} — {s.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Área (m²)</label>
+                    <label className={lbl}>Cantidad de m² del inmueble ({C.inspeccionUcdPorM2} UCD por m²)</label>
                     <input type="number" min="0" placeholder="Metros cuadrados" value={form.area}
-                      onChange={e => setForm(prev => ({ ...prev, area: e.target.value }))}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500" />
+                      onChange={e => setForm(prev => ({ ...prev, area: e.target.value }))} className={inp} />
                   </div>
-                  <div className="col-span-2 pt-2 border-t border-slate-100">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                );
+                if (form.tipo === 'visto_bueno') return (
+                  <div className="space-y-3">
+                    <div>
+                      <label className={lbl}>Trámite</label>
+                      <select value={form.tipoVistoBueno} onChange={e => setForm(prev => ({ ...prev, tipoVistoBueno: e.target.value }))} className={inp}>
+                        <option value="">Seleccione...</option>
+                        <option value="VISTO_BUENO">Visto Bueno Ambiental ({C.vistoBueno.VISTO_BUENO.fo} UCD)</option>
+                        <option value="VARIABLE">Variable Ambiental ({C.vistoBueno.VARIABLE.fo} UCD)</option>
+                      </select>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input type="checkbox" checked={form.incluyePermiso} onChange={e => setForm(prev => ({ ...prev, incluyePermiso: e.target.checked }))} className="w-4 h-4 accent-purple-600" />
+                      Cobrar el trámite
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
                       <input type="checkbox" checked={form.habilitadoVB} onChange={e => setForm(prev => ({ ...prev, habilitadoVB: e.target.checked }))} className="w-4 h-4 accent-purple-600" />
-                      Incluir Trámite Habilitado (+ 100 TCMV)
+                      Multa por impago (+{C.vistoBueno.multaImpago} UCD)
                     </label>
                   </div>
-                </div>
-              )}
-
-              
-              {form.tipo === 'tala_poda' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Tipo de Permiso *</label>
-                    <select value={form.tipoPermiso} onChange={e => {
-                      const val = e.target.value;
-                      let desc = '';
-                      if (val === 'Tala y Poda') desc = 'Permiso de Tala y Poda';
-                      if (val === 'Limpieza') desc = 'Autorización de Limpieza';
-                      if (val === 'Variables') desc = 'Variables Ambientales';
-                      setForm(prev => ({ ...prev, tipoPermiso: val, descripcion: desc }));
-                    }}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white">
-                      <option value="">Seleccione...</option>
-                      <option value="Tala y Poda">Tala y Poda</option>
-                      <option value="Limpieza">Autorización de Limpieza</option>
-                      <option value="Variables">Variables Ambientales</option>
-                    </select>
-                  </div>
-                  
-                  {form.tipoPermiso === 'Tala y Poda' && (
+                );
+                const t = form.tipoPermiso === 'TALA' ? C.tala : C.poda;
+                return (
+                  <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Altura del Árbol</label>
-                        <select value={form.alturaArbol} onChange={e => setForm(prev => ({ ...prev, alturaArbol: e.target.value }))}
-                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white">
+                        <label className={lbl}>Permiso</label>
+                        <select value={form.tipoPermiso} onChange={e => setForm(prev => ({ ...prev, tipoPermiso: e.target.value }))} className={inp}>
                           <option value="">Seleccione...</option>
-                          <option value="hasta_3">Hasta 3 metros (7 UCD)</option>
-                          <option value="de_4_a_5">De 4 a 5 metros (10 UCD)</option>
-                          <option value="mayor_5">Mayor de 5 metros (15 UCD)</option>
+                          <option value="PODA">Poda ({C.poda.permiso} UCD)</option>
+                          <option value="TALA">Tala ({C.tala.permiso} UCD)</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Unidades Arbóreas</label>
-                        <input type="number" min="1" value={form.unidadesArboreas}
-                          onChange={e => setForm(prev => ({ ...prev, unidadesArboreas: e.target.value }))}
-                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500" />
+                        <label className={lbl}>Multa sin autorización</label>
+                        <select value={form.alturaArbol} onChange={e => setForm(prev => ({ ...prev, alturaArbol: e.target.value }))} className={inp} disabled={!form.tipoPermiso}>
+                          <option value="">Sin multa</option>
+                          {(['5', '20', 'MAS20'] as const).map(k => (
+                            <option key={k} value={k}>{C.tramosMulta[k]} ({t.multas[k]} UCD)</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input type="checkbox" checked={form.incluyePermiso} onChange={e => setForm(prev => ({ ...prev, incluyePermiso: e.target.checked }))} className="w-4 h-4 accent-purple-600" />
+                      Cobrar el permiso
+                    </label>
+                  </div>
+                );
+              })()}
 
               {/* Tarifa sugerida desde Ordenanza */}
               {tarifaSugerida && tcmmv > 0 && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center justify-between shadow-2xs">
                   <div>
                     <p className="text-xs font-bold text-emerald-800 uppercase flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Tarifa Calculada Automáticamente
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Tarifa oficial calculada
                     </p>
-                    <p className="text-xs text-emerald-700 mt-0.5 font-medium">{tarifaSugerida.label} — {tarifaSugerida.tcmv} TCMV × Bs. {tcmmv.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    <p className="text-xs text-emerald-700 mt-0.5 font-medium">{tarifaSugerida.label} — {tarifaSugerida.tcmv.toLocaleString('es-VE')} UCD × Tasa Euro Bs. {tcmmv.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                     <p className="text-base font-black text-emerald-950 mt-0.5">Bs. {(montoSugeridoBs || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</p>
                   </div>
                   <button type="button"

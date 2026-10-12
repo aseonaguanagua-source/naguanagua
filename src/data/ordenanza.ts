@@ -1714,44 +1714,46 @@ export const ordenanzaData = {
     }
 ],
 actividadesIndustriales: [] as any[],
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SOLO conceptos oficiales del IAMEC (PLANILLAS.xlsx). Todo en UCD × Tasa Euro BCV.
+  // (Se eliminaron los catálogos que no pertenecen a la Ordenanza de Naguanagua.)
+  // ─────────────────────────────────────────────────────────────────────────────
   serviciosExtraordinarios: [
-    // Tabla 3 — Servicios de Recolección Especial
-    // Camión: tipo | Distancia: menor/mayor a 20 Km | Tarifa en TCMV
-    { camion: '350', label: 'Camión 350 (< 20 Km)', distancia: 'menor', tcmv: 30 },
-    { camion: '350', label: 'Camión 350 (> 20 Km)', distancia: 'mayor', tcmv: 40 },
-    { camion: '600', label: 'Camión 600 (< 20 Km)', distancia: 'menor', tcmv: 50 },
-    { camion: '600', label: 'Camión 600 (> 20 Km)', distancia: 'mayor', tcmv: 60 },
-    { camion: '750', label: 'Camión 750 / Volteo (< 20 Km)', distancia: 'menor', tcmv: 70 },
-    { camion: '750', label: 'Camión 750 / Volteo (> 20 Km)', distancia: 'mayor', tcmv: 80 }
+    // TSEX = C.E.V × NVE × F. llenado  (tcmv = C.E.V × F. llenado, por viaje)
+    { camion: 'VOLTEO_1', label: 'Volteo 1 (de 3,5 a 5 toneladas) — 7 m³', distancia: 'MEDIA · C.E.V 80 × 0,5', tcmv: 40 },
+    { camion: 'VOLTEO_2', label: 'Volteo 2 (más de 5 toneladas) — 10 m³', distancia: 'MÁXIMA · C.E.V 120 × 1', tcmv: 120 }
   ],
   serviciosEspeciales: [
-    // Tabla 4 — Servicios Especiales (tarifa base en TCMV)
-    { codigo: 'SE-01', label: 'Limpieza de terreno vacío (por m²)', tcmvBase: 0.5, unidad: 'm²' },
-    { codigo: 'SE-02', label: 'Recolección de desechos sólidos en playas', tcmvBase: 20, unidad: 'evento' },
-    { codigo: 'SE-03', label: 'Limpieza post-evento o festejo público', tcmvBase: 50, unidad: 'evento' },
-    { codigo: 'SE-04', label: 'Recolección industrial / empresarial (mensual)', tcmvBase: 100, unidad: 'mes' },
-    { codigo: 'SE-05', label: 'Servicio de barrido especial de vías', tcmvBase: 30, unidad: 'jornada' },
-    { codigo: 'SE-06', label: 'Desechos hospitalarios / biomédicos (mensual)', tcmvBase: 150, unidad: 'mes' },
-    { codigo: 'SE-07', label: 'Recolección de residuos de poda y jardinería', tcmvBase: 25, unidad: 'viaje' },
-    { codigo: 'SE-09', label: 'Permiso de Tala de Árbol (por árbol)', tcmvBase: 5, unidad: 'árbol' },
-    { codigo: 'SE-10', label: 'Permiso de Poda de Árbol / Raíces (por árbol)', tcmvBase: 3, unidad: 'árbol' },
-    { codigo: 'SE-11', label: 'Limpieza de quebradas / cauces (por m lineal)', tcmvBase: 1, unidad: 'm lineal' },
-    { codigo: 'SE-12', label: 'Disposición especial de escombros (por m³)', tcmvBase: 8, unidad: 'm³' },
-    { codigo: 'SE-08', label: 'Otro servicio especial (tarifa libre)', tcmvBase: 0, unidad: 'libre' }
+    // TSE = F.O.Es × NVE × FAEs (FAEs = 1), por viaje
+    { codigo: 'SE-350-B', label: 'Servicio Especial — Hasta 2 t (Camión 350 / Volteo pequeño) — BAJA', tcmvBase: 60, unidad: 'viaje' },
+    { codigo: 'SE-350-M', label: 'Servicio Especial — Hasta 2 t (Camión 350 / Volteo pequeño) — MEDIA', tcmvBase: 80, unidad: 'viaje' },
+    { codigo: 'SE-350-A', label: 'Servicio Especial — Hasta 2 t (Camión 350 / Volteo pequeño) — ALTA', tcmvBase: 100, unidad: 'viaje' },
+    { codigo: 'SE-600-B', label: 'Servicio Especial — 2,1 a 4 t (Camión 600 / Volteo mediano) — BAJA', tcmvBase: 80, unidad: 'viaje' },
+    { codigo: 'SE-600-M', label: 'Servicio Especial — 2,1 a 4 t (Camión 600 / Volteo mediano) — MEDIA', tcmvBase: 100, unidad: 'viaje' },
+    { codigo: 'SE-600-A', label: 'Servicio Especial — 2,1 a 4 t (Camión 600 / Volteo mediano) — ALTA', tcmvBase: 120, unidad: 'viaje' },
+    { codigo: 'SE-750-B', label: 'Servicio Especial — Más de 4,1 t (Camión 750 / Volteo grande) — BAJA', tcmvBase: 100, unidad: 'viaje' },
+    { codigo: 'SE-750-M', label: 'Servicio Especial — Más de 4,1 t (Camión 750 / Volteo grande) — MEDIA', tcmvBase: 120, unidad: 'viaje' },
+    { codigo: 'SE-750-A', label: 'Servicio Especial — Más de 4,1 t (Camión 750 / Volteo grande) — ALTA', tcmvBase: 140, unidad: 'viaje' },
+    { codigo: 'SE-CMP-B', label: 'Servicio Especial — Camión compactador — BAJA', tcmvBase: 200, unidad: 'viaje' },
+    { codigo: 'SE-CMP-M', label: 'Servicio Especial — Camión compactador — MEDIA', tcmvBase: 260, unidad: 'viaje' },
+    { codigo: 'SE-CMP-A', label: 'Servicio Especial — Camión compactador — ALTA', tcmvBase: 300, unidad: 'viaje' },
+    { codigo: 'PO-01', label: 'Permiso de Poda', tcmvBase: 15, unidad: 'permiso' },
+    { codigo: 'PO-M1', label: 'Multa por Poda sin autorización (hasta 05 especies)', tcmvBase: 7, unidad: 'multa' },
+    { codigo: 'PO-M2', label: 'Multa por Poda sin autorización (06 a 20 especies)', tcmvBase: 50, unidad: 'multa' },
+    { codigo: 'PO-M3', label: 'Multa por Poda sin autorización (más de 20 especies)', tcmvBase: 100, unidad: 'multa' },
+    { codigo: 'TA-01', label: 'Permiso de Tala', tcmvBase: 15, unidad: 'permiso' },
+    { codigo: 'TA-M1', label: 'Multa por Tala sin autorización (hasta 05 especies)', tcmvBase: 12, unidad: 'multa' },
+    { codigo: 'TA-M2', label: 'Multa por Tala sin autorización (06 a 20 especies)', tcmvBase: 300, unidad: 'multa' },
+    { codigo: 'TA-M3', label: 'Multa por Tala sin autorización (más de 20 especies)', tcmvBase: 2000, unidad: 'multa' }
   ],
   inspeccionesTecnicas: [
-    // Tabla 5 — Inspecciones y Certificaciones Ambientales
-    { codigo: 'IT-01', label: 'Inspección técnica general de establecimiento', tcmv: 3 },
-    { codigo: 'IT-02', label: 'Inspección de manejo de desechos peligrosos', tcmv: 5 },
-    { codigo: 'IT-03', label: 'Inspección de actividad industrial', tcmv: 8 },
-    { codigo: 'IT-04', label: 'Inspección de construcción o demolición', tcmv: 4 },
-    { codigo: 'IT-05', label: 'Inspección post-sanción / re-inspección', tcmv: 2 }
+    // Inspección técnica y verificación: 0,1 UCD por m² del inmueble
+    { codigo: 'IN-01', label: 'Inspección técnica y verificación (por m²)', tcmv: 0.1 }
   ],
   vistoBueno: [
-    // Tabla 6 — Visto Bueno Ambiental (por m² del inmueble)
-    { codigo: 'VB-01', label: 'Nueva Actividad Económica (por m²)', tcmvPorM2: 0.5 },
-    { codigo: 'VB-02', label: 'Renovación de Actividad Económica (por m²)', tcmvPorM2: 0.3 },
-    { codigo: 'VB-03', label: 'Proyecto de Construcción (por m²)', tcmvPorM2: 0.8 },
-    { codigo: 'VB-04', label: 'Modificación / Ampliación (por m²)', tcmvPorM2: 0.4 }
+    { codigo: 'VB-01', label: 'Visto Bueno Ambiental', fo: 15 },
+    { codigo: 'VB-M', label: 'Multa por impago (Visto Bueno Ambiental)', fo: 30 },
+    { codigo: 'VA-01', label: 'Variable Ambiental', fo: 15 },
+    { codigo: 'VA-M', label: 'Multa por impago (Variable Ambiental)', fo: 30 }
   ]
 };

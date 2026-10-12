@@ -15,8 +15,8 @@ export default function TarifasPage() {
 
   // Estados de la calculadora
   const [calcTipo, setCalcTipo] = useState('Servicios Extraordinarios');
-  const [calcCamion, setCalcCamion] = useState('350');
-  const [calcDistancia, setCalcDistancia] = useState('Menor a 20 kms');
+  const [calcCamion, setCalcCamion] = useState('VOLTEO_1');
+  const [calcDistancia, setCalcDistancia] = useState('1'); // NVE: número de viajes estimados
   const [calcTcmmv, setCalcTcmmv] = useState<number | ''>('');
 
   useEffect(() => {
@@ -54,17 +54,11 @@ export default function TarifasPage() {
     (act) => act.label.toLowerCase().includes(searchTerm)
   );
 
-  // Lógica de Calculadora
+  // Lógica de Calculadora — oficial IAMEC: TSEX = C.E.V × NVE × F. llenado
   const calcularMontoExtraordinario = () => {
-    if (calcDistancia === 'Menor a 20 kms') {
-      if (calcCamion === '350') return 30;
-      if (calcCamion === '600') return 50;
-      if (calcCamion === '750') return 70;
-    } else {
-      if (calcCamion === '350') return 40;
-      if (calcCamion === '600') return 60;
-      if (calcCamion === '750') return 80;
-    }
+    const nve = Math.max(1, Number(calcDistancia) || 1);
+    if (calcCamion === 'VOLTEO_1') return 80 * nve * 0.5;
+    if (calcCamion === 'VOLTEO_2') return 120 * nve * 1;
     return 0;
   };
 
@@ -320,7 +314,7 @@ export default function TarifasPage() {
             <div className="bg-blue-50 px-4 py-3 border-b border-blue-100 flex items-center gap-2">
               <Building className="w-4 h-4 text-blue-600" />
               <h2 className="font-bold text-blue-800 uppercase text-sm tracking-wide">Inspecciones Técnicas Ambientales</h2>
-              <span className="ml-auto text-xs text-blue-600 font-medium">Tabla 5 — Ordenanza</span>
+              <span className="ml-auto text-xs text-blue-600 font-medium">0,1 UCD × m² × Tasa Euro</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-600">
@@ -328,8 +322,8 @@ export default function TarifasPage() {
                   <tr>
                     <th className="px-4 py-3 font-semibold">Cód.</th>
                     <th className="px-4 py-3 font-semibold">Tipo de Inspección</th>
-                    <th className="px-4 py-3 font-semibold text-center">Factor (UCD)</th>
-                    <th className="px-4 py-3 font-semibold text-right">Tarifa (Bs)</th>
+                    <th className="px-4 py-3 font-semibold text-center">UCD por m²</th>
+                    <th className="px-4 py-3 font-semibold text-right">Tarifa por m² (Bs)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -351,7 +345,7 @@ export default function TarifasPage() {
             <div className="bg-indigo-50 px-4 py-3 border-b border-indigo-100 flex items-center gap-2">
               <Calculator className="w-4 h-4 text-indigo-600" />
               <h2 className="font-bold text-indigo-800 uppercase text-sm tracking-wide">Visto Bueno Ambiental</h2>
-              <span className="ml-auto text-xs text-indigo-600 font-medium">Tabla 6 — Tarifa por m² del Inmueble</span>
+              <span className="ml-auto text-xs text-indigo-600 font-medium">Visto Bueno y Variable Ambiental</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-600">
@@ -359,10 +353,8 @@ export default function TarifasPage() {
                   <tr>
                     <th className="px-4 py-3 font-semibold">Cód.</th>
                     <th className="px-4 py-3 font-semibold">Tipo de Visto Bueno</th>
-                    <th className="px-4 py-3 font-semibold text-center">UCD / m²</th>
-                    <th className="px-4 py-3 font-semibold text-center">Ej: 100 m²</th>
-                    <th className="px-4 py-3 font-semibold text-center">Ej: 200 m²</th>
-                    <th className="px-4 py-3 font-semibold text-center">Ej: 500 m²</th>
+                    <th className="px-4 py-3 font-semibold text-center">Factor (UCD)</th>
+                    <th className="px-4 py-3 font-semibold text-right">Tarifa (Bs)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -370,17 +362,15 @@ export default function TarifasPage() {
                     <tr key={idx} className="hover:bg-indigo-50/40 transition-colors">
                       <td className="px-4 py-3"><span className="font-mono text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">{s.codigo}</span></td>
                       <td className="px-4 py-3 font-medium text-slate-700">{s.label}</td>
-                      <td className="px-4 py-3 text-center text-slate-600">{s.tcmvPorM2}</td>
-                      <td className="px-4 py-3 text-center font-bold text-indigo-700">Bs. {(s.tcmvPorM2 * 100 * rate).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-center font-bold text-indigo-700">Bs. {(s.tcmvPorM2 * 200 * rate).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-center font-bold text-indigo-700">Bs. {(s.tcmvPorM2 * 500 * rate).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-center text-slate-600">{s.fo}</td>
+                      <td className="px-4 py-3 text-right font-bold text-indigo-700">Bs. {(s.fo * rate).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="px-4 py-2 bg-indigo-50/50 border-t border-indigo-100 text-[10px] text-indigo-500">
-              * La tarifa final se calcula multiplicando: UCD/m² × Superficie del inmueble (m²) × Tasa BCV del día
+              * Tarifa = Factor (UCD) × Tasa Euro BCV del día
             </div>
           </div>
 
@@ -389,14 +379,14 @@ export default function TarifasPage() {
             <div className="bg-orange-50 px-4 py-3 border-b border-orange-100 flex items-center gap-2">
               <Building className="w-4 h-4 text-orange-600" />
               <h2 className="font-bold text-orange-800 uppercase text-sm tracking-wide">Servicios Extraordinarios (Recolección Especial)</h2>
-              <span className="ml-auto text-xs text-orange-600 font-medium">Tabla 3 — Camiones</span>
+              <span className="ml-auto text-xs text-orange-600 font-medium">TSEX = C.E.V × NVE × F. llenado (por viaje)</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-600">
                 <thead className="bg-orange-50 border-b border-orange-100">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Tipo de Camión</th>
-                    <th className="px-4 py-3 font-semibold text-center">Distancia</th>
+                    <th className="px-4 py-3 font-semibold text-center">F. llenado</th>
                     <th className="px-4 py-3 font-semibold text-center">Factor (UCD)</th>
                     <th className="px-4 py-3 font-semibold text-right">Tarifa (Bs)</th>
                   </tr>
@@ -404,8 +394,8 @@ export default function TarifasPage() {
                 <tbody className="divide-y divide-slate-100">
                   {ordenanzaData.serviciosExtraordinarios.map((s: any, idx: number) => (
                     <tr key={idx} className="hover:bg-orange-50/40 transition-colors">
-                      <td className="px-4 py-3 font-medium text-slate-700">{s.label.split('(')[0].trim()}</td>
-                      <td className="px-4 py-3 text-center text-xs">{s.distancia === 'menor' ? '< 20 Km' : '> 20 Km'}</td>
+                      <td className="px-4 py-3 font-medium text-slate-700">{s.label}</td>
+                      <td className="px-4 py-3 text-center text-xs">{s.distancia}</td>
                       <td className="px-4 py-3 text-center">{s.tcmv}</td>
                       <td className="px-4 py-3 text-right font-bold text-orange-700">Bs. {(s.tcmv * rate).toFixed(2)}</td>
                     </tr>
@@ -434,7 +424,7 @@ export default function TarifasPage() {
                   value={calcTipo}
                   onChange={(e) => setCalcTipo(e.target.value)}
                 >
-                  <option value="Servicios Extraordinarios">Servicios Extraordinarios (Camión)</option>
+                  <option value="Servicios Extraordinarios">Servicio Extraordinario (Volteo)</option>
                   <option value="Visto Bueno Ambiental">Visto Bueno Ambiental</option>
                   <option value="Inspección">Inspección</option>
                   <option value="Reclamos / Sugerencias">Reclamos / Sugerencias</option>
@@ -444,27 +434,23 @@ export default function TarifasPage() {
               {calcTipo === 'Servicios Extraordinarios' ? (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Camión</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">C.E.V (Volteo)</label>
                     <select 
                       className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                       value={calcCamion}
                       onChange={(e) => setCalcCamion(e.target.value)}
                     >
-                      <option value="350">Camión 350</option>
-                      <option value="600">Camión 600</option>
-                      <option value="750">Camión 750</option>
+                      <option value="VOLTEO_1">Volteo 1 (3,5 a 5 t) — 80 UCD × 0,5</option>
+                      <option value="VOLTEO_2">Volteo 2 (más de 5 t) — 120 UCD × 1</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Distancia del Viaje</label>
-                    <select 
+                    <label className="block text-sm font-medium text-slate-700 mb-1">NVE (Número de viajes)</label>
+                    <input type="number" min="1"
                       className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                       value={calcDistancia}
                       onChange={(e) => setCalcDistancia(e.target.value)}
-                    >
-                      <option value="Menor a 20 kms">Menor a 20 kms</option>
-                      <option value="Mayor a 20 kms">Mayor a 20 kms</option>
-                    </select>
+                    />
                   </div>
                 </>
               ) : calcTipo !== 'Reclamos / Sugerencias' ? (
@@ -495,7 +481,7 @@ export default function TarifasPage() {
               </div>
               {calcTipo === 'Servicios Extraordinarios' && (
                 <div className="mt-4 text-xs text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">
-                  Según Tabla 3 (Anexo Ordenanza de Aseo)
+                  TSEX = C.E.V × NVE × F. llenado (Planilla oficial IAMEC)
                 </div>
               )}
             </div>

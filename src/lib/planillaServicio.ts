@@ -21,6 +21,19 @@ export const TARIFAS_EXTRAORDINARIO = [
   { vehiculo: 'VOLTEO_2', label: 'Volteo 2 (de más de 5 toneladas)', capacidad: 10, nivel: 'MAXIMA', factor: 1, ucd: 120 },
 ] as const;
 
+/**
+ * Resto de conceptos oficiales (hojas de PLANILLAS.xlsx del IAMEC). Todos en UCD/F.O. × Tasa Euro BCV.
+ * Son los ÚNICOS servicios permitidos además de Especial/Extraordinario.
+ */
+export const CONCEPTOS_IAMEC = {
+  /** Inspección técnica: 0,1 UCD por m² (hoja INSPECCIONES: 72,327 = 0,1 × 723,27). */
+  inspeccionUcdPorM2: 0.1,
+  vistoBueno: { VISTO_BUENO: { label: 'Visto Bueno Ambiental', fo: 15 }, VARIABLE: { label: 'Variable Ambiental', fo: 15 }, multaImpago: 30 },
+  poda: { permiso: 15, multas: { '5': 7, '20': 50, 'MAS20': 100 } },
+  tala: { permiso: 15, multas: { '5': 12, '20': 300, 'MAS20': 2000 } },
+  tramosMulta: { '5': 'hasta 05 especies', '20': '06 a 20 especies', 'MAS20': 'más de 20 especies' },
+} as const;
+
 export type DatosPlanilla = {
   categoria: CategoriaServicio;
   fechaEmision?: string;
