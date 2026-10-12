@@ -27,6 +27,7 @@ export const metadata: Metadata = {
   }
 };
 
+import TextosEditables from '@/components/TextosEditables';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full flex flex-col bg-[#f8fafc]" style={{ fontFamily: 'var(--font-poppins), Poppins, sans-serif' }}>
         {children}
+        <TextosEditables />
         <PWAInstallPrompt />
       </body>
     </html>

@@ -42,6 +42,15 @@ export async function POST(req: Request) {
         .map((g: any) => ({ id: String(g.id).slice(0, 40), nombre: String(g.nombre || 'Menú').slice(0, 60), menu: g.menu, items: g.items.map(String).filter((h: string) => h.startsWith('/')) }))
         .filter((g: any) => g.items.length);
     }
+    // Nombres y descripciones personalizadas de las opciones (ruta → texto)
+    for (const k of ['nombres', 'descs']) {
+      const o = body.orden?.[k];
+      if (o && typeof o === 'object') {
+        const r: Record<string, string> = {};
+        for (const [h, v] of Object.entries(o)) if (String(h).startsWith('/') && String(v || '').trim()) r[h] = String(v).trim().slice(0, k === 'nombres' ? 60 : 300);
+        limpio[k] = r;
+      }
+    }
     const { data: antes } = await sb.from('system_config').select('value').eq('key', KEY).maybeSingle();
     const valor = JSON.stringify(limpio);
     const { error } = await sb.from('system_config')

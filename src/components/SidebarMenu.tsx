@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
+import { descMenu } from '@/lib/menuManual';
 import { claveEntrada, construirEntradas, type Entrada, type MenuItem, type MenuKey, type MenuOrden } from '@/lib/menuItems';
 
 type Zona = 'antes' | 'medio' | 'despues';
@@ -19,15 +20,19 @@ export default function SidebarMenu(props: {
   const { items, menuKey, orden, devMode, pathname, permitido, editando } = props;
   const porHref = new Map(items.map(i => [i.href, i] as [string, MenuItem]));
   const ocultos = new Set(orden.ocultos || []);
+  const nombreDe = (it: MenuItem, nombres = orden.nombres) => nombres?.[it.href] || it.name;
+  const descDe = (it: MenuItem, descs = orden.descs) => descs?.[it.href] || descMenu(it.href);
 
   // ── estado de edición ──
   const [lista, setLista] = useState<Entrada[]>([]);
   const [editOcultos, setEditOcultos] = useState<string[]>([]);
+  const [editNombres, setEditNombres] = useState<Record<string, string>>({});
+  const [editDescs, setEditDescs] = useState<Record<string, string>>({});
   const [origen, setOrigen] = useState<Origen | null>(null);
   const [sobre, setSobre] = useState<{ key: string; grupo?: string; zona: Zona } | null>(null);
   const [guardando, setGuardando] = useState(false);
   useEffect(() => {
-    if (editando) { setLista(construirEntradas(items, orden, menuKey)); setEditOcultos(orden.ocultos || []); }
+    if (editando) { setLista(construirEntradas(items, orden, menuKey)); setEditOcultos(orden.ocultos || []); setEditNombres({ ...(orden.nombres || {}) }); setEditDescs({ ...(orden.descs || {}) }); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editando, menuKey]);
 
@@ -109,6 +114,13 @@ export default function SidebarMenu(props: {
     const g = l[gi] as Extract<Entrada, { tipo: 'grupo' }>;
     const n = [...l]; n.splice(gi, 1, ...g.items.map(h => ({ tipo: 'item' as const, href: h }))); return n;
   });
+  const renombrarItem = (it: MenuItem) => {
+    const n = prompt(`Nombre de la opción (original: "${it.name}"). Déjelo vacío para volver al original:`, nombreDe(it, editNombres));
+    if (n === null) return;
+    const d = prompt('Descripción breve (se muestra al dejar el cursor encima). Vacío = descripción original:', descDe(it, editDescs));
+    setEditNombres(o => { const r = { ...o }; if (n.trim() && n.trim() !== it.name) r[it.href] = n.trim(); else delete r[it.href]; return r; });
+    if (d !== null) setEditDescs(o => { const r = { ...o }; if (d.trim() && d.trim() !== descMenu(it.href)) r[it.href] = d.trim(); else delete r[it.href]; return r; });
+  };
   const alternarOculto = (href: string) => setEditOcultos(o => (o.includes(href) ? o.filter(h => h !== href) : [...o, href]));
 
   const guardar = async (restablecer = false) => {
@@ -120,7 +132,10 @@ export default function SidebarMenu(props: {
       if (restablecer) {
         delete nuevo[menuKey]; nuevo.grupos = otrosGrupos;
         nuevo.ocultos = (orden.ocultos || []).filter(h => !deEsteMenu.has(h));
+        nuevo.nombres = Object.fromEntries(Object.entries(orden.nombres || {}).filter(([h]) => !deEsteMenu.has(h)));
+        nuevo.descs = Object.fromEntries(Object.entries(orden.descs || {}).filter(([h]) => !deEsteMenu.has(h)));
       } else {
+        nuevo.nombres = editNombres; nuevo.descs = editDescs;
         nuevo[menuKey] = lista.map(claveEntrada);
         nuevo.grupos = [...otrosGrupos, ...lista.filter(e => e.tipo === 'grupo').map(e => ({ id: (e as any).id, nombre: (e as any).nombre, menu: menuKey, items: (e as any).items }))];
         nuevo.ocultos = [...(orden.ocultos || []).filter(h => !deEsteMenu.has(h)), ...editOcultos.filter(h => deEsteMenu.has(h))];
@@ -152,7 +167,8 @@ export default function SidebarMenu(props: {
           className={`flex items-center gap-1.5 px-2 py-1.5 mx-1 rounded cursor-move select-none hover:bg-white/5 ${opts.grupo ? 'ml-5' : ''} ${oculto ? 'opacity-40 grayscale' : ''} ${marca(href, opts.grupo)}`}>
           <span className="text-slate-500 text-xs">⠿</span>
           <Icon className="w-4 h-4 shrink-0" />
-          <span className={`text-xs font-medium flex-1 truncate ${oculto ? 'line-through' : ''}`}>{it.name}</span>
+          <span title={descDe(it, editDescs)} className={`text-xs font-medium flex-1 truncate ${oculto ? 'line-through' : ''} ${editNombres[href] ? 'italic text-[#c8e64c]' : ''}`}>{nombreDe(it, editNombres)}</span>
+          <button onClick={() => renombrarItem(it)} title="Cambiar nombre y descripción" className="px-0.5 text-xs">✎</button>
           <button onClick={() => alternarOculto(href)} title={oculto ? 'Mostrar en el menú' : 'Ocultar del menú'} className="px-0.5 text-xs">{oculto ? '🚫' : '👁'}</button>
           {opts.grupo && <button onClick={() => sacarDeGrupo(opts.grupo!, href)} title="Sacar del menú desplegable" className="px-0.5 text-xs hover:text-[#c8e64c]">⇱</button>}
           <button onClick={() => (opts.grupo ? moverHijo(opts.grupo, opts.i, -1) : moverTop(opts.i, -1))} disabled={opts.i === 0} className="px-0.5 text-xs hover:text-[#c8e64c] disabled:opacity-20">▲</button>
@@ -163,7 +179,7 @@ export default function SidebarMenu(props: {
     return (
       <>
         <li className="px-3 pb-2 text-[10.5px] text-fuchsia-200 leading-snug">
-          Arrastre al borde de otra opción para ordenar. <b>Suéltela en el centro de otra</b> para crear un <b>menú desplegable</b> (le pedirá el nombre). 👁 oculta.
+          Arrastre al borde de otra opción para ordenar. <b>Suéltela en el centro de otra</b> para crear un <b>menú desplegable</b> (le pedirá el nombre). ✎ renombra. 👁 oculta.
           <div className="flex gap-1.5 mt-2">
             <button disabled={guardando} onClick={() => guardar()} className="flex-1 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-50">{guardando ? 'Guardando…' : '💾 Guardar'}</button>
             <button disabled={guardando} onClick={props.onCerrarEdicion} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">Cancelar</button>
@@ -198,17 +214,17 @@ export default function SidebarMenu(props: {
   const enlace = (it: MenuItem, sub = false) => {
     const Icon = it.icon;
     if (ocultos.has(it.href)) return (
-      <li key={it.href} title="Oculto para los usuarios (solo visible en modo DEV)">
+      <li key={it.href} title={`Oculto para los usuarios (solo visible en modo DEV). ${descDe(it)}`}>
         <span className={`flex items-center gap-3 ${sub ? 'pl-9 pr-4' : 'px-4'} py-2 text-slate-600 cursor-not-allowed select-none opacity-60`}>
-          <Icon className="w-5 h-5" /><span className="text-sm font-medium line-through">{it.name}</span>
+          <Icon className="w-5 h-5" /><span className="text-sm font-medium line-through">{nombreDe(it)}</span>
         </span>
       </li>
     );
     return (
       <li key={it.href}>
-        <Link href={it.href}
+        <Link href={it.href} title={descDe(it)}
           className={`flex items-center gap-3 ${sub ? 'pl-9 pr-4' : 'px-4'} py-2 hover:bg-white/5 hover:text-[#c8e64c] transition-colors ${pathname === it.href ? 'bg-white/10 text-[#c8e64c] border-l-4 border-[#c8e64c]' : ''}`}>
-          <Icon className={sub ? 'w-4 h-4' : 'w-5 h-5'} /><span className="text-sm font-medium">{it.name}</span>
+          <Icon className={sub ? 'w-4 h-4' : 'w-5 h-5'} /><span className="text-sm font-medium">{nombreDe(it)}</span>
         </Link>
       </li>
     );
@@ -223,7 +239,7 @@ export default function SidebarMenu(props: {
         const abierto = activo || abiertos.includes(e.id);
         return (
           <li key={e.id}>
-            <button onClick={() => alternarAbierto(e.id)}
+            <button onClick={() => alternarAbierto(e.id)} title={`Menú: ${hijos.map(h => nombreDe(h)).join(', ')}`}
               className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-white/5 hover:text-[#c8e64c] transition-colors ${activo ? 'text-[#c8e64c]' : ''}`}>
               <FolderOpen className="w-5 h-5" />
               <span className="text-sm font-semibold flex-1 text-left">{e.nombre}</span>

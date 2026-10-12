@@ -7,6 +7,8 @@ export type MenuKey = 'aseo' | 'recaudacion' | 'administracion';
 export type MenuOrden = Partial<Record<MenuKey, string[]>> & {
   /** rutas ocultas del menú (en modo DEV se ven oscuras/deshabilitadas) */ ocultos?: string[];
   /** menús desplegables creados al soltar una opción encima de otra */ grupos?: MenuGrupo[];
+  /** nombres personalizados (ruta → nombre) */ nombres?: Record<string, string>;
+  /** descripciones personalizadas para el cursor (ruta → texto) */ descs?: Record<string, string>;
 };
 
 export const MENU_ASEO: MenuItem[] = [

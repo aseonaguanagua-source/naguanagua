@@ -191,6 +191,19 @@ export default function Sidebar() {
 
       <div className="p-4 bg-[#111827] border-t border-white/10 shrink-0 space-y-2">
         <button
+          onClick={async (e) => {
+            const b = e.currentTarget; b.disabled = true; const t = b.innerText; b.innerText = 'Generando manual…';
+            try { const { descargarManualPDF } = await import('@/lib/manualPdf'); await descargarManualPDF(menuOrden); }
+            catch (err: any) { alert('No se pudo generar el manual: ' + (err?.message || err)); }
+            finally { b.disabled = false; b.innerText = t; }
+          }}
+          title="Descargar el manual de usuario en PDF: para qué sirve cada opción del menú"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[#c8e64c]/10 hover:bg-[#c8e64c]/20 border border-[#c8e64c]/30 text-xs font-bold text-[#c8e64c] transition-colors cursor-pointer disabled:opacity-50"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Manual de Usuario (PDF)</span>
+        </button>
+        <button
           onClick={async () => {
             await performLogout('/admin');
           }}

@@ -182,15 +182,21 @@ export default function ServiciosEspecialesPage() {
     tcmmv
   ]);
 
-  const filteredContrib = contribuyentes.filter((c: any) =>
-    searchContrib.length > 1 && (
-      (c.Contribuyente || '').toLowerCase().includes(searchContrib.toLowerCase()) ||
-      (c.Identidad || '').toLowerCase().includes(searchContrib.toLowerCase())
-    )
-  ).slice(0, 8);
+  // Búsqueda por nombre, cédula/RIF o CÓDIGO de inmueble (URB…, COM…, etc.)
+  const [inmuebleSel, setInmuebleSel] = useState('');
+  const qContrib = searchContrib.trim().toLowerCase();
+  const qNorm = qContrib.replace(/[^a-z0-9]/g, '');
+  const filteredContrib = qContrib.length > 1 ? contribuyentes.map((c: any) => {
+    const codigos = String(c.CodCont || '').split(/\s+/).filter(Boolean);
+    const cod = codigos.find((k: string) => k.toLowerCase().includes(qContrib));
+    const ok = cod || (c.Contribuyente || '').toLowerCase().includes(qContrib)
+      || (qNorm.length > 1 && (c.Identidad || '').toLowerCase().replace(/[^a-z0-9]/g, '').includes(qNorm));
+    return ok ? { ...c, _codigo: cod || '', _codigos: codigos } : null;
+  }).filter(Boolean).slice(0, 8) : [];
 
   const selectContrib = (c: any) => {
     setForm(prev => ({ ...prev, identidad: c.Identidad || '', contribuyenteNombre: c.Contribuyente || '' }));
+    setInmuebleSel(c._codigo || (c._codigos?.length === 1 ? c._codigos[0] : ''));
     setSearchContrib(c.Contribuyente || '');
   };
 
@@ -217,6 +223,7 @@ export default function ServiciosEspecialesPage() {
           estado: 'Pendiente',
           referencia: `SRV-${form.tipo.toUpperCase().slice(0,3)}-${Date.now()}`,
           origen: 'funcionario',
+          ...(inmuebleSel ? { inmueble: inmuebleSel } : {}),
           ...(() => {
             const p = calcPlanilla();
             if (!p || (form.tipo !== 'especial' && form.tipo !== 'extraordinario')) return {};
@@ -237,7 +244,7 @@ export default function ServiciosEspecialesPage() {
         setMsg({ type: 'ok', text: 'Servicio registrado y notificado al contribuyente exitosamente.' });
         setShowModal(false);
         setForm({ tipo: 'especial', identidad: '', contribuyenteNombre: '', descripcion: '', monto: '', fecha: new Date().toISOString().split('T')[0], notas: '', camion: '', distancia: '', area: '', tipoVistoBueno: '', tipoInspeccion: '', codigoServicio: '', tipoPermiso: '', alturaArbol: '', unidadesArboreas: '1', habilitadoVB: false, vehiculo: '', nivel: '', nve: '1', contacto: '', telefono: '', nombreEvento: '', fechaEvento: '', lugar: '', horario: '', aforo: '', incluyePermiso: true });
-        setSearchContrib('');
+        setSearchContrib(''); setInmuebleSel('');
         loadServicios();
       } else {
         const d = await res.json().catch(() => ({}));
@@ -500,7 +507,7 @@ export default function ServiciosEspecialesPage() {
                   <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Buscar por nombre o RIF..."
+                    placeholder="Buscar por código (URB…), nombre o RIF..."
                     value={searchContrib}
                     onChange={e => { setSearchContrib(e.target.value); setForm(prev => ({ ...prev, identidad: '', contribuyenteNombre: '' })); }}
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-purple-500"
@@ -516,7 +523,7 @@ export default function ServiciosEspecialesPage() {
                         className="w-full text-left px-4 py-2.5 hover:bg-purple-50 text-sm border-b border-slate-50 last:border-0"
                       >
                         <p className="font-semibold text-slate-800">{c.Contribuyente}</p>
-                        <p className="text-xs text-slate-500">{c.Identidad}</p>
+                        <p className="text-xs text-slate-500">{c.Identidad}{c._codigo ? <> · <b className="text-purple-700">{c._codigo}</b></> : c._codigos?.length ? ` · ${c._codigos.slice(0, 3).join(', ')}${c._codigos.length > 3 ? '…' : ''}` : ''}</p>
                       </button>
                     ))}
                   </div>
@@ -525,7 +532,7 @@ export default function ServiciosEspecialesPage() {
                   <div className="mt-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded text-xs text-purple-700 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span className="font-semibold">{form.contribuyenteNombre}</span>
-                    <span className="text-purple-500">({form.identidad})</span>
+                    <span className="text-purple-500">({form.identidad}){inmuebleSel ? ` · ${inmuebleSel}` : ''}</span>
                   </div>
                 )}
               </div>
