@@ -84,9 +84,13 @@ export async function PATCH(req: Request) {
     const { error } = await sb.from('condominios').update(upd).eq('id', antes.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Sincronizar meses en todas las unidades si se actualizaron los meses del condominio
+    // Sincronizar meses en las unidades que seguían la fecha del condominio. Las unidades con otra fecha
+    // (pagaron por su cuenta o tienen ajuste propio) NO se tocan: un mes pagado nunca debe volver a salir.
     if ('aseo_pendiente_desde' in upd) {
-      await sb.from('condominio_unidades').update({ aseo_pendiente_desde: upd.aseo_pendiente_desde }).eq('condominio_id', antes.id);
+      if (antes.aseo_pendiente_desde) {
+        await sb.from('condominio_unidades').update({ aseo_pendiente_desde: upd.aseo_pendiente_desde }).eq('condominio_id', antes.id).eq('aseo_pendiente_desde', antes.aseo_pendiente_desde);
+      }
+      await sb.from('condominio_unidades').update({ aseo_pendiente_desde: upd.aseo_pendiente_desde }).eq('condominio_id', antes.id).is('aseo_pendiente_desde', null);
     }
 
     // Sincronizar el campo agente_retencion en la tabla inmuebles para el inmueble principal del condominio
