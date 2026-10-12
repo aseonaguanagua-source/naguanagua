@@ -3,6 +3,7 @@ import TransferenciaAlarm from "@/components/TransferenciaAlarm";
 import Header from "@/components/Header";
 import { AppProvider } from "@/store/AppContext";
 import AdminAuthWrapper from "@/components/AdminAuthWrapper";
+import ModoDios from "@/components/ModoDios";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +19,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </div>
         <TransferenciaAlarm />
+        <ModoDios />
       </AppProvider>
     </AdminAuthWrapper>
   );

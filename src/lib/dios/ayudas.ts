@@ -1,0 +1,77 @@
+// Ayudas del Modo Dios: explicación en español de cada campo que se puede editar.
+export const AYUDA_TABLAS: Record<string, string> = {
+  inmuebles: 'Cada fila es un CÓDIGO de contribuyente (inmueble/actividad). Aquí está la tarifa, la deuda y los datos del titular.',
+  condominios: 'Ficha del condominio: modalidad de cobro, tarifa y desde cuándo debe.',
+  condominio_unidades: 'Locales/apartamentos dentro de un condominio. Los N/A (es_grupo) cobran la suma de sus actividades hijas.',
+  pagos_reportados: 'Pagos registrados en caja, portal o conciliación. Cambiarlos altera el historial de cobro.',
+  facturas: 'Facturas fiscales emitidas. ¡Cuidado! Cambiar una factura ya emitida no la cambia en The Factory.',
+  contribuyentes: 'Datos personales del contribuyente (nombre, cédula/RIF, contacto).',
+  trabajadores: 'Usuarios del sistema (cajeros, administradores) y sus permisos.',
+  auditoria: 'Bitácora de todo lo que pasa en el sistema. Normalmente no se edita.',
+  servicios_especiales: 'Servicios especiales y extraordinarios (volteos, eventos, etc.).',
+  sistema_config: 'Interruptores y parámetros globales del sistema.',
+};
+
+export const AYUDA_CAMPOS: Record<string, string> = {
+  inmueble: 'Código del contribuyente (ej. URB012345). Para cambiarlo use "Cambiar código en todo el sistema": así se actualiza también en pagos, condominios, facturas, etc.',
+  identidad: 'Cédula o RIF (ej. V-12345678, J-123456789). Para cambiarlo en TODO el sistema use "Cambiar cédula/RIF en todo el sistema".',
+  contribuyente: 'Nombre o razón social del titular, tal como sale en recibos y facturas.',
+  propietario: 'Nombre del titular del local dentro del condominio.',
+  nombre: 'Nombre que se muestra en pantallas, recibos y reportes.',
+  actividad_principal: 'Actividad económica según la ordenanza. Define la tarifa (F.O.). Si la cambia, revise también "mmv_mes".',
+  actividad: 'Actividad económica del local. Escriba "N/A" si es un contenedor de otras actividades.',
+  actividad_economica_id: 'Enlace al catálogo de actividades económicas (opcional).',
+  tipo: 'RESIDENCIAL o COMERCIAL. Cambia la forma de calcular la tarifa.',
+  clasificacion: 'Clasificación del inmueble (COMERCIAL, RESIDENCIAL, INDUSTRIAL…).',
+  estado: 'Activo / Inactivo / Eliminado (en locales: Activa / Desocupada / Eliminada). Lo inactivo o eliminado no se cobra.',
+  mmv_mes: 'Tarifa mensual en F.O. (factor de la ordenanza). Bs = F.O. × 57 × tasa Euro × 0,128. Si está vacío o < 1,54 se calcula por la ordenanza.',
+  tarifa_mmv: 'Tarifa mensual en F.O. del local o condominio. Bs = F.O. × 57 × tasa Euro × 0,128 (+ IVA si es comercial).',
+  tarifa_fija_bs: 'Monto fijo mensual en Bs (solo condominios de tarifa fija). Déjelo vacío para calcular por F.O.',
+  meses_deuda: 'Cantidad de meses que debe. Al cobrar en caja se descuentan los meses pagados.',
+  deuda_mmv: 'Deuda acumulada expresada en F.O.',
+  deuda_congelada_bs: 'Deuda vieja fijada en Bs (no se actualiza con la tasa).',
+  multa_bs: 'Multa pendiente en Bs.',
+  saldo_favor_bs: 'Saldo a favor del contribuyente en Bs. Se descuenta en el próximo pago.',
+  cant_inmuebles: 'Cantidad de unidades que se cobran con este código (multiplica la tarifa).',
+  padre_id: 'Código del N/A o condominio al que pertenece. Si el padre es N/A, el padre cobra la suma de sus hijos (no se cobra doble).',
+  condominio_padre_id: 'Condominio al que pertenece este código.',
+  es_condominio: 'Marca este código como un condominio.',
+  agente_retencion: 'Si es agente de retención, retiene el 75% del IVA.',
+  numero_local: 'Número de local / casa / apartamento (del sistema viejo).',
+  numero: 'Número del local o apartamento dentro del condominio.',
+  es_grupo: 'Marca el local como N/A (contenedor). Un N/A no cobra por sí mismo: cobra la suma de sus actividades hijas.',
+  padre_unidad_id: 'Local N/A al que pertenece esta actividad (nieto del condominio).',
+  aseo_pendiente_desde: 'Primer mes que debe (formato AAAA-MM-01). Todo lo anterior se considera pagado.',
+  multa_exonerada_hasta: 'Hasta esta fecha no se cobra multa.',
+  multa_meses: 'Meses de multa pendientes.',
+  abono_bs: 'Abono parcial acumulado en Bs.',
+  modalidad: 'CENTRALIZADO (paga la administradora), INDIVIDUAL (paga cada local), MIXTO_COMERCIAL o TARIFA_FIJA.',
+  cant_declarada: 'Cantidad de unidades declaradas por el condominio.',
+  permite_pago_por_unidad: 'Permite que cada local pague por separado.',
+  permite_abonos: 'Permite pagos parciales (abonos).',
+  cobro_tarifa_por_unidad: 'Si está activo, el condominio cobra la suma de sus locales en lugar de una tarifa global.',
+  telefono: 'Teléfono de contacto.',
+  correo: 'Correo electrónico para enviar recibos y facturas.',
+  correo_electronico: 'Correo electrónico para enviar recibos y facturas.',
+  direccion: 'Dirección física.',
+  notas: 'Notas internas (no salen en recibos).',
+  clave_portal: 'Clave del portal del contribuyente.',
+  licencia: 'Número de licencia de actividad económica.',
+  created_at: 'Fecha de creación del registro.',
+  updated_at: 'Fecha de la última modificación.',
+  monto_bs: 'Monto en bolívares.',
+  monto: 'Monto del pago.',
+  referencia: 'Número de referencia bancaria o de factura.',
+  detalles: 'Datos internos en formato JSON. Edite con cuidado: debe quedar un JSON válido.',
+  tasa: 'Tasa de cambio usada (Bs por Euro).',
+  rol: 'Rol del usuario: Administrador, Cajero, etc.',
+  permisos: 'Permisos del usuario (JSON con módulos habilitados).',
+};
+
+export function ayudaCampo(tabla: string, campo: string, tipo: string, formato: string): string {
+  return AYUDA_CAMPOS[campo]
+    || (formato.includes('timestamp') ? 'Fecha y hora.' : formato === 'date' ? 'Fecha (AAAA-MM-DD).'
+      : tipo === 'boolean' ? 'Sí / No.' : tipo === 'number' || tipo === 'integer' ? 'Valor numérico. Use punto para decimales.'
+      : formato.startsWith('json') ? 'JSON: edite con cuidado.' : formato === 'uuid' ? 'Identificador interno. Normalmente no se cambia.'
+      : `Campo "${campo}" de ${tabla}.`);
+}
