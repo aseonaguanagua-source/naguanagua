@@ -16,6 +16,7 @@ export default function Sidebar() {
   // Modo "Ordenar menú" (solo administrador con modo desarrollador): mover opciones directamente aquí
   const [editando, setEditando] = useState(false);
   const [editLista, setEditLista] = useState<string[]>([]);
+  const [editOcultos, setEditOcultos] = useState<string[]>([]);
   const [arrastrando, setArrastrando] = useState<number | null>(null);
   const [guardandoOrden, setGuardandoOrden] = useState(false);
 
@@ -86,7 +87,9 @@ export default function Sidebar() {
   }
 
   const puedeOrdenar = devMode && isSuperAdmin;
-  const empezarOrden = () => { setEditLista(activeMenu.map(i => i.href)); setEditando(true); };
+  const ocultos = new Set(menuOrden.ocultos || []);
+  const empezarOrden = () => { setEditLista(activeMenu.map(i => i.href)); setEditOcultos(menuOrden.ocultos || []); setEditando(true); };
+  const alternarOculto = (href: string) => setEditOcultos(o => o.includes(href) ? o.filter(h => h !== href) : [...o, href]);
   const moverItem = (i: number, j: number) => {
     if (j < 0 || j >= editLista.length || i === j) return;
     setEditLista(l => { const n = [...l]; const [x] = n.splice(i, 1); n.splice(j, 0, x); return n; });
@@ -95,7 +98,8 @@ export default function Sidebar() {
     setGuardandoOrden(true);
     try {
       const nuevo: MenuOrden = { ...menuOrden };
-      if (lista) nuevo[menuKey] = lista; else delete nuevo[menuKey];
+      if (lista) { nuevo[menuKey] = lista; nuevo.ocultos = editOcultos; }
+      else { delete nuevo[menuKey]; nuevo.ocultos = (nuevo.ocultos || []).filter(h => !activeMenu.some(i => i.href === h)); }
       const r = await fetch('/api/menu-orden', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: '1756762', orden: nuevo }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo guardar');
@@ -178,7 +182,7 @@ export default function Sidebar() {
       </div>
       {editando && (
         <div className="px-3 py-2 bg-fuchsia-950/60 border-b border-fuchsia-700/40 text-[11px] text-fuchsia-100 space-y-2">
-          <p>Arrastre las opciones o use ▲ ▼. Al guardar, el orden aplica para todos los usuarios.</p>
+          <p>Arrastre o use ▲ ▼ para ordenar. 👁 oculta/muestra una opción (oculta = gris). Al guardar aplica para todos; las ocultas solo se ven (oscuras) en modo DEV.</p>
           <div className="flex gap-1.5">
             <button disabled={guardandoOrden} onClick={() => guardarOrden(editLista)} className="flex-1 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-50">{guardandoOrden ? 'Guardando…' : '💾 Guardar'}</button>
             <button disabled={guardandoOrden} onClick={() => setEditando(false)} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">Cancelar</button>
@@ -190,21 +194,30 @@ export default function Sidebar() {
         <ul className="space-y-1">
           {editando && editLista.map((href, i) => {
             const item = activeMenu.find(x => x.href === href); if (!item) return null;
+            const oculto = editOcultos.includes(href);
             return (
               <li key={href} draggable
                 onDragStart={() => setArrastrando(i)}
                 onDragOver={e => { e.preventDefault(); if (arrastrando !== null && arrastrando !== i) { moverItem(arrastrando, i); setArrastrando(i); } }}
                 onDragEnd={() => setArrastrando(null)}
-                className={`flex items-center gap-2 px-2 py-1.5 mx-1 rounded cursor-move select-none ${arrastrando === i ? 'bg-fuchsia-800/50' : 'hover:bg-white/5'}`}>
+                className={`flex items-center gap-2 px-2 py-1.5 mx-1 rounded cursor-move select-none ${arrastrando === i ? 'bg-fuchsia-800/50' : 'hover:bg-white/5'} ${oculto ? 'opacity-40 grayscale' : ''}`}>
                 <span className="text-slate-500 text-xs">⠿</span>
                 <item.icon className="w-4 h-4 shrink-0" />
-                <span className="text-xs font-medium flex-1 truncate">{item.name}</span>
+                <span className={`text-xs font-medium flex-1 truncate ${oculto ? 'line-through' : ''}`}>{item.name}</span>
+                <button onClick={() => alternarOculto(href)} title={oculto ? 'Mostrar en el menú' : 'Ocultar del menú'} className="px-1 text-xs hover:text-[#c8e64c]">{oculto ? '🚫' : '👁'}</button>
                 <button onClick={() => moverItem(i, i - 1)} disabled={i === 0} className="px-1 text-xs hover:text-[#c8e64c] disabled:opacity-20">▲</button>
                 <button onClick={() => moverItem(i, i + 1)} disabled={i === editLista.length - 1} className="px-1 text-xs hover:text-[#c8e64c] disabled:opacity-20">▼</button>
               </li>
             );
           })}
-          {!editando && filteredMenu.map((item) => (
+          {!editando && filteredMenu.filter(item => devMode || !ocultos.has(item.href)).map((item) => ocultos.has(item.href) ? (
+            <li key={item.name} title="Oculto para los usuarios (solo visible en modo DEV)">
+              <span className="flex items-center gap-3 px-4 py-2 text-slate-600 cursor-not-allowed select-none opacity-60">
+                <item.icon className="w-5 h-5" />
+                <span className="text-sm font-medium line-through">{item.name}</span>
+              </span>
+            </li>
+          ) : (
             <li key={item.name}>
               <Link
                 href={item.href}

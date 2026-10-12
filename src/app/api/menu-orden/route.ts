@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     if (body.pass !== DEV_PASS) return NextResponse.json({ error: 'Clave de desarrollador inválida' }, { status: 401 });
 
     const limpio: Record<string, string[]> = {};
-    for (const k of ['aseo', 'recaudacion', 'administracion']) {
+    for (const k of ['aseo', 'recaudacion', 'administracion', 'ocultos']) {
       const arr = body.orden?.[k];
       if (Array.isArray(arr)) limpio[k] = arr.map(String).filter(h => h.startsWith('/'));
     }

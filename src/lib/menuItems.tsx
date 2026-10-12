@@ -4,7 +4,7 @@ import { Home, Search, FileText, FlaskConical, Wrench, UserPlus, Users, FileSpre
 
 export type MenuItem = { icon: any; name: string; href: string };
 export type MenuKey = 'aseo' | 'recaudacion' | 'administracion';
-export type MenuOrden = Partial<Record<MenuKey, string[]>>;
+export type MenuOrden = Partial<Record<MenuKey, string[]>> & { /** rutas ocultas del menú (en modo DEV se ven oscuras/deshabilitadas) */ ocultos?: string[] };
 
 export const MENU_ASEO: MenuItem[] = [
   { icon: Home, name: 'Inicio Aseo', href: '/admin' },
