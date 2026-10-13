@@ -47,13 +47,44 @@ export async function POST(req: Request) {
       const monto = Number(p.monto);
       if (!p.cajero || !(monto > 0) || !p.tipo || !p.fecha) return NextResponse.json({ error: 'Faltan datos: cajero, tipo, monto y fecha.' }, { status: 400 });
       const hora = /^\d{2}:\d{2}$/.test(p.hora || '') ? p.hora : '12:00';
+      const refFinal = p.referencia ? String(p.referencia).trim() : '';
+      if (refFinal) {
+        const { data: existente } = await sb.from('pagos_reportados').select('*').eq('referencia', refFinal).maybeSingle();
+        if (existente) {
+          const detExist = det(existente);
+          const nuevoDetalles = {
+            ...detExist,
+            cajero: p.cajero,
+            contribuyente: p.contribuyente || detExist.contribuyente,
+            contribuyente_nombre: p.contribuyente || detExist.contribuyente_nombre,
+            nota: p.nota || detExist.nota,
+            revisado_dev: true,
+            reasignado_por: usuario,
+            reasignado_at: new Date().toISOString()
+          };
+          const upd: any = {
+            monto,
+            tipo: p.tipo,
+            banco: p.banco || p.tipo,
+            created_at: new Date(`${p.fecha}T${hora}:00-04:00`).toISOString(),
+            detalles: JSON.stringify(nuevoDetalles)
+          };
+          if (p.identidad) upd.identidad = String(p.identidad).trim().toUpperCase();
+          const { error: updErr } = await sb.from('pagos_reportados').update(upd).eq('id', existente.id);
+          if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+          await sb.from('auditoria').insert({ accion: 'DEV: pago reasignado/actualizado en reporte de caja', usuario, modulo: '/admin/dev',
+            detalles: { id: existente.id, referencia: refFinal, cajero_previo: detExist.cajero, cajero_nuevo: p.cajero, _categoria: 'CAJA', criticidad: 'ALTA' } });
+          return NextResponse.json({ ok: true, id: existente.id, reasignado: true, mensaje: `El pago con referencia ${refFinal} ya existía y fue reasignado con éxito al cajero ${p.cajero}.` });
+        }
+      }
+
       const id = crypto.randomUUID();
       const fila = {
         id,
         identidad: String(p.identidad || '').trim().toUpperCase() || null,
         monto,
         banco: p.banco || p.tipo,
-        referencia: p.referencia || `DEV-${Date.now().toString().slice(-8)}`,
+        referencia: refFinal || `DEV-${Date.now().toString().slice(-8)}`,
         tipo: p.tipo,
         estado: 'Aprobado',
         created_at: new Date(`${p.fecha}T${hora}:00-04:00`).toISOString(),

@@ -63,8 +63,15 @@ export async function PATCH(req: Request) {
     const { codigo, cambios, usuario, motivo } = await req.json();
     const u = String(usuario || '').trim().toLowerCase();
     const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
-    if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) return NextResponse.json({ error: 'Solo un administrador puede modificar condominios.' }, { status: 403 });
-    if (String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo del cambio.' }, { status: 400 });
+    
+    // Si solo modifica notas, teléfono o correo, permitir a cualquier operador o usuario autenticado
+    const keysModificadas = Object.keys(cambios || {});
+    const soloInfoContactoONotas = keysModificadas.length > 0 && keysModificadas.every(k => ['notas', 'telefono', 'correo'].includes(k));
+    
+    if (!soloInfoContactoONotas) {
+      if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) return NextResponse.json({ error: 'Solo un administrador puede modificar la configuración del condominio.' }, { status: 403 });
+      if (String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo del cambio.' }, { status: 400 });
+    }
 
     const { data: antes } = await sb.from('condominios').select('*').eq('codigo', String(codigo || '').toUpperCase()).maybeSingle();
     if (!antes) return NextResponse.json({ error: 'Condominio no encontrado' }, { status: 404 });
@@ -83,6 +90,18 @@ export async function PATCH(req: Request) {
 
     const { error } = await sb.from('condominios').update(upd).eq('id', antes.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Sincronizar notas en inmuebles
+    if ('notas' in upd) {
+      await sb.from('inmuebles').update({ notas: upd.notas || null }).eq('inmueble', antes.codigo);
+    }
+    // Sincronizar teléfono y correo en inmuebles
+    if ('telefono' in upd || 'correo' in upd) {
+      const inmUpd: any = {};
+      if ('telefono' in upd) inmUpd.telefono = upd.telefono || null;
+      if ('correo' in upd) inmUpd.correo_electronico = upd.correo || null;
+      await sb.from('inmuebles').update(inmUpd).eq('inmueble', antes.codigo);
+    }
 
     // Sincronizar meses en las unidades que seguían la fecha del condominio. Las unidades con otra fecha
     // (pagaron por su cuenta o tienen ajuste propio) NO se tocan: un mes pagado nunca debe volver a salir.
@@ -110,9 +129,10 @@ export async function PATCH(req: Request) {
     }
 
     const diff = Object.fromEntries(Object.keys(upd).map(k => [k, { antes: antes[k], despues: upd[k] }]));
+    const nombreUsuario = trab ? `${trab.nombre || trab.usuario} (${trab.usuario})` : (usuario || 'Operador');
     await sb.from('auditoria').insert({
-      accion: 'Modificación de condominio', usuario: `${trab.nombre || trab.usuario} (${trab.usuario})`,
-      detalles: { codigo: antes.codigo, condominio: antes.nombre, motivo: String(motivo).trim(), cambios: diff, _categoria: 'CONDOMINIOS', criticidad: 'ALTA' },
+      accion: 'Modificación de condominio', usuario: nombreUsuario,
+      detalles: { codigo: antes.codigo, condominio: antes.nombre, motivo: String(motivo || 'Actualización de datos').trim(), cambios: diff, _categoria: 'CONDOMINIOS', criticidad: soloInfoContactoONotas ? 'MEDIA' : 'ALTA' },
     });
     return NextResponse.json({ ok: true, cambios: diff });
   } catch (e: any) {

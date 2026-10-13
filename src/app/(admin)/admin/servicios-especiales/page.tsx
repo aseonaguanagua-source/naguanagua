@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Wrench, Search, Plus, Trash2, CheckCircle2, AlertCircle, FlaskConical, ClipboardCheck, ShieldCheck, X, RefreshCw, BookOpen, FileSpreadsheet, TreePine } from 'lucide-react';
+import { Wrench, Search, Plus, Trash2, CheckCircle2, AlertCircle, FlaskConical, ClipboardCheck, ShieldCheck, X, RefreshCw, BookOpen, FileSpreadsheet, TreePine, Pencil } from 'lucide-react';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { useAppContext } from '@/store/AppContext';
 import { TARIFAS_ESPECIAL, TARIFAS_EXTRAORDINARIO, CONCEPTOS_IAMEC, generarPlanillaServicio } from '@/lib/planillaServicio';
@@ -95,6 +95,10 @@ export default function ServiciosEspecialesPage() {
   });
   const [searchContrib, setSearchContrib] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [servicioEditando, setServicioEditando] = useState<any | null>(null);
+  const [montoEdit, setMontoEdit] = useState('');
+  const [descEdit, setDescEdit] = useState('');
+  const [guardandoEdit, setGuardandoEdit] = useState(false);
 
   const loadServicios = async () => {
     setIsLoading(true);
@@ -106,6 +110,37 @@ export default function ServiciosEspecialesPage() {
       }
     } catch {}
     setIsLoading(false);
+  };
+
+  const handleEditServicio = (s: any) => {
+    setServicioEditando(s);
+    setMontoEdit(String(s.monto ?? ''));
+    setDescEdit(s.descripcion || '');
+  };
+
+  const handleGuardarEditServicio = async () => {
+    if (!servicioEditando?.id) return;
+    const nuevoMonto = parseFloat(montoEdit);
+    if (isNaN(nuevoMonto) || nuevoMonto < 0) return alert('Ingrese un monto válido.');
+    setGuardandoEdit(true);
+    try {
+      const res = await fetch('/api/admin/servicios-especiales', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: servicioEditando.id,
+          monto: nuevoMonto,
+          descripcion: descEdit.trim() || servicioEditando.descripcion,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Error al guardar');
+      setServicioEditando(null);
+      await loadServicios();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setGuardandoEdit(false);
+    }
   };
 
   useEffect(() => { loadServicios(); }, []);
@@ -380,6 +415,7 @@ export default function ServiciosEspecialesPage() {
       nve: valorUcd != null ? Number(s.nve ?? 1) : null,
       factor: valorUcd != null ? Number(s.factor ?? 1) : null,
       tasaEuro: tasa,
+      montoBs: s.monto != null ? Number(s.monto) : null,
     });
   };
 
@@ -536,10 +572,13 @@ export default function ServiciosEspecialesPage() {
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         {(s.tipo === 'especial' || s.tipo === 'extraordinario') && (
-                          <button onClick={() => descargarPlanilla(s.tipo as 'especial' | 'extraordinario', s)} className="text-emerald-600 hover:text-emerald-800 p-1 rounded" title="Descargar planilla">
+                          <button onClick={() => descargarPlanilla(s.tipo as 'especial' | 'extraordinario', s)} className="text-emerald-600 hover:text-emerald-800 p-1 rounded transition-colors" title="Descargar planilla">
                             <FileDown className="w-4 h-4" />
                           </button>
                         )}
+                        <button onClick={() => handleEditServicio(s)} className="text-purple-600 hover:text-purple-800 p-1 rounded transition-colors" title="Modificar monto / datos">
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         <button onClick={() => handleDelete(s.id)} className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all p-1 rounded">
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -552,6 +591,65 @@ export default function ServiciosEspecialesPage() {
           )}
         </div>
       </div>
+
+      {/* Modal Editar Monto / Servicio */}
+      {servicioEditando && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-purple-50">
+              <div>
+                <h3 className="font-bold text-slate-800">Modificar Monto / Servicio</h3>
+                <p className="text-xs text-slate-500 font-mono">{servicioEditando.referencia || `ID: ${servicioEditando.id}`}</p>
+              </div>
+              <button onClick={() => setServicioEditando(null)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Contribuyente</label>
+                <p className="text-sm font-semibold text-slate-800">{servicioEditando.contribuyente} ({servicioEditando.identidad})</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Descripción</label>
+                <input 
+                  type="text" 
+                  value={descEdit} 
+                  onChange={e => setDescEdit(e.target.value)} 
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Monto (Bs) *</label>
+                <input 
+                  type="number" 
+                  step="any"
+                  value={montoEdit} 
+                  onChange={e => setMontoEdit(e.target.value)} 
+                  placeholder="0.00"
+                  className="w-full border border-purple-300 rounded-xl px-3 py-2 text-base font-bold text-purple-900 focus:ring-2 focus:ring-purple-500 outline-none" 
+                />
+                <p className="text-[11px] text-slate-500 mt-1">Este monto se reflejará directamente en la Planilla oficial y en Caja.</p>
+              </div>
+            </div>
+            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-2.5">
+              <button 
+                type="button" 
+                onClick={() => setServicioEditando(null)} 
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                onClick={handleGuardarEditServicio} 
+                disabled={guardandoEdit}
+                className="px-5 py-2 text-xs font-black text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl shadow-sm cursor-pointer"
+              >
+                {guardandoEdit ? 'Guardando…' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (

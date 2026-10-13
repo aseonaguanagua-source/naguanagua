@@ -21,6 +21,7 @@ export async function POST(req: Request) {
       identidad: b.identidad ? String(b.identidad).trim().toUpperCase() : null,
       meses: b.meses ? Number(b.meses) : null,
       soloMultas: !!b.soloMultas,
+      incluirMultas: !!b.incluirMultas,
       tasaOverride: b.tasaOverride ? Number(b.tasaOverride) : undefined,
       fechaOverride: b.fechaOverride ? String(b.fechaOverride) : undefined,
     };

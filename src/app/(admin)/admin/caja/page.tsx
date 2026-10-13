@@ -130,6 +130,7 @@ export default function CajaPage() {
   const [sumMulta, setSumMulta] = useState(0);
   // Computed — estrictamente derivado del IVA de los comercios agentes de retención
   const montoRetencionIVA = sumIVARetencionable * (retencionIVA / 100);
+  const montoRetencionIVARounded = Math.round((sumIVARetencionable * (retencionIVA / 100)) * 100) / 100;
 
   // Payment State
   const [paymentMethod, setPaymentMethod] = useState<'Debito' | 'Credito' | 'TMD' | 'TVD' | 'Transferencia' | 'Deposito' | 'Saldo a Favor'>('Debito');
@@ -1432,6 +1433,8 @@ export default function CajaPage() {
     return 0;
   })();
 
+  const totalNetoAPagar = Math.max(0, Math.round(((sumBase + sumIVA + sumMulta) - montoRetencionIVARounded + ajusteMontoAcordado - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)) * 100) / 100);
+
   /** Códigos de inmueble que toca el cobro actual / el contribuyente buscado. */
   const codigosDelCobro = (soloSeleccion: boolean): string[] => {
     const s = new Set<string>();
@@ -1465,16 +1468,16 @@ export default function CajaPage() {
     }
     
     // El comprobante de retención de IVA es OPCIONAL en Caja (decisión del municipio)
-    const calculatedTotalBs = sumBase + sumIVA + sumMulta;
-    const realMontoRetencionIVA = sumIVARetencionable * (retencionIVA / 100);
-    const totalConImpuestos = calculatedTotalBs - realMontoRetencionIVA + ajusteMontoAcordado;
+    const calculatedTotalBs = Math.round((sumBase + sumIVA + sumMulta) * 100) / 100;
+    const realMontoRetencionIVA = Math.round((sumIVARetencionable * (retencionIVA / 100)) * 100) / 100;
+    const totalConImpuestos = Math.round((calculatedTotalBs - realMontoRetencionIVA + ajusteMontoAcordado) * 100) / 100;
     const maxSaldoUsable = foundUser?.SaldoFavor || 0;
     // Cuando el método de pago ES Saldo a Favor, el checkbox no aplica
     // (evita doble deducción: una por descuento + otra por el método)
     const descuentoSaldoFavor = (paymentMethod !== 'Saldo a Favor' && useSaldoFavor)
-      ? Math.min(totalConImpuestos, maxSaldoUsable)
+      ? Math.round(Math.min(totalConImpuestos, maxSaldoUsable) * 100) / 100
       : 0;
-    const finalTotal = Math.max(0, totalConImpuestos - descuentoSaldoFavor);
+    const finalTotal = Math.max(0, Math.round((totalConImpuestos - descuentoSaldoFavor) * 100) / 100);
     
     let saldoAFavorNuevo = 0;
     let esAbono = isAbonoCondo;
@@ -1497,17 +1500,20 @@ export default function CajaPage() {
         return alert(`⚠️ ADVERTENCIA: El número de referencia "${referencia}" ya fue registrado previamente en el sistema. Verifique antes de continuar.`);
       }
 
-      const transferido = parseLocalFloat(montoTransferido);
+      const transferido = Math.round(parseLocalFloat(montoTransferido) * 100) / 100;
       if (isNaN(transferido) || transferido <= 0) return alert("Debe ingresar un monto transferido válido.");
       
-      if (transferido < finalTotal || isPagoMultiple) {
+      const diffTransferido = Math.round((transferido - finalTotal) * 100) / 100;
+      if (diffTransferido < -0.02 || isPagoMultiple) {
         esAbono = true;
         montoReal = transferido;
-      } else if (transferido > finalTotal) {
-        saldoAFavorNuevo = transferido - finalTotal;
+      } else if (diffTransferido > 0.02) {
+        saldoAFavorNuevo = diffTransferido;
         montoReal = transferido;
       } else {
-        montoReal = transferido;
+        // Pago exacto (dentro de tolerancia de 2 céntimos)
+        esAbono = false;
+        montoReal = finalTotal;
       }
     } else if (['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod)) {
       const cardLabel = paymentMethod === 'TMD' ? 'Tarjeta Master (TMD)' : paymentMethod === 'TVD' ? 'Tarjeta Visa (TVD)' : paymentMethod === 'Credito' ? 'Tarjeta de Crédito' : 'Punto de Venta';
@@ -1632,8 +1638,9 @@ export default function CajaPage() {
       }
 
       const isAutoAprobado = ['Debito', 'Credito', 'Saldo a Favor', 'TMD', 'TVD'].includes(paymentMethod);
-      // Detect abono: montoDebito provided and < totalBs, o marcado como abono/pago multiple
-      const esAbonoParcial = !!(montoDebito && parseLocalFloat(montoDebito) > 0 && parseLocalFloat(montoDebito) < confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor - 0.01) || !!confirmPayload.esAbono || (montoReal < confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor - 0.01);
+      // Detect abono: montoDebito provided and < finalTotal, o marcado como abono/pago multiple
+      const diffDebito = montoDebito && parseLocalFloat(montoDebito) > 0 ? (confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor) - parseLocalFloat(montoDebito) : 0;
+      const esAbonoParcial = (diffDebito > 0.02) || !!confirmPayload.esAbono || (montoReal < (confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor) - 0.02);
       const esAbonoDebito = esAbonoParcial;
 
       if (isAutoAprobado) {
@@ -4643,7 +4650,7 @@ export default function CajaPage() {
               )}
               <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-200">
                 <span className="text-slate-800 font-bold text-base">Total Neto a Pagar:</span>
-                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(Math.max(0, ((sumBase + sumIVA + sumMulta) - (sumIVARetencionable * (retencionIVA / 100)) + ajusteMontoAcordado) - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)))}</span>
+                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(totalNetoAPagar)}</span>
               </div>
             </div>
 
@@ -4810,7 +4817,18 @@ export default function CajaPage() {
                     <span className="text-[10px] text-slate-400">{referencia.length}/8 dígitos</span>
                   </label>
                   <label className="block">
-                    <span className="text-xs font-semibold text-slate-600 mb-1 block">Monto Total Pagado (Bs)</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-slate-600 block">Monto Total Pagado (Bs)</span>
+                      {totalNetoAPagar > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setMontoTransferido(totalNetoAPagar.toFixed(2).replace('.', ','))}
+                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                        >
+                          Usar Total Neto (Bs. {formatBs(totalNetoAPagar)})
+                        </button>
+                      )}
+                    </div>
                     <input 
                       type="text" 
                       placeholder="Ej: 500,00"
@@ -4825,16 +4843,30 @@ export default function CajaPage() {
                       }}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
-                    {parseLocalFloat(montoTransferido) > Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)) && (
-                      <p className="text-[10px] text-emerald-600 mt-1 font-bold">
-                        * Se generará un saldo a favor de Bs. {formatBs(parseLocalFloat(montoTransferido) - Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)))}
-                      </p>
-                    )}
-                    {(parseLocalFloat(montoTransferido) > 0 && parseLocalFloat(montoTransferido) < Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0))) && (
-                      <p className="text-[10px] text-orange-600 mt-1 font-bold">
-                        * Es un ABONO. Quedará un saldo pendiente de Bs. {formatBs(Math.max(0, totalBs - (useSaldoFavor ? foundUser?.SaldoFavor || 0 : 0)) - parseLocalFloat(montoTransferido))}
-                      </p>
-                    )}
+                    {(() => {
+                      const tVal = parseLocalFloat(montoTransferido);
+                      if (tVal <= 0) return null;
+                      const diff = Math.round((tVal - totalNetoAPagar) * 100) / 100;
+                      if (diff > 0.02) {
+                        return (
+                          <p className="text-[10px] text-emerald-600 mt-1 font-bold">
+                            * Se generará un saldo a favor de Bs. {formatBs(diff)}
+                          </p>
+                        );
+                      }
+                      if (diff < -0.02) {
+                        return (
+                          <p className="text-[10px] text-orange-600 mt-1 font-bold">
+                            * Es un ABONO. Quedará un saldo pendiente de Bs. {formatBs(Math.abs(diff))}
+                          </p>
+                        );
+                      }
+                      return (
+                        <p className="text-[10px] text-emerald-700 mt-1 font-bold">
+                          ✓ Pago exacto del Total Neto a Pagar (Bs. {formatBs(totalNetoAPagar)}).
+                        </p>
+                      );
+                    })()}
                   </label>
                   <label className="block">
                     <span className="text-xs font-semibold text-slate-600 mb-1 block">Comprobante de Pago <span className="text-red-500">*</span></span>

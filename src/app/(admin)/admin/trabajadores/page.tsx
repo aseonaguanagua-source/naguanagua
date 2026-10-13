@@ -73,6 +73,7 @@ export const MODULOS_SISTEMA: ModuloPermisos[] = [
     icon: Receipt,
     permisos: [
       { key: 'ver_caja', label: 'Ver Caja (Acceso)' },
+      { key: 'ver_caja_condominios', label: 'Caja de Condominios (Acceso y Cobro)' },
       { key: 'gestionar_pagos', label: 'Procesar Cobros en Caja' },
       { key: 'caja_tasa_personalizada', label: 'Editar Tasa BCV Manual en Caja' },
       { key: 'caja_crear_saldo', label: 'Crear Notas de Crédito / Saldos Manuales' },
@@ -114,6 +115,7 @@ export const MODULOS_SISTEMA: ModuloPermisos[] = [
     icon: Building2,
     permisos: [
       { key: 'ver_condominios', label: 'Ver Módulo Condominios' },
+      { key: 'ver_caja_condominios', label: 'Caja de Condominios (Cobro en Taquilla)' },
       { key: 'vincular_unidades_condo', label: 'Registrar y Vincular Unidades / Apartamentos' },
       { key: 'ajustar_deuda_condo', label: 'Ajustar Deudas de Condominio' },
       { key: 'cobro_masivo_condo', label: 'Procesar Cobro Masivo a Condominios' },
@@ -260,6 +262,7 @@ const ROL_PRESETS: Record<string, string[]> = {
   ),
   'Taquilla / Operador': [
     'ver_caja',
+    'ver_caja_condominios',
     'gestionar_pagos',
     'caja_reimprimir_recibo',
     'ver_contribuyentes_lectura',
@@ -396,6 +399,7 @@ export default function TrabajadoresPage() {
       nombre: '',
       cedula: '',
       correo: '',
+      telefono: '',
       usuario: '',
       clave: '',
       rol: 'Taquilla / Operador',
@@ -436,6 +440,7 @@ export default function TrabajadoresPage() {
         nombre: (formData.nombre || '').trim(),
         cedula: (formData.cedula || '').trim(),
         correo: (formData.correo || '').trim(),
+        telefono: (formData.telefono || '').trim(),
         usuario: (formData.usuario || '').trim().toLowerCase(),
         clave: (formData.clave || '').trim(),
         rol: formData.rol,
@@ -461,6 +466,7 @@ export default function TrabajadoresPage() {
           };
           if (!res.error.message?.includes('cedula')) safe.cedula = dataPayload.cedula;
           if (!res.error.message?.includes('correo')) safe.correo = dataPayload.correo;
+          if (!res.error.message?.includes('telefono')) safe.telefono = dataPayload.telefono;
           if (!res.error.message?.includes('permisos')) safe.permisos = dataPayload.permisos;
 
           res = formData.id
@@ -813,6 +819,17 @@ export default function TrabajadoresPage() {
                   placeholder="usuario@naguanagua.gob.ve"
                   value={formData.correo}
                   onChange={e => setFormData({ ...formData, correo: e.target.value })}
+                  className="w-full border border-slate-200 bg-slate-50/50 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Teléfono</label>
+                <input
+                  type="text"
+                  placeholder="Ej: 0414-1234567"
+                  value={formData.telefono || ''}
+                  onChange={e => setFormData({ ...formData, telefono: e.target.value })}
                   className="w-full border border-slate-200 bg-slate-50/50 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-400"
                 />
               </div>

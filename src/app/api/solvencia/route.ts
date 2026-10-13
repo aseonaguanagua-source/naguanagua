@@ -77,24 +77,20 @@ export async function POST(req: Request) {
         principal = pDb;
       }
       if (!principal) {
-        // Puede ser un condominio que solo existe en el módulo
-        if (separados) {
-          const m = await deudaModulo(especifico);
-          if (m.enModulo) return NextResponse.json(m.deudaBs > 0.01
-            ? { solvente: false, inmueblesConDeuda: [especifico], mensaje: `EMISIÓN DENEGADA: ${especifico} tiene deuda pendiente en: ${m.detalle.join(', ')}.` }
-            : { solvente: true, mensaje: 'Solvente', inmueblesConDeuda: [] });
-        }
-        return NextResponse.json({ solvente: false, mensaje: `El inmueble ${especifico} no fue encontrado.`, inmueblesConDeuda: [] });
-      }
-      if (principal.estado === 'Eliminado') return NextResponse.json({ solvente: false, mensaje: `El inmueble ${especifico} está ELIMINADO. Reactívelo antes de emitir la solvencia.`, inmueblesConDeuda: [] });
-
-      // Condominios y sus unidades: la deuda que vale es la del módulo de condominios (allí se cobran)
-      if (separados) {
+        // Puede ser un condominio que existe en el módulo de condominios
         const m = await deudaModulo(especifico);
         if (m.enModulo) return NextResponse.json(m.deudaBs > 0.01
           ? { solvente: false, inmueblesConDeuda: [especifico], mensaje: `EMISIÓN DENEGADA: ${especifico} tiene deuda pendiente en: ${m.detalle.join(', ')}.` }
           : { solvente: true, mensaje: 'Solvente', inmueblesConDeuda: [] });
+        return NextResponse.json({ solvente: false, mensaje: `El inmueble ${especifico} no fue encontrado.`, inmueblesConDeuda: [] });
       }
+      if (principal.estado === 'Eliminado') return NextResponse.json({ solvente: false, mensaje: `El inmueble ${especifico} está ELIMINADO. Reactívelo antes de emitir la solvencia.`, inmueblesConDeuda: [] });
+
+      // Condominios y sus unidades: la deuda oficial que vale es la del módulo de condominios
+      const m = await deudaModulo(especifico);
+      if (m.enModulo) return NextResponse.json(m.deudaBs > 0.01
+        ? { solvente: false, inmueblesConDeuda: [especifico], mensaje: `EMISIÓN DENEGADA: ${especifico} tiene deuda pendiente en: ${m.detalle.join(', ')}.` }
+        : { solvente: true, mensaje: 'Solvente', inmueblesConDeuda: [] });
 
       // Actividades del inmueble (dos consultas simples en vez de un OR pesado que daba timeout)
       const [h1, h2] = await Promise.all([
@@ -117,10 +113,8 @@ export async function POST(req: Request) {
     const detalle: string[] = [];
     const conDeuda: string[] = [];
     for (const i of sinContenedoresNA(vivos, vivos)) {
-      if (separados) {
-        const m = await deudaModulo(String(i.inmueble).toUpperCase());
-        if (m.enModulo) { if (m.deudaBs > 0.01) { conDeuda.push(i.inmueble); detalle.push(...m.detalle); } continue; }
-      }
+      const m = await deudaModulo(String(i.inmueble).toUpperCase());
+      if (m.enModulo) { if (m.deudaBs > 0.01) { conDeuda.push(i.inmueble); detalle.push(...m.detalle); } continue; }
       if (inmuebleTieneDeuda(i)) { conDeuda.push(i.inmueble); detalle.push(`${i.inmueble} (${i.meses_deuda || 0} meses)`); }
     }
     const idList = variantes.length ? variantes : [identidad];

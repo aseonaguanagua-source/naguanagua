@@ -215,9 +215,16 @@ export async function cargarCondominio(codigo: string) {
   if (error) throw new Error(error.message);
   if (!condo) return null;
 
-  const { data: inm } = await sb.from('inmuebles').select('agente_retencion').eq('inmueble', condo.codigo).maybeSingle();
+  const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas').eq('inmueble', condo.codigo).maybeSingle();
   if (inm) {
     condo.agente_retencion = !!inm.agente_retencion;
+    condo.telefono = condo.telefono || inm.telefono || '';
+    condo.correo = condo.correo || inm.correo_electronico || '';
+    if (!condo.notas && inm.notas) {
+      condo.notas = inm.notas;
+    } else if (condo.notas && inm.notas && condo.notas.trim() !== inm.notas.trim() && !condo.notas.includes(inm.notas.trim())) {
+      condo.notas = `${condo.notas}\n---\n${inm.notas}`;
+    }
   }
 
   const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).order('inmueble').range(a, b));

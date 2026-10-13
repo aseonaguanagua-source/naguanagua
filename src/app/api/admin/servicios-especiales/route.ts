@@ -139,7 +139,25 @@ export async function DELETE(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { referencias, ids, estado } = body;
+    const { id, monto, descripcion, fecha, notas, referencias, ids, estado } = body;
+
+    if (id) {
+      const upd: any = {};
+      if (monto !== undefined) upd.monto = Number(monto);
+      if (descripcion !== undefined) upd.descripcion = descripcion;
+      if (fecha !== undefined) upd.fecha = fecha;
+      if (notas !== undefined) upd.notas = notas;
+      if (estado !== undefined) upd.estado = estado;
+
+      const { data, error } = await supabase
+        .from('servicios_especiales')
+        .update(upd)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, data });
+    }
 
     let query = supabase.from('servicios_especiales').update({ estado: estado || 'Pagado' });
 
@@ -148,7 +166,7 @@ export async function PATCH(request: Request) {
     } else if (ids && Array.isArray(ids) && ids.length > 0) {
       query = query.in('id', ids);
     } else {
-      return NextResponse.json({ error: 'referencias o ids requeridos' }, { status: 400 });
+      return NextResponse.json({ error: 'id, referencias o ids requeridos' }, { status: 400 });
     }
 
     const { data, error } = await query.select();

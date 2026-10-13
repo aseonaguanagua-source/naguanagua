@@ -26,7 +26,7 @@ export default function CondominiosPage() {
   const [q, setQ] = useState('');
   const [modalidad, setModalidad] = useState('');
   const [tipo, setTipo] = useState('');
-  const [soloDeuda, setSoloDeuda] = useState(false);
+  const [filtroSolvencia, setFiltroSolvencia] = useState<'TODOS' | 'SOLVENTES' | 'INSOLVENTES'>('TODOS');
   const [orden, setOrden] = useState<'nombre' | 'deuda' | 'meses' | 'unidades'>('deuda');
   const [pagina, setPagina] = useState(0);
 
@@ -77,12 +77,13 @@ export default function CondominiosPage() {
     const tn = t.replace(/[^0-9A-Z]/g, '');
     let out = datos.filas.filter((f: any) =>
       (!t || f.nombre.toUpperCase().includes(t) || f.codigo.includes(t) || String(f.identidad || '').replace(/[^0-9A-Z]/gi, '').toUpperCase().includes(tn)) &&
-      (!modalidad || f.modalidad === modalidad) && (!tipo || f.tipo === tipo) && (!soloDeuda || f.deudaBs > 0.01));
+      (!modalidad || f.modalidad === modalidad) && (!tipo || f.tipo === tipo) &&
+      (filtroSolvencia === 'TODOS' || (filtroSolvencia === 'SOLVENTES' && f.deudaBs <= 0.01) || (filtroSolvencia === 'INSOLVENTES' && f.deudaBs > 0.01)));
     out = [...out].sort((a: any, b: any) =>
       orden === 'nombre' ? a.nombre.localeCompare(b.nombre) : orden === 'deuda' ? b.deudaBs - a.deudaBs : orden === 'meses' ? b.meses - a.meses : b.cant_declarada - a.cant_declarada);
     return out;
-  }, [datos, q, modalidad, tipo, soloDeuda, orden]);
-  useEffect(() => { setPagina(0); }, [q, modalidad, tipo, soloDeuda, orden]);
+  }, [datos, q, modalidad, tipo, filtroSolvencia, orden]);
+  useEffect(() => { setPagina(0); }, [q, modalidad, tipo, filtroSolvencia, orden]);
 
   const totalFiltro = useMemo(() => filas.reduce((a: number, f: any) => a + f.deudaBs, 0), [filas]);
   const paginas = Math.max(1, Math.ceil(filas.length / POR_PAGINA));
@@ -152,6 +153,40 @@ export default function CondominiosPage() {
         </div>
       )}
 
+      {/* ══ PESTAÑAS DE SOLVENCIA ══ */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setFiltroSolvencia('TODOS')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            filtroSolvencia === 'TODOS'
+              ? 'bg-slate-900 text-white shadow-sm'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          Todos ({datos?.filas?.length || 0})
+        </button>
+        <button
+          onClick={() => setFiltroSolvencia('SOLVENTES')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            filtroSolvencia === 'SOLVENTES'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+          }`}
+        >
+          ✓ Solventes / Al Día ({p?.alDia || 0})
+        </button>
+        <button
+          onClick={() => setFiltroSolvencia('INSOLVENTES')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            filtroSolvencia === 'INSOLVENTES'
+              ? 'bg-rose-600 text-white shadow-sm'
+              : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-50'
+          }`}
+        >
+          ⚠️ Insolventes / Con Deuda ({p?.conDeuda || 0})
+        </button>
+      </div>
+
       {/* ══ BÚSQUEDA ══ */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center gap-3">
@@ -177,7 +212,7 @@ export default function CondominiosPage() {
             <option value="nombre">Nombre</option>
           </select>
           <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer select-none">
-            <input type="checkbox" checked={soloDeuda} onChange={e => setSoloDeuda(e.target.checked)} className="w-4 h-4 accent-emerald-600" /> Solo con deuda
+            <input type="checkbox" checked={filtroSolvencia === 'INSOLVENTES'} onChange={e => setFiltroSolvencia(e.target.checked ? 'INSOLVENTES' : 'TODOS')} className="w-4 h-4 accent-emerald-600" /> Solo con deuda
           </label>
         </div>
 
@@ -277,7 +312,12 @@ export default function CondominiosPage() {
                   <td className="py-3 px-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-black ${f.meses === 0 ? 'bg-emerald-100 text-emerald-800' : f.meses > 12 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{f.meses}</span>
                   </td>
-                  <td className={`py-3 px-4 text-right font-black tabular-nums ${f.deudaBs > 0.01 ? 'text-red-700' : 'text-emerald-700'}`}>{f.deudaBs > 0.01 ? `Bs ${fmtBs(f.deudaBs)}` : 'Al día'}</td>
+                  <td className={`py-3 px-4 text-right font-black tabular-nums ${f.deudaBs > 0.01 ? 'text-red-700' : 'text-emerald-700'}`}>
+                    <div>{f.deudaBs > 0.01 ? `Bs ${fmtBs(f.deudaBs)}` : 'Al día'}</div>
+                    <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-black border ${f.deudaBs > 0.01 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                      {f.deudaBs > 0.01 ? 'Insolvente' : 'Solvente'}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>

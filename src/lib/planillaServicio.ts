@@ -57,6 +57,7 @@ export type DatosPlanilla = {
   nve?: number | null;
   factor?: number | null;
   tasaEuro?: number | null;
+  montoBs?: number | null;
 };
 
 export function calcularServicio(valorUcd: number, nve: number, factor: number, tasaEuro: number) {
@@ -151,10 +152,28 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
     y += 3;
   }
   const heads = esp ? ['F.O.Es', 'NVE', 'FAEs', 'TOTAL (UCD)', 'MONTO (Bs)'] : ['C.E.V', 'NVE', 'F. LLENADO', 'TOTAL (UCD)', 'MONTO (Bs)'];
-  const hayCalc = d.valorUcd != null && d.nve != null && d.factor != null;
-  const c = hayCalc && d.tasaEuro ? calcularServicio(d.valorUcd!, d.nve!, d.factor!, d.tasaEuro) : null;
+  const hayCalc = (d.valorUcd != null && d.nve != null && d.factor != null) || (d.montoBs != null && d.montoBs > 0);
+  let totalUcd = d.valorUcd != null && d.nve != null && d.factor != null
+    ? Math.round(d.valorUcd * d.nve * d.factor * 10000) / 10000
+    : 0;
+  let montoBsFinal = d.montoBs != null && d.montoBs > 0
+    ? d.montoBs
+    : (d.tasaEuro ? Math.round(totalUcd * d.tasaEuro * 100) / 100 : 0);
+
+  // Si se modificó el monto en Bs manualmente y tenemos tasa Euro, recalculamos totalUcd para que cuadre exactamente
+  if (d.montoBs != null && d.montoBs > 0 && d.tasaEuro && d.tasaEuro > 0) {
+    montoBsFinal = d.montoBs;
+    totalUcd = Math.round((montoBsFinal / d.tasaEuro) * 100) / 100;
+  }
+
   const vals = hayCalc
-    ? [fmt(d.valorUcd, 0), fmt(d.nve, 0), fmt(d.factor, d.factor! % 1 ? 1 : 0), fmt(c ? c.total : d.valorUcd! * d.nve! * d.factor!, 2), c ? fmt(c.montoBs) : '']
+    ? [
+        fmt(d.valorUcd, 0),
+        fmt(d.nve, 0),
+        fmt(d.factor, d.factor != null ? (d.factor % 1 ? 1 : 0) : 0),
+        fmt(totalUcd, 2),
+        fmt(montoBsFinal, 2)
+      ]
     : ['', '', esp ? '1' : '', '', ''];
   const cw = (R - L) / 5;
   doc.setDrawColor(90); doc.setFontSize(9);

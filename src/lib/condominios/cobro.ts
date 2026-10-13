@@ -20,6 +20,9 @@ import { calcularEstado, cargarCondominio, tasaVigente, EstadoCuenta, RenglonEst
 import { descontarSaldoFavor, acreditarSaldoFavor } from '@/lib/saldoFavor';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const fmtPeriodo = (p: string) => { const [y, m] = String(p).split('-'); return `${MESES[parseInt(m) - 1]} ${y}`; };
+const rango = (ps: string[]) => !ps?.length ? '' : ps.length === 1 ? fmtPeriodo(ps[0]) : `${fmtPeriodo(ps[0])} – ${fmtPeriodo(ps[ps.length - 1])}`;
 
 export async function cajaActiva(): Promise<boolean> {
   const { data } = await sb.from('sistema_config').select('valor').eq('id', 'condominios_caja_activa').maybeSingle();
@@ -39,6 +42,8 @@ export interface SolicitudCobro {
   meses?: number | null;
   /** Solo multas (modo CONTRIBUYENTE) */
   soloMultas?: boolean;
+  /** Si es false o no está marcado, no se agrega multa al cobro de aseo */
+  incluirMultas?: boolean;
   tasaOverride?: number;
   fechaOverride?: string;
 }
@@ -151,11 +156,12 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     const nMeses = Math.min(r.deuda.meses, sol.meses && sol.meses > 0 ? Math.floor(sol.meses) : r.deuda.meses);
     const meses = r.deuda.porMes.slice(0, nMeses);
     const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs') => r2(meses.reduce((a, m) => a + m[k], 0));
-    // ¿Las multas van en este cobro?
+    // ¿Las multas van en este cobro? Solo si el usuario lo tilda (o en soloMultas)
     const condoPorActividad = modo === 'CONDOMINIO' && porAct;
-    const multaMora = condoPorActividad ? 0 : s('multaBs');
+    const permitirMultas = sol.soloMultas || sol.incluirMultas === true;
+    const multaMora = (condoPorActividad || !permitirMultas) ? 0 : s('multaBs');
     const multaMesesQueQuedan = condoPorActividad ? meses.filter(m => m.multaBs > 0).length : 0;
-    const incluirAparte = !condoPorActividad && (modo === 'CONTRIBUYENTE' || !porAct);
+    const incluirAparte = permitirMultas && !condoPorActividad && (modo === 'CONTRIBUYENTE' || !porAct);
     const aparte = incluirAparte ? r2((nMeses === r.deuda.meses ? r.multaExtraBs : 0) + r.multasManualesBs) : 0;
     const base = s('baseBs'), iva = s('ivaBs'), ret = s('retencionBs');
     return {
@@ -243,6 +249,37 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       }));
     }
 
+    const periodosDesc = ls.flatMap(l => l.periodos);
+    const periodoTexto = rango(periodosDesc) || 'Aseo Urbano';
+    const reciboCajaItem = {
+      reciboNo: refFinal.slice(-7).padStart(7, '0'),
+      controlWeb: `WEB-${refFinal.slice(-7).padStart(7, '0')}`,
+      fechaEmision: new Date().toISOString().slice(0, 10),
+      fechaTransaccion: fechaTransaccion,
+      fechaIngresoCaja: new Date().toISOString().slice(0, 10),
+      codContribuyente: f.identidad,
+      razonSocial: f.nombre,
+      domicilioFiscal: c.direccion || 'NAGUANAGUA, CARABOBO',
+      rifCi: f.identidad,
+      caja: pago.cajero || 'Caja',
+      periodo: periodoTexto,
+      conceptos: [
+        {
+          descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${c.codigo}`,
+          precioUnit: f.totalBs,
+          total: f.totalBs
+        }
+      ],
+      subTotal: f.totalBs,
+      exento: f.totalBs,
+      iva: 0,
+      total: f.totalBs,
+      formaPago: formaPagoCodigo(pago.metodo) === '03' ? 'TRANSFERENCIA' : pago.metodo.toUpperCase(),
+      banco: pago.banco || 'Banco',
+      referencia: refFinal,
+      tasaBcv: tasa
+    };
+
     const detalles = {
       modulo: 'condominios', modo: cobro.modo, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
       condominio: { codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, modalidad: c.modalidad, tipo: c.tipo,
@@ -254,9 +291,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       formasPago,
       pagos_agregados: pago.pagosAgregados,
       banco_destino: pago.bancoDestino || (pago.pagosAgregados?.[0]?.bancoDestino) || undefined,
-      // Fecha REAL de la transacción (la que escribió el cajero); Conciliación la muestra tal cual
       fecha_transaccion: fechaTransaccion,
       fecha_banco: fechaTransaccion,
+      fecha_ingreso_caja: new Date().toISOString().slice(0, 10),
+      periodos_pagados: periodoTexto,
+      recibo_caja: [reciboCajaItem],
       ...(i === 0 && (pago.saldoFavorGenerado || 0) > 0.01 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
     };
     const esTransferencia = pago.metodo.toLowerCase().includes('transferencia') || pago.metodo.toLowerCase().includes('pago móvil') || (pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => pa.metodo.toLowerCase().includes('transferencia') || pa.metodo.toLowerCase().includes('pago móvil')));
@@ -306,7 +345,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     });
   }
 
-  // 2) Bajar la deuda en el módulo
+  // 2) Bajar la deuda en el módulo y sincronizar tabla inmuebles
   const antes: any[] = [];
   for (const l of cobro.lineas) {
     const u = porId.get(l.clave);
@@ -334,11 +373,35 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         antes.push({ unidad: u.id, inmueble: u.inmueble, aseo_pendiente_desde: u.aseo_pendiente_desde, multa_meses: u.multa_meses, multa_exonerada_hasta: u.multa_exonerada_hasta });
         await sb.from('condominio_unidades').update(upd).eq('id', u.id);
       }
+      // Sincronizar en inmuebles para evitar bloqueos de solvencia
+      if (u.inmueble && l.meses > 0 && !sol.soloMultas) {
+        const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv').eq('inmueble', u.inmueble).maybeSingle();
+        if (curInm) {
+          const nMesesRest = Math.max(0, (parseInt(curInm.meses_deuda || 0) || 0) - l.meses);
+          await sb.from('inmuebles').update({
+            meses_deuda: nMesesRest,
+            deuda_mmv: nMesesRest === 0 ? 0 : curInm.deuda_mmv,
+            multa_bs: 0
+          }).eq('inmueble', u.inmueble);
+        }
+      }
     } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
       const upd: any = {};
       if (l.meses > 0 && !sol.soloMultas) upd.aseo_pendiente_desde = M.avanzarPendiente(c.aseo_pendiente_desde, l.meses, hoy);
       if (l.multasAparteBs > 0) upd.multa_meses = 0;
       if (Object.keys(upd).length) { antes.push({ condominio: c.id, aseo_pendiente_desde: c.aseo_pendiente_desde, multa_meses: c.multa_meses }); await sb.from('condominios').update(upd).eq('id', c.id); }
+      // Sincronizar condominio en inmuebles
+      if (c.codigo && l.meses > 0 && !sol.soloMultas) {
+        const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv').eq('inmueble', c.codigo).maybeSingle();
+        if (curInm) {
+          const nMesesRest = Math.max(0, (parseInt(curInm.meses_deuda || 0) || 0) - l.meses);
+          await sb.from('inmuebles').update({
+            meses_deuda: nMesesRest,
+            deuda_mmv: nMesesRest === 0 ? 0 : curInm.deuda_mmv,
+            multa_bs: 0
+          }).eq('inmueble', c.codigo);
+        }
+      }
     }
     if (l.multasManualesIds.length) await sb.from('condominio_multas').update({ estado: 'Pagada', pago_id: pagoDe(l.clave) }).in('id', l.multasManualesIds).eq('estado', 'Pendiente');
   }
@@ -346,6 +409,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   if (cobro.modo === 'CONDOMINIO' && !cobro.estado.porActividad && !cobro.lineas.some(l => l.clave === M.SIN_REGISTRAR) && !sol.soloMultas) {
     const nMeses = cobro.totales.meses;
     if (nMeses > 0 && c.aseo_pendiente_desde) await sb.from('condominios').update({ aseo_pendiente_desde: M.avanzarPendiente(c.aseo_pendiente_desde, nMeses, hoy), multa_meses: 0 }).eq('id', c.id);
+    await sb.from('inmuebles').update({ meses_deuda: 0, deuda_mmv: 0, multa_bs: 0 }).or(`inmueble.eq.${c.codigo},condominio_padre_id.eq.${c.codigo},padre_id.eq.${c.codigo}`);
   }
 
   // 3) Libro del condominio

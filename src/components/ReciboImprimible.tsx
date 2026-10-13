@@ -6,6 +6,8 @@ interface ReciboProps {
   reciboNo: string;
   controlWeb?: string;
   fechaEmision: string;
+  fechaTransaccion?: string;
+  fechaIngresoCaja?: string;
   codContribuyente: string;
   razonSocial: string;
   domicilioFiscal: string;
@@ -241,6 +243,8 @@ function ReciboContenido({
         <div style={{ padding:'3px 6px', borderRight: B, lineHeight:1.55 }}>
           <div style={{ fontSize:8 }}>
             <strong>Fecha de Emisión:</strong> {data.fechaEmision}
+            {data.fechaTransaccion && <span> | <strong>F. Transacción:</strong> {data.fechaTransaccion}</span>}
+            {data.fechaIngresoCaja && <span> | <strong>F. Ingreso Caja:</strong> {data.fechaIngresoCaja}</span>}
             {data.tasaBcv ? <span style={{ color:'#b91c1c' }}> | Tasa BCV: Bs. {data.tasaBcv}</span> : ''}
           </div>
           <div style={{ fontSize:8 }}><strong>Cod.:</strong> {data.codContribuyente}</div>

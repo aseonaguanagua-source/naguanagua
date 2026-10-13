@@ -138,9 +138,7 @@ export default function DevPagosCajaModal({ isOpen, onClose, cajerosDisponibles 
       });
 
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Error al registrar el pago');
-
-      setMsgExito(`Pago de Bs. ${fmtBs(montoNum)} registrado con éxito para el cajero ${regCajero}.`);
+      setMsgExito(data.mensaje || `Pago de Bs. ${fmtBs(montoNum)} registrado con éxito para el cajero ${regCajero}.`);
       setRegMonto('');
       setRegReferencia('');
       setRegNota('');

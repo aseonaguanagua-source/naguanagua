@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Building2, Search, RefreshCw, AlertTriangle, Wallet, CheckCircle2, X, Printer, ShieldAlert, Power,
-  Receipt, Layers, ArrowLeft, FlaskConical, Users, UserSearch, FileText, Calendar,
+  Receipt, Layers, ArrowLeft, FlaskConical, Users, UserSearch, FileText, Calendar, StickyNote,
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 import { getCajeroId } from '@/lib/cajaHelpers';
@@ -63,6 +63,15 @@ function Caja() {
   const [modo, setModo] = useState<'CONDOMINIO' | 'CONTRIBUYENTE'>(sp.get('cedula') || sp.get('unidad') ? 'CONTRIBUYENTE' : 'CONDOMINIO');
   const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
   const [soloMultas, setSoloMultas] = useState(false);
+  const [incluirMultas, setIncluirMultas] = useState(false);
+  const [modalContacto, setModalContacto] = useState(false);
+  const [contactoTelefono, setContactoTelefono] = useState('');
+  const [contactoCorreo, setContactoCorreo] = useState('');
+  const [guardandoContacto, setGuardandoContacto] = useState(false);
+  const [contactoOmitido, setContactoOmitido] = useState(false);
+  const [modalNotas, setModalNotas] = useState(false);
+  const [notaCondominio, setNotaCondominio] = useState('');
+  const [guardandoNota, setGuardandoNota] = useState(false);
   const [tasaOverrideStr, setTasaOverrideStr] = useState('');
   const hoyCaracas = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
   const [fechaOverrideStr, setFechaOverrideStr] = useState(hoyCaracas);
@@ -101,6 +110,8 @@ function Caja() {
   const [montoAct, setMontoAct] = useState('');
   const [comprobanteAct, setComprobanteAct] = useState<File | null>(null);
   const [fechaAct, setFechaAct] = useState(new Date().toISOString().slice(0, 10));
+  const [fechaTransaccionAct, setFechaTransaccionAct] = useState(new Date().toISOString().slice(0, 10));
+  const [fechaIngresoCajaAct, setFechaIngresoCajaAct] = useState(new Date().toISOString().slice(0, 10));
   // interruptor
   const [modalInt, setModalInt] = useState(false);
   const [motivoInt, setMotivoInt] = useState('');
@@ -159,7 +170,7 @@ function Caja() {
 
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
-    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setMeses(''); setRecibo(null); setSoloMultas(false);
+    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(false); setContactoOmitido(false);
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
       router.replace(`/admin/condominios/caja?codigo=${cod}&cedula=${encodeURIComponent(unidad.identidad)}`);
@@ -171,7 +182,7 @@ function Caja() {
       router.replace(`/admin/condominios/caja?codigo=${cod}`);
     }
   };
-  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setSoloMultas(false); if (m === 'CONDOMINIO') setIdentidad(''); };
+  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setSoloMultas(false); setIncluirMultas(false); if (m === 'CONDOMINIO') setIdentidad(''); };
 
   // Calcular (cada vez que cambia la selección)
   useEffect(() => {
@@ -183,6 +194,7 @@ function Caja() {
         if (isNaN(tasaParsed)) tasaParsed = 0;
         const r = await fetch('/api/admin/condominios/cobrar', { method: 'POST', body: JSON.stringify({
           accion: 'calcular', codigo, modo, claves, identidad: modo === 'CONTRIBUYENTE' ? identidad.trim() || null : null, meses: meses || null, soloMultas,
+          incluirMultas,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
           fechaOverride: fechaOverrideStr || undefined,
         }) });
@@ -193,10 +205,21 @@ function Caja() {
         
         // Fetch Saldo Favor
         setSaldoFavorActivo(j.saldoFavorActivo || 0);
+
+        // Verificar datos de contacto para mostrar modal si faltan
+        if (j.condo) {
+          const tel = j.condo.telefono || '';
+          const cor = j.condo.correo || '';
+          setContactoTelefono(tel);
+          setContactoCorreo(cor);
+          if (!tel && !cor && !contactoOmitido) {
+            setModalContacto(true);
+          }
+        }
       } catch (e: any) { setError(e.message); setCobro(null); setSaldoFavorActivo(0); } finally { setCalculando(false); }
     }, 300);
     return () => clearTimeout(h);
-  }, [codigo, modo, claves, identidad, meses, soloMultas, tasaOverrideStr, fechaOverrideStr]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [codigo, modo, claves, identidad, meses, soloMultas, incluirMultas, tasaOverrideStr, fechaOverrideStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = cobro?.condo;
   const base = cobro?.estado;
@@ -229,12 +252,95 @@ function Caja() {
       if (metodoAct === 'Transferencia' && !comprobanteAct) return alert('Es obligatorio adjuntar el comprobante para Transferencia.');
     }
     // if (montoParsed > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
-    setPagosAgregados([...pagosAgregados, { metodo: metodoAct, banco: bancoAct, bancoDestino: bancoDestinoAct, referencia: referenciaAct, monto: montoParsed, comprobante: comprobanteAct, fecha: fechaAct }]);
-    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setBancoDestinoAct('BANCAMIGA - 0172 - 0717'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null); setFechaAct(new Date().toISOString().slice(0, 10));
+    setPagosAgregados([...pagosAgregados, { 
+      metodo: metodoAct, 
+      banco: bancoAct, 
+      bancoDestino: bancoDestinoAct, 
+      referencia: referenciaAct, 
+      monto: montoParsed, 
+      comprobante: comprobanteAct, 
+      fecha: fechaAct,
+      fechaTransaccion: fechaTransaccionAct,
+      fechaIngresoCaja: fechaIngresoCajaAct,
+    }]);
+    setMetodoAct('Transferencia'); setBancoAct('Banco de Venezuela'); setBancoDestinoAct('BANCAMIGA - 0172 - 0717'); setReferenciaAct(''); setMontoAct(''); setComprobanteAct(null);
   };
 
   const quitarPago = (idx: number) => {
     setPagosAgregados(pagosAgregados.filter((_, i) => i !== idx));
+  };
+
+  const handleGuardarContacto = async () => {
+    if (!contactoTelefono.trim() && !contactoCorreo.trim()) {
+      alert('Ingrese al menos un teléfono o correo electrónico.');
+      return;
+    }
+    setGuardandoContacto(true);
+    try {
+      const targetId = porContrib && identidad.trim() ? identidad.trim() : c?.identidad;
+      const targetInm = porContrib && claves.length ? claves[0] : c?.codigo;
+      
+      const upd: any = {};
+      if (contactoTelefono.trim()) upd.telefono = contactoTelefono.trim();
+      if (contactoCorreo.trim()) upd.correo_electronico = contactoCorreo.trim();
+      
+      if (targetInm) {
+        await supabase.from('inmuebles').update(upd).eq('inmueble', targetInm);
+      }
+      if (targetId) {
+        await supabase.from('inmuebles').update(upd).eq('identidad', targetId);
+      }
+      if (c?.codigo) {
+        const condoUpd: any = {};
+        if (contactoTelefono.trim()) condoUpd.telefono = contactoTelefono.trim();
+        if (contactoCorreo.trim()) condoUpd.correo = contactoCorreo.trim();
+        await supabase.from('condominios').update(condoUpd).eq('codigo', c.codigo);
+        if (cobro?.condo) {
+          setCobro({ ...cobro, condo: { ...cobro.condo, ...condoUpd } });
+        }
+      }
+      
+      setSuccessMsg('Datos de contacto actualizados correctamente.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      setModalContacto(false);
+      setContactoOmitido(true);
+    } catch (e: any) {
+      alert('Error al guardar datos: ' + e.message);
+    } finally {
+      setGuardandoContacto(false);
+    }
+  };
+
+  const handleGuardarNota = async () => {
+    if (!c?.codigo) return;
+    setGuardandoNota(true);
+    try {
+      const nuevaNota = notaCondominio.trim() || null;
+      const res = await fetch('/api/admin/condominios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo: c.codigo,
+          cambios: { notas: nuevaNota },
+          motivo: 'Nota actualizada desde Caja de Condominios',
+          usuario: getCajeroId() || 'Operador',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo guardar la nota');
+      
+      // Actualizar estado local inmediatamente para que se vea en pantalla
+      if (cobro?.condo) {
+        setCobro({ ...cobro, condo: { ...cobro.condo, notas: nuevaNota } });
+      }
+      setSuccessMsg('Nota del condominio guardada correctamente.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      setModalNotas(false);
+    } catch (e: any) {
+      alert('Error al guardar nota: ' + e.message);
+    } finally {
+      setGuardandoNota(false);
+    }
   };
 
   const cobrar = async () => {
@@ -276,13 +382,17 @@ function Caja() {
             metodo: 'Saldo a Favor',
             monto: descuentoSaldoFavor,
             referencia: 'Desc. Saldo Favor',
+            fechaTransaccion: fechaTransaccionAct,
+            fechaIngresoCaja: fechaIngresoCajaAct,
          });
       }
       realPagosSubidos.push(...pagosSubidos);
       
       const r = await fetch('/api/admin/condominios/cobrar', {
         method: 'POST', body: JSON.stringify({
-          accion: 'cobrar', codigo, modo, claves, identidad: porContrib ? identidad.trim() || null : null, meses: meses || null, soloMultas, usuario: u.usuario,
+          accion: 'cobrar', codigo, modo, claves, identidad: porContrib ? identidad.trim() || null : null, meses: meses || null, soloMultas,
+          incluirMultas,
+          usuario: u.usuario,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined, fechaOverride: fechaOverrideStr || undefined,
           pago: { 
             pagoId: pagoId.current, 
@@ -511,7 +621,50 @@ function Caja() {
                   <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800">{MODALIDAD[c.modalidad] || c.modalidad}</span>
                   <span className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700">{c.cant_declarada} unidades declaradas</span>
                   {c.agente_retencion && <span className="px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-800">Agente de retención</span>}
+                  <button 
+                    onClick={() => {
+                      setContactoTelefono(c.telefono || '');
+                      setContactoCorreo(c.correo || '');
+                      setModalContacto(true);
+                    }}
+                    className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold hover:bg-amber-100 flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    📞 Actualizar Contacto {(!c.telefono && !c.correo) ? '⚠️ (Falta)' : ''}
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setNotaCondominio(c.notas || '');
+                      setModalNotas(true);
+                    }}
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                      c.notas 
+                        ? 'bg-amber-100 border border-amber-300 text-amber-900 hover:bg-amber-200' 
+                        : 'bg-slate-100 border border-slate-300 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    📝 {c.notas ? 'Notas del Condominio' : '+ Agregar Nota'}
+                  </button>
                 </div>
+                {c.notas && (
+                  <div className="mt-3.5 p-3.5 bg-amber-50/90 border border-amber-300 rounded-xl text-amber-950 flex items-start justify-between gap-3 shadow-2xs max-w-2xl">
+                    <div className="flex items-start gap-2.5">
+                      <StickyNote className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block mb-0.5">Notas del Condominio</span>
+                        <p className="text-xs font-semibold whitespace-pre-wrap text-slate-800 leading-relaxed">{c.notas}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setNotaCondominio(c.notas || '');
+                        setModalNotas(true);
+                      }}
+                      className="px-2.5 py-1 text-xs font-bold bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg shrink-0 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      ✏️ Editar Nota
+                    </button>
+                  </div>
+                )}
                 {successMsg && <div className="mt-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded inline-block">{successMsg}</div>}
               </div>
               <div className="text-right">
@@ -548,20 +701,104 @@ function Caja() {
                   <div className="font-extrabold text-slate-800 text-sm">
                     {porContrib ? 'Escriba la cédula del contribuyente o escoja sus locales' : 'Todo lo que debe el condominio'}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-600">
-                      {soloMultas ? 'Meses de multas a pagar' : 'Meses a pagar'}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-red-100 transition-colors">
+                      <input id="solo-multas-condominio" type="checkbox" checked={soloMultas} onChange={e => { setSoloMultas(e.target.checked); if (e.target.checked) setIncluirMultas(false); }} className="w-4 h-4 accent-red-600" />
+                      <span>Solo multas</span>
                     </label>
-                    <select id="meses-a-pagar" value={meses} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1.5 px-2 rounded-lg border border-slate-300 text-sm bg-white">
-                      <option value="">{soloMultas ? 'Todas las multas' : 'Todos (ponerse al día)'}</option>
-                      {Array.from({ length: maxOpciones }, (_, i) => i + 1).map(n => (
-                        <option key={n} value={n}>
-                          {n} {n === 1 ? (soloMultas ? 'mes de multa (el más viejo)' : 'mes (el más viejo)') : (soloMultas ? 'meses de multas más viejos' : 'meses más viejos')}
-                        </option>
-                      ))}
-                    </select>
+
+                    {!soloMultas && (
+                      <label className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${
+                        incluirMultas
+                          ? 'bg-amber-100 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-300'
+                          : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                      }`} title="Solo se agrega la multa si marca esta casilla">
+                        <input
+                          id="incluir-multas-condominio"
+                          type="checkbox"
+                          checked={incluirMultas}
+                          onChange={e => setIncluirMultas(e.target.checked)}
+                          className="w-4 h-4 accent-amber-600 rounded"
+                        />
+                        <span>Cobrar multas por mora</span>
+                      </label>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-bold text-slate-600">
+                        {soloMultas ? 'Multas a pagar:' : 'Meses a pagar:'}
+                      </label>
+                      <select id="meses-a-pagar" value={meses} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1.5 px-2 rounded-lg border border-slate-300 text-sm bg-white font-medium">
+                        <option value="">{soloMultas ? 'Todas las multas acumuladas' : 'Todos (ponerse al día)'}</option>
+                        {Array.from({ length: maxOpciones }, (_, i) => i + 1).map(n => (
+                          <option key={n} value={n}>
+                            {soloMultas
+                              ? (n === 1 ? '1er mes de multa (el más viejo obligatorio)' : `Hasta ${n} meses de multas (desde el más viejo)`)
+                              : (n === 1 ? '1 mes de aseo (el más viejo)' : `${n} meses de aseo (más viejos)`)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
+
+                {soloMultas && maxOpciones > 0 && (
+                  <div className="bg-amber-50/90 border-b border-amber-200 p-3.5 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">🔒</span>
+                        <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
+                          Pago de Multas Mes a Mes (Orden Cronológico Estricto)
+                        </span>
+                      </div>
+                      <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                        {meses ? `${meses} de ${maxOpciones} mes(es) de multa` : `Todas las multas (${maxOpciones})`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-900 font-medium">
+                      El sistema exige cobrar las multas en orden <b>desde la más antigua hacia la más reciente</b>. No se permite adelantar meses si existen multas anteriores pendientes.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-[11px] font-bold text-slate-600 mr-1">Seleccionar:</span>
+                      {Array.from({ length: maxOpciones }, (_, idx) => {
+                        const num = idx + 1;
+                        const isSelected = meses === '' || (typeof meses === 'number' && meses >= num);
+                        return (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => {
+                              if (meses === num && num > 1) {
+                                setMeses(num - 1);
+                              } else {
+                                setMeses(num);
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                              isSelected
+                                ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-300'
+                                : 'bg-white text-slate-700 border-slate-300 hover:border-amber-400 hover:bg-amber-50'
+                            }`}
+                          >
+                            {num === 1 ? '1er Mes (El más viejo)' : `Hasta Mes ${num}`}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => setMeses('')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                          meses === ''
+                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-300'
+                            : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-400'
+                        }`}
+                      >
+                        Todas las multas
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {porContrib && (
                   <div className="px-4 py-3 flex flex-wrap items-center gap-3 border-b border-slate-100 bg-sky-50/50">
                     <div className="relative">
@@ -570,9 +807,6 @@ function Caja() {
                         className="pl-8 pr-3 py-1.5 rounded-lg border border-sky-300 text-sm w-60 font-mono bg-white" />
                     </div>
                     <input value={filtroU} onChange={e => setFiltroU(e.target.value)} placeholder="Filtrar local, dueño o actividad…" className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm w-56" />
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
-                      <input id="solo-multas-condominio" type="checkbox" checked={soloMultas} onChange={e => setSoloMultas(e.target.checked)} className="w-4 h-4 accent-red-600" /> Solo multas
-                    </label>
                     {(claves.length > 0 || identidad) && <button onClick={() => { setClaves([]); setIdentidad(''); }} className="text-xs font-bold text-slate-500 hover:underline cursor-pointer">Limpiar</button>}
                   </div>
                 )}
@@ -672,7 +906,10 @@ function Caja() {
                     <div>
                       <div className="font-bold">{p.metodo} {p.banco ? `- ${p.banco}` : ''}</div>
                       {p.bancoDestino && ['Transferencia', 'Deposito'].includes(p.metodo) && <div className="text-[10px] text-sky-200">A: {p.bancoDestino}</div>}
-                      <div className="text-white/60 font-mono">Ref: {p.referencia || 'N/A'} · {p.fecha?.split('-').reverse().join('/') || ''} {p.comprobante ? '📎' : ''}</div>
+                      <div className="text-white/60 font-mono">Ref: {p.referencia || 'N/A'} {p.comprobante ? '📎' : ''}</div>
+                      <div className="text-[10px] text-slate-300">
+                        F. Trans.: {p.fechaTransaccion?.split('-').reverse().join('/') || p.fecha?.split('-').reverse().join('/')} · F. Ingreso Caja: {p.fechaIngresoCaja?.split('-').reverse().join('/') || new Date().toLocaleDateString('es-VE')}
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="font-bold tabular-nums text-emerald-400">Bs {fmtBs(p.monto)}</div>
@@ -723,9 +960,16 @@ function Caja() {
                         <option value="">Seleccione banco</option>
                         {LISTA_BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
-                      <div className="flex gap-2">
-                        <input type="text" placeholder="Referencia / Comprobante" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
-                        <input type="date" value={fechaAct} onChange={e => setFechaAct(e.target.value)} className="w-32 rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
+                      <input type="text" placeholder="Referencia / Comprobante" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Transacción (Banco)</span>
+                          <input type="date" value={fechaTransaccionAct} onChange={e => { setFechaTransaccionAct(e.target.value); setFechaAct(e.target.value); }} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Ingreso a Caja</span>
+                          <input type="date" value={fechaIngresoCajaAct} onChange={e => setFechaIngresoCajaAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none text-white [color-scheme:dark]" />
+                        </div>
                       </div>
                       {['Transferencia', 'Deposito'].includes(metodoAct) && (
                         <label className="block w-full text-center py-1.5 border border-dashed border-white/30 rounded-lg text-xs text-white/70 hover:bg-white/10 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap px-2">
@@ -804,7 +1048,12 @@ function Caja() {
                     {recibo.prueba && <div className="text-center font-black text-amber-700 border-2 border-amber-400 rounded-lg py-1">PRUEBA — NO ES UN PAGO REGISTRADO</div>}
                     <div className="flex justify-between items-start">
                       <div><div className="font-black text-lg">Alcaldía de Naguanagua · Aseo Urbano</div><div className="text-xs text-slate-500">Recibo de pago · {recibo.cobro.condo.nombre}{n > 1 ? ` · parte ${i + 1} de ${n}` : ''}</div></div>
-                      <div className="text-right text-xs"><div className="font-mono font-bold">{p.reciboRef}</div><div>{recibo.fecha.toLocaleString('es-VE')}</div></div>
+                      <div className="text-right text-xs">
+                        <div className="font-mono font-bold">{p.reciboRef}</div>
+                        <div>Emisión: {recibo.fecha.toLocaleString('es-VE')}</div>
+                        <div className="text-[10px] text-slate-500">F. Transacción: {recibo.fechaTransaccion || fechaTransaccionAct || new Date().toISOString().slice(0, 10)}</div>
+                        <div className="text-[10px] text-slate-500">F. Ingreso Caja: {recibo.fechaIngresoCaja || fechaIngresoCajaAct || new Date().toISOString().slice(0, 10)}</div>
+                      </div>
                     </div>
                     <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs">
                       <div className="text-[10px] uppercase font-bold text-slate-500">Factura a nombre de</div>
@@ -879,6 +1128,120 @@ function Caja() {
           </div>
         </div>
       )}
+      {/* ══ MODAL ACTUALIZAR DATOS DE CONTACTO (Imagen 2) ══ */}
+      {modalContacto && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-amber-300">
+            <div className="p-5 border-b border-amber-100 bg-amber-500 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚠️</span>
+                <h3 className="font-black text-base text-white tracking-wide">Actualizar Datos de Contacto</h3>
+              </div>
+              <button 
+                onClick={() => { setContactoOmitido(true); setModalContacto(false); }} 
+                className="text-white/80 hover:text-white font-bold text-lg p-1 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-slate-700 font-medium leading-relaxed bg-amber-50 p-3 rounded-xl border border-amber-200">
+                El contribuyente o condominio no posee número telefónico ni correo electrónico registrados en el sistema. Por favor actualice sus datos para continuar:
+              </p>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Número de Teléfono</label>
+                <input 
+                  type="text" 
+                  value={contactoTelefono} 
+                  onChange={e => setContactoTelefono(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none" 
+                  placeholder="Ej. 0414-1234567 / 0241-8971234" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Correo Electrónico</label>
+                <input 
+                  type="email" 
+                  value={contactoCorreo} 
+                  onChange={e => setContactoCorreo(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none" 
+                  placeholder="Ej. contribuyente@correo.com" 
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2.5">
+              <button 
+                type="button"
+                onClick={() => { setContactoOmitido(true); setModalContacto(false); }} 
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                Omitir por ahora
+              </button>
+              <button 
+                type="button"
+                onClick={handleGuardarContacto} 
+                disabled={guardandoContacto}
+                className="px-5 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-xl shadow-sm cursor-pointer"
+              >
+                {guardandoContacto ? 'Guardando…' : 'Actualizar Datos'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL EDITAR / AGREGAR NOTAS DEL CONDOMINIO ══ */}
+      {modalNotas && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-amber-300 animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-amber-200 bg-amber-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <StickyNote className="w-5 h-5 text-amber-100" />
+                <div>
+                  <h3 className="font-black text-base text-white tracking-wide">Notas del Condominio</h3>
+                  <p className="text-[11px] text-amber-100">{c?.nombre} ({c?.codigo})</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setModalNotas(false)} 
+                className="text-white/80 hover:text-white font-bold text-xl p-1 cursor-pointer leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-slate-600 font-medium">
+                Estas notas son visibles para cajeros y operadores al gestionar o consultar este condominio:
+              </p>
+              <textarea 
+                rows={5}
+                value={notaCondominio}
+                onChange={e => setNotaCondominio(e.target.value)}
+                placeholder="Escriba aquí observaciones del condominio, acuerdos, teléfonos de la junta, historial..."
+                className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none leading-relaxed"
+              />
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2.5">
+              <button 
+                type="button"
+                onClick={() => setModalNotas(false)} 
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={handleGuardarNota} 
+                disabled={guardandoNota}
+                className="px-5 py-2 text-xs font-black text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 rounded-xl shadow-sm cursor-pointer"
+              >
+                {guardandoNota ? 'Guardando…' : 'Guardar Nota'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Link href="/admin/condominios" className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-700 hover:text-emerald-900 print:hidden"><ArrowLeft className="w-4 h-4" /> Lista de condominios</Link>
     </div>
   );

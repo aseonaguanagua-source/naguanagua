@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote
 } from 'lucide-react';
 import EditorUnidad from './EditorUnidad';
 import { mesesPendientes } from '@/lib/condominios/motor';
@@ -50,6 +50,35 @@ function Ficha() {
   const [guardando, setGuardando] = useState(false);
   // Editor de unidad: undefined = cerrado, null = unidad nueva, objeto = editar
   const [editorU, setEditorU] = useState<any | null | undefined>(undefined);
+  const [modalNotas, setModalNotas] = useState(false);
+  const [notaCondominio, setNotaCondominio] = useState('');
+  const [guardandoNota, setGuardandoNota] = useState(false);
+
+  const handleGuardarNota = async () => {
+    if (!c?.codigo) return;
+    setGuardandoNota(true);
+    try {
+      const nuevaNota = notaCondominio.trim() || null;
+      const res = await fetch('/api/admin/condominios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo: c.codigo,
+          cambios: { notas: nuevaNota },
+          motivo: 'Nota actualizada desde Ficha de Condominio',
+          usuario: usuarioActual() || 'Operador',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo guardar la nota');
+      setModalNotas(false);
+      await cargar();
+    } catch (e: any) {
+      alert('Error al guardar nota: ' + e.message);
+    } finally {
+      setGuardandoNota(false);
+    }
+  };
 
   const cargar = async () => {
     setCargando(true); setError('');
@@ -294,9 +323,36 @@ function Ficha() {
               </div>
               {c.actividad && <div className="text-xs text-slate-500">Actividad: <b className="text-slate-700">{c.actividad}</b>{c.tarifa_mmv ? <> · Tarifa {Number(c.tarifa_mmv)} MMV por unidad</> : null}</div>}
               {(c.correo || c.telefono) && <div className="text-xs text-slate-500">{c.correo} {c.telefono ? `· ${c.telefono}` : ''}</div>}
-              {c.notas && <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 inline-block">{c.notas}</div>}
+              {c.notas ? (
+                <div className="mt-2 p-3 bg-amber-50/90 border border-amber-300 rounded-xl text-amber-950 flex items-start justify-between gap-3 shadow-2xs max-w-2xl">
+                  <div className="flex items-start gap-2">
+                    <StickyNote className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block mb-0.5">Notas del Condominio</span>
+                      <p className="text-xs font-semibold whitespace-pre-wrap text-slate-800 leading-relaxed">{c.notas}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => { setNotaCondominio(c.notas || ''); setModalNotas(true); }}
+                    className="px-2.5 py-1 text-xs font-bold bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg shrink-0 cursor-pointer shadow-2xs"
+                  >
+                    ✏️ Editar Nota
+                  </button>
+                </div>
+              ) : null}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <button 
+                id="btn-notas-condominio"
+                onClick={() => { setNotaCondominio(c.notas || ''); setModalNotas(true); }}
+                className={`px-4 py-2.5 rounded-xl border font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors ${
+                  c.notas 
+                    ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900' 
+                    : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
+                }`}
+              >
+                <StickyNote className="w-4 h-4 text-amber-600" /> {c.notas ? 'Editar Notas' : 'Agregar Notas'}
+              </button>
               {admin && (
                 <button id="btn-agregar-unidad" onClick={() => setEditorU(null)} className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
                   <Plus className="w-4 h-4" /> Agregar unidad
@@ -641,6 +697,59 @@ function Ficha() {
           </div>
         </div>
       )}
+
+      {/* ══ MODAL EDITAR / AGREGAR NOTAS DEL CONDOMINIO ══ */}
+      {modalNotas && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-amber-300 animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-amber-200 bg-amber-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <StickyNote className="w-5 h-5 text-amber-100" />
+                <div>
+                  <h3 className="font-black text-base text-white tracking-wide">Notas del Condominio</h3>
+                  <p className="text-[11px] text-amber-100">{c?.nombre} ({c?.codigo})</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setModalNotas(false)} 
+                className="text-white/80 hover:text-white font-bold text-xl p-1 cursor-pointer leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-slate-600 font-medium">
+                Estas notas quedan guardadas para el condominio y se muestran en la Ficha y en Caja:
+              </p>
+              <textarea 
+                rows={5}
+                value={notaCondominio}
+                onChange={e => setNotaCondominio(e.target.value)}
+                placeholder="Escriba aquí observaciones del condominio, acuerdos, teléfonos de contacto, historial..."
+                className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none leading-relaxed"
+              />
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2.5">
+              <button 
+                type="button"
+                onClick={() => setModalNotas(false)} 
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={handleGuardarNota} 
+                disabled={guardandoNota}
+                className="px-5 py-2 text-xs font-black text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 rounded-xl shadow-sm cursor-pointer"
+              >
+                {guardandoNota ? 'Guardando…' : 'Guardar Nota'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editorU !== undefined && c && (
         <EditorUnidad
           condo={c} unidad={editorU} unidades={d.unidades} multas={d.multas || []} usuario={usuarioActual()} porActividad={!!e?.porActividad}
