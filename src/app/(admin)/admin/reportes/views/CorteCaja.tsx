@@ -65,13 +65,20 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
     });
   }, [showReport, pagos, fechaInicio, fechaFin, selectedCajas, isAdmin, currentUser]);
 
+  const isRetencion = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('RETENCION') || t.includes('RETENCIÓN');
+  };
+
   const debitos = pagosFiltrados.filter(p => isDebito(p));
-  const transferencias = pagosFiltrados.filter(p => !isDebito(p));
+  const transferencias = pagosFiltrados.filter(p => !isDebito(p) && !isRetencion(p));
+  const retenciones = pagosFiltrados.filter(p => isRetencion(p));
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((s, p) => {
     const det = parseDet(p);
     return s + (parseFloat(det.monto_conciliado || p.monto) || 0);
   }, 0);
+  const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCaja = totalDebito + totalTransf;
   const cajeroLabel = !isAdmin ? currentUser : selectedCajas.length === 0 ? 'Todos' : selectedCajas.join(', ');
 

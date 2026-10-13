@@ -42,11 +42,15 @@ function isDepositoPago(p: any) {
 function isSaldoPago(p: any) {
   return String(p.tipo || '').toUpperCase().includes('SALDO');
 }
+function isRetencionPago(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  return t.includes('RETENCION') || t.includes('RETENCIÓN');
+}
 function isTransfPago(p: any) {
-  return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p);
+  return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p) && !isRetencionPago(p);
 }
 
-const FORMAS = ['Todas', 'Tarjetas (Débito y Crédito)', 'Debito', 'Credito (TMD / TVD)', 'Transferencia', 'Deposito', 'Saldo a Favor'];
+const FORMAS = ['Todas', 'Tarjetas (Débito y Crédito)', 'Debito', 'Credito (TMD / TVD)', 'Transferencia', 'Deposito', 'Saldo a Favor', 'Retenciones IVA'];
 
 export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contribuyentes = [], onBack, onPagoActualizado }: Props) {
   const today = new Date().toISOString().slice(0, 10);
@@ -130,6 +134,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
         if (forma === 'Transferencia' && !isTransfPago(p)) return false;
         if (forma === 'Deposito' && !isDepositoPago(p)) return false;
         if (forma === 'Saldo a Favor' && !isSaldoPago(p)) return false;
+        if (forma === 'Retenciones IVA' && !isRetencionPago(p)) return false;
       }
       // Las transferencias registradas por cajero deben salir en su cuadre
       // Solo transferencias del portal web sin cajero requieren estar previamente conciliadas
@@ -148,12 +153,14 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const transferencias = pagosFiltrados.filter(p => isTransfPago(p));
   const depositos = pagosFiltrados.filter(p => isDepositoPago(p));
   const saldosAFavor = pagosFiltrados.filter(p => isSaldoPago(p));
+  const retenciones = pagosFiltrados.filter(p => isRetencionPago(p));
 
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCredito = creditos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
   const totalDeposito = depositos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalSaldo = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCuadre = totalDebito + totalCredito + totalTransf + totalDeposito + totalSaldo;
   const cajeroLabel = cajero ? cajero : (!isAdmin ? currentUser : 'Todos');
 
@@ -267,6 +274,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
               <div style={{ marginTop: 4 }}><b>Transferencia Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalTransf)}</span></div>
               {totalDeposito > 0 && <div style={{ marginTop: 4 }}><b>Depósito Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDeposito)}</span></div>}
               {totalSaldo > 0 && <div style={{ marginTop: 4 }}><b>Saldo a Favor Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalSaldo)}</span></div>}
+              {totalRetenciones > 0 && <div style={{ marginTop: 4, color: '#64748b' }}><b>Retención IVA (Informativo - No suma):</b><span style={{ float: 'right' }}>{fmtBs(totalRetenciones)}</span></div>}
             </div>
             <div style={{ padding: '10px 14px', borderRight: '1px solid #ccc', fontSize: 12 }}>
               <div><b>Fecha:</b> Desde {fecha} hasta {fecha}</div>
@@ -390,6 +398,42 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                   <tr>
                     <td colSpan={9} style={S.tf}>Total Items: {debitos.length}</td>
                     <td style={{ ...S.tf, textAlign: 'right' }}>Total Debito: {fmtBs(totalDebito)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </>}
+
+          {/* Retenciones de IVA (Informativo, no suma a caja) */}
+          {retenciones.length > 0 && <>
+            <div style={{ ...S.secHdr, background: '#f1f5f9', color: '#475569' }}>RETENCIONES DE IVA (COMPROBANTES - INFORMATIVO / NO SUMA EN CUADRE)</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>{['#', 'Fecha/Hora', 'Tipo', 'Cajero', 'Contribuyente', 'Comprobante', 'Estado', 'Monto Retenido']
+                    .map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {retenciones.map((p, i) => {
+                    const det = parseDet(p);
+                    return (
+                      <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
+                        <td style={S.td}>{i + 1}</td>
+                        <td style={S.td}>{fmtDT(p.created_at)}</td>
+                        <td style={{ ...S.td, fontWeight: 700, color: '#475569' }}>{p.tipo}</td>
+                        <td style={S.td}>{det.cajero || '-'}</td>
+                        <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad}-{p.contribuyente}</td>
+                        <td style={S.td}>{p.referencia || '-'}</td>
+                        <td style={S.td}><span style={{ color: '#16a34a', fontWeight: 700 }}>{p.estado || 'Aprobado'}</span></td>
+                        <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} />
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={7} style={S.tf}>Total Comprobantes: {retenciones.length} (Informativo, no suma a caja)</td>
+                    <td style={{ ...S.tf, textAlign: 'right', color: '#475569' }}>Total Retención: {fmtBs(totalRetenciones)}</td>
                   </tr>
                 </tfoot>
               </table>

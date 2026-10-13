@@ -58,12 +58,13 @@ export function infoCondominioPago(p: any, mapa: Map<string, CondoLigero>): Info
   const marcado = d.isCondominio === true || d.es_condominio === true;
   if (!esModulo && !marcado && !porRif) return null;
   const c = d.condominio || {};
-  const tipo = c.tipo || porRif?.tipo || null;
+  const tipo = c.tipo || porRif?.tipo || (d.tipoContribuyente ? d.tipoContribuyente : null);
+  const isRes = tipo ? String(tipo).toUpperCase().includes('RESIDENCIAL') : false;
   const g = d.grupo_pago;
   return {
     codigo: c.codigo || porRif?.codigo || d.cod_inmueble || null,
     nombre: c.nombre || porRif?.nombre || d.contribuyente || 'Condominio',
-    tipo, residencial: tipo ? String(tipo).toUpperCase() === 'RESIDENCIAL' : null,
+    tipo, residencial: isRes,
     facturaA: d.modo === 'CONTRIBUYENTE' ? 'CONTRIBUYENTE' : 'CONDOMINIO',
     grupo: g ? { id: g.id || p.grupo_pago, parte: g.parte, partes: g.partes, montoTotal: Number(g.monto_total) || 0, referencia: g.referencia } : null,
     lineas: Array.isArray(c.lineas) ? c.lineas : [],
@@ -77,7 +78,7 @@ export function pasaFiltroModulo(p: any, filtro: FiltroModulo, mapa: Map<string,
   if (filtro === 'Contribuyentes') return !info;
   if (!info) return false;
   if (filtro === 'Condominios residenciales') return info.residencial === true;
-  if (filtro === 'Condominios comerciales') return info.residencial === false;
+  if (filtro === 'Condominios comerciales') return info.residencial !== true;
   return true;
 }
 

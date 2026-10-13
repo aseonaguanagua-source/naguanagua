@@ -108,19 +108,26 @@ export const generarCorteCajaPDF = (
     return t.includes('SALDO');
   };
 
+  const isRetencionPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('RETENCION') || t.includes('RETENCIÓN');
+  };
+
   const isTransfPago = (p: any) => {
-    return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p);
+    return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p) && !isRetencionPago(p);
   };
 
   const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
   const creditos = pagosFiltrados.filter(p => isCreditoPago(p));
   const transferencias = pagosFiltrados.filter(p => isTransfPago(p));
   const saldosAFavor = pagosFiltrados.filter(p => isSaldoPago(p));
+  const retenciones = pagosFiltrados.filter(p => isRetencionPago(p));
 
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalCredito = creditos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalTransf = transferencias.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const totalRetenciones = retenciones.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalGeneral = totalDebito + totalCredito + totalTransf + totalSaldo;
 
   doc.setFont('helvetica', 'bold');
@@ -145,6 +152,12 @@ export const generarCorteCajaPDF = (
   if (totalSaldo > 0 || saldosAFavor.length > 0) {
     doc.text("Saldo a Favor", 40, curResY);
     doc.text(formatBs(totalSaldo), pageWidth - 40, curResY, { align: 'right' });
+    curResY += 15;
+  }
+
+  if (totalRetenciones > 0 || retenciones.length > 0) {
+    doc.text("Retenciones de IVA (Informativo - No suma)", 40, curResY);
+    doc.text(formatBs(totalRetenciones), pageWidth - 40, curResY, { align: 'right' });
     curResY += 15;
   }
 
@@ -376,17 +389,24 @@ export const generarIngresoBancarioPDF = (
     return t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD');
   };
 
+  const isRetencionPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('RETENCION') || t.includes('RETENCIÓN');
+  };
+
   const isTransfPago = (p: any) => {
-    return !isDebitoPago(p) && !isCreditoPago(p);
+    return !isDebitoPago(p) && !isCreditoPago(p) && !isRetencionPago(p);
   };
 
   const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
   const creditos = pagosFiltrados.filter(p => isCreditoPago(p));
   const transferencias = pagosFiltrados.filter(p => isTransfPago(p));
+  const retenciones = pagosFiltrados.filter(p => isRetencionPago(p));
 
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalCredito = creditos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalTransf = transferencias.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const totalRetenciones = retenciones.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalGeneral = totalDebito + totalCredito + totalTransf;
 
   doc.setFont('helvetica', 'bold');
@@ -407,6 +427,12 @@ export const generarIngresoBancarioPDF = (
   doc.text("Transferencias Bancarias", 40, curResY);
   doc.text(formatBs(totalTransf), pageWidth - 40, curResY, { align: 'right' });
   curResY += 15;
+
+  if (totalRetenciones > 0 || retenciones.length > 0) {
+    doc.text("Retenciones de IVA (Informativo - No suma)", 40, curResY);
+    doc.text(formatBs(totalRetenciones), pageWidth - 40, curResY, { align: 'right' });
+    curResY += 15;
+  }
 
   doc.setLineWidth(1);
   doc.line(40, curResY, pageWidth - 40, curResY);

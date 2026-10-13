@@ -74,8 +74,13 @@ export const generarCuadreCajaPDF = (
     return t.includes('SALDO');
   };
 
+  const isRetencionPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('RETENCION') || t.includes('RETENCIÓN');
+  };
+
   const isTransfPago = (p: any) => {
-    return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p);
+    return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p) && !isRetencionPago(p);
   };
 
   const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
@@ -83,12 +88,14 @@ export const generarCuadreCajaPDF = (
   const transferencias = pagosFiltrados.filter(p => isTransfPago(p));
   const depositos = pagosFiltrados.filter(p => isDepositoPago(p));
   const saldosAFavor = pagosFiltrados.filter(p => isSaldoPago(p));
+  const retenciones = pagosFiltrados.filter(p => isRetencionPago(p));
 
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalCredito = creditos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalDeposito = depositos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
+  const totalRetenciones = retenciones.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalGeneral = totalDebito + totalCredito + totalTransf + totalDeposito + totalSaldo;
 
   doc.setFont('helvetica', 'bold');
@@ -119,6 +126,12 @@ export const generarCuadreCajaPDF = (
   if (totalSaldo > 0 || saldosAFavor.length > 0) {
     doc.text("Saldo a Favor", 40, curResY);
     doc.text(formatBs(totalSaldo), pageWidth - 40, curResY, { align: 'right' });
+    curResY += 15;
+  }
+
+  if (totalRetenciones > 0 || retenciones.length > 0) {
+    doc.text("Retenciones de IVA (Informativo - No suma)", 40, curResY);
+    doc.text(formatBs(totalRetenciones), pageWidth - 40, curResY, { align: 'right' });
     curResY += 15;
   }
 
@@ -275,6 +288,24 @@ export const generarCuadreCajaPDF = (
     totalSaldo,
     "Total Saldo a Favor:"
   );
+
+  if (retenciones.length > 0) {
+    drawSubTable(
+      "RETENCIONES DE IVA (COMPROBANTES - INFORMATIVO)", 
+      retenciones, 
+      ["FECHA/HORA", "TIPO", "CAJERO", "CONTRIBUYENTE", "COMPROBANTE", "MONTO"],
+      (p, c) => [
+        new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+        String(p.tipo || 'RET').substring(0,3).toUpperCase(),
+        cajeroNombre,
+        String(getNombreContribuyente(p, c)).substring(0,35),
+        p.referencia || 'N/A',
+        (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ],
+      totalRetenciones,
+      "Total Retenciones (No suma a caja):"
+    );
+  }
 
   const pageCount = (doc as any).internal.getNumberOfPages();
   const emisionStr = new Date().toLocaleString('es-VE', {hour12: true, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit'});

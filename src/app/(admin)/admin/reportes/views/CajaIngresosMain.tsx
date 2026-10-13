@@ -44,6 +44,10 @@ function isCredito(p: any) {
 function isTarjeta(p: any) {
   return isDebito(p) || isCredito(p);
 }
+function isRetencion(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  return t.includes('RETENCION') || t.includes('RETENCIÓN');
+}
 function getEstadoStyle(estado: string): React.CSSProperties {
   if (estado === 'Aprobado') return { color: '#1a7a1a', fontWeight: 700 };
   if (estado === 'Por Verificar') return { color: '#b45309', fontWeight: 700 };
@@ -152,10 +156,12 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   };
   const debitos = pagosFiltrados.filter(p => isDebito(p));
   const creditos = pagosFiltrados.filter(p => isCredito(p));
-  const transferencias = pagosFiltrados.filter(p => !isTarjeta(p));
+  const transferencias = pagosFiltrados.filter(p => !isTarjeta(p) && !isRetencion(p));
+  const retenciones = pagosFiltrados.filter(p => isRetencion(p));
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCredito = creditos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
+  const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalIngresos = totalDebito + totalCredito + totalTransf;
   const totalUSD = tcmmv > 0 ? totalIngresos / tcmmv : 0;
   const cajeroLabel = !isAdmin ? currentUser : selectedCajas.length === 0 ? 'Todos' : selectedCajas.join(', ');
@@ -188,6 +194,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div><b>Débito (POS) Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDebito)}</span></div>
         <div style={{ marginTop: 4 }}><b>Crédito (TMD / TVD) Bs.:</b><span style={{ float: 'right', color: '#1e40af', fontWeight: 600 }}>{fmtBs(totalCredito)}</span></div>
         <div style={{ marginTop: 4 }}><b>Transferencia Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalTransf)}</span></div>
+        {totalRetenciones > 0 && <div style={{ marginTop: 4, color: '#64748b' }}><b>Retención IVA (Informativo - No suma):</b><span style={{ float: 'right' }}>{fmtBs(totalRetenciones)}</span></div>}
       </div>
       <div style={{ padding: '10px 14px', borderRight: '1px solid #ccc', fontSize: 12 }}>
         <div><b>Fecha:</b> Desde {new Date(fechaInicio).toLocaleString('es-VE', { hour: '2-digit', minute: '2-digit' })} hasta {new Date(fechaFin).toLocaleString('es-VE', { hour: '2-digit', minute: '2-digit' })}</div>
@@ -329,6 +336,29 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             </tr>);
           })}</tbody>
           <tfoot><tr><td colSpan={12} style={S.tf}>Total Items: {transferencias.length}</td><td style={{ ...S.tf, textAlign: 'right' }}>Total Transferencia: {fmtBs(totalTransf)}</td></tr></tfoot>
+        </table>
+      </div>
+    </>}
+  </>);
+
+  const RetencionesTable = ({ showDT }: { showDT?: boolean }) => (<>
+    {retenciones.length > 0 && <>
+      <div style={{ ...S.secHdr, background: '#f1f5f9', color: '#475569' }}>RETENCIONES DE IVA (COMPROBANTES - INFORMATIVO / NO SUMA EN CAJA)</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Comprobante','Estado','Monto Retenido'] : ['#','Fecha','Tipo','Operador','Contribuyente','Comprobante','Estado','Monto Retenido']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <tbody>{retenciones.map((p, i) => { const det = parseDet(p); return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
+            <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
+            <td style={{ ...S.td, fontWeight: 700, color: '#475569' }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
+            <td style={{ ...S.td, color: '#2a5298' }}>
+              <div style={{ fontWeight: 600 }}>{p.identidad}</div>
+              <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribuyentes)}</div>
+            </td>
+            <td style={S.td}>{p.referencia || '-'}</td>
+            <td style={S.td}><span style={getEstadoStyle(p.estado)}>{p.estado || 'Aprobado'}</span></td>
+            <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} />
+          </tr>); })}</tbody>
+          <tfoot><tr><td colSpan={7} style={S.tf}>Total Comprobantes: {retenciones.length} (Informativo, no suma a caja)</td><td style={{ ...S.tf, textAlign: 'right', color: '#475569' }}>Total Retención: {fmtBs(totalRetenciones)}</td></tr></tfoot>
         </table>
       </div>
     </>}
@@ -520,7 +550,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>REPORTE GENERAL DE INGRESOS<IconsTop showExcel /></div>
           <SummaryBox title="Total Ingresos" isUSD />
-          <DebitoTable /><CreditoTable /><TransfTable />
+          <DebitoTable /><CreditoTable /><TransfTable /><RetencionesTable />
           <div style={S.secHdr}>RESUMEN FISCAL POR PERIODOS</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead><tr><th style={{ ...S.th, width: '80%' }}>Concepto / Agrupacion por Anos</th><th style={{ ...S.th, textAlign: 'right' }}>Monto Distribuido Bs.</th></tr></thead>
@@ -541,7 +571,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>RESUMEN DE CAJA<IconsTop /></div>
           <SummaryBox title="Total Caja" />
-          <DebitoTable showDT /><CreditoTable showDT /><TransfTable showDT />
+          <DebitoTable showDT /><CreditoTable showDT /><TransfTable showDT /><RetencionesTable showDT />
           {pagosFiltrados.length === 0 && <EmptyMsg />}
         </div>
       )}
@@ -550,7 +580,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>REPORTE GENERAL DE INGRESOS<IconsTop /></div>
           <SummaryBox title="Total Ingresos" isUSD />
-          <DebitoTable /><CreditoTable /><TransfTable />
+          <DebitoTable /><CreditoTable /><TransfTable /><RetencionesTable />
           {pagosFiltrados.length === 0 && <EmptyMsg />}
         </div>
       )}

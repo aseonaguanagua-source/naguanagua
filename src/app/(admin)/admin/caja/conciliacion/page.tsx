@@ -819,6 +819,26 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
 
+        // ── SINCRONIZAR DEUDA PARA PAGOS DE CONDOMINIO ──
+        if (det.modulo === 'condominios' || (pago as any).modulo === 'condominios') {
+          const condoData = det.condominio || {};
+          const lineasCondo: any[] = Array.isArray(condoData.lineas) ? condoData.lineas : [];
+          for (const lc of lineasCondo) {
+            if (lc.inmueble) {
+              await supabase.from('inmuebles').update({
+                meses_deuda: 0,
+                deuda_mmv: 0,
+                deuda_congelada_bs: 0,
+                multa_bs: 0
+              }).ilike('inmueble', lc.inmueble);
+              await supabase.from('condominio_unidades').update({
+                aseo_pendiente_desde: null,
+                multa_meses: 0
+              }).ilike('inmueble', lc.inmueble);
+            }
+          }
+        }
+
         // Excedente de una transferencia (registrado en Caja como saldo a favor): se acredita al aprobar.
         // Antes nunca se acreditaba para transferencias (solo para punto de venta).
         const excedenteCaja = parseFloat(String(det.saldo_favor || 0)) || 0;

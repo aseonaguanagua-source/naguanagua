@@ -307,7 +307,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       ...(i === 0 && (pago.saldoFavorGenerado || 0) > 0.01 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
     };
     const esTransferencia = pago.metodo.toLowerCase().includes('transferencia') || pago.metodo.toLowerCase().includes('pago móvil') || (pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => pa.metodo.toLowerCase().includes('transferencia') || pa.metodo.toLowerCase().includes('pago móvil')));
-    const fechaRegistro = sol.fechaOverride ? new Date(sol.fechaOverride + 'T12:00:00-04:00') : new Date();
+    const fechaRegistro = new Date();
     const fila: any = { id, identidad: f.identidad, monto: f.totalBs, banco: pago.banco || pago.metodo, referencia: refFinal, tipo: pago.metodo, estado: esTransferencia ? 'Por Verificar' : 'Aprobado', modulo: 'condominios', detalles, created_at: fechaRegistro.toISOString() };
     if (grupo) fila.grupo_pago = grupo;
     const { error } = await sb.from('pagos_reportados').insert(fila);
@@ -359,7 +359,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const u = porId.get(l.clave);
     if (u) {
       const upd: any = {};
-      if (l.meses > 0 && !sol.soloMultas) upd.aseo_pendiente_desde = M.avanzarPendiente(u.aseo_pendiente_desde, l.meses, hoy);
+      if (l.meses > 0 && !sol.soloMultas) upd.aseo_pendiente_desde = M.avanzarPendiente(u.aseo_pendiente_desde || c.aseo_pendiente_desde, l.meses, hoy);
       if (l.multaMesesQueQuedan > 0) upd.multa_meses = (Number(u.multa_meses) || 0) + l.multaMesesQueQuedan;
       else if (sol.soloMultas) {
         const multasDet = l._multasDetalle || [];
@@ -383,15 +383,14 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       }
       // Sincronizar en inmuebles para evitar bloqueos de solvencia
       if (u.inmueble && l.meses > 0 && !sol.soloMultas) {
-        const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv').eq('inmueble', u.inmueble).maybeSingle();
-        if (curInm) {
-          const nMesesRest = Math.max(0, (parseInt(curInm.meses_deuda || 0) || 0) - l.meses);
-          await sb.from('inmuebles').update({
-            meses_deuda: nMesesRest,
-            deuda_mmv: nMesesRest === 0 ? 0 : curInm.deuda_mmv,
-            multa_bs: 0
-          }).eq('inmueble', u.inmueble);
-        }
+        const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv').ilike('inmueble', u.inmueble).maybeSingle();
+        const nMesesRest = l.meses >= l.mesesDeuda ? 0 : Math.max(0, (parseInt(curInm?.meses_deuda || 0) || 0) - l.meses);
+        await sb.from('inmuebles').update({
+          meses_deuda: nMesesRest,
+          deuda_mmv: nMesesRest === 0 ? 0 : (curInm?.deuda_mmv || 0),
+          deuda_congelada_bs: nMesesRest === 0 ? 0 : undefined,
+          multa_bs: 0
+        }).ilike('inmueble', u.inmueble);
       }
     } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
       const upd: any = {};

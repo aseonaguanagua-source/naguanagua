@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useMemo } from 'react';
 import { Printer, FileSpreadsheet, ArrowLeft, ChevronDown } from 'lucide-react';
 
@@ -61,13 +61,20 @@ export default function CajaIngresos({ pagos, cajeros, isAdmin, currentUser, tcm
     });
   }, [showReport, pagos, fechaInicio, fechaFin, selectedCajas, tipoFilter, isAdmin, currentUser]);
 
+  const isRetencion = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    return t.includes('RETENCION') || t.includes('RETENCIÓN');
+  };
+
   const debitos = pagosFiltrados.filter(p => isDebito(p));
-  const transferencias = pagosFiltrados.filter(p => !isDebito(p));
+  const transferencias = pagosFiltrados.filter(p => !isDebito(p) && !isRetencion(p));
+  const retenciones = pagosFiltrados.filter(p => isRetencion(p));
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((s, p) => {
     const det = parseDet(p);
     return s + (parseFloat(det.monto_conciliado || p.monto) || 0);
   }, 0);
+  const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalIngresos = totalDebito + totalTransf;
   const totalUSD = tcmmv > 0 ? totalIngresos / tcmmv : 0;
   const cajeroLabel = !isAdmin ? currentUser : selectedCajas.length === 0 ? 'Todos' : selectedCajas.join(', ');
