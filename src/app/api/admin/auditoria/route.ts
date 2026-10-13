@@ -27,6 +27,10 @@ export async function GET(req: Request) {
     if (usuario) q = q.eq('usuario', usuario);
     if (categoria && categoria !== 'TODAS') q = q.eq('categoria', categoria);
     if (accion) q = q.eq('accion', accion);
+    // Lo hecho con el Modo Dios NO se muestra en Auditoría (queda solo en el historial propio del Modo Dios,
+    // que lo necesita para poder deshacer cambios).
+    q = q.not('accion', 'ilike', 'MODO DIOS%')
+      .or('detalles->>_categoria.is.null,detalles->>_categoria.neq.MODO_DIOS');
 
     const { data, error, count } = await q;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
