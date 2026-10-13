@@ -47,13 +47,12 @@ export default function SimuladorPage() {
   const [descuentoMontoFijoBs, setDescuentoMontoFijoBs] = useState<number>(0);
   const [deudaAdicionalBs, setDeudaAdicionalBs] = useState<number>(0);
   const [simCuotas, setSimCuotas] = useState<number>(1);
-  const [customBcv, setCustomBcv] = useState<number>(tcmmv || 57);
-
-  // Sync initial BCV
+  // Tasa Euro BCV del día (la misma de Caja). NUNCA usar 57 como tasa: 57 es el multiplicador de la UCD.
+  const [customBcv, setCustomBcv] = useState<number>(tcmmv || 0);
   useEffect(() => {
-    if (tcmmv && tcmmv > 0) {
-      setCustomBcv(tcmmv);
-    }
+    if (tcmmv && tcmmv > 0) { setCustomBcv(tcmmv); return; }
+    fetch(`/api/bcv?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.json())
+      .then(j => { if (j?.tcmmv > 0) setCustomBcv(j.tcmmv); }).catch(() => {});
   }, [tcmmv]);
 
   // Execute Search
@@ -177,7 +176,8 @@ export default function SimuladorPage() {
    */
   const items: ItemDeuda[] = useMemo(() => {
     if (!foundUser) return [];
-    const tasa = customBcv > 0 ? customBcv : (tcmmv || 57);
+    const tasa = customBcv > 0 ? customBcv : (tcmmv || 0);
+    if (!(tasa > 0)) return []; // esperando la tasa del día
     if (condoData?.enCondominio) {
       const k = condoData.tasa > 0 ? tasa / condoData.tasa : 1;
       return (condoData.renglones || [])
@@ -450,6 +450,9 @@ export default function SimuladorPage() {
                   </span>
                   <span className="text-[10px] text-emerald-600 font-bold block">
                     {baseline.esRes ? 'Exento 0% IVA' : '+ 16% IVA'}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block">
+                    {customBcv > 0 ? `Tasa Euro BCV: Bs. ${formatBs(customBcv)}` : 'Cargando tasa del día…'}
                   </span>
                 </div>
               </div>
