@@ -25,6 +25,7 @@ export default function EstadoCuentaPage() {
   const [portalDoc, setPortalDoc] = useState('');
   const tasaBcv = tcmmv || 0;
   const [misInmueblesDb, setMisInmueblesDb] = useState<any[]>([]);
+  const [misNaCodes, setMisNaCodes] = useState<string[]>([]);
   const [misFactDb, setMisFactDb] = useState<any[]>([]);
   const [cuotasData, setCuotasData] = useState<any[]>([]);
   const [serviciosEsp, setServiciosEsp] = useState<any[]>([]);
@@ -53,7 +54,7 @@ export default function EstadoCuentaPage() {
           // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas pendientes y meses históricos
           const rc = construirRecibosContribuyente({ inmuebles: inmsDB || [], facturas: facturasDB || [], identidad: fullDoc });
           setMisInmueblesDb(rc.billables);
-          const naParentCodes = rc.naCodes; void naParentCodes;
+          setMisNaCodes(rc.naCodes);
           const combined: any[] = [
             ...(facturasDB || []).filter((f: any) => !ESTADOS_RECIBO_PENDIENTE.includes(f.estado)),
             ...rc.recibos,
@@ -254,7 +255,17 @@ export default function EstadoCuentaPage() {
     };
 
     // === Generate one PDF per inmueble ===
-    const inmsToProcess = misInmuebles.length > 0 ? misInmuebles : [{ inmueble: 'Principal', tipo: 'Inmueble', cant_inmuebles: 1 }];
+    // Las actividades de un mismo N/A salen en UN SOLO estado de cuenta (la tarifa del N/A es la suma
+    // de sus actividades). Las demás, uno por inmueble.
+    const baseInms = misInmuebles.length > 0 ? misInmuebles : [{ inmueble: 'Principal', tipo: 'Inmueble', cant_inmuebles: 1 }];
+    const grupos = new Map<string, any[]>();
+    baseInms.forEach((i: any) => {
+      const k = i.padre_id && misNaCodes.includes(i.padre_id) ? i.padre_id : (i.inmueble || 'Principal');
+      grupos.set(k, [...(grupos.get(k) || []), i]);
+    });
+    const inmsToProcess = [...grupos.entries()].map(([k, ms]) => ms.length === 1 && ms[0].inmueble === k
+      ? { ...ms[0], _miembros: ms }
+      : { ...ms[0], inmueble: k, actividad_principal: `N/A (${ms.length} actividades)`, _esNA: true, _miembros: ms });
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     let pageAdded = false;
@@ -343,11 +354,13 @@ export default function EstadoCuentaPage() {
       y += 6;
 
       // Get recibos for this specific inmueble
+      const miembros: any[] = (inm as any)._miembros || [inm];
+      const miembroDe = (f: any) => miembros.find((m: any) => m.inmueble && String(f.referencia || '').includes(m.inmueble));
       const inmRecibos = pendientes.filter((f: any) => {
         if (!f.referencia) return true;
         if (f.referencia.startsWith('RECIB-HIST-')) {
           const parts = f.referencia.split('-');
-          return parts[2] === inm.inmueble || parts[2] === inm.cod_cont || parts[2] === (inm as any).Inmueble;
+          return miembros.some((m: any) => parts[2] === m.inmueble || parts[2] === m.cod_cont || parts[2] === m.Inmueble);
         }
         if (f.referencia.startsWith('CM-')) {
           const match = f.referencia.match(/(I-\d+|C-\d+)/);
@@ -433,7 +446,8 @@ export default function EstadoCuentaPage() {
       const detalleRows = inmRecibos.map((f: any) => {
         const b = getReciboBreakdown(f);
         const monto = calcMonto(f);
-        const actClean = cleanClasificacionActividad((inm as any).actividad_principal || (inm as any).clasificacion || '');
+        const mInm: any = miembroDe(f) || inm;
+        const actClean = cleanClasificacionActividad(mInm.actividad_principal || mInm.clasificacion || '');
         const det = actClean ? `Aseo ${actClean}` : 'Servicio de Aseo Urbano';
         const periodoDate = f.emision ? f.emision.replace(/-/g, '-') : '—';
         return [

@@ -471,11 +471,28 @@ export default function DondePagarPage() {
     setExpandedLocals(prev => ({ ...prev, [localId]: !prev[localId] }));
   };
 
+  // N/A = suma de sus actividades: un mes de una actividad de un N/A NO se puede pagar solo.
+  // Al marcar/desmarcar un mes se marcan/desmarcan también las demás actividades del mismo N/A en ese mes.
+  const refsConHermanosNA = (ref: string): string[] => {
+    const rec = rawRecibos.find((r: any) => r.referencia === ref);
+    const inm = userInms.find((i: any) => i.inmueble && String(ref).includes(i.inmueble));
+    if (!rec || !inm?.padre_id) return [ref];
+    const hermanos = userInms.filter((i: any) => i.padre_id === inm.padre_id).map((i: any) => i.inmueble);
+    if (hermanos.length <= 1) return [ref];
+    const mes = String(rec.emision || '').slice(0, 7);
+    const refs = rawRecibos
+      .filter((r: any) => String(r.emision || '').slice(0, 7) === mes && hermanos.some((h: string) => String(r.referencia || '').includes(h)))
+      .map((r: any) => r.referencia)
+      .filter((r: string) => !isItemPending(r));
+    return Array.from(new Set([ref, ...refs]));
+  };
+
   // Manejo de selecciones
   const toggleSingleReceipt = (ref: string) => {
     if (isItemPending(ref)) return;
-    setSelectedReceiptRefs(prev => 
-      prev.includes(ref) ? prev.filter(r => r !== ref) : [...prev, ref]
+    const grupo = refsConHermanosNA(ref);
+    setSelectedReceiptRefs(prev =>
+      prev.includes(ref) ? prev.filter(r => !grupo.includes(r)) : Array.from(new Set([...prev, ...grupo]))
     );
   };
 
