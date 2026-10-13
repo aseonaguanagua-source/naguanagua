@@ -1,4 +1,5 @@
 'use client';
+import { getIdentidadVariantsExact } from '@/lib/formatters';
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
@@ -752,11 +753,40 @@ function ContribuyentesPageContent() {
     }
 
     // 2. Inmuebles del contribuyente
-    const inmueblesContribuyente = (inmuebles || []).filter((i: any) => {
+    let inmueblesContribuyente: any[] = (inmuebles || []).filter((i: any) => {
       if (i.estado === 'Eliminado') return false; // misma regla que Caja
       const iid = (i.identidad || '').replace(/-/g, '').toUpperCase();
       return iid === idLimpio || iid === viewData.Identidad;
     });
+    // Datos frescos de la base (la lista en memoria puede estar incompleta) + todas las actividades de sus N/A
+    try {
+      const vars = getIdentidadVariantsExact(viewData.Identidad || '');
+      if (vars.length) {
+        const { data: frescos } = await supabase.from('inmuebles').select('*').or(vars.map(v => `identidad.eq.${v}`).join(','));
+        let lista = (frescos || []).filter((i: any) => i.estado !== 'Eliminado');
+        const naCodes = lista.filter((i: any) => (i.actividad_principal || '').trim().toUpperCase() === 'N/A').map((i: any) => i.inmueble).filter(Boolean);
+        if (naCodes.length) {
+          const { data: hijos } = await supabase.from('inmuebles').select('*').in('padre_id', naCodes);
+          const ya = new Set(lista.map((i: any) => i.inmueble));
+          lista = lista.concat((hijos || []).filter((h: any) => h.estado !== 'Eliminado' && !ya.has(h.inmueble)));
+        }
+        if (lista.length) inmueblesContribuyente = lista;
+      }
+    } catch { /* se usa la lista en memoria */ }
+    // N/A = suma de sus actividades. Si la deuda (meses) está registrada en el contenedor N/A, sus
+    // actividades heredan esos meses (el contenedor no se cobra: así no hay cobro doble).
+    {
+      const mesesEf = (x: any) => {
+        const m = parseInt(String(x.meses_deuda || 0), 10) || 0;
+        return m > 0 ? m : ((parseFloat(String(x.deuda_mmv || 0)) || 0) > 0 || (parseFloat(String(x.deuda_congelada_bs || 0)) || 0) > 0 ? 1 : 0);
+      };
+      const naMeses = new Map<string, number>();
+      inmueblesContribuyente.forEach((i: any) => { if ((i.actividad_principal || '').trim().toUpperCase() === 'N/A') naMeses.set(i.inmueble, mesesEf(i)); });
+      inmueblesContribuyente = inmueblesContribuyente.map((i: any) => {
+        const mNa = i.padre_id ? naMeses.get(i.padre_id) : undefined;
+        return mNa && mNa > mesesEf(i) ? { ...i, meses_deuda: mNa } : i;
+      });
+    }
 
     const userInms = inmueblesContribuyente.length > 0
       ? inmueblesContribuyente
@@ -965,7 +995,7 @@ function ContribuyentesPageContent() {
       const esRes = cluster.tipo === 'RESIDENCIAL';
 
       // Facturas asociadas a los inmuebles de este cluster
-      const clusterInmCodes = cluster.inmuebles.map((i: any) => (i.inmueble || '').toUpperCase()).filter(Boolean);
+      const clusterInmCodes = [...new Set(cluster.inmuebles.flatMap((i: any) => [(i.inmueble || '').toUpperCase(), (i.padre_id || '').toUpperCase()]).filter(Boolean))] as string[];
       const clusterCodConts = cluster.inmuebles.map((i: any) => (i.cod_cont || '').toUpperCase()).filter(Boolean);
 
       let clusterDeudas = deudas.filter((f: any) => {
