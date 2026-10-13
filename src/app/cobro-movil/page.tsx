@@ -11,6 +11,7 @@ import { logAudit } from '@/lib/audit';
 import { performLogout } from '@/lib/logout';
 import { isResidencialInm, calcularMensualidad, isCondominioPagoIndividual } from '@/lib/calculos';
 import { calcularDeudaInmueble, esUltimoMesHist, reglaCobroInmueble, r2, PORCENTAJE_RETENCION_AGENTE } from '@/lib/deudaMensual';
+import { construirRecibosContribuyente, desgloseReciboCM } from '@/lib/recibosContribuyente';
 import { getIdentidadVariants } from '@/lib/formatters';
 import { clusterInmueblesByLocal } from '@/lib/cajaHelpers';
 
@@ -138,45 +139,10 @@ export default function KioskPage() {
       // Multa de local en condominio comercial (igual a Caja): monto fijo, exento de IVA
       const m = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
       return { base: 0, multa: m, iva: 0, total: m };
-    } else if (r.referencia?.startsWith('RECIB-') || r.referencia === 'RECIB-DEUDA') {
-      let totalBase = 0, totalMulta = 0, totalIva = 0;
-      userInms.forEach(i => {
-        const meses = Math.max(1, parseInt(String(i.meses_deuda || 1)));
-        const esRes = isResidencialInm(i);
-        const baseMes = parseFloat(calcularMensualidad(i, tcmmv).toFixed(2));
-        const baseInm = baseMes * meses;
-        const k = Math.max(0, meses - 1);
-        const notasLower = ((i as any).notas || '').toLowerCase();
-        const isExonerado = notasLower.includes('exonerad') || notasLower.includes('sin multa') || notasLower.includes('sin multas');
-        const multaInm = isExonerado ? 0 : baseMes * (esRes ? 0.10 : 0.12) * k;
-        totalBase += baseInm;
-        totalMulta += multaInm;
-        if (!esRes) {
-          totalIva += baseInm * 0.16;
-        }
-      });
-      return {
-        base: parseFloat(totalBase.toFixed(2)),
-        multa: parseFloat(totalMulta.toFixed(2)),
-        iva: parseFloat(totalIva.toFixed(2)),
-        total: parseFloat((totalBase + totalMulta + totalIva).toFixed(2))
-      };
     } else if (r.referencia?.startsWith('CM-')) {
-      let tInms = userInms.filter(i => i.inmueble && r.referencia.includes(i.inmueble));
-      if (tInms.length === 0) tInms = userInms;
-      let totalBase = 0, totalIva = 0;
-      tInms.forEach(i => {
-        const bm = calcMontoMes(i, tcmmv);
-        const esRes = isResidencialInm(i);
-        totalBase += bm;
-        if (!esRes) totalIva += bm * 0.16;
-      });
-      return {
-        base: parseFloat(totalBase.toFixed(2)),
-        multa: 0,
-        iva: parseFloat(totalIva.toFixed(2)),
-        total: parseFloat((totalBase + totalIva).toFixed(2))
-      };
+      // Igual a Caja: base + IVA + multa si el mes tiene más de 1 mes vencido
+      const d = desgloseReciboCM(r, userInms, tcmmv);
+      return { base: d.base, multa: d.multa, iva: d.iva, total: d.total };
     }
     const m = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     return { base: m, multa: 0, iva: 0, total: m };
@@ -524,7 +490,9 @@ export default function KioskPage() {
     }
 
         try {
-      const res = await fetch(`/api/cobro-movil/buscar?q=${encodeURIComponent(inputClean)}`);
+      // Con el prefijo (V/E/J/G/P) para no mezclar cédulas distintas con el mismo número (igual que Caja)
+      const qBusqueda = /^\d+$/.test(inputClean) ? `${activePrefix}-${inputClean}` : inputClean;
+      const res = await fetch(`/api/cobro-movil/buscar?q=${encodeURIComponent(qBusqueda)}`);
       const data = await res.json();
       
       if (!res.ok) {
@@ -543,99 +511,11 @@ export default function KioskPage() {
 
       setFoundUser(user);
 
-      let inmsFinal = [...inmsDB];
-      const isCondoByFlag = inmsDB.some((i: any) => i.es_condominio === true);
-      const isCondoByName = (user.Contribuyente || '').toLowerCase().includes('condominio') || (user.Actividad || '').toLowerCase().includes('condominio');
-
-      if (isCondoByFlag || isCondoByName) {
-        const condoCodes = inmsDB.map((i: any) => i.inmueble).filter(Boolean);
-        if (condoCodes.length > 0) {
-          const { data: hijos } = await supabase
-            .from('inmuebles')
-            .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
-            .in('condominio_padre_id', condoCodes);
-          if (hijos && hijos.length > 0) {
-            const ids = new Set(inmsFinal.map(x => x.id));
-            hijos.forEach(h => {
-              if (!ids.has(h.id)) inmsFinal.push(h);
-            });
-          }
-        }
-      }
-
-      const naParentCodes = inmsFinal
-        .filter((i: any) => 
-          (i.actividad_principal || '').trim().toUpperCase() === 'N/A' && 
-          (parseInt(i.cant_inmuebles || '0') > 0 || inmsFinal.some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble))
-        )
-        .map((i: any) => i.inmueble);
-
-      const billableInms = inmsFinal.filter((i: any) => !naParentCodes.includes(i.inmueble));
-      const finalInmsToUse = billableInms.length > 0 ? billableInms : inmsFinal;
+      // FUENTE ÚNICA (idéntica a Caja y a Soy Contribuyente): inmuebles cobrables + facturas + meses históricos
+      const rc = construirRecibosContribuyente({ inmuebles: inmsDB, facturas: data.facturas || [], identidad: user.Identidad, contribuyente: user.Contribuyente });
+      const finalInmsToUse = rc.billables;
       setUserInms(finalInmsToUse as Inmueble[]);
-
-      const totalDeudaMMV = finalInmsToUse.reduce((s: number, i: any) => s + parseFloat(i.deuda_mmv || 0), 0);
-      const totalCongelada = inmsDB.reduce((s: number, i: any) => s + parseFloat(i.deuda_congelada_bs || 0), 0);
-
-      const allUserFacturas = data.facturas.filter((f: any) => ['Pendiente', 'Por Verificar', 'Abonado'].includes(f.estado));
-      let fallbackFacturas: Recibo[] = [];
-
-
-    const combined = [...(allUserFacturas || []), ...fallbackFacturas] as Recibo[];
-    
-    // Inyectar recibos dummy divididos por mes si no hay facturas reales
-    if (combined.length === 0 && finalInmsToUse && finalInmsToUse.length > 0) {
-      const hasDeuda = finalInmsToUse.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
-      if (hasDeuda) {
-        const now = new Date();
-        finalInmsToUse.forEach((inm: any) => {
-          const deudaMMV = parseFloat(inm.deuda_mmv || '0');
-          const congelada = parseFloat(inm.deuda_congelada_bs || '0');
-          const multa = parseFloat(inm.multa_bs || '0');
-          const meses = parseInt(inm.meses_deuda || 1);
-          // Regla de condominios (igual a Caja): local de condominio comercial ordinario → solo sus multas.
-          // Los condominios especiales de pago individual pagan aseo + multas.
-          const regla = reglaCobroInmueble(inm, naParentCodes, user.Identidad);
-          if (regla === 'solo_multa' || (isCondominioPagoIndividual(inm) && (multa > 0 || congelada > 0))) {
-            if (multa > 0 || congelada > 0) {
-              const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
-              combined.push({
-                id: `multa-${inm.inmueble}`,
-                referencia: `MULTA-${inm.inmueble}`,
-                identidad: user.Identidad,
-                contribuyente: user.Contribuyente,
-                emision: fechaMora.toISOString(),
-                vencimiento: fechaMora.toISOString(),
-                estado: 'Pendiente',
-                monto: (multa + congelada).toFixed(2)
-              } as Recibo);
-            }
-            if (regla === 'solo_multa') return;
-          }
-          if (deudaMMV > 0 || congelada > 0 || multa > 0 || meses > 0) {
-            const numMeses = Math.max(1, meses);
-            for (let i = 1; i <= numMeses; i++) {
-              const targetDate = new Date(now.getFullYear(), now.getMonth() - numMeses + i - 1, 1, 12, 0, 0);
-              combined.push({
-                id: `dummy-hist-${inm.inmueble}-${i}`,
-                referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
-                identidad: user.Identidad,
-                contribuyente: user.Contribuyente,
-                emision: targetDate.toISOString(),
-                vencimiento: targetDate.toISOString(),
-                estado: 'Pendiente',
-                monto: '0'
-              } as Recibo);
-            }
-          }
-        });
-      }
-    }
-    combined.sort((a, b) => {
-      const aC = a.referencia?.startsWith('CM-'), bC = b.referencia?.startsWith('CM-');
-      if (!aC && bC) return -1; if (aC && !bC) return 1;
-      return (a.emision || '').localeCompare(b.emision || '');
-    });
+      const combined = rc.recibos as Recibo[];
     setRecibos(combined);
     setSelectedRefs(combined.map(r => r.referencia));
     setMonthsToPay(combined.length);

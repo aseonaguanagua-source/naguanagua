@@ -19,14 +19,14 @@ export async function GET(request: Request) {
     // 1. Buscar en inmuebles con todas las variantes
     let { data: inmsDB } = await supabaseAdmin
       .from('inmuebles')
-      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
+      .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas,estado,padre_id,saldo_favor_bs')
       .or(orFilter);
 
     // 2. Buscar por código de inmueble si no se encontró
     if (!inmsDB || inmsDB.length === 0) {
       const { data: byInmCode } = await supabaseAdmin
         .from('inmuebles')
-        .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
+        .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas,estado,padre_id,saldo_favor_bs')
         .ilike('inmueble', `%${q}%`)
         .limit(10);
       if (byInmCode && byInmCode.length > 0) inmsDB = byInmCode;
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
         const cVariants = getIdentidadVariantsExact(officialId);
         const { data: inmsByContrib } = await supabaseAdmin
           .from('inmuebles')
-          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas')
+          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,notas,estado,padre_id,saldo_favor_bs')
           .or(cVariants.map(v => `identidad.eq.${v}`).join(','));
         if (inmsByContrib && inmsByContrib.length > 0) {
           inmsDB = inmsByContrib;
@@ -54,18 +54,23 @@ export async function GET(request: Request) {
     }
 
     if (inmsDB && inmsDB.length > 0) {
-      const activeInms = inmsDB.filter((i: any) => !i.condominio_padre_id && !i.es_condominio);
+      // Misma regla que Caja: sin eliminados, sin unidades de condominio ni condominios
+      const activeInms = inmsDB.filter((i: any) => i.estado !== 'Eliminado' && !i.condominio_padre_id && !i.es_condominio);
       if (activeInms.length === 0 && inmsDB.some((i: any) => i.condominio_padre_id || i.es_condominio)) {
         return NextResponse.json({ error: 'Sus propiedades pertenecen a Condominios. El cobro móvil solo está habilitado para inmuebles regulares.' }, { status: 400 });
       }
-      inmsDB = activeInms;
+      if (activeInms.length === 0) inmsDB = [];
+      else {
+        // Traer también las actividades vinculadas por padre_id (para detectar contenedores N/A igual que Caja)
+        inmsDB = inmsDB.filter((i: any) => i.estado !== 'Eliminado');
+      }
     }
 
     if (!inmsDB || inmsDB.length === 0) {
       return NextResponse.json({ error: 'No encontrado. Verifique su Cédula o RIF.' }, { status: 404 });
     }
 
-    const p = inmsDB[0];
+    const p = inmsDB.find((i: any) => !i.condominio_padre_id && !i.es_condominio) || inmsDB[0];
 
     let nombreCont = p.contribuyente;
     
@@ -92,7 +97,7 @@ export async function GET(request: Request) {
       Direccion: p.direccion,
       Clasificacion: p.clasificacion,
       Actividad: p.actividad_principal,
-      EsAgente: inmsDB.some((i: any) => i.agente_retencion)
+      EsAgente: inmsDB.some((i: any) => i.agente_retencion && !i.condominio_padre_id && !i.es_condominio)
     };
 
     const { data: recDB } = await supabaseAdmin.from('pagos_reportados')
@@ -102,7 +107,7 @@ export async function GET(request: Request) {
 
     const { data: facDB } = await supabaseAdmin.from('facturas')
       .select('*')
-      .eq('identidad', p.identidad)
+      .or(getIdentidadVariantsExact(p.identidad).map(v => `identidad.eq.${v}`).join(','))
       .order('created_at', { ascending: false });
 
     return NextResponse.json({
