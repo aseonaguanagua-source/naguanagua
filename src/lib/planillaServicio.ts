@@ -88,6 +88,21 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   doc.text('INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA · RIF: G-20008614-9', W / 2 + 12, 21, { align: 'center' });
   doc.text('Carretera Nacional Vía La Entrada, C.C. Río Sil, Nivel 2, Local 37, Bárbula, Naguanagua, Carabobo', W / 2 + 12, 25, { align: 'center' });
 
+  // Código único destacado para cobro en caja en esquina superior
+  if (d.referencia) {
+    doc.setFillColor(240, 253, 244);
+    doc.setDrawColor(22, 101, 52);
+    doc.roundedRect(R - 58, 10, 58, 16, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(22, 101, 52);
+    doc.text('CÓDIGO DE COBRO EN CAJA', R - 29, 15, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text(d.referencia, R - 29, 22, { align: 'center' });
+    doc.setTextColor(0);
+  }
+
   doc.setFillColor(22, 101, 52); doc.rect(L, 35, R - L, 9, 'F');
   doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
   doc.text(esp ? 'SERVICIO ESPECIAL' : 'SERVICIO EXTRAORDINARIO', W / 2, 41.3, { align: 'center' });
@@ -107,8 +122,8 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text(t, L + 2, y); y += 9;
   };
 
-  campo('FECHA DE EMISIÓN:', fechaVE(d.fechaEmision), L, 85);
-  campo('REFERENCIA:', d.referencia, L + 95, R - L - 95);
+  campo('FECHA DE EMISIÓN:', fechaVE(d.fechaEmision), L, 80);
+  campo('CÓDIGO DE PLANILLA / CAJA:', d.referencia, L + 85, R - L - 85);
   y += 10;
 
   seccion('DATOS DEL CLIENTE:');
@@ -132,7 +147,7 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   seccion(esp ? 'COSTO SERVICIO ESPECIAL' : 'COSTO SERVICIO EXTRAORDINARIO');
   if (d.vehiculoLabel) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    doc.text(`Unidad: ${d.vehiculoLabel}${d.nivel ? `  ·  Nivel: ${d.nivel}` : ''}${d.tasaEuro ? `  ·  Tasa Euro BCV: Bs. ${fmt(d.tasaEuro)}` : ''}`, L, y - 2);
+    doc.text(`Unidad: ${d.vehiculoLabel}${d.tasaEuro ? `  ·  Tasa Euro BCV: Bs. ${fmt(d.tasaEuro)}` : ''}`, L, y - 2);
     y += 3;
   }
   const heads = esp ? ['F.O.Es', 'NVE', 'FAEs', 'TOTAL (UCD)', 'MONTO (Bs)'] : ['C.E.V', 'NVE', 'F. LLENADO', 'TOTAL (UCD)', 'MONTO (Bs)'];
@@ -153,19 +168,37 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
 
   doc.setFontSize(7.5); doc.setTextColor(80);
   doc.text(esp
-    ? 'TSE = F.O.Es × NVE × FAEs.  F.O.Es: Factor Ordenanza Especial (Baja/Media/Alta, en UCD).  NVE: Número de viajes estimados.  FAEs = 1.'
-    : 'TSEX = C.E.V × NVE × F. llenado.  C.E.V: Costo especializado por viaje (UCD).  NVE: Número de viajes estimados.  F. llenado: Media 0,5 / Máxima 1.', L, y);
+    ? 'TSE = F.O.Es × NVE × FAEs.  F.O.Es: Factor Ordenanza Especial (en UCD).  NVE: Número de viajes estimados.  FAEs = 1.'
+    : 'TSEX = C.E.V × NVE × F. llenado.  C.E.V: Costo especializado por viaje (UCD).  NVE: Número de viajes estimados.  F. llenado: Factor de llenado según capacidad.', L, y);
   y += 4;
   doc.text('Monto (Bs) = Total (UCD) × Tasa Euro BCV vigente a la fecha de emisión.', L, y);
   doc.setTextColor(0);
 
   // Firmas
-  y = Math.max(y + 28, 235);
+  y = Math.max(y + 24, 226);
   doc.setDrawColor(0);
   doc.line(L + 5, y, L + 70, y); doc.line(R - 70, y, R - 5, y);
   doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
   doc.text('Firma y Sello IAMEC', L + 37.5, y + 5, { align: 'center' });
   doc.text('Firma del Cliente / C.I.', R - 37.5, y + 5, { align: 'center' });
+
+  // ── LOGOS INSTITUCIONALES EN LA PARTE INFERIOR ──
+  const yLogos = 246;
+  try {
+    if ((logos as any).lacava) {
+      doc.addImage((logos as any).lacava, 'PNG', L + 2, yLogos + 2, 42, 11);
+    }
+  } catch {}
+  try {
+    if ((logos as any).elizabeth) {
+      doc.addImage((logos as any).elizabeth, 'PNG', W / 2 - 25, yLogos + 3, 50, 9.5);
+    }
+  } catch {}
+  try {
+    if ((logos as any).naguanaguaTeQuiero) {
+      doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', R - 42, yLogos, 40, 15);
+    }
+  } catch {}
 
   if (descargar) {
     const base = esp ? 'Planilla_Servicio_Especial' : 'Planilla_Servicio_Extraordinario';

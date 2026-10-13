@@ -15,13 +15,16 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const identidad = searchParams.get('identidad');
+    const referencia = searchParams.get('referencia');
     const estado = searchParams.get('estado');
 
     let query = supabase
       .from('servicios_especiales')
       .select('*');
 
-    if (identidad) {
+    if (referencia) {
+      query = query.eq('referencia', referencia.trim().toUpperCase());
+    } else if (identidad) {
       const variants = getIdentidadVariants(identidad);
       query = query.in('identidad', variants);
     }

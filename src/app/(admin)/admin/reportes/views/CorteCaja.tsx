@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { Printer, ArrowLeft, ChevronDown } from 'lucide-react';
+import { Printer, ArrowLeft, ChevronDown, Wrench } from 'lucide-react';
+import DevPagosCajaModal from './DevPagosCajaModal';
 
 interface Props {
   pagos: any[];
@@ -33,6 +34,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
   const [fechaFin, setFechaFin] = useState(todayStr + 'T23:59');
   const [showReport, setShowReport] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showDevModal, setShowDevModal] = useState(false);
 
   const toggleCaja = (caja: string) => {
     if (caja === '__todos__') { setSelectedCajas([]); return; }
@@ -78,12 +80,21 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Regresar
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Regresar
+          </button>
+          <span className="text-slate-300">|</span>
+          <h1 className="text-lg font-bold text-slate-800">Corte de Caja</h1>
+        </div>
+        <button
+          onClick={() => setShowDevModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition-colors shadow-xs"
+          title="Modo Dev: Registrar o eliminar pagos en corte/reporte de cualquier cajero"
+        >
+          <Wrench className="w-3.5 h-3.5" /> Modo Dev (Pagos de Caja)
         </button>
-        <span className="text-slate-300">|</span>
-        <h1 className="text-lg font-bold text-slate-800">Corte de Caja</h1>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
@@ -230,6 +241,14 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
           )}
         </div>
       )}
+      <DevPagosCajaModal
+        isOpen={showDevModal}
+        onClose={() => setShowDevModal(false)}
+        cajerosDisponibles={cajeros}
+        onPagoModificado={() => {
+          // Si hay handler de refresco
+        }}
+      />
     </div>
   );
 }

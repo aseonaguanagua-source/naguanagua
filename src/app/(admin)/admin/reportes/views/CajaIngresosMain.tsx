@@ -1,10 +1,11 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import { ChevronDown, Lock, CheckCircle, Loader2, Printer, ArrowLeft, FileSpreadsheet, FileText } from 'lucide-react';
+import { ChevronDown, Lock, CheckCircle, Loader2, Printer, ArrowLeft, FileSpreadsheet, FileText, Wrench } from 'lucide-react';
 import { generarCorteCajaPDF } from '../generators/PdfReports';
 import { generarLibroVentas } from '../generators/LibroVentas';
 import { generarTotalPuntosVenta, generarConciliacionTransferencias } from '../generators/ReportesCaja';
 import { useEditarMontoReporte } from './EditarMontoReporte';
+import DevPagosCajaModal from './DevPagosCajaModal';
 
 interface Props {
   pagos: any[];
@@ -79,6 +80,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showConfirmCierre, setShowConfirmCierre] = useState(false);
   const [tasaEuro, setTasaEuro] = useState(0);
+  const [showDevModal, setShowDevModal] = useState(false);
 
   // Cargar tasa Euro del BCV
   useEffect(() => {
@@ -341,7 +343,18 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', fontSize: 13 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}><Printer size={16}/>Caja - Ingresos</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+          <Printer size={16}/>Caja - Ingresos
+        </div>
+        <button
+          onClick={() => setShowDevModal(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f59e0b', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}
+          title="Modo Dev: Registrar o eliminar pagos en los reportes de cualquier cajero"
+        >
+          <Wrench size={14}/> 🛠️ Modo Dev (Pagos de Caja)
+        </button>
+      </div>
       <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#2a5298', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 12 }}><ArrowLeft size={13}/> Regresar</button>
 
       <div style={S.hdr}>
@@ -610,6 +623,14 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         </div>
       )}
       {modalMonto}
+      <DevPagosCajaModal
+        isOpen={showDevModal}
+        onClose={() => setShowDevModal(false)}
+        cajerosDisponibles={cajeros}
+        onPagoModificado={() => {
+          if (onPagoActualizado) onPagoActualizado(null);
+        }}
+      />
     </div>
   );
 }

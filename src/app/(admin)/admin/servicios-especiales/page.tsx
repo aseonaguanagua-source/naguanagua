@@ -55,11 +55,17 @@ export default function ServiciosEspecialesPage() {
       .catch(() => {});
   }, []);
 
+  const [sinRegistro, setSinRegistro] = useState(false);
+
   // Formulario
   const [form, setForm] = useState({
     tipo: 'especial' as TipoServicio,
     identidad: '',
+    identidadPrefijo: 'V',
+    identidadNumero: '',
     contribuyenteNombre: '',
+    correo: '',
+    direccion: '',
     descripcion: '',
     monto: '',
     fecha: new Date().toISOString().split('T')[0],
@@ -202,27 +208,49 @@ export default function ServiciosEspecialesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.identidad) { setMsg({ type: 'error', text: 'Seleccione un contribuyente.' }); return; }
+    const finalIdentidad = sinRegistro
+      ? (form.identidadNumero ? `${form.identidadPrefijo}-${form.identidadNumero.trim()}` : (form.identidad || ''))
+      : form.identidad;
+
+    if (!sinRegistro && !finalIdentidad) {
+      setMsg({ type: 'error', text: 'Seleccione un contribuyente o active el modo "Registrar sin usuario en sistema".' });
+      return;
+    }
+    if (sinRegistro && !form.contribuyenteNombre.trim()) {
+      setMsg({ type: 'error', text: 'Ingrese el nombre o razón social del solicitante.' });
+      return;
+    }
     if (!form.descripcion) { setMsg({ type: 'error', text: 'Ingrese una descripción.' }); return; }
     if (!form.monto || isNaN(Number(form.monto))) { setMsg({ type: 'error', text: 'Ingrese un monto válido.' }); return; }
 
     setIsSubmitting(true);
     setMsg(null);
+
+    // Generar código único para la planilla y búsqueda en caja
+    const yearSuffix = new Date().getFullYear().toString().slice(-2);
+    const randomSeq = Math.floor(1000 + Math.random() * 9000);
+    const codigoUnico = sinRegistro
+      ? `SRV-${yearSuffix}-${randomSeq}`
+      : `SRV-${form.tipo.toUpperCase().slice(0,3)}-${Date.now().toString().slice(-6)}`;
+
     try {
       const res = await fetch('/api/admin/servicios-especiales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipo: form.tipo,
-          identidad: form.identidad,
+          identidad: finalIdentidad || codigoUnico,
           contribuyente: form.contribuyenteNombre,
           descripcion: form.descripcion,
           monto: parseFloat(form.monto),
           fecha: form.fecha,
-          notas: form.notas,
+          notas: `${form.notas || ''}${sinRegistro ? ' [SIN_REGISTRO_PREVIO]' : ''}`.trim(),
           estado: 'Pendiente',
-          referencia: `SRV-${form.tipo.toUpperCase().slice(0,3)}-${Date.now()}`,
-          origen: 'funcionario',
+          referencia: codigoUnico,
+          origen: sinRegistro ? 'funcionario_sin_registro' : 'funcionario',
+          telefono: form.telefono || null,
+          correo: form.correo || null,
+          direccion_evento: form.lugar || form.direccion || null,
           ...(inmuebleSel ? { inmueble: inmuebleSel } : {}),
           ...(() => {
             const p = calcPlanilla();
@@ -232,8 +260,9 @@ export default function ServiciosEspecialesPage() {
               vehiculo: form.vehiculo, nivel: p.nivel, valor_ucd: p.valorUcd, nve: p.nve, factor: p.factor,
               tasa_euro: tcmmv || null,
               nombre_evento: form.nombreEvento || null, fecha_evento: form.fechaEvento || null,
-              hora_evento: form.horario || null, direccion_evento: form.lugar || null,
+              hora_evento: form.horario || null, direccion_evento: form.lugar || form.direccion || null,
               aforo: form.aforo ? parseInt(form.aforo) : null, telefono: form.telefono || null,
+              correo: form.correo || null,
               notas: `${form.notas || ''}${form.contacto ? ` [CONTACTO:${form.contacto}]` : ''}`.trim(),
             };
           })()
@@ -241,9 +270,69 @@ export default function ServiciosEspecialesPage() {
       });
 
       if (res.ok) {
-        setMsg({ type: 'ok', text: 'Servicio registrado y notificado al contribuyente exitosamente.' });
+        setMsg({
+          type: 'ok',
+          text: `Servicio registrado con éxito. CÓDIGO ÚNICO DE COBRO EN CAJA: ${codigoUnico}. Se generó la planilla oficial.`
+        });
+
+        // Descargar la planilla automáticamente con el código único generado
+        if (form.tipo === 'especial' || form.tipo === 'extraordinario') {
+          const p = calcPlanilla();
+          descargarPlanilla(form.tipo, {
+            vehiculo: form.vehiculo,
+            referencia: codigoUnico,
+            contribuyente: form.contribuyenteNombre,
+            identidad: finalIdentidad || codigoUnico,
+            contacto: form.contacto || form.contribuyenteNombre,
+            telefono: form.telefono,
+            nombre_evento: form.nombreEvento,
+            fecha_evento: form.fechaEvento,
+            direccion_evento: form.lugar || form.direccion,
+            hora_evento: form.horario,
+            aforo: form.aforo,
+            valor_ucd: p?.valorUcd,
+            nve: p?.nve,
+            factor: p?.factor,
+            tasa_euro: tcmmv,
+          });
+        }
+
         setShowModal(false);
-        setForm({ tipo: 'especial', identidad: '', contribuyenteNombre: '', descripcion: '', monto: '', fecha: new Date().toISOString().split('T')[0], notas: '', camion: '', distancia: '', area: '', tipoVistoBueno: '', tipoInspeccion: '', codigoServicio: '', tipoPermiso: '', alturaArbol: '', unidadesArboreas: '1', habilitadoVB: false, vehiculo: '', nivel: '', nve: '1', contacto: '', telefono: '', nombreEvento: '', fechaEvento: '', lugar: '', horario: '', aforo: '', incluyePermiso: true });
+        setSinRegistro(false);
+        setForm({
+          tipo: 'especial',
+          identidad: '',
+          identidadPrefijo: 'V',
+          identidadNumero: '',
+          contribuyenteNombre: '',
+          correo: '',
+          direccion: '',
+          descripcion: '',
+          monto: '',
+          fecha: new Date().toISOString().split('T')[0],
+          notas: '',
+          camion: '',
+          distancia: '',
+          area: '',
+          tipoVistoBueno: '',
+          tipoInspeccion: '',
+          codigoServicio: '',
+          tipoPermiso: '',
+          alturaArbol: '',
+          unidadesArboreas: '1',
+          habilitadoVB: false,
+          vehiculo: '',
+          nivel: '',
+          nve: '1',
+          contacto: '',
+          telefono: '',
+          nombreEvento: '',
+          fechaEvento: '',
+          lugar: '',
+          horario: '',
+          aforo: '',
+          incluyePermiso: true
+        });
         setSearchContrib(''); setInmuebleSel('');
         loadServicios();
       } else {
@@ -500,39 +589,146 @@ export default function ServiciosEspecialesPage() {
                 </div>
               </div>
 
-              {/* Buscar Contribuyente */}
-              <div className="relative">
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Contribuyente *</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por código (URB…), nombre o RIF..."
-                    value={searchContrib}
-                    onChange={e => { setSearchContrib(e.target.value); setForm(prev => ({ ...prev, identidad: '', contribuyenteNombre: '' })); }}
-                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-purple-500"
-                  />
+              {/* Selector de Modo: Contribuyente Registrado vs No Registrado */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase">
+                    {sinRegistro ? '👤 Solicitante No Registrado (Genera Código Único)' : 'Contribuyente Registrado *'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSinRegistro(!sinRegistro);
+                      if (!sinRegistro) {
+                        setSearchContrib('');
+                        setInmuebleSel('');
+                      }
+                    }}
+                    className={`text-xs font-bold px-3 py-1 rounded-lg border transition-all ${
+                      sinRegistro
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    {sinRegistro ? '✓ Modo: Sin Usuario Activo' : '+ Registrar Sin Usuario en Sistema'}
+                  </button>
                 </div>
-                {filteredContrib.length > 0 && !form.identidad && (
-                  <div className="absolute z-10 w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-1 max-h-48 overflow-y-auto">
-                    {filteredContrib.map((c: any, i: number) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => selectContrib(c)}
-                        className="w-full text-left px-4 py-2.5 hover:bg-purple-50 text-sm border-b border-slate-50 last:border-0"
-                      >
-                        <p className="font-semibold text-slate-800">{c.Contribuyente}</p>
-                        <p className="text-xs text-slate-500">{c.Identidad}{c._codigo ? <> · <b className="text-purple-700">{c._codigo}</b></> : c._codigos?.length ? ` · ${c._codigos.slice(0, 3).join(', ')}${c._codigos.length > 3 ? '…' : ''}` : ''}</p>
-                      </button>
-                    ))}
+
+                {!sinRegistro ? (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por código (URB…), nombre o RIF..."
+                        value={searchContrib}
+                        onChange={e => { setSearchContrib(e.target.value); setForm(prev => ({ ...prev, identidad: '', contribuyenteNombre: '' })); }}
+                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-purple-500 bg-white"
+                      />
+                    </div>
+                    {filteredContrib.length > 0 && !form.identidad && (
+                      <div className="absolute z-10 w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-1 max-h-48 overflow-y-auto">
+                        {filteredContrib.map((c: any, i: number) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => selectContrib(c)}
+                            className="w-full text-left px-4 py-2.5 hover:bg-purple-50 text-sm border-b border-slate-50 last:border-0"
+                          >
+                            <p className="font-semibold text-slate-800">{c.Contribuyente}</p>
+                            <p className="text-xs text-slate-500">{c.Identidad}{c._codigo ? <> · <b className="text-purple-700">{c._codigo}</b></> : c._codigos?.length ? ` · ${c._codigos.slice(0, 3).join(', ')}${c._codigos.length > 3 ? '…' : ''}` : ''}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {form.identidad && (
+                      <div className="mt-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded text-xs text-purple-700 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span className="font-semibold">{form.contribuyenteNombre}</span>
+                        <span className="text-purple-500">({form.identidad}){inmuebleSel ? ` · ${inmuebleSel}` : ''}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-                {form.identidad && (
-                  <div className="mt-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded text-xs text-purple-700 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span className="font-semibold">{form.contribuyenteNombre}</span>
-                    <span className="text-purple-500">({form.identidad}){inmuebleSel ? ` · ${inmuebleSel}` : ''}</span>
+                ) : (
+                  <div className="space-y-3 pt-1">
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <p>
+                        <b>Código Único en Planilla:</b> Se generará un código único impreso para que el cliente pague directamente en taquilla de Caja sin requerir usuario en el sistema.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Nombre Completo o Razón Social *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: Inversiones Los Samanes C.A. o Pedro Pérez"
+                        value={form.contribuyenteNombre}
+                        onChange={e => setForm(prev => ({ ...prev, contribuyenteNombre: e.target.value }))}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 bg-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tipo Doc.</label>
+                        <select
+                          value={form.identidadPrefijo}
+                          onChange={e => setForm(prev => ({ ...prev, identidadPrefijo: e.target.value }))}
+                          className="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm outline-none focus:border-amber-500 bg-white"
+                        >
+                          <option value="V">V (Venezolano)</option>
+                          <option value="J">J (Jurídico / RIF)</option>
+                          <option value="E">E (Extranjero)</option>
+                          <option value="G">G (Gubernamental)</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Cédula / RIF</label>
+                        <input
+                          type="text"
+                          placeholder="Número de cédula o RIF"
+                          value={form.identidadNumero}
+                          onChange={e => setForm(prev => ({ ...prev, identidadNumero: e.target.value.replace(/[^0-9]/g, '') }))}
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Teléfono / Celular</label>
+                        <input
+                          type="text"
+                          placeholder="0414-1234567"
+                          value={form.telefono}
+                          onChange={e => setForm(prev => ({ ...prev, telefono: e.target.value }))}
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Correo Electrónico</label>
+                        <input
+                          type="email"
+                          placeholder="cliente@correo.com"
+                          value={form.correo}
+                          onChange={e => setForm(prev => ({ ...prev, correo: e.target.value }))}
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Dirección / Ubicación del Solicitante</label>
+                      <input
+                        type="text"
+                        placeholder="Dirección fiscal o residencia"
+                        value={form.direccion}
+                        onChange={e => setForm(prev => ({ ...prev, direccion: e.target.value }))}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 bg-white"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

@@ -46,25 +46,30 @@ export default function ReportesPage() {
     let activeUser = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || '';
     let letra = (typeof window !== 'undefined' ? localStorage.getItem('adminLetra') : null) || '';
     let adminCheck = false;
+    let canViewAllReports = false;
     if (typeof window !== 'undefined') {
       try {
         const userData = JSON.parse(localStorage.getItem('admin_user_data') || '{}');
         if (userData.usuario) activeUser = userData.usuario;
         if (userData.letra) letra = userData.letra;
+        const permisos = Array.isArray(userData.permisos) ? userData.permisos : [];
         if (userData.rol === 'Administrador' || userData.rol === 'SuperAdmin' || activeUser === 'Administrador' || activeUser === 'dzara') {
           adminCheck = true;
+        }
+        if (adminCheck || permisos.includes('ver_todos_reportes_caja')) {
+          canViewAllReports = true;
         }
       } catch(e) {}
     }
     const cajeroIdentifier = (!adminCheck && letra) ? `${letra}-${activeUser}` : activeUser;
     setCurrentUser(cajeroIdentifier || activeUser);
-    setIsAdmin(adminCheck);
+    setIsAdmin(adminCheck || canViewAllReports);
 
     const loadPagos = async () => {
       const { data } = await supabase.from('pagos_reportados').select('*').not('estado','in','(Anulado,Reversado,Condonado)').order('created_at', { ascending: false });
       if (data) {
         setPagos(data.map(aplicarMontoReporte));
-        if (adminCheck) {
+        if (adminCheck || canViewAllReports) {
           const cajerosSet = new Set<string>();
           data.forEach((p: any) => {
             try {

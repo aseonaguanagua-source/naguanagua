@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import fs from 'fs';
 import path from 'path';
 import type { DatosRecibo } from '@/lib/reciboMailer';
+import { cleanClasificacionActividad } from '@/lib/calculos';
 
 /**
  * PDF del recibo de pago (no fiscal) para adjuntar al correo.
@@ -112,7 +113,7 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
       d.lineas.map(l => ({
         cells: [
           l.codigo,
-          [l.direccion, l.uso].filter(Boolean).join(' · '),
+          [l.direccion, cleanClasificacionActividad(l.uso)].filter(Boolean).join(' · '),
           [l.meses > 0 ? `${l.meses} mes${l.meses === 1 ? '' : 'es'} de aseo urbano` : '', l.multa ? 'Multa por mora' : ''].filter(Boolean).join(' + '),
         ],
       })));

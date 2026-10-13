@@ -219,6 +219,7 @@ export const MODULOS_SISTEMA: ModuloPermisos[] = [
     icon: BarChart3,
     permisos: [
       { key: 'ver_reportes', label: 'Ver Reportes Financieros' },
+      { key: 'ver_todos_reportes_caja', label: 'Ver Todos los Reportes de Caja y Corte General (Global)' },
       { key: 'exportar_reportes', label: 'Exportar Reportes a Excel' },
       { key: 'ver_auditoria', label: 'Acceso a Auditoría (Logs de Personal)' },
       { key: 'inspeccionar_auditoria', label: 'Inspeccionar Trazabilidad Forense de Operadores' },

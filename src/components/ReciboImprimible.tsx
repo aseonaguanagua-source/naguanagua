@@ -58,6 +58,16 @@ function normalizarFormaPago(fp: string): 'PUNTO_VENTA' | 'TMD' | 'TVD' | 'TRANS
 const HALF_WIDTH = '206mm';
 const HALF_HEIGHT = '134mm';
 
+function quitarNivelesTexto(str?: string | null): string {
+  if (!str) return '';
+  return str
+    .replace(/\s*\((ALTA|MEDIA|BAJA)\)/gi, '')
+    .replace(/\s*-\s*(ALTA|MEDIA|BAJA)\b/gi, '')
+    .replace(/\b(ALTA|MEDIA|BAJA)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 export function ReciboImprimible({ data }: { data: ReciboProps }) {
   const fpNorm = normalizarFormaPago(data.formaPago);
   const totalPagado = data.esAbono && data.montoCancelado !== undefined ? data.montoCancelado : data.total;
@@ -252,7 +262,7 @@ function ReciboContenido({
       {/* ── PERÍODO CANCELADO ── */}
       {data.periodo && (
         <div style={{ borderBottom: B, padding:'2.5px 6px', fontSize:8.5, background:'#ecfdf5' }}>
-          <strong>PERÍODO CANCELADO:</strong> {data.periodo}
+          <strong>PERÍODO CANCELADO:</strong> {quitarNivelesTexto(data.periodo)}
         </div>
       )}
       <table style={{ width:'100%', borderCollapse:'collapse', borderBottom: B }}>
@@ -271,7 +281,7 @@ function ReciboContenido({
         <tbody>
           {data.conceptos.map((c, i) => (
             <tr key={i}>
-              <td style={{ ...cell, textAlign:'left' }}>{c.descripcion}</td>
+              <td style={{ ...cell, textAlign:'left' }}>{quitarNivelesTexto(c.descripcion)}</td>
               <td style={{ ...cell, textAlign:'right' }}>Bs. {formatBs(c.precioUnit)}</td>
               <td style={{ padding: cellPadding, textAlign:'right', borderBottom:'1px solid #eee', fontSize: baseFontSize }}>Bs. {formatBs(c.total)}</td>
             </tr>

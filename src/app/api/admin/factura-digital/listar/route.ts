@@ -30,18 +30,48 @@ export async function GET(request: Request) {
       throw pagosErr;
     }
 
-    // Obtener identidades únicas para traer nombres de contribuyentes
+    // Normalizador de identidades (sin guiones ni símbolos)
+    const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    // Helper para detectar si un texto es un RIF o marcador genérico en vez del nombre real
+    const esPlaceholderNombre = (name: any) => {
+      if (!name) return true;
+      const str = String(name).trim().toUpperCase();
+      if (!str || str === 'CONTRIBUYENTE' || str === 'N/A' || str === 'NULL' || str === 'UNDEFINED') return true;
+      if (/^CONTRIBUYENTE\s+[VJGEP]?[-]?\d+/i.test(str)) return true;
+      if (/^[VJGEP]-?\d+$/i.test(str)) return true;
+      if (/^\d{6,}$/.test(str)) return true;
+      return false;
+    };
+
+    // Obtener identidades únicas y sus variantes para traer nombres reales de contribuyentes
     const identidades = Array.from(new Set((pagos || []).map(p => p.identidad).filter(Boolean)));
+    const idVariantsSet = new Set<string>();
+    identidades.forEach(id => {
+      const s = String(id || '').trim().toUpperCase();
+      if (!s) return;
+      idVariantsSet.add(s);
+      const noDash = s.replace(/-/g, '');
+      idVariantsSet.add(noDash);
+      if (!s.includes('-') && /^[VJGEP]\d+$/i.test(s)) {
+        idVariantsSet.add(`${s[0]}-${s.slice(1)}`);
+      }
+    });
+    const idVariants = Array.from(idVariantsSet);
     
-    const { data: conts } = await supabase
-      .from('contribuyentes')
-      .select('identidad, nombre, email, telefono')
-      .in('identidad', identidades);
-
     const contsMap = new Map();
-    (conts || []).forEach(c => contsMap.set(c.identidad, c));
+    for (let i = 0; i < idVariants.length; i += 300) {
+      const { data: conts } = await supabase
+        .from('contribuyentes')
+        .select('identidad, nombre, email, telefono')
+        .in('identidad', idVariants.slice(i, i + 300));
+      (conts || []).forEach(c => {
+        contsMap.set(c.identidad, c);
+        contsMap.set(normId(c.identidad), c);
+      });
+    }
 
-    // Inmuebles referenciados en los recibos pagados (para clasificar factura vs recibo)
+    // Inmuebles referenciados en los recibos pagados (para clasificar factura vs recibo y rescatar nombre)
     const detallesPorPago = new Map<string, any>();
     const codigos = new Set<string>();
     (pagos || []).forEach(p => {
@@ -54,7 +84,7 @@ export async function GET(request: Request) {
     for (let i = 0; i < listaCodigos.length; i += 300) {
       const { data: inms } = await supabase
         .from('inmuebles')
-        .select('inmueble, tipo, clasificacion, actividad_principal, direccion, correo_electronico')
+        .select('inmueble, tipo, clasificacion, actividad_principal, direccion, correo_electronico, contribuyente, identidad')
         .in('inmueble', listaCodigos.slice(i, i + 300));
       (inms || []).forEach((inm: any) => inmMap.set(inm.inmueble, inm));
     }
@@ -62,7 +92,6 @@ export async function GET(request: Request) {
     const fallbackEmail = process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.comercial@globalgreenca.com';
 
     // Condominios (para reconocer pagos viejos de condominios por su RIF)
-    const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo').limit(5000);
     const condoPorRif = new Map<string, any>();
     (condosRows || []).forEach((c: any) => { if (c.identidad) condoPorRif.set(normId(c.identidad), c); });
@@ -84,7 +113,7 @@ export async function GET(request: Request) {
     const items = (pagos || []).map(pago => {
       const det = detallesPorPago.get(pago.id) || {};
 
-      const cont = contsMap.get(pago.identidad);
+      const cont = contsMap.get(pago.identidad) || contsMap.get(normId(pago.identidad));
       const fd = det.factura_digital || null;
       const rd = det.recibo_digital || null;
       const emitida = !!(fd && (fd.emitida || fd.url || fd.numero_control));
@@ -95,11 +124,38 @@ export async function GET(request: Request) {
       const correoFinal = esCorreoComodin ? fallbackEmail : rawEmail;
       const reciboEnviado = !!(rd && rd.enviado);
 
+      // Rescatar nombre real del contribuyente evitando mostrar el RIF como nombre
+      const condo = infoCondo(pago, det);
+      let nombreInm = '';
+      for (const r of (det.recibos || [])) {
+        const c = extraerCodigoInmueble(r);
+        if (c && inmMap.get(c)?.contribuyente) {
+          const cand = String(inmMap.get(c).contribuyente).trim();
+          if (!esPlaceholderNombre(cand)) {
+            nombreInm = cand;
+            break;
+          }
+        }
+      }
+
+      let nombreResuelto = '';
+      if (!esPlaceholderNombre(det.contribuyente)) {
+        nombreResuelto = det.contribuyente;
+      } else if (cont?.nombre && !esPlaceholderNombre(cont.nombre)) {
+        nombreResuelto = cont.nombre;
+      } else if (nombreInm) {
+        nombreResuelto = nombreInm;
+      } else if (condo?.nombre && !esPlaceholderNombre(condo.nombre)) {
+        nombreResuelto = condo.nombre;
+      } else {
+        nombreResuelto = det.contribuyente || cont?.nombre || 'Contribuyente ' + pago.identidad;
+      }
+
       return {
         id: pago.id,
         pagoId: pago.id,
         identidad: pago.identidad,
-        contribuyente: det.contribuyente || cont?.nombre || 'Contribuyente ' + pago.identidad,
+        contribuyente: nombreResuelto,
         correo: correoFinal,
         rawCorreo: rawEmail,
         esCorreoComodin,

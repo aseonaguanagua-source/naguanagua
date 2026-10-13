@@ -599,9 +599,60 @@ export default function CajaPage() {
           }
         }
       }
+
+      // Fallback 3: buscar en tabla servicios_especiales (por código único de planilla o por cédula/RIF)
+      if (!user) {
+        const isSrvPattern = /^SRV-/i.test(rawSearch) || rawSearch.toUpperCase().includes('SRV-');
+        let qSrv = supabase.from('servicios_especiales').select('*').eq('estado', 'Pendiente');
+        if (isSrvPattern) {
+          qSrv = qSrv.ilike('referencia', `%${rawSearch.trim()}%`);
+        } else {
+          qSrv = qSrv.or(`referencia.ilike.%${rawSearch}%,identidad.in.(${searchVariants.join(',')})`);
+        }
+        const { data: srvFallbackList } = await qSrv.order('created_at', { ascending: false });
+        if (srvFallbackList && srvFallbackList.length > 0) {
+          const srv = srvFallbackList[0];
+          user = {
+            Identidad: srv.identidad || 'N/A',
+            Contribuyente: srv.contribuyente || 'Contribuyente',
+            Telefono: srv.telefono || 'No registrado',
+            Correo: srv.correo || 'No registrado',
+            CodCont: srv.referencia,
+            cod_cont: srv.referencia,
+            Direccion: srv.direccion_evento || 'Municipio Naguanagua',
+            Clasificacion: 'Servicio Especial',
+            Tipo: 'SERVICIO',
+            Actividad: srv.descripcion || 'Servicio Especial',
+            SaldoFavor: 0,
+            DeudaTotal: parseFloat(srv.monto || '0'),
+            Estado: 'Activo',
+            isServicioEspecialDirecto: true,
+            _serviciosCargados: srvFallbackList
+          };
+        }
+      }
     }
     
     if (user) {
+      // Si se cargó directamente desde un Servicio Especial con código único de planilla
+      if (user.isServicioEspecialDirecto) {
+        setFoundUser(user);
+        setFreshInmuebles([]);
+        const srvs = user._serviciosCargados || [];
+        const srvEsp = srvs.filter((s: any) => s.tipo !== 'tala_poda');
+        const tala = srvs.filter((s: any) => s.tipo === 'tala_poda');
+        setServiciosEsp(srvEsp);
+        setTalaPoda(tala);
+        setRecibos([]);
+        setCuotas([]);
+        setPagosPendientes([]);
+        // Auto-seleccionar para cobro inmediato en taquilla
+        setSelectedServicios(srvEsp.map((s: any) => s.referencia));
+        setSelectedTalaPoda(tala.map((s: any) => s.referencia));
+        setIsSearching(false);
+        return;
+      }
+
       // Sincronizar el prefijo visual en el dropdown si es distinto
       if (user.Identidad && /^[A-Z]-/i.test(user.Identidad)) {
         const detectedPrefix = user.Identidad.charAt(0).toUpperCase();
@@ -1700,6 +1751,8 @@ export default function CajaPage() {
           estado: 'Aprobado',
           created_at: fechaUTC,
           detalles: JSON.stringify({
+            contribuyente: foundUser.Contribuyente,
+            contribuyente_nombre: foundUser.Contribuyente,
             recibos: selectedRecibos,
             cuotas: selectedCuotas,
             servicios: selectedServicios,
@@ -2419,6 +2472,8 @@ export default function CajaPage() {
           estado: 'Por Verificar',
           created_at: fechaUTC,
           detalles: JSON.stringify({ 
+            contribuyente: foundUser.Contribuyente,
+            contribuyente_nombre: foundUser.Contribuyente,
             recibos: selectedRecibos, 
             cuotas: selectedCuotas,
             servicios: selectedServicios,
@@ -2752,10 +2807,18 @@ export default function CajaPage() {
 
       const cajeroActual = getCajeroId();
       const cajeroLower = cajeroActual.toLowerCase();
+
+      let canViewAll = false;
+      try {
+        const udata = JSON.parse(localStorage.getItem('admin_user_data') || '{}');
+        if (udata.rol === 'Administrador' || udata.rol === 'SuperAdmin' || (Array.isArray(udata.permisos) && udata.permisos.includes('ver_todos_reportes_caja'))) {
+          canViewAll = true;
+        }
+      } catch {}
       
       const pagosFiltrados = (pagosHoy || []).filter(p => {
         if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
-        if (cajeroActual === 'Administrador' || cajeroActual === 'Sistema') return true;
+        if (cajeroActual === 'Administrador' || cajeroActual === 'Sistema' || canViewAll) return true;
         const det = typeof p.detalles === 'object' ? p.detalles : (JSON.parse(p.detalles || '{}'));
         const pCajero = (det.cajero || det.analista || '').toLowerCase();
         return pCajero === cajeroLower || pCajero.endsWith(`-${cajeroLower}`) || cajeroLower.endsWith(`-${pCajero}`);

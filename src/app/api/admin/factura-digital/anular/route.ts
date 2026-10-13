@@ -205,7 +205,18 @@ export async function POST(request: Request) {
     const fechaActual = new Date();
     const horaStr = fechaActual.toLocaleTimeString('en-US', { timeZone: 'America/Caracas', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase().replace(/[\s\u202f\u00a0]+/g, ' ');
 
+    // Datos reales del pago registrado en caja (leídos temprano para fechas y snapshots de deuda)
+    const { data: pagoRow } = await supabase
+      .from('pagos_reportados')
+      .select('monto, banco, referencia, tipo, detalles, created_at')
+      .eq('id', pagoId)
+      .maybeSingle();
+    let detPago: any = pagoRow?.detalles || {};
+    if (typeof detPago === 'string') { try { detPago = JSON.parse(detPago); } catch { detPago = {}; } }
+
     const { data: facturasBD } = lineasCondo ? { data: [] as any[] } : await supabase.from('facturas').select('*').in('referencia', recibos);
+
+    const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     // Para RECIB-HIST-*, buscar en inmuebles (no están en tabla facturas)
     const histRecibos = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
@@ -245,13 +256,23 @@ export async function POST(request: Request) {
         const pctMulta = esResidencial ? 0.10 : 0.12;
         const parts = ref.split('-');
         const mesNum = parseInt(parts[parts.length - 1]?.replace('M', '') || '1');
-        const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
+
+        // Calcular período real cancelado (mes y año en español)
+        const previa = Array.isArray(detPago?.deuda_previa)
+          ? detPago.deuda_previa.find((d: any) => d?.inmueble === codInm)
+          : null;
+        const countHistThisInm = histRecibos.filter((r: string) => r.split('-').slice(2, -1).join('-') === codInm).length;
+        const totalMeses = Math.max(1, parseInt(previa?.meses_deuda || inm?.meses_deuda || countHistThisInm || '1'));
         const isUltimoMes = mesNum >= totalMeses;
         const montoMulta = (!isUltimoMes && totalMeses > 1) ? parseFloat((montoBase * pctMulta).toFixed(2)) : 0;
 
+        const fechaPagoBase = new Date(detPago?.fecha_transaccion || pagoRow?.created_at || fechaActual);
+        const dPer = new Date(Date.UTC(fechaPagoBase.getUTCFullYear(), fechaPagoBase.getUTCMonth() - totalMeses + mesNum - 1, 1));
+        const periodoNombre = `${MESES_NOMBRES[dPer.getUTCMonth()]} ${dPer.getUTCFullYear()}`;
+
         // REGLA: nada residencial se factura (ni como exento)
         if (esResidencial) { excluidosResidenciales++; return; }
-        if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipoInm: inm?.tipo || '', esRes: false });
+        if (montoBase > 0) histItems.push({ ref, montoBase, montoMulta, tipoInm: inm?.tipo || '', esRes: false, periodoNombre });
       });
     }
 
@@ -332,7 +353,7 @@ export async function POST(request: Request) {
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             `Servicio de Aseo Urbano (Histórico) - ${h.ref}`,
+        Descripcion:             `Servicio de Aseo Urbano - Período ${h.periodoNombre || h.ref}`,
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          baseFinal.toFixed(2),
@@ -358,7 +379,7 @@ export async function POST(request: Request) {
           CodigoCIIU:              "0198",
           CodigoPLU:               "MULT001",
           IndicadorBienoServicio:  "2",
-          Descripcion:             `Multa por Mora - ${h.ref}`,
+          Descripcion:             `Multa por Mora - Período ${h.periodoNombre || h.ref}`,
           Cantidad:                "1",
           UnidadMedida:            "NIU",
           PrecioUnitario:          h.montoMulta.toFixed(2),
@@ -560,14 +581,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, skipped: true, message: excluidosResidenciales > 0 ? 'Emisión omitida: los conceptos pagados son residenciales.' : 'Sin items para facturar.' });
     }
 
-    // Datos reales del pago registrado en caja
-    const { data: pagoRow } = await supabase
-      .from('pagos_reportados')
-      .select('monto, banco, referencia, tipo, detalles, created_at')
-      .eq('id', pagoId)
-      .maybeSingle();
-    let detPago: any = pagoRow?.detalles || {};
-    if (typeof detPago === 'string') { try { detPago = JSON.parse(detPago); } catch { detPago = {}; } }
     // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
     const conRetencion = pagoTieneRetencion(detPago);
 
@@ -671,6 +684,50 @@ export async function POST(request: Request) {
     const subtotal   = totalGravado + totalExento;
     const totalAPagar = subtotal + totalIVA;
 
+    // Helper para detectar si un texto es un RIF o marcador genérico en vez del nombre/razón social real
+    const esPlaceholderNombre = (name: any) => {
+      if (!name) return true;
+      const str = String(name).trim().toUpperCase();
+      if (!str || str === 'CONTRIBUYENTE' || str === 'N/A' || str === 'NULL' || str === 'UNDEFINED') return true;
+      if (/^CONTRIBUYENTE\s+[VJGEP]?[-]?\d+/i.test(str)) return true;
+      if (/^[VJGEP]-?\d+$/i.test(str)) return true;
+      if (/^\d{6,}$/.test(str)) return true;
+      return false;
+    };
+
+    let razonSocialFinal = String(contribuyente || '').trim();
+    if (esPlaceholderNombre(razonSocialFinal)) {
+      // 1. Inmuebles del usuario ya cargados
+      const candProp = (userProps || []).find((p: any) => !esPlaceholderNombre(p.contribuyente));
+      if (candProp?.contribuyente) {
+        razonSocialFinal = candProp.contribuyente;
+      } else {
+        // 2. Buscar en tabla contribuyentes
+        const { data: contDb } = await supabase
+          .from('contribuyentes')
+          .select('nombre')
+          .in('identidad', idVariants)
+          .limit(1);
+        if (contDb?.[0]?.nombre && !esPlaceholderNombre(contDb[0].nombre)) {
+          razonSocialFinal = contDb[0].nombre;
+        } else {
+          // 3. Buscar en tabla condominios
+          const { data: condoDb } = await supabase
+            .from('condominios')
+            .select('nombre')
+            .in('identidad', idVariants)
+            .limit(1);
+          if (condoDb?.[0]?.nombre && !esPlaceholderNombre(condoDb[0].nombre)) {
+            razonSocialFinal = condoDb[0].nombre;
+          } else if (propRef?.contribuyente) {
+            razonSocialFinal = propRef.contribuyente;
+          } else {
+            razonSocialFinal = contribuyente || "CONTRIBUYENTE";
+          }
+        }
+      }
+    }
+
     const jsonTFHKA = {
       documentoElectronico: {
         Encabezado: {
@@ -701,7 +758,7 @@ export async function POST(request: Request) {
           Comprador: {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
-            RazonSocial:          contribuyente || "CONTRIBUYENTE",
+            RazonSocial:          razonSocialFinal,
             Direccion:            propRef?.direccion || "NAGUANAGUA",
             Ubigeo:               null,
             Pais:                 "VE",

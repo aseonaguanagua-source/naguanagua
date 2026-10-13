@@ -5,6 +5,7 @@ export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
   '/admin/tarifas': ['ver_tarifas'],
   '/admin/censo': ['ver_censo', 'registrar_censo'],
   '/admin/contribuyentes': ['ver_contribuyentes', 'ver_contribuyentes_lectura', 'ver_caja', 'gestionar_pagos'],
+  '/admin/condominios/caja': ['ver_caja', 'gestionar_pagos', 'ver_condominios', 'cobro_masivo_condo'],
   '/admin/condominios-cob': ['ver_condominios', 'cobro_masivo_condo'],
   '/admin/condominios': ['ver_condominios', 'cobro_masivo_condo'],
   '/admin/pre-registros': ['ver_pre_registros'],
