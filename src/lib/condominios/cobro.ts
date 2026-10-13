@@ -98,13 +98,21 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
   const estado = calcularEstado(datos.condo, datos.unidades, tasa, fecha, datos.multas);
   const porAct = estado.porActividad;
   const avisos: string[] = [];
-  const modo: ModoCobro = sol.modo === 'CONTRIBUYENTE' || sol.identidad || (sol.claves || []).length ? (sol.modo || 'CONTRIBUYENTE') : (sol.modo || 'CONDOMINIO');
+  const modo: ModoCobro = sol.modo ? sol.modo : (sol.identidad ? 'CONTRIBUYENTE' : 'CONDOMINIO');
 
   const conDeuda = estado.renglones.filter(r => r.totalBs > 0.01);
+  const pedidas = new Set((sol.claves || []).filter(Boolean));
   let elegidas: RenglonEstado[];
-  if (modo === 'CONDOMINIO') elegidas = conDeuda;
-  else {
-    const pedidas = new Set((sol.claves || []).filter(Boolean));
+  if (modo === 'CONDOMINIO') {
+    if (pedidas.size > 0) {
+      elegidas = conDeuda.filter(r => pedidas.has(r.clave));
+      if (elegidas.length < conDeuda.length) {
+        avisos.push(`Abono por locales al condominio: Cobrando ${elegidas.length} de ${conDeuda.length} unidades seleccionadas a nombre del condominio.`);
+      }
+    } else {
+      elegidas = conDeuda;
+    }
+  } else {
     const ced = sol.identidad ? n(sol.identidad) : '';
     elegidas = conDeuda.filter(r => pedidas.has(r.clave) || (ced && n(r.identidad) === ced));
     if (!porAct && elegidas.some(r => r.deuda.meses > 0)) avisos.push('Residencial centralizado: al pagar una unidad por separado, se descuenta solo esa unidad.');

@@ -61,6 +61,7 @@ function Caja() {
   const [estadoBase, setEstadoBase] = useState<any>(null);
   // modo de pago: lo escoge el cajero
   const [modo, setModo] = useState<'CONDOMINIO' | 'CONTRIBUYENTE'>(sp.get('cedula') || sp.get('unidad') ? 'CONTRIBUYENTE' : 'CONDOMINIO');
+  const [abonoLocales, setAbonoLocales] = useState(false);
   const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
   const [soloMultas, setSoloMultas] = useState(false);
   const [incluirMultas, setIncluirMultas] = useState(false);
@@ -170,7 +171,7 @@ function Caja() {
 
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
-    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(false); setContactoOmitido(false);
+    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(false); setContactoOmitido(false);
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
       router.replace(`/admin/condominios/caja?codigo=${cod}&cedula=${encodeURIComponent(unidad.identidad)}`);
@@ -182,7 +183,7 @@ function Caja() {
       router.replace(`/admin/condominios/caja?codigo=${cod}`);
     }
   };
-  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setSoloMultas(false); setIncluirMultas(false); if (m === 'CONDOMINIO') setIdentidad(''); };
+  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setAbonoLocales(false); setSoloMultas(false); setIncluirMultas(false); if (m === 'CONDOMINIO') setIdentidad(''); };
 
   // Calcular (cada vez que cambia la selección)
   useEffect(() => {
@@ -192,8 +193,15 @@ function Caja() {
       try {
         let tasaParsed = parseFloat(tasaOverrideStr.replace(/\./g, '').replace(',', '.'));
         if (isNaN(tasaParsed)) tasaParsed = 0;
+        const clavesPayload = (modo === 'CONDOMINIO' && abonoLocales && claves.length === 0)
+          ? ['__NINGUNO__']
+          : (modo === 'CONDOMINIO' && !abonoLocales ? [] : claves);
+
         const r = await fetch('/api/admin/condominios/cobrar', { method: 'POST', body: JSON.stringify({
-          accion: 'calcular', codigo, modo, claves, identidad: modo === 'CONTRIBUYENTE' ? identidad.trim() || null : null, meses: meses || null, soloMultas,
+          accion: 'calcular', codigo, modo,
+          claves: clavesPayload,
+          identidad: modo === 'CONTRIBUYENTE' ? identidad.trim() || null : null,
+          meses: meses || null, soloMultas,
           incluirMultas,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
           fechaOverride: fechaOverrideStr || undefined,
@@ -219,7 +227,7 @@ function Caja() {
       } catch (e: any) { setError(e.message); setCobro(null); setSaldoFavorActivo(0); } finally { setCalculando(false); }
     }, 300);
     return () => clearTimeout(h);
-  }, [codigo, modo, claves, identidad, meses, soloMultas, incluirMultas, tasaOverrideStr, fechaOverrideStr]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [codigo, modo, claves, abonoLocales, identidad, meses, soloMultas, incluirMultas, tasaOverrideStr, fechaOverrideStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = cobro?.condo;
   const base = cobro?.estado;
@@ -241,7 +249,7 @@ function Caja() {
   const multasMax = Math.max(1, ...(conDeuda || []).map((r: any) => (r.multaMeses || 0) + (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length + (r.multasManuales || []).length));
   const maxOpciones = soloMultas ? multasMax : mesesMax;
   const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
-  const sinSeleccion = porContrib && !claves.length && !identidad.trim();
+  const sinSeleccion = (porContrib && !claves.length && !identidad.trim()) || (!porContrib && abonoLocales && !claves.length);
 
   const agregarPago = () => {
     let montoParsed = parseLocalFloat(montoAct);
@@ -388,9 +396,16 @@ function Caja() {
       }
       realPagosSubidos.push(...pagosSubidos);
       
+      const clavesPayload = (modo === 'CONDOMINIO' && abonoLocales && claves.length === 0)
+        ? ['__NINGUNO__']
+        : (modo === 'CONDOMINIO' && !abonoLocales ? [] : claves);
+
       const r = await fetch('/api/admin/condominios/cobrar', {
         method: 'POST', body: JSON.stringify({
-          accion: 'cobrar', codigo, modo, claves, identidad: porContrib ? identidad.trim() || null : null, meses: meses || null, soloMultas,
+          accion: 'cobrar', codigo, modo,
+          claves: clavesPayload,
+          identidad: porContrib ? identidad.trim() || null : null,
+          meses: meses || null, soloMultas,
           incluirMultas,
           usuario: u.usuario,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined, fechaOverride: fechaOverrideStr || undefined,
@@ -416,7 +431,7 @@ function Caja() {
       }
 
       setRecibo({ ...j, partes: j.pagos, metodo: 'MÚLTIPLE', banco: '', referencia: '', fecha: new Date(), prueba: false });
-      setReferencia(''); setClaves([]); setMeses(''); setSoloMultas(false); setPagosAgregados([]);
+      setReferencia(''); setClaves([]); setAbonoLocales(false); setMeses(''); setSoloMultas(false); setPagosAgregados([]);
     } catch (e: any) { alert(e.message); } finally { setCobrando(false); }
   };
 
@@ -682,7 +697,7 @@ function Caja() {
               <button id="modo-condominio-completo" onClick={() => cambiarModo('CONDOMINIO')}
                 className={`text-left rounded-2xl border-2 p-4 cursor-pointer transition ${!porContrib ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                 <div className="font-black text-slate-900 flex items-center gap-2"><Building2 className="w-4 h-4 text-emerald-600" /> Paga el condominio completo</div>
-                <div className="text-xs text-slate-600 mt-1">Una sola factura digital <b>al condominio</b> ({c.identidad}).{cobro.estado?.porActividad ? ' Las multas no van: las paga cada contribuyente.' : ''}</div>
+                <div className="text-xs text-slate-600 mt-1">Una sola factura digital <b>al condominio</b> ({c.identidad}). Permite cobro completo o <b>abono sumando local por local</b>.{cobro.estado?.porActividad ? ' Las multas no van: las paga cada contribuyente.' : ''}</div>
               </button>
               <button id="modo-por-contribuyente" onClick={() => cambiarModo('CONTRIBUYENTE')}
                 className={`text-left rounded-2xl border-2 p-4 cursor-pointer transition ${porContrib ? 'border-sky-500 bg-sky-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
@@ -699,7 +714,11 @@ function Caja() {
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
                   <div className="font-extrabold text-slate-800 text-sm">
-                    {porContrib ? 'Escriba la cédula del contribuyente o escoja sus locales' : 'Todo lo que debe el condominio'}
+                    {porContrib
+                      ? 'Escriba la cédula del contribuyente o escoja sus locales'
+                      : abonoLocales
+                        ? 'Abono al Condominio: Seleccione los locales a sumar'
+                        : 'Todo lo que debe el condominio (Cobro Completo)'}
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <label className="flex items-center gap-1.5 text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-red-100 transition-colors">
@@ -810,23 +829,178 @@ function Caja() {
                     {(claves.length > 0 || identidad) && <button onClick={() => { setClaves([]); setIdentidad(''); }} className="text-xs font-bold text-slate-500 hover:underline cursor-pointer">Limpiar</button>}
                   </div>
                 )}
+
+                {!porContrib && (
+                  <div className="px-4 py-3 border-b border-slate-100 bg-emerald-50/40 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-black text-slate-700">Modalidad de pago:</span>
+                        <div className="inline-flex rounded-lg border border-emerald-300 bg-white p-0.5 shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => { setAbonoLocales(false); setClaves([]); }}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                              !abonoLocales
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-emerald-800'
+                            }`}
+                          >
+                            🏢 Cobro Completo ({conDeuda.length} locales)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setAbonoLocales(true); }}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                              abonoLocales
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-emerald-800'
+                            }`}
+                          >
+                            ➕ Abono: Sumar local por local {abonoLocales && claves.length > 0 ? `(${claves.length})` : ''}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          value={filtroU}
+                          onChange={e => setFiltroU(e.target.value)}
+                          placeholder="Buscar local, piso, dueño…"
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs w-48 bg-white"
+                        />
+                        {abonoLocales && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setClaves(visiblesU.map((r: any) => r.clave))}
+                              className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+                            >
+                              Seleccionar todos
+                            </button>
+                            {claves.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setClaves([])}
+                                className="text-xs font-bold text-slate-500 hover:underline cursor-pointer"
+                              >
+                                Limpiar
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {abonoLocales && (
+                      <div className="text-xs text-emerald-950 font-medium flex flex-wrap items-center justify-between gap-2 bg-emerald-100/70 px-3 py-1.5 rounded-lg border border-emerald-200">
+                        <span>
+                          💡 <b>Abono al Condominio:</b> Marque los locales que van a pagar. La factura digital saldrá <b>a nombre del condominio ({c?.identidad})</b> sumando exactamente los locales seleccionados.
+                        </span>
+                        <span className="font-bold text-emerald-900 shrink-0">
+                          {claves.length} de {conDeuda.length} locales ({claves.length === 0 ? 'Ninguno seleccionado' : `Bs ${fmtBs(cobro?.totales?.totalBs || 0)}`})
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="max-h-[480px] overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 sticky top-0">
-                      <tr>{porContrib && <th className="w-10"></th>}<th className="text-left py-2 px-3">Local / unidad</th><th className="text-center px-2">Meses</th><th className="text-left px-2">Desde</th><th className="text-right px-2">Multas</th><th className="text-right px-4">Deuda</th></tr>
+                      <tr>
+                        <th className="w-10 text-center px-2">
+                          {porContrib ? (
+                            ''
+                          ) : abonoLocales ? (
+                            <input
+                              type="checkbox"
+                              checked={visiblesU.length > 0 && visiblesU.every((r: any) => claves.includes(r.clave))}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  setClaves(Array.from(new Set([...claves, ...visiblesU.map((r: any) => r.clave)])));
+                                } else {
+                                  const visSet = new Set(visiblesU.map((r: any) => r.clave));
+                                  setClaves(claves.filter(k => !visSet.has(k)));
+                                }
+                              }}
+                              className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
+                              title="Seleccionar / deseleccionar todos los visibles"
+                            />
+                          ) : (
+                            <span title="Todas las unidades incluidas en el cobro completo" className="text-emerald-700 text-xs font-bold">✓</span>
+                          )}
+                        </th>
+                        <th className="text-left py-2 px-3">Local / unidad</th>
+                        <th className="text-center px-2">Meses</th>
+                        <th className="text-left px-2">Desde</th>
+                        <th className="text-right px-2">Multas</th>
+                        <th className="text-right px-4">Deuda</th>
+                      </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {visiblesU.slice(0, 400).map((r: any) => {
                         const va = enCobro.has(r.clave);
                         const lc = mapLineas.get(r.clave) as any;
-                        const mismoDueno = identidad && normId(r.identidad) === normId(identidad);
+                        const mismoDueno = porContrib && identidad && normId(r.identidad) === normId(identidad);
                         const dMeses = lc ? lc.meses : r.deuda.meses;
                         const dMultas = lc ? (lc.multaBs + lc.multasAparteBs) : multasDe(r);
                         const dTotal = lc ? lc.totalBs : r.totalBs;
+                        const seleccionada = porContrib
+                          ? (claves.includes(r.clave) || !!mismoDueno)
+                          : abonoLocales
+                            ? claves.includes(r.clave)
+                            : true;
+
+                        const handleRowClick = () => {
+                          if (porContrib) {
+                            toggle(r.clave);
+                          } else if (abonoLocales) {
+                            toggle(r.clave);
+                          } else {
+                            // En cobro completo: al hacer click en un local, se activa el modo abono seleccionando este local
+                            setAbonoLocales(true);
+                            setClaves([r.clave]);
+                          }
+                        };
+
                         return (
-                          <tr key={r.clave} onClick={() => porContrib && toggle(r.clave)} className={`${porContrib ? 'cursor-pointer hover:bg-sky-50/60' : ''} ${va && porContrib ? 'bg-sky-50' : ''}`}>
-                            {porContrib && <td className="pl-4"><input type="checkbox" readOnly checked={claves.includes(r.clave) || !!mismoDueno} className="w-4 h-4 accent-sky-600" /></td>}
-                            <td className={`py-2 px-3 ${porContrib && !va ? 'opacity-50' : ''}`}>
+                          <tr
+                            key={r.clave}
+                            onClick={handleRowClick}
+                            className={`cursor-pointer transition-colors ${
+                              porContrib
+                                ? (seleccionada ? 'bg-sky-50 hover:bg-sky-100/70' : 'hover:bg-slate-50 opacity-60')
+                                : abonoLocales
+                                  ? (seleccionada ? 'bg-emerald-50 hover:bg-emerald-100/70 font-medium' : 'hover:bg-slate-50 opacity-60')
+                                  : 'hover:bg-emerald-50/40'
+                            }`}
+                          >
+                            <td className="text-center px-2 py-2">
+                              {porContrib ? (
+                                <input
+                                  type="checkbox"
+                                  readOnly
+                                  checked={seleccionada}
+                                  className="w-4 h-4 accent-sky-600 rounded cursor-pointer"
+                                />
+                              ) : abonoLocales ? (
+                                <input
+                                  type="checkbox"
+                                  readOnly
+                                  checked={seleccionada}
+                                  className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
+                                />
+                              ) : (
+                                <input
+                                  type="checkbox"
+                                  readOnly
+                                  checked={true}
+                                  className="w-4 h-4 accent-emerald-600 rounded cursor-pointer opacity-70"
+                                  title="Incluido en cobro completo. Haga click para sumar local por local."
+                                />
+                              )}
+                            </td>
+                            <td className={`py-2 px-3 ${!seleccionada ? 'opacity-60' : ''}`}>
                               <div className="font-bold text-slate-900 font-mono text-xs">{r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'Declaradas sin registrar' : 'Condominio')}{r.numero ? ` · ${r.numero}` : ''}</div>
                               <div className="text-[11px] text-slate-500">{r.propietario || ''}{r.identidad ? ` · ${r.identidad}` : ''}</div>
                               {r.actividad && <div className="text-[10px] text-violet-700 font-bold truncate max-w-[340px]">{r.actividad}</div>}
@@ -839,7 +1013,7 @@ function Caja() {
                               ) : (r.periodos[0] ? fmtPeriodo(r.periodos[0]) : '—')}
                             </td>
                             <td className="px-2 text-right text-xs tabular-nums text-red-600">{dMultas > 0 ? fmtBs(dMultas) : '—'}</td>
-                            <td className="px-4 text-right font-bold tabular-nums text-red-700">Bs {fmtBs(dTotal)}</td>
+                            <td className={`px-4 text-right font-bold tabular-nums ${seleccionada ? 'text-red-700' : 'text-slate-400'}`}>Bs {fmtBs(dTotal)}</td>
                           </tr>
                         );
                       })}
@@ -996,7 +1170,11 @@ function Caja() {
                   {cobro.facturas.length > 8 && <div className="text-[11px] text-white/60">… y {cobro.facturas.length - 8} más.</div>}
                 </div>
               )}
-              {sinSeleccion && <div className="rounded-xl bg-sky-400/15 border border-sky-300/40 text-sky-100 text-xs p-2.5">Escriba la cédula del contribuyente o marque sus locales.</div>}
+              {sinSeleccion && (
+                <div className="rounded-xl bg-sky-400/15 border border-sky-300/40 text-sky-100 text-xs p-2.5">
+                  {porContrib ? 'Escriba la cédula del contribuyente o marque sus locales.' : 'Marque los locales que desea incluir en este abono al condominio.'}
+                </div>
+              )}
 
               {/* Nota de crédito que le quedará al contribuyente */}
               {cobro.lineas?.length > 0 && (faltaPagar < -0.05 || (saldoFavorActivo > 0 && descuentoSaldoFavor > 0)) && (
