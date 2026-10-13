@@ -140,7 +140,7 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
         <p style="margin:22px 0 0;font-size:11px;color:#94a3b8;line-height:1.5;text-align:center;">Este recibo es un comprobante de pago y no constituye factura fiscal.</p>
       </td></tr>
       <tr><td style="background:#f1f5f9;padding:16px 24px;text-align:center;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;">
-        Instituto Autónomo Municipal de Ecosocialismo Naguanagua (IAMEC) &bull; R.I.F. G-20000147-3<br>Naguanagua, Estado Carabobo
+        Instituto Autónomo Municipal de Ecosocialismo Naguanagua (IAMEC) &bull; R.I.F. G-20008614-9<br>Naguanagua, Estado Carabobo
       </td></tr>
     </table>
   </td></tr></table>

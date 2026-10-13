@@ -65,7 +65,7 @@ export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
     doc.text(data.patente || 'S/N', 130, 68);
     
     doc.text("Dirección:", 110, 74);
-    const dirSplit = doc.splitTextToSize(data.direccion || 'Naguanagua Municipio Naguanagua, Falcón', 70);
+    const dirSplit = doc.splitTextToSize(data.direccion || 'Municipio Naguanagua, Estado Carabobo', 70);
     doc.text(dirSplit, 130, 74);
     
     // Section 2: PERÍODO DE SOLVENCIA

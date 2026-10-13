@@ -42,7 +42,7 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
   doc.setTextColor(220, 252, 231);
   doc.text('RECIBO DE PAGO • SERVICIO DE ASEO URBANO', W / 2, 20, { align: 'center' });
   doc.setFontSize(8);
-  doc.text('R.I.F. G-20000147-3', W / 2, 25, { align: 'center' });
+  doc.text('R.I.F. G-20008614-9', W / 2, 25, { align: 'center' });
   y = 40;
 
   // ── Datos del contribuyente y del pago ──

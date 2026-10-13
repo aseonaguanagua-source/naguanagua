@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { getIdentidadVariants } from '@/lib/formatters';
+import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
 import { parseDet } from '@/lib/retencionFlujo';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   try {
     const identidad = new URL(request.url).searchParams.get('identidad') || '';
     if (!identidad) return NextResponse.json({ error: 'identidad requerida' }, { status: 400 });
-    const variantes = getIdentidadVariants(identidad);
+    const variantes = /^[VEJPG][-_\s]?\d+$/i.test(identidad.trim()) ? getIdentidadVariantsExact(identidad) : getIdentidadVariants(identidad);
 
     const { data, error } = await supabase
       .from('pagos_reportados')

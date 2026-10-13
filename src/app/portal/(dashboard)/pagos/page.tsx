@@ -81,6 +81,9 @@ export default function DondePagarPage() {
   // Selección de pagos
   const [selectedReceiptRefs, setSelectedReceiptRefs] = useState<string[]>([]);
   const [selectedConvenioIds, setSelectedConvenioIds] = useState<string[]>([]);
+  // Servicios Especiales / Extraordinarios pendientes (se pagan junto con el aseo)
+  const [serviciosPend, setServiciosPend] = useState<any[]>([]);
+  const [selectedServicios, setSelectedServicios] = useState<string[]>([]);
   const [expandedLocals, setExpandedLocals] = useState<Record<string, boolean>>({});
 
   // 1. Obtener tasa BCV oficial
@@ -143,6 +146,13 @@ export default function DondePagarPage() {
         setBloqueadoPorCondominio(rc.soloCondominio);
         setRawRecibos(rc.recibos);
 
+        // Servicios especiales / extraordinarios pendientes del contribuyente
+        try {
+          const rs = await fetch(`/api/admin/servicios-especiales?identidad=${encodeURIComponent(portalDoc)}&estado=Pendiente`);
+          const js = await rs.json();
+          setServiciosPend(Array.isArray(js) ? js.filter((x: any) => x.referencia && Number(x.monto) > 0) : []);
+        } catch { setServiciosPend([]); }
+
         // D. Cargar Convenios de Pago activos
         const { data: dbConvenios } = await supabase
           .from('convenios_pago')
@@ -186,6 +196,22 @@ export default function DondePagarPage() {
 
   // Cálculo canónico del monto de un recibo según la Ordenanza oficial
   const effectiveTcmmv = tcmmv > 0 ? tcmmv : (contextTcmmv || 0);
+
+  /** IVA retenido (75%) de un recibo — solo agentes de retención (misma regla de Caja). */
+  const getReciboRetencion = (r: any): number => {
+    if (r.estado === 'Abonado') return 0;
+    const currentRate = effectiveTcmmv > 0 ? effectiveTcmmv : 1;
+    if (r.referencia?.startsWith('RECIB-HIST-')) {
+      const c = r.referencia.split('-')[2];
+      const inm = userInms.find((i: any) => i.inmueble === c);
+      if (!inm) return 0;
+      const histRefs = rawRecibos.filter((x: any) => x.referencia?.startsWith(`RECIB-HIST-${c}-M`));
+      const d = calcularDeudaInmueble(inm, currentRate, histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm) })));
+      return porMesConRetencion(d)[histRefs.findIndex((x: any) => x.referencia === r.referencia)]?.retencion || 0;
+    }
+    if (r.referencia?.startsWith('CM-')) return r2(desgloseReciboCM(r, userInms, currentRate).ivaRetenible * 0.75);
+    return 0;
+  };
 
   const getReciboMonto = (r: any): number => {
     if (r.estado === 'Abonado') return parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
@@ -517,8 +543,9 @@ export default function DondePagarPage() {
       .reduce((sum, c) => sum + c.monto, 0);
   }, [selectedConvenioIds, conveniosData]);
 
-  const montoTotal = parseFloat((totalMontoRecibos + totalMontoConvenios).toFixed(2));
-  const totalConceptosSeleccionados = selectedReceiptRefs.length + selectedConvenioIds.length;
+  const totalMontoServicios = serviciosPend.filter(x => selectedServicios.includes(x.referencia)).reduce((t, x) => t + (Number(x.monto) || 0), 0);
+  const montoTotal = parseFloat((totalMontoRecibos + totalMontoConvenios + totalMontoServicios).toFixed(2));
+  const totalConceptosSeleccionados = selectedReceiptRefs.length + selectedConvenioIds.length + selectedServicios.length;
 
   useEffect(() => {
     setFormData(prev => ({ ...prev, monto: montoTotal > 0 ? formatBs(montoTotal) : '' }));
@@ -584,6 +611,8 @@ export default function DondePagarPage() {
           facturaIds: facturaDbIds,
           reciboRefs: selectedReceiptRefs,
           convenioIds: convenioDbIds,
+          servicioRefs: selectedServicios,
+          montoRetencionIva: r2(rawRecibos.filter(r => selectedReceiptRefs.includes(r.referencia)).reduce((t, r) => t + getReciboRetencion(r), 0)),
           monto: montoTotal,
           referencia: formData.referencia,
           banco: formData.bancoOrigen,
@@ -615,6 +644,8 @@ export default function DondePagarPage() {
         // Limpiar selecciones y formulario
         setSelectedReceiptRefs([]);
         setSelectedConvenioIds([]);
+        setServiciosPend(prev => prev.filter(x => !selectedServicios.includes(x.referencia)));
+        setSelectedServicios([]);
         setFormData({ bancoDestino: 'BANCAMIGA - 0172 - 0717', bancoOrigen: '', referencia: '', monto: '', fecha: '', comprobante: null });
         setMetodo('');
       } else {
@@ -627,7 +658,7 @@ export default function DondePagarPage() {
     }
   };
 
-  if (bloqueadoPorCondominio) {
+  if (bloqueadoPorCondominio && serviciosPend.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 mt-10 bg-white rounded-lg shadow-sm border border-red-200 max-w-2xl mx-auto text-center">
         <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
@@ -1034,6 +1065,27 @@ export default function DondePagarPage() {
                 </div>
               )}
             </div>
+
+            {/* Servicios Especiales / Extraordinarios pendientes */}
+            {serviciosPend.length > 0 && (
+              <div className="mx-4 mb-4 border border-emerald-200 bg-emerald-50/40 rounded-xl p-3 space-y-2">
+                <span className="text-xs font-bold text-emerald-900 uppercase block">Servicios Especiales y Extraordinarios</span>
+                {serviciosPend.map(x => {
+                  const isSel = selectedServicios.includes(x.referencia);
+                  return (
+                    <label key={x.referencia} className={`flex items-center justify-between gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${isSel ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <input type="checkbox" checked={isSel}
+                          onChange={() => setSelectedServicios(p => p.includes(x.referencia) ? p.filter(r => r !== x.referencia) : [...p, x.referencia])}
+                          className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500" />
+                        <span className="text-xs font-bold text-slate-800 truncate">{x.descripcion}</span>
+                      </div>
+                      <span className="text-xs font-bold text-slate-800 shrink-0">Bs. {formatBs(Number(x.monto) || 0)}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Footer de Selección */}
             <div className="bg-slate-50 p-4 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">

@@ -664,6 +664,12 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         }
       }
 
+      // Servicios especiales / extraordinarios incluidos en el pago: al aprobar quedan Pagados
+      if (estatus === 'Aprobado' && det.servicios && det.servicios.length > 0) {
+        await fetch('/api/admin/servicios-especiales', { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ referencias: det.servicios.map((s: any) => typeof s === 'string' ? s : s.referencia), estado: 'Pagado' }) });
+      }
+
       if (estatus === 'Aprobado' && recibos.length > 0) {
         const { data: facs } = await supabase.from('facturas').select('*').in('referencia', recibos);
         if (facs && facs.length > 0) {

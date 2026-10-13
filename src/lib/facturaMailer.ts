@@ -139,7 +139,7 @@ export function buildFacturaEmailTemplate(data: {
           <!-- FOOTER -->
           <tr>
             <td style="background:#f1f5f9;padding:16px 24px;text-align:center;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;">
-              Instituto Autónomo Municipal de Ecosocialismo Naguanagua (IAMEC) &bull; R.I.F. G-20000147-3<br>
+              Instituto Autónomo Municipal de Ecosocialismo Naguanagua (IAMEC) &bull; R.I.F. G-20008614-9<br>
               Naguanagua, Estado Carabobo &bull; República Bolivariana de Venezuela
             </td>
           </tr>

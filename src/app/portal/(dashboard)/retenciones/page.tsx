@@ -1,7 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { getIdentidadVariants } from '@/lib/formatters';
+import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
+import { isResidencialInm } from '@/lib/calculos';
+import { calcularDeudaInmueble, esUltimoMesHist, porMesConRetencion, r2 } from '@/lib/deudaMensual';
+import { construirRecibosContribuyente, desgloseReciboCM } from '@/lib/recibosContribuyente';
+import { Download } from 'lucide-react';
 import { Upload, FileText, CheckCircle2, AlertCircle, Clock, ShieldAlert, Receipt, Send } from 'lucide-react';
 
 interface Retencion {
@@ -34,7 +38,39 @@ interface FacturaRet {
   facturaUrl?: string | null;
 }
 
-const RIF_IAMEC = 'G-20000147-3';
+const RIF_IAMEC = 'G-20008614-9';
+const NOMBRE_IAMEC = 'Instituto Autónomo Municipal de Ecosocialismo Naguanagua (IAMEC)';
+const DOMICILIO_IAMEC = 'Avenida Libertador, frente a la Plaza Bolívar, Naguanagua, Estado Carabobo';
+// Variantes EXACTAS (no mezcla V/J/E/G con el mismo número)
+const variantesDe = (id: string) => /^[VEJPG][-_\s]?\d+$/i.test(id.trim()) ? getIdentidadVariantsExact(id) : getIdentidadVariants(id);
+
+/** PDF con los datos de la factura para elaborar el comprobante de retención. */
+async function descargarDatosFactura(d: { titulo: string; numeroFactura?: string; numeroControl?: string; fecha?: string | null;
+  agente: string; rifAgente: string; base: number; iva: number; retenido: number; total: number; nota?: string }) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ unit: 'mm', format: 'letter' });
+  const W = doc.internal.pageSize.getWidth(); let y = 18;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text(d.titulo, W / 2, y, { align: 'center' }); y += 9;
+  const fila = (k: string, v: string, neg = false) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text(k, 20, y);
+    doc.setFont('helvetica', neg ? 'bold' : 'normal'); doc.text(v, 95, y); y += 6.5; };
+  const sec = (t: string) => { y += 2; doc.setFillColor(236, 253, 245); doc.rect(16, y - 4.5, W - 32, 7, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(4, 120, 87); doc.text(t, 20, y); doc.setTextColor(0, 0, 0); y += 8; };
+  sec('DATOS DEL EMISOR (SUJETO RETENIDO)');
+  fila('Razón social:', 'IAMEC Naguanagua'); fila('Nombre completo:', NOMBRE_IAMEC.replace(' (IAMEC)', '')); fila('R.I.F.:', RIF_IAMEC);
+  const dom = doc.splitTextToSize(DOMICILIO_IAMEC, W - 115) as string[]; doc.setFont('helvetica', 'bold'); doc.text('Domicilio fiscal:', 20, y); doc.setFont('helvetica', 'normal'); doc.text(dom, 95, y); y += 6.5 * dom.length;
+  sec('DATOS DEL AGENTE DE RETENCIÓN');
+  fila('Nombre / Razón social:', d.agente || '—'); fila('R.I.F.:', d.rifAgente || '—');
+  sec('DATOS DE LA FACTURA');
+  fila('N° de factura:', d.numeroFactura || 'Se asigna al emitir'); fila('N° de control:', d.numeroControl || 'Se asigna al emitir'); fila('Fecha de emisión:', d.fecha ? fmtFecha(d.fecha) : '—');
+  fila('Concepto:', 'Tasa por servicio de aseo urbano domiciliario');
+  sec('MONTOS (Bs.)');
+  fila('Base imponible:', fmt(d.base)); fila('Alícuota IVA:', '16 %'); fila('Impuesto IVA (16 %):', fmt(d.iva));
+  fila('IVA retenido (75 %):', fmt(d.retenido), true); fila('IVA no retenido (25 %):', fmt(r2(d.iva - d.retenido)));
+  fila('Total factura:', fmt(d.total)); fila('Total a pagar (total - retención):', fmt(r2(d.total - d.retenido)), true);
+  if (d.nota) { y += 4; doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.text(doc.splitTextToSize(d.nota, W - 40) as string[], 20, y); }
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 116, 139);
+  doc.text(`Generado desde Soy Contribuyente · ${new Date().toLocaleString('es-VE')}`, W / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+  doc.save(`Datos_Factura_Retencion_${d.numeroFactura || 'deuda_actual'}.pdf`);
+}
 
 const fmt = (n: number) =>
   (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -73,18 +109,47 @@ export default function RetencionesDashboard() {
     checkAgente(doc);
   }, []);
 
+  // Reglas de condominio: un local dentro de un condominio comercial NO retiene por el aseo (lo paga el condominio;
+  // sus multas no llevan IVA). Retiene: (a) el contribuyente con actividades individuales comerciales marcadas como
+  // agente de retención, o (b) el condominio mismo si está marcado como agente (se aplica en Caja Condominios).
+  const [esCondoAgente, setEsCondoAgente] = useState(false);
+  const [soloLocalEnCondominio, setSoloLocalEnCondominio] = useState(false);
+  const [deudaActual, setDeudaActual] = useState<{ base: number; iva: number; retenido: number; multa: number; total: number; inms: string[] } | null>(null);
+
   const checkAgente = async (id: string) => {
     if (!id) { setIsAgente(false); setLoading(false); return; }
-    const variantes = getIdentidadVariants(id);
-    const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
-    const { data } = await supabase
-      .from('inmuebles')
-      .select('id, inmueble, agente_retencion')
-      .or(orFilter)
-      .eq('agente_retencion', true);
+    const orFilter = variantesDe(id).map(v => `identidad.eq.${v}`).join(',');
+    const [{ data: inms }, { data: facs }, bcv] = await Promise.all([
+      supabase.from('inmuebles').select('*').or(orFilter),
+      supabase.from('facturas').select('*').or(orFilter).in('estado', ['Pendiente', 'Por Verificar', 'Abonado']),
+      fetch('/api/bcv').then(r => r.json()).catch(() => ({})),
+    ]);
+    const todos = inms || [];
+    const rc = construirRecibosContribuyente({ inmuebles: todos, facturas: facs || [], identidad: id });
+    const agentesInd = rc.billables.filter((i: any) => i.agente_retencion === true && !isResidencialInm(i));
+    const condoAg = todos.some((i: any) => i.es_condominio === true && i.agente_retencion === true);
+    setEsCondoAgente(condoAg);
+    setSoloLocalEnCondominio(!agentesInd.length && !condoAg && todos.some((i: any) => i.agente_retencion === true && i.condominio_padre_id));
 
-    if (data && data.length > 0) {
+    if (agentesInd.length || condoAg) {
       setIsAgente(true);
+      // Datos de la factura de su deuda ACTUAL (para preparar el comprobante antes de pagar)
+      const tasa = Number(bcv?.tcmmv) || 0;
+      if (tasa > 0 && agentesInd.length) {
+        let base = 0, iva = 0, ret = 0, multa = 0;
+        const hist = new Map<string, any[]>();
+        rc.recibos.forEach((r: any) => {
+          const ref = String(r.referencia || '');
+          if (ref.startsWith('RECIB-HIST-')) { const c = ref.split('-')[2]; if (!hist.has(c)) hist.set(c, []); hist.get(c)!.push(r); }
+          else if (ref.startsWith('CM-') && r.estado !== 'Abonado') { const d = desgloseReciboCM(r, rc.billables, tasa); base += d.base; iva += d.iva; multa += d.multa; ret += r2(d.ivaRetenible * 0.75); }
+        });
+        hist.forEach((rs, c) => {
+          const inm = rc.billables.find((i: any) => i.inmueble === c); if (!inm) return;
+          const d = calcularDeudaInmueble(inm, tasa, rs.map((r: any) => ({ emision: r.emision, esUltimo: esUltimoMesHist(r.referencia, inm) })));
+          base += d.base; iva += d.iva; multa += d.multa; ret += porMesConRetencion(d).reduce((t, m) => t + m.retencion, 0);
+        });
+        if (base > 0) setDeudaActual({ base: r2(base), iva: r2(iva), retenido: r2(ret), multa: r2(multa), total: r2(base + iva + multa), inms: agentesInd.map((i: any) => i.inmueble) });
+      }
       await cargar(id);
     } else {
       setIsAgente(false);
@@ -93,7 +158,7 @@ export default function RetencionesDashboard() {
   };
 
   const cargar = async (id: string) => {
-    const variantes = getIdentidadVariants(id);
+    const variantes = variantesDe(id);
     const [{ data }, res] = await Promise.all([
       supabase.from('retenciones_iva').select('*').in('identidad', variantes).order('created_at', { ascending: false }),
       fetch(`/api/portal/retenciones/pendientes?identidad=${encodeURIComponent(id)}`).then(r => r.json()).catch(() => ({})),
@@ -208,6 +273,38 @@ export default function RetencionesDashboard() {
         </div>
       )}
 
+      {esCondoAgente && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4 text-sm text-blue-800">
+          <b>Condominio agente de retención:</b> la retención del 75% del IVA se aplica al pagar el aseo del condominio en Caja Condominios.
+          Al emitirse la factura, aparecerá abajo con sus datos para que suba el comprobante.
+        </div>
+      )}
+
+      {/* Datos de la factura de la deuda actual (para preparar el comprobante antes de pagar) */}
+      {deudaActual && (
+        <section className="bg-white rounded-2xl border border-emerald-200 p-5 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-black text-slate-700 uppercase tracking-wide">Su deuda actual · datos para el comprobante</h2>
+              <p className="text-xs text-slate-500">Actividades: {deudaActual.inms.join(', ')} · tasa del día. El N° de factura y de control se asignan al emitirla, después del pago.</p>
+            </div>
+            <button onClick={() => descargarDatosFactura({ titulo: 'DATOS PARA EL COMPROBANTE DE RETENCIÓN DE IVA (PROFORMA)', agente: (typeof window !== 'undefined' ? localStorage.getItem('portal_user') || '' : ''), rifAgente: identidad,
+              base: deudaActual.base, iva: deudaActual.iva, retenido: deudaActual.retenido, total: deudaActual.total,
+              nota: `Proforma de la deuda a la fecha (incluye multas por mora por Bs. ${fmt(deudaActual.multa)}, exentas de IVA). Los montos pueden variar con la tasa del día de pago.` })}
+              className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-3 py-2">
+              <Download className="w-3.5 h-3.5" /> Descargar datos
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs text-slate-500">
+            <div><span className="font-bold text-slate-700 block">Base imponible</span>Bs. {fmt(deudaActual.base)}</div>
+            <div><span className="font-bold text-slate-700 block">IVA (16%)</span>Bs. {fmt(deudaActual.iva)}</div>
+            <div><span className="font-bold text-red-700 block">IVA retenido (75%)</span>Bs. {fmt(deudaActual.retenido)}</div>
+            <div><span className="font-bold text-slate-700 block">Multas (exentas)</span>Bs. {fmt(deudaActual.multa)}</div>
+            <div><span className="font-bold text-emerald-700 block">A pagar</span>Bs. {fmt(r2(deudaActual.total - deudaActual.retenido))}</div>
+          </div>
+        </section>
+      )}
+
       {/* Facturas pendientes de comprobante */}
       <section className="space-y-3">
         <h2 className="text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-2">
@@ -240,6 +337,14 @@ export default function RetencionesDashboard() {
               <div><span className="font-bold text-slate-700 block">Base imponible</span>Bs. {fmt(f.base)}</div>
               <div><span className="font-bold text-slate-700 block">IVA (16%)</span>Bs. {fmt(f.iva)}</div>
               <div><span className="font-bold text-slate-700 block">Total factura</span>Bs. {fmt(f.total)}</div>
+              <div><span className="font-bold text-slate-700 block">Emisor</span>IAMEC Naguanagua</div>
+              <div><span className="font-bold text-slate-700 block">IVA no retenido (25%)</span>Bs. {fmt(r2((f.iva || 0) - (f.retenido || 0)))}</div>
+              <div><span className="font-bold text-slate-700 block">Pagado en caja</span>Bs. {fmt(f.pagado)}</div>
+              <div>
+                <button onClick={() => descargarDatosFactura({ titulo: 'DATOS DE LA FACTURA PARA EL COMPROBANTE DE RETENCIÓN DE IVA', numeroFactura: f.numeroFactura, numeroControl: f.numeroControl,
+                  fecha: f.fechaEmision, agente: (typeof window !== 'undefined' ? localStorage.getItem('portal_user') || '' : ''), rifAgente: identidad, base: f.base, iva: f.iva, retenido: f.retenido, total: f.total })}
+                  className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:underline mt-3"><Download className="w-3.5 h-3.5" /> Descargar datos</button>
+              </div>
             </div>
 
             {abierta === f.pagoId ? (

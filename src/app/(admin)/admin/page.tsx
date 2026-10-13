@@ -117,7 +117,7 @@ export default async function AdminHome() {
                 <CopyButton text="01341089590001008636" className="text-emerald-600 hover:text-emerald-800 ml-1 p-1 bg-white rounded border border-emerald-200" />
               </div>
               <div className="text-xs text-slate-600 pt-2 border-t border-emerald-100">
-                <p>Titular: <strong className="text-slate-800">Inst. Soc. Mun. para el Ambiente</strong></p>
+                <p>Titular: <strong className="text-slate-800">IAMEC BANESCO</strong></p>
                 <p className="text-[11px] text-slate-500 font-mono">RIF: G-200086149</p>
               </div>
             </div>
@@ -135,7 +135,7 @@ export default async function AdminHome() {
                 <MapPin className="w-5 h-5 text-slate-400 mt-0.5" />
                 <div>
                   <div className="font-semibold text-sm text-slate-700 mb-1">Oficinas de Atención al Usuario:</div>
-                  <div className="text-sm text-slate-600">Avenida Libertador, frente a la Plaza Bolívar. Naguanagua Edo. Falcón Zona Postal 2055</div>
+                  <div className="text-sm text-slate-600">Avenida Libertador, frente a la Plaza Bolívar. Naguanagua Edo. Carabobo Zona Postal 2055</div>
                 </div>
               </div>
               <div className="flex items-start gap-3">

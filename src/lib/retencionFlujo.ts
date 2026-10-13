@@ -38,7 +38,7 @@ export interface RetencionPago {
 }
 
 export const PORC_RETENCION = 0.75;
-export const RIF_IAMEC = 'G-20000147-3';
+export const RIF_IAMEC = 'G-20008614-9';
 export const NOMBRE_IAMEC = 'Instituto Autónomo Municipal de Ecosocialismo Naguanagua (IAMEC)';
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;

@@ -5,6 +5,10 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { metodo, facturaIds, convenioIds, monto, referencia, banco, bancoDestino, fecha, identidad, reciboRefs } = body;
+    // Servicios especiales / extraordinarios (referencias SRV-…) seleccionados en el portal
+    // IVA retenido por agentes de retención (75%): activa el flujo de factura con comprobante de retención
+    const montoRetencionIva = Math.max(0, Number(body.montoRetencionIva) || 0);
+    const servicioRefs: string[] = Array.isArray(body.servicioRefs) ? body.servicioRefs.map(String).filter(Boolean) : [];
 
     if (!identidad || !monto || !metodo) {
       return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 });
@@ -39,6 +43,11 @@ export async function POST(request: Request) {
           })
           .in('id', convenioIds);
         if (error) errores.push(`Error convenios: ${error.message}`);
+      }
+
+      if (servicioRefs.length > 0) {
+        const { error } = await supabase.from('servicios_especiales').update({ estado: 'Pagado' }).in('referencia', servicioRefs);
+        if (error) errores.push(`Error servicios: ${error.message}`);
       }
 
       if (errores.length > 0) {
@@ -95,9 +104,15 @@ export async function POST(request: Request) {
           recibos: finalRecibos,
           recibosIds: facturaIds,
           conveniosIds: convenioIds,
+          servicios: servicioRefs,
+          ...(montoRetencionIva > 0 ? { monto_retencion_iva: montoRetencionIva, es_agente_retencion: true } : {}),
           fecha_transaccion: fechaPago
         })
       });
+
+      if (servicioRefs.length > 0) {
+        await supabase.from('servicios_especiales').update({ estado: 'Por Verificar' }).in('referencia', servicioRefs).eq('estado', 'Pendiente');
+      }
 
       // Marcar facturas como Por Verificar para que Caja las bloquee automaticamente
       if (facturaIds && facturaIds.length > 0) {

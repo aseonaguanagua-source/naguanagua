@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 
+import { getIdentidadVariantsExact } from '@/lib/formatters';
+
+// Variantes EXACTAS de la cédula/RIF (no mezcla V/J/E/G con el mismo número)
 function getIdentidadVariants(rawId: string): string[] {
   const clean = rawId.trim().toUpperCase();
-  const sinGuion = clean.replace(/-/g, '');
-  const soloNum = clean.replace(/^[VJEGP]-?/, '');
-  const variants = new Set([clean, sinGuion, soloNum]);
-  ['V', 'J', 'G', 'E', 'P'].forEach(prefix => {
-    variants.add(`${prefix}-${soloNum}`);
-    variants.add(`${prefix}${soloNum}`);
-  });
-  return Array.from(variants);
+  const v = new Set(getIdentidadVariantsExact(clean));
+  v.add(clean); v.add(clean.replace(/-/g, ''));
+  return Array.from(v);
 }
 
 export async function GET(request: Request) {

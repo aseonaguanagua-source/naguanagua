@@ -206,7 +206,7 @@ function buildHtml(nombre: string): string {
   <tr>
     <td style="background:#0a4a2a;padding:16px 24px;text-align:center;">
       <p style="margin:0;font-size:11px;color:#86efac;line-height:1.7;">
-        Instituto de Ambiente del Municipio Naguanagua (IAMEC Naguanagua) &bull; Alcald&iacute;a del Municipio Naguanagua &bull; Estado Falc&oacute;n<br/>
+        Instituto de Ambiente del Municipio Naguanagua (IAMEC Naguanagua) &bull; Alcald&iacute;a del Municipio Naguanagua &bull; Estado Carabobo<br/>
         Este correo fue enviado de forma oficial. Por favor no responda directamente a este mensaje.
       </p>
     </td>
