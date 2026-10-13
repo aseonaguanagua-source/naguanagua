@@ -995,7 +995,11 @@ function ContribuyentesPageContent() {
       const clusterInmBreakdown = cluster.inmuebles.map((inm: any) => {
         const bMes = calcularMensualidad(inm, tcmmv);
         const iMes = esRes ? 0 : (bMes * 0.16);
-        const mDeuda = parseInt(String(inm.meses_deuda || 0), 10);
+        // Misma regla que Caja / construirRecibosContribuyente: si meses_deuda = 0 pero tiene deuda_mmv
+        // (o deuda congelada), cuenta como 1 mes pendiente.
+        const mBase = parseInt(String(inm.meses_deuda || 0), 10) || 0;
+        const mDeuda = mBase > 0 ? mBase
+          : ((parseFloat(String(inm.deuda_mmv || 0)) || 0) > 0 || (parseFloat(String(inm.deuda_congelada_bs || 0)) || 0) > 0 ? 1 : 0);
         if (mDeuda > maxMesesCluster) maxMesesCluster = mDeuda;
 
         const esExoneradoTotal = isExoneradoTotalMultas(inm.notas);
@@ -3183,7 +3187,7 @@ function ContribuyentesPageContent() {
         );
 
         const hasDebt = pendFacturas.length > 0 || inmsConMora.length > 0;
-        const totalMesesDeuda = inmsConMora.reduce((max: number, i: any) => Math.max(max, parseInt(String(i.meses_deuda || 0), 10)), 0);
+        const totalMesesDeuda = inmsConMora.reduce((max: number, i: any) => Math.max(max, parseInt(String(i.meses_deuda || 0), 10) || 1), 0);
         const debtDesc = pendFacturas.length > 0
           ? `Deuda pendiente: Bs. ${debtFacturasAmount.toFixed(2)} (${pendFacturas.length} recibos)`
           : `Deuda pendiente: ${totalMesesDeuda} meses acumulados`;
