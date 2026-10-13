@@ -104,15 +104,20 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
     return pagos.filter(p => {
       // Excluir pagos anulados o rechazados
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
-      const d = new Date(p.created_at);
-      if (d < s || d > e) return false;
       const det = parseDet(p);
+      const d = new Date(p.created_at);
+      const fTx = det.fecha_transaccion || det.fecha_banco || '';
+      const fechaCoincide = (d >= s && d <= e) || (fTx && fTx === fecha);
+      if (!fechaCoincide) return false;
+
       const pCajero = det.cajero || det.analista || '';
       if (!isAdmin) {
         const myName = currentUser.toLowerCase();
         const pCajLower = pCajero.toLowerCase();
         const matches = pCajLower === myName ||
                         pCajLower.endsWith(`-${myName}`) ||
+                        pCajLower.includes(myName) ||
+                        myName.includes(pCajLower) ||
                         (cajero && pCajLower === cajero.toLowerCase());
         if (!matches) return false;
       } else if (cajero && pCajero !== cajero) {
@@ -126,8 +131,9 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
         if (forma === 'Deposito' && !isDepositoPago(p)) return false;
         if (forma === 'Saldo a Favor' && !isSaldoPago(p)) return false;
       }
-      // Solo conciliados si es transferencia bancaria
-      if (isTransfPago(p) && p.estado !== 'Aprobado' && p.estado !== 'Con Diferencia') return false;
+      // Las transferencias registradas por cajero deben salir en su cuadre
+      // Solo transferencias del portal web sin cajero requieren estar previamente conciliadas
+      if (isTransfPago(p) && !det.cajero && p.estado !== 'Aprobado' && p.estado !== 'Con Diferencia') return false;
       return true;
     });
   };

@@ -1785,7 +1785,7 @@ function ContribuyentesPageContent() {
     };
 
     let isCondominio = false;
-    let locales: { id: string; numeracion: string; uso: string; estatus: string; actividad: string; nivel: string }[] = [];
+    let locales: any[] = [];
     let cantidadInmuebles = 1;
     let TipoResidencia = ordenanzaData.tiposResidenciales[0].label;
     let ActividadComercial = '';
@@ -1822,13 +1822,36 @@ function ContribuyentesPageContent() {
         });
       } else {
         const principal = misInmuebles[0];
-        if (usoDe(principal) === 'Residencial') {
+        const uso = usoDe(principal);
+        const act = principal.actividad_principal || '';
+        const desocupado = uso === 'Comercial' && /DESOCUPAD/i.test(act);
+        const an = actividadYNivelDeInmueble(principal);
+        if (uso === 'Residencial') {
           TipoResidencia = principal.actividad_principal || TipoResidencia;
         } else {
-          const an = actividadYNivelDeInmueble(principal);
           ActividadComercial = an.actividad;
           NivelMetraje = ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0];
         }
+        locales = [{
+          id: `local-0-${Date.now()}`,
+          codigo: principal.inmueble,
+          numeracion: principal.inmueble || 'Inmueble 1 (Principal)',
+          uso,
+          estatus: desocupado ? 'Desocupado' : 'Ocupado',
+          actividad: uso === 'Residencial' || desocupado ? '' : an.actividad,
+          tipoResidencia: uso === 'Residencial' ? act : '',
+          nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
+          mmvActual: principal.mmv_mes,
+          agente_retencion: principal.agente_retencion === true || String(principal.agente_retencion) === 'true',
+          __orig: {
+            uso,
+            actividad: uso === 'Residencial' || desocupado ? '' : an.actividad,
+            nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
+            tipoResidencia: uso === 'Residencial' ? act : '',
+            estatus: desocupado ? 'Desocupado' : 'Ocupado',
+            agente_retencion: principal.agente_retencion === true || String(principal.agente_retencion) === 'true'
+          }
+        }];
       }
     }
 
@@ -1913,6 +1936,64 @@ function ContribuyentesPageContent() {
       newLocales = newLocales.slice(0, val);
     }
     setFormData({...formData, cantidadInmuebles: val, locales: newLocales});
+  };
+
+  const handleAgregarInmuebleExtra = (tipoUso: 'Residencial' | 'Comercial') => {
+    let baseLocales = Array.isArray(formData.locales) && formData.locales.length > 0
+      ? [...formData.locales]
+      : [];
+
+    if (baseLocales.length === 0) {
+      const primerUso = formData.Clasificacion === 'Residencial' ? 'Residencial' : 'Comercial';
+      const primerCodigo = (formData.__inmuebleCodes && formData.__inmuebleCodes[0]) || null;
+      const primerDesocupado = primerUso === 'Comercial' && /DESOCUPAD/i.test(formData.ActividadComercial || '');
+      baseLocales.push({
+        id: `local-0-${Date.now()}`,
+        codigo: primerCodigo,
+        numeracion: primerCodigo ? `${primerCodigo} (Inmueble 1)` : 'Inmueble 1 (Principal)',
+        uso: primerUso,
+        estatus: primerDesocupado ? 'Desocupado' : 'Ocupado',
+        actividad: primerUso === 'Comercial' && !primerDesocupado ? (formData.ActividadComercial || '') : '',
+        tipoResidencia: primerUso === 'Residencial' ? (formData.TipoResidencia || ordenanzaData.tiposResidenciales[0].label) : '',
+        nivel: formData.NivelMetraje || ordenanzaData.nivelesMetraje[0],
+        agente_retencion: formData.esAgenteRetencion === true,
+        __orig: {
+          uso: primerUso,
+          actividad: primerUso === 'Comercial' && !primerDesocupado ? (formData.ActividadComercial || '') : '',
+          tipoResidencia: primerUso === 'Residencial' ? (formData.TipoResidencia || ordenanzaData.tiposResidenciales[0].label) : '',
+          nivel: formData.NivelMetraje || ordenanzaData.nivelesMetraje[0],
+          estatus: primerDesocupado ? 'Desocupado' : 'Ocupado',
+          agente_retencion: formData.esAgenteRetencion === true
+        }
+      });
+    }
+
+    const numSiguiente = baseLocales.length + 1;
+    const nuevoItem: any = {
+      id: `nuevo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      codigo: null,
+      numeracion: tipoUso === 'Residencial' ? `Vivienda ${numSiguiente}` : `Local Comercial ${numSiguiente}`,
+      uso: tipoUso,
+      estatus: 'Ocupado',
+      actividad: tipoUso === 'Comercial' ? (todasLasActividades[0]?.label || '') : '',
+      tipoResidencia: tipoUso === 'Residencial' ? ordenanzaData.tiposResidenciales[0].label : '',
+      nivel: ordenanzaData.nivelesMetraje[0],
+      agente_retencion: false,
+      esNuevo: true
+    };
+
+    const listaActualizada = [...baseLocales, nuevoItem];
+    const tieneComercial = listaActualizada.some((l: any) => l.uso === 'Comercial');
+    const tieneResidencial = listaActualizada.some((l: any) => l.uso === 'Residencial');
+    const nuevaClasificacion = (tieneComercial && tieneResidencial) ? 'Mixto' : (tieneComercial ? 'Comercial' : 'Residencial');
+
+    setFormData({
+      ...formData,
+      isCondominio: true,
+      Clasificacion: nuevaClasificacion,
+      cantidadInmuebles: listaActualizada.length,
+      locales: listaActualizada
+    });
   };
 
   const calcularTarifa = async () => {
@@ -2601,6 +2682,39 @@ function ContribuyentesPageContent() {
               )}
             </div>
             
+            {/* Banner para agregar vivienda o local comercial extra */}
+            <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-purple-50/90 border border-blue-200/80 rounded-xl p-4 mt-6 mb-3 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-blue-600" />
+                    <span>Inmuebles y Locales del Contribuyente ({formData.isCondominio && formData.locales?.length ? formData.locales.length : 1})</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    ¿Este contribuyente posee más de un inmueble? Agregue viviendas (residenciales) o locales comerciales extra bajo este mismo titular.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    id="btn-agregar-vivienda-extra"
+                    onClick={() => handleAgregarInmuebleExtra('Residencial')}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-700 bg-white hover:bg-blue-50 border border-blue-300 rounded-lg transition shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <HomeIcon className="w-4 h-4 text-blue-600" /> + Agregar Vivienda (Residencial)
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-agregar-local-extra"
+                    onClick={() => handleAgregarInmuebleExtra('Comercial')}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-purple-700 bg-white hover:bg-purple-50 border border-purple-300 rounded-lg transition shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <Store className="w-4 h-4 text-purple-600" /> + Agregar Local Comercial
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center gap-2 mt-4 mb-2">
               <input 
                 type="checkbox" 
@@ -2633,8 +2747,25 @@ function ContribuyentesPageContent() {
             
             {formData.isCondominio && formData.cantidadInmuebles > 0 && (
               <div className="mt-4 border border-slate-200 rounded overflow-hidden">
-                <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase">Desglose de Inmuebles ({formData.cantidadInmuebles})</h4>
+                <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase">Desglose de Inmuebles ({formData.cantidadInmuebles})</h4>
+                    <span className="text-[10px] text-slate-400 font-medium">|</span>
+                    <button
+                      type="button"
+                      onClick={() => handleAgregarInmuebleExtra('Residencial')}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition"
+                    >
+                      <HomeIcon className="w-3 h-3 text-blue-600" /> + Vivienda
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAgregarInmuebleExtra('Comercial')}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded transition"
+                    >
+                      <Store className="w-3 h-3 text-purple-600" /> + Local
+                    </button>
+                  </div>
                   <div className="flex items-center gap-1.5">
                     <input 
                       type="checkbox" 
@@ -2696,7 +2827,18 @@ function ContribuyentesPageContent() {
                   {formData.locales?.map((local: any, index: number) => (
                     <div key={local.id || index} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1.5fr_auto] gap-3 p-3 border border-slate-100 bg-slate-50 rounded items-start md:items-end">
                        <div>
-                         <label className="block text-[10px] font-medium text-slate-500 mb-1">Numeración / Identificador</label>
+                         <div className="flex items-center justify-between gap-1 mb-1">
+                           <label className="block text-[10px] font-medium text-slate-500">Numeración / Identificador</label>
+                           {local.codigo ? (
+                             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-blue-100 text-blue-800">
+                               {local.codigo}
+                             </span>
+                           ) : (
+                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                               ✨ Nuevo
+                             </span>
+                           )}
+                         </div>
                          <input type="text" value={local.numeracion} onChange={e => {
                             const newLocales = [...formData.locales];
                             newLocales[index].numeracion = e.target.value;
@@ -2709,15 +2851,23 @@ function ContribuyentesPageContent() {
                            value={local.uso} 
                            onChange={e => {
                               const newLocales = [...formData.locales];
-                              newLocales[index].uso = e.target.value;
-                              if(e.target.value === 'Residencial') newLocales[index].actividad = '';
-                              setFormData({...formData, locales: newLocales});
+                              const nuevoUso = e.target.value;
+                              newLocales[index].uso = nuevoUso;
+                              if(nuevoUso === 'Residencial') {
+                                newLocales[index].actividad = '';
+                                if(!newLocales[index].tipoResidencia) newLocales[index].tipoResidencia = ordenanzaData.tiposResidenciales[0]?.label;
+                              } else {
+                                if(!newLocales[index].actividad) newLocales[index].actividad = todasLasActividades[0]?.label;
+                              }
+                              const hasCom = newLocales.some((l: any) => l.uso === 'Comercial');
+                              const hasRes = newLocales.some((l: any) => l.uso === 'Residencial');
+                              const newClasif = (hasCom && hasRes) ? 'Mixto' : (hasCom ? 'Comercial' : 'Residencial');
+                              setFormData({...formData, locales: newLocales, Clasificacion: newClasif});
                            }} 
-                           className={`w-full border rounded px-2 py-1.5 text-xs outline-none ${formData.Clasificacion !== 'Mixto' && !local.codigo ? 'bg-slate-100 text-slate-500 border-slate-200' : 'border-slate-300 text-slate-700'}`}
-                           disabled={formData.Clasificacion !== 'Mixto' && !local.codigo}
+                           className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none text-slate-700 bg-white"
                          >
-                           {(formData.Clasificacion === 'Residencial' || formData.Clasificacion === 'Mixto' || local.codigo) && <option value="Residencial">Residencial</option>}
-                           {(formData.Clasificacion?.includes('Comercial') || formData.Clasificacion === 'Industrial' || formData.Clasificacion === 'Mixto' || local.codigo) && <option value="Comercial">Comercial</option>}
+                           <option value="Residencial">Residencial</option>
+                           <option value="Comercial">Comercial</option>
                          </select>
                        </div>
                        <div>

@@ -104,9 +104,13 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     return pagos.filter(p => {
       // Excluir pagos anulados, reversados o condonados de todos los reportes
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
-      const d = new Date(p.created_at);
-      if (d < s || d > e) return false;
       const det = parseDet(p);
+      const d = new Date(p.created_at);
+      const fTx = det.fecha_transaccion || det.fecha_banco || '';
+      const fTxDate = fTx ? new Date(fTx + 'T12:00:00') : null;
+      const fechaCoincide = (d >= s && d <= e) || (fTxDate && fTxDate >= s && fTxDate <= e);
+      if (!fechaCoincide) return false;
+
       // Para debitos: det.cajero. Para transferencias conciliadas: det.analista o det.cajero
       const cajero = det.cajero || det.analista || '';
       if (!isAdmin) {
@@ -114,6 +118,8 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         const pCajLower = cajero.toLowerCase();
         const matches = pCajLower === myName ||
                         pCajLower.endsWith(`-${myName}`) ||
+                        pCajLower.includes(myName) ||
+                        myName.includes(pCajLower) ||
                         (selectedCajas.length > 0 && selectedCajas.some(sc => sc.toLowerCase() === pCajLower));
         if (!matches) return false;
       }
