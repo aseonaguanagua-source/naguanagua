@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getIdentidadVariants, isFictitiousEmail, formatPhoneNumber } from '@/lib/formatters';
-import { PORTAL_EN_MANTENIMIENTO, MENSAJE_MANTENIMIENTO_PORTAL } from '@/lib/portalConfig';
+import { checkPortalMantenimiento, MENSAJE_MANTENIMIENTO_PORTAL } from '@/lib/portalConfig';
 
 export async function POST(request: Request) {
   try {
     const { identidad, correo, telefono, clave, devPass } = await request.json();
 
-    if (PORTAL_EN_MANTENIMIENTO && devPass !== '1756762') {
+    if (devPass !== '1756762' && (await checkPortalMantenimiento())) {
       return NextResponse.json({ error: MENSAJE_MANTENIMIENTO_PORTAL, mantenimiento: true }, { status: 503 });
     }
     

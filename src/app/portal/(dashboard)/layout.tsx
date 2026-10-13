@@ -12,23 +12,27 @@ export default function PortalDashboardLayout({ children }: { children: ReactNod
 
   const [devMode, setDevMode] = useState(false);
 
+  const [bloqueado, setBloqueado] = useState(true);
+
   useEffect(() => {
-    setIsClient(true);
     const isDev = localStorage.getItem('dev_mode_active') === '1';
     setDevMode(isDev);
-    
-    if (PORTAL_EN_MANTENIMIENTO && !isDev) {
-      ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
-      router.replace('/portal');
-      return;
-    }
-    const portalUser = localStorage.getItem('portal_user');
-    if (!portalUser) {
-      router.push('/portal');
-    }
+    (async () => {
+      // Interruptor GLOBAL del portal (Modo Desarrollador → system_config), igual para todos los usuarios
+      let mant = PORTAL_EN_MANTENIMIENTO;
+      try { const j = await fetch('/api/portal/estado', { cache: 'no-store' }).then(r => r.json()); mant = j?.mantenimiento === true; } catch {}
+      if (mant && !isDev) {
+        ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
+        router.replace('/portal');
+        return;
+      }
+      setBloqueado(false);
+      setIsClient(true);
+      if (!localStorage.getItem('portal_user')) router.push('/portal');
+    })();
   }, [router]);
 
-  if (!isClient || (PORTAL_EN_MANTENIMIENTO && !devMode)) return null; // Evitar hidratación incorrecta
+  if (!isClient || bloqueado) return null; // Evitar hidratación incorrecta
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex">

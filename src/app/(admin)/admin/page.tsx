@@ -135,7 +135,7 @@ export default async function AdminHome() {
                 <MapPin className="w-5 h-5 text-slate-400 mt-0.5" />
                 <div>
                   <div className="font-semibold text-sm text-slate-700 mb-1">Oficinas de Atención al Usuario:</div>
-                  <div className="text-sm text-slate-600">Avenida Libertador, frente a la Plaza Bolívar. Naguanagua Edo. Carabobo Zona Postal 2055</div>
+                  <div className="text-sm text-slate-600">Avenida Libertador, frente a la Plaza Bolívar. Naguanagua Edo. Carabobo Zona Postal 2005</div>
                 </div>
               </div>
               <div className="flex items-start gap-3">

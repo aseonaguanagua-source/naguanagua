@@ -22,6 +22,8 @@ export default function PortalLogin() {
   const [error, setError] = useState('');
 
   const [devMode, setDevMode] = useState(false);
+  // Interruptor GLOBAL (system_config). Arranca en el valor por defecto hasta leer el servidor.
+  const [enMantenimiento, setEnMantenimiento] = useState<boolean>(PORTAL_EN_MANTENIMIENTO);
 
   useEffect(() => {
     if (localStorage.getItem('dev_mode_active') === '1') {
@@ -50,14 +52,16 @@ export default function PortalLogin() {
   };
 
   useEffect(() => {
-    if (PORTAL_EN_MANTENIMIENTO && localStorage.getItem('dev_mode_active') !== '1') {
-      ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
-      return;
-    }
-    const doc = localStorage.getItem('portal_doc');
-    if (doc) {
-      router.replace('/portal/dashboard');
-    }
+    (async () => {
+      let mant = PORTAL_EN_MANTENIMIENTO;
+      try { const j = await fetch('/api/portal/estado', { cache: 'no-store' }).then(r => r.json()); mant = j?.mantenimiento === true; } catch {}
+      setEnMantenimiento(mant);
+      if (mant && localStorage.getItem('dev_mode_active') !== '1') {
+        ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
+        return;
+      }
+      if (localStorage.getItem('portal_doc')) router.replace('/portal/dashboard');
+    })();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -227,7 +231,7 @@ export default function PortalLogin() {
               </div>
             )}
 
-            {(PORTAL_EN_MANTENIMIENTO && !devMode) ? (
+            {(enMantenimiento && !devMode) ? (
               <div className="p-5 bg-amber-50 border border-amber-200 rounded-xl text-center">
                 <p className="text-3xl mb-2">🛠️</p>
                 <p className="font-bold text-amber-800 mb-1">Portal en mantenimiento</p>

@@ -624,7 +624,16 @@ export async function POST(request: Request) {
     const codHist = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
     const lineaCom = lineasCondo?.find((l: any) => !l.residencial);
     const codigoContribuyente = lineasCondo ? (lineaCom?.inmueble || condoDet?.codigo || '') : (codHist || comRef?.inmueble || '');
-    const licenciaAE = (lineasCondo ? cleanClasificacionActividad(lineaCom?.actividad || '') : cleanClasificacionActividad(comRef?.actividad_principal || '')) || '-';
+    // N° de Licencia de Actividades Económicas: el NÚMERO registrado en el inmueble (nunca el nombre de la actividad).
+    // Si el sistema no lo tiene, el campo no se envía.
+    let licenciaAE = '';
+    try {
+      const codsLic = Array.from(new Set([codigoContribuyente, lineaCom?.inmueble, comRef?.inmueble].filter(Boolean).map(String)));
+      if (codsLic.length) {
+        const { data: lics } = await supabase.from('inmuebles').select('inmueble, licencia').in('inmueble', codsLic);
+        licenciaAE = String(codsLic.map(c => (lics || []).find((l: any) => l.inmueble === c)?.licencia).find(v => String(v || '').trim()) || '').trim();
+      }
+    } catch { licenciaAE = ''; }
     const cajaLabel = String(detPago.cajero || '').trim() || '-';
     const fp0: any = (formasPago && formasPago[0]) || {};
     const tipoPago = String(pagoRow?.tipo || fp0.descripcion || 'Transferencia').trim();
@@ -783,7 +792,7 @@ export async function POST(request: Request) {
         // Nombres exactos de la plantilla (otros nombres TFHKA los ignora sin error)
         InfoAdicional: [
           ...(codigoContribuyente ? [{ Campo: 'CodigoContribuyente', Valor: String(codigoContribuyente).slice(0, 255) }] : []),
-          { Campo: 'LicenciaAE', Valor: licenciaAE.slice(0, 255) },
+          ...(licenciaAE ? [{ Campo: 'LicenciaAE', Valor: licenciaAE.slice(0, 255) }] : []),
           { Campo: 'Caja',       Valor: cajaLabel.slice(0, 255) },
           { Campo: 'Observaciones', Valor: `Pago ${String(pagoId).slice(0, 8).toUpperCase()}${refPago ? ' Ref. ' + refPago : ''}` },
         ],
