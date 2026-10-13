@@ -94,10 +94,19 @@ export async function PATCH(req: Request) {
     }
 
     // Sincronizar el campo agente_retencion en la tabla inmuebles para el inmueble principal del condominio
+    // y para las unidades que son del MISMO RIF del condominio o están desocupadas/sin dueño (se cobran
+    // al condominio). Las unidades de otros dueños conservan su propia condición de agente.
     if ('agente_retencion' in upd) {
       await sb.from('inmuebles')
         .update({ agente_retencion: upd.agente_retencion })
         .eq('inmueble', antes.codigo);
+      const { data: us } = await sb.from('condominio_unidades').select('inmueble, identidad, estado').eq('condominio_id', antes.id);
+      const norm = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const ridCondo = norm(upd.identidad ?? antes.identidad);
+      const propias = (us || []).filter((x: any) => x.inmueble && (!x.identidad || x.estado === 'Desocupada' || (ridCondo && norm(x.identidad) === ridCondo))).map((x: any) => x.inmueble);
+      for (let i = 0; i < propias.length; i += 200) {
+        await sb.from('inmuebles').update({ agente_retencion: !!upd.agente_retencion }).in('inmueble', propias.slice(i, i + 200));
+      }
     }
 
     const diff = Object.fromEntries(Object.keys(upd).map(k => [k, { antes: antes[k], despues: upd[k] }]));
