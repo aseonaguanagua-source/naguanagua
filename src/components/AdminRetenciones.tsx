@@ -1,9 +1,10 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
   FileText, CheckCircle2, XCircle, Clock, Eye, Send,
-  ChevronLeft, AlertCircle, User2, Calendar, Hash, DollarSign
+  ChevronLeft, AlertCircle, User2, Calendar, Hash, DollarSign,
+  Search, Upload, Loader2
 } from 'lucide-react';
 
 interface Retencion {
@@ -43,8 +44,10 @@ export default function AdminRetenciones() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Retencion | null>(null);
   const [filtroEstado, setFiltroEstado] = useState('Todos');
+  const [searchTerm, setSearchTerm] = useState('');
   const [motivo, setMotivo] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [uploadingPlanilla, setUploadingPlanilla] = useState(false);
   const [msg, setMsg] = useState('');
 
   const load = useCallback(async () => {
@@ -90,7 +93,7 @@ export default function AdminRetenciones() {
             factura_emitida: det.factura_digital?.emitida || false,
             factura_url: det.factura_digital?.url,
             factura_control: det.factura_digital?.numero_control,
-            planilla_url: undefined
+            planilla_url: det.factura_digital?.retencion?.planilla_url || undefined
           } as Retencion);
         }
       }
@@ -104,6 +107,85 @@ export default function AdminRetenciones() {
   }, [filtroEstado]);
 
   useEffect(() => { load(); }, [load]);
+
+  const filteredRetenciones = useMemo(() => {
+    if (!searchTerm.trim()) return retenciones;
+    const s = searchTerm.trim().toLowerCase();
+    return retenciones.filter(r =>
+      (r.contribuyente || '').toLowerCase().includes(s) ||
+      (r.identidad || '').toLowerCase().includes(s) ||
+      (r.numero_planilla || '').toLowerCase().includes(s) ||
+      (r.periodo || '').toLowerCase().includes(s) ||
+      (r.codigo_inmueble || '').toLowerCase().includes(s) ||
+      (r.codigo_retencion || '').toLowerCase().includes(s)
+    );
+  }, [retenciones, searchTerm]);
+
+  const handleUploadPlanilla = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selected) return;
+
+    setUploadingPlanilla(true);
+    setMsg('Subiendo planilla física de retención...');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('bucket', 'documentos');
+      fd.append('path', `retenciones/${Date.now()}_${selected.identidad}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
+
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.publicUrl) {
+        throw new Error(data.error || 'No se pudo subir el archivo');
+      }
+
+      const publicUrl = data.publicUrl;
+
+      // 1. Actualizar o insertar en retenciones_iva
+      const { data: existingRet } = await supabase.from('retenciones_iva').select('id').eq('id', selected.id).maybeSingle();
+      if (existingRet) {
+        await supabase.from('retenciones_iva').update({ planilla_url: publicUrl }).eq('id', selected.id);
+      } else {
+        await supabase.from('retenciones_iva').insert([{
+          id: selected.id,
+          identidad: selected.identidad,
+          contribuyente: selected.contribuyente,
+          codigo_inmueble: selected.codigo_inmueble || null,
+          numero_planilla: selected.numero_planilla || 'CONSIGNADA EN TAQUILLA',
+          periodo: selected.periodo || '—',
+          fecha_planilla: selected.fecha_planilla || new Date().toISOString().split('T')[0],
+          monto_base: selected.monto_base || 0,
+          monto_iva: selected.monto_iva || 0,
+          monto_retenido: selected.monto_retenido || 0,
+          codigo_retencion: selected.codigo_retencion || 'COBRO CAJA',
+          planilla_url: publicUrl,
+          estado: selected.estado || 'Aprobado',
+          factura_emitida: selected.factura_emitida || false,
+          factura_url: selected.factura_url || null,
+          factura_control: selected.factura_control || null
+        }]);
+      }
+
+      // 2. Si proviene de pagos_reportados, actualizar detalles
+      const { data: pData } = await supabase.from('pagos_reportados').select('detalles').eq('id', selected.id).maybeSingle();
+      if (pData) {
+        const det = typeof pData.detalles === 'string' ? JSON.parse(pData.detalles) : (pData.detalles || {});
+        det.factura_digital = det.factura_digital || {};
+        det.factura_digital.retencion = det.factura_digital.retencion || {};
+        det.factura_digital.retencion.planilla_url = publicUrl;
+        await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', selected.id);
+      }
+
+      setSelected(prev => prev ? { ...prev, planilla_url: publicUrl } : null);
+      setMsg('✅ Planilla de retención física consignada y subida exitosamente.');
+      await load();
+    } catch (err: any) {
+      setMsg('Error subiendo planilla: ' + (err.message || 'Error'));
+    } finally {
+      setUploadingPlanilla(false);
+      e.target.value = '';
+    }
+  };
 
   const revisar = async (accion: 'aprobar' | 'rechazar') => {
     if (!selected) return;
@@ -195,22 +277,48 @@ export default function AdminRetenciones() {
           </div>
         </div>
 
-        {/* PDF Viewer */}
-        {selected.planilla_url ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-            <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
-              <FileText className="w-4 h-4" /> Planilla PDF
+        {/* PDF Viewer y Carga de Planilla Física en Taquilla */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-emerald-600" /> Planilla de Retención (IVA)
             </h3>
-            <a href={selected.planilla_url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all">
-              <Eye className="w-4 h-4" /> Ver / Descargar PDF
-            </a>
+            {selected.planilla_url && (
+              <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Planilla Adjunta
+              </span>
+            )}
           </div>
-        ) : (
-          <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-300 p-5 text-center text-slate-400 text-sm">
-            El contribuyente no adjuntó planilla en PDF.
-          </div>
-        )}
+
+          {selected.planilla_url ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <a href={selected.planilla_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-sm">
+                <Eye className="w-4 h-4" /> Ver / Descargar Planilla
+              </a>
+              <label className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-sm transition-all cursor-pointer border border-slate-300">
+                {uploadingPlanilla ? <Loader2 className="w-4 h-4 animate-spin text-emerald-600" /> : <Upload className="w-4 h-4 text-slate-600" />}
+                {uploadingPlanilla ? 'Subiendo...' : 'Actualizar / Reemplazar Comprobante Físico'}
+                <input type="file" accept=".pdf,image/*" onChange={handleUploadPlanilla} className="hidden" disabled={uploadingPlanilla} />
+              </label>
+            </div>
+          ) : (
+            <div className="bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center space-y-3">
+              <FileText className="w-10 h-10 text-slate-400 mx-auto" />
+              <div>
+                <p className="text-sm font-bold text-slate-700">El contribuyente no adjuntó planilla digital</p>
+                <p className="text-xs text-slate-500 mt-0.5">Si el contribuyente trajo la planilla o comprobante en físico personalmente, el funcionario puede subirla a continuación.</p>
+              </div>
+              <div>
+                <label className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-md cursor-pointer">
+                  {uploadingPlanilla ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {uploadingPlanilla ? 'Cargando comprobante...' : 'Subir Planilla Física Traída en Persona (PDF o Imagen)'}
+                  <input type="file" accept=".pdf,image/*" onChange={handleUploadPlanilla} className="hidden" disabled={uploadingPlanilla} />
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Factura ya emitida */}
         {selected.factura_emitida && selected.factura_url && (
@@ -271,19 +379,46 @@ export default function AdminRetenciones() {
 
   return (
     <div className="space-y-5">
-      {/* Header + filtros */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Header + buscador + filtros */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800">Retenciones de IVA</h2>
-          <p className="text-slate-500 text-sm mt-0.5">Comprobantes de retención enviados por los agentes de retención. La factura se envía al aprobar.</p>
+          <p className="text-slate-500 text-sm mt-0.5">Comprobantes de retención enviados por los agentes o consignados en físico. La factura se despacha al aprobar.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {['Todos', 'Pendiente', 'Aprobado', 'Rechazado'].map(e => (
             <button key={e} onClick={() => setFiltroEstado(e)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${filtroEstado === e ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}>
+              className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${filtroEstado === e ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'}`}>
               {e}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Barra de búsqueda interactiva */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por contribuyente, RIF, N° planilla, período o inmueble..."
+            className="w-full pl-10 pr-9 py-2 text-sm border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs"
+              title="Limpiar búsqueda"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <div className="text-xs font-semibold text-slate-500 self-end sm:self-center">
+          Mostrando <span className="text-slate-800 font-bold">{filteredRetenciones.length}</span> {filteredRetenciones.length === 1 ? 'retención' : 'retenciones'}
+          {searchTerm && <span className="text-emerald-700 ml-1">(filtradas)</span>}
         </div>
       </div>
 
@@ -291,10 +426,23 @@ export default function AdminRetenciones() {
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : retenciones.length === 0 ? (
+      ) : filteredRetenciones.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
           <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500">No hay retenciones {filtroEstado !== 'Todos' ? `en estado "${filtroEstado}"` : 'registradas'}.</p>
+          <p className="text-slate-600 font-bold mb-1">No se encontraron retenciones</p>
+          <p className="text-slate-400 text-sm">
+            {searchTerm
+              ? `No hay coincidencias para "${searchTerm}". Intente con otro término o limpie el buscador.`
+              : `No hay retenciones ${filtroEstado !== 'Todos' ? `en estado "${filtroEstado}"` : 'registradas'}.`}
+          </p>
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="mt-3 px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors"
+            >
+              Limpiar búsqueda
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -311,11 +459,11 @@ export default function AdminRetenciones() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {retenciones.map(r => (
+              {filteredRetenciones.map(r => (
                 <tr key={r.id} className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => setSelected(r)}>
                   <td className="px-5 py-3.5">
                     <div className="font-bold text-slate-800 truncate max-w-[180px]">{r.contribuyente || '—'}</div>
-                    <div className="text-slate-400 text-xs">{r.identidad}</div>
+                    <div className="text-slate-400 text-xs">{r.identidad} {r.codigo_inmueble ? `· ${r.codigo_inmueble}` : ''}</div>
                   </td>
                   <td className="px-4 py-3.5 font-mono text-slate-600">{r.numero_planilla}</td>
                   <td className="px-4 py-3.5 text-slate-600">{r.periodo}</td>

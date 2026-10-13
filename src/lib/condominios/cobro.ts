@@ -65,6 +65,7 @@ export interface LineaCobro {
   totalBs: number;
   /** Multa de mora de estos meses que queda pendiente para el contribuyente (modo CONDOMINIO por actividad) */
   multaMesesQueQuedan: number;
+  _multasDetalle?: any[];
 }
 
 export interface Factura { identidad: string; nombre: string; lineas: string[]; totalBs: number }
@@ -105,7 +106,49 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
   }
 
   const lineas: LineaCobro[] = elegidas.map(r => {
-    const nMeses = sol.soloMultas ? 0 : Math.min(r.deuda.meses, sol.meses && sol.meses > 0 ? Math.floor(sol.meses) : r.deuda.meses);
+    if (sol.soloMultas) {
+      // Lista estructurada de todas las multas disponibles para esta unidad
+      const tMulta = r.residencial ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
+      const cuotaMultaBs = r2(r.mensualBs * tMulta);
+      
+      const itemsMulta: { tipo: 'PREVIA' | 'DEUDA' | 'MANUAL'; periodo: string; montoBs: number; id?: string }[] = [];
+      
+      // 1) Multas acumuladas de meses anteriores cuyo aseo ya fue pagado
+      const prevPeriodos = M.periodosMultasPrevias(r.pendienteDesde, r.multaMeses, fecha);
+      for (const p of prevPeriodos) {
+        itemsMulta.push({ tipo: 'PREVIA', periodo: p, montoBs: cuotaMultaBs });
+      }
+      
+      // 2) Multas de mora de los meses de deuda actuales (todos los meses excepto el último)
+      for (const m of r.deuda.porMes) {
+        if (m.multaBs > 0) {
+          const per = r.periodos[m.n - 1] || `Mes ${m.n}`;
+          itemsMulta.push({ tipo: 'DEUDA', periodo: per, montoBs: m.multaBs });
+        }
+      }
+      
+      // 3) Multas manuales
+      for (const man of r.multasManuales) {
+        itemsMulta.push({ tipo: 'MANUAL', periodo: man.periodo || 'Multa Fija', montoBs: man.montoBs, id: man.id });
+      }
+      
+      // ¿Cuántas multas se van a pagar?
+      const nMultas = sol.meses && sol.meses > 0 ? Math.min(itemsMulta.length, Math.floor(sol.meses)) : itemsMulta.length;
+      const multasAPagar = itemsMulta.slice(0, nMultas);
+      const multasBs = r2(multasAPagar.reduce((sum, item) => sum + item.montoBs, 0));
+      const multasManualesIds = multasAPagar.filter(item => item.id).map(item => item.id!);
+      const periodosMultas = multasAPagar.map(item => item.periodo);
+      
+      return {
+        clave: r.clave, inmueble: r.inmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial,
+        meses: nMultas, mesesDeuda: itemsMulta.length, periodos: periodosMultas,
+        baseBs: 0, multaBs: 0, multasAparteBs: multasBs, multasManualesIds,
+        ivaBs: 0, retencionBs: 0, totalBs: multasBs, multaMesesQueQuedan: 0,
+        _multasDetalle: multasAPagar,
+      };
+    }
+
+    const nMeses = Math.min(r.deuda.meses, sol.meses && sol.meses > 0 ? Math.floor(sol.meses) : r.deuda.meses);
     const meses = r.deuda.porMes.slice(0, nMeses);
     const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs') => r2(meses.reduce((a, m) => a + m[k], 0));
     // ¿Las multas van en este cobro?
@@ -113,7 +156,7 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     const multaMora = condoPorActividad ? 0 : s('multaBs');
     const multaMesesQueQuedan = condoPorActividad ? meses.filter(m => m.multaBs > 0).length : 0;
     const incluirAparte = !condoPorActividad && (modo === 'CONTRIBUYENTE' || !porAct);
-    const aparte = incluirAparte ? r2((nMeses === r.deuda.meses || sol.soloMultas ? r.multaExtraBs : 0) + r.multasManualesBs) : 0;
+    const aparte = incluirAparte ? r2((nMeses === r.deuda.meses ? r.multaExtraBs : 0) + r.multasManualesBs) : 0;
     const base = s('baseBs'), iva = s('ivaBs'), ret = s('retencionBs');
     return {
       clave: r.clave, inmueble: r.inmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial,
@@ -269,20 +312,38 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const u = porId.get(l.clave);
     if (u) {
       const upd: any = {};
-      if (l.meses > 0) upd.aseo_pendiente_desde = M.avanzarPendiente(u.aseo_pendiente_desde, l.meses, hoy);
+      if (l.meses > 0 && !sol.soloMultas) upd.aseo_pendiente_desde = M.avanzarPendiente(u.aseo_pendiente_desde, l.meses, hoy);
       if (l.multaMesesQueQuedan > 0) upd.multa_meses = (Number(u.multa_meses) || 0) + l.multaMesesQueQuedan;
-      else if (l.multasAparteBs > 0 && (l.meses === l.mesesDeuda || sol.soloMultas)) upd.multa_meses = 0;
-      if (Object.keys(upd).length) { antes.push({ unidad: u.id, inmueble: u.inmueble, aseo_pendiente_desde: u.aseo_pendiente_desde, multa_meses: u.multa_meses }); await sb.from('condominio_unidades').update(upd).eq('id', u.id); }
+      else if (sol.soloMultas) {
+        const multasDet = l._multasDetalle || [];
+        const nPrevias = multasDet.filter((m: any) => m.tipo === 'PREVIA').length;
+        const deudaPagada = multasDet.filter((m: any) => m.tipo === 'DEUDA');
+        if (nPrevias > 0) {
+          upd.multa_meses = Math.max(0, (Number(u.multa_meses) || 0) - nPrevias);
+        } else if (l.meses === l.mesesDeuda) {
+          upd.multa_meses = 0;
+        }
+        if (deudaPagada.length > 0) {
+          const ultimoPer = deudaPagada[deudaPagada.length - 1].periodo;
+          upd.multa_exonerada_hasta = `${ultimoPer}-01`;
+        }
+      } else if (l.multasAparteBs > 0 && l.meses === l.mesesDeuda) {
+        upd.multa_meses = 0;
+      }
+      if (Object.keys(upd).length) {
+        antes.push({ unidad: u.id, inmueble: u.inmueble, aseo_pendiente_desde: u.aseo_pendiente_desde, multa_meses: u.multa_meses, multa_exonerada_hasta: u.multa_exonerada_hasta });
+        await sb.from('condominio_unidades').update(upd).eq('id', u.id);
+      }
     } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
       const upd: any = {};
-      if (l.meses > 0) upd.aseo_pendiente_desde = M.avanzarPendiente(c.aseo_pendiente_desde, l.meses, hoy);
+      if (l.meses > 0 && !sol.soloMultas) upd.aseo_pendiente_desde = M.avanzarPendiente(c.aseo_pendiente_desde, l.meses, hoy);
       if (l.multasAparteBs > 0) upd.multa_meses = 0;
       if (Object.keys(upd).length) { antes.push({ condominio: c.id, aseo_pendiente_desde: c.aseo_pendiente_desde, multa_meses: c.multa_meses }); await sb.from('condominios').update(upd).eq('id', c.id); }
     }
     if (l.multasManualesIds.length) await sb.from('condominio_multas').update({ estado: 'Pagada', pago_id: pagoDe(l.clave) }).in('id', l.multasManualesIds).eq('estado', 'Pendiente');
   }
   // Residencial centralizado pagado completo: el condominio también avanza
-  if (cobro.modo === 'CONDOMINIO' && !cobro.estado.porActividad && !cobro.lineas.some(l => l.clave === M.SIN_REGISTRAR)) {
+  if (cobro.modo === 'CONDOMINIO' && !cobro.estado.porActividad && !cobro.lineas.some(l => l.clave === M.SIN_REGISTRAR) && !sol.soloMultas) {
     const nMeses = cobro.totales.meses;
     if (nMeses > 0 && c.aseo_pendiente_desde) await sb.from('condominios').update({ aseo_pendiente_desde: M.avanzarPendiente(c.aseo_pendiente_desde, nMeses, hoy), multa_meses: 0 }).eq('id', c.id);
   }
@@ -290,7 +351,9 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   // 3) Libro del condominio
   const movs = cobro.lineas.map(l => ({
     condominio_id: c.id, unidad_id: porId.has(l.clave) ? l.clave : null, tipo: 'PAGO', periodo: l.periodos[0] ? `${l.periodos[0]}-01` : null,
-    concepto: `${cobro.modo === 'CONDOMINIO' ? 'Pago del condominio' : 'Pago del contribuyente'}${l.inmueble ? ` · ${l.inmueble}` : ''}: ${l.meses ? `${l.meses} mes(es) ${l.periodos.join(', ')}` : ''}${l.multasAparteBs > 0 ? ' + multas' : ''}`,
+    concepto: sol.soloMultas
+      ? `Pago de multas${l.inmueble ? ` · ${l.inmueble}` : ''}: ${l.meses} mes(es) de multas (${l.periodos.join(', ')})`
+      : `${cobro.modo === 'CONDOMINIO' ? 'Pago del condominio' : 'Pago del contribuyente'}${l.inmueble ? ` · ${l.inmueble}` : ''}: ${l.meses ? `${l.meses} mes(es) ${l.periodos.join(', ')}` : ''}${l.multasAparteBs > 0 ? ' + multas' : ''}`,
     monto_bs: -l.totalBs, tasa_bcv: tasa, pago_id: pagoDe(l.clave), usuario: pago.usuario,
   }));
   for (let i = 0; i < movs.length; i += 300) await sb.from('condominio_movimientos').insert(movs.slice(i, i + 300));

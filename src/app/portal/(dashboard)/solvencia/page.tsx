@@ -1,9 +1,11 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { Award, Printer, AlertTriangle, CheckCircle2, RefreshCw, Building2, ShieldAlert, ShieldCheck, ArrowRight, ExternalLink } from 'lucide-react';
+import { Award, Printer, AlertTriangle, CheckCircle2, RefreshCw, Building2, ShieldAlert, ShieldCheck, ArrowRight, ExternalLink, Download, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariants } from '@/lib/formatters';
 import { isCondominioPagoIndividual } from '@/lib/calculos';
+import { inmuebleTieneDeuda } from '@/lib/solvencia';
+import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import Link from 'next/link';
 
 export default function SolvenciaPage() {
@@ -12,6 +14,7 @@ export default function SolvenciaPage() {
   const [inmueblesList, setInmueblesList] = useState<any[]>([]);
   const [facturasList, setFacturasList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
   const [selectedInmId, setSelectedInmId] = useState<string>('');
 
   useEffect(() => {
@@ -94,13 +97,31 @@ export default function SolvenciaPage() {
   const deudaMMVNum = activeInm ? parseFloat(String(activeInm.deuda_mmv || '0')) : 999;
   const deudaCongeladaNum = activeInm ? parseFloat(String(activeInm.deuda_congelada_bs || '0')) : 0;
   
+  // Regla oficial de solvencia:
   const isSolvente = Boolean(
     activeInm && 
-    facturasPendientes.length === 0 && 
-    mesesDeudaNum === 0 && 
-    deudaMMVNum <= 0 && 
-    deudaCongeladaNum <= 0
+    !inmuebleTieneDeuda(activeInm) && 
+    !isBlockedByCondo
   );
+
+  const handleDescargarPDF = async () => {
+    if (!activeInm) return;
+    setDownloading(true);
+    try {
+      await generarSolvenciaPDF({
+        Identidad: portalDoc,
+        Contribuyente: contribuyenteNombre || activeInm.contribuyente || 'Contribuyente',
+        Telefono: activeInm.telefono || '+58 412-9030238',
+        Direccion: activeInm.direccion || 'Municipio Naguanagua',
+        CodCont: activeInm.inmueble,
+        id: activeInm.id
+      }, activeInm.inmueble);
+    } catch (e: any) {
+      alert('Error al generar PDF de Solvencia: ' + (e?.message || 'Error'));
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const hoy = new Date();
   const mesHoy = hoy.toLocaleDateString('es-VE', { month: 'long', year: 'numeric' }).toUpperCase();
@@ -240,12 +261,22 @@ export default function SolvenciaPage() {
                     </p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => window.print()} 
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow transition-colors"
-                >
-                  <Printer className="w-4 h-4" /> Imprimir Certificado
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button 
+                    onClick={handleDescargarPDF}
+                    disabled={downloading}
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow transition-colors disabled:opacity-50"
+                  >
+                    {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    {downloading ? 'Descargando...' : 'Descargar PDF'}
+                  </button>
+                  <button 
+                    onClick={() => window.print()} 
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow transition-colors"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Imprimir
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -475,25 +506,35 @@ export default function SolvenciaPage() {
 
           </div>
 
-          {/* BOTÓN IMPRIMIR */}
-          <div className="flex justify-center pt-2 print:hidden">
+          {/* BOTÓN IMPRIMIR / DESCARGAR */}
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2 print:hidden">
             {isSolvente ? (
-              <button 
-                onClick={() => window.print()} 
-                className="flex items-center gap-2.5 px-8 py-3 bg-emerald-700 text-white rounded-xl font-bold hover:bg-emerald-800 transition-all shadow-lg hover:shadow-emerald-700/20 text-sm"
-              >
-                <Printer className="w-5 h-5" /> Imprimir Certificado de Solvencia Oficial
-              </button>
+              <>
+                <button 
+                  onClick={handleDescargarPDF}
+                  disabled={downloading}
+                  className="flex items-center gap-2.5 px-7 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg hover:shadow-emerald-600/20 text-sm disabled:opacity-50"
+                >
+                  {downloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                  {downloading ? 'Generando PDF Oficial...' : 'Descargar Certificado Oficial (PDF)'}
+                </button>
+                <button 
+                  onClick={() => window.print()} 
+                  className="flex items-center gap-2.5 px-7 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-all shadow text-sm"
+                >
+                  <Printer className="w-5 h-5" /> Imprimir en Navegador
+                </button>
+              </>
             ) : (
               <div className="text-center space-y-2">
                 <button 
                   disabled 
                   className="flex items-center gap-2.5 px-8 py-3 bg-slate-300 text-slate-500 rounded-xl font-bold cursor-not-allowed text-sm opacity-80"
                 >
-                  <Printer className="w-5 h-5" /> Impresión Bloqueada (Inmueble con Deuda)
+                  <Printer className="w-5 h-5" /> Descarga Bloqueada (Inmueble con Deuda)
                 </button>
                 <p className="text-xs text-slate-500">
-                  Para habilitar la impresión de este documento, debe saldar los meses en mora en la pestaña <strong>Donde Pagar</strong>.
+                  Para habilitar la descarga de este documento, debe saldar los meses en mora en la pestaña <strong>Donde Pagar</strong>.
                 </p>
               </div>
             )}

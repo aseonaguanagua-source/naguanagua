@@ -14,10 +14,10 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
  */
 export async function POST(req: Request) {
   try {
-    const { pagoId, montoNuevo, motivo, usuario } = await req.json();
+    const { pagoId, montoNuevo, fechaNueva, motivo, usuario } = await req.json();
     const u = String(usuario || '').trim().toLowerCase();
     const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol').ilike('usuario', u).maybeSingle();
-    if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) return NextResponse.json({ error: 'Solo un administrador puede corregir montos en los reportes.' }, { status: 403 });
+    if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) return NextResponse.json({ error: 'Solo un administrador puede corregir pagos en los reportes.' }, { status: 403 });
     if (String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo de la corrección.' }, { status: 400 });
 
     const quitar = montoNuevo === null || montoNuevo === '' || montoNuevo === undefined;
@@ -33,30 +33,50 @@ export async function POST(req: Request) {
     const antes = det.monto_reporte != null ? r2(parseFloat(det.monto_reporte) || 0) : real;
     const quien = `${trab.nombre || trab.usuario} (${trab.usuario})`;
 
+    const fechaValida = fechaNueva && /^\d{4}-\d{2}-\d{2}$/.test(fechaNueva) ? fechaNueva : null;
+
     const nuevoDet: any = {
       ...det,
+      ...(fechaValida ? { fecha_transaccion: fechaValida, fecha_banco: fechaValida } : {}),
       correcciones_reporte: [
         ...(Array.isArray(det.correcciones_reporte) ? det.correcciones_reporte : []),
-        { antes, despues: quitar ? real : nuevo, quitada: quitar || undefined, motivo: String(motivo).trim(), usuario: quien, fecha: new Date().toISOString() },
+        {
+          antes,
+          despues: quitar ? real : nuevo,
+          quitada: quitar || undefined,
+          fecha_anterior: pago.created_at,
+          fecha_nueva: fechaValida || undefined,
+          motivo: String(motivo).trim(),
+          usuario: quien,
+          fecha: new Date().toISOString()
+        },
       ],
     };
     if (quitar || Math.abs((nuevo as number) - real) < 0.005) delete nuevoDet.monto_reporte;
     else nuevoDet.monto_reporte = nuevo;
 
-    const { data: actualizado, error } = await sb.from('pagos_reportados').update({ detalles: nuevoDet }).eq('id', pago.id).select('*').single();
+    const updateFields: any = { detalles: nuevoDet };
+    if (fechaValida) {
+      // Ajustar fecha para que el pago caiga en el cuadre del día deseado
+      const timePart = pago.created_at?.split('T')[1] || '12:00:00.000Z';
+      updateFields.created_at = `${fechaValida}T${timePart}`;
+    }
+
+    const { data: actualizado, error } = await sb.from('pagos_reportados').update(updateFields).eq('id', pago.id).select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     await sb.from('auditoria').insert({
-      accion: quitar ? 'Corrección de monto en reporte (quitada)' : 'Corrección de monto en reporte',
+      accion: fechaValida ? 'Corrección de fecha y monto en cuadre' : (quitar ? 'Corrección de monto en reporte (quitada)' : 'Corrección de monto en reporte'),
       usuario: quien,
       detalles: {
         pago_id: pago.id, identidad: pago.identidad, tipo: pago.tipo, referencia: pago.referencia, cajero: det.cajero || null,
         monto_real_pago: real, monto_reporte_antes: antes, monto_reporte_despues: quitar ? real : nuevo,
-        motivo: String(motivo).trim(), fecha_pago: pago.created_at, _categoria: 'REPORTES', criticidad: 'ALTA',
+        fecha_anterior: pago.created_at, fecha_nueva: fechaValida,
+        motivo: String(motivo).trim(), fecha_pago: actualizado.created_at, _categoria: 'REPORTES', criticidad: 'ALTA',
       },
     });
 
-    return NextResponse.json({ ok: true, pago: actualizado });
+    return NextResponse.json({ ok: true, pago: actualizado, nuevaFecha: fechaValida });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Error' }, { status: 500 });
   }

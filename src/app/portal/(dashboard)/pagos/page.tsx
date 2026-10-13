@@ -604,12 +604,38 @@ export default function DondePagarPage() {
     e.preventDefault();
     if (montoTotal === 0) { alert('Debe seleccionar al menos una deuda.'); return; }
     if (!metodo) { alert('Debe seleccionar el método de pago.'); return; }
-    if (metodo === 'transferencia' && !formData.bancoOrigen) { alert('Seleccione el banco origen.'); return; }
-    if (metodo === 'transferencia' && !formData.referencia) { alert('Ingrese el número de referencia.'); return; }
-    if (metodo === 'transferencia' && !formData.comprobante) { alert('Adjunte el comprobante de pago.'); return; }
+    if (metodo === 'transferencia') {
+      if (!formData.bancoOrigen) { alert('Seleccione el banco origen.'); return; }
+      if (!formData.referencia) { alert('Ingrese el número de referencia.'); return; }
+      if (!formData.comprobante) { alert('Debe adjuntar obligatoriamente el comprobante de pago.'); return; }
+    }
 
     setIsSubmitting(true);
     setResult(null);
+
+    let comprobanteUrl = '';
+    if (metodo === 'transferencia') {
+      if (!formData.comprobante) {
+        setIsSubmitting(false);
+        alert('Debe adjuntar obligatoriamente el comprobante de pago.');
+        return;
+      }
+      try {
+        const upFd = new FormData();
+        upFd.append('file', formData.comprobante);
+        upFd.append('bucket', 'documentos');
+        const upRes = await fetch('/api/upload', { method: 'POST', body: upFd });
+        const upJson = await upRes.json();
+        if (!upJson.success || !upJson.publicUrl) {
+          throw new Error(upJson.error || 'No se pudo subir el comprobante');
+        }
+        comprobanteUrl = upJson.publicUrl;
+      } catch (err: any) {
+        setIsSubmitting(false);
+        alert('Error al subir comprobante de pago: ' + (err.message || 'Intente nuevamente'));
+        return;
+      }
+    }
 
     // Identificar recibos seleccionados
     const facturaDbIds = rawRecibos
@@ -638,7 +664,8 @@ export default function DondePagarPage() {
           banco: formData.bancoOrigen,
           bancoDestino: formData.bancoDestino,
           fecha: formData.fecha,
-          identidad
+          identidad,
+          comprobanteUrl
         })
       });
 
@@ -1323,11 +1350,13 @@ export default function DondePagarPage() {
                   <div className="pt-2">
                     <button 
                       type="submit"
-                      disabled={isSubmitting || montoTotal === 0}
+                      disabled={isSubmitting || montoTotal === 0 || (metodo === 'transferencia' && !formData.comprobante)}
                       className="w-full py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm transition-all text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99]"
                     >
                       {isSubmitting ? (
                         'Procesando reporte...'
+                      ) : (metodo === 'transferencia' && !formData.comprobante) ? (
+                        'Adjunte el comprobante para enviar'
                       ) : (
                         <>
                           <Send className="w-3.5 h-3.5" />
@@ -1335,6 +1364,11 @@ export default function DondePagarPage() {
                         </>
                       )}
                     </button>
+                    {metodo === 'transferencia' && !formData.comprobante && (
+                      <p className="text-[11px] text-amber-600 font-semibold text-center mt-1.5">
+                        * Es obligatorio adjuntar el archivo o foto del comprobante de transferencia para enviar
+                      </p>
+                    )}
                   </div>
 
                 </div>

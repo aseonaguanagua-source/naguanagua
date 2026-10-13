@@ -55,8 +55,8 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const [fecha, setFecha] = useState(today);
   const [showReport, setShowReport] = useState(false);
 
-  // ── Corrección de monto (solo en reportes; el pago real no cambia) ──
-  const [editar, setEditar] = useState<null | { p: any; monto: string; motivo: string; guardando: boolean; error?: string }>(null);
+  // ── Corrección de monto y fecha (cuadre de caja y reportes) ──
+  const [editar, setEditar] = useState<null | { p: any; monto: string; fecha: string; motivo: string; guardando: boolean; error?: string }>(null);
   const guardarMonto = async (quitar = false) => {
     if (!editar) return;
     setEditar({ ...editar, guardando: true, error: undefined });
@@ -65,11 +65,15 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       try { usuario = JSON.parse(localStorage.getItem('admin_user_data') || '{}').usuario || ''; } catch {}
       const r = await fetch('/api/admin/pagos/corregir-monto', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pagoId: editar.p.id, montoNuevo: quitar ? null : editar.monto, motivo: editar.motivo, usuario }),
+        body: JSON.stringify({ pagoId: editar.p.id, montoNuevo: quitar ? null : editar.monto, fechaNueva: editar.fecha, motivo: editar.motivo, usuario }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'No se pudo guardar');
       onPagoActualizado?.(d.pago);
+      if (d.nuevaFecha) {
+        setFecha(d.nuevaFecha);
+        setShowReport(true);
+      }
       setEditar(null);
     } catch (e: any) {
       setEditar(prev => prev && { ...prev, guardando: false, error: e.message });
@@ -82,8 +86,12 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       {p.monto_corregido && <span style={{ fontSize: 9, background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 3, padding: '0 4px', marginRight: 6 }}>CORREGIDO</span>}
       {fmtBs(valor)}
       {isAdmin && (
-        <button onClick={() => setEditar({ p, monto: String(valor.toFixed(2)), motivo: '', guardando: false })}
-          title="Corregir el monto en los reportes" style={{ marginLeft: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', verticalAlign: 'middle' }}>
+        <button onClick={() => {
+          const det = parseDet(p);
+          const pFecha = det.fecha_transaccion || (p.created_at ? p.created_at.slice(0, 10) : today);
+          setEditar({ p, monto: String(valor.toFixed(2)), fecha: pFecha, motivo: '', guardando: false });
+        }}
+          title="Editar monto o fecha de pago en el cuadre" style={{ marginLeft: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', verticalAlign: 'middle' }}>
           <Pencil size={12} />
         </button>
       )}
@@ -391,7 +399,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 440, overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
             <div style={{ background: '#1e3a8a', color: '#fff', padding: '12px 16px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Pencil size={16} /> Corregir monto en reportes
+              <Pencil size={16} /> Corregir monto y fecha en reportes
             </div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, lineHeight: 1.6 }}>
@@ -399,16 +407,20 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                 <div><b>Cajero:</b> {parseDet(editar.p).cajero || '-'} · <b>Tipo:</b> {editar.p.tipo}</div>
                 <div><b>Registrado por el cajero:</b> Bs {fmtBs(parseFloat(editar.p.monto_real ?? editar.p.monto) || 0)}</div>
               </div>
+              <label style={{ fontWeight: 700, color: '#1e3a8a' }} htmlFor="fecha-reporte-cuadre">Fecha en que se pagó (día del cuadre)</label>
+              <input id="fecha-reporte-cuadre" type="date" value={editar.fecha}
+                onChange={e => setEditar({ ...editar, fecha: e.target.value })}
+                style={{ border: '1px solid #94a3b8', borderRadius: 6, padding: '8px 10px', fontSize: 14, fontWeight: 700 }} />
               <label style={{ fontWeight: 700, color: '#1e3a8a' }} htmlFor="monto-reporte">Monto correcto (Bs)</label>
               <input id="monto-reporte" type="number" step="0.01" min="0" value={editar.monto} autoFocus
                 onChange={e => setEditar({ ...editar, monto: e.target.value })}
                 style={{ border: '1px solid #94a3b8', borderRadius: 6, padding: '8px 10px', fontSize: 16, fontWeight: 800, textAlign: 'right', fontFamily: 'monospace' }} />
               <label style={{ fontWeight: 700, color: '#1e3a8a' }} htmlFor="motivo-reporte">Motivo (obligatorio)</label>
-              <input id="motivo-reporte" value={editar.motivo} placeholder="Ej.: el cajero tecleó mal el monto del punto"
+              <input id="motivo-reporte" value={editar.motivo} placeholder="Ej.: el cajero tecleó mal el monto del punto o fecha errónea"
                 onChange={e => setEditar({ ...editar, motivo: e.target.value })}
                 style={{ border: '1px solid #94a3b8', borderRadius: 6, padding: '8px 10px', fontSize: 13 }} />
               <div style={{ fontSize: 11, color: '#64748b' }}>
-                Solo cambia lo que muestran los reportes y sus PDF. El pago, la deuda, la conciliación y la factura no se modifican. Queda registrado en la Auditoría.
+                Ajusta los reportes, el cuadre diario y sus PDF. Queda registrado en la Auditoría.
               </div>
               {editar.error && <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: 6, padding: 8, fontSize: 12 }}>{editar.error}</div>}
             </div>

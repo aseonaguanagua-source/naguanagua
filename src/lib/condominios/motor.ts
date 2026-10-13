@@ -347,3 +347,17 @@ export function avanzarPendiente(desde: string | null | undefined, n: number, ho
   const [y, m] = desde.split('-').map(Number);
   return deIndice(aIndice(y, m) + Math.floor(n));
 }
+
+/** Lista de períodos 'YYYY-MM' de multas previas (meses anteriores a `desde`) */
+export function periodosMultasPrevias(desde: string | null | undefined, multaMeses: number, hoy: Date = new Date()): string[] {
+  const n = Math.max(0, Math.floor(multaMeses || 0));
+  if (n === 0) return [];
+  if (!desde) {
+    const { y, m } = mesActualCaracas(hoy);
+    const ultimoFacturado = aIndice(y, m) - 1;
+    return Array.from({ length: n }, (_, i) => deIndice(ultimoFacturado - (n - 1) + i).slice(0, 7));
+  }
+  const [y, m] = desde.split('-').map(Number);
+  const indDesde = aIndice(y, m);
+  return Array.from({ length: n }, (_, i) => deIndice(indDesde - n + i).slice(0, 7));
+}

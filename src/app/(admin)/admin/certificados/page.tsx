@@ -38,18 +38,21 @@ export default function CertificadosPage() {
     if (found) {
       const cleanIdent = (found.Identidad || '').replace(/-/g, '').toUpperCase();
       
-      // Facturas pendientes
+      // Inmuebles
+      const misInmuebles = (inmuebles || []).filter((i: any) => (i.identidad || '').replace(/-/g, '').toUpperCase() === cleanIdent && i.estado !== 'Eliminado');
+      const inmsConMora = misInmuebles.filter(inmuebleTieneDeuda);
+      const inmsSolventes = misInmuebles.filter((i: any) => !inmuebleTieneDeuda(i));
+
+      // Facturas pendientes: sólo cuentan si los inmuebles tienen mora real
       const deudas = (recibos || [])
         .filter((f: any) => (f.identidad || '').replace(/-/g, '').toUpperCase() === cleanIdent)
         .filter((f: any) => ['Pendiente', 'Abonado', 'Por Verificar'].includes(f.estado));
       
-      const totalBs = deudas.reduce((acc: number, f: any) => acc + parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')), 0);
+      const totalBs = inmsConMora.length > 0
+        ? deudas.reduce((acc: number, f: any) => acc + parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')), 0)
+        : 0;
       
-      // Buscar inmuebles y verificar meses_deuda
-      const misInmuebles = (inmuebles || []).filter((i: any) => (i.identidad || '').replace(/-/g, '').toUpperCase() === cleanIdent && i.estado !== 'Eliminado');
-      const inmsConMora = misInmuebles.filter(inmuebleTieneDeuda);
-      
-      const hasDebt = totalBs > 0 || inmsConMora.length > 0;
+      const hasDebt = inmsConMora.length > 0;
       const totalMesesDeuda = inmsConMora.reduce((max: number, i: any) => Math.max(max, parseInt(String(i.meses_deuda || 0), 10)), 0);
 
       const isCondominio = (found.CantidadInmuebles && parseInt(found.CantidadInmuebles) > 1) || 
@@ -60,7 +63,9 @@ export default function CertificadosPage() {
         hasDebt,
         debtAmount: totalBs > 0 ? `Bs. ${totalBs.toFixed(2)}` : `${totalMesesDeuda} meses acumulados`,
         isCondominio,
-        misInmuebles
+        misInmuebles,
+        inmsSolventes,
+        inmsConMora
       });
     } else {
       setSearchError('No se encontró ningún contribuyente con esa identificación o RIF.');
@@ -160,30 +165,39 @@ export default function CertificadosPage() {
               </div>
             </div>
             
-            {searchResult.hasDebt ? (
+            {searchResult.hasDebt && (!searchResult.inmsSolventes || searchResult.inmsSolventes.length === 0) ? (
               <div className="bg-red-50 p-4 rounded-lg border border-red-100 text-center">
                 <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-                <p className="text-red-700 font-bold mb-1">Posee deuda activa (Bs. {searchResult.debtAmount})</p>
-                <p className="text-red-600 text-sm">No es posible generar una solvencia hasta que se cancelen las deudas pendientes.</p>
+                <p className="text-red-700 font-bold mb-1">Posee deuda activa ({searchResult.debtAmount})</p>
+                <p className="text-red-600 text-sm">No es posible generar una solvencia general hasta que se cancelen las deudas pendientes.</p>
               </div>
             ) : (
-              <div className="bg-emerald-50 p-6 rounded-lg border border-emerald-100 text-center">
-                <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
-                <p className="text-emerald-700 font-bold mb-4 text-lg">Contribuyente Solvente</p>
+              <div className="bg-emerald-50 p-6 rounded-lg border border-emerald-100 text-center space-y-4">
+                <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto" />
+                <div>
+                  <p className="text-emerald-700 font-bold text-lg">
+                    {searchResult.hasDebt ? 'Inmuebles Solventes Disponibles' : 'Contribuyente Solvente'}
+                  </p>
+                  {searchResult.hasDebt && (
+                    <p className="text-amber-700 text-xs mt-1 font-medium">
+                      El contribuyente tiene deuda en otros inmuebles ({searchResult.debtAmount}), pero puede emitir solvencia individual para sus inmuebles al día.
+                    </p>
+                  )}
+                </div>
                 
                 <div className="max-w-md mx-auto">
-                  {searchResult.isCondominio && (
+                  {(searchResult.isCondominio || searchResult.misInmuebles?.length > 1) && (
                     <div className="mb-4 text-left">
-                      <label className="text-xs font-bold text-emerald-800 block mb-2">Seleccione el Inmueble (Condominio):</label>
+                      <label className="text-xs font-bold text-emerald-800 block mb-2">Seleccione el Inmueble a Certificar:</label>
                       <select 
                         className="w-full text-sm p-2 border border-emerald-200 rounded text-slate-700 bg-white"
                         value={selectedInmueble}
                         onChange={(e) => setSelectedInmueble(e.target.value)}
                       >
-                        <option value="">-- Condominio General --</option>
-                        {searchResult.misInmuebles?.map((inm: any, idx: number) => (
+                        {!searchResult.hasDebt && <option value="">-- Solvencia General (Todos los Inmuebles) --</option>}
+                        {(searchResult.inmsSolventes?.length ? searchResult.inmsSolventes : searchResult.misInmuebles)?.map((inm: any, idx: number) => (
                           <option key={idx} value={inm.inmueble || `Local ${idx+1}`}>
-                            {inm.inmueble || `Local ${idx+1}`} - {inm.actividad_principal || 'Residencial'}
+                            {inm.inmueble || `Local ${idx+1}`} - {inm.actividad_principal || 'Residencial'} (Solvente)
                           </option>
                         ))}
                       </select>

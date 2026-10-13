@@ -78,12 +78,27 @@ async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = '
 
   if (!especifico) {
     const idSin = (identidad || '').replace(/-/g, '');
+    const idList = variantes.length ? variantes : [identidad];
     const { data: facts } = await supabase
       .from('facturas')
       .select('id')
       .or(`identidad.eq.${identidad},identidad.eq.${idSin}`)
       .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
-    if (facts && facts.length > 0) detalle.push(`${facts.length} factura(s) pendiente(s)`);
+
+    if (facts && facts.length > 0) {
+      if (conDeuda.length === 0) {
+        // Si no hay deuda en los inmuebles (0 meses), conciliar facturas viejas
+        try {
+          await supabase
+            .from('facturas')
+            .update({ estado: 'Pagado', metodo_pago: 'Conciliado por Solvencia', fecha_pago: new Date().toISOString() })
+            .or(`identidad.eq.${identidad},identidad.eq.${idSin}`)
+            .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
+        } catch (_) {}
+      } else {
+        detalle.push(`${facts.length} factura(s) pendiente(s)`);
+      }
+    }
   }
 
   if (detalle.length > 0) {

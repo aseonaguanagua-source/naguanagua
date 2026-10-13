@@ -215,6 +215,8 @@ function Caja() {
   const mapLineas = useMemo(() => new Map<string, any>((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
   const multasDe = (r: any) => (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
   const mesesMax = base?.totales?.mesesMax || 0;
+  const multasMax = Math.max(1, ...(conDeuda || []).map((r: any) => (r.multaMeses || 0) + (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length + (r.multasManuales || []).length));
+  const maxOpciones = soloMultas ? multasMax : mesesMax;
   const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
   const sinSeleccion = porContrib && !claves.length && !identidad.trim();
 
@@ -547,10 +549,16 @@ function Caja() {
                     {porContrib ? 'Escriba la cédula del contribuyente o escoja sus locales' : 'Todo lo que debe el condominio'}
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-600">Meses a pagar</label>
-                    <select id="meses-a-pagar" value={meses} disabled={soloMultas} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1.5 px-2 rounded-lg border border-slate-300 text-sm bg-white disabled:opacity-50">
-                      <option value="">Todos (ponerse al día)</option>
-                      {Array.from({ length: mesesMax }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n} {n === 1 ? 'mes (el más viejo)' : 'meses más viejos'}</option>)}
+                    <label className="text-xs font-bold text-slate-600">
+                      {soloMultas ? 'Meses de multas a pagar' : 'Meses a pagar'}
+                    </label>
+                    <select id="meses-a-pagar" value={meses} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1.5 px-2 rounded-lg border border-slate-300 text-sm bg-white">
+                      <option value="">{soloMultas ? 'Todas las multas' : 'Todos (ponerse al día)'}</option>
+                      {Array.from({ length: maxOpciones }, (_, i) => i + 1).map(n => (
+                        <option key={n} value={n}>
+                          {n} {n === 1 ? (soloMultas ? 'mes de multa (el más viejo)' : 'mes (el más viejo)') : (soloMultas ? 'meses de multas más viejos' : 'meses más viejos')}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -590,8 +598,12 @@ function Caja() {
                               {r.actividad && <div className="text-[10px] text-violet-700 font-bold truncate max-w-[340px]">{r.actividad}</div>}
                               {r.multasManuales?.map((m: any) => <div key={m.id} className="text-[10px] text-red-700">• Multa: {m.concepto} (Bs {fmtBs(m.montoBs)})</div>)}
                             </td>
-                            <td className="text-center px-2">{dMeses > 0 ? <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black">{dMeses}</span> : '—'}</td>
-                            <td className="px-2 text-xs text-slate-600">{lc && lc.periodos[0] ? fmtPeriodo(lc.periodos[0]) : (r.periodos[0] ? fmtPeriodo(r.periodos[0]) : '—')}</td>
+                            <td className="text-center px-2">{dMeses > 0 ? <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black">{dMeses} {soloMultas ? 'multa(s)' : ''}</span> : '—'}</td>
+                            <td className="px-2 text-xs text-slate-600">
+                              {lc && lc.periodos?.length > 0 ? (
+                                soloMultas ? lc.periodos.map(fmtPeriodo).join(', ') : fmtPeriodo(lc.periodos[0])
+                              ) : (r.periodos[0] ? fmtPeriodo(r.periodos[0]) : '—')}
+                            </td>
                             <td className="px-2 text-right text-xs tabular-nums text-red-600">{dMultas > 0 ? fmtBs(dMultas) : '—'}</td>
                             <td className="px-4 text-right font-bold tabular-nums text-red-700">Bs {fmtBs(dTotal)}</td>
                           </tr>

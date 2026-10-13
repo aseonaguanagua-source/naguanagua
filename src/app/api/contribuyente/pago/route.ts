@@ -61,32 +61,37 @@ export async function POST(request: Request) {
     }
 
     // TRANSFERENCIA: queda en revisión
-    if (facturaIds && facturaIds.length > 0) {
-      await supabase
-        .from('facturas')
-        .update({
-          estado: 'En Revisión',
-          metodo_pago: banco || metodo,
-          referencia_pago: referencia || '',
-          fecha_pago: fechaPago
-        })
-        .in('id', facturaIds);
-    }
-
-    if (convenioIds && convenioIds.length > 0) {
-      await supabase
-        .from('convenios_pago')
-        .update({
-          estado: 'En Revisión',
-          metodo_pago: banco || metodo,
-          referencia_pago: referencia || '',
-          fecha_pago: fechaPago
-        })
-        .in('id', convenioIds);
-    }
-
-    // Insertar en pagos_reportados para que aparezca en Conciliación Bancaria
     if (metodo === 'transferencia') {
+      const comprobanteUrl = body.comprobanteUrl || body.comprobante_url;
+      if (!comprobanteUrl) {
+        return NextResponse.json({ error: 'Es obligatorio adjuntar el comprobante de pago bancario.' }, { status: 400 });
+      }
+
+      if (facturaIds && facturaIds.length > 0) {
+        await supabase
+          .from('facturas')
+          .update({
+            estado: 'En Revisión',
+            metodo_pago: banco || metodo,
+            referencia_pago: referencia || '',
+            fecha_pago: fechaPago
+          })
+          .in('id', facturaIds);
+      }
+
+      if (convenioIds && convenioIds.length > 0) {
+        await supabase
+          .from('convenios_pago')
+          .update({
+            estado: 'En Revisión',
+            metodo_pago: banco || metodo,
+            referencia_pago: referencia || '',
+            fecha_pago: fechaPago
+          })
+          .in('id', convenioIds);
+      }
+
+      // Insertar en pagos_reportados para que aparezca en Conciliación Bancaria
       const { data: recibosData } = await supabase.from('facturas').select('referencia').in('id', facturaIds || []);
       const dbRefs = recibosData ? recibosData.map(r => r.referencia) : [];
       const finalRecibos = Array.from(new Set([...(reciboRefs || []), ...dbRefs]));
@@ -105,6 +110,7 @@ export async function POST(request: Request) {
           recibosIds: facturaIds,
           conveniosIds: convenioIds,
           servicios: servicioRefs,
+          comprobante_url: comprobanteUrl,
           ...(montoRetencionIva > 0 ? { monto_retencion_iva: montoRetencionIva, es_agente_retencion: true } : {}),
           fecha_transaccion: fechaPago
         })

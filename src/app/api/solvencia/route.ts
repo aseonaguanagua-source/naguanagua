@@ -123,8 +123,21 @@ export async function POST(req: Request) {
       }
       if (inmuebleTieneDeuda(i)) { conDeuda.push(i.inmueble); detalle.push(`${i.inmueble} (${i.meses_deuda || 0} meses)`); }
     }
-    const { data: facts } = await sb.from('facturas').select('id').in('identidad', variantes.length ? variantes : [identidad]).in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
-    if (facts && facts.length > 0) detalle.push(`${facts.length} factura(s) pendiente(s)`);
+    const idList = variantes.length ? variantes : [identidad];
+    const { data: facts } = await sb.from('facturas').select('id').in('identidad', idList).in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
+    if (facts && facts.length > 0) {
+      if (conDeuda.length === 0) {
+        // Si los inmuebles están solventes (0 meses de deuda), conciliar facturas viejas
+        try {
+          await sb.from('facturas')
+            .update({ estado: 'Pagado', metodo_pago: 'Conciliado por Solvencia', fecha_pago: new Date().toISOString() })
+            .in('identidad', idList)
+            .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
+        } catch (_) {}
+      } else {
+        detalle.push(`${facts.length} factura(s) pendiente(s)`);
+      }
+    }
     if (detalle.length) return NextResponse.json({ solvente: false, inmueblesConDeuda: conDeuda, mensaje: `EMISIÓN DENEGADA: ${identidad} tiene deuda pendiente en: ${detalle.join(', ')}.` });
     return NextResponse.json({ solvente: true, mensaje: 'Solvente', inmueblesConDeuda: [] });
   } catch (e: any) {

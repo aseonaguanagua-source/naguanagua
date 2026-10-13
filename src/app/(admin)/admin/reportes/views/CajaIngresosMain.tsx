@@ -66,15 +66,19 @@ const SUB_TIPOS: SubTipo[] = ['General de Ingresos', 'Corte de Caja', 'Ingresos 
 const BANCOS = LISTA_BANCOS;
 
 export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser, tcmmv, contribuyentes, onBack, onPagoActualizado }: Props) {
-  const { CeldaMonto, modal: modalMonto } = useEditarMontoReporte(isAdmin, onPagoActualizado);
+  const [fechaInicio, setFechaInicio] = useState(new Date().toISOString().slice(0, 10) + 'T00:00');
+  const [fechaFin, setFechaFin] = useState(new Date().toISOString().slice(0, 10) + 'T23:59');
+  const [showReport, setShowReport] = useState(false);
+  const { CeldaMonto, modal: modalMonto } = useEditarMontoReporte(isAdmin, onPagoActualizado, (nuevaFecha) => {
+    setFechaInicio(nuevaFecha + 'T00:00');
+    setFechaFin(nuevaFecha + 'T23:59');
+    setShowReport(true);
+  });
   const today = new Date().toISOString().slice(0, 10);
   const [subTipo, setSubTipo] = useState<SubTipo>('General de Ingresos');
   const [selectedCajas, setSelectedCajas] = useState<string[]>(isAdmin ? [] : [currentUser]);
   const [tipoFilter, setTipoFilter] = useState('Todos');
   const [bancFilter, setBancFilter] = useState('');
-  const [fechaInicio, setFechaInicio] = useState(today + 'T00:00');
-  const [fechaFin, setFechaFin] = useState(today + 'T23:59');
-  const [showReport, setShowReport] = useState(false);
   const [showCajaDD, setShowCajaDD] = useState(false);
   const [cerrando, setCerrando] = useState(false);
   const [cajaCerrada, setCajaCerrada] = useState(false);
