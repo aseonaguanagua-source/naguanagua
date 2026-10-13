@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { isResidencialInm, calcularMensualidad, isCondominioPagoIndividual } from '@/lib/calculos';
 import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist, reglaCobroInmueble, r2 } from '@/lib/deudaMensual';
+import DeudaCondominiosPortal from '@/components/DeudaCondominiosPortal';
 import { construirRecibosContribuyente, desgloseReciboCM } from '@/lib/recibosContribuyente';
 import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
 import { clusterInmueblesByLocal } from '@/lib/cajaHelpers';
@@ -73,6 +74,8 @@ export default function DondePagarPage() {
 
   // Datos reales sincronizados
   const [userInms, setUserInms] = useState<any[]>([]);
+  const [portalDoc, setPortalDoc] = useState('');
+  useEffect(() => { setPortalDoc(localStorage.getItem('portal_doc') || ''); }, []);
   const [rawRecibos, setRawRecibos] = useState<any[]>([]);
   const [conveniosData, setConveniosData] = useState<ConvenioItem[]>([]);
   const [pagosPorVerificar, setPagosPorVerificar] = useState<any[]>([]);
@@ -685,6 +688,7 @@ export default function DondePagarPage() {
           <br /><br />
           Por favor, contacte al administrador del condominio para gestionar su solvencia y reportar pagos. Solo el administrador tiene habilitada esta función en la plataforma.
         </p>
+        <div className="w-full mt-6 text-left"><DeudaCondominiosPortal identidad={portalDoc} /></div>
       </div>
     );
   }
@@ -710,6 +714,9 @@ export default function DondePagarPage() {
           </div>
         </div>
       </div>
+
+      {/* Deuda en condominios: solo se muestra, no se paga aquí */}
+      <DeudaCondominiosPortal identidad={portalDoc} />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         

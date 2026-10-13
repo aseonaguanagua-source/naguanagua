@@ -1,4 +1,5 @@
 'use client';
+import DeudaCondominiosPortal from '@/components/DeudaCondominiosPortal';
 import { useState, useEffect, useMemo } from 'react';
 import { Download, FileText, Building, Handshake, AlertCircle, CheckCircle2, Wrench, ClipboardCheck, ShieldCheck, FlaskConical } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
@@ -579,6 +580,9 @@ export default function EstadoCuentaPage() {
       </div>
 
       {/* Mis Inmuebles */}
+      {/* Deuda en condominios: solo informativa (se paga por la Caja de Condominios) */}
+      <DeudaCondominiosPortal identidad={portalDoc} />
+
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">

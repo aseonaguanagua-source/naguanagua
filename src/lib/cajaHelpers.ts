@@ -61,11 +61,16 @@ export const getUserInmuebles = (
   const isSearchByCode = (foundUser as any).isSearchByCode;
   if (isSearchByCode && specificCode) {
     const sCode = String(specificCode).toUpperCase();
+    // Si el código es una ACTIVIDAD dentro de un N/A, se carga el N/A completo (el N/A es la suma de
+    // sus actividades): mismo resultado que buscar por el código del N/A. El contenedor N/A no se cobra.
+    const encontrado: any = source.find((i) => String(i.inmueble || '').toUpperCase() === sCode);
+    const naCode = String(encontrado?.padre_id || '').toUpperCase();
+    const gCode = naCode && source.some((i) => String(i.inmueble || '').toUpperCase() === naCode) ? naCode : sCode;
     return source.filter((i) => {
       const iCode = String(i.inmueble || '').toUpperCase();
       const pCode = String((i as any).condominio_padre_id || '').toUpperCase();
       const nCode = String((i as any).padre_id || '').toUpperCase();
-      return iCode === sCode || pCode === sCode || nCode === sCode;
+      return iCode === sCode || pCode === sCode || nCode === sCode || iCode === gCode || nCode === gCode;
     });
   }
 

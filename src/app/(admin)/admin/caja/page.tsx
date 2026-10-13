@@ -613,7 +613,14 @@ export default function CajaPage() {
       let orFilterInms = '';
       if (isCodeFormat && (user.CodCont || user.cod_cont)) {
         const specificCode = user.CodCont || user.cod_cont;
-        orFilterInms = `inmueble.eq.${specificCode},condominio_padre_id.eq.${specificCode}`;
+        // N/A = suma de sus actividades: al buscar por el código de una actividad (o del N/A) se trae
+        // la familia completa (N/A + todas sus actividades). El contenedor N/A no se cobra.
+        const { data: base } = await supabase.from('inmuebles').select('padre_id').eq('inmueble', specificCode).maybeSingle();
+        const na = base?.padre_id;
+        orFilterInms = [
+          `inmueble.eq.${specificCode}`, `condominio_padre_id.eq.${specificCode}`, `padre_id.eq.${specificCode}`,
+          ...(na ? [`inmueble.eq.${na}`, `padre_id.eq.${na}`] : []),
+        ].join(',');
       } else {
         orFilterInms = [
           ...userIdentVariants.map(v => `identidad.eq.${v}`),
