@@ -695,6 +695,20 @@ function ContribuyentesPageContent() {
     });
   };
 
+  // Actividades dentro de un N/A propio: NO tienen estado de cuenta individual (la tarifa del N/A es la
+  // suma de sus actividades). Se muestra UN solo botón por N/A (en su primera actividad listada) que
+  // imprime el estado de cuenta del N/A completo.
+  const naPropioDe = (inm: any, lista: any[]): string | null => {
+    const p = inm?.padre_id;
+    return p && (lista || []).some((x: any) => x.inmueble === p) ? p : null;
+  };
+  const objetivoEstadoCuenta = (inm: any, lista: any[]) => naPropioDe(inm, lista) || inm.inmueble;
+  const mostrarBotonEstadoCuenta = (inm: any, visibles: any[], lista: any[]) => {
+    const na = naPropioDe(inm, lista);
+    if (!na) return true;
+    return (visibles || []).find((x: any) => naPropioDe(x, lista) === na)?.inmueble === inm.inmueble;
+  };
+
   const imprimirEstadoDeCuenta = async (targetInmueble?: string, modo: 'separados' | 'unificado' = 'separados') => {
     if (!viewData) return;
 
@@ -792,7 +806,11 @@ function ContribuyentesPageContent() {
     let candidates = billable.length > 0 ? billable : userInms;
 
     if (targetInmueble && targetInmueble !== 'todos' && targetInmueble !== 'unificado') {
-      const filtered = userInms.filter((i: any) => i.inmueble === targetInmueble);
+      // Si el objetivo es una actividad de un N/A propio, el estado de cuenta es el del N/A completo
+      const objInm: any = userInms.find((i: any) => i.inmueble === targetInmueble);
+      const naObj = objInm?.padre_id && userInms.some((i: any) => i.inmueble === objInm.padre_id) ? objInm.padre_id : targetInmueble;
+      const hijosNA = billable.filter((i: any) => i.padre_id === naObj);
+      const filtered = hijosNA.length > 0 ? hijosNA : userInms.filter((i: any) => i.inmueble === targetInmueble);
       if (filtered.length > 0) candidates = filtered;
     }
 
@@ -3618,7 +3636,7 @@ function ContribuyentesPageContent() {
                       <FileText className="w-4 h-4 text-slate-500" /> Ficha del Censo Inmobiliario
                     </h4>
                     <div className="space-y-3">
-                      {userInms.filter((i: any) => !i.es_condominio && !i.condominio_padre_id && parseInt(i.cant_inmuebles || '1') <= 1).map((inm: any, idx: number) => (
+                      {userInms.filter((i: any) => !i.es_condominio && !i.condominio_padre_id && parseInt(i.cant_inmuebles || '1') <= 1).map((inm: any, idx: number, arrInm: any[]) => (
                         <div key={idx} className="bg-white p-3 rounded border border-slate-200 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                           <div className="col-span-2 md:col-span-4 border-b border-slate-100 pb-2 mb-1 flex items-center justify-between flex-wrap gap-2">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -3637,7 +3655,8 @@ function ContribuyentesPageContent() {
                             </div>
                             <button
                               type="button"
-                              onClick={() => imprimirEstadoDeCuenta(inm.inmueble, 'separados')}
+                              onClick={() => imprimirEstadoDeCuenta(objetivoEstadoCuenta(inm, userInms), 'separados')}
+                              style={mostrarBotonEstadoCuenta(inm, arrInm, userInms) ? undefined : { display: 'none' }}
                               className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded shadow-2xs transition-colors"
                               title={`Descargar Estado de Cuenta exclusivo de este local (${inm.inmueble})`}
                             >
@@ -4040,7 +4059,7 @@ function ContribuyentesPageContent() {
                                 {userInms
                                   .filter((i: any) => !i.es_condominio && !i.condominio_padre_id && parseInt(i.cant_inmuebles || '1') <= 1)
                                   .filter((inm: any) => parseFloat(inm.deuda_mmv || 0) > 0 || parseFloat(inm.deuda_congelada_bs || 0) > 0 || parseInt(inm.meses_deuda || 0) > 0)
-                                  .map((inm: any, idx: number) => {
+                                  .map((inm: any, idx: number, arrInm: any[]) => {
                                   const meses = Math.max(1, parseInt(inm.meses_deuda || 0));
                                   const esRes = isResidencialInm(inm);
                                   const baseUnMes = calcularMensualidad(inm, tcmmv);
@@ -4103,7 +4122,8 @@ function ContribuyentesPageContent() {
                                       <td className="p-2.5 text-center">
                                         <button
                                           type="button"
-                                          onClick={() => imprimirEstadoDeCuenta(inm.inmueble, 'separados')}
+                                          onClick={() => imprimirEstadoDeCuenta(objetivoEstadoCuenta(inm, userInms), 'separados')}
+                              style={mostrarBotonEstadoCuenta(inm, arrInm, userInms) ? undefined : { display: 'none' }}
                                           className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-1 rounded transition-colors shadow-2xs"
                                           title={`Descargar Estado de Cuenta del local ${inm.inmueble}`}
                                         >
@@ -4181,7 +4201,7 @@ function ContribuyentesPageContent() {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                  {userInms.filter((i: any) => !i.es_condominio && !i.condominio_padre_id && parseInt(i.cant_inmuebles || '1') <= 1).map((inm: any, idx: number) => {
+                                  {userInms.filter((i: any) => !i.es_condominio && !i.condominio_padre_id && parseInt(i.cant_inmuebles || '1') <= 1).map((inm: any, idx: number, arrInm: any[]) => {
                                     const meses = Math.max(1, parseInt(inm.meses_deuda || '1'));
                                     const esRes = isResidencialInm(inm);
                                     const baseUnMes = calcularMensualidad(inm, tcmmv);
@@ -4248,7 +4268,8 @@ function ContribuyentesPageContent() {
                                         <td className="p-2.5 text-center whitespace-nowrap">
                                           <button
                                             type="button"
-                                            onClick={() => imprimirEstadoDeCuenta(inm.inmueble, 'separados')}
+                                            onClick={() => imprimirEstadoDeCuenta(objetivoEstadoCuenta(inm, userInms), 'separados')}
+                              style={mostrarBotonEstadoCuenta(inm, arrInm, userInms) ? undefined : { display: 'none' }}
                                             className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-1 rounded transition-colors shadow-2xs"
                                             title={`Descargar Estado de Cuenta del local ${inm.inmueble}`}
                                           >
