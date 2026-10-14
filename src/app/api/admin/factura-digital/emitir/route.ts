@@ -89,7 +89,8 @@ export async function POST(request: Request) {
     const { 
       pagoId, recibos, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
-      correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario
+      correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
+      esRetencion, referencia, modulo
     } = await request.json();
     // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
     const totalManualNum = Math.round((parseFloat(String(totalManual ?? 0)) || 0) * 100) / 100;
@@ -553,7 +554,7 @@ export async function POST(request: Request) {
     }
 
     // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
-    const conRetencion = pagoTieneRetencion(detPago);
+    const conRetencion = esRetencion !== undefined ? !!esRetencion : pagoTieneRetencion(detPago);
 
     // CUADRE: la factura debe totalizar lo cobrado en caja (el monto cobrado ya incluye IVA).
     // Si los items se calcularon como base y no cuadran, se reescalan proporcionalmente.
@@ -994,8 +995,21 @@ export async function POST(request: Request) {
       nuevosDetalles.contribuyente = razonSocialFinal;
       nuevosDetalles.contribuyente_nombre = razonSocialFinal;
     }
+    if (esRetencion !== undefined) {
+      nuevosDetalles.agente_retencion = !!esRetencion;
+      nuevosDetalles.es_retencion = !!esRetencion;
+    }
+    if (modulo) {
+      nuevosDetalles.modulo = modulo;
+    }
 
-    await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
+    const updatePayload: any = { detalles: nuevosDetalles };
+    if (identidad && String(identidad).trim()) updatePayload.identidad = String(identidad).trim().toUpperCase();
+    if (referencia && String(referencia).trim()) updatePayload.referencia = String(referencia).trim();
+    if (modulo) updatePayload.modulo = modulo;
+    if (totalManualNum > 0) updatePayload.monto = totalManualNum;
+
+    await supabase.from('pagos_reportados').update(updatePayload).eq('id', pagoId);
 
     // Correo con los DATOS de la factura (no la factura) para que el agente llene su comprobante de retención
     let retencionInfo: any = null;

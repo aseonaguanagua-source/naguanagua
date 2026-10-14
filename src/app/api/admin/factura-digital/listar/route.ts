@@ -188,7 +188,10 @@ export async function GET(request: Request) {
         notaCreditoUrl: fd?.nota_credito?.url || null,
         notaCreditoControl: fd?.nota_credito?.numero_control || null,
         // Agente de retención: la factura se envía solo al aprobar su comprobante
-        conRetencion: (parseFloat(String(det.monto_retencion_iva || 0)) || 0) > 0,
+        conRetencion: (parseFloat(String(det.monto_retencion_iva || 0)) || 0) > 0 || !!det.es_retencion || !!det.agente_retencion,
+        esRetencion: (parseFloat(String(det.monto_retencion_iva || 0)) || 0) > 0 || !!det.es_retencion || !!det.agente_retencion,
+        modulo: pago.modulo || (infoCondo(pago, det) ? 'condominios' : 'caja'),
+        detalles: det,
         retencionEstado: fd?.retencion?.estado || null,
         retencionDatosEnviados: fd?.retencion?.datos_enviados_at || null,
         // Recibo por correo

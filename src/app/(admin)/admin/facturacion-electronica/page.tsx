@@ -7,7 +7,7 @@ import {
   Sliders, ArrowUpRight, Check, X, Building, CheckCircle2,
   AlertCircle, Key, Layers, ArrowRight, ShieldAlert, Sparkles,
   Info, Printer, Download, Trash2,
-  CheckSquare,
+  CheckSquare, Edit3,
 } from 'lucide-react';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 
@@ -79,6 +79,7 @@ export default function FacturacionElectronicaPage() {
   const usr = String(adminUser?.usuario || '').toLowerCase();
   const cleanUsr = usr.includes('(') ? usr.split('(')[1].replace(')','').trim() : usr;
   const puedeAnular = esAdmin || cleanUsr === 'isamar' || cleanUsr === 'raquel';
+  const puedeEditar = puedeAnular;
 
   const [eliminar, setEliminar] = useState<null | { pago: any; preview?: any; error?: string; cargando: boolean; motivo: string; hecho?: boolean }>(null);
   const pedirEliminar = async (pago: any) => {
@@ -171,6 +172,25 @@ export default function FacturacionElectronicaPage() {
   const [isEmitting, setIsEmitting] = useState(false);
   const [enviarCorreoAlEmitir, setEnviarCorreoAlEmitir] = useState(true);
   const [correoDestinoEmision, setCorreoDestinoEmision] = useState('');
+
+  // Campos editables del pago dentro de la emisión individual
+  const [emitContribuyente, setEmitContribuyente] = useState('');
+  const [emitIdentidad, setEmitIdentidad] = useState('');
+  const [emitReferencia, setEmitReferencia] = useState('');
+  const [emitModulo, setEmitModulo] = useState('caja');
+  const [emitEsRetencion, setEmitEsRetencion] = useState(false);
+
+  // Modal de Edición de Datos Fiscales del Pago (monto, retención, nombre, cédula/RIF, referencia, caja)
+  const [pagoAEditar, setPagoAEditar] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    contribuyente: '',
+    identidad: '',
+    monto: '',
+    referencia: '',
+    esRetencion: false,
+    modulo: 'caja'
+  });
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
   // Modal de Emisión Masiva / Lote
   const [showBatchModal, setShowBatchModal] = useState(false);
@@ -370,6 +390,11 @@ export default function FacturacionElectronicaPage() {
   // 2. Abrir Modal de Emisión Manual
   const handleOpenEmitModal = (pago: any, totalOverride?: number, totalRef?: number) => {
     setSelectedPagoForEmit(pago);
+    setEmitContribuyente(pago.contribuyente || pago.detalles?.contribuyente || '');
+    setEmitIdentidad(pago.identidad || '');
+    setEmitReferencia(pago.referencia && pago.referencia !== 'N/A' ? pago.referencia : '');
+    setEmitModulo(pago.modulo || (pago.condominio ? 'condominios' : 'caja'));
+    setEmitEsRetencion(!!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion));
     const ref = totalRef && totalRef > 0 ? totalRef : (parseFloat(pago.monto) || 0);
     setTotalReferencia(ref);
     const montoTotal = totalOverride && totalOverride > 0 ? totalOverride : ref;
@@ -381,6 +406,75 @@ export default function FacturacionElectronicaPage() {
     setAjusteConcepto(`Servicio de Aseo Urbano Comercial - ${getMesActual()}`);
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
+  };
+
+  // Abrir Modal de Edición Directa de Datos Fiscales
+  const handleOpenEditModal = (pago: any) => {
+    setPagoAEditar(pago);
+    setEditForm({
+      contribuyente: pago.contribuyente || pago.detalles?.contribuyente || '',
+      identidad: pago.identidad || '',
+      monto: String(pago.monto || ''),
+      referencia: pago.referencia && pago.referencia !== 'N/A' ? pago.referencia : '',
+      esRetencion: !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion),
+      modulo: pago.modulo || (pago.condominio ? 'condominios' : 'caja')
+    });
+  };
+
+  // Guardar Edición Directa de Datos Fiscales
+  const handleGuardarEdicion = async () => {
+    if (!pagoAEditar) return;
+    if (!editForm.identidad.trim()) {
+      alert('Debe ingresar la cédula o RIF.');
+      return;
+    }
+    if (!editForm.contribuyente.trim()) {
+      alert('Debe ingresar el nombre o razón social.');
+      return;
+    }
+    const mNum = parseFloat(editForm.monto);
+    if (isNaN(mNum) || mNum <= 0) {
+      alert('Debe ingresar un monto válido mayor a 0.');
+      return;
+    }
+
+    setGuardandoEdicion(true);
+    try {
+      let usuarioActual = adminUser?.usuario || '';
+      if (!usuarioActual) {
+        try {
+          const u = JSON.parse(localStorage.getItem('admin_user_data') || 'null');
+          usuarioActual = u ? u.usuario : '';
+        } catch {}
+      }
+      const res = await fetch('/api/admin/factura-digital/editar-pago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagoId: pagoAEditar.pagoId || pagoAEditar.id,
+          identidad: editForm.identidad.trim().toUpperCase(),
+          contribuyente: editForm.contribuyente.trim(),
+          monto: mNum,
+          referencia: editForm.referencia.trim(),
+          esRetencion: editForm.esRetencion,
+          modulo: editForm.modulo,
+          usuario: usuarioActual
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'No se pudo guardar la edición del pago');
+      }
+
+      alert('¡Datos fiscales del pago actualizados exitosamente!');
+      setPagoAEditar(null);
+      loadPagos();
+    } catch (e: any) {
+      alert('Error al guardar cambios: ' + e.message);
+    } finally {
+      setGuardandoEdicion(false);
+    }
   };
 
   // 3. Ejecutar Emisión Manual Individual
@@ -418,8 +512,11 @@ export default function FacturacionElectronicaPage() {
           montoServicio: base,
           montoMulta: multa,
           concepto: ajusteConcepto,
-          contribuyente: selectedPagoForEmit.contribuyente,
-          identidad: selectedPagoForEmit.identidad,
+          contribuyente: emitContribuyente.trim(),
+          identidad: emitIdentidad.trim().toUpperCase(),
+          referencia: emitReferencia.trim(),
+          modulo: emitModulo,
+          esRetencion: emitEsRetencion,
           formasPago: [{
             descripcion: selectedPagoForEmit.tipo || 'Transferencia',
             fecha: new Date().toISOString(),
@@ -952,6 +1049,16 @@ export default function FacturacionElectronicaPage() {
                               <span>Eliminar</span>
                             </button>
                           )}
+                          {puedeEditar && (
+                            <button
+                              onClick={() => handleOpenEditModal(pago)}
+                              className="text-[11px] bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-800 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-slate-300 hover:border-amber-300 transition-colors cursor-pointer"
+                              title="Editar monto, si es de retención, nombre, cédula o RIF, referencia o caja"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Editar</span>
+                            </button>
+                          )}
                           {pago.documento === 'recibo' ? (
                             <>
                               <button
@@ -1402,24 +1509,63 @@ export default function FacturacionElectronicaPage() {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-400 font-semibold block text-[10px] uppercase">Contribuyente</span>
-                  <span className="font-bold text-slate-900 text-sm">{selectedPagoForEmit.contribuyente}</span>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 text-xs">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                  <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider">Datos Fiscales del Contribuyente y Caja</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Modificables antes de emitir</span>
                 </div>
-                <div>
-                  <span className="text-slate-400 font-semibold block text-[10px] uppercase">R.I.F. / Cédula</span>
-                  <span className="font-bold text-slate-900 text-sm font-mono">{selectedPagoForEmit.identidad}</span>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Nombre / Razón Social</label>
+                    <input
+                      type="text"
+                      value={emitContribuyente}
+                      onChange={e => setEmitContribuyente(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">R.I.F. / Cédula</label>
+                    <input
+                      type="text"
+                      value={emitIdentidad}
+                      onChange={e => setEmitIdentidad(e.target.value.toUpperCase())}
+                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 bg-white uppercase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Nro. Referencia</label>
+                    <input
+                      type="text"
+                      value={emitReferencia}
+                      onChange={e => setEmitReferencia(e.target.value)}
+                      placeholder="Referencia bancaria"
+                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:ring-2 focus:ring-emerald-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Caja / Módulo</label>
+                    <select
+                      value={emitModulo}
+                      onChange={e => setEmitModulo(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 bg-white"
+                    >
+                      <option value="caja">Caja General (Contribuyentes)</option>
+                      <option value="condominios">Caja Condominios</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-400 font-semibold block text-[10px] uppercase">Monto Total Pagado</span>
-                  <span className="font-bold text-emerald-700 font-mono text-sm">
-                    Bs {selectedPagoForEmit.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-semibold block text-[10px] uppercase">Forma de Pago</span>
-                  <span className="font-semibold text-slate-700">{selectedPagoForEmit.tipo}</span>
+
+                <div className="pt-2 border-t border-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 bg-amber-50/70 border border-amber-200 p-2.5 rounded-lg hover:bg-amber-100/60 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={emitEsRetencion}
+                      onChange={e => setEmitEsRetencion(e.target.checked)}
+                      className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    <span>¿Es Pago con Retención de IVA (75%)? (Agente de Retención)</span>
+                  </label>
                 </div>
               </div>
 
@@ -1539,6 +1685,170 @@ export default function FacturacionElectronicaPage() {
               >
                 <Send className={`w-3.5 h-3.5 ${isEmitting ? 'animate-spin' : ''}`} />
                 <span>{isEmitting ? 'Transmitiendo a TFHKA...' : 'Confirmar y Emitir Factura'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL DE EDICIÓN DE DATOS FISCALES DEL PAGO ══ */}
+      {pagoAEditar && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Edit3 className="w-5 h-5 text-[#c8e64c]" />
+                <div>
+                  <h3 className="font-bold text-base leading-tight">Editar Datos Fiscales del Pago</h3>
+                  <p className="text-[11px] text-slate-300">Modificar monto, retención, contribuyente, RIF, referencia o caja</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setPagoAEditar(null)}
+                disabled={guardandoEdicion}
+                className="text-slate-400 hover:text-white cursor-pointer disabled:opacity-40"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              {/* Información de contexto */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block">ID de Pago</span>
+                  <span className="font-mono font-bold text-slate-800 text-xs">{pagoAEditar.id}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block">Fecha Original</span>
+                  <span className="text-slate-700 font-medium text-xs">
+                    {pagoAEditar.created_at ? new Date(pagoAEditar.created_at).toLocaleDateString('es-VE') : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Formulario */}
+              <div className="space-y-3">
+                {/* 1. Nombre / Razón Social */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nombre / Razón Social del Contribuyente <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.contribuyente}
+                    onChange={e => setEditForm(prev => ({ ...prev, contribuyente: e.target.value }))}
+                    placeholder="Ej: INVERSIONES EJEMPLO C.A. / JUAN PÉREZ"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
+
+                {/* 2. Cédula o RIF & Monto */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Cédula o R.I.F. <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.identidad}
+                      onChange={e => setEditForm(prev => ({ ...prev, identidad: e.target.value.toUpperCase() }))}
+                      placeholder="Ej: J-12345678-9 / V-12345678"
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 bg-white uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Monto Pagado (Bs) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editForm.monto}
+                      onChange={e => setEditForm(prev => ({ ...prev, monto: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-emerald-800 focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Referencia Bancaria & Selección de Caja */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Nro. de Referencia Bancaria
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.referencia}
+                      onChange={e => setEditForm(prev => ({ ...prev, referencia: e.target.value }))}
+                      placeholder="Ej: 123456"
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Caja / Módulo <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={editForm.modulo}
+                      onChange={e => setEditForm(prev => ({ ...prev, modulo: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-white"
+                    >
+                      <option value="caja">Caja General (Contribuyentes)</option>
+                      <option value="condominios">Caja Condominios</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 4. Retención de IVA (75%) */}
+                <div className="pt-1">
+                  <label className="flex items-start gap-3 p-3 rounded-xl border border-amber-300 bg-amber-50/70 hover:bg-amber-100/60 transition-colors cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editForm.esRetencion}
+                      onChange={e => setEditForm(prev => ({ ...prev, esRetencion: e.target.checked }))}
+                      className="mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-amber-950 block">¿Es Pago con Retención de IVA (75%)?</span>
+                      <span className="text-[11px] text-amber-800 leading-snug block mt-0.5">
+                        Indica si el contribuyente retuvo el 75% del IVA como contribuyente especial. La factura se emitirá con la retención y retendrá el envío automático de correo hasta cargar el comprobante.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setPagoAEditar(null)}
+                disabled={guardandoEdicion}
+                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleGuardarEdicion}
+                disabled={guardandoEdicion}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md disabled:opacity-50 cursor-pointer"
+              >
+                {guardandoEdicion ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Guardando cambios...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Guardar Cambios</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
