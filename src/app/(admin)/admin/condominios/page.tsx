@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Building2, Search, RefreshCw, AlertTriangle, CheckCircle2, Wallet, CalendarClock,
-  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download, Pencil, Award
+  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download, Pencil, Award, FileText
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 
@@ -103,6 +103,60 @@ export default function CondominiosPage() {
   const handleEmitirSolvencia = async (condo: any) => {
     const { emitirSolvenciaCondominio } = await import('@/lib/condominios/pdfSolvenciaCondominio');
     await emitirSolvenciaCondominio(condo, condo.deudaBs);
+  };
+
+  const [descargandoEdo, setDescargandoEdo] = useState<string | null>(null);
+
+  const handleDescargarEstadoCuentaCondominio = async (condo: any) => {
+    setDescargandoEdo(condo.codigo);
+    try {
+      const { cargarCondominio, calcularEstado, tasaVigente } = await import('@/lib/condominios/servicio');
+      const { generarPdfEstadoCuentaCondominio } = await import('@/lib/condominios/pdfCondominio');
+      const tasa = await tasaVigente();
+      const data = await cargarCondominio(condo.codigo);
+      if (!data) throw new Error('No se pudo cargar la información del condominio.');
+      const est = calcularEstado(data.condo, data.unidades, tasa, new Date(), data.multas);
+      generarPdfEstadoCuentaCondominio(data.condo, est, 'Administrador');
+    } catch (e: any) {
+      alert('Error al generar estado de cuenta: ' + e.message);
+    } finally {
+      setDescargandoEdo(null);
+    }
+  };
+
+  const handleDescargarEstadoCuentaUnidad = async (u: any) => {
+    const codCondo = u.condominios?.codigo || u.condominio_codigo;
+    if (!codCondo) { alert('No se encontró el condominio de esta unidad.'); return; }
+    try {
+      const { cargarCondominio, calcularEstado, tasaVigente } = await import('@/lib/condominios/servicio');
+      const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
+      const tasa = await tasaVigente();
+      const data = await cargarCondominio(codCondo);
+      if (!data) throw new Error('No se pudo cargar la información del condominio.');
+      const est = calcularEstado(data.condo, data.unidades, tasa, new Date(), data.multas);
+      const r = est.renglones.find((x: any) => x.clave === u.id || x.inmueble === u.inmueble);
+      if (!r) throw new Error('No se encontró el renglón de cálculo para esta unidad.');
+      generarPdfEstadoCuentaUnidad(data.condo, r, est.tasa, 'Administrador');
+    } catch (e: any) {
+      alert('Error al generar estado de cuenta de la unidad: ' + e.message);
+    }
+  };
+
+  const handleEmitirSolvenciaUnidad = async (u: any) => {
+    const codCondo = u.condominios?.codigo || u.condominio_codigo;
+    if (!codCondo) return;
+    try {
+      const { cargarCondominio, calcularEstado, tasaVigente } = await import('@/lib/condominios/servicio');
+      const { emitirSolvenciaUnidad } = await import('@/lib/condominios/pdfSolvenciaCondominio');
+      const tasa = await tasaVigente();
+      const data = await cargarCondominio(codCondo);
+      const est = calcularEstado(data!.condo, data!.unidades, tasa, new Date(), data!.multas);
+      const r = est.renglones.find((x: any) => x.clave === u.id || x.inmueble === u.inmueble);
+      const deuda = r ? r.totalBs : 0;
+      await emitirSolvenciaUnidad(data!.condo, u, deuda);
+    } catch (e: any) {
+      alert('Error al emitir solvencia: ' + e.message);
+    }
   };
 
   return (
@@ -235,15 +289,43 @@ export default function CondominiosPage() {
 
       {unidadesQ.length > 0 && (
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-200">
-          <div className="font-extrabold text-slate-800 text-sm mb-2">Unidades que coinciden con “{q.trim()}”: {unidadesQ.length}{unidadesQ.length >= 25 ? '+' : ''}</div>
-          <div className="flex flex-wrap gap-2">
+          <div className="font-extrabold text-slate-800 text-sm mb-3">Unidades encontradas ({unidadesQ.length}):</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {unidadesQ.map((u: any) => (
-              <button key={u.id} id={`unidad-${u.inmueble || u.id}`} onClick={() => router.push(`/admin/condominios/ficha?codigo=${u.condominios.codigo}&unidad=${encodeURIComponent(u.inmueble || u.numero || '')}`)}
-                className="text-left px-3 py-2 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors cursor-pointer">
-                <div className="font-mono text-xs font-bold text-slate-800">{u.inmueble || '—'}{u.numero ? ` · ${u.numero}` : ''}</div>
-                <div className="text-[11px] text-slate-600">{u.propietario || 'Sin propietario'}{u.identidad ? ` · ${u.identidad}` : ''}</div>
-                <div className="text-[11px] text-emerald-700 font-bold">{u.condominios.nombre}</div>
-              </button>
+              <div key={u.id} className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-300 bg-white shadow-2xs flex flex-col justify-between gap-2.5">
+                <div>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-mono text-xs font-black text-slate-900">{u.inmueble || '—'}{u.numero ? ` · Local ${u.numero}` : ''}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.estado === 'Activa' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>{u.estado}</span>
+                  </div>
+                  <div className="text-xs text-slate-700 font-semibold mt-1">{u.propietario || 'Sin propietario'}</div>
+                  <div className="text-[11px] text-slate-500 font-mono">{u.identidad || 'Sin RIF'}</div>
+                  <div className="text-[11px] text-emerald-700 font-bold mt-1">{u.condominios?.nombre || 'Condominio'} ({u.condominios?.codigo})</div>
+                  <div className="text-[11px] text-slate-500">Actividad: <b className="text-slate-700">{u.actividad || 'N/A'}</b></div>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => handleDescargarEstadoCuentaUnidad(u)}
+                    title="Descargar Estado de Cuenta individual de esta unidad"
+                    className="flex-1 px-2 py-1.5 rounded-lg border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Estado de Cuenta
+                  </button>
+                  <button
+                    onClick={() => handleEmitirSolvenciaUnidad(u)}
+                    title="Emitir Solvencia de esta unidad"
+                    className="px-2 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                  >
+                    <Award className="w-3.5 h-3.5" /> Solvencia
+                  </button>
+                  <button
+                    onClick={() => router.push(`/admin/condominios/ficha?codigo=${u.condominios?.codigo}&unidad=${encodeURIComponent(u.inmueble || u.numero || '')}`)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-[11px] cursor-pointer"
+                  >
+                    Ficha
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -289,7 +371,7 @@ export default function CondominiosPage() {
                 <th className="text-right py-2.5 px-3">Mensualidad</th>
                 <th className="text-center py-2.5 px-3">Meses</th>
                 <th className="text-right py-2.5 px-4">Deuda</th>
-                <th className="text-center py-2.5 px-3">Solvencia</th>
+                <th className="text-center py-2.5 px-4">Documentos</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -324,24 +406,35 @@ export default function CondominiosPage() {
                       {f.deudaBs > 0.01 ? 'Insolvente' : 'Solvente'}
                     </span>
                   </td>
-                  <td className="py-3 px-3 text-center" onClick={ev => ev.stopPropagation()}>
-                    {f.deudaBs <= 0.01 ? (
+                  <td className="py-3 px-4 text-center" onClick={ev => ev.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1.5">
                       <button
-                        onClick={() => handleEmitirSolvencia(f)}
-                        title="Descargar Certificado de Solvencia Oficial con QR"
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] inline-flex items-center gap-1 cursor-pointer shadow-xs transition-all hover:scale-105"
+                        onClick={() => handleDescargarEstadoCuentaCondominio(f)}
+                        disabled={descargandoEdo === f.codigo}
+                        title="Descargar Estado de Cuenta Consolidado en PDF"
+                        className="px-2.5 py-1 rounded-lg border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
                       >
-                        <Award className="w-3.5 h-3.5" /> Solvencia
+                        {descargandoEdo === f.codigo ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                        Estado de Cuenta
                       </button>
-                    ) : (
-                      <button
-                        onClick={() => alert(`El condominio "${f.nombre}" presenta una deuda pendiente de Bs ${fmtBs(f.deudaBs)}.\nDebe cancelar la deuda antes de emitir la solvencia.`)}
-                        title={`Insolvente: deuda pendiente de Bs ${fmtBs(f.deudaBs)}`}
-                        className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-400 font-bold text-[10px] inline-flex items-center gap-1 cursor-pointer"
-                      >
-                        <Award className="w-3.5 h-3.5 opacity-40" /> Bloqueada
-                      </button>
-                    )}
+                      {f.deudaBs <= 0.01 ? (
+                        <button
+                          onClick={() => handleEmitirSolvencia(f)}
+                          title="Descargar Certificado de Solvencia Oficial con QR"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] inline-flex items-center gap-1 cursor-pointer shadow-xs transition-all hover:scale-105"
+                        >
+                          <Award className="w-3.5 h-3.5" /> Solvencia
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => alert(`El condominio "${f.nombre}" presenta una deuda pendiente de Bs ${fmtBs(f.deudaBs)}.\nDebe cancelar la deuda antes de emitir la solvencia.`)}
+                          title={`Insolvente: deuda pendiente de Bs ${fmtBs(f.deudaBs)}`}
+                          className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-400 font-bold text-[10px] inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Award className="w-3.5 h-3.5 opacity-40" /> Bloqueada
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

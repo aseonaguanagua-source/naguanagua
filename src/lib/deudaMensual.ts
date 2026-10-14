@@ -97,7 +97,7 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
 
   return {
     esResidencial: esRes,
-    mensualidad: bMes,
+    mensualidad: n > 0 ? r2(base / n) : bMesDefault,
     base,
     iva,
     multa,

@@ -235,7 +235,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Descarga concurrente de Inmuebles y Contribuyentes
       const [rawInmuebles, rawContribuyentes] = await Promise.all([
-        fetchAllClientParallel('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,padre_id,created_at'),
+        fetchAllClientParallel('inmuebles', 'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio,condominio_padre_id,padre_id,created_at,notas'),
         fetchAllClientParallel('contribuyentes', '*')
       ]);
 
