@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders
 } from 'lucide-react';
 import EditorUnidad from './EditorUnidad';
+import ModalAjusteMeses from './ModalAjusteMeses';
 import { mesesPendientes } from '@/lib/condominios/motor';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -53,6 +54,7 @@ function Ficha() {
   const [modalNotas, setModalNotas] = useState(false);
   const [notaCondominio, setNotaCondominio] = useState('');
   const [guardandoNota, setGuardandoNota] = useState(false);
+  const [ajusteMesesTarget, setAjusteMesesTarget] = useState<{ unidad: any; renglon: any } | null>(null);
 
   const handleGuardarNota = async () => {
     if (!c?.codigo) return;
@@ -501,6 +503,18 @@ function Ficha() {
                                         <Award className="w-3 h-3" /> Solvencia
                                       </button>
                                     )}
+                                    {admin && unidadDe(r.clave) && (
+                                      <button
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          setAjusteMesesTarget({ unidad: unidadDe(r.clave), renglon: r });
+                                        }}
+                                        title="Ajustar actividades económicas, niveles y multas por mes"
+                                        className="px-2 py-0.5 rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 cursor-pointer border border-purple-200 text-[11px] font-bold flex items-center gap-1 shadow-2xs"
+                                      >
+                                        <Sliders className="w-3 h-3" /> Meses
+                                      </button>
+                                    )}
                                   </div>
                                   {unidadDe(r.clave) && r.totalBs > 0.01 && (
                                     <Link href={`/admin/condominios/caja?codigo=${c.codigo}&unidad=${r.clave}`} onClick={ev => ev.stopPropagation()} title="Cobrar solo este local"
@@ -534,6 +548,18 @@ function Ficha() {
                                   </div>
                                   {r.multaExtraBs > 0 && <div className="text-[11px] text-amber-800 mt-2">Incluye Bs {fmtBs(r.multaExtraBs)} de multas pendientes de meses ya pagados.</div>}
                                   {(r.multasManuales || []).map((m: any) => <div key={m.id} className="text-[11px] text-amber-800 mt-1">Multa: {m.concepto} — Bs {fmtBs(m.montoBs)}</div>)}
+                                  {admin && unidadDe(r.clave) && (
+                                    <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2.5">
+                                      <span className="text-[11px] text-slate-500">¿Desea cambiar la actividad económica, nivel de generación o estado de multa para meses específicos?</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setAjusteMesesTarget({ unidad: unidadDe(r.clave), renglon: r })}
+                                        className="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+                                      >
+                                        <Sliders className="w-3.5 h-3.5" /> Ajustar actividades, niveles y multas por mes
+                                      </button>
+                                    </div>
+                                  )}
                                 </td>
                               </tr>
                             )}
@@ -794,6 +820,21 @@ function Ficha() {
           renglon={editorU ? e?.renglones.find((r: any) => r.clave === editorU.id) || null : null}
           onClose={() => setEditorU(undefined)}
           onSaved={async (cerrar: boolean) => { await cargar(); if (cerrar) setEditorU(undefined); }}
+        />
+      )}
+
+      {ajusteMesesTarget && c && (
+        <ModalAjusteMeses
+          condo={c}
+          unidad={ajusteMesesTarget.unidad}
+          renglon={ajusteMesesTarget.renglon}
+          tasa={e?.tasa || 1}
+          usuario={usuarioActual()}
+          onClose={() => setAjusteMesesTarget(null)}
+          onSaved={async () => {
+            setAjusteMesesTarget(null);
+            await cargar();
+          }}
         />
       )}
     </div>

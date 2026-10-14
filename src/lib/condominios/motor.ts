@@ -216,13 +216,24 @@ export interface DeudaPeriodos {
  * Mismo criterio que Caja: multa = mensual × tasa × (meses − 1).
  * `sinMultaPrimeros`: los primeros N meses (los más viejos) no llevan multa porque se exoneraron.
  */
-export function deudaPorMeses(meses: number, mensualBs: number | number[], residencial: boolean, agenteRetencion = false, sinMultaPrimeros = 0): DeudaPeriodos {
+export function deudaPorMeses(meses: number, mensualBs: number | number[], residencial: boolean, agenteRetencion = false, sinMultaPrimeros = 0, multasPorMes?: (boolean | number)[]): DeudaPeriodos {
   const n = Math.max(0, Math.floor(meses));
   const tMulta = residencial ? TASA_MULTA_RES : TASA_MULTA_COM;
   const porMes = Array.from({ length: n }, (_, i) => {
     const mensual = Array.isArray(mensualBs) ? (mensualBs[i] !== undefined ? mensualBs[i] : (mensualBs[mensualBs.length - 1] ?? 0)) : mensualBs;
     const base = r2(mensual);
-    const multa = i < n - 1 && i >= sinMultaPrimeros ? r2(mensual * tMulta) : 0;
+    let multa = 0;
+    if (multasPorMes && multasPorMes[i] !== undefined) {
+      if (typeof multasPorMes[i] === 'number') {
+        multa = r2(multasPorMes[i] as number);
+      } else if (multasPorMes[i] === false) {
+        multa = 0;
+      } else {
+        multa = i < n - 1 ? r2(mensual * tMulta) : 0;
+      }
+    } else {
+      multa = i < n - 1 && i >= sinMultaPrimeros ? r2(mensual * tMulta) : 0;
+    }
     const iva = residencial ? 0 : r2(mensual * IVA);
     const ret = agenteRetencion && !residencial ? r2(iva * RETENCION_IVA) : 0;
     return { n: i + 1, baseBs: base, multaBs: multa, ivaBs: iva, retencionBs: ret, totalBs: r2(base + multa + iva - ret) };

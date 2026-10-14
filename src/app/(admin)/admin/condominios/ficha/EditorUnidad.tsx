@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle, Award, FileText } from 'lucide-react';
+import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle, Award, FileText, Sliders } from 'lucide-react';
 import { ordenanzaData } from '@/data/ordenanza';
 import { actividadConNivel, nivelActividad, quitarNivelActividad, resolverFOComercial } from '@/lib/calculos';
 import { mesesPendientes } from '@/lib/condominios/motor';
+import ModalAjusteMeses from './ModalAjusteMeses';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const NIVELES = ['Baja', 'Media', 'Alta'];
@@ -49,6 +50,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState('');
+  const [modalMeses, setModalMeses] = useState(false);
 
   // Multas: siempre por meses — 10% (residencial) o 12% (comercial) de la mensualidad por cada mes
   const multasPend = useMemo(() => (unidad ? multas.filter(m => m.unidad_id === unidad.id && m.estado === 'Pendiente') : []), [multas, unidad]);
@@ -361,6 +363,27 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
             )}
           </div>
 
+          {/* Ajuste personalizado mes a mes */}
+          {!nueva && renglon && (
+            <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3.5 flex items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider text-purple-900 block">
+                  Ajustes detallados por mes
+                </span>
+                <span className="text-[11px] text-purple-700">
+                  Cambie la actividad económica, nivel de generación (Baja/Media/Alta) y estado de multa mes a mes.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalMeses(true)}
+                className="px-3 py-1.5 rounded-lg bg-purple-700 text-white font-bold text-xs hover:bg-purple-800 cursor-pointer shadow-xs inline-flex items-center gap-1.5 shrink-0"
+              >
+                <Sliders className="w-3.5 h-3.5" /> Configurar Meses
+              </button>
+            </div>
+          )}
+
           {/* Estructura y Retención */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block"><span className={lbl}>Pertenece a la torre / local</span>
@@ -467,6 +490,21 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           </div>
         </div>
       </div>
+
+      {modalMeses && renglon && (
+        <ModalAjusteMeses
+          condo={condo}
+          unidad={{ ...unidad, ...f }}
+          renglon={renglon}
+          tasa={Number(renglon?.mensualBs ? (renglon.mensualBs / (Number(f.tarifa_mmv || 1) * 57 * (esRes ? 0.04 : 0.128))) : 1) || 57}
+          usuario={usuario}
+          onClose={() => setModalMeses(false)}
+          onSaved={() => {
+            setModalMeses(false);
+            onSaved(true);
+          }}
+        />
+      )}
     </div>
   );
 }

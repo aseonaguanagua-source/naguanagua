@@ -8,6 +8,7 @@
  */
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
+import { actividadConNivel, resolverFOComercial } from '@/lib/calculos';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -169,16 +170,66 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     const esAgente = c.modalidad === 'INDIVIDUAL' ? (u ? !!u.agente_retencion : false) : !!c.agente_retencion;
     const periodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
     let basesPorMes: number[] | number = r.montoBs;
-    if (u?.desocupada_desde && periodos.length > 0) {
+    let multasPorMes: (boolean | number)[] | undefined = undefined;
+
+    if (periodos.length > 0 && (u?.periodos_custom || u?.desocupada_desde)) {
       const tDesoc = M.tarifaDesocupadaBs(tasa);
       const mmvActiva = Number(u.tarifa_activa_mmv || u.tarifa_mmv) || 3.77;
-      const tActiva = r2(mmvActiva * 57 * tasa * 0.128);
-      basesPorMes = periodos.map(p => {
-        const esDesoc = p >= u.desocupada_desde && (!u.desocupada_hasta || p <= u.desocupada_hasta);
-        return esDesoc ? tDesoc : tActiva;
+      const tActiva = r2(mmvActiva * 57 * tasa * (res ? 0.04 : 0.128));
+
+      const bases: number[] = [];
+      const multas: (boolean | number)[] = [];
+
+      periodos.forEach((p, idx) => {
+        const custom = u?.periodos_custom?.[p];
+        if (custom) {
+          // Custom activity / rate / level
+          let mmv = custom.tarifa_mmv;
+          if (mmv == null && custom.actividad) {
+            const nomConNivel = actividadConNivel(custom.actividad, custom.nivel ?? 1);
+            mmv = resolverFOComercial(nomConNivel) ?? mmvActiva;
+          }
+          const base = r2((Number(mmv) || mmvActiva) * 57 * tasa * (res ? 0.04 : 0.128));
+          bases.push(base);
+
+          // Multa
+          if (hasta && p <= hasta) {
+            multas.push(false);
+          } else if (custom.lleva_multa === false) {
+            multas.push(false);
+          } else if (typeof custom.multa_bs === 'number') {
+            multas.push(custom.multa_bs);
+          } else if (idx === periodos.length - 1) {
+            multas.push(false);
+          } else {
+            multas.push(true);
+          }
+        } else if (u?.desocupada_desde) {
+          const esDesoc = p >= u.desocupada_desde && (!u.desocupada_hasta || p <= u.desocupada_hasta);
+          bases.push(esDesoc ? tDesoc : tActiva);
+          if (hasta && p <= hasta) {
+            multas.push(false);
+          } else if (idx === periodos.length - 1) {
+            multas.push(false);
+          } else {
+            multas.push(true);
+          }
+        } else {
+          bases.push(r.montoBs);
+          if (hasta && p <= hasta) {
+            multas.push(false);
+          } else if (idx === periodos.length - 1) {
+            multas.push(false);
+          } else {
+            multas.push(true);
+          }
+        }
       });
+      basesPorMes = bases;
+      multasPorMes = multas;
     }
-    const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados);
+
+    const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes);
     const multaMeses = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
     const baseParaMultaExtra = Array.isArray(basesPorMes) ? (basesPorMes[basesPorMes.length - 1] || r.montoBs) : r.montoBs;
     const multaExtraBs = r2((baseParaMultaExtra * tMulta * multaMeses) + (Number(u?.multa_bs) || 0));
@@ -258,15 +309,17 @@ export async function cargarCondominio(codigo: string) {
     let tarifa_activa_mmv = null;
     let tarifa_desocupada_mmv = null;
     let actividad_activa = null;
+    let periodos_custom: Record<string, any> | null = null;
     try {
       if (inf.notas) {
-        const j = JSON.parse(inf.notas);
+        const j = typeof inf.notas === 'string' ? JSON.parse(inf.notas) : inf.notas;
         if (j.actividades_extra) extras = j.actividades_extra;
         if (j.desocupada_desde) desocupada_desde = j.desocupada_desde;
         if (j.desocupada_hasta) desocupada_hasta = j.desocupada_hasta;
         if (j.tarifa_activa_mmv) tarifa_activa_mmv = j.tarifa_activa_mmv;
         if (j.tarifa_desocupada_mmv) tarifa_desocupada_mmv = j.tarifa_desocupada_mmv;
         if (j.actividad_activa) actividad_activa = j.actividad_activa;
+        if (j.periodos_custom) periodos_custom = j.periodos_custom;
       }
     } catch (e) {}
     return {
@@ -281,7 +334,8 @@ export async function cargarCondominio(codigo: string) {
       desocupada_hasta,
       tarifa_activa_mmv,
       tarifa_desocupada_mmv,
-      actividad_activa
+      actividad_activa,
+      periodos_custom
     };
   });
   
