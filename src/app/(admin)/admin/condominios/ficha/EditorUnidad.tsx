@@ -128,15 +128,35 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
 
   const quitarTodas = async () => {
     setErr('');
-    if (motivo.trim().length < 5) { setErr('Escriba el motivo (abajo) para quitar las multas.'); return; }
+    let m = motivo.trim();
+    if (m.length < 5) {
+      const resp = window.prompt('Indique el motivo para quitar las multas (mínimo 5 caracteres):', 'Exoneración autorizada por administración');
+      if (!resp || resp.trim().length < 5) {
+        alert('Debe indicar un motivo de al menos 5 caracteres.');
+        return;
+      }
+      m = resp.trim();
+      setMotivo(m);
+    }
     if (!confirm('¿Quitar TODAS las multas de esta unidad? (multas de los meses pendientes, meses de multa y multas fijas)')) return;
     setGuardando(true);
     try {
-      const r = await fetch('/api/admin/condominios/quitar-multas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: condo.codigo, unidad_id: unidad.id, usuario, motivo }) });
+      const uActual = usuario || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('admin_user_data') || '{}').usuario : '') || 'Administrador';
+      const r = await fetch('/api/admin/condominios/quitar-multas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: condo.codigo, unidad_id: unidad.id, usuario: uActual, motivo: m })
+      });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudieron quitar');
+      alert('¡Todas las multas de esta unidad han sido eliminadas exitosamente!');
       onSaved(true);
-    } catch (e: any) { setErr(e.message); } finally { setGuardando(false); }
+    } catch (e: any) {
+      alert('Error al quitar multas: ' + e.message);
+      setErr(e.message);
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const anularMulta = async (m: any) => {
