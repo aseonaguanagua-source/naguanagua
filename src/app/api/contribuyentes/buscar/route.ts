@@ -68,18 +68,33 @@ export async function GET(request: Request) {
 
     // Ocultar inmuebles desactivados (Inactivo / Eliminado) a menos que se haya buscado específicamente por ese código
     const qUpper = q.toUpperCase();
-    const esBusquedaInmueble = /^URB\d+/i.test(qUpper);
-    if (!esBusquedaInmueble) {
+    const esBusquedaInmueble = /^(URB|AURI|[A-Z]{3,})\d+/i.test(qUpper) || /^[A-Z]+\d+$/i.test(qUpper);
+    if (esBusquedaInmueble) {
+      // Si buscó por código, encontrar el inmueble específico y traer todos los inmuebles activos del RIF de ese código
+      const exacto = inmuebles.find((i: any) => i.inmueble?.toUpperCase() === qUpper);
+      if (exacto && exacto.identidad) {
+        const idVars = getIdentidadVariantsExact(exacto.identidad);
+        const { data: allOfRif } = await supabaseAdmin
+          .from('inmuebles')
+          .select('*')
+          .or(idVars.map(v => `identidad.eq.${v}`).join(','))
+          .filter('estado', 'eq', 'Activo');
+
+        const seen = new Set<string>();
+        const combined = [exacto, ...(allOfRif || [])].filter((i: any) => {
+          const cod = String(i.inmueble || '').toUpperCase();
+          if (seen.has(cod)) return false;
+          seen.add(cod);
+          if (i.condominio_padre_id || i.es_condominio || i.estado === 'Eliminado') return false;
+          return i.inmueble?.toUpperCase() === qUpper || String(i.estado || 'Activo').toLowerCase() === 'activo';
+        });
+        inmuebles = combined;
+      }
+    } else {
       inmuebles = inmuebles.filter((i: any) => {
         const est = String(i.estado || 'Activo').trim().toLowerCase();
         return est === 'activo';
       });
-    } else {
-      // Si buscó un inmueble específico, devolver SOLO ese inmueble
-      const exacto = inmuebles.filter((i: any) => i.inmueble?.toUpperCase() === qUpper);
-      if (exacto.length > 0) {
-        inmuebles = exacto;
-      }
     }
 
     if (inmuebles.length === 0) {

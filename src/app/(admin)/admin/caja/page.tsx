@@ -704,12 +704,17 @@ export default function CajaPage() {
         const specificCode = user.CodCont || user.cod_cont;
         // N/A = suma de sus actividades: al buscar por el código de una actividad (o del N/A) se trae
         // la familia completa (N/A + todas sus actividades). El contenedor N/A no se cobra.
-        const { data: base } = await supabase.from('inmuebles').select('padre_id').eq('inmueble', specificCode).maybeSingle();
+        const { data: base } = await supabase.from('inmuebles').select('padre_id, identidad').eq('inmueble', specificCode).maybeSingle();
         const na = base?.padre_id;
+        const codeIdent = base?.identidad || user.Identidad;
+        const codeIdentVars = codeIdent ? getIdentidadVariantsExact(codeIdent) : [];
         orFilterInms = [
-          `inmueble.eq.${specificCode}`, `condominio_padre_id.eq.${specificCode}`, `padre_id.eq.${specificCode}`,
+          `inmueble.eq.${specificCode}`,
+          `condominio_padre_id.eq.${specificCode}`,
+          `padre_id.eq.${specificCode}`,
           ...(na ? [`inmueble.eq.${na}`, `padre_id.eq.${na}`] : []),
-        ].join(',');
+          ...(codeIdentVars.length > 0 ? codeIdentVars.map(v => `identidad.eq.${v}`) : userIdentVariants.map(v => `identidad.eq.${v}`))
+        ].filter(Boolean).join(',');
       } else {
         orFilterInms = [
           ...userIdentVariants.map(v => `identidad.eq.${v}`),
@@ -723,8 +728,17 @@ export default function CajaPage() {
         .select('*')
         .or(orFilterInms);
       
-      // Filtrar los inmuebles eliminados y restringir los locales de condominios y condominios en sí
-      const activeInmFresh = (inmFresh || []).filter((i: any) => i.estado !== 'Eliminado' && !i.condominio_padre_id && !i.es_condominio);
+      // Filtrar los inmuebles eliminados/inactivos y restringir los locales de condominios y condominios en sí
+      const specificCode = (user.CodCont || user.cod_cont || '').toUpperCase();
+      const activeInmFresh = (inmFresh || []).filter((i: any) => {
+        if (i.estado === 'Eliminado') return false;
+        if (i.condominio_padre_id || i.es_condominio) return false;
+        // Si es el código específico buscado se permite (por si vinieron a pagar para reactivarlo),
+        // pero todos los demás inmuebles del RIF deben ser estrictamente Activos para no mezclar inactivos
+        const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
+        if (esEspecifico) return true;
+        return String(i.estado || 'Activo').trim().toLowerCase() === 'activo';
+      });
 
       if (activeInmFresh.length === 0 && (inmFresh || []).some((i:any) => i.condominio_padre_id || i.es_condominio)) {
          alert('El usuario no posee inmuebles individuales activos. Sus propiedades pertenecen a condominios, los cuales deben cobrarse por el módulo Condominios -> Caja.');
@@ -737,10 +751,12 @@ export default function CajaPage() {
          }, 500);
       }
 
-      // Adoptar la Identidad real y actualizada desde los inmuebles frescos en base de datos
-      if (activeInmFresh.length > 0 && activeInmFresh[0].identidad) {
-        user.Identidad = activeInmFresh[0].identidad;
-        if (activeInmFresh[0].contribuyente) user.Contribuyente = activeInmFresh[0].contribuyente;
+      // Adoptar la Identidad real y actualizada desde el inmueble buscado o el primer inmueble fresco
+      const searchedInm = isCodeFormat ? activeInmFresh.find((i: any) => String(i.inmueble || '').toUpperCase() === specificCode) : activeInmFresh[0];
+      const primaryInm = searchedInm || activeInmFresh[0];
+      if (primaryInm && primaryInm.identidad) {
+        user.Identidad = primaryInm.identidad;
+        if (primaryInm.contribuyente) user.Contribuyente = primaryInm.contribuyente;
       }
 
       // Recalcular variantes porque la Identidad pudo haber cambiado al tomarla de Supabase
@@ -932,14 +948,8 @@ export default function CajaPage() {
 
         // Los inmuebles cobrables son las actividades reales (excluyendo contenedores N/A)
         let billableInms = misInmuebles.filter((i: any) => !naParentCodes.includes(i.inmueble));
-        // Búsqueda por CÓDIGO: solo ese inmueble y sus unidades. Antes se colaban los meses de otros
-        // inmuebles de la misma cédula, que Caja no podía calcular y aparecían como "En Verificación".
-        if (isCodeFormat && (user.CodCont || user.cod_cont)) {
-          const sc = String(user.CodCont || user.cod_cont).toUpperCase();
-          const soloCodigo = billableInms.filter((i: any) =>
-            String(i.inmueble || '').toUpperCase() === sc || String(i.condominio_padre_id || '').toUpperCase() === sc);
-          if (soloCodigo.length > 0) billableInms = soloCodigo;
-        }
+        // Búsqueda por CÓDIGO o RIF: mantener todos los inmuebles activos del RIF del contribuyente
+        // (ya filtrados en activeInmFresh para no mezclar inmuebles inactivos ni condominios)
 
         const hasDeuda = billableInms.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
         if (hasDeuda && !isCondominio) {
@@ -1051,10 +1061,8 @@ export default function CajaPage() {
         const idCleanConv = (c.identidad || '').replace(/-/g, '').toUpperCase();
         const matchesUser = userConvenioVariants.has(idCleanConv) && c.estado === 'Al Día';
         if (!matchesUser) return false;
-        if (isCodeFormat && (user.CodCont || user.cod_cont)) {
-          const specificCode = String(user.CodCont || user.cod_cont).toUpperCase();
-          if (c.inmueble && c.inmueble.toUpperCase() !== specificCode) return false;
-        }
+        const allowedInmCodes = new Set((activeInmFresh || []).map((i: any) => String(i.inmueble || '').toUpperCase()));
+        if (c.inmueble && allowedInmCodes.size > 0 && !allowedInmCodes.has(c.inmueble.toUpperCase())) return false;
         return true;
       });
       const pendingCuotas: any[] = [];

@@ -55,29 +55,22 @@ export const getUserInmuebles = (
       : contextInmuebles || [];
 
   const fid = (foundUser.Identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
-
-  // Si se buscó por código específico, filtrar estrictamente para devolver únicamente ese inmueble y sus hijos
   const specificCode = (foundUser as any).CodCont || (foundUser as any).cod_cont;
-  const isSearchByCode = (foundUser as any).isSearchByCode;
-  if (isSearchByCode && specificCode) {
-    const sCode = String(specificCode).toUpperCase();
-    // Si el código es una ACTIVIDAD dentro de un N/A, se carga el N/A completo (el N/A es la suma de
-    // sus actividades): mismo resultado que buscar por el código del N/A. El contenedor N/A no se cobra.
-    const encontrado: any = source.find((i) => String(i.inmueble || '').toUpperCase() === sCode);
-    const naCode = String(encontrado?.padre_id || '').toUpperCase();
-    const gCode = naCode && source.some((i) => String(i.inmueble || '').toUpperCase() === naCode) ? naCode : sCode;
-    return source.filter((i) => {
-      const iCode = String(i.inmueble || '').toUpperCase();
-      const pCode = String((i as any).condominio_padre_id || '').toUpperCase();
-      const nCode = String((i as any).padre_id || '').toUpperCase();
-      return iCode === sCode || pCode === sCode || nCode === sCode || iCode === gCode || nCode === gCode;
-    });
-  }
+  const sCode = specificCode ? String(specificCode).toUpperCase() : '';
 
   return source.filter((i) => {
     if (isTrueCondo) return true;
     const itemFid = (i.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
-    return itemFid === fid;
+    // Coincidencia por RIF / Cédula del contribuyente
+    if (fid && itemFid === fid) return true;
+    // O coincidencia por código directo o sus actividades / contenedores
+    if (sCode) {
+      const iCode = String(i.inmueble || '').toUpperCase();
+      const pCode = String((i as any).condominio_padre_id || '').toUpperCase();
+      const nCode = String((i as any).padre_id || '').toUpperCase();
+      if (iCode === sCode || pCode === sCode || nCode === sCode) return true;
+    }
+    return false;
   });
 };
 
