@@ -185,11 +185,16 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
         if (custom) {
           // Custom activity / rate / level
           let mmv = custom.tarifa_mmv;
-          if (mmv == null && custom.actividad) {
-            const nomConNivel = actividadConNivel(custom.actividad, custom.nivel ?? 1);
-            mmv = resolverFOComercial(nomConNivel) ?? mmvActiva;
+          if (mmv === null || mmv === undefined) {
+            if (custom.actividad) {
+              const nomConNivel = actividadConNivel(custom.actividad, custom.nivel ?? 1);
+              mmv = resolverFOComercial(nomConNivel) ?? mmvActiva;
+            } else {
+              mmv = mmvActiva;
+            }
           }
-          const base = r2((Number(mmv) || mmvActiva) * 57 * tasa * (res ? 0.04 : 0.128));
+          const mmvNum = Number(mmv);
+          const base = r2((isNaN(mmvNum) ? mmvActiva : mmvNum) * 57 * tasa * (res ? 0.04 : 0.128));
           bases.push(base);
 
           // Multa

@@ -10,6 +10,25 @@ const fmtPeriodo = (p: string) => {
   return `${MESES[parseInt(m) - 1]} ${y}`; 
 };
 
+function dibujarLogosPie(doc: jsPDF) {
+  const yFoot = 282;
+  try {
+    if ((logos as any).lacava) {
+      doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.5, undefined, 'FAST');
+    }
+  } catch {}
+  try {
+    if ((logos as any).elizabeth) {
+      doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot, 40, 7.5, undefined, 'FAST');
+    }
+  } catch {}
+  try {
+    if ((logos as any).naguanaguaTeQuiero) {
+      doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 162, yFoot - 2, 34, 12, undefined, 'FAST');
+    }
+  } catch {}
+}
+
 export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero: string, mostrarNA: boolean = true) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const docNro = Math.floor(100000 + Math.random() * 900000).toString();
@@ -140,7 +159,7 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
 
   autoTable(doc, {
     startY: y,
-    margin: { top: 43 },
+    margin: { top: 43, bottom: 20 },
     head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', 'Total Bs']],
     body: rows,
     theme: 'grid',
@@ -168,14 +187,13 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
   const totalPages = (doc.internal as any).getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    // Ya lo dibujamos con el número correcto de página, no necesitamos parchear si ya usamos didDrawPage adecuadamente.
-    // wait, drawHeader is called initially with (1, 1). We should overwrite it.
     doc.setFillColor(255, 255, 255);
     doc.rect(170, 34, 30, 4, 'F');
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
     doc.text(`Página ${i} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
+    dibujarLogosPie(doc);
   }
 
   doc.save(`Estado_Cuenta_Condominio_${c.codigo}_${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -247,7 +265,7 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
 
   autoTable(doc, {
     startY: y,
-    margin: { top: 43 },
+    margin: { top: 43, bottom: 20 },
     head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', 'Total Multas']],
     body: rows,
     theme: 'grid',
@@ -286,6 +304,7 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
     doc.rect(170, 34, 30, 4, 'F');
     doc.setTextColor(0, 0, 0);
     doc.text(`Página ${i} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
+    dibujarLogosPie(doc);
   }
 
   doc.save(`Multas_Condominio_${c.codigo}_${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -411,7 +430,7 @@ export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: num
 
   autoTable(doc, {
     startY: y,
-    margin: { top: 43 },
+    margin: { top: 43, bottom: 20 },
     head: [['Período / Mes', 'Base Aseo', 'Multa', 'IVA (16%)', 'Retención IVA', 'Total']],
     body: rows,
     theme: 'grid',
@@ -455,6 +474,7 @@ export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: num
     doc.rect(170, 34, 30, 4, 'F');
     doc.setTextColor(0, 0, 0);
     doc.text(`Página ${i} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
+    dibujarLogosPie(doc);
   }
 
   const codInm = (r.inmueble || r.numero || 'Unidad').replace(/[^a-zA-Z0-9_-]/g, '_');

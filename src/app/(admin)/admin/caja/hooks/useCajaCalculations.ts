@@ -73,6 +73,29 @@ export function useCajaCalculations({
       const inm = userInms.find((i: any) => i.inmueble === inmId);
       if (inm) {
         const esRes = isResidencialInm(inm);
+        let jNotas: any = null;
+        try { if ((inm as any).notas) jNotas = typeof (inm as any).notas === 'string' ? JSON.parse((inm as any).notas) : (inm as any).notas; } catch {}
+
+        if (jNotas?.periodos_custom && Object.keys(jNotas.periodos_custom).length > 0) {
+          const keys = Object.keys(jNotas.periodos_custom).sort();
+          const p = keys[mNum - 1];
+          if (p && jNotas.periodos_custom[p]) {
+            const cfg = jNotas.periodos_custom[p];
+            const mmv = cfg.tarifa_mmv !== null && cfg.tarifa_mmv !== undefined ? Number(cfg.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
+            const baseMonto = Math.round((mmv * 57 * tasaActual * (esRes ? 1 : 0.128) + Number.EPSILON) * 100) / 100;
+            const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16 + Number.EPSILON) * 100) / 100;
+            const isUltimoMes = mNum >= keys.length;
+            const montoMulta = cfg.lleva_multa && !isUltimoMes ? Math.round((baseMonto * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
+            const totalMes = Math.round((baseMonto + montoIVA + montoMulta + Number.EPSILON) * 100) / 100;
+            let montoFinal = Math.max(0, totalMes);
+            if (mNum === 1 && parseFloat(String(inm.saldo_favor_bs || '0')) > 0) {
+              const saldoFavor = parseFloat(String(inm.saldo_favor_bs));
+              montoFinal = Math.max(0, montoFinal - saldoFavor);
+            }
+            return String(montoFinal.toFixed(2));
+          }
+        }
+
         const bMes = calcularMensualidad(inm, tasaActual);
         const totalMesesInm = Math.max(1, parseInt(String(inm.meses_deuda || '1')));
         const isUltimoMes = mNum > 0 ? (mNum >= totalMesesInm) : false;

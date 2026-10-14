@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'contribuyente' | 'funcionario'>('contribuyente');
+  const [activeTab, setActiveTab] = useState<'contribuyente' | 'funcionario'>('funcionario');
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -394,36 +394,34 @@ export default function Home() {
 
           <div className="toggle-container">
             <button 
-              className={`toggle-btn ${activeTab === 'contribuyente' ? 'active' : ''}`}
-              onClick={() => setActiveTab('contribuyente')}
-            >
-              Soy Contribuyente
-            </button>
-            <button 
               className={`toggle-btn ${activeTab === 'funcionario' ? 'active' : ''}`}
               onClick={() => setActiveTab('funcionario')}
             >
               Soy Funcionario
             </button>
+            <button 
+              className={`toggle-btn ${activeTab === 'contribuyente' ? 'active' : ''}`}
+              onClick={() => setActiveTab('contribuyente')}
+            >
+              Soy Contribuyente
+              <span style={{ fontSize: '10px', background: '#dc2626', color: '#fff', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', fontWeight: 'bold' }}>Mantenimiento</span>
+            </button>
           </div>
 
           <div className="main-card-container">
             {activeTab === 'contribuyente' && (
-              <Link href="/portal" className="card clickable">
-                <div className="icon-bubble">
-                  <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#B8CD29" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-                  </svg>
+              <div className="card" style={{ cursor: 'default' }}>
+                <div className="icon-bubble" style={{ background: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+                  <span style={{ fontSize: '28px' }}>🛠️</span>
                 </div>
-                <h3 className="card-title"><b style={{ fontWeight:800 }}>Soy</b>{' '}<span style={{ fontWeight:400 }}>Contribuyente</span></h3>
-                <p className="card-desc">Paga tus servicios, tramita solvencias y reporta incidencias de manera rápida y segura en Naguanagua.</p>
-                <div className="btn-enter">
-                  Ingresar al Portal
-                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
+                <h3 className="card-title"><b style={{ fontWeight:800 }}>Portal en</b>{' '}<span style={{ fontWeight:400, color: '#f87171' }}>Mantenimiento</span></h3>
+                <p className="card-desc" style={{ color: '#cbd5e1' }}>
+                  El portal Soy Contribuyente se encuentra temporalmente inhabilitado por labores de actualización y mantenimiento técnico. Para pagos y trámites presenciales, diríjase a nuestras oficinas de Aseo Urbano.
+                </p>
+                <div className="btn-enter" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.4)', cursor: 'not-allowed' }}>
+                  Servicio en Mantenimiento
                 </div>
-              </Link>
+              </div>
             )}
 
             {activeTab === 'funcionario' && (

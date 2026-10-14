@@ -71,8 +71,16 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
 
   const porMes: DesgloseMes[] = meses.map((m, i) => {
     let bMes = bMesDefault;
-    if (jNotas?.desocupada_desde) {
-      const perStr = m.emision ? (typeof m.emision === 'string' ? m.emision.slice(0, 7) : (m.emision.toISOString ? m.emision.toISOString().slice(0, 7) : '')) : '';
+    const perStr = m.emision ? (typeof m.emision === 'string' ? m.emision.slice(0, 7) : (m.emision.toISOString ? m.emision.toISOString().slice(0, 7) : '')) : '';
+    let tieneMoraMesActual = flags[i];
+    const custom = jNotas?.periodos_custom?.[perStr];
+    if (custom) {
+      const mmv = custom.tarifa_mmv !== null && custom.tarifa_mmv !== undefined ? Number(custom.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
+      bMes = r2(mmv * 57 * tasa * (esRes ? 1 : 0.128));
+      if (custom.lleva_multa === false) {
+        tieneMoraMesActual = false;
+      }
+    } else if (jNotas?.desocupada_desde) {
       const esDesoc = perStr >= jNotas.desocupada_desde && (!jNotas.desocupada_hasta || perStr <= jNotas.desocupada_hasta);
       if (esDesoc) {
         bMes = r2((jNotas.tarifa_desocupada_mmv || 1.98) * 57 * tasa * 0.128);
@@ -82,7 +90,7 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
     }
     const base = r2(bMes);
     const iva = esRes ? 0 : r2(bMes * 0.16);
-    const multa = flags[i] ? r2(bMes * tasaMora) : 0;
+    const multa = tieneMoraMesActual ? r2(bMes * tasaMora) : 0;
     return {
       base,
       iva,

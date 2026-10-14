@@ -512,6 +512,28 @@ export default function EstadoCuentaPage() {
       doc.setFont('helvetica', 'italic');
       doc.text('Transferencias oficiales a nombre de: Instituto Autónomo Municipal de Ecosocialismo (IAMEC)', 14, y);
 
+      // ── LOGOS GUBERNAMENTALES AL PIE (Lacava, Elizabeth, Naguanagua Te Quiero) ──
+      const totalPages = (doc.internal as any).getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        const yFoot = 282;
+        try {
+          if ((logos as any).lacava) {
+            doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.5, undefined, 'FAST');
+          }
+        } catch {}
+        try {
+          if ((logos as any).elizabeth) {
+            doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot, 40, 7.5, undefined, 'FAST');
+          }
+        } catch {}
+        try {
+          if ((logos as any).naguanaguaTeQuiero) {
+            doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 162, yFoot - 2, 34, 12, undefined, 'FAST');
+          }
+        } catch {}
+      }
+
       const fileName = `Estado_Cuenta_${viewData.Identidad}_${codInm}_${Date.now()}.pdf`;
       doc.save(fileName);
     });

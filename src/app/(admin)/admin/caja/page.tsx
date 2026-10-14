@@ -289,6 +289,43 @@ export default function CajaPage() {
       };
     }
 
+    let jNotas: any = null;
+    try {
+      if (hijo?.notas) jNotas = typeof hijo.notas === 'string' ? JSON.parse(hijo.notas) : hijo.notas;
+      else if (hijo?.periodos_custom) jNotas = { periodos_custom: hijo.periodos_custom };
+    } catch {}
+
+    if (jNotas?.periodos_custom && Object.keys(jNotas.periodos_custom).length > 0) {
+      const keys = Object.keys(jNotas.periodos_custom).sort();
+      const periodosUsar = keys.slice(0, mesesAPagar);
+      let sumBase = 0;
+      let sumIva = 0;
+      let sumMulta = 0;
+      periodosUsar.forEach((p) => {
+        const cfg = jNotas.periodos_custom[p];
+        const mmv = cfg.tarifa_mmv !== null && cfg.tarifa_mmv !== undefined ? Number(cfg.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
+        const b = Math.round((mmv * 57 * currentTasa * (esRes ? 1 : 0.128) + Number.EPSILON) * 100) / 100;
+        const iv = esRes ? 0 : Math.round((b * 0.16 + Number.EPSILON) * 100) / 100;
+        const esUltimo = p === keys[keys.length - 1];
+        const m = cfg.lleva_multa && !esUltimo ? Math.round((b * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
+        sumBase += b;
+        sumIva += iv;
+        sumMulta += m;
+      });
+      const tot = Math.round((sumBase + sumIva + sumMulta + Number.EPSILON) * 100) / 100;
+      return {
+        baseMensual,
+        ivaMensual,
+        base: Math.round(sumBase * 100) / 100,
+        iva: Math.round(sumIva * 100) / 100,
+        mesesTotales,
+        mesesAPagar,
+        multa: Math.round(sumMulta * 100) / 100,
+        total: tot,
+        esRes
+      };
+    }
+
     const base = parseFloat((baseMensual * mesesAPagar).toFixed(2));
     const iva = esRes ? 0 : parseFloat((ivaMensual * mesesAPagar).toFixed(2));
     // Multa mensual por mora: 10% residencial, 12% comercial sobre los meses adeudados vencidos (septiembre se paga en octubre sin multa; multas aplican hasta agosto)
@@ -771,6 +808,23 @@ export default function CajaPage() {
         (sum: number, i: any) => {
           const currentBcvRate = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : tcmmv;
           const meses = Math.max(0, parseInt(i.meses_deuda || '0'));
+          let jNotas: any = null;
+          try { if (i.notas) jNotas = typeof i.notas === 'string' ? JSON.parse(i.notas) : i.notas; } catch {}
+          if (jNotas?.periodos_custom && Object.keys(jNotas.periodos_custom).length > 0) {
+            const keys = Object.keys(jNotas.periodos_custom).sort();
+            const esRes = isResidencialInm(i);
+            let s = 0;
+            keys.forEach((p, idx) => {
+              const cfg = jNotas.periodos_custom[p];
+              const mmv = cfg.tarifa_mmv !== null && cfg.tarifa_mmv !== undefined ? Number(cfg.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
+              const base = Math.round((mmv * 57 * currentBcvRate * (esRes ? 1 : 0.128) + Number.EPSILON) * 100) / 100;
+              const iva = esRes ? 0 : Math.round((base * 0.16 + Number.EPSILON) * 100) / 100;
+              const esUltimo = idx === keys.length - 1;
+              const multa = cfg.lleva_multa && !esUltimo ? Math.round((base * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
+              s += base + iva + multa;
+            });
+            return sum + s;
+          }
           if (meses > 0) {
             const esRes = isResidencialInm(i);
             const baseMes = calcularMensualidad(i, currentBcvRate);
@@ -1101,7 +1155,7 @@ export default function CajaPage() {
         if (searchFilters.length > 0) {
           const { data: hijosById } = await supabase
             .from('inmuebles')
-            .select('id, identidad, inmueble, tipo, clasificacion, mmv_mes, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente, direccion, meses_deuda, cant_inmuebles')
+            .select('id, identidad, inmueble, tipo, clasificacion, mmv_mes, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente, direccion, meses_deuda, cant_inmuebles, notas')
             .or(searchFilters.join(','));
           hijosData = (hijosById || []).filter((h: any) => !parentCodes.includes(h.inmueble));
         }
