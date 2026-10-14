@@ -51,7 +51,14 @@ export const parseDet = (d: any): any => {
   return d;
 };
 
-export const pagoTieneRetencion = (det: any): boolean => (parseFloat(String(det?.monto_retencion_iva || 0)) || 0) > 0;
+export const pagoTieneRetencion = (det: any): boolean => {
+  if (!det) return false;
+  if ((parseFloat(String(det.monto_retencion_iva || 0)) || 0) > 0) return true;
+  if ((parseFloat(String(det.retencion_iva || 0)) || 0) > 0) return true;
+  if (det.factura_digital?.retencion) return true;
+  if (det.agente_retencion === true) return true;
+  return false;
+};
 
 /** Correo real del contribuyente (null si no tiene o es ficticio / comodín). */
 export async function correoContribuyente(identidad: string, det?: any): Promise<string | null> {

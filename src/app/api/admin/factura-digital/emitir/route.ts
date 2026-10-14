@@ -731,18 +731,20 @@ export async function POST(request: Request) {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             RazonSocial:          razonSocialFinal,
-            Direccion:            propRef?.direccion || "NAGUANAGUA",
+            Direccion:            String(propRef?.direccion || "NAGUANAGUA").trim().slice(0, 100),
             Ubigeo:               null,
             Pais:                 "VE",
             Notificar:            null,
             Telefono:             [],
-            Correo:               [(() => {
+            Correo:               (() => {
               const fallback = TheFactoryHKA.getFallbackEmail();
               // Con retención: TFHKA notifica solo al archivo interno (la factura se envía al aprobar la planilla)
-              if (conRetencion) return TheFactoryHKA.getBackupEmail();
+              if (conRetencion) return [TheFactoryHKA.getBackupEmail()];
               const cand = (correoDestino || propRef?.correo_electronico || '').trim();
-              return cand && !isFictitiousEmail(cand) ? cand : fallback;
-            })()],
+              if (!cand) return [fallback];
+              const list = cand.split(/[,;\s]+/).map((s: string) => s.trim()).filter((s: string) => s && s.includes('@') && !isFictitiousEmail(s));
+              return list.length > 0 ? list : [fallback];
+            })(),
             OtrosEnvios:          null,
           },
           SujetoRetenido: null,
@@ -850,9 +852,13 @@ export async function POST(request: Request) {
       if (Math.abs(totalAPagar - totalManualNum) > tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con el monto editado (${totalManualNum.toFixed(2)}).`);
     } else {
-      if (montoCobrado > 0 && totalAPagar > montoCobrado + tol)
+      const montoRet = conRetencion ? (parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0)) || (totalIVA * 0.75)) : 0;
+      const cobradoTotal = montoCobrado + montoRet;
+      if (montoCobrado > 0 && !conRetencion && totalAPagar > montoCobrado + tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja (${montoCobrado.toFixed(2)}).`);
-      if (montoCobrado > 0 && !esMixto && excluidosResidenciales === 0 && Math.abs(totalAPagar - montoCobrado) > tol)
+      if (montoCobrado > 0 && conRetencion && totalAPagar > cobradoTotal + tol + 1.0)
+        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja + retención (${cobradoTotal.toFixed(2)}).`);
+      if (montoCobrado > 0 && !conRetencion && !esMixto && excluidosResidenciales === 0 && Math.abs(totalAPagar - montoCobrado) > tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con lo cobrado (${montoCobrado.toFixed(2)}).`);
     }
     if (Math.abs(sumItems - totalAPagar) > tol + 0.01 * detallesItems.length)

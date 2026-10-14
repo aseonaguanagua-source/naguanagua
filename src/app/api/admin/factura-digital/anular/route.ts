@@ -7,20 +7,20 @@ import { isFictitiousEmail } from '@/lib/formatters';
 import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, portalRetencionesUrl } from '@/lib/retencionFlujo';
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
 
-/** Siguiente N° de factura (correlativo propio, serie vacía). */
-async function siguienteNumeroDocumento(sb: any): Promise<number> {
-  const ultTfhka = await TheFactoryHKA.ultimoDocumento('', '01');
+/** Siguiente N° de Nota de Crédito (correlativo propio Tipo 03, serie vacía). */
+async function siguienteNumeroNotaCredito(sb: any): Promise<number> {
+  const ultTfhka = await TheFactoryHKA.ultimoDocumento('', '03');
   let ultDb = 0;
   try {
     const { data } = await sb
       .from('pagos_reportados')
       .select('detalles')
-      .not('detalles->factura_digital->tfhka_seq', 'is', null)
-      .order('detalles->factura_digital->tfhka_seq', { ascending: false })
+      .not('detalles->factura_digital->nota_credito->tfhka_seq', 'is', null)
+      .order('detalles->factura_digital->nota_credito->tfhka_seq', { ascending: false })
       .limit(1);
     const d = data?.[0]?.detalles;
-    const fd = (typeof d === 'string' ? JSON.parse(d) : d)?.factura_digital;
-    ultDb = parseInt(String(fd?.tfhka_seq ?? 0), 10) || 0;
+    const nc = (typeof d === 'string' ? JSON.parse(d) : d)?.factura_digital?.nota_credito;
+    ultDb = parseInt(String(nc?.tfhka_seq ?? 0), 10) || 0;
   } catch { /* sin registros */ }
   return Math.max(ultTfhka ?? 0, ultDb) + 1;
 }
@@ -759,18 +759,20 @@ export async function POST(request: Request) {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             RazonSocial:          razonSocialFinal,
-            Direccion:            propRef?.direccion || "NAGUANAGUA",
+            Direccion:            String(propRef?.direccion || "NAGUANAGUA").trim().slice(0, 100),
             Ubigeo:               null,
             Pais:                 "VE",
             Notificar:            null,
             Telefono:             [],
-            Correo:               [(() => {
+            Correo:               (() => {
               const fallback = TheFactoryHKA.getFallbackEmail();
               // Con retención: TFHKA notifica solo al archivo interno (la factura se envía al aprobar la planilla)
-              if (conRetencion) return TheFactoryHKA.getBackupEmail();
+              if (conRetencion) return [TheFactoryHKA.getBackupEmail()];
               const cand = (correoDestino || propRef?.correo_electronico || '').trim();
-              return cand && !isFictitiousEmail(cand) ? cand : fallback;
-            })()],
+              if (!cand) return [fallback];
+              const list = cand.split(/[,;\s]+/).map((s: string) => s.trim()).filter((s: string) => s && s.includes('@') && !isFictitiousEmail(s));
+              return list.length > 0 ? list : [fallback];
+            })(),
             OtrosEnvios:          null,
           },
           SujetoRetenido: null,
@@ -878,9 +880,13 @@ export async function POST(request: Request) {
       if (Math.abs(totalAPagar - totalManualNum) > tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con el monto editado (${totalManualNum.toFixed(2)}).`);
     } else {
-      if (montoCobrado > 0 && totalAPagar > montoCobrado + tol)
+      const montoRet = conRetencion ? (parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0)) || (totalIVA * 0.75)) : 0;
+      const cobradoTotal = montoCobrado + montoRet;
+      if (montoCobrado > 0 && !conRetencion && totalAPagar > montoCobrado + tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja (${montoCobrado.toFixed(2)}).`);
-      if (montoCobrado > 0 && !esMixto && excluidosResidenciales === 0 && Math.abs(totalAPagar - montoCobrado) > tol)
+      if (montoCobrado > 0 && conRetencion && totalAPagar > cobradoTotal + tol + 1.0)
+        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja + retención (${cobradoTotal.toFixed(2)}).`);
+      if (montoCobrado > 0 && !conRetencion && !esMixto && excluidosResidenciales === 0 && Math.abs(totalAPagar - montoCobrado) > tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con lo cobrado (${montoCobrado.toFixed(2)}).`);
     }
     if (Math.abs(sumItems - totalAPagar) > tol + 0.01 * detallesItems.length)
@@ -900,14 +906,14 @@ export async function POST(request: Request) {
     }
 
     if (isTfhkaEnabled) {
-      console.log(`[TFHKA] Enviando Factura Real para pago ${pagoId}`);
+      console.log(`[TFHKA] Enviando Nota de Crédito Real para pago ${pagoId}`);
       try {
-        // Evitar doble emisión real del mismo pago
-        if (nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated) {
-          return NextResponse.json({ success: true, yaEmitida: true, url: nuevosDetalles.factura_digital.url, numeroControl: nuevosDetalles.factura_digital.numero_control });
+        // Evitar doble anulación si la nota de crédito ya fue emitida
+        if (nuevosDetalles.factura_digital?.nota_credito?.emitida && nuevosDetalles.factura_digital?.nota_credito?.tfhka_seq && !nuevosDetalles.factura_digital?.nota_credito?.simulated) {
+          return NextResponse.json({ success: true, yaEmitida: true, url: nuevosDetalles.factura_digital.nota_credito.url, numeroControl: nuevosDetalles.factura_digital.nota_credito.numero_control });
         }
 
-        let seq = await siguienteNumeroDocumento(supabase);
+        let seq = await siguienteNumeroNotaCredito(supabase);
         let tfhkaResponse: any = null;
         for (let intento = 0; intento < 3; intento++) {
           jsonTFHKA.documentoElectronico.Encabezado.IdentificacionDocumento.NumeroDocumento = String(seq);
@@ -940,10 +946,32 @@ export async function POST(request: Request) {
           fecha_emision:    new Date().toISOString(),
           raw_response:     tfhkaResponse,
         };
+
+        if (conRetencion) {
+          if (nuevosDetalles.factura_digital?.retencion) {
+            nuevosDetalles.factura_digital.retencion.estado = 'anulada';
+            nuevosDetalles.factura_digital.retencion.fecha_anulacion = new Date().toISOString();
+            nuevosDetalles.factura_digital.retencion.nota_credito = finalDoc;
+          }
+          try {
+            await supabase.from('pagos_reportados').update({
+              estado: 'Rechazado',
+              detalles: {
+                nota: `Retención anulada automáticamente por anulación de factura digital ${facturaAfectada} (NC ${finalDoc}).`,
+                fecha_anulacion: new Date().toISOString(),
+                factura_anulada: facturaAfectada,
+                nota_credito: finalDoc
+              }
+            }).or(`detalles->>pago_vinculado.eq.${pagoId},id.eq.${nuevosDetalles.pago_retencion_id || '00000000-0000-0000-0000-000000000000'}`)
+              .eq('tipo', 'Retencion de IVA');
+          } catch (eRet) {
+            console.warn('Error cancelando pago de retencion vinculado:', eRet);
+          }
+        }
         
         await supabase.from('auditoria').insert({
           accion: 'Anulación de Factura Electrónica (Nota de Crédito)', usuario: cleanUser || 'Sistema',
-          detalles: { pago_id: pagoId, identidad, contribuyente, numero_factura: facturaAfectada, numero_nota_credito: finalDoc, _categoria: 'FACTURACION', criticidad: 'ALTA' },
+          detalles: { pago_id: pagoId, identidad, contribuyente, numero_factura: facturaAfectada, numero_nota_credito: finalDoc, conRetencion, _categoria: 'FACTURACION', criticidad: 'ALTA' },
         });
 
       } catch (err: any) {
