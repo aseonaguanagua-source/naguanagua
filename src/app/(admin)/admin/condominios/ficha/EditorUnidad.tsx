@@ -40,6 +40,12 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const [nivel, setNivel] = useState(claseIni === 'COM' ? nivelActividad(actIni) : 1);
   // Unidad existente con tarifa guardada: se respeta hasta que el administrador cambie la actividad.
   const [tarifaManual, setTarifaManual] = useState(!!unidad && unidad.tarifa_mmv != null);
+  const [tieneDesocupado, setTieneDesocupado] = useState(!!unidad?.desocupada_desde);
+  const [desocupadaDesde, setDesocupadaDesde] = useState(unidad?.desocupada_desde || '');
+  const [desocupadaHasta, setDesocupadaHasta] = useState(unidad?.desocupada_hasta || '');
+  const [tarifaDesocupadaMmv, setTarifaDesocupadaMmv] = useState(unidad?.tarifa_desocupada_mmv != null ? String(unidad.tarifa_desocupada_mmv) : '1.98');
+  const [tarifaActivaMmv, setTarifaActivaMmv] = useState(unidad?.tarifa_activa_mmv != null ? String(unidad.tarifa_activa_mmv) : '3.77');
+  const [actividadActiva, setActividadActiva] = useState(unidad?.actividad_activa || (actIni && actIni !== 'INMUEBLES DESOCUPADOS' ? actIni : ''));
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState('');
@@ -76,11 +82,28 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       tarifa_mmv: tarifa === '' ? null : tarifa,
       agente_retencion: f.agente_retencion === true,
       telefono: f.telefono, correo: f.correo, actividades_extra: actividadesExtra,
+      desocupada_desde: tieneDesocupado ? (desocupadaDesde || null) : null,
+      desocupada_hasta: tieneDesocupado ? (desocupadaHasta || null) : null,
+      tarifa_desocupada_mmv: tieneDesocupado ? (parseFloat(tarifaDesocupadaMmv) || 1.98) : null,
+      tarifa_activa_mmv: tieneDesocupado ? (parseFloat(tarifaActivaMmv) || 3.77) : null,
+      actividad_activa: tieneDesocupado ? actividadActiva : null,
     };
     let cambios = datos;
     if (!nueva) {
       cambios = {};
-      const antes: any = { ...unidad, meses: mesesPendientes(unidad.aseo_pendiente_desde), padre_unidad_id: unidad.padre_unidad_id || null, telefono: unidad.telefono || '', correo: unidad.correo || '', actividades_extra: unidad.actividades_extra || [] };
+      const antes: any = {
+        ...unidad,
+        meses: mesesPendientes(unidad.aseo_pendiente_desde),
+        padre_unidad_id: unidad.padre_unidad_id || null,
+        telefono: unidad.telefono || '',
+        correo: unidad.correo || '',
+        actividades_extra: unidad.actividades_extra || [],
+        desocupada_desde: unidad.desocupada_desde || null,
+        desocupada_hasta: unidad.desocupada_hasta || null,
+        tarifa_desocupada_mmv: unidad.tarifa_desocupada_mmv || null,
+        tarifa_activa_mmv: unidad.tarifa_activa_mmv || null,
+        actividad_activa: unidad.actividad_activa || null,
+      };
       for (const k of Object.keys(datos)) {
         if (k === 'actividades_extra') {
           if (JSON.stringify(datos[k]) !== JSON.stringify(antes[k])) cambios[k] = datos[k];
@@ -231,6 +254,92 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           {!porActividad && (
             <div className="text-[11px] text-slate-500 -mt-2">Este condominio paga centralizado: los meses que cuentan son los del condominio (botón Opciones).</div>
           )}
+
+          {/* Período Desocupado (Historial de tarifas) */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={tieneDesocupado}
+                  onChange={e => setTieneDesocupado(e.target.checked)}
+                  className="w-4 h-4 accent-amber-600 rounded"
+                />
+                <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  ¿Tiene período desocupado? (Historial de tarifa)
+                </span>
+              </label>
+              {tieneDesocupado && (
+                <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                  Tarifa combinada activa / desocupada
+                </span>
+              )}
+            </div>
+
+            {tieneDesocupado && (
+              <div className="space-y-3 pt-2 border-t border-slate-200/60">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className={lbl}>Desocupada desde (Mes / Año)</span>
+                    <input
+                      type="month"
+                      value={desocupadaDesde}
+                      onChange={e => setDesocupadaDesde(e.target.value)}
+                      className={inp}
+                      placeholder="YYYY-MM (ej: 2025-07)"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={lbl}>Desocupada hasta (opcional)</span>
+                    <input
+                      type="month"
+                      value={desocupadaHasta}
+                      onChange={e => setDesocupadaHasta(e.target.value)}
+                      className={inp}
+                      placeholder="YYYY-MM (ej: 2026-09 o vacío)"
+                    />
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label className="block">
+                    <span className={lbl}>Tarifa Desocupada (MMV)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={tarifaDesocupadaMmv}
+                      onChange={e => setTarifaDesocupadaMmv(e.target.value)}
+                      className={inp}
+                      placeholder="1.98"
+                    />
+                  </label>
+                  <label className="block sm:col-span-1">
+                    <span className={lbl}>Tarifa Activa Previa (MMV)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={tarifaActivaMmv}
+                      onChange={e => setTarifaActivaMmv(e.target.value)}
+                      className={inp}
+                      placeholder="3.77"
+                    />
+                  </label>
+                  <label className="block sm:col-span-1">
+                    <span className={lbl}>Actividad Previa</span>
+                    <input
+                      type="text"
+                      value={actividadActiva}
+                      onChange={e => setActividadActiva(e.target.value)}
+                      className={inp}
+                      placeholder="LUNCHERIAS (BAJA)"
+                    />
+                  </label>
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  Los meses anteriores a <b>{desocupadaDesde || 'la fecha'}</b> se cobrarán con la tarifa activa ({tarifaActivaMmv || '3.77'} MMV), y los meses entre <b>{desocupadaDesde || 'inicio'}</b> y <b>{desocupadaHasta || 'actualidad'}</b> con la tarifa de desocupado ({tarifaDesocupadaMmv || '1.98'} MMV).
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Estructura y Retención */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

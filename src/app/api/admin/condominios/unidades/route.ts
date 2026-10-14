@@ -133,8 +133,28 @@ export async function PATCH(req: Request) {
       if ('agente_retencion' in cambios) inmUpd.agente_retencion = esAgente;
       if (_tel !== undefined) inmUpd.telefono = _tel;
       if (_cor !== undefined) inmUpd.correo_electronico = _cor;
-      if (_actExt !== undefined) {
-         inmUpd.notas = _actExt && _actExt.length > 0 ? JSON.stringify({ actividades_extra: _actExt }) : null;
+      if ('desocupada_desde' in cambios || _actExt !== undefined) {
+        const { data: currInm } = await sb.from('inmuebles').select('notas').eq('inmueble', inmuebleAActualizar).maybeSingle();
+        let existingNotes: any = {};
+        try { if (currInm?.notas) existingNotes = typeof currInm.notas === 'string' ? JSON.parse(currInm.notas) : currInm.notas; } catch {}
+        if (_actExt !== undefined) existingNotes.actividades_extra = _actExt;
+        if ('desocupada_desde' in cambios) {
+          if (cambios.desocupada_desde) {
+            existingNotes.desocupada_desde = cambios.desocupada_desde;
+            existingNotes.desocupada_hasta = cambios.desocupada_hasta || null;
+            existingNotes.tarifa_desocupada_mmv = Number(cambios.tarifa_desocupada_mmv) || 1.98;
+            existingNotes.actividad_desocupada = 'INMUEBLES DESOCUPADOS';
+            existingNotes.tarifa_activa_mmv = Number(cambios.tarifa_activa_mmv) || 3.77;
+            existingNotes.actividad_activa = cambios.actividad_activa || 'LUNCHERIAS (BAJA)';
+          } else {
+            delete existingNotes.desocupada_desde;
+            delete existingNotes.desocupada_hasta;
+            delete existingNotes.tarifa_desocupada_mmv;
+            delete existingNotes.tarifa_activa_mmv;
+            delete existingNotes.actividad_activa;
+          }
+        }
+        inmUpd.notas = Object.keys(existingNotes).length > 0 ? JSON.stringify(existingNotes) : null;
       }
       if ('actividad' in upd) inmUpd.actividad_principal = upd.actividad;
       if (Object.keys(inmUpd).length > 0) {
@@ -143,7 +163,7 @@ export async function PATCH(req: Request) {
     }
     // Quitar lo que no cambió
     for (const k of Object.keys(upd)) if (String(upd[k] ?? '') === String(antes[k] ?? '')) delete upd[k];
-    if (!Object.keys(upd).length && !('agente_retencion' in cambios) && _tel === undefined && _cor === undefined && _actExt === undefined) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
+    if (!Object.keys(upd).length && !('agente_retencion' in cambios) && _tel === undefined && _cor === undefined && _actExt === undefined && !('desocupada_desde' in cambios)) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
 
     if (Object.keys(upd).length > 0) {
       const { error } = await sb.from('condominio_unidades').update(upd).eq('id', id);

@@ -257,6 +257,7 @@ export async function cargarCondominio(codigo: string) {
     let desocupada_hasta = null;
     let tarifa_activa_mmv = null;
     let tarifa_desocupada_mmv = null;
+    let actividad_activa = null;
     try {
       if (inf.notas) {
         const j = JSON.parse(inf.notas);
@@ -265,6 +266,7 @@ export async function cargarCondominio(codigo: string) {
         if (j.desocupada_hasta) desocupada_hasta = j.desocupada_hasta;
         if (j.tarifa_activa_mmv) tarifa_activa_mmv = j.tarifa_activa_mmv;
         if (j.tarifa_desocupada_mmv) tarifa_desocupada_mmv = j.tarifa_desocupada_mmv;
+        if (j.actividad_activa) actividad_activa = j.actividad_activa;
       }
     } catch (e) {}
     return {
@@ -278,7 +280,8 @@ export async function cargarCondominio(codigo: string) {
       desocupada_desde,
       desocupada_hasta,
       tarifa_activa_mmv,
-      tarifa_desocupada_mmv
+      tarifa_desocupada_mmv,
+      actividad_activa
     };
   });
   
