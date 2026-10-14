@@ -388,15 +388,16 @@ export default function ServiciosEspecialesPage() {
   };
 
   /** Descarga la planilla oficial (llena con el registro, o en blanco si no se pasa registro). */
-  const descargarPlanilla = (categoria: 'especial' | 'extraordinario', s?: any) => {
-    if (!s) { generarPlanillaServicio({ categoria }); return; }
+  const descargarPlanilla = (categoria: string, s?: any) => {
+    const cat = (categoria || 'extraordinario') as any;
+    if (!s) { generarPlanillaServicio({ categoria: cat }); return; }
     const tEsp = TARIFAS_ESPECIAL.find(x => x.vehiculo === s.vehiculo);
     const tExt = TARIFAS_EXTRAORDINARIO.find(x => x.vehiculo === s.vehiculo);
     const valorUcd = s.valor_ucd != null ? Number(s.valor_ucd) : null;
     const tasa = s.tasa_euro != null ? Number(s.tasa_euro) : null;
     const contacto = String(s.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '';
     generarPlanillaServicio({
-      categoria,
+      categoria: cat,
       fechaEmision: s.fecha || s.created_at,
       referencia: s.referencia,
       nombre: s.contribuyente,
@@ -460,9 +461,9 @@ export default function ServiciosEspecialesPage() {
           <button onClick={loadServicios} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded text-sm text-slate-600 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" /> Actualizar
           </button>
-          {(tab === 'especial' || tab === 'extraordinario') && (
+          {(tab === 'especial' || tab === 'extraordinario' || tab === 'inspeccion') && (
             <button
-              onClick={() => descargarPlanilla(tab as 'especial' | 'extraordinario')}
+              onClick={() => descargarPlanilla(tab)}
               className="flex items-center gap-1 px-3 py-2 border border-emerald-300 rounded text-sm text-emerald-700 hover:bg-emerald-50"
               title="Descargar la planilla oficial en blanco para llenar a mano"
             >
@@ -571,8 +572,8 @@ export default function ServiciosEspecialesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
-                        {(s.tipo === 'especial' || s.tipo === 'extraordinario') && (
-                          <button onClick={() => descargarPlanilla(s.tipo as 'especial' | 'extraordinario', s)} className="text-emerald-600 hover:text-emerald-800 p-1 rounded transition-colors" title="Descargar planilla">
+                        {(s.tipo === 'especial' || s.tipo === 'extraordinario' || s.tipo === 'inspeccion') && (
+                          <button onClick={() => descargarPlanilla(s.tipo, s)} className="text-emerald-600 hover:text-emerald-800 p-1 rounded transition-colors" title="Descargar planilla">
                             <FileDown className="w-4 h-4" />
                           </button>
                         )}

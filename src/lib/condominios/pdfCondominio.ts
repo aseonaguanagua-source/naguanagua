@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
+import { cleanClasificacionActividad } from '@/lib/calculos';
 import { EstadoCuenta, RenglonEstado } from './servicio';
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -74,8 +75,16 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
   y += 5;
   doc.text(`Tipo: ${c.tipo}    |    Modalidad: ${c.modalidad}`, 14, y);
   y += 5;
+  doc.text(`Dirección: ${c.direccion || 'Municipio Naguanagua, Estado Carabobo'}`, 14, y);
+  y += 5;
   if (c.actividad) {
-    doc.text(`Actividad: ${c.actividad}`, 14, y);
+    doc.text(`Actividad: ${cleanClasificacionActividad(c.actividad)}`, 14, y);
+    y += 5;
+  }
+  if (e.renglones.length === 1 && e.renglones[0].inmueble) {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Local / Unidad: ${e.renglones[0].inmueble}${e.renglones[0].numero ? ` · ${e.renglones[0].numero}` : ''}`, 14, y);
+    doc.setFont('helvetica', 'normal');
     y += 5;
   }
   
@@ -108,13 +117,16 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
       if (!prop || prop === '') prop = 'N/A';
       if (!id || id === '') id = 'N/A';
     }
-    
+    const multasMonto = (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
+    const aseoMonto = (r.deuda?.baseBs || 0) + (r.deuda?.ivaBs || 0);
     rows.push([
       indent + (r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'SIN REGISTRAR' : '')),
       r.numero || (mostrarNA ? 'N/A' : ''),
       prop,
       id,
       r.periodos.map(fmtPeriodo).join(', '),
+      `Bs. ${fmtBs(aseoMonto)}`,
+      `Bs. ${fmtBs(multasMonto)}`,
       `Bs. ${fmtBs(r.totalBs)}`
     ]);
   };
@@ -153,6 +165,8 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
       'N/A (AGRUPADO)',
       'N/A',
       '—',
+      '—',
+      '—',
       `Bs. ${fmtBs(sumTotalNA)}`
     ]);
   }
@@ -160,21 +174,23 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
   autoTable(doc, {
     startY: y,
     margin: { top: 43, bottom: 20 },
-    head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', 'Total Bs']],
+    head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', 'Aseo (Bs)', 'Multas (Bs)', 'Total Bs']],
     body: rows,
     theme: 'grid',
     headStyles: {
       fillColor: [239, 246, 255], textColor: [30, 64, 175],
-      fontStyle: 'bold', lineColor: [191, 219, 254], lineWidth: 0.2, halign: 'center', fontSize: 7.5
+      fontStyle: 'bold', lineColor: [191, 219, 254], lineWidth: 0.2, halign: 'center', fontSize: 6.8
     },
-    styles: { fontSize: 7, cellPadding: 1.5 },
+    styles: { fontSize: 6.5, cellPadding: 1.5 },
     columnStyles: {
-      0: { cellWidth: 30 },
-      1: { cellWidth: 15 },
-      2: { cellWidth: 55 },
+      0: { cellWidth: 24 },
+      1: { cellWidth: 14 },
+      2: { cellWidth: 44 },
       3: { cellWidth: 20 },
-      4: { cellWidth: 42 },
-      5: { cellWidth: 20, halign: 'right', fontStyle: 'bold' }
+      4: { cellWidth: 32 },
+      5: { cellWidth: 16, halign: 'right' },
+      6: { cellWidth: 16, halign: 'right' },
+      7: { cellWidth: 16, halign: 'right', fontStyle: 'bold' }
     },
     didDrawPage: (data) => {
       if (data.pageNumber > 1) {
@@ -356,7 +372,7 @@ export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: num
   doc.setFontSize(8);
   doc.text(`Cédula / RIF: ${r.identidad || 'N/A'}    |    Inmueble: ${r.inmueble || 'N/A'}    |    Nro / Local: ${r.numero || 'N/A'}`, 14, y);
   y += 5;
-  doc.text(`Actividad: ${r.actividad || 'N/A'}    |    Condición Fiscal: ${r.deuda.retencionBs > 0 ? 'Agente de Retención (75% Deducible IVA)' : 'Contribuyente Ordinario'}`, 14, y);
+  doc.text(`Actividad: ${cleanClasificacionActividad(r.actividad) || 'N/A'}    |    Condición Fiscal: ${r.deuda.retencionBs > 0 ? 'Agente de Retención (75% Deducible IVA)' : 'Contribuyente Ordinario'}`, 14, y);
   y += 5;
   doc.setFont('helvetica', 'bold');
   doc.text(`Condominio Matriz: ${c.nombre} (${c.codigo})`, 14, y);

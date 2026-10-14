@@ -308,7 +308,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     };
     const esTransferencia = pago.metodo.toLowerCase().includes('transferencia') || pago.metodo.toLowerCase().includes('pago móvil') || (pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => pa.metodo.toLowerCase().includes('transferencia') || pa.metodo.toLowerCase().includes('pago móvil')));
     const fechaRegistro = new Date();
-    const pagoAgregadoCoincidente = (pago.pagosAgregados || []).find((pa: any) => pa.referencia === refFinal) || (pago.pagosAgregados?.length === 1 ? pago.pagosAgregados[0] : null);
+    const pagosReales = (pago.pagosAgregados || []).filter((pa: any) => pa.metodo !== 'Saldo a Favor');
+    const pagoAgregadoCoincidente = pagosReales.find((pa: any) => pa.referencia === refFinal) || (pagosReales.length > 0 ? pagosReales[0] : null);
     const montoReportadoReal = (pagoAgregadoCoincidente && Number(pagoAgregadoCoincidente.monto) > 0)
       ? Number(pagoAgregadoCoincidente.monto)
       : (pago.montoRecibido && cobro.facturas.length === 1 ? pago.montoRecibido : f.totalBs);
@@ -319,19 +320,83 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       if (i === 0) throw new Error(error.message.includes('duplicate') ? 'Este pago ya fue registrado.' : 'No se pudo registrar el pago: ' + error.message);
       throw new Error(`Se registró parte del pago pero falló la parte ${i + 1}: ${error.message}. Avise al administrador (pago ${pago.pagoId}).`);
     }
+
+    // Si hay pagos adicionales (múltiples transferencias en la misma factura de condominio), insertarlos en pagos_reportados
+    if (cobro.facturas.length === 1 && pagosReales.length > 1) {
+      for (let pIdx = 1; pIdx < pagosReales.length; pIdx++) {
+        const paExtra = pagosReales[pIdx];
+        const extraId = crypto.randomUUID();
+        const esTransExtra = paExtra.metodo.toLowerCase().includes('transferencia') || paExtra.metodo.toLowerCase().includes('pago móvil');
+        await sb.from('pagos_reportados').insert({
+          id: extraId,
+          identidad: f.identidad,
+          monto: Number(paExtra.monto) || 0,
+          banco: paExtra.banco || pago.banco || paExtra.metodo,
+          referencia: paExtra.referencia || `EXT-${pIdx}-${Date.now().toString().slice(-4)}`,
+          tipo: paExtra.metodo,
+          estado: esTransExtra ? 'Por Verificar' : 'Aprobado',
+          modulo: 'condominios',
+          grupo_pago: grupo || id,
+          created_at: fechaRegistro.toISOString(),
+          detalles: {
+            ...detalles,
+            referencia: paExtra.referencia,
+            banco: paExtra.banco,
+            tipo: paExtra.metodo,
+            montoTotal: Number(paExtra.monto) || 0,
+            montos: { [reciboRef]: Number(paExtra.monto) || 0 },
+            banco_destino: paExtra.bancoDestino || pago.bancoDestino,
+            comprobante_url: paExtra.comprobante_url,
+            comprobante_nombre: paExtra.comprobante_nombre,
+            pago_principal_id: id,
+            es_pago_adicional: true
+          }
+        });
+      }
+    }
+
+    // Si hubo retención de IVA, registrar fila correspondiente de Retención
+    if (ret > 0) {
+      await sb.from('pagos_reportados').insert({
+        id: crypto.randomUUID(),
+        identidad: f.identidad,
+        monto: ret,
+        banco: 'N/A',
+        referencia: `RET-${c.codigo || 'CONDO'}-${Date.now().toString().slice(-6)}`,
+        tipo: 'Retencion de IVA',
+        estado: 'Aprobado',
+        modulo: 'condominios',
+        grupo_pago: grupo || id,
+        created_at: fechaRegistro.toISOString(),
+        detalles: {
+          ...detalles,
+          cajero: pago.cajero,
+          es_retencion: true,
+          pago_vinculado: id,
+          nota: 'Comprobante de retención de IVA 75% deducido en Caja.'
+        }
+      });
+    }
+
     pagos.push({ id, reciboRef, factura: f });
   }
   const pagoDe = (clave: string) => pagos.find(p => p.factura.lineas.includes(clave))?.id || pago.pagoId;
 
   // 1.5) Descontar o Acreditar Saldo a Favor
   let montoSaldoFavor = 0;
-  if (pago.metodo === 'Saldo a Favor') montoSaldoFavor = pago.montoRecibido;
-  if (pago.pagosAgregados) {
+  if (pago.pagosAgregados && pago.pagosAgregados.length > 0) {
     for (const pa of pago.pagosAgregados) {
       if (pa.metodo === 'Saldo a Favor') montoSaldoFavor += (Number(pa.monto) || 0);
     }
+  } else if (pago.metodo === 'Saldo a Favor') {
+    montoSaldoFavor = Number(pago.montoRecibido) || 0;
   }
-  const pagadorIdentidad = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : c.identidad;
+
+  const unidadSel = cobro.lineas.length === 1 ? porId.get(cobro.lineas[0].clave) : null;
+  const pagadorIdentidad = (cobro.modo === 'CONTRIBUYENTE' && cobro.facturas[0]?.identidad)
+    || (unidadSel && unidadSel.identidad)
+    || (sol.identidad ? String(sol.identidad).trim() : null)
+    || c.identidad;
   
   if (montoSaldoFavor > 0 && pagadorIdentidad) {
     const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor);

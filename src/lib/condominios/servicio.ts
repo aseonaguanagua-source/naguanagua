@@ -283,8 +283,9 @@ export async function cargarCondominio(codigo: string) {
   if (error) throw new Error(error.message);
   if (!condo) return null;
 
-  const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas').eq('inmueble', condo.codigo).maybeSingle();
+  const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas, clave_portal').eq('inmueble', condo.codigo).maybeSingle();
   if (inm) {
+    condo.clave_portal = inm.clave_portal || '';
     condo.agente_retencion = !!inm.agente_retencion;
     condo.telefono = condo.telefono || inm.telefono || '';
     condo.correo = condo.correo || inm.correo_electronico || '';

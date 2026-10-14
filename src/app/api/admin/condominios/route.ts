@@ -64,9 +64,9 @@ export async function PATCH(req: Request) {
     const u = String(usuario || '').trim().toLowerCase();
     const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
     
-    // Si solo modifica notas, teléfono o correo, permitir a cualquier operador o usuario autenticado
+    // Si solo modifica notas, teléfono, correo o clave_portal, permitir a cualquier operador o usuario autenticado
     const keysModificadas = Object.keys(cambios || {});
-    const soloInfoContactoONotas = keysModificadas.length > 0 && keysModificadas.every(k => ['notas', 'telefono', 'correo'].includes(k));
+    const soloInfoContactoONotas = keysModificadas.length > 0 && keysModificadas.every(k => ['notas', 'telefono', 'correo', 'clave_portal'].includes(k));
     
     if (!soloInfoContactoONotas) {
       if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) return NextResponse.json({ error: 'Solo un administrador puede modificar la configuración del condominio.' }, { status: 403 });
@@ -86,10 +86,12 @@ export async function PATCH(req: Request) {
       const nuevo = pendienteDesdeParaMeses(Math.max(0, parseInt(cambios.meses) || 0));
       upd.aseo_pendiente_desde = nuevo;
     }
-    if (Object.keys(upd).length === 0) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
+    if (Object.keys(upd).length === 0 && (!cambios || !('clave_portal' in cambios))) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
 
-    const { error } = await sb.from('condominios').update(upd).eq('id', antes.id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (Object.keys(upd).length > 0) {
+      const { error } = await sb.from('condominios').update(upd).eq('id', antes.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     // Sincronizar notas en inmuebles
     if ('notas' in upd) {
@@ -101,6 +103,14 @@ export async function PATCH(req: Request) {
       if ('telefono' in upd) inmUpd.telefono = upd.telefono || null;
       if ('correo' in upd) inmUpd.correo_electronico = upd.correo || null;
       await sb.from('inmuebles').update(inmUpd).eq('inmueble', antes.codigo);
+    }
+    // Sincronizar clave_portal en inmuebles
+    if (cambios && 'clave_portal' in cambios) {
+      const nuevaClave = String(cambios.clave_portal || '').trim() || null;
+      await sb.from('inmuebles').update({ clave_portal: nuevaClave }).eq('inmueble', antes.codigo);
+      if (antes.identidad) {
+        await sb.from('inmuebles').update({ clave_portal: nuevaClave }).eq('identidad', antes.identidad);
+      }
     }
 
     // Sincronizar meses en todas las unidades del condominio

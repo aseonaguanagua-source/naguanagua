@@ -245,8 +245,18 @@ function Caja() {
   const enCobro = useMemo(() => new Set((cobro?.lineas || []).map((l: any) => l.clave)), [cobro]);
   const mapLineas = useMemo(() => new Map<string, any>((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
   const multasDe = (r: any) => (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
+  const unidadesParaMax = useMemo(() => {
+    if (claves.length > 0) return conDeuda.filter((r: any) => claves.includes(r.clave));
+    if (porContrib && identidad.trim()) {
+      const ced = normId(identidad);
+      return conDeuda.filter((r: any) => normId(r.identidad) === ced);
+    }
+    if (visiblesU.length > 0 && visiblesU.length <= 5) return visiblesU;
+    return conDeuda;
+  }, [claves, conDeuda, porContrib, identidad, visiblesU]);
+
   const mesesMax = base?.totales?.mesesMax || 0;
-  const multasMax = Math.max(1, ...(conDeuda || []).map((r: any) => (r.multaMeses || 0) + (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length + (r.multasManuales || []).length));
+  const multasMax = Math.max(1, ...(unidadesParaMax || []).map((r: any) => (r.multaMeses || 0) + (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length + (r.multasManuales || []).length));
   const maxOpciones = soloMultas ? multasMax : mesesMax;
   const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
   const sinSeleccion = (porContrib && !claves.length && !identidad.trim()) || (!porContrib && abonoLocales && !claves.length);

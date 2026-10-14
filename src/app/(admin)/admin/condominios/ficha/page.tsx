@@ -178,6 +178,7 @@ function Ficha() {
       permite_abonos: c.permite_abonos !== false, cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad,
       correo: c.correo || '', telefono: c.telefono || '', notas: c.notas || '',
       tipo: c.tipo, nombre: c.nombre || '', identidad: c.identidad || '',
+      clave_portal: c.clave_portal || '',
       meses: e?.totales?.meses ?? mesesPendientes(c.aseo_pendiente_desde), multa_meses: c.multa_meses || 0,
     });
     setMotivo(''); setEditando(true);
@@ -304,7 +305,12 @@ function Ficha() {
                 {c.permite_abonos !== false && <span className="px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-slate-600">Acepta abonos</span>}
               </div>
               {c.actividad && <div className="text-xs text-slate-500">Actividad: <b className="text-slate-700">{c.actividad}</b>{c.tarifa_mmv ? <> · Tarifa {Number(c.tarifa_mmv)} MMV por unidad</> : null}</div>}
-              {(c.correo || c.telefono) && <div className="text-xs text-slate-500">{c.correo} {c.telefono ? `· ${c.telefono}` : ''}</div>}
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                {(c.correo || c.telefono) && <span>{c.correo} {c.telefono ? `· ${c.telefono}` : ''}</span>}
+                <span className="inline-flex items-center gap-1 font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  🔑 Clave Web: {c.clave_portal ? <b>{c.clave_portal}</b> : <span className="text-amber-700 font-sans font-normal">Sin clave asignada</span>}
+                </span>
+              </div>
               {c.notas ? (
                 <div className="mt-2 p-3 bg-amber-50/90 border border-amber-300 rounded-xl text-amber-950 flex items-start justify-between gap-3 shadow-2xs max-w-2xl">
                   <div className="flex items-start gap-2">
@@ -730,6 +736,8 @@ function Ficha() {
                   <input value={form.correo} onChange={ev => setForm({ ...form, correo: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2" /></label>
                 <label className="block"><span className="text-xs font-bold text-slate-700">Teléfono</span>
                   <input value={form.telefono} onChange={ev => setForm({ ...form, telefono: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2" /></label>
+                <label className="block sm:col-span-2"><span className="text-xs font-bold text-emerald-800">Clave de acceso web (Portal del Contribuyente)</span>
+                  <input value={form.clave_portal || ''} onChange={ev => setForm({ ...form, clave_portal: ev.target.value })} placeholder="Asignar o cambiar clave para ingresar por la web" className="mt-1 w-full border border-emerald-300 bg-emerald-50/30 rounded-xl px-3 py-2 font-mono text-sm" /></label>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {([

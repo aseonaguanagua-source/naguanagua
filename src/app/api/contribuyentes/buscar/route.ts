@@ -66,6 +66,22 @@ export async function GET(request: Request) {
     // Restringir: ocultar inmuebles que están dentro de un condominio o que son condominios
     inmuebles = inmuebles.filter((i: any) => !i.condominio_padre_id && !i.es_condominio);
 
+    // Ocultar inmuebles desactivados (Inactivo / Eliminado) a menos que se haya buscado específicamente por ese código
+    const qUpper = q.toUpperCase();
+    const esBusquedaInmueble = /^URB\d+/i.test(qUpper);
+    if (!esBusquedaInmueble) {
+      inmuebles = inmuebles.filter((i: any) => {
+        const est = String(i.estado || 'Activo').trim().toLowerCase();
+        return est === 'activo';
+      });
+    } else {
+      // Si buscó un inmueble específico, devolver SOLO ese inmueble
+      const exacto = inmuebles.filter((i: any) => i.inmueble?.toUpperCase() === qUpper);
+      if (exacto.length > 0) {
+        inmuebles = exacto;
+      }
+    }
+
     if (inmuebles.length === 0) {
       return NextResponse.json({ found: false, contribuyente: null, inmuebles: [] });
     }

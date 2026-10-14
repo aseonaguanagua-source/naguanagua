@@ -447,9 +447,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [loadingContrib, setLoadingContrib] = useState(true);
 
   // Normalizar monto reportado (quitar formato venezolano)
-  const montoReportadoNum = parseFloat(
-    String(pago.monto || '0').replace(/./g, '').replace(',', '.')
-  ) || parseFloat(String(pago.monto || '0').replace(/[^0-9.]/g, '')) || 0;
+  const montoReportadoNum = typeof pago.monto === 'number'
+    ? pago.monto
+    : parseFloat(
+        String(pago.monto || '0').includes(',')
+          ? String(pago.monto).replace(/\./g, '').replace(',', '.')
+          : String(pago.monto || '0')
+      ) || 0;
 
   const [estatus, setEstatus] = useState<string>(
     ['Aprobado','Rechazado','Con Diferencia'].includes(pago.estado || '')

@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Building2, Search, MapPin, Store, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariants } from '@/lib/formatters';
-import { isResidencialInm } from '@/lib/calculos';
+import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 
 interface InmuebleRow {
   id: string;
@@ -203,7 +203,7 @@ export default function InmueblesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-slate-700 font-medium whitespace-normal max-w-[240px]">
-                        {inm.actividad_principal || 'No especificada'}
+                        {cleanClasificacionActividad(inm.actividad_principal) || 'No especificada'}
                       </td>
                       <td className="px-6 py-4 text-slate-600 whitespace-normal min-w-[280px] max-w-[400px]">
                         <div className="flex items-start gap-1.5">

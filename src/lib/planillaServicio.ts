@@ -5,7 +5,7 @@
 import jsPDF from 'jspdf';
 import { logos } from './logosBase64';
 
-export type CategoriaServicio = 'especial' | 'extraordinario';
+export type CategoriaServicio = 'especial' | 'extraordinario' | 'inspeccion' | 'visto_bueno' | 'tala_poda';
 
 /** Matriz F.O.Es (UCD) — hoja "CALCULO SERV ESPECIAL". */
 export const TARIFAS_ESPECIAL = [
@@ -77,6 +77,9 @@ const fechaVE = (s?: string) => {
 /** Genera la planilla. Con datos vacíos produce la planilla en blanco para llenar a mano. */
 export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsPDF {
   const esp = d.categoria === 'especial';
+  const insp = d.categoria === 'inspeccion';
+  const vb = d.categoria === 'visto_bueno';
+  const tp = d.categoria === 'tala_poda';
   const doc = new jsPDF({ unit: 'mm', format: 'letter' });
   const W = doc.internal.pageSize.getWidth();
   const L = 18, R = W - 18;
@@ -104,9 +107,18 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
     doc.setTextColor(0);
   }
 
+  const tituloBanner = insp
+    ? 'SOLICITUD / ACTA DE INSPECCIÓN TÉCNICA AMBIENTAL'
+    : esp
+      ? 'SERVICIO ESPECIAL'
+      : vb
+        ? 'VISTO BUENO AMBIENTAL'
+        : tp
+          ? 'PERMISO DE PODA Y TALA'
+          : 'SERVICIO EXTRAORDINARIO';
   doc.setFillColor(22, 101, 52); doc.rect(L, 35, R - L, 9, 'F');
-  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
-  doc.text(esp ? 'SERVICIO ESPECIAL' : 'SERVICIO EXTRAORDINARIO', W / 2, 41.3, { align: 'center' });
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(insp ? 11 : 13);
+  doc.text(tituloBanner, W / 2, 41.3, { align: 'center' });
   doc.setTextColor(0);
 
   let y = 52;
@@ -127,13 +139,23 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   campo('CÓDIGO DE PLANILLA / CAJA:', d.referencia, L + 85, R - L - 85);
   y += 10;
 
-  seccion('DATOS DEL CLIENTE:');
+  seccion(insp ? 'DATOS DEL SOLICITANTE / INMUEBLE:' : 'DATOS DEL CLIENTE:');
   campo('NOMBRE / RAZÓN SOCIAL:', d.nombre); y += 8;
   campo('CÉDULA DE IDENTIDAD / RIF:', d.identidad); y += 8;
   campo('PERSONA DE CONTACTO:', d.contacto); y += 8;
   campo('NÚMERO DE TELÉFONO:', d.telefono); y += 12;
 
-  if (esp) {
+  if (insp) {
+    seccion('DETALLES DE LA INSPECCIÓN:');
+    campo('DIRECCIÓN DEL INMUEBLE:', d.direccion || d.lugar || 'Municipio Naguanagua'); y += 8;
+    campo('MOTIVO / SOLICITUD:', d.nombreEvento || d.vehiculoLabel || 'Inspección Técnica Ambiental'); y += 8;
+    if (d.factor != null && d.factor > 0) {
+      campo('ÁREA DECLARADA (m²):', `${d.factor} m²`, L, 80);
+      campo('TARIFA ORDENANZA:', '0,10 UCD / m²', L + 85, R - L - 85);
+      y += 8;
+    }
+    y += 4;
+  } else if (esp) {
     seccion('DATOS DEL EVENTO:');
     campo('NOMBRE DEL EVENTO:', d.nombreEvento); y += 8;
     campo('FECHA:', fechaVE(d.fechaEvento), L, 80); campo('HORARIO:', d.horario, L + 90, R - L - 90); y += 8;
@@ -145,13 +167,15 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
     campo('FECHA:', fechaVE(d.fechaEvento), L, 80); campo('HORARIO:', d.horario, L + 90, R - L - 90); y += 12;
   }
 
-  seccion(esp ? 'COSTO SERVICIO ESPECIAL' : 'COSTO SERVICIO EXTRAORDINARIO');
+  seccion(insp ? 'LIQUIDACIÓN DE TASA ADMINISTRATIVA' : (esp ? 'COSTO SERVICIO ESPECIAL' : 'COSTO SERVICIO EXTRAORDINARIO'));
   if (d.vehiculoLabel) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    doc.text(`Unidad: ${d.vehiculoLabel}${d.tasaEuro ? `  ·  Tasa Euro BCV: Bs. ${fmt(d.tasaEuro)}` : ''}`, L, y - 2);
+    doc.text(`Concepto: ${d.vehiculoLabel}${d.tasaEuro ? `  ·  Tasa Euro BCV: Bs. ${fmt(d.tasaEuro)}` : ''}`, L, y - 2);
     y += 3;
   }
-  const heads = esp ? ['F.O.Es', 'NVE', 'FAEs', 'TOTAL (UCD)', 'MONTO (Bs)'] : ['C.E.V', 'NVE', 'F. LLENADO', 'TOTAL (UCD)', 'MONTO (Bs)'];
+  const heads = insp
+    ? ['TARIFA (UCD)', 'CANTIDAD / ÁREA', 'FACTOR', 'TOTAL (UCD)', 'MONTO (Bs)']
+    : (esp ? ['F.O.Es', 'NVE', 'FAEs', 'TOTAL (UCD)', 'MONTO (Bs)'] : ['C.E.V', 'NVE', 'F. LLENADO', 'TOTAL (UCD)', 'MONTO (Bs)']);
   const hayCalc = (d.valorUcd != null && d.nve != null && d.factor != null) || (d.montoBs != null && d.montoBs > 0);
   let totalUcd = d.valorUcd != null && d.nve != null && d.factor != null
     ? Math.round(d.valorUcd * d.nve * d.factor * 10000) / 10000
@@ -168,8 +192,8 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
 
   const vals = hayCalc
     ? [
-        fmt(d.valorUcd, 0),
-        fmt(d.nve, 0),
+        fmt(d.valorUcd, insp ? 2 : 0),
+        insp ? (d.factor ? `${d.factor} m²` : '1') : fmt(d.nve, 0),
         fmt(d.factor, d.factor != null ? (d.factor % 1 ? 1 : 0) : 0),
         fmt(totalUcd, 2),
         fmt(montoBsFinal, 2)
@@ -186,9 +210,13 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   y += 24;
 
   doc.setFontSize(7.5); doc.setTextColor(80);
-  doc.text(esp
-    ? 'TSE = F.O.Es × NVE × FAEs.  F.O.Es: Factor Ordenanza Especial (en UCD).  NVE: Número de viajes estimados.  FAEs = 1.'
-    : 'TSEX = C.E.V × NVE × F. llenado.  C.E.V: Costo especializado por viaje (UCD).  NVE: Número de viajes estimados.  F. llenado: Factor de llenado según capacidad.', L, y);
+  if (insp) {
+    doc.text('Tasa administrativa de Inspección Técnica Ambiental según Ordenanza del IAMEC (0,10 UCD/m² o tarifa fijada).', L, y);
+  } else if (esp) {
+    doc.text('TSE = F.O.Es × NVE × FAEs.  F.O.Es: Factor Ordenanza Especial (en UCD).  NVE: Número de viajes estimados.  FAEs = 1.', L, y);
+  } else {
+    doc.text('TSEX = C.E.V × NVE × F. llenado.  C.E.V: Costo especializado por viaje (UCD).  NVE: Número de viajes estimados.  F. llenado: Factor de llenado según capacidad.', L, y);
+  }
   y += 4;
   doc.text('Monto (Bs) = Total (UCD) × Tasa Euro BCV vigente a la fecha de emisión.', L, y);
   doc.setTextColor(0);
@@ -198,8 +226,8 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   doc.setDrawColor(0);
   doc.line(L + 5, y, L + 70, y); doc.line(R - 70, y, R - 5, y);
   doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
-  doc.text('Firma y Sello IAMEC', L + 37.5, y + 5, { align: 'center' });
-  doc.text('Firma del Cliente / C.I.', R - 37.5, y + 5, { align: 'center' });
+  doc.text(insp ? 'Inspector Técnico IAMEC' : 'Firma y Sello IAMEC', L + 37.5, y + 5, { align: 'center' });
+  doc.text('Firma del Solicitante / Contribuyente', R - 37.5, y + 5, { align: 'center' });
 
   // ── LOGOS INSTITUCIONALES EN LA PARTE INFERIOR ──
   const yLogos = 246;

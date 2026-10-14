@@ -18,7 +18,7 @@ async function adminActivo(usuario: string) {
  */
 export async function POST(req: Request) {
   try {
-    const { codigo, unidad_id, concepto, monto_bs, monto_mmv, usuario, motivo } = await req.json();
+    const { codigo, unidad_id, concepto, monto_bs, monto_mmv, usuario, motivo, periodo } = await req.json();
     const t = await adminActivo(usuario);
     if (!t) return NextResponse.json({ error: 'Solo un administrador puede agregar multas.' }, { status: 403 });
     if (String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo.' }, { status: 400 });
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     }
     const fila = {
       condominio_id: c.id, unidad_id: unidad_id || null, identidad, concepto: String(concepto).trim().toUpperCase(),
-      monto_bs: bs > 0 ? bs : null, monto_mmv: bs > 0 ? null : mmv, estado: 'Pendiente', creada_por: t.usuario,
+      monto_bs: bs > 0 ? bs : null, monto_mmv: bs > 0 ? null : mmv, periodo: periodo ? String(periodo).trim() : null, estado: 'Pendiente', creada_por: t.usuario,
     };
     const { data: m, error } = await sb.from('condominio_multas').insert(fila).select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

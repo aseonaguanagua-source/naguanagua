@@ -8,6 +8,13 @@ import { mesesPendientes } from '@/lib/condominios/motor';
 import ModalAjusteMeses from './ModalAjusteMeses';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MESES_NOMBRES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+function fmtPeriodo(p: string) {
+  if (!p || !p.includes('-')) return p;
+  const [y, m] = p.split('-');
+  const n = parseInt(m, 10);
+  return `${MESES_NOMBRES[(n - 1) % 12]} ${y}`;
+}
 const NIVELES = ['Baja', 'Media', 'Alta'];
 const RESIDENCIALES = ordenanzaData.tiposResidenciales.map(t => ({ label: t.label.toUpperCase(), factor: t.factor }));
 const COMERCIALES: string[] = ordenanzaData.actividadesComerciales.map((a: any) => a.label);
@@ -48,9 +55,55 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const [tarifaActivaMmv, setTarifaActivaMmv] = useState(unidad?.tarifa_activa_mmv != null ? String(unidad.tarifa_activa_mmv) : '3.77');
   const [actividadActiva, setActividadActiva] = useState(unidad?.actividad_activa || (actIni && actIni !== 'INMUEBLES DESOCUPADOS' ? actIni : ''));
   const [motivo, setMotivo] = useState('');
-  const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState('');
+  const [guardando, setGuardando] = useState(false);
   const [modalMeses, setModalMeses] = useState(false);
+
+  // Formulario para asignar multa a un período específico
+  const [mostrarAgregarMulta, setMostrarAgregarMulta] = useState(false);
+  const [multaPeriodo, setMultaPeriodo] = useState('');
+  const [multaConcepto, setMultaConcepto] = useState('');
+  const [multaMontoBs, setMultaMontoBs] = useState('');
+  const [multaMotivo, setMultaMotivo] = useState('');
+  const [guardandoMulta, setGuardandoMulta] = useState(false);
+
+  const agregarMultaPeriodo = async () => {
+    if (!unidad?.id) return;
+    if (multaMotivo.trim().length < 5) { alert('Escriba el motivo (mínimo 5 caracteres).'); return; }
+    const bs = parseFloat(String(multaMontoBs).replace(/\./g, '').replace(',', '.'));
+    if (!bs || bs <= 0) { alert('Indique un monto válido en Bs.'); return; }
+    setGuardandoMulta(true);
+    try {
+      const perTexto = multaPeriodo ? fmtPeriodo(multaPeriodo) : '';
+      const conceptoFinal = multaConcepto.trim() || `Multa por mora ${perTexto}`.trim();
+      const r = await fetch('/api/admin/condominios/multas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo: condo.codigo,
+          unidad_id: unidad.id,
+          periodo: multaPeriodo || null,
+          concepto: conceptoFinal,
+          monto_bs: bs,
+          usuario,
+          motivo: multaMotivo
+        })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'No se pudo agregar la multa');
+      alert('¡Multa asignada exitosamente!');
+      setMostrarAgregarMulta(false);
+      setMultaPeriodo('');
+      setMultaConcepto('');
+      setMultaMontoBs('');
+      setMultaMotivo('');
+      onSaved(false);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setGuardandoMulta(false);
+    }
+  };
 
   // Multas: siempre por meses — 10% (residencial) o 12% (comercial) de la mensualidad por cada mes
   const multasPend = useMemo(() => (unidad ? multas.filter(m => m.unidad_id === unidad.id && m.estado === 'Pendiente') : []), [multas, unidad]);
@@ -430,12 +483,117 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
               </div>
             </div>
             <div className="text-[11px] text-slate-500">Los meses de aseo pendientes ya llevan su multa automática (todos menos el más reciente). Aquí se agregan multas de meses adicionales; se guardan con “Guardar cambios”.</div>
+            
+            {/* Botón para asignar multa a un período específico */}
+            {!nueva && (
+              <div className="pt-2 border-t border-amber-200/60">
+                {!mostrarAgregarMulta ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostrarAgregarMulta(true);
+                      if (multaPorMesBs > 0) setMultaMontoBs(fmtBs(multaPorMesBs));
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Asignar multa a período específico (ej. Marzo 2026)
+                  </button>
+                ) : (
+                  <div className="p-3 bg-white border border-amber-300 rounded-xl space-y-3 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-900">Asignar Multa a un Período Específico</span>
+                      <button type="button" onClick={() => setMostrarAgregarMulta(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className={lbl}>Período de la multa (Mes / Año)</span>
+                        <input
+                          type="month"
+                          value={multaPeriodo}
+                          onChange={e => {
+                            setMultaPeriodo(e.target.value);
+                            if (!multaConcepto) setMultaConcepto(`Multa por mora ${fmtPeriodo(e.target.value)}`);
+                          }}
+                          className={inp}
+                          placeholder="YYYY-MM (ej: 2026-03)"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className={lbl}>Monto de la multa (Bs)</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="text"
+                            value={multaMontoBs}
+                            onChange={e => setMultaMontoBs(e.target.value)}
+                            className={inp + " mt-0 font-bold"}
+                            placeholder="Ej. 1250,50"
+                          />
+                          {multaPorMesBs > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setMultaMontoBs(fmtBs(multaPorMesBs))}
+                              className="px-2 py-2 text-[10px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg shrink-0"
+                              title="Usar 1 mensualidad de multa estimada"
+                            >
+                              1 mes ({fmtBs(multaPorMesBs)})
+                            </button>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className={lbl}>Concepto de la multa</span>
+                        <input
+                          type="text"
+                          value={multaConcepto}
+                          onChange={e => setMultaConcepto(e.target.value)}
+                          className={inp}
+                          placeholder="Ej. Multa por mora Marzo 2026"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className={lbl}>Motivo de la asignación (obligatorio)</span>
+                        <input
+                          type="text"
+                          value={multaMotivo}
+                          onChange={e => setMultaMotivo(e.target.value)}
+                          className={inp}
+                          placeholder="Motivo que queda registrado en Auditoría"
+                        />
+                      </label>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setMostrarAgregarMulta(false)}
+                        className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={agregarMultaPeriodo}
+                        disabled={guardandoMulta}
+                        className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {guardandoMulta ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Guardar Multa
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {multasPend.length > 0 && (
               <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-slate-600">Multas anteriores con monto fijo:</div>
+                <div className="text-[11px] font-bold text-slate-600">Multas asignadas / manuales:</div>
                 {multasPend.map(m => (
                   <div key={m.id} className="flex items-center justify-between rounded-lg bg-white border border-amber-200 px-3 py-1.5 text-xs">
-                    <span><b>{m.concepto}</b> · {m.monto_bs != null ? `Bs ${fmtBs(m.monto_bs)}` : `${m.monto_mmv} MMV`} <span className="text-slate-500">({m.creada_por})</span></span>
+                    <span>
+                      {m.periodo && <span className="font-mono bg-purple-100 text-purple-900 font-bold px-1.5 py-0.5 rounded text-[10px] mr-1.5">{fmtPeriodo(m.periodo)}</span>}
+                      <b>{m.concepto}</b> · {m.monto_bs != null ? `Bs ${fmtBs(m.monto_bs)}` : `${m.monto_mmv} MMV`} <span className="text-slate-500">({m.creada_por})</span>
+                    </span>
                     <button onClick={() => anularMulta(m)} disabled={guardando} className="text-red-700 hover:text-red-900 font-bold flex items-center gap-1 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /> Anular</button>
                   </div>
                 ))}

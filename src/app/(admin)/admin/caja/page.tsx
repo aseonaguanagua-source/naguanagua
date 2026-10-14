@@ -1238,12 +1238,24 @@ export default function CajaPage() {
 
     selectedServicios.forEach(ref => {
       const s = serviciosMap.get(ref);
-      if (s) total += parseFloat(s.monto || '0') * (1 + ivaPercent);
+      if (s) {
+        const ucd = Number(s.valor_ucd || 0);
+        const fac = Number(s.factor || 1);
+        const nve = Number(s.nve || 1);
+        const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
+        total += baseMonto;
+      }
     });
 
     selectedTalaPoda.forEach(ref => {
       const s = talaPodaMap.get(ref);
-      if (s) total += parseFloat(s.monto || '0') * (1 + ivaPercent);
+      if (s) {
+        const ucd = Number(s.valor_ucd || 0);
+        const fac = Number(s.factor || 1);
+        const nve = Number(s.nve || 1);
+        const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
+        total += baseMonto;
+      }
     });
     let sb = 0, siva = 0, smulta = 0, sivaRetencionable = 0;
     let tasaActualUse = (tcmmv || 0);
@@ -1385,25 +1397,21 @@ export default function CajaPage() {
     selectedServicios.forEach(ref => {
       const s = serviciosMap.get(ref);
       if (s) {
-        const baseMonto = parseFloat(s.monto || '0');
-        const ivaMonto = parseFloat((baseMonto * ivaPercent).toFixed(2));
+        const ucd = Number(s.valor_ucd || 0);
+        const fac = Number(s.factor || 1);
+        const nve = Number(s.nve || 1);
+        const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
         sb += baseMonto;
-        siva += ivaMonto;
-        if (isAgenteGlobal) {
-          sivaRetencionable += ivaMonto;
-        }
       }
     });
     selectedTalaPoda.forEach(ref => {
       const s = talaPodaMap.get(ref);
       if (s) {
-        const baseMonto = parseFloat(s.monto || '0');
-        const ivaMonto = parseFloat((baseMonto * ivaPercent).toFixed(2));
+        const ucd = Number(s.valor_ucd || 0);
+        const fac = Number(s.factor || 1);
+        const nve = Number(s.nve || 1);
+        const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
         sb += baseMonto;
-        siva += ivaMonto;
-        if (isAgenteGlobal) {
-          sivaRetencionable += ivaMonto;
-        }
       }
     });
     setSumBase(sb);
@@ -1970,9 +1978,11 @@ export default function CajaPage() {
             for (const ref of selectedServicios) {
               const s = serviciosEsp.find((sv: any) => sv.referencia === ref);
               if (s) {
-                const baseS = parseFloat(s.monto || '0');
-                const totS = baseS + parseFloat((baseS * ivaPercent).toFixed(2));
-                dineroParaInms = Math.max(0, dineroParaInms - totS);
+                const ucd = Number(s.valor_ucd || 0);
+                const fac = Number(s.factor || 1);
+                const nve = Number(s.nve || 1);
+                const baseS = (ucd > 0 && currentBcvRate && currentBcvRate > 0) ? Math.round(ucd * fac * nve * currentBcvRate * 100) / 100 : parseFloat(s.monto || '0');
+                dineroParaInms = Math.max(0, dineroParaInms - baseS);
               }
             }
 
@@ -4573,12 +4583,19 @@ export default function CajaPage() {
                           </div>
                         </div>
                         {(() => {
-                          const baseMonto = parseFloat(s.monto || '0');
-                          const montoConIva = baseMonto * (1 + ivaPercent);
+                          const ucd = Number(s.valor_ucd || 0);
+                          const fac = Number(s.factor || 1);
+                          const nve = Number(s.nve || 1);
+                          const currentTasa = customBcvRate && !isNaN(parseFloat(customBcvRate)) ? parseFloat(customBcvRate) : (tcmmv || 0);
+                          const baseMonto = (ucd > 0 && currentTasa > 0) ? Math.round(ucd * fac * nve * currentTasa * 100) / 100 : parseFloat(s.monto || '0');
                           return (
                             <div className="text-right shrink-0">
-                              <span className="font-bold text-purple-700 block text-sm">Bs. {formatBs(montoConIva)}</span>
-                              <span className="text-[10px] text-slate-500 font-medium">Base: Bs. {formatBs(baseMonto)} + IVA 16%</span>
+                              <span className="font-bold text-purple-700 block text-sm">Bs. {formatBs(baseMonto)}</span>
+                              {ucd > 0 ? (
+                                <span className="text-[10px] text-slate-500 font-medium">{ucd * fac * nve} UCD · Tasa Bs {formatBs(currentTasa)}</span>
+                              ) : (
+                                <span className="text-[10px] text-emerald-600 font-medium">Tasa Administrativa</span>
+                              )}
                             </div>
                           );
                         })()}
