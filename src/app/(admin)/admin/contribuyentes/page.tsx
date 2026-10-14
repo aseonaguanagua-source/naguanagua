@@ -43,6 +43,7 @@ function ContribuyentesPageContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewData, setViewData] = useState<any>(null);
+  const [viewInmuebles, setViewInmuebles] = useState<any[]>([]);
   const [selectedSolvenciaInmueble, setSelectedSolvenciaInmueble] = useState<string>('');
   const [viewCalculo, setViewCalculo] = useState<any>(null);
   const [viewFacturasCM, setViewFacturasCM] = useState<any[]>([]);
@@ -365,9 +366,14 @@ function ContribuyentesPageContent() {
       const desgloseLocales: any[] = [];
 
       const idClean = (row.Identidad || '').replace(/-/g, '').toUpperCase();
-      const misInmuebles = inmuebles.filter((i: any) => 
-        (i.identidad || '').replace(/-/g, '').toUpperCase() === idClean
+      const idsBuscar = Array.from(new Set([row.Identidad, idClean, row.CodCont, row.cod_cont].filter(Boolean)));
+      let misInmuebles = inmuebles.filter((i: any) => 
+        (i.identidad || '').replace(/-/g, '').toUpperCase() === idClean || i.inmueble === row.CodCont || i.inmueble === row.cod_cont
       );
+      try {
+        const { data: dbInms } = await supabase.from('inmuebles').select('*').or(`identidad.in.(${idsBuscar.join(',')}),inmueble.in.(${idsBuscar.join(',')})`);
+        if (dbInms && dbInms.length > 0) misInmuebles = dbInms;
+      } catch (e) {}
 
       if (misInmuebles.length > 0) {
         // Solo es condominio si está marcado como tal (no por tener varios locales / cant_inmuebles)
@@ -480,6 +486,11 @@ function ContribuyentesPageContent() {
 
   useEffect(() => {
     if (isViewModalOpen && viewData) {
+      const idClean = (viewData.Identidad || '').replace(/-/g, '').toUpperCase();
+      const idsBuscar = Array.from(new Set([viewData.Identidad, idClean, viewData.CodCont, viewData.cod_cont].filter(Boolean)));
+      supabase.from('inmuebles').select('*').or(`identidad.in.(${idsBuscar.join(',')}),inmueble.in.(${idsBuscar.join(',')})`).then(({ data }) => {
+        if (data && data.length > 0) setViewInmuebles(data);
+      });
       calculateFactorForRow(viewData).then(detalle => {
         if (detalle) setViewCalculo(detalle);
       });
@@ -3812,16 +3823,18 @@ function ContribuyentesPageContent() {
               {/* Ficha de Censo Inmobiliario */}
               {(() => {
                 const userIdent = (viewData?.Identidad || '').replace(/-/g,'').toUpperCase();
+                const inmsFuente = viewInmuebles.length > 0 ? viewInmuebles : inmuebles;
                 const parentCodes = new Set(
-                  inmuebles
+                  inmsFuente
                     .filter((i: any) => (i.identidad || '').replace(/-/g,'').toUpperCase() === userIdent && i.estado !== 'Eliminado')
                     .map((i: any) => i.inmueble)
                     .filter(Boolean)
                 );
-                const userInms = inmuebles.filter((i: any) => {
+                const userInms = inmsFuente.filter((i: any) => {
                   if (i.estado === 'Eliminado') return false;
                   const iid = (i.identidad || '').replace(/-/g,'').toUpperCase();
                   if (iid === userIdent) return true;
+                  if (i.inmueble && (i.inmueble === viewData.CodCont || i.inmueble === viewData.cod_cont)) return true;
                   if (i.padre_id && parentCodes.has(i.padre_id)) return true;
                   if (i.condominio_padre_id && parentCodes.has(i.condominio_padre_id)) return true;
                   return false;
@@ -3872,6 +3885,18 @@ function ContribuyentesPageContent() {
                             <span className="block text-[10px] text-slate-400 font-bold uppercase">Jerarquía</span>
                             <span className="font-medium text-slate-700 truncate block" title={inm.actividad_principal}>{inm.actividad_principal || 'N/A'}</span>
                           </div>
+                          {(() => {
+                            let j: any = null;
+                            try { if (inm.notas) j = typeof inm.notas === 'string' ? JSON.parse(inm.notas) : inm.notas; } catch {}
+                            if (j?.desocupada_desde) {
+                              return (
+                                <div className="col-span-2 md:col-span-4 bg-amber-50 border border-amber-200 text-amber-900 rounded p-2 text-xs font-semibold flex items-center gap-1.5 mt-1">
+                                  <span>⚠️ Desocupado desde <b>{j.desocupada_desde}</b> hasta <b>{j.desocupada_hasta || 'actualidad'}</b> (Tarifa Desocupado: {j.tarifa_desocupada_mmv || 1.98} MMV). Períodos anteriores activos a {j.tarifa_activa_mmv || 3.77} MMV ({j.actividad_activa || 'Comercial'}).</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                           <div className="col-span-2 md:col-span-4 border-t border-slate-100 mt-1 pt-2">
                             <span className="block text-[10px] text-slate-400 font-bold uppercase">Actividad Económica (Nietos)</span>
                             <div className="mt-1">

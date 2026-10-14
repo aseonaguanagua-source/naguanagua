@@ -110,13 +110,11 @@ export default function CondominiosPage() {
   const handleDescargarEstadoCuentaCondominio = async (condo: any) => {
     setDescargandoEdo(condo.codigo);
     try {
-      const { cargarCondominio, calcularEstado, tasaVigente } = await import('@/lib/condominios/servicio');
+      const res = await fetch(`/api/admin/condominios?codigo=${encodeURIComponent(condo.codigo)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo cargar la información del condominio.');
       const { generarPdfEstadoCuentaCondominio } = await import('@/lib/condominios/pdfCondominio');
-      const tasa = await tasaVigente();
-      const data = await cargarCondominio(condo.codigo);
-      if (!data) throw new Error('No se pudo cargar la información del condominio.');
-      const est = calcularEstado(data.condo, data.unidades, tasa, new Date(), data.multas);
-      generarPdfEstadoCuentaCondominio(data.condo, est, 'Administrador');
+      generarPdfEstadoCuentaCondominio(data.condo, data.estado, 'Administrador');
     } catch (e: any) {
       alert('Error al generar estado de cuenta: ' + e.message);
     } finally {
@@ -128,15 +126,13 @@ export default function CondominiosPage() {
     const codCondo = u.condominios?.codigo || u.condominio_codigo;
     if (!codCondo) { alert('No se encontró el condominio de esta unidad.'); return; }
     try {
-      const { cargarCondominio, calcularEstado, tasaVigente } = await import('@/lib/condominios/servicio');
+      const res = await fetch(`/api/admin/condominios?codigo=${encodeURIComponent(codCondo)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo cargar la información del condominio.');
       const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
-      const tasa = await tasaVigente();
-      const data = await cargarCondominio(codCondo);
-      if (!data) throw new Error('No se pudo cargar la información del condominio.');
-      const est = calcularEstado(data.condo, data.unidades, tasa, new Date(), data.multas);
-      const r = est.renglones.find((x: any) => x.clave === u.id || x.inmueble === u.inmueble);
+      const r = (data.estado?.renglones || []).find((x: any) => x.clave === u.id || x.inmueble === u.inmueble);
       if (!r) throw new Error('No se encontró el renglón de cálculo para esta unidad.');
-      generarPdfEstadoCuentaUnidad(data.condo, r, est.tasa, 'Administrador');
+      generarPdfEstadoCuentaUnidad(data.condo, r, data.estado.tasa, 'Administrador');
     } catch (e: any) {
       alert('Error al generar estado de cuenta de la unidad: ' + e.message);
     }
@@ -146,14 +142,13 @@ export default function CondominiosPage() {
     const codCondo = u.condominios?.codigo || u.condominio_codigo;
     if (!codCondo) return;
     try {
-      const { cargarCondominio, calcularEstado, tasaVigente } = await import('@/lib/condominios/servicio');
+      const res = await fetch(`/api/admin/condominios?codigo=${encodeURIComponent(codCondo)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo cargar la información del condominio.');
       const { emitirSolvenciaUnidad } = await import('@/lib/condominios/pdfSolvenciaCondominio');
-      const tasa = await tasaVigente();
-      const data = await cargarCondominio(codCondo);
-      const est = calcularEstado(data!.condo, data!.unidades, tasa, new Date(), data!.multas);
-      const r = est.renglones.find((x: any) => x.clave === u.id || x.inmueble === u.inmueble);
+      const r = (data.estado?.renglones || []).find((x: any) => x.clave === u.id || x.inmueble === u.inmueble);
       const deuda = r ? r.totalBs : 0;
-      await emitirSolvenciaUnidad(data!.condo, u, deuda);
+      await emitirSolvenciaUnidad(data.condo, u, deuda);
     } catch (e: any) {
       alert('Error al emitir solvencia: ' + e.message);
     }
