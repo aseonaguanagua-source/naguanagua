@@ -216,18 +216,20 @@ export interface DeudaPeriodos {
  * Mismo criterio que Caja: multa = mensual × tasa × (meses − 1).
  * `sinMultaPrimeros`: los primeros N meses (los más viejos) no llevan multa porque se exoneraron.
  */
-export function deudaPorMeses(meses: number, mensualBs: number, residencial: boolean, agenteRetencion = false, sinMultaPrimeros = 0): DeudaPeriodos {
+export function deudaPorMeses(meses: number, mensualBs: number | number[], residencial: boolean, agenteRetencion = false, sinMultaPrimeros = 0): DeudaPeriodos {
   const n = Math.max(0, Math.floor(meses));
   const tMulta = residencial ? TASA_MULTA_RES : TASA_MULTA_COM;
   const porMes = Array.from({ length: n }, (_, i) => {
-    const base = r2(mensualBs);
-    const multa = i < n - 1 && i >= sinMultaPrimeros ? r2(mensualBs * tMulta) : 0;
-    const iva = residencial ? 0 : r2(mensualBs * IVA);
+    const mensual = Array.isArray(mensualBs) ? (mensualBs[i] !== undefined ? mensualBs[i] : (mensualBs[mensualBs.length - 1] ?? 0)) : mensualBs;
+    const base = r2(mensual);
+    const multa = i < n - 1 && i >= sinMultaPrimeros ? r2(mensual * tMulta) : 0;
+    const iva = residencial ? 0 : r2(mensual * IVA);
     const ret = agenteRetencion && !residencial ? r2(iva * RETENCION_IVA) : 0;
     return { n: i + 1, baseBs: base, multaBs: multa, ivaBs: iva, retencionBs: ret, totalBs: r2(base + multa + iva - ret) };
   });
   const sum = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs' | 'totalBs') => r2(porMes.reduce((s, m) => s + m[k], 0));
-  return { meses: n, mensualBs: r2(mensualBs), baseBs: sum('baseBs'), multaBs: sum('multaBs'), ivaBs: sum('ivaBs'), retencionBs: sum('retencionBs'), totalBs: sum('totalBs'), porMes };
+  const promedioMensual = n > 0 ? r2(sum('baseBs') / n) : (Array.isArray(mensualBs) ? mensualBs[0] || 0 : mensualBs);
+  return { meses: n, mensualBs: promedioMensual, baseBs: sum('baseBs'), multaBs: sum('multaBs'), ivaBs: sum('ivaBs'), retencionBs: sum('retencionBs'), totalBs: sum('totalBs'), porMes };
 }
 
 /** Modalidad sugerida al migrar desde `inmuebles`. */

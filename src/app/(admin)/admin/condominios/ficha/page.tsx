@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award
 } from 'lucide-react';
 import EditorUnidad from './EditorUnidad';
 import { mesesPendientes } from '@/lib/condominios/motor';
@@ -176,7 +176,7 @@ function Ficha() {
       permite_abonos: c.permite_abonos !== false, cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad,
       correo: c.correo || '', telefono: c.telefono || '', notas: c.notas || '',
       tipo: c.tipo, nombre: c.nombre || '', identidad: c.identidad || '',
-      meses: mesesPendientes(c.aseo_pendiente_desde), multa_meses: c.multa_meses || 0,
+      meses: e?.totales?.meses ?? mesesPendientes(c.aseo_pendiente_desde), multa_meses: c.multa_meses || 0,
     });
     setMotivo(''); setEditando(true);
   };
@@ -195,7 +195,7 @@ function Ficha() {
   const guardar = async () => {
     const cambios: any = {};
     Object.keys(form).forEach(k => {
-      const antes = k === 'meses' ? mesesPendientes(c.aseo_pendiente_desde) : (c[k] ?? (typeof form[k] === 'boolean' ? false : ''));
+      const antes = k === 'meses' ? (e?.totales?.meses ?? mesesPendientes(c.aseo_pendiente_desde)) : (c[k] ?? (typeof form[k] === 'boolean' ? false : ''));
       if (String(form[k]) !== String(antes)) cambios[k] = form[k];
     });
     if (!Object.keys(cambios).length) { setEditando(false); return; }
@@ -249,19 +249,9 @@ function Ficha() {
 
   const exportarUnidad = async (r: any, ev: any) => {
     ev.stopPropagation();
-    const { generarPdfEstadoCuentaCondominio } = await import('@/lib/condominios/pdfCondominio');
+    const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
     const cajero = usuarioActual() || 'Administrador';
-    const renglones = [r, ...e.renglones.filter((h: any) => h.padreId === r.clave)];
-    const totales = {
-      baseBs: renglones.reduce((s, x) => s + x.deuda.baseBs, 0),
-      multaBs: renglones.reduce((s, x) => s + x.deuda.multaBs + x.multaExtraBs + (x.multasManualesBs || 0), 0),
-      ivaBs: renglones.reduce((s, x) => s + x.deuda.ivaBs, 0),
-      retencionBs: renglones.reduce((s, x) => s + x.deuda.retencionBs, 0),
-      totalBs: renglones.reduce((s, x) => s + x.totalBs, 0),
-      meses: r.deuda.meses
-    };
-    const eCustom = { ...e, renglones, totales };
-    generarPdfEstadoCuentaCondominio(c, eCustom, cajero, true);
+    generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero);
   };
 
   /** Renglón del estado de cuenta de una unidad */
@@ -269,24 +259,14 @@ function Ficha() {
   /** Meses con multa = meses en mora del aseo pendiente + meses de multa pendientes de meses ya pagados */
   const mesesMultaDe = (r: any) => (r?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length + (Number(r?.multaMeses) || 0);
 
-  /** Estado de cuenta individual desde la pestaña Unidades (incluye las actividades que cuelgan de la unidad / grupo) */
+  /** Estado de cuenta individual desde la pestaña Unidades */
   const exportarUnidadTree = async (u: any, ev: any) => {
     ev.stopPropagation();
-    const ids = new Set<string>();
-    const add = (x: any, prof = 0) => { if (!x || prof > 6) return; ids.add(x.id); (arbol.hijos.get(x.id) || []).forEach((h: any) => add(h, prof + 1)); };
-    add(u);
-    const renglones = (e?.renglones || []).filter((x: any) => ids.has(x.clave));
-    if (!renglones.length) { alert('Esta unidad no tiene renglones de deuda.'); return; }
-    const { generarPdfEstadoCuentaCondominio } = await import('@/lib/condominios/pdfCondominio');
-    const totales = {
-      baseBs: renglones.reduce((s: number, x: any) => s + x.deuda.baseBs, 0),
-      multaBs: renglones.reduce((s: number, x: any) => s + x.deuda.multaBs + x.multaExtraBs + (x.multasManualesBs || 0), 0),
-      ivaBs: renglones.reduce((s: number, x: any) => s + x.deuda.ivaBs, 0),
-      retencionBs: renglones.reduce((s: number, x: any) => s + x.deuda.retencionBs, 0),
-      totalBs: renglones.reduce((s: number, x: any) => s + x.totalBs, 0),
-      meses: Math.max(0, ...renglones.map((x: any) => x.deuda.meses)),
-    };
-    generarPdfEstadoCuentaCondominio(c, { ...e, renglones, totales }, usuarioActual() || 'Administrador', true);
+    const r = renglonDe(u.id);
+    if (!r) { alert('Esta unidad no tiene renglones de deuda calculados.'); return; }
+    const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
+    const cajero = usuarioActual() || 'Administrador';
+    generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero);
   };
 
   const exportarMultas = async () => {
@@ -366,8 +346,23 @@ function Ficha() {
               <Link id="btn-cobrar-desde-ficha" href={`/admin/condominios/caja?codigo=${c.codigo}`} className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-2">
                 <WalletIcon className="w-4 h-4" /> Cobrar
               </Link>
-              <button onClick={exportar} className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-2 cursor-pointer">
-                <Download className="w-4 h-4" /> PDF
+              <button id="btn-estado-cuenta-condominio" onClick={exportar} title="Descargar Estado de Cuenta Consolidado del Condominio" className="px-4 py-2.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-2xs">
+                <FileText className="w-4 h-4" /> Estado de Cuenta Condominio
+              </button>
+              <button
+                id="btn-solvencia-condominio"
+                onClick={async () => {
+                  const { emitirSolvenciaCondominio } = await import('@/lib/condominios/pdfSolvenciaCondominio');
+                  await emitirSolvenciaCondominio(c, e.totales.totalBs);
+                }}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors ${
+                  e.totales.totalBs <= 0.01
+                    ? 'border border-emerald-400 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                    : 'border border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
+                }`}
+                title={e.totales.totalBs <= 0.01 ? "Descargar Certificado de Solvencia Municipal" : `Condominio con deuda pendiente (Bs ${fmtBs(e.totales.totalBs)})`}
+              >
+                <Award className="w-4 h-4" /> Solvencia Condominio
               </button>
               <button onClick={async () => {
                 const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
@@ -486,7 +481,25 @@ function Ficha() {
                                       <button title="Eliminar de la lista" onClick={() => eliminarUnidad(unidadDe(r.clave))} className="p-1.5 rounded-md text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer border border-transparent hover:border-red-200 bg-white shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
                                     )}
                                     {unidadDe(r.clave) && (
-                                      <button onClick={(ev) => exportarUnidad(r, ev)} title="Descargar Estado de Cuenta" className="p-1.5 rounded-md text-slate-500 hover:text-sky-700 hover:bg-sky-50 cursor-pointer border border-transparent hover:border-sky-200 bg-white shadow-sm"><FileText className="w-3.5 h-3.5" /></button>
+                                      <button onClick={(ev) => exportarUnidad(r, ev)} title="Descargar Estado de Cuenta individual de esta unidad" className="px-2 py-0.5 rounded-md text-sky-700 bg-sky-50 hover:bg-sky-100 cursor-pointer border border-sky-200 text-[11px] font-bold flex items-center gap-1 shadow-2xs"><FileText className="w-3 h-3" /> E/C</button>
+                                    )}
+                                    {unidadDe(r.clave) && (
+                                      <button
+                                        onClick={async (ev) => {
+                                          ev.stopPropagation();
+                                          const u = unidadDe(r.clave);
+                                          const { emitirSolvenciaUnidad } = await import('@/lib/condominios/pdfSolvenciaCondominio');
+                                          await emitirSolvenciaUnidad(c, u, r.totalBs);
+                                        }}
+                                        title={r.totalBs <= 0.01 ? "Descargar Certificado de Solvencia Municipal de esta unidad" : `Unidad con deuda pendiente (Bs ${fmtBs(r.totalBs)})`}
+                                        className={`px-2 py-0.5 rounded-md cursor-pointer border shadow-2xs transition-colors text-[11px] font-bold flex items-center gap-1 ${
+                                          r.totalBs <= 0.01
+                                            ? 'text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 border-emerald-300 bg-emerald-50'
+                                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50 border-slate-200 bg-white'
+                                        }`}
+                                      >
+                                        <Award className="w-3 h-3" /> Solvencia
+                                      </button>
                                     )}
                                   </div>
                                   {unidadDe(r.clave) && r.totalBs > 0.01 && (
@@ -569,9 +582,34 @@ function Ficha() {
                       <td className="py-2 px-4 text-xs">{u.aseo_pendiente_desde ? fmtPeriodo(String(u.aseo_pendiente_desde).slice(0, 7)) : <span className="text-emerald-700 font-bold">Al día</span>}</td>
                       <td className="py-2 px-3 text-center">{(() => { const rr = renglonDe(u.id); const mm = rr ? mesesMultaDe(rr) : (Number(u.multa_meses) || 0); return <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${mm === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{mm}</span>; })()}</td>
                       <td className="py-2 px-2 text-right" onClick={ev => ev.stopPropagation()}>
-                        {(renglonDe(u.id) || (arbol.hijos.get(u.id) || []).length > 0) && (
-                          <button title="Estado de cuenta de esta unidad" onClick={(ev) => exportarUnidadTree(u, ev)} className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-sky-800 hover:border-sky-300 hover:bg-sky-50 cursor-pointer bg-white shadow-sm"><FileText className="w-3.5 h-3.5" /></button>
-                        )}
+                        <div className="flex items-center justify-end gap-1">
+                          {(renglonDe(u.id) || (arbol.hijos.get(u.id) || []).length > 0) && (
+                            <button title="Descargar Estado de Cuenta individual de esta unidad" onClick={(ev) => exportarUnidadTree(u, ev)} className="px-2 py-0.5 rounded-md text-sky-700 bg-sky-50 hover:bg-sky-100 cursor-pointer border border-sky-200 text-[11px] font-bold flex items-center gap-1 shadow-2xs"><FileText className="w-3 h-3" /> E/C</button>
+                          )}
+                          <button
+                            title={(() => {
+                              const rr = renglonDe(u.id);
+                              const deuda = rr ? rr.totalBs : (u.aseo_pendiente_desde ? 100 : 0);
+                              return deuda <= 0.01 ? "Descargar Solvencia Municipal de esta unidad" : `Unidad con deuda pendiente (Bs ${fmtBs(deuda)})`;
+                            })()}
+                            onClick={async (ev) => {
+                              ev.stopPropagation();
+                              const rr = renglonDe(u.id);
+                              const deuda = rr ? rr.totalBs : (u.aseo_pendiente_desde ? 100 : 0);
+                              const { emitirSolvenciaUnidad } = await import('@/lib/condominios/pdfSolvenciaCondominio');
+                              await emitirSolvenciaUnidad(c, u, deuda);
+                            }}
+                            className={`px-2 py-0.5 rounded-md cursor-pointer border shadow-2xs transition-colors text-[11px] font-bold flex items-center gap-1 ${
+                              (() => {
+                                const rr = renglonDe(u.id);
+                                const deuda = rr ? rr.totalBs : (u.aseo_pendiente_desde ? 100 : 0);
+                                return deuda <= 0.01 ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-100 bg-emerald-50' : 'border-slate-200 text-slate-400 hover:bg-slate-50 bg-white';
+                              })()
+                            }`}
+                          >
+                            <Award className="w-3 h-3" /> Solvencia
+                          </button>
+                        </div>
                       </td>
                       {admin && <td className="py-2 pr-4 text-right">
                         <div className="flex justify-end gap-1" onClick={ev => ev.stopPropagation()}>
@@ -592,7 +630,7 @@ function Ficha() {
                     <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
                       <tr>
                         <th className="text-left py-2.5 px-4">Código</th><th className="text-left py-2.5 px-3">Número</th><th className="text-left py-2.5 px-3">Propietario</th>
-                        <th className="text-left py-2.5 px-3">Cédula/RIF</th><th className="text-left py-2.5 px-3">Actividad</th><th className="text-left py-2.5 px-3">Estado</th><th className="text-left py-2.5 px-4">Pendiente desde</th><th className="text-center py-2.5 px-3">Meses multa</th><th className="py-2.5 px-2">Edo. cuenta</th>
+                        <th className="text-left py-2.5 px-3">Cédula/RIF</th><th className="text-left py-2.5 px-3">Actividad</th><th className="text-left py-2.5 px-3">Estado</th><th className="text-left py-2.5 px-4">Pendiente desde</th><th className="text-center py-2.5 px-3">Meses multa</th><th className="py-2.5 px-2 text-right">Documentos</th>
                         {admin && <th></th>}
                       </tr>
                     </thead>

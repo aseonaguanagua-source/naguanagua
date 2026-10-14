@@ -308,7 +308,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     };
     const esTransferencia = pago.metodo.toLowerCase().includes('transferencia') || pago.metodo.toLowerCase().includes('pago móvil') || (pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => pa.metodo.toLowerCase().includes('transferencia') || pa.metodo.toLowerCase().includes('pago móvil')));
     const fechaRegistro = new Date();
-    const fila: any = { id, identidad: f.identidad, monto: f.totalBs, banco: pago.banco || pago.metodo, referencia: refFinal, tipo: pago.metodo, estado: esTransferencia ? 'Por Verificar' : 'Aprobado', modulo: 'condominios', detalles, created_at: fechaRegistro.toISOString() };
+    const pagoAgregadoCoincidente = (pago.pagosAgregados || []).find((pa: any) => pa.referencia === refFinal) || (pago.pagosAgregados?.length === 1 ? pago.pagosAgregados[0] : null);
+    const montoReportadoReal = (pagoAgregadoCoincidente && Number(pagoAgregadoCoincidente.monto) > 0)
+      ? Number(pagoAgregadoCoincidente.monto)
+      : (pago.montoRecibido && cobro.facturas.length === 1 ? pago.montoRecibido : f.totalBs);
+    const fila: any = { id, identidad: f.identidad, monto: montoReportadoReal, banco: pago.banco || pago.metodo, referencia: refFinal, tipo: pago.metodo, estado: esTransferencia ? 'Por Verificar' : 'Aprobado', modulo: 'condominios', detalles, created_at: fechaRegistro.toISOString() };
     if (grupo) fila.grupo_pago = grupo;
     const { error } = await sb.from('pagos_reportados').insert(fila);
     if (error) {

@@ -43,8 +43,8 @@ export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
     
     // Contribuyente data
     doc.text("Razón Social:", 15, 62);
-    doc.setFont("helvetica", "bold");
-    doc.text(data.contribuyente || '', 40, 62);
+    const contLines = doc.splitTextToSize(data.contribuyente || '', 65);
+    doc.text(contLines[0] || '', 40, 62);
     
     doc.setFont("helvetica", "normal");
     doc.text("RIF / C.I.:", 15, 68);

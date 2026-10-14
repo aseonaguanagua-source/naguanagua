@@ -60,32 +60,40 @@ export interface DeudaInmueble {
 
 export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[], hoy: Date = new Date()): DeudaInmueble {
   const esRes = isResidencialInm(inm);
-  const bMes = calcularMensualidad(inm, tasa);
+  let jNotas: any = null;
+  try { if (inm?.notas) jNotas = typeof inm.notas === 'string' ? JSON.parse(inm.notas) : inm.notas; } catch {}
+
+  const bMesDefault = calcularMensualidad(inm, tasa);
   const tasaMora = esRes ? 0.10 : 0.12;
   const flags = meses.map(m => tieneMoraMes(inm, m.emision, m.esUltimo, hoy));
   const n = meses.length;
   const nMora = flags.filter(Boolean).length;
 
-  const base = r2(bMes * n);
-  const iva = esRes ? 0 : r2(bMes * 0.16 * n);
-  const multa = r2(bMes * tasaMora * nMora);
-
-  const porMes: DesgloseMes[] = meses.map((_, i) => ({
-    base: r2(bMes),
-    iva: esRes ? 0 : r2(bMes * 0.16),
-    multa: flags[i] ? r2(bMes * tasaMora) : 0,
-    total: 0,
-  }));
-  if (n > 0) {
-    const last = porMes[n - 1];
-    last.base = r2(last.base + (base - porMes.reduce((s, p) => s + p.base, 0)));
-    last.iva = r2(last.iva + (iva - porMes.reduce((s, p) => s + p.iva, 0)));
-    if (nMora > 0) {
-      const idx = flags.lastIndexOf(true);
-      porMes[idx].multa = r2(porMes[idx].multa + (multa - porMes.reduce((s, p) => s + p.multa, 0)));
+  const porMes: DesgloseMes[] = meses.map((m, i) => {
+    let bMes = bMesDefault;
+    if (jNotas?.desocupada_desde) {
+      const perStr = m.emision ? (typeof m.emision === 'string' ? m.emision.slice(0, 7) : (m.emision.toISOString ? m.emision.toISOString().slice(0, 7) : '')) : '';
+      const esDesoc = perStr >= jNotas.desocupada_desde && (!jNotas.desocupada_hasta || perStr <= jNotas.desocupada_hasta);
+      if (esDesoc) {
+        bMes = r2((jNotas.tarifa_desocupada_mmv || 1.98) * 57 * tasa * 0.128);
+      } else if (jNotas.tarifa_activa_mmv) {
+        bMes = r2(jNotas.tarifa_activa_mmv * 57 * tasa * 0.128);
+      }
     }
-  }
-  porMes.forEach(p => { p.total = r2(p.base + p.iva + p.multa); });
+    const base = r2(bMes);
+    const iva = esRes ? 0 : r2(bMes * 0.16);
+    const multa = flags[i] ? r2(bMes * tasaMora) : 0;
+    return {
+      base,
+      iva,
+      multa,
+      total: r2(base + iva + multa),
+    };
+  });
+
+  const base = r2(porMes.reduce((s, p) => s + p.base, 0));
+  const iva = r2(porMes.reduce((s, p) => s + p.iva, 0));
+  const multa = r2(porMes.reduce((s, p) => s + p.multa, 0));
 
   return {
     esResidencial: esRes,

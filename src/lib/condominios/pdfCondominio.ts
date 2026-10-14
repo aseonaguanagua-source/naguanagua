@@ -290,3 +290,174 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
 
   doc.save(`Multas_Condominio_${c.codigo}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+
+/**
+ * Genera el Estado de Cuenta individual de una Unidad / Local de condominio.
+ * Muestra el desglose por mes/período, base, IVA, multas, retenciones y total a pagar.
+ */
+export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: number | string, cajero: string) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const docNro = Math.floor(100000 + Math.random() * 900000).toString();
+
+  const drawHeader = (pageNumber: number, totalPages: number) => {
+    try {
+      if (logos.alcaldia) doc.addImage(logos.alcaldia, 'PNG', 14, 10, 20, 25, undefined, 'FAST');
+      if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
+    } catch (err) {}
+
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ESTADO DE CUENTA INDIVIDUAL', 105, 18, { align: 'center' });
+    
+    doc.setFontSize(8);
+    doc.setTextColor(220, 38, 38);
+    doc.text(`TASA VIGENTE HASTA: ${tasa}`, 105, 23, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+
+    doc.setLineWidth(0.3);
+    doc.line(14, 32, 196, 32);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Generado por: ${cajero} · Fecha: ${new Date().toLocaleDateString('es-VE')}`, 14, 36);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Página ${pageNumber} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
+    doc.line(14, 38, 196, 38);
+  };
+
+  drawHeader(1, 1);
+  let y = 43;
+
+  // ── DATOS DEL CONTRIBUYENTE Y UNIDAD ──
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  const prop = r.propietario && r.propietario !== '' ? r.propietario : 'SIN PROPIETARIO REGISTRADO';
+  doc.text(prop, 14, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Cédula / RIF: ${r.identidad || 'N/A'}    |    Inmueble: ${r.inmueble || 'N/A'}    |    Nro / Local: ${r.numero || 'N/A'}`, 14, y);
+  y += 5;
+  doc.text(`Actividad: ${r.actividad || 'N/A'}    |    Condición Fiscal: ${r.deuda.retencionBs > 0 ? 'Agente de Retención (75% Deducible IVA)' : 'Contribuyente Ordinario'}`, 14, y);
+  y += 5;
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Condominio Matriz: ${c.nombre} (${c.codigo})`, 14, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Dirección: ${c.direccion || 'Municipio Naguanagua, Estado Carabobo'}`, 14, y);
+  y += 5;
+
+  doc.setDrawColor(210, 210, 210);
+  doc.line(14, y, 196, y);
+  doc.setDrawColor(0, 0, 0);
+  y += 6;
+
+  // ── RESUMEN TOTALES DE LA UNIDAD ──
+  const sumMultas = (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RESUMEN DE LIQUIDACIÓN DE LA UNIDAD', 105, y, { align: 'center' });
+  y += 6;
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Aseo: Bs. ${fmtBs(r.deuda?.baseBs || 0)}`, 14, y);
+  doc.text(`Multas: Bs. ${fmtBs(sumMultas)}`, 65, y);
+  doc.text(`IVA: Bs. ${fmtBs(r.deuda?.ivaBs || 0)}`, 115, y);
+  doc.text(`Retención IVA: Bs. ${fmtBs(r.deuda?.retencionBs || 0)}`, 155, y);
+  y += 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(2, 132, 199);
+  doc.text(`TOTAL A PAGAR: Bs. ${fmtBs(r.totalBs || 0)}`, 196, y, { align: 'right' });
+  doc.setTextColor(0, 0, 0);
+  y += 6;
+
+  // ── TABLA DE PERÍODOS DETALLADA ──
+  const rows: any[] = [];
+  const porMes = r.deuda?.porMes || [];
+  const periodos = r.periodos || [];
+
+  if (porMes.length > 0) {
+    porMes.forEach((m, idx) => {
+      const perLabel = periodos[idx] ? fmtPeriodo(periodos[idx]) : `Mes ${m.n}`;
+      rows.push([
+        perLabel,
+        `Bs. ${fmtBs(m.baseBs)}`,
+        `Bs. ${fmtBs(m.multaBs)}`,
+        `Bs. ${fmtBs(m.ivaBs)}`,
+        m.retencionBs > 0 ? `- Bs. ${fmtBs(m.retencionBs)}` : 'Bs. 0,00',
+        `Bs. ${fmtBs(m.totalBs)}`
+      ]);
+    });
+  } else {
+    rows.push([
+      r.periodos.map(fmtPeriodo).join(', ') || 'Al día',
+      `Bs. ${fmtBs(r.deuda?.baseBs || 0)}`,
+      `Bs. ${fmtBs(sumMultas)}`,
+      `Bs. ${fmtBs(r.deuda?.ivaBs || 0)}`,
+      r.deuda?.retencionBs > 0 ? `- Bs. ${fmtBs(r.deuda.retencionBs)}` : 'Bs. 0,00',
+      `Bs. ${fmtBs(r.totalBs || 0)}`
+    ]);
+  }
+
+  // Si hay multas extras o manuales, agregar renglón aclaratorio
+  if ((r.multaExtraBs || 0) + (r.multasManualesBs || 0) > 0.01) {
+    rows.push([
+      'Multas acumuladas / administrativas',
+      'Bs. 0,00',
+      `Bs. ${fmtBs((r.multaExtraBs || 0) + (r.multasManualesBs || 0))}`,
+      'Bs. 0,00',
+      'Bs. 0,00',
+      `Bs. ${fmtBs((r.multaExtraBs || 0) + (r.multasManualesBs || 0))}`
+    ]);
+  }
+
+  autoTable(doc, {
+    startY: y,
+    margin: { top: 43 },
+    head: [['Período / Mes', 'Base Aseo', 'Multa', 'IVA (16%)', 'Retención IVA', 'Total']],
+    body: rows,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [241, 245, 249],
+      textColor: [30, 41, 59],
+      fontStyle: 'bold',
+      lineColor: [203, 213, 225],
+      lineWidth: 0.2,
+      halign: 'center',
+      fontSize: 8
+    },
+    styles: { fontSize: 7.5, cellPadding: 2 },
+    columnStyles: {
+      0: { cellWidth: 46 },
+      1: { cellWidth: 26, halign: 'right' },
+      2: { cellWidth: 26, halign: 'right' },
+      3: { cellWidth: 26, halign: 'right' },
+      4: { cellWidth: 28, halign: 'right', textColor: [180, 83, 9] },
+      5: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+    },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+        drawHeader(data.pageNumber, (doc.internal as any).getNumberOfPages());
+      }
+    }
+  });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 8;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(2, 132, 199);
+  doc.text(`TOTAL NETO A PAGAR: Bs. ${fmtBs(r.totalBs || 0)}`, 196, finalY, { align: 'right' });
+
+  const totalPages = (doc.internal as any).getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFillColor(255, 255, 255);
+    doc.rect(170, 34, 30, 4, 'F');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Página ${i} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
+  }
+
+  const codInm = (r.inmueble || r.numero || 'Unidad').replace(/[^a-zA-Z0-9_-]/g, '_');
+  doc.save(`Estado_Cuenta_${codInm}_${c.codigo}_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+

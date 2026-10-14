@@ -84,7 +84,7 @@ export async function PATCH(req: Request) {
     if ('multa_meses' in upd) upd.multa_meses = Math.max(0, parseInt(upd.multa_meses) || 0);
     if (cambios && 'meses' in cambios) {
       const nuevo = pendienteDesdeParaMeses(Math.max(0, parseInt(cambios.meses) || 0));
-      if (mesesPendientes(nuevo) !== mesesPendientes(antes.aseo_pendiente_desde)) upd.aseo_pendiente_desde = nuevo;
+      upd.aseo_pendiente_desde = nuevo;
     }
     if (Object.keys(upd).length === 0) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
 
@@ -103,13 +103,13 @@ export async function PATCH(req: Request) {
       await sb.from('inmuebles').update(inmUpd).eq('inmueble', antes.codigo);
     }
 
-    // Sincronizar meses en las unidades que seguían la fecha del condominio. Las unidades con otra fecha
-    // (pagaron por su cuenta o tienen ajuste propio) NO se tocan: un mes pagado nunca debe volver a salir.
+    // Sincronizar meses en todas las unidades del condominio
     if ('aseo_pendiente_desde' in upd) {
-      if (antes.aseo_pendiente_desde) {
-        await sb.from('condominio_unidades').update({ aseo_pendiente_desde: upd.aseo_pendiente_desde }).eq('condominio_id', antes.id).eq('aseo_pendiente_desde', antes.aseo_pendiente_desde);
-      }
-      await sb.from('condominio_unidades').update({ aseo_pendiente_desde: upd.aseo_pendiente_desde }).eq('condominio_id', antes.id).is('aseo_pendiente_desde', null);
+      await sb.from('condominio_unidades').update({ aseo_pendiente_desde: upd.aseo_pendiente_desde }).eq('condominio_id', antes.id);
+    }
+    if ('multa_meses' in upd && Number(upd.multa_meses) === 0) {
+      await sb.from('condominio_unidades').update({ multa_meses: 0, multa_exonerada_hasta: upd.aseo_pendiente_desde || antes.aseo_pendiente_desde }).eq('condominio_id', antes.id);
+      await sb.from('condominio_multas').update({ estado: 'Anulada', motivo_anulacion: motivo }).eq('condominio_id', antes.id).eq('estado', 'Pendiente');
     }
 
     // Sincronizar el campo agente_retencion en la tabla inmuebles para el inmueble principal del condominio

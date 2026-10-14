@@ -163,6 +163,7 @@ export default function AuditoriaPage() {
   const [datePreset, setDatePreset] = useState<'all' | 'today' | 'yesterday' | '7days' | 'month'>('all');
   const [selectedLog, setSelectedLog] = useState<any>(null);
   const [copiedJson, setCopiedJson] = useState(false);
+  const [modoDios, setModoDios] = useState(false);
 
   // Manejo de presets de fechas
   const applyDatePreset = (preset: 'all' | 'today' | 'yesterday' | '7days' | 'month') => {
@@ -203,6 +204,7 @@ export default function AuditoriaPage() {
       if (filterDateTo)   params.set('hasta', filterDateTo);
       if (filterUser)     params.set('usuario', filterUser);
       if (filterCat !== 'TODAS') params.set('categoria', filterCat);
+      if (modoDios)       params.set('modo_dios', '1');
       const res = await fetch(`/api/admin/auditoria?${params.toString()}`, { cache: 'no-store' });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -212,7 +214,7 @@ export default function AuditoriaPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterDateFrom, filterDateTo, filterUser, filterCat]);
+  }, [filterDateFrom, filterDateTo, filterUser, filterCat, modoDios]);
 
   useEffect(() => {
     fetchLogs();
@@ -363,6 +365,17 @@ export default function AuditoriaPage() {
         </div>
 
         <div className="flex items-center gap-2.5 print:hidden">
+          <button
+            onClick={() => setModoDios(m => !m)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer ${
+              modoDios
+                ? 'bg-fuchsia-600 text-white hover:bg-fuchsia-700 shadow-fuchsia-200'
+                : 'bg-white border border-fuchsia-300 text-fuchsia-700 hover:bg-fuchsia-50'
+            }`}
+            title="Ver auditoría exclusiva de cambios en Modo Dios"
+          >
+            ⚡ {modoDios ? 'Modo Dios (Activo)' : 'Ver Modo Dios'}
+          </button>
           <button
             onClick={() => window.print()}
             title="Imprimir reporte formal"

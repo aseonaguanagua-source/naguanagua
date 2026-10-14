@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle } from 'lucide-react';
+import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle, Award, FileText } from 'lucide-react';
 import { ordenanzaData } from '@/data/ordenanza';
 import { actividadConNivel, nivelActividad, quitarNivelActividad, resolverFOComercial } from '@/lib/calculos';
 import { mesesPendientes } from '@/lib/condominios/motor';
@@ -296,11 +296,46 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           {err && <div className="rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs px-3 py-2">{err}</div>}
         </div>
 
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cerrar</button>
-          <button id="btn-guardar-unidad" onClick={guardar} disabled={guardando} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 cursor-pointer disabled:opacity-50">
-            {guardando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {nueva ? 'Agregar unidad' : 'Guardar cambios'}
-          </button>
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            {!nueva && renglon && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
+                  generarPdfEstadoCuentaUnidad(condo, renglon, condo.tarifa_mmv || 0, usuario);
+                }}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 cursor-pointer shadow-2xs"
+                title="Descargar Estado de Cuenta de esta unidad"
+              >
+                <FileText className="w-4 h-4" /> Estado de Cuenta
+              </button>
+            )}
+            {!nueva && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const deuda = renglon ? renglon.totalBs : (f.meses > 0 ? 100 : 0);
+                  const { emitirSolvenciaUnidad } = await import('@/lib/condominios/pdfSolvenciaCondominio');
+                  await emitirSolvenciaUnidad(condo, { ...unidad, ...f }, deuda);
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
+                  (renglon ? renglon.totalBs : (f.meses > 0 ? 100 : 0)) <= 0.01
+                    ? 'border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800'
+                    : 'border border-slate-300 bg-white hover:bg-slate-50 text-slate-600'
+                }`}
+                title="Emitir Certificado de Solvencia para esta unidad"
+              >
+                <Award className="w-4 h-4" /> Solvencia de esta unidad
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer">Cerrar</button>
+            <button id="btn-guardar-unidad" onClick={guardar} disabled={guardando} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 cursor-pointer disabled:opacity-50">
+              {guardando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {nueva ? 'Agregar unidad' : 'Guardar cambios'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

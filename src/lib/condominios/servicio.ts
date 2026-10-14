@@ -167,9 +167,21 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     const exonerados = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
     // En INDIVIDUAL, cada unidad paga lo suyo, así que se usa su retención. En las demás, el condominio factura el Aseo.
     const esAgente = c.modalidad === 'INDIVIDUAL' ? (u ? !!u.agente_retencion : false) : !!c.agente_retencion;
-    const deuda = M.deudaPorMeses(meses, r.montoBs, res, esAgente, exonerados);
+    const periodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
+    let basesPorMes: number[] | number = r.montoBs;
+    if (u?.desocupada_desde && periodos.length > 0) {
+      const tDesoc = M.tarifaDesocupadaBs(tasa);
+      const mmvActiva = Number(u.tarifa_activa_mmv || u.tarifa_mmv) || 3.77;
+      const tActiva = r2(mmvActiva * 57 * tasa * 0.128);
+      basesPorMes = periodos.map(p => {
+        const esDesoc = p >= u.desocupada_desde && (!u.desocupada_hasta || p <= u.desocupada_hasta);
+        return esDesoc ? tDesoc : tActiva;
+      });
+    }
+    const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados);
     const multaMeses = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
-    const multaExtraBs = r2((r.montoBs * tMulta * multaMeses) + (Number(u?.multa_bs) || 0));
+    const baseParaMultaExtra = Array.isArray(basesPorMes) ? (basesPorMes[basesPorMes.length - 1] || r.montoBs) : r.montoBs;
+    const multaExtraBs = r2((baseParaMultaExtra * tMulta * multaMeses) + (Number(u?.multa_bs) || 0));
     const manuales = multasPend.filter(m => (u ? m.unidad_id === u.id : !m.unidad_id))
       .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
     const multasManualesBs = r2(manuales.reduce((a, m) => a + m.montoBs, 0));
@@ -241,13 +253,33 @@ export async function cargarCondominio(codigo: string) {
   const unidades = rawUnidades.map((u: any) => {
     const inf = agentes.get(u.inmueble) || {};
     let extras = [];
+    let desocupada_desde = null;
+    let desocupada_hasta = null;
+    let tarifa_activa_mmv = null;
+    let tarifa_desocupada_mmv = null;
     try {
       if (inf.notas) {
         const j = JSON.parse(inf.notas);
         if (j.actividades_extra) extras = j.actividades_extra;
+        if (j.desocupada_desde) desocupada_desde = j.desocupada_desde;
+        if (j.desocupada_hasta) desocupada_hasta = j.desocupada_hasta;
+        if (j.tarifa_activa_mmv) tarifa_activa_mmv = j.tarifa_activa_mmv;
+        if (j.tarifa_desocupada_mmv) tarifa_desocupada_mmv = j.tarifa_desocupada_mmv;
       }
     } catch (e) {}
-    return { ...u, padre_inmueble: inf.padre_id || null, agente_retencion: !!inf.agente_retencion, multa_bs: parseFloat(inf.multa_bs || '0'), telefono: inf.telefono || '', correo: inf.correo_electronico || '', actividades_extra: extras };
+    return {
+      ...u,
+      padre_inmueble: inf.padre_id || null,
+      agente_retencion: !!inf.agente_retencion,
+      multa_bs: parseFloat(inf.multa_bs || '0'),
+      telefono: inf.telefono || '',
+      correo: inf.correo_electronico || '',
+      actividades_extra: extras,
+      desocupada_desde,
+      desocupada_hasta,
+      tarifa_activa_mmv,
+      tarifa_desocupada_mmv
+    };
   });
   
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(300);

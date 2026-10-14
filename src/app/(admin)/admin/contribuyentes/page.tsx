@@ -713,6 +713,7 @@ function ContribuyentesPageContent() {
   const imprimirEstadoDeCuenta = async (targetInmueble?: string, modo: 'separados' | 'unificado' = 'separados') => {
     if (!viewData) return;
 
+    const tasaValida = tcmmv && tcmmv > 0 ? tcmmv : 982.75895071;
     const idLimpio = (viewData.Identidad || '').replace(/-/g, '').toUpperCase();
 
     // 1. Obtener facturas pendientes (priorizar viewFacturasDb o consultar DB)
@@ -1023,7 +1024,7 @@ function ContribuyentesPageContent() {
       let maxMesesCluster = 0;
 
       const clusterInmBreakdown = cluster.inmuebles.map((inm: any) => {
-        const bMes = calcularMensualidad(inm, tcmmv);
+        const bMes = calcularMensualidad(inm, tasaValida);
         const iMes = esRes ? 0 : (bMes * 0.16);
         // Misma regla que Caja / construirRecibosContribuyente: si meses_deuda = 0 pero tiene deuda_mmv
         // (o deuda congelada), cuenta como 1 mes pendiente.
@@ -1065,7 +1066,7 @@ function ContribuyentesPageContent() {
       });
 
       const numMesesTotal = clusterDeudas.length > 0 ? clusterDeudas.length : maxMesesCluster;
-      const baseMensualLocal = cluster.inmuebles.reduce((sum: number, inm: any) => sum + calcularMensualidad(inm, tcmmv), 0);
+      const baseMensualLocal = cluster.inmuebles.reduce((sum: number, inm: any) => sum + calcularMensualidad(inm, tasaValida), 0);
       const ivaMensualLocal = esRes ? 0 : (baseMensualLocal * 0.16);
       const totalMensualLocal = baseMensualLocal + ivaMensualLocal;
       const maxExoneradosCluster = cluster.inmuebles.reduce((max: number, inm: any) => Math.max(max, getMesesExoneradosCount(inm.notas)), 0);
@@ -1194,7 +1195,7 @@ function ContribuyentesPageContent() {
       y += (splitDir.length * 4) + 2;
 
       // ── DATOS DE LA DEUDA (formato oficial) ──
-      const ucdValor = valorUCD(tcmmv);
+      const ucdValor = valorUCD(tasaValida);
       const fmtN = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
@@ -1213,7 +1214,7 @@ function ContribuyentesPageContent() {
       doc.setFont('helvetica', 'normal');
       doc.text('Tasa Euro BCV:', 135, y);
       doc.setFont('helvetica', 'bold');
-      doc.text(fmtN(tcmmv), 196, y, { align: 'right' });
+      doc.text(fmtN(tasaValida), 196, y, { align: 'right' });
       y += 3;
 
       doc.setDrawColor(210, 210, 210);
@@ -1235,7 +1236,7 @@ function ContribuyentesPageContent() {
         const actRows = cluster.inmuebles.map((inm: any) => {
           const actName = stripNivel(inm.actividad_principal || 'Actividad Comercial');
           const fo = inm.mmv_mes ? parseFloat(inm.mmv_mes) : getFO(actName, false);
-          const bMes = calcularMensualidad(inm, tcmmv);
+          const bMes = calcularMensualidad(inm, tasaValida);
           const iMes = bMes * 0.16;
           const tMes = bMes + iMes;
           return [
@@ -1318,8 +1319,8 @@ function ContribuyentesPageContent() {
       }
 
       resumenRows.push(['Total Estado de Cuenta Bs.:', `Bs. ${totalPagarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
-      if (valorUCD(tcmmv) > 0) {
-        resumenRows.push(['Total Estado de Cuenta UCD:', `${(totalPagarLocal / valorUCD(tcmmv)).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} UCD`]);
+      if (valorUCD(tasaValida) > 0) {
+        resumenRows.push(['Total Estado de Cuenta UCD:', `${(totalPagarLocal / valorUCD(tasaValida)).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} UCD`]);
       }
       if (esAgenteLocal) {
         resumenRows.push(
@@ -1446,7 +1447,7 @@ function ContribuyentesPageContent() {
       // ── TABLA OFICIAL MES A MES (modelo ESTADO DE CUENTA INDIVIDUAL / CON VARIAS ACTIVIDADES) ──
       // Cada actividad (o N/A) aporta sus meses; el mes muestra la suma y debajo el detalle por actividad.
       // Las multas van en los meses más antiguos (el último mes no lleva multa), igual que los totales.
-      const ucdV = valorUCD(tcmmv);
+      const ucdV = valorUCD(tasaValida);
       const f2 = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const f4 = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
       const porMes = new Map<string, { fecha: Date; base: number; multa: number; iva: number; acts: { act: string; cod: string; monto: number }[] }>();
@@ -1619,14 +1620,16 @@ function ContribuyentesPageContent() {
         }
       }
       
-      // Detección de Condominios: si la búsqueda coincide con un condominio (padre o hijo)
-      const isCondoSearch = allFoundInmuebles.some((i: any) => 
-        (i.inmueble === term || i.condominio_padre_id === term) && 
-        (i.es_condominio || i.condominio_padre_id || parseInt(i.cant_inmuebles || '0') > 1)
+      // Detección de Condominio Padre: solo si la búsqueda coincide directamente con el inmueble matriz del condominio
+      const isCondoPadreSearch = allFoundInmuebles.some((i: any) => 
+        i.es_condominio && (i.inmueble === term || parseInt(i.cant_inmuebles || '0') > 1)
       );
       
-      if (isCondoSearch) {
-        alert('Este código o contribuyente pertenece a un condominio. Por favor, realice la gestión desde el módulo de Condominios -> Ficha.');
+      if (isCondoPadreSearch) {
+        const condoPadre = allFoundInmuebles.find((i: any) => i.es_condominio);
+        if (confirm(`El código "${term}" corresponde al Condominio matriz "${condoPadre?.contribuyente || ''}".\n¿Desea ir a la Ficha del Condominio?`)) {
+          window.location.href = `/admin/condominios/ficha?codigo=${condoPadre?.inmueble || term}`;
+        }
         setIsSearchingServer(false);
         setServerSearchTerm('');
         return;
@@ -3808,9 +3811,21 @@ function ContribuyentesPageContent() {
               
               {/* Ficha de Censo Inmobiliario */}
               {(() => {
-                const userInms = inmuebles.filter((i: any) =>
-                  (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase() && i.estado !== 'Eliminado'
+                const userIdent = (viewData?.Identidad || '').replace(/-/g,'').toUpperCase();
+                const parentCodes = new Set(
+                  inmuebles
+                    .filter((i: any) => (i.identidad || '').replace(/-/g,'').toUpperCase() === userIdent && i.estado !== 'Eliminado')
+                    .map((i: any) => i.inmueble)
+                    .filter(Boolean)
                 );
+                const userInms = inmuebles.filter((i: any) => {
+                  if (i.estado === 'Eliminado') return false;
+                  const iid = (i.identidad || '').replace(/-/g,'').toUpperCase();
+                  if (iid === userIdent) return true;
+                  if (i.padre_id && parentCodes.has(i.padre_id)) return true;
+                  if (i.condominio_padre_id && parentCodes.has(i.condominio_padre_id)) return true;
+                  return false;
+                });
                 
                 if (userInms.length === 0) return null;
                 
@@ -3820,7 +3835,7 @@ function ContribuyentesPageContent() {
                       <FileText className="w-4 h-4 text-slate-500" /> Ficha del Censo Inmobiliario
                     </h4>
                     <div className="space-y-3">
-                      {userInms.filter((i: any) => !i.es_condominio && !i.condominio_padre_id && parseInt(i.cant_inmuebles || '1') <= 1).map((inm: any, idx: number, arrInm: any[]) => (
+                      {userInms.filter((i: any) => (!i.es_condominio && parseInt(i.cant_inmuebles || '1') <= 1) || (i.padre_id && parentCodes.has(i.padre_id))).map((inm: any, idx: number, arrInm: any[]) => (
                         <div key={idx} className="bg-white p-3 rounded border border-slate-200 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                           <div className="col-span-2 md:col-span-4 border-b border-slate-100 pb-2 mb-1 flex items-center justify-between flex-wrap gap-2">
                             <div className="flex items-center gap-2 flex-wrap">

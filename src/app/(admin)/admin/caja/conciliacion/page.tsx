@@ -1235,7 +1235,27 @@ export default function ConciliacionPage() {
         if (!soloVerificacion && filtros.hasta) { const d = new Date(filtros.hasta + 'T04:00:00Z'); d.setDate(d.getDate()+1); q = q.lte('created_at', d.toISOString()); }
         if (filtros.estatus !== 'Todos') q = q.eq('estado', filtros.estatus);
         if (filtros.formaPago !== 'Todos') q = q.eq('tipo', filtros.formaPago);
-        if (filtros.referencia) q = q.ilike('referencia', '%' + filtros.referencia + '%');
+        if (filtros.referencia && filtros.referencia.trim()) {
+          const term = filtros.referencia.trim();
+          const rifsMatching = Array.from(condos.values())
+            .filter((c: any) => (c.nombre || '').toLowerCase().includes(term.toLowerCase()) || 
+                                (c.codigo || '').toLowerCase().includes(term.toLowerCase()) || 
+                                (c.identidad || '').toLowerCase().includes(term.toLowerCase()))
+            .map((c: any) => c.identidad)
+            .filter(Boolean);
+          const orParts = [
+            `referencia.ilike.%${term}%`,
+            `identidad.ilike.%${term}%`,
+            `detalles->condominio->>nombre.ilike.%${term}%`,
+            `detalles->condominio->>codigo.ilike.%${term}%`,
+            `detalles->>condominio_nombre.ilike.%${term}%`,
+            `detalles->>contribuyente.ilike.%${term}%`
+          ];
+          if (rifsMatching.length > 0) {
+            orParts.push(`identidad.in.(${rifsMatching.slice(0, 50).join(',')})`);
+          }
+          q = q.or(orParts.join(','));
+        }
         if (filtros.monto) q = q.eq('monto', filtros.monto);
         return q;
       };
@@ -1256,6 +1276,19 @@ export default function ConciliacionPage() {
         result = data || [];
       }
       result = result.filter((p: any) => pasaFiltroModulo(p, filtros.modulo, condos));
+      if (filtros.referencia && filtros.referencia.trim()) {
+        const t = filtros.referencia.trim().toLowerCase();
+        result = result.filter((p: any) => {
+          const ref = (p.referencia || '').toLowerCase();
+          const iden = (p.identidad || '').toLowerCase();
+          const det = parseDetalles(p.detalles);
+          const condo = infoCondominioPago(p, condos);
+          const condoNom = (condo?.nombre || det.condominio?.nombre || det.condominio_nombre || '').toLowerCase();
+          const condoCod = (condo?.codigo || det.condominio?.codigo || '').toLowerCase();
+          const cont = (det.contribuyente || p.contribuyente || '').toLowerCase();
+          return ref.includes(t) || iden.includes(t) || condoNom.includes(t) || condoCod.includes(t) || cont.includes(t);
+        });
+      }
       if (filtros.bancoDestino !== 'Todos') {
         result = result.filter((p: any) => {
           const det = parseDetalles(p.detalles);
@@ -1382,7 +1415,7 @@ export default function ConciliacionPage() {
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Estatus</label><select value={filtros.estatus} onChange={e=>setFiltros(f=>({...f,estatus:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{ESTATUS_LIST.map(s=><option key={s}>{s}</option>)}</select></div>
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Banco Destino</label><select value={filtros.bancoDestino} onChange={e=>setFiltros(f=>({...f,bancoDestino:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{BANCOS_DESTINO.map(b=><option key={b}>{b}</option>)}</select></div>
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Forma de pago</label><select value={filtros.formaPago} onChange={e=>setFiltros(f=>({...f,formaPago:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{FORMAS_PAGO.map(fp=><option key={fp}>{fp}</option>)}</select></div>
-              <div><label className="block text-xs font-semibold text-slate-500 mb-1">Referencia de Pago</label><input value={filtros.referencia} onChange={e=>setFiltros(f=>({...f,referencia:e.target.value}))} placeholder="Referencia..." className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
+              <div><label className="block text-xs font-semibold text-slate-500 mb-1">Ref / RIF / Condominio</label><input value={filtros.referencia} onChange={e=>setFiltros(f=>({...f,referencia:e.target.value}))} placeholder="Buscar ref, RIF o nombre..." className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Monto</label><input value={filtros.monto} onChange={e=>setFiltros(f=>({...f,monto:e.target.value}))} placeholder="Monto exacto" type="number" className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
               <div><label className="block text-xs font-semibold text-emerald-700 mb-1">Módulo</label><select id="filtro-modulo-conciliacion" value={filtros.modulo} onChange={e=>setFiltros(f=>({...f,modulo:e.target.value as FiltroModulo}))} className="w-full border border-emerald-300 bg-emerald-50/40 rounded px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400">{FILTROS_MODULO.map(x=><option key={x}>{x}</option>)}</select></div>
             </div>

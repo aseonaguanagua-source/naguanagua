@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Building2, Search, RefreshCw, AlertTriangle, CheckCircle2, Wallet, CalendarClock,
-  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download, Pencil
+  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download, Pencil, Award
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 
@@ -98,6 +98,11 @@ export default function CondominiosPage() {
     })));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Condominios');
     XLSX.writeFile(wb, `Condominios_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleEmitirSolvencia = async (condo: any) => {
+    const { emitirSolvenciaCondominio } = await import('@/lib/condominios/pdfSolvenciaCondominio');
+    await emitirSolvenciaCondominio(condo, condo.deudaBs);
   };
 
   return (
@@ -284,13 +289,14 @@ export default function CondominiosPage() {
                 <th className="text-right py-2.5 px-3">Mensualidad</th>
                 <th className="text-center py-2.5 px-3">Meses</th>
                 <th className="text-right py-2.5 px-4">Deuda</th>
+                <th className="text-center py-2.5 px-3">Solvencia</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {cargando && !datos ? (
-                <tr><td colSpan={6} className="py-12 text-center text-slate-500"><RefreshCw className="w-5 h-5 animate-spin inline mr-2" /> Calculando condominios…</td></tr>
+                <tr><td colSpan={7} className="py-12 text-center text-slate-500"><RefreshCw className="w-5 h-5 animate-spin inline mr-2" /> Calculando condominios…</td></tr>
               ) : visibles.length === 0 ? (
-                <tr><td colSpan={6} className="py-12 text-center text-slate-500">No hay condominios con ese filtro.</td></tr>
+                <tr><td colSpan={7} className="py-12 text-center text-slate-500">No hay condominios con ese filtro.</td></tr>
               ) : visibles.map((f: any) => (
                 <tr key={f.codigo} onClick={() => router.push(`/admin/condominios/ficha?codigo=${f.codigo}`)} className="hover:bg-emerald-50/50 cursor-pointer transition-colors">
                   <td className="py-3 px-4">
@@ -317,6 +323,25 @@ export default function CondominiosPage() {
                     <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-black border ${f.deudaBs > 0.01 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
                       {f.deudaBs > 0.01 ? 'Insolvente' : 'Solvente'}
                     </span>
+                  </td>
+                  <td className="py-3 px-3 text-center" onClick={ev => ev.stopPropagation()}>
+                    {f.deudaBs <= 0.01 ? (
+                      <button
+                        onClick={() => handleEmitirSolvencia(f)}
+                        title="Descargar Certificado de Solvencia Oficial con QR"
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] inline-flex items-center gap-1 cursor-pointer shadow-xs transition-all hover:scale-105"
+                      >
+                        <Award className="w-3.5 h-3.5" /> Solvencia
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => alert(`El condominio "${f.nombre}" presenta una deuda pendiente de Bs ${fmtBs(f.deudaBs)}.\nDebe cancelar la deuda antes de emitir la solvencia.`)}
+                        title={`Insolvente: deuda pendiente de Bs ${fmtBs(f.deudaBs)}`}
+                        className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-400 font-bold text-[10px] inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Award className="w-3.5 h-3.5 opacity-40" /> Bloqueada
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
