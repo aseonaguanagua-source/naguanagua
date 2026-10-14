@@ -124,7 +124,8 @@ export default function FacturacionElectronicaPage() {
           pagoId: pago.id,
           usuario: adminUser?.usuario,
           contribuyente: pago.contribuyente,
-          identidad: pago.identidad
+          identidad: pago.identidad,
+          numeroFactura: pago.numeroDocumento || pago.numeroControl
         }),
       });
       const d = await r.json();
@@ -1016,7 +1017,13 @@ export default function FacturacionElectronicaPage() {
                                     try {
                                       const r = await fetch('/api/admin/factura-digital/anular', {
                                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ pagoId: pago.id, usuario: adminUser?.usuario, contribuyente: pago.contribuyente, identidad: pago.identidad }),
+                                        body: JSON.stringify({
+                                          pagoId: pago.id,
+                                          usuario: adminUser?.usuario,
+                                          contribuyente: pago.contribuyente,
+                                          identidad: pago.identidad,
+                                          numeroFactura: pago.numeroDocumento || pago.numeroControl
+                                        }),
                                       });
                                       const d = await r.json();
                                       if (!r.ok) { alert(d.error || 'No se pudo anular'); setAnularEstado(null); return; }

@@ -89,7 +89,8 @@ export async function POST(request: Request) {
     const { 
       pagoId, recibos, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
-      correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario
+      correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
+      numeroFactura
     } = await request.json();
     // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
     const totalManualNum = Math.round((parseFloat(String(totalManual ?? 0)) || 0) * 100) / 100;
@@ -123,7 +124,12 @@ export async function POST(request: Request) {
        return NextResponse.json({ error: 'La factura no está emitida o ya fue anulada.' }, { status: 400 });
     }
     
-    const facturaAfectada = dm.factura_digital.numero;
+    const facturaAfectada = numeroFactura || 
+      dm.factura_digital?.numero_documento || 
+      dm.factura_digital?.numero || 
+      dm.factura_digital?.tfhka_seq || 
+      dm.factura_digital?.raw_response?.resultado?.numeroDocumento ||
+      (dm.factura_digital?.numero_control ? String(parseInt(String(dm.factura_digital.numero_control).replace(/^00-0*/, '') || '0', 10)) : null);
     if (!facturaAfectada) return NextResponse.json({ error: 'Falta el número de factura afectada.' }, { status: 400 });
 
 
@@ -740,8 +746,8 @@ export async function POST(request: Request) {
             NumeroExpedienteImportacion:  null,
             SerieFacturaAfectada:         null,
             NumeroFacturaAfectada:        String(facturaAfectada),
-            FechaFacturaAfectada:         dm.factura_digital?.fecha ? formatearFecha(dm.factura_digital.fecha.split('T')[0]) : formatearFecha(fechaActual.toISOString()),
-            MontoFacturaAfectada:         dm.factura_digital?.montoTotal ? String(dm.factura_digital.montoTotal) : null,
+            FechaFacturaAfectada:         (dm.factura_digital?.fecha_emision || dm.factura_digital?.fecha) ? formatearFecha((dm.factura_digital.fecha_emision || dm.factura_digital.fecha).split('T')[0]) : formatearFecha(fechaActual.toISOString()),
+            MontoFacturaAfectada:         dm.factura_digital?.montoTotal ? String(dm.factura_digital.montoTotal) : totalAPagar.toFixed(2),
             ComentarioFacturaAfectada:    "Anulación de Factura",
             RegimenEspTributacion:        null,
             FechaEmision:                 formatearFecha(fechaActual.toISOString()),
