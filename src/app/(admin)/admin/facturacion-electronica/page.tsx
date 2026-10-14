@@ -1036,6 +1036,16 @@ export default function FacturacionElectronicaPage() {
                                   <span>{anularEstado?.pago?.id === pago.id && anularEstado?.cargando ? 'Anulando...' : 'Anular'}</span>
                                 </button>
                               )}
+                              {pago.facturaAnulada && (
+                                <button
+                                  onClick={() => handleOpenEmitModal(pago)}
+                                  className="text-[11px] bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                  title="Reemitir Factura Digital corregida a The Factory HKA"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-[#c8e64c]" />
+                                  <span>Reemitir</span>
+                                </button>
+                              )}
                             </>
                           ) : (
                             <>

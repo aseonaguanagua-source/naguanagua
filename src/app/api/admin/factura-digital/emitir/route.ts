@@ -880,8 +880,8 @@ export async function POST(request: Request) {
     if (isTfhkaEnabled) {
       console.log(`[TFHKA] Enviando Factura Real para pago ${pagoId}`);
       try {
-        // Evitar doble emisión real del mismo pago
-        if (nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated) {
+        // Evitar doble emisión real del mismo pago (si está anulada sí se permite reemitir)
+        if (nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated && !nuevosDetalles.factura_digital?.anulada) {
           return NextResponse.json({ success: true, yaEmitida: true, url: nuevosDetalles.factura_digital.url, numeroControl: nuevosDetalles.factura_digital.numero_control });
         }
 
@@ -908,6 +908,12 @@ export async function POST(request: Request) {
         }
 
         delete nuevosDetalles.factura_digital_error;
+        if (nuevosDetalles.factura_digital?.anulada) {
+          nuevosDetalles.facturas_digitales_previas = [
+            ...(nuevosDetalles.facturas_digitales_previas || []),
+            nuevosDetalles.factura_digital
+          ];
+        }
         nuevosDetalles.factura_digital = {
           emitida:          true,
           url:              finalUrl || null,
