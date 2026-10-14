@@ -87,7 +87,7 @@ function formatearFecha(isoString: string): string {
 export async function POST(request: Request) {
   try {
     const { 
-      pagoId, recibos, montos: montosBody, contribuyente, identidad, formasPago, 
+      pagoId, recibos: recibosBody, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
       correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
       numeroFactura
@@ -116,9 +116,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Solo los administradores, isamar y raquel pueden anular facturas.' }, { status: 403 });
     }
 
-    const { data: pagoMontos } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
-    let dm: any = pagoMontos?.detalles || {};
+    const { data: pagoRow } = await supabase
+      .from('pagos_reportados')
+      .select('id, identidad, monto, banco, referencia, tipo, detalles, created_at, modulo')
+      .eq('id', pagoId)
+      .maybeSingle();
+
+    if (!pagoRow) {
+      return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 });
+    }
+
+    let dm: any = pagoRow?.detalles || {};
     if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
+    let detPago = dm;
     
     if (!dm?.factura_digital?.emitida || dm?.factura_digital?.anulada) {
        return NextResponse.json({ error: 'La factura no está emitida o ya fue anulada.' }, { status: 400 });
@@ -132,6 +142,11 @@ export async function POST(request: Request) {
       (dm.factura_digital?.numero_control ? String(parseInt(String(dm.factura_digital.numero_control).replace(/^00-0*/, '') || '0', 10)) : null);
     if (!facturaAfectada) return NextResponse.json({ error: 'Falta el número de factura afectada.' }, { status: 400 });
 
+    const identResuelta = (identidad || pagoRow.identidad || dm.identidad || '').trim();
+    const contribResuelto = (contribuyente || dm.contribuyente || '').trim();
+    const recibos: string[] = Array.isArray(recibosBody) && recibosBody.length > 0 
+      ? recibosBody 
+      : (Array.isArray(dm.recibos) ? dm.recibos : []);
 
     // REGLA: las multas de inmuebles COMERCIALES se facturan (ítem exento), incluso si el pago es solo multa
     // (p. ej. local de un condominio comercial). Las multas residenciales nunca se facturan.
@@ -139,9 +154,6 @@ export async function POST(request: Request) {
     const montos: Record<string, any> = montosBody && typeof montosBody === 'object' ? montosBody : {};
     let montosMulta: Record<string, any> = { ...montos };
     if (Array.isArray(recibos) && recibos.some((r: string) => /^MULTA-/i.test(String(r)) && !montos[r])) {
-      const { data: pagoMontos } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
-      let dm: any = pagoMontos?.detalles || {};
-      if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
       if (dm?.montos && typeof dm.montos === 'object') montosMulta = { ...dm.montos, ...montos };
     }
 
@@ -150,18 +162,13 @@ export async function POST(request: Request) {
     // Los montos salen de los renglones guardados en el pago (no de Contribuyentes: los datos no se cruzan).
     let lineasCondo: any[] | null = null;
     let condoDet: any = null;
-    {
-      const { data: pm } = await supabase.from('pagos_reportados').select('modulo, detalles').eq('id', pagoId).maybeSingle();
-      let dm: any = pm?.detalles || {};
-      if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
-      if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
-        lineasCondo = dm.condominio.lineas; condoDet = dm.condominio;
-      }
+    if ((pagoRow?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
+      lineasCondo = dm.condominio.lineas; condoDet = dm.condominio;
     }
 
     // --- BUSINESS RULE: Only emit invoices for Commercial properties ---
-    const idNaked = identidad.replace(/^[VJGEP]-?/i, '');
-    const idVariants = [identidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];
+    const idNaked = (identResuelta || '').replace(/^[VJGEP]-?/i, '');
+    const idVariants = [identResuelta, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`].filter(Boolean);
     const { data: userProps, error: propsErr } = await supabase
       .from('inmuebles')
       .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes')
@@ -187,9 +194,9 @@ export async function POST(request: Request) {
       !isComercial &&
       activeProps.length === 0 &&
       (isCondominio ||
-        (contribuyente || '').toUpperCase().includes('CENTRO COMERCIAL') ||
-        identidad.startsWith('J') ||
-        identidad.startsWith('G'))
+        (contribResuelto || '').toUpperCase().includes('CENTRO COMERCIAL') ||
+        identResuelta.startsWith('J') ||
+        identResuelta.startsWith('G'))
     ) {
       isComercial = true;
     }
@@ -211,21 +218,12 @@ export async function POST(request: Request) {
     const fechaActual = new Date();
     const horaStr = fechaActual.toLocaleTimeString('en-US', { timeZone: 'America/Caracas', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase().replace(/[\s\u202f\u00a0]+/g, ' ');
 
-    // Datos reales del pago registrado en caja (leídos temprano para fechas y snapshots de deuda)
-    const { data: pagoRow } = await supabase
-      .from('pagos_reportados')
-      .select('monto, banco, referencia, tipo, detalles, created_at')
-      .eq('id', pagoId)
-      .maybeSingle();
-    let detPago: any = pagoRow?.detalles || {};
-    if (typeof detPago === 'string') { try { detPago = JSON.parse(detPago); } catch { detPago = {}; } }
-
-    const { data: facturasBD } = lineasCondo ? { data: [] as any[] } : await supabase.from('facturas').select('*').in('referencia', recibos);
+    const { data: facturasBD } = (lineasCondo || recibos.length === 0) ? { data: [] as any[] } : await supabase.from('facturas').select('*').in('referencia', recibos);
 
     const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     // Para RECIB-HIST-*, buscar en inmuebles (no están en tabla facturas)
-    const histRecibos = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
+    const histRecibos = (recibos || []).filter((r: string) => typeof r === 'string' && r.startsWith('RECIB-HIST-'));
     const histItems: any[] = [];
     let excluidosResidenciales = 0;
     if (histRecibos.length > 0) {

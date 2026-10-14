@@ -125,7 +125,8 @@ export default function FacturacionElectronicaPage() {
           usuario: adminUser?.usuario,
           contribuyente: pago.contribuyente,
           identidad: pago.identidad,
-          numeroFactura: pago.numeroDocumento || pago.numeroControl
+          numeroFactura: pago.numeroDocumento || pago.numeroControl,
+          recibos: pago.recibos || []
         }),
       });
       const d = await r.json();
@@ -1022,7 +1023,8 @@ export default function FacturacionElectronicaPage() {
                                           usuario: adminUser?.usuario,
                                           contribuyente: pago.contribuyente,
                                           identidad: pago.identidad,
-                                          numeroFactura: pago.numeroDocumento || pago.numeroControl
+                                          numeroFactura: pago.numeroDocumento || pago.numeroControl,
+                                          recibos: pago.recibos || [],
                                         }),
                                       });
                                       const d = await r.json();
