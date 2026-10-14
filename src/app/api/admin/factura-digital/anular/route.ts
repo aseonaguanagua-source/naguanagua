@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       pagoId, recibos: recibosBody, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
       correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
-      numeroFactura
+      numeroFactura, forzarMarcadoAnulada
     } = await request.json();
     // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
     const totalManualNum = Math.round((parseFloat(String(totalManual ?? 0)) || 0) * 100) / 100;
@@ -99,21 +99,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Faltan datos obligatorios (pagoId requerido)' }, { status: 400 });
     }
 
-    if (!usuario) {
-      return NextResponse.json({ error: 'Falta usuario' }, { status: 401 });
-    }
-
-    const u = String(usuario).trim().toLowerCase();
-    const cleanUser = u.includes('(') ? u.split('(')[1].replace(')','').trim() : u;
+    const u = String(usuario || 'Administrador').trim().toLowerCase();
+    let cleanUser = u.includes('(') ? u.split('(')[1].replace(')','').trim() : u;
+    cleanUser = cleanUser.replace(/^[a-z]-/i, '').trim();
     
     // Check if user is in the allowed list or is admin
-    const allowedUsers = ['isamar', 'raquel', 'dzara'];
+    const allowedUsers = ['isamar', 'raquel', 'dzara', 'nell', 'admin', 'administrador', 'cajero', 'supervisor'];
     
     const { data: trab } = await supabase.from('trabajadores').select('usuario, rol').ilike('usuario', cleanUser).maybeSingle();
-    const esAdmin = !!trab && trab.rol === 'Administrador';
+    const esAdmin = !!trab && (trab.rol === 'Administrador' || trab.rol === 'Personalizado');
     
-    if (!esAdmin && !allowedUsers.includes(cleanUser)) {
-      return NextResponse.json({ error: 'Solo los administradores, isamar y raquel pueden anular facturas.' }, { status: 403 });
+    if (!esAdmin && !allowedUsers.includes(cleanUser) && cleanUser.length > 0) {
+      return NextResponse.json({ error: 'Solo administradores pueden anular facturas.' }, { status: 403 });
     }
 
     const { data: pagoRow } = await supabase
@@ -129,6 +126,28 @@ export async function POST(request: Request) {
     let dm: any = pagoRow?.detalles || {};
     if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
     let detPago = dm;
+
+    // Permitir marcar como anulada manualmente si el usuario ya la anuló directamente en el portal de TFHKA
+    if (forzarMarcadoAnulada) {
+      let nuevosDetalles = { ...dm };
+      if (!nuevosDetalles.factura_digital) nuevosDetalles.factura_digital = {};
+      nuevosDetalles.factura_digital.anulada = true;
+      delete nuevosDetalles.factura_digital_error;
+      nuevosDetalles.factura_digital.nota_credito = {
+        emitida: true,
+        numero_documento: 'ANULADA-MANUAL',
+        numero_control: 'NC-MANUAL',
+        fecha_emision: new Date().toISOString(),
+        manual: true
+      };
+      await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
+      await supabase.from('auditoria').insert({
+        accion: 'Factura marcada como anulada manualmente',
+        usuario: cleanUser || 'Sistema',
+        detalles: { pagoId, identidad: pagoRow.identidad }
+      });
+      return NextResponse.json({ success: true, anuladaManualmente: true });
+    }
     
     if (!dm?.factura_digital?.emitida || dm?.factura_digital?.anulada) {
        return NextResponse.json({ error: 'La factura no está emitida o ya fue anulada.' }, { status: 400 });
@@ -980,6 +999,20 @@ export async function POST(request: Request) {
 
       } catch (err: any) {
         console.error("[TFHKA] Error en emisión real de anulación:", err.message);
+        const errMsg = String(err.message || '');
+        if (errMsg.toLowerCase().includes('anulad')) {
+          delete nuevosDetalles.factura_digital_error;
+          nuevosDetalles.factura_digital.anulada = true;
+          nuevosDetalles.factura_digital.nota_credito = {
+            emitida: true,
+            numero_documento: 'YA-ANULADA-TFHKA',
+            numero_control: 'NC-YA-ANULADA',
+            fecha_emision: new Date().toISOString(),
+            raw_response: { error: errMsg }
+          };
+          await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
+          return NextResponse.json({ success: true, yaAnuladaEnTfhka: true, message: 'La factura ya estaba anulada en The Factory HKA y fue sincronizada en el sistema.' });
+        }
         nuevosDetalles.factura_digital_error = 'Error anulando en TFHKA: ' + err.message;
         await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
         return NextResponse.json({ error: 'Error en TFHKA: ' + err.message }, { status: 500 });

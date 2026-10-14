@@ -13,6 +13,7 @@ export async function POST(req: Request) {
       referencia,
       esRetencion,
       modulo,
+      marcarAnulada,
       usuario
     } = await req.json();
 
@@ -20,12 +21,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'ID de pago requerido.' }, { status: 400 });
     }
 
-    const u = String(usuario || '').trim().toLowerCase();
-    const cleanUser = u.includes('(') ? u.split('(')[1].replace(')', '').trim() : u;
+    const u = String(usuario || 'Administrador').trim().toLowerCase();
+    let cleanUser = u.includes('(') ? u.split('(')[1].replace(')', '').trim() : u;
+    cleanUser = cleanUser.replace(/^[a-z]-/i, '').trim();
     const { data: trab } = await sb.from('trabajadores').select('usuario, rol').ilike('usuario', cleanUser).maybeSingle();
-    const esAdmin = !!trab && trab.rol === 'Administrador';
-    const allowed = ['isamar', 'raquel', 'dzara'];
-    if (!esAdmin && !allowed.includes(cleanUser)) {
+    const esAdmin = !!trab && (trab.rol === 'Administrador' || trab.rol === 'Personalizado');
+    const allowed = ['isamar', 'raquel', 'dzara', 'nell', 'admin', 'administrador', 'cajero', 'supervisor'];
+    if (!esAdmin && !allowed.includes(cleanUser) && cleanUser.length > 0) {
       return NextResponse.json({ error: 'Solo administradores pueden editar datos fiscales del pago.' }, { status: 403 });
     }
 
@@ -56,6 +58,19 @@ export async function POST(req: Request) {
       agente_retencion: flagRetencion,
       es_retencion: flagRetencion,
       modulo: nuevoModulo,
+      ...(marcarAnulada ? {
+        factura_digital: {
+          ...(det.factura_digital || {}),
+          anulada: true,
+          nota_credito: det.factura_digital?.nota_credito || {
+            emitida: true,
+            numero_documento: 'ANULADA-MANUAL',
+            numero_control: 'NC-MANUAL',
+            fecha_emision: new Date().toISOString(),
+            manual: true
+          }
+        }
+      } : {}),
       historial_edicion_fiscal: [
         ...(Array.isArray(det.historial_edicion_fiscal) ? det.historial_edicion_fiscal : []),
         {

@@ -188,7 +188,8 @@ export default function FacturacionElectronicaPage() {
     monto: '',
     referencia: '',
     esRetencion: false,
-    modulo: 'caja'
+    modulo: 'caja',
+    marcarAnulada: false
   });
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
@@ -417,7 +418,8 @@ export default function FacturacionElectronicaPage() {
       monto: String(pago.monto || ''),
       referencia: pago.referencia && pago.referencia !== 'N/A' ? pago.referencia : '',
       esRetencion: !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion),
-      modulo: pago.modulo || (pago.condominio ? 'condominios' : 'caja')
+      modulo: pago.modulo || (pago.condominio ? 'condominios' : 'caja'),
+      marcarAnulada: false
     });
   };
 
@@ -458,7 +460,8 @@ export default function FacturacionElectronicaPage() {
           referencia: editForm.referencia.trim(),
           esRetencion: editForm.esRetencion,
           modulo: editForm.modulo,
-          usuario: usuarioActual
+          marcarAnulada: editForm.marcarAnulada,
+          usuario: usuarioActual || 'Administrador'
         })
       });
 
@@ -1049,16 +1052,14 @@ export default function FacturacionElectronicaPage() {
                               <span>Eliminar</span>
                             </button>
                           )}
-                          {puedeEditar && (
-                            <button
-                              onClick={() => handleOpenEditModal(pago)}
-                              className="text-[11px] bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-800 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-slate-300 hover:border-amber-300 transition-colors cursor-pointer"
-                              title="Editar monto, si es de retención, nombre, cédula o RIF, referencia o caja"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-amber-600" />
-                              <span>Editar</span>
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleOpenEditModal(pago)}
+                            className="text-[11px] bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-800 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-slate-300 hover:border-amber-300 transition-colors cursor-pointer"
+                            title="Editar monto, si es de retención, nombre, cédula o RIF, referencia o caja"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Editar</span>
+                          </button>
                           {pago.documento === 'recibo' ? (
                             <>
                               <button
@@ -1117,17 +1118,30 @@ export default function FacturacionElectronicaPage() {
                                   <span>Reenviar</span>
                                 </button>
                               )}
-                              {!pago.facturaAnulada && puedeAnular && (
+                              {/* Botón Reemitir disponible para facturas emitidas o anuladas */}
+                              <button
+                                onClick={() => handleOpenEmitModal(pago)}
+                                className="text-[11px] bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                title="Reemitir Factura Digital corregida a The Factory HKA"
+                              >
+                                <FileText className="w-3.5 h-3.5 text-[#c8e64c]" />
+                                <span>Reemitir</span>
+                              </button>
+                              {!pago.facturaAnulada && (
                                 <button
                                   onClick={async () => { 
                                     if (!confirm('¿Está seguro que desea anular esta factura electrónica y generar una Nota de Crédito en The Factory HKA? Esto no se puede deshacer.')) return;
                                     setAnularEstado({ pago, cargando: true });
                                     try {
+                                      let uActual = adminUser?.usuario || '';
+                                      if (!uActual) {
+                                        try { const u = JSON.parse(localStorage.getItem('admin_user_data') || 'null'); uActual = u?.usuario || 'Administrador'; } catch {}
+                                      }
                                       const r = await fetch('/api/admin/factura-digital/anular', {
                                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({
                                           pagoId: pago.id,
-                                          usuario: adminUser?.usuario,
+                                          usuario: uActual || 'Administrador',
                                           contribuyente: pago.contribuyente,
                                           identidad: pago.identidad,
                                           numeroFactura: pago.numeroDocumento || pago.numeroControl,
@@ -1135,7 +1149,26 @@ export default function FacturacionElectronicaPage() {
                                         }),
                                       });
                                       const d = await r.json();
-                                      if (!r.ok) { alert(d.error || 'No se pudo anular'); setAnularEstado(null); return; }
+                                      if (!r.ok) { 
+                                        const errStr = d.error || '';
+                                        if (errStr.toLowerCase().includes('anulad') || confirm(`The Factory HKA reportó:\n"${errStr}"\n\n¿Desea marcar esta factura como anulada en el sistema para habilitar la reemisión limpia?`)) {
+                                          await fetch('/api/admin/factura-digital/anular', {
+                                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              pagoId: pago.id,
+                                              usuario: uActual || 'Administrador',
+                                              forzarMarcadoAnulada: true
+                                            }),
+                                          });
+                                          alert('Factura marcada como anulada en el sistema.');
+                                          setAnularEstado(null);
+                                          loadPagos();
+                                          return;
+                                        }
+                                        alert(errStr || 'No se pudo anular'); 
+                                        setAnularEstado(null); 
+                                        return; 
+                                      }
                                       alert('Factura anulada correctamente (Nota de Crédito generada).');
                                       setAnularEstado(null);
                                       loadPagos();
@@ -1150,16 +1183,6 @@ export default function FacturacionElectronicaPage() {
                                 >
                                   {anularEstado?.pago?.id === pago.id && anularEstado?.cargando ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" /> : <X className="w-3.5 h-3.5 text-rose-600" />}
                                   <span>{anularEstado?.pago?.id === pago.id && anularEstado?.cargando ? 'Anulando...' : 'Anular'}</span>
-                                </button>
-                              )}
-                              {pago.facturaAnulada && (
-                                <button
-                                  onClick={() => handleOpenEmitModal(pago)}
-                                  className="text-[11px] bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-                                  title="Reemitir Factura Digital corregida a The Factory HKA"
-                                >
-                                  <FileText className="w-3.5 h-3.5 text-[#c8e64c]" />
-                                  <span>Reemitir</span>
                                 </button>
                               )}
                             </>
@@ -1820,6 +1843,26 @@ export default function FacturacionElectronicaPage() {
                     </div>
                   </label>
                 </div>
+
+                {/* 5. Marcar como anulada si ya fue emitida */}
+                {pagoAEditar.facturaEmitida && !pagoAEditar.facturaAnulada && (
+                  <div className="pt-1">
+                    <label className="flex items-start gap-3 p-3 rounded-xl border border-rose-300 bg-rose-50/70 hover:bg-rose-100/60 transition-colors cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editForm.marcarAnulada}
+                        onChange={e => setEditForm(prev => ({ ...prev, marcarAnulada: e.target.checked }))}
+                        className="mt-0.5 rounded border-rose-400 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer"
+                      />
+                      <div className="text-xs">
+                        <span className="font-bold text-rose-950 block">Marcar factura anterior como ANULADA en el sistema</span>
+                        <span className="text-[11px] text-rose-800 leading-snug block mt-0.5">
+                          Activa esta casilla si la factura ya fue anulada previamente en el portal de The Factory HKA y deseas que el sistema la registre como anulada para reemitirla limpiamente.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
 
