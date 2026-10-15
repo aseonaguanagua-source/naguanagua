@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       pagoId, recibos, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
       correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
-      esRetencion, referencia, modulo
+      esRetencion, referencia, modulo, fechaEmisionOverride, fecha
     } = await request.json();
     // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
     const totalManualNum = Math.round((parseFloat(String(totalManual ?? 0)) || 0) * 100) / 100;
@@ -716,8 +716,8 @@ export async function POST(request: Request) {
             MontoFacturaAfectada:         null,
             ComentarioFacturaAfectada:    null,
             RegimenEspTributacion:        null,
-            FechaEmision:                 formatearFecha(fechaActual.toISOString()),
-            FechaVencimiento:             formatearFecha(fechaActual.toISOString()),
+            FechaEmision:                 formatearFecha(fechaEmisionOverride || fecha || fechaActual.toISOString()),
+            FechaVencimiento:             formatearFecha(fechaEmisionOverride || fecha || fechaActual.toISOString()),
             HoraEmision:                  horaStr,
             Moneda:                       "BSD",
             Anulado:                      false,

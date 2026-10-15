@@ -140,8 +140,8 @@ export default function CajaPage() {
   const [bancoDestino, setBancoDestino] = useState('BANCAMIGA - 0172 - 0717');
   const [referencia, setReferencia] = useState('');
   const [montoTransferido, setMontoTransferido] = useState<string>('');
-  const [fechaTransaccion, setFechaTransaccion] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [fechaCorteCaja, setFechaCorteCaja] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [fechaTransaccion, setFechaTransaccion] = useState<string>(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()));
+  const [fechaCorteCaja, setFechaCorteCaja] = useState<string>(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()));
   const [dupRefWarning, setDupRefWarning] = useState<string>('');
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -4794,7 +4794,6 @@ export default function CajaPage() {
                           value={fechaTransaccion}
                           onChange={(e) => {
                             setFechaTransaccion(e.target.value);
-                            setFechaCorteCaja(e.target.value);
                           }}
                           className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
@@ -4851,7 +4850,6 @@ export default function CajaPage() {
                       value={fechaTransaccion}
                       onChange={(e) => {
                         setFechaTransaccion(e.target.value);
-                        setFechaCorteCaja(e.target.value);
                       }}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />

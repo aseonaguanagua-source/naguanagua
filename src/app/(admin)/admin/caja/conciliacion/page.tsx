@@ -39,6 +39,7 @@ type Pago = {
   detalles?: any;
   correo?: string;
   telefono?: string;
+  grupo_pago?: any;
 };
 
 type Filtros = {
@@ -96,24 +97,76 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
     (async () => {
       setLoading(true);
       const urls: { name: string; url: string }[] = [];
+      // 1. Comprobante directo en la raíz de detalles
       if (det.comprobante_url) {
         urls.push({ name: det.comprobante_nombre || 'comprobante.jpg', url: det.comprobante_url });
       }
-      // 2. Fallback: comprobante_b64 (base64 guardado cuando Storage no disponible)
       if (urls.length === 0 && det.comprobante_b64) {
         urls.push({ name: det.comprobante_nombre || 'comprobante', url: det.comprobante_b64 });
       }
-      try {
-        const { data: files } = await supabase.storage
-          .from('documentos').list('comprobantes', { limit: 20 }); // Note: Caja saves them in `comprobantes/` folder inside `documentos` bucket
-        if (files && files.length > 0) {
-          for (const f of files) {
-            const { data: sd } = await supabase.storage.from('documentos')
-              .createSignedUrl('comprobantes/' + f.name, 3600);
-            if (sd?.signedUrl) urls.push({ name: f.name, url: sd.signedUrl });
+
+      // 2. Comprobantes subidos en pagos agregados (Caja de Condominios y pagos múltiples)
+      if (Array.isArray(det.pagos_agregados)) {
+        for (const pa of det.pagos_agregados) {
+          if (pa?.comprobante_url && !urls.some(u => u.url === pa.comprobante_url)) {
+            urls.push({ name: pa.comprobante_nombre || pa.referencia || 'comprobante_condominio.jpg', url: pa.comprobante_url });
+          }
+          if (pa?.comprobante_b64 && !urls.some(u => u.url === pa.comprobante_b64)) {
+            urls.push({ name: pa.comprobante_nombre || 'comprobante_b64', url: pa.comprobante_b64 });
           }
         }
-      } catch { /* sin storage */ }
+      }
+
+      // 3. Comprobantes en formasPago
+      if (Array.isArray(det.formasPago)) {
+        for (const fp of det.formasPago) {
+          if (fp?.comprobante_url && !urls.some(u => u.url === fp.comprobante_url)) {
+            urls.push({ name: fp.comprobante_nombre || fp.referencia || 'comprobante.jpg', url: fp.comprobante_url });
+          }
+        }
+      }
+
+      // 4. Si pertenece a un grupo de pago (hermanos con comprobante)
+      if (urls.length === 0 && (pago.grupo_pago || det.grupo_pago)) {
+        try {
+          const gId = pago.grupo_pago || (typeof det.grupo_pago === 'string' ? det.grupo_pago : det.grupo_pago?.id);
+          if (gId) {
+            const { data: hermanos } = await supabase
+              .from('pagos_reportados')
+              .select('detalles')
+              .eq('grupo_pago', gId);
+            for (const h of hermanos || []) {
+              const hDet = parseDetalles(h.detalles);
+              if (hDet.comprobante_url && !urls.some(u => u.url === hDet.comprobante_url)) {
+                urls.push({ name: hDet.comprobante_nombre || 'comprobante.jpg', url: hDet.comprobante_url });
+              }
+              if (Array.isArray(hDet.pagos_agregados)) {
+                for (const pa of hDet.pagos_agregados) {
+                  if (pa?.comprobante_url && !urls.some(u => u.url === pa.comprobante_url)) {
+                    urls.push({ name: pa.comprobante_nombre || 'comprobante.jpg', url: pa.comprobante_url });
+                  }
+                }
+              }
+            }
+          }
+        } catch { /* ignorar */ }
+      }
+
+      // 5. Fallback opcional a storage si no se halló nada
+      if (urls.length === 0) {
+        try {
+          const { data: files } = await supabase.storage
+            .from('documentos').list('comprobantes', { limit: 10 });
+          if (files && files.length > 0) {
+            for (const f of files) {
+              const { data: sd } = await supabase.storage.from('documentos')
+                .createSignedUrl('comprobantes/' + f.name, 3600);
+              if (sd?.signedUrl) urls.push({ name: f.name, url: sd.signedUrl });
+            }
+          }
+        } catch { /* sin storage */ }
+      }
+
       setArchivos(urls);
       setLoading(false);
     })();
@@ -469,8 +522,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [referenciaOrigen, setReferenciaOrigen] = useState(pago.referencia || '');
   const [correoResponsable, setCorreoResponsable] = useState(det.correo || '');
   const [telefonoResponsable, setTelefonoResponsable] = useState(det.telefono || '');
-  const [fechaTransaccion, setFechaTransaccion] = useState(fechaTransaccionDe(det) || new Date().toISOString().split('T')[0]);
-  const [fechaBanco, setFechaBanco] = useState(det.fecha_banco || new Date().toISOString().split('T')[0]);
+  const hoyCaracasStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+  const [fechaTransaccion, setFechaTransaccion] = useState(fechaTransaccionDe(det) || hoyCaracasStr);
+  const [fechaBanco, setFechaBanco] = useState(det.fecha_banco || fechaTransaccionDe(det) || hoyCaracasStr);
   const [enviarCorreo, setEnviarCorreo] = useState(true);
   const [observaciones, setObservaciones] = useState(det.observaciones || '');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -628,12 +682,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
       // Actualizar el pago (por el servidor; solo si sigue en su estado actual → no se aprueba dos veces)
       if (pago.estado === 'Aprobado' && estatus === 'Aprobado') throw new Error('Este pago ya está aprobado; aprobarlo otra vez descontaría la deuda dos veces.');
+      updatedDet.fecha_conciliado = new Date().toISOString();
       await actualizarPago(pago.id, {
         estado: estatus,
         banco: bancoEmisor,
         tipo: pago.tipo,
-        detalles: updatedDet,
-        created_at: new Date().toISOString() // Actualiza para los reportes diarios
+        detalles: updatedDet
+        // NOTA: Se preserva created_at original para no sobreescribir la fecha real de la transacción
       }, { soloSiEstado: pago.estado || 'Por Verificar' });
 
       // Auditoría: Registro de conciliación de pago
@@ -843,12 +898,26 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
 
-        // Excedente de una transferencia (registrado en Caja como saldo a favor): se acredita al aprobar.
-        // Antes nunca se acreditaba para transferencias (solo para punto de venta).
+        // Excedente de una transacción (registrado en Caja como saldo a favor): se acredita al aprobar.
         const excedenteCaja = parseFloat(String(det.saldo_favor || 0)) || 0;
-        if (excedenteCaja > 0.01 && !det.saldo_favor_acreditado && det.modulo !== 'condominios') {
+        if (excedenteCaja > 0.01 && !det.saldo_favor_acreditado) {
           const rSF = await acreditarSaldoFavor(pago.identidad, Math.round(excedenteCaja * 100) / 100);
           if (!rSF.ok) throw new Error('No se pudo acreditar la nota de crédito: ' + rSF.error);
+          try {
+            await supabase.from('documentos').insert([{
+              identidad: pago.identidad,
+              contribuyente: contribInfo?.nombre || pago.contribuyente || pago.identidad,
+              tipo: 'Nota de Credito',
+              estado: 'Vigente',
+              detalles: JSON.stringify({
+                monto: (Math.round(excedenteCaja * 100) / 100).toFixed(2),
+                origen_referencia: `Excedente conciliado. Ref: ${pago.referencia}`,
+                fecha_emision: new Date().toISOString(),
+                analista: updatedDet.analista || 'Administrador'
+              }),
+            }]);
+          } catch(e) { console.error('Error insertando nota de credito en documentos:', e); }
+          updatedDet.saldo_favor_acreditado = true;
           await actualizarPago(pago.id, { detalles: { ...updatedDet, saldo_favor_acreditado: true } });
         }
         
@@ -865,18 +934,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             preparada_at: new Date().toISOString()
           };
           curDet.recibos = recibos;
-          // Pagos de la Caja de Condominios: conservar montos y formas de pago originales (varios pagos, fechas reales)
+          // Pagos de la Caja de Condominios o con saldo a favor: NO alterar montos originales de la factura
           const esCondo = curDet.modulo === 'condominios' || det.modulo === 'condominios';
-          if (!esCondo) {
+          if (!esCondo && excedenteCaja <= 0.01) {
             curDet.montos = { total: montoConciliadoNum };
             curDet.montoTotal = montoConciliadoNum;
           }
           curDet.contribuyente = curDet.contribuyente || contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad;
           curDet.identidad = pago.identidad;
+          const fechaFacturaFinal = fechaBanco || fechaTransaccion;
           if (!esCondo || !Array.isArray(curDet.formasPago) || curDet.formasPago.length === 0) {
             curDet.formasPago = [{
               descripcion: pago.tipo || 'Transferencia',
-              fecha:       fechaTransaccion ? new Date(`${fechaTransaccion}T12:00:00-04:00`).toISOString() : new Date().toISOString(),
+              fecha:       fechaFacturaFinal ? new Date(`${fechaFacturaFinal}T12:00:00-04:00`).toISOString() : new Date().toISOString(),
               forma:       '03',   // 03 = Transferencia bancaria
               monto:       montoConciliadoNum
             }];
@@ -1220,8 +1290,12 @@ export default function ConciliacionPage() {
   const [loading, setLoading] = useState(false);
   const condos = useCondominiosLigero();
   const [filtros, setFiltros] = useState<Filtros>({
-    desde: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    hasta: new Date().toISOString().split('T')[0],
+    desde: (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(d);
+    })(),
+    hasta: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()),
     estatus: 'Por Verificar', bancoDestino: 'Todos', formaPago: 'Todos', referencia: '', monto: '', modulo: 'Todos',
   });
   const [pagoSel, setPagoSel] = useState<Pago | null>(null);

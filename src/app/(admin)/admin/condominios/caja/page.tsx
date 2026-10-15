@@ -415,6 +415,10 @@ function Caja() {
         ? ['__NINGUNO__']
         : (modo === 'CONDOMINIO' && !abonoLocales ? [] : claves);
 
+      const sumaRealPagos = realPagosSubidos.reduce((a, b) => a + (Number(b.monto) || 0), 0);
+      const totalAPagarCobro = cobro.totales.totalBs;
+      const excedenteGenerado = faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0;
+
       const r = await fetch('/api/admin/condominios/cobrar', {
         method: 'POST', body: JSON.stringify({
           accion: 'cobrar', codigo, modo,
@@ -429,11 +433,11 @@ function Caja() {
             metodo: realPagosSubidos[0]?.metodo || 'MÚLTIPLE', 
             banco: realPagosSubidos[0]?.banco || '', 
             referencia: realPagosSubidos[0]?.referencia || '', 
-            montoRecibido: cobro.totales.totalBs, 
+            montoRecibido: sumaRealPagos > totalAPagarCobro ? sumaRealPagos : totalAPagarCobro, 
             cajero: getCajeroId(),
             bancoDestino: realPagosSubidos[0]?.bancoDestino || '',
             pagosAgregados: realPagosSubidos,
-            saldoFavorGenerado: faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0
+            saldoFavorGenerado: excedenteGenerado
           },
         }),
       });
@@ -445,7 +449,18 @@ function Caja() {
         setSaldoFavorActivo(Math.max(0, saldoFavorActivo - descuentoSaldoFavor - realPagosSubidos.filter(p=>p.metodo==='Saldo a Favor').reduce((a,b)=>a+b.monto,0)));
       }
 
-      setRecibo({ ...j, partes: j.pagos, metodo: 'MÚLTIPLE', banco: '', referencia: '', fecha: new Date(), prueba: false });
+      setRecibo({
+        ...j,
+        partes: j.pagos,
+        monto: totalAPagarCobro,
+        montoRecibido: sumaRealPagos > totalAPagarCobro ? sumaRealPagos : totalAPagarCobro,
+        saldoFavorGenerado: excedenteGenerado,
+        metodo: 'MÚLTIPLE',
+        banco: '',
+        referencia: '',
+        fecha: new Date(),
+        prueba: false
+      });
       setReferencia(''); setClaves([]); setAbonoLocales(false); setMeses(''); setSoloMultas(false); setPagosAgregados([]);
     } catch (e: any) { alert(e.message); } finally { setCobrando(false); }
   };
@@ -1284,6 +1299,31 @@ function Caja() {
                 );
               })}
               {(recibo.partes?.length || 0) > 1 && <div className="rounded-lg bg-sky-50 border border-sky-200 p-2.5 text-xs text-sky-900">Un solo pago de <b>Bs {fmtBs(recibo.monto)}</b> repartido en {recibo.partes.length} facturas (una por dueño).</div>}
+              {((recibo.saldoFavorGenerado > 0) || ((recibo.montoRecibido || 0) > (recibo.monto || 0) + 0.01)) && (
+                <div className="rounded-xl bg-emerald-50 border-2 border-emerald-400 p-4 text-xs text-emerald-950 space-y-2 shadow-xs">
+                  <div className="flex items-center justify-between font-black text-emerald-900 uppercase tracking-wide">
+                    <span className="flex items-center gap-1.5 text-sm"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Nota de Crédito / Saldo a Favor Generado</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-200 text-emerald-900 border border-emerald-500 shadow-xs">VIGENTE</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 pt-2 border-t border-emerald-200 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Monto Pagado / Recibido</span>
+                      <span className="font-bold text-slate-800 text-sm">Bs {fmtBs(recibo.montoRecibido || (recibo.monto + recibo.saldoFavorGenerado))}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Total Deuda Cancelada</span>
+                      <span className="font-bold text-slate-800 text-sm">Bs {fmtBs(recibo.monto)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-700 font-bold uppercase block">Nota de Crédito Acreditada</span>
+                      <span className="font-black text-emerald-700 text-base">Bs {fmtBs(recibo.saldoFavorGenerado || ((recibo.montoRecibido || 0) - (recibo.monto || 0)))}</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-emerald-800 italic pt-0.5">
+                    Este excedente ha sido acreditado exitosamente como Nota de Crédito y Saldo a Favor, disponible para descontarse en el próximo recibo.
+                  </p>
+                </div>
+              )}
               <div className="text-xs text-slate-600">Forma de pago: <b>{recibo.metodo}</b>{recibo.banco ? ` · ${recibo.banco}` : ''}{recibo.referencia ? ` · Ref. ${recibo.referencia}` : ''} · Tasa Euro Bs {fmtBs(recibo.cobro.estado.tasa)}</div>
               {!recibo.prueba && <div className="text-[11px] text-slate-500">Las facturas digitales quedan listas en Facturación Electrónica.</div>}
             </div>

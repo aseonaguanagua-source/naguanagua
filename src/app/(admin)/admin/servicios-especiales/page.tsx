@@ -87,7 +87,7 @@ export default function ServiciosEspecialesPage() {
     contacto: '',
     telefono: '',
     nombreEvento: '',
-    fechaEvento: '',
+    fechaEvento: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()),
     lugar: '',
     horario: '',
     aforo: '',

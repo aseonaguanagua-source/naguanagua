@@ -187,6 +187,7 @@ export default function FacturacionElectronicaPage() {
     identidad: '',
     monto: '',
     referencia: '',
+    fecha: '',
     esRetencion: false,
     modulo: 'caja',
     marcarAnulada: false
@@ -412,11 +413,13 @@ export default function FacturacionElectronicaPage() {
   // Abrir Modal de Edición Directa de Datos Fiscales
   const handleOpenEditModal = (pago: any) => {
     setPagoAEditar(pago);
+    const fOrig = (pago.detalles?.fecha_transaccion || pago.created_at || pago.fecha || '').slice(0, 10);
     setEditForm({
       contribuyente: pago.contribuyente || pago.detalles?.contribuyente || '',
       identidad: pago.identidad || '',
       monto: String(pago.monto || ''),
       referencia: pago.referencia && pago.referencia !== 'N/A' ? pago.referencia : '',
+      fecha: fOrig || hoyCaracas(),
       esRetencion: !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion),
       modulo: pago.modulo || (pago.condominio ? 'condominios' : 'caja'),
       marcarAnulada: false
@@ -460,6 +463,7 @@ export default function FacturacionElectronicaPage() {
           referencia: editForm.referencia.trim(),
           esRetencion: editForm.esRetencion,
           modulo: editForm.modulo,
+          fecha: editForm.fecha,
           marcarAnulada: editForm.marcarAnulada,
           usuario: usuarioActual || 'Administrador'
         })
@@ -520,9 +524,10 @@ export default function FacturacionElectronicaPage() {
           referencia: emitReferencia.trim(),
           modulo: emitModulo,
           esRetencion: emitEsRetencion,
+          fecha: selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString(),
           formasPago: [{
             descripcion: selectedPagoForEmit.tipo || 'Transferencia',
-            fecha: new Date().toISOString(),
+            fecha: selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString(),
             forma: '05',
             monto: total
           }],
@@ -1796,18 +1801,31 @@ export default function FacturacionElectronicaPage() {
                   </div>
                 </div>
 
-                {/* 3. Referencia Bancaria & Selección de Caja */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* 3. Referencia Bancaria, Fecha & Selección de Caja */}
+                <div className="grid grid-cols-3 gap-2.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Nro. de Referencia Bancaria
+                      Nro. de Referencia
                     </label>
                     <input
                       type="text"
                       value={editForm.referencia}
                       onChange={e => setEditForm(prev => ({ ...prev, referencia: e.target.value }))}
                       placeholder="Ej: 123456"
-                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-indigo-500 bg-white"
+                      className="w-full border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-mono focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Fecha Operación <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={editForm.fecha}
+                      max={hoyCaracas()}
+                      onChange={e => setEditForm(prev => ({ ...prev, fecha: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-xl px-2 py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-white"
                     />
                   </div>
 
@@ -1818,10 +1836,10 @@ export default function FacturacionElectronicaPage() {
                     <select
                       value={editForm.modulo}
                       onChange={e => setEditForm(prev => ({ ...prev, modulo: e.target.value }))}
-                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-white"
+                      className="w-full border border-slate-300 rounded-xl px-2 py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-white"
                     >
-                      <option value="caja">Caja General (Contribuyentes)</option>
-                      <option value="condominios">Caja Condominios</option>
+                      <option value="caja">Caja General</option>
+                      <option value="condominios">Condominios</option>
                     </select>
                   </div>
                 </div>

@@ -14,6 +14,7 @@ export async function POST(req: Request) {
       esRetencion,
       modulo,
       marcarAnulada,
+      fecha,
       usuario
     } = await req.json();
 
@@ -96,12 +97,21 @@ export async function POST(req: Request) {
       ]
     };
 
+    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      nuevosDetalles.fecha_transaccion = fecha;
+      nuevosDetalles.fecha_banco = fecha;
+      if (Array.isArray(nuevosDetalles.recibo_caja) && nuevosDetalles.recibo_caja[0]) {
+        nuevosDetalles.recibo_caja[0].fechaTransaccion = fecha;
+      }
+    }
+
     const updatePayload: any = {
       identidad: nuevaIdentidad,
       monto: nuevoMonto,
       referencia: nuevaRef,
       modulo: nuevoModulo,
-      detalles: nuevosDetalles
+      detalles: nuevosDetalles,
+      ...(fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? { created_at: `${fecha}T12:00:00-04:00` } : {})
     };
 
     const { error: upErr } = await sb.from('pagos_reportados').update(updatePayload).eq('id', pagoId);

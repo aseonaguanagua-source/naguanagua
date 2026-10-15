@@ -299,6 +299,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       formasPago,
       pagos_agregados: pago.pagosAgregados,
       banco_destino: pago.bancoDestino || (pago.pagosAgregados?.[0]?.bancoDestino) || undefined,
+      comprobante_url: (pago.pagosAgregados || []).find((p: any) => p.comprobante_url)?.comprobante_url || undefined,
+      comprobante_nombre: (pago.pagosAgregados || []).find((p: any) => p.comprobante_nombre)?.comprobante_nombre || undefined,
       fecha_transaccion: fechaTransaccion,
       fecha_banco: fechaTransaccion,
       fecha_ingreso_caja: new Date().toISOString().slice(0, 10),
@@ -392,12 +394,19 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     montoSaldoFavor = Number(pago.montoRecibido) || 0;
   }
 
+  const idUnidades = Array.from(new Set(cobro.lineas.map(l => porId.get(l.clave)?.identidad).filter(Boolean)));
   const unidadSel = cobro.lineas.length === 1 ? porId.get(cobro.lineas[0].clave) : null;
   const pagadorIdentidad = (cobro.modo === 'CONTRIBUYENTE' && cobro.facturas[0]?.identidad)
     || (unidadSel && unidadSel.identidad)
+    || (idUnidades.length === 1 ? idUnidades[0] : null)
     || (sol.identidad ? String(sol.identidad).trim() : null)
     || c.identidad;
   
+  const pagadorNombre = (cobro.modo === 'CONTRIBUYENTE' && cobro.facturas[0]?.nombre)
+    || (unidadSel && (unidadSel.propietario || unidadSel.nombre))
+    || (idUnidades.length === 1 && porId.get(cobro.lineas[0].clave)?.propietario)
+    || c.nombre;
+
   if (montoSaldoFavor > 0 && pagadorIdentidad) {
     const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor);
     if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
@@ -409,7 +418,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     // Nota de crédito visible en Caja / Conciliación
     await sb.from('documentos').insert([{
       identidad: pagadorIdentidad,
-      contribuyente: cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.nombre : c.nombre,
+      contribuyente: pagadorNombre,
       tipo: 'Nota de Credito',
       estado: 'Vigente',
       detalles: JSON.stringify({ monto: r2(pago.saldoFavorGenerado).toFixed(2), origen_referencia: `Excedente Caja de Condominios ${c.codigo}. Referencia: ${refFinal}`, fecha_emision: new Date().toISOString(), analista: pago.usuario }),
@@ -503,5 +512,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     detalles: { pagos: pagos.map(p => ({ id: p.id, identidad: p.factura.identidad, monto: p.factura.totalBs })), codigo: c.codigo, condominio: c.nombre, modo: cobro.modo,
       monto: cobro.totales.totalBs, metodo: pago.metodo, referencia: ref, lineas: cobro.lineas.length, deuda_previa: antes, _categoria: 'CONDOMINIOS', criticidad: 'ALTA' },
   });
-  return { pagoId: pago.pagoId, pagos: pagos.map(p => ({ id: p.id, reciboRef: p.reciboRef, identidad: p.factura.identidad, nombre: p.factura.nombre, monto: p.factura.totalBs })), monto: cobro.totales.totalBs, cobro };
+  return { 
+    pagoId: pago.pagoId, 
+    pagos: pagos.map(p => ({ id: p.id, reciboRef: p.reciboRef, identidad: p.factura.identidad, nombre: p.factura.nombre, monto: p.factura.totalBs })), 
+    monto: cobro.totales.totalBs, 
+    montoRecibido: pago.montoRecibido || (cobro.totales.totalBs + (pago.saldoFavorGenerado || 0)),
+    saldoFavorGenerado: pago.saldoFavorGenerado || 0,
+    cobro 
+  };
 }

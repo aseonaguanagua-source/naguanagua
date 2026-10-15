@@ -37,8 +37,9 @@ export default function ReportesPage() {
   const [cajeros, setCajeros] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUser, setCurrentUser] = useState('');
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
+  const hoyStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+  const [fechaInicio, setFechaInicio] = useState(hoyStr.slice(0, 8) + '01');
+  const [fechaFin, setFechaFin] = useState(hoyStr);
   const [morososData, setMorososData] = useState<{total: number; deudaTotal: number} | null>(null);
   const [loadingMorosos, setLoadingMorosos] = useState(false);
 
