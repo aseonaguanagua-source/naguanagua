@@ -487,11 +487,14 @@ export default function CajaPage() {
         isSearchByCode: true
       };
       
-      // Si buscaron exactamente por un CÓDIGO (AURI / URB) y resulta ser una matriz de condominio, bloqueamos con alerta.
+      // Si buscaron exactamente por un CÓDIGO (AURI / URB) y resulta ser una matriz de condominio,
+      // ofrecerle ir a Caja de Condominios o continuar en Caja si desea cobrar la matriz directamente.
       if (user.isSearchByCode && user.es_condominio === true) {
-        alert('Este código pertenece a una matriz de condominio completa. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
-        setIsSearching(false);
-        return;
+        if (confirm(`El código "${user.CodCont}" pertenece al Condominio matriz "${user.Contribuyente}".\n\n¿Desea ir a la Caja de Condominios para cobrar por locales o ver el desglose?\n(Pulse Cancelar si desea cobrar la matriz aquí en Caja general)`)) {
+          window.location.href = `/admin/condominios/caja?codigo=${user.CodCont}`;
+          setIsSearching(false);
+          return;
+        }
       }
     }
 
@@ -524,9 +527,11 @@ export default function CajaPage() {
         };
         
         if (user.isSearchByCode && user.es_condominio === true) {
-          alert('Este código pertenece a una matriz de condominio completa. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
-          setIsSearching(false);
-          return;
+          if (confirm(`El código "${user.CodCont}" pertenece al Condominio matriz "${user.Contribuyente}".\n\n¿Desea ir a la Caja de Condominios para cobrar por locales o ver el desglose?\n(Pulse Cancelar si desea cobrar la matriz aquí en Caja general)`)) {
+            window.location.href = `/admin/condominios/caja?codigo=${user.CodCont}`;
+            setIsSearching(false);
+            return;
+          }
         }
       }
     }

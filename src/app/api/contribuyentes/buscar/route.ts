@@ -63,12 +63,9 @@ export async function GET(request: Request) {
       inmuebles = byName || [];
     }
 
-    // Restringir: ocultar matrices de condominios completos (las unidades filiales sí se permiten)
-    inmuebles = inmuebles.filter((i: any) => !i.es_condominio);
-
-    // Ocultar inmuebles desactivados (Inactivo / Eliminado) a menos que se haya buscado específicamente por ese código
     const qUpper = q.toUpperCase();
     const esBusquedaInmueble = /^(URB|AURI|[A-Z]{3,})\d+/i.test(qUpper) || /^[A-Z]+\d+$/i.test(qUpper);
+
     if (esBusquedaInmueble) {
       // Si buscó por código, encontrar el inmueble específico y traer todos los inmuebles activos del RIF de ese código
       const exacto = inmuebles.find((i: any) => i.inmueble?.toUpperCase() === qUpper);
@@ -85,13 +82,16 @@ export async function GET(request: Request) {
           const cod = String(i.inmueble || '').toUpperCase();
           if (seen.has(cod)) return false;
           seen.add(cod);
-          if (i.es_condominio || i.estado === 'Eliminado') return false;
-          return i.inmueble?.toUpperCase() === qUpper || String(i.estado || 'Activo').toLowerCase() === 'activo';
+          if (i.estado === 'Eliminado') return false;
+          if (i.es_condominio && cod !== qUpper) return false;
+          return cod === qUpper || String(i.estado || 'Activo').toLowerCase() === 'activo';
         });
         inmuebles = combined;
       }
     } else {
+      // En búsquedas por RIF o nombre general, ocultar matrices de condominios completos
       inmuebles = inmuebles.filter((i: any) => {
+        if (i.es_condominio) return false;
         const est = String(i.estado || 'Activo').trim().toLowerCase();
         return est === 'activo';
       });
