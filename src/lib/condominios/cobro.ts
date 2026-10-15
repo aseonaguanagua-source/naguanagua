@@ -223,9 +223,25 @@ const formaPagoCodigo = (m: string) => m === 'Debito' ? '03' : ['Credito', 'TMD'
 export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   const cobro = await prepararCobro(sol);
   if (!cobro.lineas.length) throw new Error('No hay deuda para cobrar con esa selección.');
-  if (Math.abs(r2(pago.montoRecibido) - cobro.totales.totalBs) > 0.05) throw new Error(`El monto cambió (ahora Bs ${cobro.totales.totalBs.toFixed(2)}). Vuelva a calcular antes de cobrar.`);
+  
+  const montoRecibidoTotal = r2(Number(pago.montoRecibido) || 0);
+  const totalDeudaCobro = cobro.totales.totalBs;
+  
+  // Si no se definió saldo a favor generado pero lo recibido es superior a la deuda, asignar el excedente
+  if (!pago.saldoFavorGenerado && montoRecibidoTotal > totalDeudaCobro + 0.05) {
+    pago.saldoFavorGenerado = r2(montoRecibidoTotal - totalDeudaCobro);
+  }
+  
+  const montoAplicadoADeuda = r2(montoRecibidoTotal - (pago.saldoFavorGenerado || 0));
+  
+  // Si el monto destinado a cancelar la deuda es menor al total requerido (tolerancia de 0.10 Bs por redondeo)
+  if (montoAplicadoADeuda < totalDeudaCobro - 0.10) {
+    throw new Error(`El monto cambió (ahora Bs ${totalDeudaCobro.toFixed(2)}). Vuelva a calcular antes de cobrar.`);
+  }
+
   const ref = String(pago.referencia || '').trim();
-  if (pago.metodo !== 'Efectivo') {
+  const esMetodoSinRefUnica = pago.metodo === 'Efectivo' || pago.metodo === 'Saldo a Favor' || ref.toLowerCase().includes('saldo favor') || ref.toLowerCase().includes('efectivo');
+  if (!esMetodoSinRefUnica) {
     if (ref.length < 4) throw new Error('Escriba la referencia del pago.');
     const { data: rep } = await sb.from('pagos_reportados').select('id,identidad,monto').eq('referencia', ref).neq('estado', 'Rechazado').limit(1);
     if (rep?.length) throw new Error(`La referencia ${ref} ya fue usada en otro pago (${rep[0].identidad}, Bs ${rep[0].monto}).`);

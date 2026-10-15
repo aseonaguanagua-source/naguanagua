@@ -427,7 +427,8 @@ function Caja() {
           meses: meses || null, soloMultas,
           incluirMultas,
           usuario: u.usuario,
-          tasaOverride: tasaParsed > 0 ? tasaParsed : undefined, fechaOverride: fechaOverrideStr || undefined,
+          tasaOverride: tasaParsed > 0 ? tasaParsed : (cobro?.estado?.tasa ? Number(cobro.estado.tasa) : undefined),
+          fechaOverride: fechaOverrideStr || undefined,
           pago: { 
             pagoId: pagoId.current, 
             metodo: realPagosSubidos[0]?.metodo || 'MÚLTIPLE', 
