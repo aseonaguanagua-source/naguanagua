@@ -1694,6 +1694,23 @@ export default function FacturacionElectronicaPage() {
                       ).toFixed(2)}
                     </span>
                   </div>
+                  {emitEsRetencion && (
+                    <div className="pt-1.5 border-t border-emerald-200/80 space-y-1 text-xs">
+                      <div className="flex justify-between text-amber-900 font-semibold">
+                        <span>(-) Retención 75% IVA (SENIAT):</span>
+                        <span className="font-mono">- Bs {(((parseFloat(ajusteMontoServicio) || 0) * 0.16) * 0.75).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-950 font-black">
+                        <span>Monto Cancelado por el Cliente (Neto):</span>
+                        <span className="font-mono text-emerald-900">
+                          Bs {(
+                            ((parseFloat(ajusteMontoServicio) || 0) * 1.16 + (parseFloat(ajusteMontoMulta) || 0)) -
+                            (((parseFloat(ajusteMontoServicio) || 0) * 0.16) * 0.75)
+                          ).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {Math.abs(((parseFloat(ajusteMontoServicio) || 0) * 1.16 + (parseFloat(ajusteMontoMulta) || 0)) - (totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0)) > 0.02 && (
                   <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 space-y-1.5">
