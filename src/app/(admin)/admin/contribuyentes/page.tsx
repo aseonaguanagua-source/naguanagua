@@ -194,29 +194,16 @@ function ContribuyentesPageContent() {
       }
     }
 
-    // Siempre ocultar condominios y sus locales de la vista principal
+    // Solo ocultar las matrices de condominios completos (edificios / conjuntos residenciales)
+    // Los propietarios individuales y comerciales que tengan locales/oficinas SÍ deben ser visibles
     result = result.filter((c: any) => {
-      // 1. Marcas directas
-      if (c.es_condominio || c.isCondominio || c.condominio_padre_id || c.isCondoChild) return false;
+      // 1. Matrices directas de condominio
+      if (c.es_condominio || c.isCondominio) return false;
       
-      // 2. Por nombre o clasificación evidente
+      // 2. Por nombre o clasificación evidente de junta o edificio con múltiples unidades
       const nombreLC = (c.Contribuyente || c.nombre || '').toLowerCase();
       const clasifLC = (c.Clasificacion || c.clasificacion || '').toLowerCase();
-      if (nombreLC.includes('condominio') || nombreLC.includes('conjunto residencial') || clasifLC.includes('condominio')) return false;
-      
-      // 3. Por relación de inmuebles
-      if (inmueblesById.size > 0) {
-        const userInms = inmueblesById.get(c.Identidad) || inmueblesById.get(c.identidad) || [];
-        if (userInms.length > 0) {
-          const onlyHasCondoProperties = userInms.every((i: any) => 
-            i.es_condominio || 
-            i.condominio_padre_id || 
-            parseInt(i.cant_inmuebles || '1') > 1
-          );
-          // Ocultar si TODAS sus propiedades son de condominio
-          if (onlyHasCondoProperties) return false;
-        }
-      }
+      if ((nombreLC.startsWith('condominio ') || nombreLC.startsWith('conjunto residencial ') || clasifLC === 'condominio') && (parseInt(c.cant_inmuebles || '0') > 1 || parseInt(c.unidadesCount || '0') > 1)) return false;
       
       return true;
     });
