@@ -10,6 +10,7 @@ import {
   CheckSquare, Edit3,
 } from 'lucide-react';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
+import { DemoFacturaModal } from '@/components/facturacion/DemoFacturaModal';
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -157,6 +158,9 @@ export default function FacturacionElectronicaPage() {
   const [selectedPagoForVerify, setSelectedPagoForVerify] = useState<any | null>(null);
   const [verificationResult, setVerificationResult] = useState<any | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // Modal de Demo y Vista Previa de Factura Electrónica (Borrador Fiscal)
+  const [selectedPagoForDemo, setSelectedPagoForDemo] = useState<any | null>(null);
 
   // Modal de Ajuste y Emisión Manual Individual
   const [selectedPagoForEmit, setSelectedPagoForEmit] = useState<any | null>(null);
@@ -396,8 +400,13 @@ export default function FacturacionElectronicaPage() {
     setEmitIdentidad(pago.identidad || '');
     setEmitReferencia(pago.referencia && pago.referencia !== 'N/A' ? pago.referencia : '');
     setEmitModulo(pago.modulo || (pago.condominio ? 'condominios' : 'caja'));
-    setEmitEsRetencion(!!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion));
-    const ref = totalRef && totalRef > 0 ? totalRef : (parseFloat(pago.monto) || 0);
+    const esRet = !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion);
+    setEmitEsRetencion(esRet);
+    const montoRet = parseFloat(String(pago.detalles?.monto_retencion_iva || pago.detalles?.retencion_iva || 0)) || 0;
+    const montoFacturaDet = parseFloat(String(pago.detalles?.monto_factura || 0)) || 0;
+    const ref = totalRef && totalRef > 0
+      ? totalRef
+      : (montoFacturaDet > 0 ? montoFacturaDet : (parseFloat(pago.monto) || 0) + (esRet ? montoRet : 0));
     setTotalReferencia(ref);
     const montoTotal = totalOverride && totalOverride > 0 ? totalOverride : ref;
     const baseEstimada = (montoTotal / 1.16).toFixed(2);
@@ -405,7 +414,20 @@ export default function FacturacionElectronicaPage() {
     setAjusteMontoMulta('0.00');
     if (!totalOverride) setMotivoAjuste('');
     setTotalForzado(totalOverride && totalOverride > 0 ? totalOverride : null);
-    setAjusteConcepto(`Servicio de Aseo Urbano Comercial - ${getMesActual()}`);
+
+    let conceptoPeriodo = `Servicio de Aseo Urbano Comercial - ${getMesActual()}`;
+    const fPago = pago.detalles?.fecha_pago || pago.detalles?.fecha_transaccion || pago.created_at;
+    if (pago.detalles?.mes_aseo) {
+      conceptoPeriodo = `Servicio de Aseo Urbano Comercial - ${pago.detalles.mes_aseo}`;
+    } else if (fPago) {
+      const d = new Date(fPago);
+      if (!isNaN(d.getTime())) {
+        const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const mIdx = d.getMonth() === 9 ? 8 : (d.getMonth() === 0 ? 11 : d.getMonth() - 1);
+        conceptoPeriodo = `Servicio de Aseo Urbano Comercial - ${meses[mIdx]} ${d.getFullYear()}`;
+      }
+    }
+    setAjusteConcepto(conceptoPeriodo);
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
   };
@@ -1193,6 +1215,16 @@ export default function FacturacionElectronicaPage() {
                             </>
                           ) : (
                             <>
+                              {/* Botón Demo / Vista Previa de Factura */}
+                              <button
+                                onClick={() => setSelectedPagoForDemo(pago)}
+                                className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer"
+                                title="Ver Demo / Vista Previa de la Factura Electrónica antes de emitir"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Demo Factura</span>
+                              </button>
+
                               {/* Botón Verificar Factura antes de enviarla */}
                               <button
                                 onClick={() => handleVerifyPago(pago)}
@@ -1390,12 +1422,23 @@ export default function FacturacionElectronicaPage() {
             </div>
 
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <button
-                onClick={() => setSelectedPagoForVerify(null)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                Cerrar
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedPagoForVerify(null)}
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cerrar
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedPagoForDemo(selectedPagoForVerify);
+                  }}
+                  className="px-3.5 py-2 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Ver Formato / Demo</span>
+                </button>
+              </div>
               {verificationResult?.ok && (
                 <button
                   onClick={() => {
@@ -2366,6 +2409,16 @@ export default function FacturacionElectronicaPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ══ MODAL DEMO Y VISTA PREVIA DE FACTURA FISCAL ELECTRÓNICA ══ */}
+      {selectedPagoForDemo && (
+        <DemoFacturaModal
+          isOpen={!!selectedPagoForDemo}
+          onClose={() => setSelectedPagoForDemo(null)}
+          pago={selectedPagoForDemo}
+          onProcederEmitir={handleOpenEmitModal}
+        />
       )}
     </div>
   );

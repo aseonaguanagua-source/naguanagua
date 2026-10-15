@@ -190,6 +190,18 @@ export async function POST(request: Request) {
 
     const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+    const obtenerMesAseoTexto = (fechaBase?: string | Date) => {
+      if (detPago?.mes_aseo) return String(detPago.mes_aseo);
+      const d = new Date(fechaBase || detPago?.fecha_transaccion || pagoRow?.created_at || fechaActual);
+      if (!isNaN(d.getTime())) {
+        // En aseo urbano de Naguanagua, los pagos realizados en el mes M corresponden al mes M-1 (ej. en Octubre se factura Septiembre)
+        const mIdx = d.getUTCMonth() === 0 ? 11 : d.getUTCMonth() - 1;
+        const anio = d.getUTCMonth() === 0 ? d.getUTCFullYear() - 1 : d.getUTCFullYear();
+        return `${MESES_NOMBRES[mIdx]} ${anio}`;
+      }
+      return `${MESES_NOMBRES[fechaActual.getUTCMonth()]} ${fechaActual.getUTCFullYear()}`;
+    };
+
     // Para RECIB-HIST-*, buscar en inmuebles (no están en tabla facturas)
     const histRecibos = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
     const histItems: any[] = [];
@@ -282,12 +294,24 @@ export async function POST(request: Request) {
         totalGravado += montoItem;
         totalIVA     += valorIVA;
       }
+
+      let periodoNombre = '';
+      if (fac.emision) {
+        const dFac = new Date(fac.emision);
+        if (!isNaN(dFac.getTime())) {
+          periodoNombre = `${MESES_NOMBRES[dFac.getUTCMonth()]} ${dFac.getUTCFullYear()}`;
+        }
+      }
+      const descItem = periodoNombre
+        ? `Servicio de Aseo Urbano${esMixto ? ' (porción comercial)' : ''} - Mes de ${periodoNombre} (${fac.referencia})`
+        : `Servicio de Aseo Urbano${esMixto ? ' (porción comercial)' : ''} - ${fac.referencia}`;
+
       return {
         NumeroLinea:             String(lineaNum),
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             `Servicio de Aseo Urbano${esMixto ? ' (porción comercial)' : ''} - ${fac.referencia}`,
+        Descripcion:             descItem,
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          montoItem.toFixed(2),
@@ -441,7 +465,7 @@ export async function POST(request: Request) {
       for (const l of lineasCondo) {
         if (l.residencial) { excluidosResidenciales++; continue; }
         const donde = [l.inmueble, l.numero].filter(Boolean).join(' ') || condoDet?.codigo || '';
-        const per = Array.isArray(l.periodos) && l.periodos.length ? ` (${l.periodos[0]}${l.periodos.length > 1 ? ` a ${l.periodos[l.periodos.length - 1]}` : ''})` : '';
+        const per = Array.isArray(l.periodos) && l.periodos.length ? ` (${l.periodos[0]}${l.periodos.length > 1 ? ` a ${l.periodos[l.periodos.length - 1]}` : ''})` : ` (${obtenerMesAseoTexto()})`;
         const aseo = parseFloat((Number(l.aseoBs) || 0).toFixed(2));
         const multa = parseFloat((Number(l.multaBs) || 0).toFixed(2));
         if (aseo > 0) itemsCondoMod.push(it(`Servicio de Aseo Urbano - ${condoDet?.nombre || 'Condominio'} ${donde}${l.actividad ? ` - ${l.actividad}` : ''}${per}`, 'ASEO001', aseo, true));
@@ -461,7 +485,7 @@ export async function POST(request: Request) {
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             `Servicio de Aseo Urbano - Condominio ${contribuyente || 'General'}`,
+        Descripcion:             `Servicio de Aseo Urbano - Mes de ${obtenerMesAseoTexto()} - Condominio ${contribuyente || 'General'}`.slice(0, 250),
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          base.toFixed(2),
@@ -498,7 +522,7 @@ export async function POST(request: Request) {
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             concepto || `Servicio de Aseo Urbano Comercial - ${contribuyente || 'General'}`,
+        Descripcion:             concepto || `Servicio de Aseo Urbano Comercial - Mes de ${obtenerMesAseoTexto()} - ${contribuyente || 'General'}`,
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          base.toFixed(2),
@@ -800,6 +824,65 @@ export async function POST(request: Request) {
               const forma = casilla(hit ? hit[1] : tipoPago, 40);
               const ref = casilla(refPago, 25);
               const banco = casilla(bancoPago, Math.max(0, 100 - 2 - forma.length - ref.length));
+
+              const montoRetNum = conRetencion
+                ? (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || r2(totalIVA * 0.75))
+                : 0;
+
+              if (conRetencion && montoRetNum > 0 && totalAPagar > montoRetNum) {
+                const montoNeto = r2(totalAPagar - montoRetNum);
+                const montoRetFinal = r2(totalAPagar - montoNeto);
+                return [
+                  {
+                    Descripcion: [forma, banco, ref].join('|'),
+                    Fecha:       formatearFecha(fechaPago),
+                    Forma:       codigo,
+                    Monto:       montoNeto.toFixed(2), // Monto neto cancelado por transferencia
+                    Moneda:      'BSD',
+                    TipoCambio:  '0.0000',
+                  },
+                  {
+                    Descripcion: ['Retención IVA 75%', '', ''].join('|'),
+                    Fecha:       formatearFecha(fechaPago),
+                    Forma:       '99', // Retención de IVA
+                    Monto:       montoRetFinal.toFixed(2),
+                    Moneda:      'BSD',
+                    TipoCambio:  '0.0000',
+                  }
+                ];
+              }
+
+              // Múltiples formas de pago registradas en caja (sin retención)
+              if (Array.isArray(detPago.formasPago) && detPago.formasPago.length > 1) {
+                let sumFp = 0;
+                const fps = detPago.formasPago.map((fp: any) => {
+                  const desc = String(fp.descripcion || fp.tipo || 'Pago').trim();
+                  const n = desc.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                  const h = tabla.find(([, , keys]) => keys.some(k => n.includes(k)));
+                  const c = h ? h[0] : (fp.forma || '99');
+                  const f = casilla(h ? h[1] : desc, 40);
+                  const r = casilla(String(fp.referencia || ''), 25);
+                  const b = casilla(String(fp.banco || ''), Math.max(0, 100 - 2 - f.length - r.length));
+                  const m = r2(parseFloat(String(fp.monto || 0)) || 0);
+                  sumFp += m;
+                  return {
+                    Descripcion: [f, b, r].join('|'),
+                    Fecha:       formatearFecha(fp.fecha || fechaPago),
+                    Forma:       c,
+                    Monto:       m.toFixed(2),
+                    Moneda:      'BSD',
+                    TipoCambio:  '0.0000',
+                  };
+                });
+                if (Math.abs(sumFp - totalAPagar) <= 0.05) {
+                  const difFp = r2(totalAPagar - sumFp);
+                  if (difFp !== 0 && fps.length > 0) {
+                    fps[fps.length - 1].Monto = (parseFloat(fps[fps.length - 1].Monto) + difFp).toFixed(2);
+                  }
+                  return fps;
+                }
+              }
+
               return [{
                 Descripcion: [forma, banco, ref].join('|'),
                 Fecha:       formatearFecha(fechaPago),
@@ -826,7 +909,20 @@ export async function POST(request: Request) {
           ...(codigoContribuyente ? [{ Campo: 'CodigoContribuyente', Valor: String(codigoContribuyente).slice(0, 255) }] : []),
           ...(licenciaAE ? [{ Campo: 'LicenciaAE', Valor: licenciaAE.slice(0, 255) }] : []),
           { Campo: 'Caja',       Valor: cajaLabel.slice(0, 255) },
-          { Campo: 'Observaciones', Valor: `Pago ${String(pagoId).slice(0, 8).toUpperCase()}${refPago ? ' Ref. ' + refPago : ''}` },
+          {
+            Campo: 'Observaciones',
+            Valor: (() => {
+              const montoRetNum = conRetencion
+                ? (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || r2(totalIVA * 0.75))
+                : 0;
+              const f2 = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              if (conRetencion && montoRetNum > 0) {
+                const montoNeto = r2(totalAPagar - montoRetNum);
+                return `Forma de Pago: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''} por Bs. ${f2(montoNeto)} (Monto Cancelado sin Retención) | Retención 75% IVA: Bs. ${f2(montoRetNum)}`.slice(0, 255);
+              }
+              return `Forma de Pago: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''} por Bs. ${f2(totalAPagar)} (Cancelado) | Pago ${String(pagoId).slice(0, 8).toUpperCase()}`.slice(0, 255);
+            })()
+          },
         ],
         GuiaDespacho:      null,
         Transporte:        null,

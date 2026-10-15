@@ -66,6 +66,10 @@ export async function POST(request: Request) {
       det = det || {};
 
       try {
+        const montoRet = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)) || 0;
+        const esRet = !!(det.es_retencion || det.conRetencion || det.agente_retencion || montoRet > 0);
+        const montoFactura = parseFloat(String(det.monto_factura || 0)) || (parseFloat(pago.monto || '0') + (esRet ? montoRet : 0));
+
         // Ejecutar emisión individual llamando al endpoint interno de emisión
         const emitRes = await fetch(`${reqOrigin}/api/admin/factura-digital/emitir`, {
           method: 'POST',
@@ -75,13 +79,8 @@ export async function POST(request: Request) {
             recibos: det.recibos || [`REC-${pago.id.slice(0, 6)}`],
             contribuyente: det.contribuyente || pago.identidad,
             identidad: pago.identidad,
-            montoTotal: parseFloat(pago.monto || '0'),
-            formasPago: [{
-              descripcion: pago.tipo || 'Transferencia',
-              fecha: pago.created_at || new Date().toISOString(),
-              forma: '05',
-              monto: parseFloat(pago.monto || '0')
-            }],
+            montoTotal: montoFactura,
+            esRetencion: esRet,
             enviarCorreo: true
           })
         });
