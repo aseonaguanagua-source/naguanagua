@@ -1,0 +1,1574 @@
+{
+  "prefixMismatchesCount": 221,
+  "prefTransitions": {
+    "G -> J": 14,
+    "E -> J": 38,
+    "V -> J": 145,
+    "E -> V": 13,
+    "J -> V": 1,
+    "V -> E": 10
+  },
+  "numMatchesWithDiffPrefix": [
+    {
+      "code": "URB006575",
+      "contribuyente": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "sigyr_name": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "supa_id": "J-200000589",
+      "sigyr_id": "G-200000589",
+      "supa_pref": "J",
+      "sigyr_pref": "G",
+      "num": "200000589",
+      "estado": "Activo"
+    },
+    {
+      "code": "AURI017314",
+      "contribuyente": "1-ASOCIACI?N CIVIL URBANIZACI?N LA ENTRADA, ETAPA II",
+      "sigyr_name": "1-ASOCIACI?N CIVIL URBANIZACI?N LA ENTRADA, ETAPA II",
+      "supa_id": "J-401004865",
+      "sigyr_id": "E-401004865",
+      "supa_pref": "J",
+      "sigyr_pref": "E",
+      "num": "401004865",
+      "estado": "Activo"
+    },
+    {
+      "code": "AURI016222",
+      "contribuyente": "38-CONJ RESD LOS TULIPANES",
+      "sigyr_name": "38-CONJ RESD LOS TULIPANES",
+      "supa_id": "J-309736710",
+      "sigyr_id": "E-309736710",
+      "supa_pref": "J",
+      "sigyr_pref": "E",
+      "num": "309736710",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB006189",
+      "contribuyente": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "sigyr_name": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "supa_id": "J-200000589",
+      "sigyr_id": "G-200000589",
+      "supa_pref": "J",
+      "sigyr_pref": "G",
+      "num": "200000589",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB003781",
+      "contribuyente": "CONSUELO  CONTRERAS VEGA Y FRANCISCO ANTONIO CONTRERAS VEGA",
+      "sigyr_name": "CONSUELO  CONTRERAS VEGA Y FRANCISCO ANTONIO CONTRERAS VEGA",
+      "supa_id": "J-10162590",
+      "sigyr_id": "V-10162590",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "10162590",
+      "estado": "Inactivo"
+    },
+    {
+      "code": "URB010892",
+      "contribuyente": "INVERSIONES CARIBE C.A",
+      "sigyr_name": "INVERSIONES CARIBE C.A",
+      "supa_id": "J-1584941",
+      "sigyr_id": "V-1584941",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "1584941",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB034024",
+      "contribuyente": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "sigyr_name": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "supa_id": "J-200000589",
+      "sigyr_id": "G-200000589",
+      "supa_pref": "J",
+      "sigyr_pref": "G",
+      "num": "200000589",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "AURI015978",
+      "contribuyente": "2-CONJUNTO RESIDENCIAL BROMELIA",
+      "sigyr_name": "2-CONJUNTO RESIDENCIAL BROMELIA",
+      "supa_id": "J-297884840",
+      "sigyr_id": "E-297884840",
+      "supa_pref": "J",
+      "sigyr_pref": "E",
+      "num": "297884840",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB006193",
+      "contribuyente": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "sigyr_name": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "supa_id": "J-200000589",
+      "sigyr_id": "G-200000589",
+      "supa_pref": "J",
+      "sigyr_pref": "G",
+      "num": "200000589",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "URB006192",
+      "contribuyente": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "sigyr_name": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "supa_id": "J-200000589",
+      "sigyr_id": "G-200000589",
+      "supa_pref": "J",
+      "sigyr_pref": "G",
+      "num": "200000589",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "URB006190",
+      "contribuyente": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "sigyr_name": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "supa_id": "J-200000589",
+      "sigyr_id": "G-200000589",
+      "supa_pref": "J",
+      "sigyr_pref": "G",
+      "num": "200000589",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "URB000281",
+      "contribuyente": "SANTIAGO ARIAS JIMENEZ",
+      "sigyr_name": "SANTIAGO ARIAS JIMENEZ",
+      "supa_id": "V-84112004",
+      "sigyr_id": "E-84112004",
+      "supa_pref": "V",
+      "sigyr_pref": "E",
+      "num": "84112004",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB006191",
+      "contribuyente": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "sigyr_name": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "supa_id": "J-200000589",
+      "sigyr_id": "G-200000589",
+      "supa_pref": "J",
+      "sigyr_pref": "G",
+      "num": "200000589",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "URB006576",
+      "contribuyente": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "sigyr_name": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "supa_id": "J-200000589",
+      "sigyr_id": "G-200000589",
+      "supa_pref": "J",
+      "sigyr_pref": "G",
+      "num": "200000589",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "URB033720",
+      "contribuyente": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "sigyr_name": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "supa_id": "J-2969550",
+      "sigyr_id": "V-2969550",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "2969550",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB033170",
+      "contribuyente": "MARIALEIS DEL CARMEN SOCORRO COLMENARES PAEZ",
+      "sigyr_name": "MARIALEIS DEL CARMEN SOCORRO COLMENARES PAEZ",
+      "supa_id": "J-227787143",
+      "sigyr_id": "V-227787143",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "227787143",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB008542",
+      "contribuyente": "GUSTAVO DE JESUS LEON CORREA",
+      "sigyr_name": "GUSTAVO DE JESUS LEON CORREA",
+      "supa_id": "J-165020231",
+      "sigyr_id": "V-165020231",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "165020231",
+      "estado": "Activo"
+    },
+    {
+      "code": "AURI016083",
+      "contribuyente": "1-CONDOMINIO PARQUE COROMILA",
+      "sigyr_name": "1-CONDOMINIO PARQUE COROMILA",
+      "supa_id": "J-310640483",
+      "sigyr_id": "E-310640483",
+      "supa_pref": "J",
+      "sigyr_pref": "E",
+      "num": "310640483",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB003301",
+      "contribuyente": "YLDEFONZO JOSE PUERTA APONTE (CONJ. RESD. EL YAQUE)",
+      "sigyr_name": "YLDEFONZO JOSE PUERTA APONTE (CONJ. RESD. EL YAQUE)",
+      "supa_id": "J-039578804",
+      "sigyr_id": "V-039578804",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "39578804",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "URB010884",
+      "contribuyente": "INVERSIONES CARIBE C.A",
+      "sigyr_name": "INVERSIONES CARIBE C.A",
+      "supa_id": "J-1587539",
+      "sigyr_id": "V-1587539",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "1587539",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB016019",
+      "contribuyente": "PASQUALE VENTRESCA (FOTO ESTUDIO ROMA LA GRANJA)",
+      "sigyr_name": "PASQUALE VENTRESCA (FOTO ESTUDIO ROMA LA GRANJA)",
+      "supa_id": "J-070975684",
+      "sigyr_id": "V-70975684",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "70975684",
+      "estado": "Inactivo"
+    },
+    {
+      "code": "URB032238",
+      "contribuyente": "TERESA CORRALES DE NUNES",
+      "sigyr_name": "TERESA CORRALES DE NUNES",
+      "supa_id": "V-7091762",
+      "sigyr_id": "J-7091762",
+      "supa_pref": "V",
+      "sigyr_pref": "J",
+      "num": "7091762",
+      "estado": "Activo"
+    },
+    {
+      "code": "AURI012682",
+      "contribuyente": "CONJUNTO RESIDENCIAL VALLE JARDÍN",
+      "sigyr_name": "CONJUNTO RESIDENCIAL VALLE JARDÍN",
+      "supa_id": "J-311054332",
+      "sigyr_id": "V-311054332",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "311054332",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "URB003293",
+      "contribuyente": "YLDEFONZO JOSE PUERTA APONTE",
+      "sigyr_name": "YLDEFONZO JOSE PUERTA APONTE",
+      "supa_id": "J-039578804",
+      "sigyr_id": "V-039578804",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "39578804",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB025358",
+      "contribuyente": "YASLEYDA CAROLINA ALBARRAN ARAUJO Y Y ADRIAN YSAAC NIÑO QUINTERO",
+      "sigyr_name": "YASLEYDA CAROLINA ALBARRAN ARAUJO Y Y ADRIAN YSAAC NIÑO QUINTERO",
+      "supa_id": "J-13098598",
+      "sigyr_id": "V-13098598",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "13098598",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB021916",
+      "contribuyente": "IDALIA IVETT SANCHEZ",
+      "sigyr_name": "IDALIA IVETT SANCHEZ",
+      "supa_id": "J-4458241",
+      "sigyr_id": "V-4458241",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "4458241",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB003315",
+      "contribuyente": "YLDEFONZO JOSE PUERTA APONTE (CONJ. RESD. EL YAQUE)",
+      "sigyr_name": "YLDEFONZO JOSE PUERTA APONTE (CONJ. RESD. EL YAQUE)",
+      "supa_id": "J-039578804",
+      "sigyr_id": "V-039578804",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "39578804",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "URB032831",
+      "contribuyente": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "sigyr_name": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "supa_id": "J-2969550",
+      "sigyr_id": "V-2969550",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "2969550",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB032449",
+      "contribuyente": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "sigyr_name": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "supa_id": "J-2969550",
+      "sigyr_id": "V-2969550",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "2969550",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB014916",
+      "contribuyente": "INVERSIONES WTCHZONE LOPEZ JORGE, FP",
+      "sigyr_name": "INVERSIONES WTCHZONE LOPEZ JORGE, FP",
+      "supa_id": "J-196673527",
+      "sigyr_id": "V-196673527",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "196673527",
+      "estado": "Activo"
+    },
+    {
+      "code": "AURI015069",
+      "contribuyente": "9-CONJ. RESID. Y COMERCIAL GUAYABAL GARDEN",
+      "sigyr_name": "9-CONJ. RESID. Y COMERCIAL GUAYABAL GARDEN",
+      "supa_id": "J-298952016",
+      "sigyr_id": "E-298952016",
+      "supa_pref": "J",
+      "sigyr_pref": "E",
+      "num": "298952016",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB004316",
+      "contribuyente": "MUSSA SENSE, C.A",
+      "sigyr_name": "MUSSA SENSE, C.A",
+      "supa_id": "J-15726915",
+      "sigyr_id": "V-15726915",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "15726915",
+      "estado": "Activo"
+    },
+    {
+      "code": "AURI010252",
+      "contribuyente": "4-CASIMIRO DE FREITAS MOTA (VILLA NUESTRA SRA DE FATIMA)",
+      "sigyr_name": "4-CASIMIRO DE FREITAS MOTA (VILLA NUESTRA SRA DE FATIMA)",
+      "supa_id": "J-147524940",
+      "sigyr_id": "V-147524940",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "147524940",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB005942",
+      "contribuyente": "MARIANO SANCHE PEREZ",
+      "sigyr_name": "MARIANO SANCHE PEREZ",
+      "supa_id": "J-11355831",
+      "sigyr_id": "V-11355831",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "11355831",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB004117",
+      "contribuyente": "TERESA DE JESUS CORRALES C",
+      "sigyr_name": "TERESA DE JESUS CORRALES C",
+      "supa_id": "J-070917625",
+      "sigyr_id": "V-070917625",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "70917625",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB029098",
+      "contribuyente": "TERESA  PALERMO DE VASSALLO",
+      "sigyr_name": "TERESA  PALERMO DE VASSALLO",
+      "supa_id": "V-959452",
+      "sigyr_id": "E-959452",
+      "supa_pref": "V",
+      "sigyr_pref": "E",
+      "num": "959452",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB003294",
+      "contribuyente": "YLDEFONZO JOSE PUERTA APONTE (CONJ. RESD. EL YAQUE)",
+      "sigyr_name": "YLDEFONZO JOSE PUERTA APONTE (CONJ. RESD. EL YAQUE)",
+      "supa_id": "J-039578804",
+      "sigyr_id": "V-039578804",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "39578804",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "URB003306",
+      "contribuyente": "YLDEFONZO JOSE PUERTA APONTE",
+      "sigyr_name": "YLDEFONZO JOSE PUERTA APONTE",
+      "supa_id": "J-039578804",
+      "sigyr_id": "V-039578804",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "39578804",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB003297",
+      "contribuyente": "YLDEFONZO JOSE PUERTA APONTE",
+      "sigyr_name": "YLDEFONZO JOSE PUERTA APONTE",
+      "supa_id": "J-039578804",
+      "sigyr_id": "V-039578804",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "39578804",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB003311",
+      "contribuyente": "YLDEFONZO JOSE PUERTA APONTE",
+      "sigyr_name": "YLDEFONZO JOSE PUERTA APONTE",
+      "supa_id": "J-039578804",
+      "sigyr_id": "V-039578804",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "39578804",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB003305",
+      "contribuyente": "YLDEFONZO JOSE PUERTA APONTE",
+      "sigyr_name": "YLDEFONZO JOSE PUERTA APONTE",
+      "supa_id": "J-039578804",
+      "sigyr_id": "V-039578804",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "39578804",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB011138",
+      "contribuyente": "INVERSIONES INSOTI C.A",
+      "sigyr_name": "INVERSIONES INSOTI C.A",
+      "supa_id": "J-1594666",
+      "sigyr_id": "V-1594666",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "1594666",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB021232",
+      "contribuyente": "INVERSIONES PACHECO DIAZ, C.A",
+      "sigyr_name": "INVERSIONES PACHECO DIAZ, C.A",
+      "supa_id": "J-31650984",
+      "sigyr_id": "V-31650984",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "31650984",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB032598",
+      "contribuyente": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "sigyr_name": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "supa_id": "J-2969550",
+      "sigyr_id": "V-2969550",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "2969550",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB005747",
+      "contribuyente": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ (OFICINA DE CREDITOS)",
+      "sigyr_name": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ (OFICINA DE CREDITOS)",
+      "supa_id": "J-2969550",
+      "sigyr_id": "V-2969550",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "2969550",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB032599",
+      "contribuyente": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "sigyr_name": "HUMBERTO ENRIQUE RODRIGUEZ BARNIZ",
+      "supa_id": "J-2969550",
+      "sigyr_id": "V-2969550",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "2969550",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB007637",
+      "contribuyente": "LILIANA B SANCHEZ DE SOARES ( CHARCUTERIA LILIANA DE SOARES, F.P.",
+      "sigyr_name": "LILIANA B SANCHEZ DE SOARES ( CHARCUTERIA LILIANA DE SOARES, F.P.",
+      "supa_id": "J-115274291",
+      "sigyr_id": "V-115274291",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "115274291",
+      "estado": "Activo"
+    },
+    {
+      "code": "URB003308",
+      "contribuyente": "YLDEFONZO JOSE PUERTA APONTE (CONJ. RESD. EL YAQUE)",
+      "sigyr_name": "YLDEFONZO JOSE PUERTA APONTE (CONJ. RESD. EL YAQUE)",
+      "supa_id": "J-039578804",
+      "sigyr_id": "V-039578804",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "39578804",
+      "estado": "Eliminado"
+    },
+    {
+      "code": "AURI005132",
+      "contribuyente": "MARIANO SANCHEZ PEREZ Y YOLEIDA PILDAIN DE SANCHEZ",
+      "sigyr_name": "MARIANO SANCHEZ PEREZ Y YOLEIDA PILDAIN DE SANCHEZ",
+      "supa_id": "J-11355831",
+      "sigyr_id": "V-11355831",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "11355831",
+      "estado": "Activo"
+    },
+    {
+      "code": "AURI005128",
+      "contribuyente": "MARIANO SANCHEZ PEREZ Y YOLEIDA PILDAIN DE SANCHEZ",
+      "sigyr_name": "MARIANO SANCHEZ PEREZ Y YOLEIDA PILDAIN DE SANCHEZ",
+      "supa_id": "J-11355831",
+      "sigyr_id": "V-11355831",
+      "supa_pref": "J",
+      "sigyr_pref": "V",
+      "num": "11355831",
+      "estado": "Activo"
+    }
+  ],
+  "totalIdentityMismatchesCount": 1565,
+  "usersWithMultipleSigyr": 4508,
+  "usersWithMissingInmsCount": 161,
+  "sampleMissingUsers": [
+    {
+      "docNum": "11446403",
+      "sigyr_total": 7,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI001599",
+        "AURI001600",
+        "AURI017042",
+        "URB002332",
+        "URB002334",
+        "URB013373",
+        "URB034241"
+      ],
+      "missing_details": [
+        {
+          "code": "AURI001599",
+          "exists_in_supa": true,
+          "supa_identidad": "11446403-AURI001599",
+          "supa_contribuyente": "SARITZA COROMOTO AGOSTINI SALAZAR",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "AURI001600",
+          "exists_in_supa": true,
+          "supa_identidad": "11446403-AURI001600",
+          "supa_contribuyente": "SARITZA COROMOTO AGOSTINI SALAZAR",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "AURI017042",
+          "exists_in_supa": true,
+          "supa_identidad": "11446403-AURI017042",
+          "supa_contribuyente": "SARITZA COROMOTO AGOSTINI SALAZAR",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB002332",
+          "exists_in_supa": true,
+          "supa_identidad": "11446403-URB002332",
+          "supa_contribuyente": "SARITZA COROMOTO AGOSTINI SALAZAR",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB002334",
+          "exists_in_supa": true,
+          "supa_identidad": "11446403-URB002334",
+          "supa_contribuyente": "SARITZA COROMOTO AGOSTINI SALAZAR",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB034241",
+          "exists_in_supa": true,
+          "supa_identidad": "11446403-URB034241",
+          "supa_contribuyente": "SARITZA COROMOTO AGOSTINI SALAZAR",
+          "supa_estado": "Eliminado"
+        }
+      ]
+    },
+    {
+      "docNum": "309841327",
+      "sigyr_total": 6,
+      "supa_total": 5,
+      "sigyr_codes": [
+        "AURI003115",
+        "URB006109",
+        "URB016302",
+        "URB016715",
+        "URB018154",
+        "URB033581"
+      ],
+      "missing_details": [
+        {
+          "code": "URB033581",
+          "exists_in_supa": true,
+          "supa_identidad": "309841327-URB033581",
+          "supa_contribuyente": "INVERSIONES HER B C C.A",
+          "supa_estado": "Eliminado"
+        }
+      ]
+    },
+    {
+      "docNum": "24554088",
+      "sigyr_total": 3,
+      "supa_total": 2,
+      "sigyr_codes": [
+        "AURI003131",
+        "AURI013059",
+        "URB023384"
+      ],
+      "missing_details": [
+        {
+          "code": "URB023384",
+          "exists_in_supa": true,
+          "supa_identidad": "24554088-URB023384",
+          "supa_contribuyente": "JOSÉ RÍOS",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "308709875",
+      "sigyr_total": 4,
+      "supa_total": 3,
+      "sigyr_codes": [
+        "AURI004047",
+        "URB002283",
+        "URB002285",
+        "URB002286"
+      ],
+      "missing_details": [
+        {
+          "code": "URB002285",
+          "exists_in_supa": true,
+          "supa_identidad": "V-7012183",
+          "supa_contribuyente": "SUCESIÓN SALVATORE RUSSO DI GIORGI Y  SUCESIÓN GIUSEPPA CATALANO DE RUSSO",
+          "supa_estado": "Inactivo"
+        }
+      ]
+    },
+    {
+      "docNum": "19425268",
+      "sigyr_total": 2,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI004313",
+        "URB031130"
+      ],
+      "missing_details": [
+        {
+          "code": "URB031130",
+          "exists_in_supa": true,
+          "supa_identidad": "19425268-URB031130",
+          "supa_contribuyente": "MONICA   MALDONADO CERON",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "4621790",
+      "sigyr_total": 2,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI004810",
+        "URB013286"
+      ],
+      "missing_details": [
+        {
+          "code": "URB013286",
+          "exists_in_supa": true,
+          "supa_identidad": "4621790-URB013286",
+          "supa_contribuyente": "YILMAR DEL VALLE CAMPBEILL REQUENA",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "4032280",
+      "sigyr_total": 3,
+      "supa_total": 2,
+      "sigyr_codes": [
+        "AURI005439",
+        "URB004434",
+        "URB004444"
+      ],
+      "missing_details": [
+        {
+          "code": "URB004444",
+          "exists_in_supa": true,
+          "supa_identidad": "4032280-URB004444",
+          "supa_contribuyente": "MARIA LAURA MATHEUS MONTESINOS",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "15037356",
+      "sigyr_total": 4,
+      "supa_total": 3,
+      "sigyr_codes": [
+        "AURI005470",
+        "URB003574",
+        "URB004123",
+        "URB027884"
+      ],
+      "missing_details": [
+        {
+          "code": "URB003574",
+          "exists_in_supa": true,
+          "supa_identidad": "70534645-URB003574",
+          "supa_contribuyente": "ANTONIO CARMINE RICCI FLORES",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "309094092",
+      "sigyr_total": 21,
+      "supa_total": 3,
+      "sigyr_codes": [
+        "AURI010001",
+        "URB013411",
+        "URB013414",
+        "URB013415",
+        "URB013416",
+        "URB013420",
+        "URB013424",
+        "URB013425",
+        "URB013426",
+        "URB013428",
+        "URB013430",
+        "URB013432",
+        "URB013442",
+        "URB013443",
+        "URB013445",
+        "URB013452",
+        "URB013453",
+        "URB013455",
+        "URB013460",
+        "URB013468",
+        "URB034579"
+      ],
+      "missing_details": [
+        {
+          "code": "URB013414",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013414",
+          "supa_contribuyente": "AULAR HERRERA ANTONIO EDUARDO",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013415",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013415",
+          "supa_contribuyente": "ROJAS MARTINEZ RODOLFO JOSE",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013416",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013416",
+          "supa_contribuyente": "ANA GOVEIA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013420",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013420",
+          "supa_contribuyente": "SANCHEZ RODRIGUEZ YUDITH OSMAIRA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013424",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013424",
+          "supa_contribuyente": "GONZALEZ CARVALLO JUAN ALBERTO",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013425",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013425",
+          "supa_contribuyente": "ZU�IGA FLORES YOSAIRA BELIXA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013426",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013426",
+          "supa_contribuyente": "REYES JIMENEZ AMALIA TERESA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013428",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013428",
+          "supa_contribuyente": "RAFAEL OTAIZA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013430",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013430",
+          "supa_contribuyente": "OCHOA AGUSTINA RAMONA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013432",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013432",
+          "supa_contribuyente": "TRUJILLO PEROZA CARMEN ESTRELLA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013442",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013442",
+          "supa_contribuyente": "GIMENEZ PARRA LILIANA MERCEDES",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013443",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013443",
+          "supa_contribuyente": "LORZA OLANDO NANCY ELENA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013445",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013445",
+          "supa_contribuyente": "CAMERO YEPEZ YAJAIRA MERCEDES",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013452",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013452",
+          "supa_contribuyente": "GUZMAN FLORES XIOMARA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013453",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013453",
+          "supa_contribuyente": "DE GARCIA EDY M VELOZ",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013455",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013455",
+          "supa_contribuyente": "ROJAS ARTEAGA REYNA MAYIBE",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013460",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013460",
+          "supa_contribuyente": "LORENZO DELISIO",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB013468",
+          "exists_in_supa": true,
+          "supa_identidad": "309094092-URB013468",
+          "supa_contribuyente": "MARIANNY PINTO",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "295824297",
+      "sigyr_total": 2,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI010052",
+        "URB024937"
+      ],
+      "missing_details": [
+        {
+          "code": "URB024937",
+          "exists_in_supa": true,
+          "supa_identidad": "295824297-URB024937",
+          "supa_contribuyente": "CONJUNTO RESIDENCIAL LAS BAHAMAS B",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "3305217",
+      "sigyr_total": 7,
+      "supa_total": 5,
+      "sigyr_codes": [
+        "AURI010110",
+        "URB034298",
+        "URB034299",
+        "URB034300",
+        "URB034301",
+        "URB034302",
+        "URB034303"
+      ],
+      "missing_details": [
+        {
+          "code": "URB034299",
+          "exists_in_supa": true,
+          "supa_identidad": "J-503359056",
+          "supa_contribuyente": "EUDES RAMON BLANCHART",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB034300",
+          "exists_in_supa": true,
+          "supa_identidad": "J-411293539",
+          "supa_contribuyente": "EUDES RAMON BLANCHART",
+          "supa_estado": "Eliminado"
+        }
+      ]
+    },
+    {
+      "docNum": "313657875",
+      "sigyr_total": 3,
+      "supa_total": 2,
+      "sigyr_codes": [
+        "AURI010112",
+        "URB025017",
+        "URB033377"
+      ],
+      "missing_details": [
+        {
+          "code": "URB025017",
+          "exists_in_supa": true,
+          "supa_identidad": "313657875-URB025017",
+          "supa_contribuyente": "CONDOMINIO BALCONES DEL NORTE",
+          "supa_estado": "Eliminado"
+        }
+      ]
+    },
+    {
+      "docNum": "75310578",
+      "sigyr_total": 13,
+      "supa_total": 2,
+      "sigyr_codes": [
+        "AURI010166",
+        "URB008342",
+        "URB008343",
+        "URB008344",
+        "URB033630",
+        "URB033631",
+        "URB033632",
+        "URB033633",
+        "URB033892",
+        "URB033900",
+        "URB034491",
+        "URB034991",
+        "URB034993"
+      ],
+      "missing_details": [
+        {
+          "code": "AURI010166",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-AURI010166",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Inactivo"
+        },
+        {
+          "code": "URB008342",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB008342",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB008343",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB008343",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB008344",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB008344",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB033630",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB033630",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB033631",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB033631",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB033632",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB033632",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB033633",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB033633",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB033892",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB033892",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Eliminado"
+        },
+        {
+          "code": "URB033900",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB033900",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Inactivo"
+        },
+        {
+          "code": "URB034491",
+          "exists_in_supa": true,
+          "supa_identidad": "075310578-URB034491",
+          "supa_contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "39578804",
+      "sigyr_total": 68,
+      "supa_total": 65,
+      "sigyr_codes": [
+        "AURI010180",
+        "AURI010181",
+        "AURI010182",
+        "AURI015387",
+        "AURI015388",
+        "AURI015389",
+        "AURI015390",
+        "AURI015391",
+        "AURI015392",
+        "AURI015393",
+        "AURI015394",
+        "AURI015395",
+        "AURI015396",
+        "AURI015397",
+        "AURI015398",
+        "AURI015399",
+        "AURI015400",
+        "AURI015401",
+        "AURI015402",
+        "AURI015403",
+        "URB003287",
+        "URB003288",
+        "URB003289",
+        "URB003290",
+        "URB003291",
+        "URB003292",
+        "URB003293",
+        "URB003294",
+        "URB003295",
+        "URB003296",
+        "URB003297",
+        "URB003298",
+        "URB003299",
+        "URB003300",
+        "URB003301",
+        "URB003302",
+        "URB003303",
+        "URB003304",
+        "URB003305",
+        "URB003306",
+        "URB003307",
+        "URB003308",
+        "URB003309",
+        "URB003310",
+        "URB003311",
+        "URB003312",
+        "URB003313",
+        "URB003314",
+        "URB003315",
+        "URB003316",
+        "URB003317",
+        "URB003318",
+        "URB003319",
+        "URB003320",
+        "URB003321",
+        "URB003322",
+        "URB003323",
+        "URB003324",
+        "URB003325",
+        "URB003326",
+        "URB003327",
+        "URB003328",
+        "URB018451",
+        "URB024916",
+        "URB032199",
+        "URB032201",
+        "URB032202",
+        "URB032206"
+      ],
+      "missing_details": [
+        {
+          "code": "URB018451",
+          "exists_in_supa": true,
+          "supa_identidad": "039578804-URB018451",
+          "supa_contribuyente": "CONJ. RESID. CAMURI",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB032201",
+          "exists_in_supa": true,
+          "supa_identidad": "039578804-URB032201",
+          "supa_contribuyente": "GERVACIO VERA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB032206",
+          "exists_in_supa": true,
+          "supa_identidad": "039578804-URB032206",
+          "supa_contribuyente": "KARINA DE FELICE",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "313417190",
+      "sigyr_total": 3,
+      "supa_total": 2,
+      "sigyr_codes": [
+        "AURI010349",
+        "AURI010356",
+        "URB021272"
+      ],
+      "missing_details": [
+        {
+          "code": "AURI010349",
+          "exists_in_supa": true,
+          "supa_identidad": "313417190-AURI010349",
+          "supa_contribuyente": "FELIZ CIPRIANI",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "11940953",
+      "sigyr_total": 5,
+      "supa_total": 4,
+      "sigyr_codes": [
+        "AURI010420",
+        "AURI010668",
+        "AURI011457",
+        "AURI013181",
+        "URB017996"
+      ],
+      "missing_details": [
+        {
+          "code": "URB017996",
+          "exists_in_supa": true,
+          "supa_identidad": "11940953-URB017996",
+          "supa_contribuyente": "NAYIRA JOSEFINA RODRIGUEZ MATUTE",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "18785420",
+      "sigyr_total": 5,
+      "supa_total": 4,
+      "sigyr_codes": [
+        "AURI010440",
+        "AURI010688",
+        "AURI011477",
+        "AURI013201",
+        "URB019347"
+      ],
+      "missing_details": [
+        {
+          "code": "URB019347",
+          "exists_in_supa": true,
+          "supa_identidad": "18785420-URB019347",
+          "supa_contribuyente": "MARIELBA DEL PILAR CORONEL BRAVO",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "7049710",
+      "sigyr_total": 5,
+      "supa_total": 4,
+      "sigyr_codes": [
+        "AURI010444",
+        "AURI010692",
+        "AURI011481",
+        "AURI013205",
+        "URB019277"
+      ],
+      "missing_details": [
+        {
+          "code": "URB019277",
+          "exists_in_supa": true,
+          "supa_identidad": "7049710-URB019277",
+          "supa_contribuyente": "LEONIDAS HUMBERTO GUILLEN TORRES",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "7079834",
+      "sigyr_total": 5,
+      "supa_total": 4,
+      "sigyr_codes": [
+        "AURI010455",
+        "AURI010703",
+        "AURI011492",
+        "AURI013216",
+        "URB019342"
+      ],
+      "missing_details": [
+        {
+          "code": "AURI011492",
+          "exists_in_supa": true,
+          "supa_identidad": "7079834-AURI011492",
+          "supa_contribuyente": "CARLOS ORTIZ",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "11528721",
+      "sigyr_total": 5,
+      "supa_total": 4,
+      "sigyr_codes": [
+        "AURI010459",
+        "AURI010707",
+        "AURI011496",
+        "AURI013220",
+        "URB019323"
+      ],
+      "missing_details": [
+        {
+          "code": "URB019323",
+          "exists_in_supa": true,
+          "supa_identidad": "11528721-URB019323",
+          "supa_contribuyente": "YELITZA VALENTINA ESTRELLAS ZAMBRANO",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "17283282",
+      "sigyr_total": 5,
+      "supa_total": 4,
+      "sigyr_codes": [
+        "AURI010486",
+        "AURI010734",
+        "AURI011523",
+        "AURI013247",
+        "URB014625"
+      ],
+      "missing_details": [
+        {
+          "code": "URB014625",
+          "exists_in_supa": true,
+          "supa_identidad": "17283282-URB014625",
+          "supa_contribuyente": "JUAN CARLOS GARCIA",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "2505540",
+      "sigyr_total": 5,
+      "supa_total": 0,
+      "sigyr_codes": [
+        "AURI010487",
+        "AURI010735",
+        "AURI011524",
+        "AURI013248",
+        "URB019344"
+      ],
+      "missing_details": [
+        {
+          "code": "AURI010487",
+          "exists_in_supa": true,
+          "supa_identidad": "2505540-AURI010487",
+          "supa_contribuyente": "EPIFANIO SEIJAS",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "AURI010735",
+          "exists_in_supa": true,
+          "supa_identidad": "2505540-AURI010735",
+          "supa_contribuyente": "EPIFANIO SEIJAS",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "AURI011524",
+          "exists_in_supa": true,
+          "supa_identidad": "2505540-AURI011524",
+          "supa_contribuyente": "EPIFANIO SEIJAS",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "AURI013248",
+          "exists_in_supa": true,
+          "supa_identidad": "2505540-AURI013248",
+          "supa_contribuyente": "EPIFANIO SEIJAS",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB019344",
+          "exists_in_supa": true,
+          "supa_identidad": "2505540-URB019344",
+          "supa_contribuyente": "EPIFANIO JESUS SEIJAS GALINDEZY CARMEN LUISA SOLANO DE SEIJAS",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "312049545",
+      "sigyr_total": 2,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI011387",
+        "URB028284"
+      ],
+      "missing_details": [
+        {
+          "code": "URB028284",
+          "exists_in_supa": true,
+          "supa_identidad": "312049545-URB028284",
+          "supa_contribuyente": "CONJUNTO RESIDENCIAL VILLA BELLA",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "309269127",
+      "sigyr_total": 3,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI011788",
+        "URB026639",
+        "URB026648"
+      ],
+      "missing_details": [
+        {
+          "code": "URB026639",
+          "exists_in_supa": true,
+          "supa_identidad": "309269127-URB026639",
+          "supa_contribuyente": "CONJ RESD OLYMPIC GARDEN TORRE B",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB026648",
+          "exists_in_supa": true,
+          "supa_identidad": "309269127-URB026648",
+          "supa_contribuyente": "CONJ RESD OLYMPIC GARDEN TORRE B",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "298857102",
+      "sigyr_total": 6,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI011799",
+        "AURI011802",
+        "AURI011803",
+        "AURI011807",
+        "AURI011811",
+        "URB029673"
+      ],
+      "missing_details": [
+        {
+          "code": "AURI011799",
+          "exists_in_supa": true,
+          "supa_identidad": "298857102-AURI011799",
+          "supa_contribuyente": "ELIZA VASQUEZ",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "AURI011802",
+          "exists_in_supa": true,
+          "supa_identidad": "298857102-AURI011802",
+          "supa_contribuyente": "RAFAEL PIZZANO",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "AURI011803",
+          "exists_in_supa": true,
+          "supa_identidad": "298857102-AURI011803",
+          "supa_contribuyente": "RUBETHGLENA JIMENEZ",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "AURI011807",
+          "exists_in_supa": true,
+          "supa_identidad": "298857102-AURI011807",
+          "supa_contribuyente": "CONCETTO FRIXA",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB029673",
+          "exists_in_supa": true,
+          "supa_identidad": "298857102-URB029673",
+          "supa_contribuyente": "CONDOMINIO EDIFICIO RESIDENCIAS MIRABELLA I",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "315486768",
+      "sigyr_total": 4,
+      "supa_total": 2,
+      "sigyr_codes": [
+        "AURI011821",
+        "URB007520",
+        "URB007521",
+        "URB033350"
+      ],
+      "missing_details": [
+        {
+          "code": "URB007520",
+          "exists_in_supa": true,
+          "supa_identidad": "315486768-URB007520",
+          "supa_contribuyente": "COMERCIAL NAGUA-NORTE, C.A.",
+          "supa_estado": "Activo"
+        },
+        {
+          "code": "URB007521",
+          "exists_in_supa": true,
+          "supa_identidad": "315486768-URB007521",
+          "supa_contribuyente": "COMERCIAL NAGUA-NORTE, C.A.",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "9209705",
+      "sigyr_total": 2,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI012014",
+        "URB013522"
+      ],
+      "missing_details": [
+        {
+          "code": "URB013522",
+          "exists_in_supa": true,
+          "supa_identidad": "9209705-URB013522",
+          "supa_contribuyente": "ANTONIO VEGA",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "11358764",
+      "sigyr_total": 7,
+      "supa_total": 6,
+      "sigyr_codes": [
+        "AURI012142",
+        "AURI013565",
+        "AURI013566",
+        "URB003206",
+        "URB020796",
+        "URB020874",
+        "URB021681"
+      ],
+      "missing_details": [
+        {
+          "code": "AURI013565",
+          "exists_in_supa": true,
+          "supa_identidad": "11358764-AURI013565",
+          "supa_contribuyente": "RICCHEL M APONTE A",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "14304698",
+      "sigyr_total": 2,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI012156",
+        "URB003220"
+      ],
+      "missing_details": [
+        {
+          "code": "URB003220",
+          "exists_in_supa": true,
+          "supa_identidad": "14304698-URB003220",
+          "supa_contribuyente": "JOSE ALEJANDRO OCHOA",
+          "supa_estado": "Activo"
+        }
+      ]
+    },
+    {
+      "docNum": "11845209",
+      "sigyr_total": 2,
+      "supa_total": 1,
+      "sigyr_codes": [
+        "AURI012157",
+        "URB003221"
+      ],
+      "missing_details": [
+        {
+          "code": "URB003221",
+          "exists_in_supa": true,
+          "supa_identidad": "11845209-URB003221",
+          "supa_contribuyente": "AURIDER LIZAIDA RANGEL RODRIGUEZ",
+          "supa_estado": "Activo"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1602 @@
+[
+  {
+    "inmueble": "URB000679",
+    "contribuyente": "MARYOLY DESIREE GOMEZ PANTOJA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T18:18 H-marianny"
+  },
+  {
+    "inmueble": "AURI004443",
+    "contribuyente": "OFELIA MARGARITA GARCIA PEREIRA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T13:06 R-damary"
+  },
+  {
+    "inmueble": "URB034457",
+    "contribuyente": "FLAUZINO PEQUENO NOVO FERRARA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T14:48 M-valentina"
+  },
+  {
+    "inmueble": "URB008806",
+    "contribuyente": "PALPHA AIR MOTOR S C.A.",
+    "record": 3,
+    "meses_pagados": 1,
+    "esperado": 1,
+    "actual": 2,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T13:20 O-carlieth"
+  },
+  {
+    "inmueble": "AURI017508",
+    "contribuyente": "CARLOS ENRIQUE OBISPO OCHOA",
+    "record": 15,
+    "meses_pagados": 15,
+    "esperado": 0,
+    "actual": 14,
+    "diferencia": 14,
+    "pagos": "Debito 2026-10-05T15:14 K-johana"
+  },
+  {
+    "inmueble": "AURI005587",
+    "contribuyente": "ANTONIO JOSE MENDEZ CONSTANTE",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-08T14:28 N-patricia"
+  },
+  {
+    "inmueble": "AURI016781",
+    "contribuyente": "MARIA ETELVINA ARTIGAS",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Credito 2026-10-07T15:52 K-johana"
+  },
+  {
+    "inmueble": "URB032238",
+    "contribuyente": "TERESA CORRALES DE NUNES",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T15:07 R-damary"
+  },
+  {
+    "inmueble": "AURI004456",
+    "contribuyente": "JACQUELINE MARISOL SEQUERA BORGES",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T17:38 P-mariangel"
+  },
+  {
+    "inmueble": "URB002310",
+    "contribuyente": "PINTO FLORES ISMAEL GERARDO",
+    "record": 2,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T17:34 H-marianny"
+  },
+  {
+    "inmueble": "AURI003008",
+    "contribuyente": "ANAIS LILIBETH LATOUCHE ATACHO Y JESUS ALBERTO GOITIA RODRIGUEZ",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-06T18:19 E-luis"
+  },
+  {
+    "inmueble": "AURI002448",
+    "contribuyente": "SUCESION BLAS VILLEGAS ESTRADA",
+    "record": 4,
+    "meses_pagados": 4,
+    "esperado": 0,
+    "actual": 3,
+    "diferencia": 3,
+    "pagos": "Debito 2026-10-07T13:47 H-marianny"
+  },
+  {
+    "inmueble": "AURI017754",
+    "contribuyente": "MIRANDA BRAVO RAUL ANTONIO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:00 H-marianny"
+  },
+  {
+    "inmueble": "AURI000752",
+    "contribuyente": "QUERO GALICIA GLAMIR VALERIA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T14:50 O-carlieth"
+  },
+  {
+    "inmueble": "AURI008597",
+    "contribuyente": "FLAUZINO PEQUENO NOVO FERRERA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T14:45 M-valentina"
+  },
+  {
+    "inmueble": "AURI005012",
+    "contribuyente": "SARAHI  TALLAVO DIAZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T13:25 H-marianny"
+  },
+  {
+    "inmueble": "AURI018079",
+    "contribuyente": "GONZALO MADRID",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T13:54 R-damary"
+  },
+  {
+    "inmueble": "AURI017812",
+    "contribuyente": "XIOMARA ELENA SANTANA DE PAZ",
+    "record": 6,
+    "meses_pagados": 6,
+    "esperado": 0,
+    "actual": 5,
+    "diferencia": 5,
+    "pagos": "Debito 2026-10-05T15:49 R-damaris"
+  },
+  {
+    "inmueble": "AURI007334",
+    "contribuyente": "DIEGO NICOLAS CHIRINOS MORALES Y ERVIGIA MARIA CHIRINOS DE WEFFER",
+    "record": 6,
+    "meses_pagados": 6,
+    "esperado": 0,
+    "actual": 5,
+    "diferencia": 5,
+    "pagos": "Debito 2026-10-08T12:47 H-marianny"
+  },
+  {
+    "inmueble": "URB006730",
+    "contribuyente": "SALAOS DE VENEZUELA , C. A",
+    "record": 13,
+    "meses_pagados": 1,
+    "esperado": 11,
+    "actual": 12,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T13:29 R-damary"
+  },
+  {
+    "inmueble": "AURI002809",
+    "contribuyente": "VIRMA BEATRIZ TORRES Y LUIS ENRIQUE MOLINA CHAVEZ",
+    "record": 6,
+    "meses_pagados": 6,
+    "esperado": 0,
+    "actual": 5,
+    "diferencia": 5,
+    "pagos": "Credito 2026-10-07T16:03 K-johana"
+  },
+  {
+    "inmueble": "AURI017020",
+    "contribuyente": "ANDRES ALBERTO BAFFIGO FUENTES Y MERCEDES TRINIDAD CARRASQUEL DE BAFFIGO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T13:56 H-marianny"
+  },
+  {
+    "inmueble": "AURI017859",
+    "contribuyente": "HAIDEE FLORINDA GUEVARA HERNANDEZ",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-06T17:51 R-damary"
+  },
+  {
+    "inmueble": "AURI005105",
+    "contribuyente": "MIGDALIA DE JESUS MORA DE IPPOLITO Y ROMEO IPPOLITO BENVENUTO",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-06T13:43 P-mariangel"
+  },
+  {
+    "inmueble": "URB035010",
+    "contribuyente": "ERIKA CHINQUIRA SOTO",
+    "record": 2,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T17:50 R-damary"
+  },
+  {
+    "inmueble": "URB032840",
+    "contribuyente": "INVERSIONES VALENCIA M&O C.A",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-08T18:27 O-carlieth"
+  },
+  {
+    "inmueble": "AURI018587",
+    "contribuyente": "VICTORIA JOSVIC HERNANDEZ TOVAR",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-07T14:32 R-damary"
+  },
+  {
+    "inmueble": "AURI018094",
+    "contribuyente": "GREGORIA GAMARRA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T13:23 R-damary"
+  },
+  {
+    "inmueble": "AURI018077",
+    "contribuyente": "HILDA PRIETO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T12:10 R-damary"
+  },
+  {
+    "inmueble": "AURI007066",
+    "contribuyente": "COROMOTO DEL CARMEN PERDOMO DE PEREZ, VICTORINA PERDOMO DE OSPINO Y FELICIA MEDINA PERDOMO",
+    "record": 38,
+    "meses_pagados": 38,
+    "esperado": 0,
+    "actual": 37,
+    "diferencia": 37,
+    "pagos": "Debito 2026-10-06T12:39 R-damary"
+  },
+  {
+    "inmueble": "URB034839",
+    "contribuyente": "MARIA VALENTINA ROJAS ROJAS",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-07T17:04 B-maira"
+  },
+  {
+    "inmueble": "URB000401",
+    "contribuyente": "LACTEOS MI CAMPESINA C.A",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-05T13:05 R-damaris"
+  },
+  {
+    "inmueble": "AURI009550",
+    "contribuyente": "YOLANDA AMERICA LEAL LEAL",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:27 P-mariangel"
+  },
+  {
+    "inmueble": "URB032837",
+    "contribuyente": "INVERSIONES VALENCIA M&O C.A",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-08T18:20 O-carlieth"
+  },
+  {
+    "inmueble": "AURI001821",
+    "contribuyente": "NEIDA JOSEFINA OSORIO DE FLORES Y LUIS ENRIQUE FLORES",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-06T16:00 C-daniela"
+  },
+  {
+    "inmueble": "AURI017614",
+    "contribuyente": "HAYDEE JOSEFINA MENDOZA DE GARCIA Y  MELVIN HUMBERTO GARCIA PARRAGA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-10T17:01 E-luis"
+  },
+  {
+    "inmueble": "AURI017961",
+    "contribuyente": "SARA JOSEFINA BERMUDEZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T19:52 R-damaris"
+  },
+  {
+    "inmueble": "URB034137",
+    "contribuyente": "BARBARUS BARBERIA,C.A",
+    "record": 2,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T18:24 H-marianny"
+  },
+  {
+    "inmueble": "AURI007463",
+    "contribuyente": "SUCESIÓN MICHELE DE FRENZA LEONIGRO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T13:50 H-marianny"
+  },
+  {
+    "inmueble": "AURI003080",
+    "contribuyente": "SUCESION LUISA E DIAZ DE FREITES",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T16:31 H-marianny"
+  },
+  {
+    "inmueble": "URB032838",
+    "contribuyente": "INVERSIONES VALENCIA M&O C.A",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-08T18:23 O-carlieth"
+  },
+  {
+    "inmueble": "AURI003581",
+    "contribuyente": "MARITHZA ELENA RODRIGUEZ BOTELLO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T14:23 K-johana"
+  },
+  {
+    "inmueble": "AURI017918",
+    "contribuyente": "ASNEL ROMERO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T17:16 R-damary"
+  },
+  {
+    "inmueble": "AURI009737",
+    "contribuyente": "DOMINGO ALBERTO CASTILLO RODRIGUEZ",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-08T14:48 R-damary"
+  },
+  {
+    "inmueble": "AURI000886",
+    "contribuyente": "ANA CRISTINA VAZQUEZ HERNANDEZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T17:20 R-damaris"
+  },
+  {
+    "inmueble": "AURI006181",
+    "contribuyente": "HERNANI MARTINEZ MADRID Y NERZA ROMERO DE MARTINEZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T15:44 R-damaris"
+  },
+  {
+    "inmueble": "AURI000969",
+    "contribuyente": "OMAIRA ZENOBIA CELIS GONZALEZ Y  JOSE SALVADOR MEDINA",
+    "record": 2,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T15:52 P-mariangel"
+  },
+  {
+    "inmueble": "AURI001341",
+    "contribuyente": "ALVARO ELIECER CADENA SILVA Y NUBIA PINZON DE CADENA",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-05T15:05 P-mariangel"
+  },
+  {
+    "inmueble": "URB035168",
+    "contribuyente": "RAFAEL ANTONIO NEWMAN AÑEZ",
+    "record": 37,
+    "meses_pagados": 13,
+    "esperado": 23,
+    "actual": 36,
+    "diferencia": 13,
+    "pagos": "Debito 2026-10-07T13:16 K-johana"
+  },
+  {
+    "inmueble": "AURI019068",
+    "contribuyente": "SUCESION CARMEN OROZCO DE CONDE",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-07T12:46 R-damary"
+  },
+  {
+    "inmueble": "AURI002678",
+    "contribuyente": "CARMEN ALICIA OLIVERA PARRAGA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-06T13:44 K-johana"
+  },
+  {
+    "inmueble": "AURI000447",
+    "contribuyente": "RAFAEL VICENTE ROSALES ROMAN",
+    "record": 52,
+    "meses_pagados": 52,
+    "esperado": 0,
+    "actual": 51,
+    "diferencia": 51,
+    "pagos": "Debito 2026-10-06T15:20 H-marianny"
+  },
+  {
+    "inmueble": "AURI008594",
+    "contribuyente": "DOUGLAS JOSÉ MENDOZA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T12:59 R-damary"
+  },
+  {
+    "inmueble": "AURI006176",
+    "contribuyente": "ESNILDA JOSEFINA ALCALA CARVAJAL",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-07T15:06 P-mariangel"
+  },
+  {
+    "inmueble": "AURI017563",
+    "contribuyente": "DORI MORA DE MOLINA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T14:48 H-marianny"
+  },
+  {
+    "inmueble": "AURI001100",
+    "contribuyente": "SUCESIÓN SOCORRO MONQUE",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T14:11 R-damary"
+  },
+  {
+    "inmueble": "AURI003427",
+    "contribuyente": "PÉREZ PÉREZ NELSON Y ZÁRRAGA MARTÍNEZ MIREYA ANTONIA",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-05T17:59 K-johana"
+  },
+  {
+    "inmueble": "AURI017402",
+    "contribuyente": "ROSA MARIA ARTIGAS DE VELEZ",
+    "record": 2,
+    "meses_pagados": 4,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Credito 2026-10-07T15:55 K-johana | Debito 2026-10-07T17:48 K-johana"
+  },
+  {
+    "inmueble": "AURI001893",
+    "contribuyente": "PETRA MIGDALIA NIEVES DE PAEZ",
+    "record": 5,
+    "meses_pagados": 3,
+    "esperado": 1,
+    "actual": 2,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T15:07 H-marianny"
+  },
+  {
+    "inmueble": "AURI006246",
+    "contribuyente": "JOSE LUIS TERAN FERNANDEZ",
+    "record": 13,
+    "meses_pagados": 13,
+    "esperado": 0,
+    "actual": 12,
+    "diferencia": 12,
+    "pagos": "Debito 2026-10-05T12:19 K-johana"
+  },
+  {
+    "inmueble": "AURI005580",
+    "contribuyente": "CESAR AUGUSTO PALOMINO QUISPE",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T15:08 P-mariangel"
+  },
+  {
+    "inmueble": "AURI018083",
+    "contribuyente": "VICTORIA HERRERA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T12:08 R-damary"
+  },
+  {
+    "inmueble": "URB032871",
+    "contribuyente": "FLAUZINO PEQUENO NOVO",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T14:48 M-valentina"
+  },
+  {
+    "inmueble": "AURI006819",
+    "contribuyente": "JOSE TOMAS NAVARRO HERNANDEZ",
+    "record": 25,
+    "meses_pagados": 25,
+    "esperado": 0,
+    "actual": 24,
+    "diferencia": 24,
+    "pagos": "Debito 2026-10-06T12:27 P-mariangel"
+  },
+  {
+    "inmueble": "AURI009438",
+    "contribuyente": "MARIA DEL PILAR TIGREROS",
+    "record": 4,
+    "meses_pagados": 4,
+    "esperado": 0,
+    "actual": 3,
+    "diferencia": 3,
+    "pagos": "Debito 2026-10-08T13:59 R-damary"
+  },
+  {
+    "inmueble": "AURI002673",
+    "contribuyente": "CARMEN ROSA BERROTERAN DE LOPEZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T15:20 R-damary"
+  },
+  {
+    "inmueble": "URB034475",
+    "contribuyente": "FLAUZINO PEQUENO NOVO",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T14:45 M-valentina"
+  },
+  {
+    "inmueble": "AURI004460",
+    "contribuyente": "HERMECINDA DEL CARMEN GARCIA PEREIRA Y OLGER FORERO ESLABA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T13:04 R-damary"
+  },
+  {
+    "inmueble": "AURI001008",
+    "contribuyente": "PEDRO  ROBLES",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Credito 2026-10-06T15:18 P-mariangel"
+  },
+  {
+    "inmueble": "AURI005633",
+    "contribuyente": "IRIS YOLET VILLAMIZAR DE MORA Y ARMANDO MORA MORA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T15:10 P-mariangel"
+  },
+  {
+    "inmueble": "URB034453",
+    "contribuyente": "FLAUZINO PEQUENO NOVO FERRARA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T14:50 M-valentina"
+  },
+  {
+    "inmueble": "AURI017896",
+    "contribuyente": "LUIS ANTONIO ACEVEDO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T13:54 R-damary"
+  },
+  {
+    "inmueble": "AURI005582",
+    "contribuyente": "HERNANDO JOSE AGUILAR PINEDA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T18:24 K-johana"
+  },
+  {
+    "inmueble": "URB008997",
+    "contribuyente": "MARIA CELINA CASTILLO",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:37 H-marianny"
+  },
+  {
+    "inmueble": "AURI001009",
+    "contribuyente": "MARCO RAUL FONSECA DUMONT Y DORA HIPOLITA SANCHEZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:04 P-mariangel"
+  },
+  {
+    "inmueble": "AURI010014",
+    "contribuyente": "MARY TERESA BARAONA",
+    "record": 4,
+    "meses_pagados": 4,
+    "esperado": 0,
+    "actual": 3,
+    "diferencia": 3,
+    "pagos": "Debito 2026-10-06T13:06 P-mariangel"
+  },
+  {
+    "inmueble": "AURI003414",
+    "contribuyente": "SUCESION BLANCA NOHELIA VARGAS DE PEREZ",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-08T14:31 H-marianny"
+  },
+  {
+    "inmueble": "URB006807",
+    "contribuyente": "IMPACTO CREATIVO  C.A",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-06T18:40 P-mariangel"
+  },
+  {
+    "inmueble": "URB000508",
+    "contribuyente": "DISTRIBUIDORA ORIGINALES GM NAGUANAGUA, C.A",
+    "record": 11,
+    "meses_pagados": 7,
+    "esperado": 3,
+    "actual": 10,
+    "diferencia": 7,
+    "pagos": "Debito 2026-10-08T16:18 R-damary"
+  },
+  {
+    "inmueble": "AURI001509",
+    "contribuyente": "LILIBETH VASQUEZ",
+    "record": 6,
+    "meses_pagados": 6,
+    "esperado": 0,
+    "actual": 5,
+    "diferencia": 5,
+    "pagos": "Debito 2026-10-05T15:18 P-mariangel"
+  },
+  {
+    "inmueble": "URB005236",
+    "contribuyente": "MARIA ANGELA DE SOUSA DE LOPES",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:41 H-marianny"
+  },
+  {
+    "inmueble": "AURI005979",
+    "contribuyente": "EDITH DEL VALLE MARK DE CASTILLO ALFREDO RAMON CASTILLO",
+    "record": 3,
+    "meses_pagados": 6,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-06T14:34 P-mariangel | Debito 2026-10-06T15:02 P-mariangel"
+  },
+  {
+    "inmueble": "URB034691",
+    "contribuyente": "EMPRENDIMIENTO LEOMAR CARRASCO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-08T16:55 H-marianny"
+  },
+  {
+    "inmueble": "AURI005200",
+    "contribuyente": "MARLENE JACQUELINE SEQUERA DE SANCHEZ Y WILLIAM ARTURO SANCHEZ MARIN",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-06T18:09 C-daniela"
+  },
+  {
+    "inmueble": "URB004116",
+    "contribuyente": "FLAUZINO PEQUENO NOVO FERRARA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T16:40 H-marianny"
+  },
+  {
+    "inmueble": "AURI008626",
+    "contribuyente": "CLAUDIMAR  VELARDE FIGUERAS",
+    "record": 4,
+    "meses_pagados": 4,
+    "esperado": 0,
+    "actual": 3,
+    "diferencia": 3,
+    "pagos": "TMD 2026-10-06T14:29 K-johana"
+  },
+  {
+    "inmueble": "AURI001915",
+    "contribuyente": "MANTENIMIENTO Y SERVICIO SITMA, C.A.",
+    "record": 9,
+    "meses_pagados": 9,
+    "esperado": 0,
+    "actual": 8,
+    "diferencia": 8,
+    "pagos": "Debito 2026-10-05T13:28 H-marianny"
+  },
+  {
+    "inmueble": "AURI010140",
+    "contribuyente": "SEGOVIA SANABRIA BRAULIO",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-06T17:15 E-luis"
+  },
+  {
+    "inmueble": "AURI003243",
+    "contribuyente": "OFELIA MARGARITA GARCIA DE RAMOS",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T13:05 R-damary"
+  },
+  {
+    "inmueble": "URB032839",
+    "contribuyente": "INVERSIONES VALENCIA M&O C.A",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-08T18:25 O-carlieth"
+  },
+  {
+    "inmueble": "URB034456",
+    "contribuyente": "FLAUZINO PEQUENO NOVO FERRARA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T14:50 M-valentina"
+  },
+  {
+    "inmueble": "URB000025",
+    "contribuyente": "FLAUZINO PEQUENO NOVO",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T14:56 M-valentina"
+  },
+  {
+    "inmueble": "AURI008029",
+    "contribuyente": "INGRID YOLET CASTILLO BARRETO",
+    "record": 6,
+    "meses_pagados": 6,
+    "esperado": 0,
+    "actual": 5,
+    "diferencia": 5,
+    "pagos": "Debito 2026-10-08T14:18 M-valentina"
+  },
+  {
+    "inmueble": "URB034455",
+    "contribuyente": "FLAUZINO PEQUENO NOVO FERRARA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T14:56 M-valentina"
+  },
+  {
+    "inmueble": "AURI019077",
+    "contribuyente": "VILMA COROMOTO TOVAR ZAMBRANO",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-07T14:30 R-damary"
+  },
+  {
+    "inmueble": "AURI001402",
+    "contribuyente": "RAMONA ALICIA PEREZ DE FERNANDEZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T12:38 R-damary"
+  },
+  {
+    "inmueble": "AURI018289",
+    "contribuyente": "CECILIA MATRGARITA LOPEZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T14:11 P-mariangel"
+  },
+  {
+    "inmueble": "AURI002912",
+    "contribuyente": "CARMEN YOLANDA ESPINOZA SANCHEZ",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-06T12:52 R-damary"
+  },
+  {
+    "inmueble": "URB007790",
+    "contribuyente": "PEDRO PABLO FREITES OCHOA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T16:25 H-marianny"
+  },
+  {
+    "inmueble": "URB006999",
+    "contribuyente": "EL PUNTAZO NAGUANAGUA C.A,",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T14:21 O-carlieth"
+  },
+  {
+    "inmueble": "URB034477",
+    "contribuyente": "FLAUZINO PEQUENO NOVON FERRARA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T14:45 M-valentina"
+  },
+  {
+    "inmueble": "URB007110",
+    "contribuyente": "ACADEMIA DE NATACION DE LEON PEREZ C.A",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T17:55 P-mariangel"
+  },
+  {
+    "inmueble": "AURI003428",
+    "contribuyente": "HUMBERTO JOSE BASTIDAS ZAMBRANO Y MIGUEL ANGEL BASTIDAS ZAMBRANO",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-05T16:05 K-johana"
+  },
+  {
+    "inmueble": "AURI001195",
+    "contribuyente": "VIOLANTE CAMPESE GIACOMO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T13:32 H-marianny"
+  },
+  {
+    "inmueble": "AURI008078",
+    "contribuyente": "SCARLET MARGARITA JUAN DE BARRETO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T19:22 R-damary"
+  },
+  {
+    "inmueble": "AURI017405",
+    "contribuyente": "ALEJANDRO JOSE CARIPA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T15:26 R-damary"
+  },
+  {
+    "inmueble": "URB002064",
+    "contribuyente": "SJ MOTORS VALENCIA, C.A.",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:48 H-marianny"
+  },
+  {
+    "inmueble": "AURI007176",
+    "contribuyente": "NAVAS PORTILLO ARGENIS ANTONIO",
+    "record": 0,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-07T12:43 C-daniela"
+  },
+  {
+    "inmueble": "AURI000641",
+    "contribuyente": "MAYRA JAQUELINE MOYA RENGIFO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T15:50 H-marianny"
+  },
+  {
+    "inmueble": "URB033074",
+    "contribuyente": "COMERCIAL HK 2022, C.A",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T19:09 P-mariangel"
+  },
+  {
+    "inmueble": "URB034989",
+    "contribuyente": "KING SHARK AMERICA, C.A.",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-07T17:15 B-maira"
+  },
+  {
+    "inmueble": "AURI009466",
+    "contribuyente": "YULIS AMELIA RAMIREZ PEÑA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T12:48 H-marianny"
+  },
+  {
+    "inmueble": "URB002261",
+    "contribuyente": "CERRAJERIA PASEO PARAPARAL, C.A",
+    "record": 10,
+    "meses_pagados": 1,
+    "esperado": 8,
+    "actual": 9,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-09T12:48 R-damary"
+  },
+  {
+    "inmueble": "AURI001063",
+    "contribuyente": "EVELYN COROMOTO RODRIGUEZ RIOS Y ABRAHAM ESTEBAN TRUJILLO PLASENCIA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:07 P-mariangel"
+  },
+  {
+    "inmueble": "AURI002174",
+    "contribuyente": "EMMA ISOLINA VILELA REYES",
+    "record": 1,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T14:25 R-damary | Debito 2026-10-06T15:54 R-damary"
+  },
+  {
+    "inmueble": "AURI018414",
+    "contribuyente": "MARISELA JIMENEZ ROBAYNA",
+    "record": 7,
+    "meses_pagados": 7,
+    "esperado": 0,
+    "actual": 6,
+    "diferencia": 6,
+    "pagos": "Debito 2026-10-05T13:53 R-damaris"
+  },
+  {
+    "inmueble": "AURI000367",
+    "contribuyente": "MARTIN RAFAEL PEREZ CAMACHO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T12:23 K-johana"
+  },
+  {
+    "inmueble": "AURI002340",
+    "contribuyente": "EDILIA DEL CARMEN ANGEL MORENO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T13:45 P-mariangel"
+  },
+  {
+    "inmueble": "AURI004431",
+    "contribuyente": "ADA VIRGINIA VASQUEZ CASTILLO",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T15:01 P-mariangel"
+  },
+  {
+    "inmueble": "AURI004982",
+    "contribuyente": "TERESA DE JESUS CORRALES DE NUNES",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T15:02 R-damary"
+  },
+  {
+    "inmueble": "AURI004254",
+    "contribuyente": "CARMEN YOLANDA SEQUERA DE RODRIGUEZ E ISAIAS GOUVEIA RODRIGUES",
+    "record": 82,
+    "meses_pagados": 82,
+    "esperado": 0,
+    "actual": 81,
+    "diferencia": 81,
+    "pagos": "Debito 2026-10-05T21:00 R-damaris"
+  },
+  {
+    "inmueble": "AURI001425",
+    "contribuyente": "ANTONIO MARTIN SANCHEZ E IVEL DEL VALLE RAMOS NIEVES",
+    "record": 69,
+    "meses_pagados": 138,
+    "esperado": 0,
+    "actual": 68,
+    "diferencia": 68,
+    "pagos": "Debito(abono) 2026-10-05T21:21 R-damaris | Debito(abono) 2026-10-05T21:23 R-damaris"
+  },
+  {
+    "inmueble": "URB034332",
+    "contribuyente": "EMPRENDIMIENTO ZULAY GONZALEZ",
+    "record": 6,
+    "meses_pagados": 2,
+    "esperado": 3,
+    "actual": 5,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-07T14:38 R-damary"
+  },
+  {
+    "inmueble": "URB034014",
+    "contribuyente": "RICARDO JOSE CHIRIVELLA OCHOA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:51 H-marianny"
+  },
+  {
+    "inmueble": "URB035273",
+    "contribuyente": "SUCESION MARIA DE LOS SANTOS MORENO GONZALEZ",
+    "record": 2,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T13:04 R-damary"
+  },
+  {
+    "inmueble": "URB032902",
+    "contribuyente": "GIUSEPPINA RUBBO DE CIGNARELLA Y CIGNARELLA DE GUILMI ANDREA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T13:42 R-damary"
+  },
+  {
+    "inmueble": "AURI017132",
+    "contribuyente": "HUGO ALFONZO QUERALES MONTERO",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:50 R-damaris"
+  },
+  {
+    "inmueble": "AURI004960",
+    "contribuyente": "CARLOS FRANCO BERTRAN GODOY",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-10T16:50 M-valentina"
+  },
+  {
+    "inmueble": "AURI002040",
+    "contribuyente": "ISMELDA RAFAELA LOPEZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T15:15 R-damary"
+  },
+  {
+    "inmueble": "AURI004193",
+    "contribuyente": "SUCESION JOSEFA RAMONA MONTIEL DE GARCIA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T15:01 P-mariangel"
+  },
+  {
+    "inmueble": "AURI003285",
+    "contribuyente": "MIRIAM GISELA CONDE DE CEBALLOS",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T12:49 R-damary"
+  },
+  {
+    "inmueble": "URB004198",
+    "contribuyente": "DUSHI S BRASAS-CAFE, C.A.",
+    "record": 4,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-09T13:59 H-marianny"
+  },
+  {
+    "inmueble": "AURI006593",
+    "contribuyente": "ESPINOZA DE CONOROPO ISABEL TERESA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 3,
+    "diferencia": 3,
+    "pagos": "Debito 2026-10-05T14:29 P-mariangel"
+  },
+  {
+    "inmueble": "AURI007212",
+    "contribuyente": "LIBORIO DIONISIO EIZAGA CORONA",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Transferencia(abono) 2026-10-06T16:34 C-daniela"
+  },
+  {
+    "inmueble": "AURI005652",
+    "contribuyente": "ALFREDO JOSE GONZALEZ SILVA Y DERLIS EGLEE FLORES DE GONZALEZ",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-06T17:08 E-luis"
+  },
+  {
+    "inmueble": "AURI001101",
+    "contribuyente": "SUCESIÓN PEDRO RAMON MONQUE",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T14:10 R-damary"
+  },
+  {
+    "inmueble": "AURI005444",
+    "contribuyente": "SELENI ANDREINA FLORES BENITEZ",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Transferencia(abono) 2026-10-10T16:35 E-luis"
+  },
+  {
+    "inmueble": "AURI001551",
+    "contribuyente": "ALICIA COROMOTO TORRES, MARLENE JOSEFINA TORRES Y MARISOL DE LA CRUZ MIRANDA",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Credito 2026-10-07T13:57 K-johana"
+  },
+  {
+    "inmueble": "AURI007170",
+    "contribuyente": "SULEY SOCORRO PEREZ ANGULO",
+    "record": 13,
+    "meses_pagados": 13,
+    "esperado": 0,
+    "actual": 12,
+    "diferencia": 12,
+    "pagos": "Debito 2026-10-05T12:29 K-johana"
+  },
+  {
+    "inmueble": "AURI000190",
+    "contribuyente": "YSMARI DEL CARMEN SARRAMERO HERRERA",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Transferencia(abono) 2026-10-06T19:18 E-luis"
+  },
+  {
+    "inmueble": "AURI008147",
+    "contribuyente": "EDGAR JOSE COLINA HERNANDEZ",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-06T15:57 R-damary"
+  },
+  {
+    "inmueble": "URB034454",
+    "contribuyente": "FLAUZINO PEQUENO NOVO FERRARA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T15:04 M-valentina"
+  },
+  {
+    "inmueble": "URB035071",
+    "contribuyente": "MARY CARMEN SIMANCAS MARIN",
+    "record": 3,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-07T19:14 O-carlieth"
+  },
+  {
+    "inmueble": "URB033795",
+    "contribuyente": "FRIGORIFICO MI RANCHO GRANDE, C.A.",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-08T14:29 O-carlieth"
+  },
+  {
+    "inmueble": "URB007261",
+    "contribuyente": "DONNA CARMELA RISTORANTE, C.A.",
+    "record": 2,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T19:26 P-mariangel"
+  },
+  {
+    "inmueble": "URB033188",
+    "contribuyente": "ISSA DOUMIT SULEIMAN",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T14:19 O-carlieth"
+  },
+  {
+    "inmueble": "AURI017510",
+    "contribuyente": "COLMENAREZ CARMEN VICTORIA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T14:20 H-marianny"
+  },
+  {
+    "inmueble": "AURI007935",
+    "contribuyente": "CARMEN DOMINGA NAVEDA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T12:28 R-damary"
+  },
+  {
+    "inmueble": "URB035240",
+    "contribuyente": "PREVISION TOTAL VEN, C.A",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-07T13:47 O-carlieth"
+  },
+  {
+    "inmueble": "AURI018093",
+    "contribuyente": "GREGORIA COLMEMARES",
+    "record": 12,
+    "meses_pagados": 12,
+    "esperado": 0,
+    "actual": 11,
+    "diferencia": 11,
+    "pagos": "Debito 2026-10-05T14:37 R-damaris"
+  },
+  {
+    "inmueble": "AURI019515",
+    "contribuyente": "MIRNA ISABEL BLACMAN Y JESUS ARMANDO RIVERA",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-06T13:16 R-damary"
+  },
+  {
+    "inmueble": "URB002929",
+    "contribuyente": "FLAUZINO PEQUENO NOVO FERRARA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "TMD 2026-10-08T15:04 M-valentina"
+  },
+  {
+    "inmueble": "AURI005276",
+    "contribuyente": "EDILSA MILAGROS BOLIVAR CAMPO",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T16:04 O-carlieth"
+  },
+  {
+    "inmueble": "URB008318",
+    "contribuyente": "NANCY COROMOTO QUIÑONES DE TEIXEIRA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T15:48 K-johana"
+  },
+  {
+    "inmueble": "AURI005468",
+    "contribuyente": "SANDRA GUADALUPE QUINTERO DE MEDINA",
+    "record": 3,
+    "meses_pagados": 3,
+    "esperado": 0,
+    "actual": 2,
+    "diferencia": 2,
+    "pagos": "Debito 2026-10-06T17:31 K-johana"
+  },
+  {
+    "inmueble": "AURI018141",
+    "contribuyente": "NANCY YAJURE",
+    "record": 8,
+    "meses_pagados": 8,
+    "esperado": 0,
+    "actual": 7,
+    "diferencia": 7,
+    "pagos": "Credito 2026-10-07T16:00 O-carlieth"
+  },
+  {
+    "inmueble": "AURI003269",
+    "contribuyente": "HIRMA ISABEL HERRERA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-08T14:59 R-damary"
+  },
+  {
+    "inmueble": "URB034361",
+    "contribuyente": "JMAUTOS 2024 , C. A",
+    "record": 4,
+    "meses_pagados": 4,
+    "esperado": 0,
+    "actual": 3,
+    "diferencia": 3,
+    "pagos": "Debito 2026-10-06T17:07 H-marianny | Debito 2026-10-06T17:14 H-marianny"
+  },
+  {
+    "inmueble": "AURI017662",
+    "contribuyente": "PRADO DE GIL MARVELIS YARITZA",
+    "record": 2,
+    "meses_pagados": 2,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-06T18:53 R-damary"
+  },
+  {
+    "inmueble": "URB005348",
+    "contribuyente": "PEDRO RAUL DUARTE NOGUERA",
+    "record": 1,
+    "meses_pagados": 1,
+    "esperado": 0,
+    "actual": 1,
+    "diferencia": 1,
+    "pagos": "Debito 2026-10-05T13:44 H-marianny"
+  }
+]

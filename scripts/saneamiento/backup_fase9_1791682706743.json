@@ -1,0 +1,33 @@
+[
+ {
+  "id": "a1c7cf7d-4e3f-4dca-841f-0cb14a46fcaa",
+  "inmueble": "URB003504",
+  "identidad": "J-3919818",
+  "tipo": "COMERCIAL",
+  "actividad_principal": "INMUEBLES Y LOCALES DESOCUPADOS",
+  "direccion": "2 001 106-137 GALPON 2  CALLE. 190 INMUEBLE NRO. 106-137 GALPON 2 SECTOR TARAPIO, NAGUANAGUA EDO. CARABOBO",
+  "estado": "Activo",
+  "cant_inmuebles": 0,
+  "mmv_mes": 0,
+  "saldo_favor_bs": 0,
+  "deuda_mmv": 0,
+  "created_at": "2023-10-01T23:20:27+00:00",
+  "actividad_economica_id": null,
+  "telefono": " 04164488516",
+  "correo_electronico": "ATiempodeGracia@gmail.com",
+  "clasificacion": "Individual",
+  "notas": null,
+  "deuda_congelada_bs": 0,
+  "multa_bs": 112037.07,
+  "meses_deuda": 62,
+  "condominio_padre_id": null,
+  "es_condominio": false,
+  "agente_retencion": true,
+  "contribuyente": "JOSE DOLORES FUENTES DIAZ",
+  "clave_portal": null,
+  "cod_cont": null,
+  "padre_id": null,
+  "licencia": null,
+  "numero_local": "NO_APLICA"
+ }
+]

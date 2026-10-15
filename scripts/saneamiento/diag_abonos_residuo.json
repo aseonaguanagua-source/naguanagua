@@ -1,0 +1,447 @@
+[
+ {
+  "id": "69828194-9147-4030-b2a6-9f4378806f4b",
+  "identidad": "J-507840433",
+  "monto": 2180.2,
+  "estado": "Aprobado",
+  "ref": "85022502",
+  "fecha": "2026-10-07",
+  "tipo": "Debito",
+  "modulo": "contribuyentes",
+  "cajero": "DZ-dzara",
+  "recibos": [
+   "RECIB-HIST-URB007034-M1"
+  ],
+  "inmuebles": [
+   "URB007034"
+  ],
+  "tasa": 980.61472543,
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "URB007034",
+    "identidad": "J-507840433",
+    "contribuyente": "MULTISERVICIOS MECANICO CHEO, C.A.",
+    "meses_deuda": 0,
+    "deuda_mmv": 0.34661,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 2.53,
+    "clasificacion": "Individual",
+    "tipo": "COMERCIAL",
+    "actividad_principal": "VENTA DE REPUESTOS Y ACCESORIOS VEHICULOS (BAJA)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "36e15582-7d75-4a12-b136-e9424f9deb6f",
+  "identidad": "J-507840433",
+  "monto": 2180.2,
+  "estado": "Aprobado",
+  "ref": "00585600",
+  "fecha": "2026-10-07",
+  "tipo": "Debito",
+  "modulo": "contribuyentes",
+  "cajero": "DZ-dzara",
+  "recibos": [
+   "RECIB-HIST-URB007034-M1"
+  ],
+  "inmuebles": [
+   "URB007034"
+  ],
+  "tasa": 980.61472543,
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "URB007034",
+    "identidad": "J-507840433",
+    "contribuyente": "MULTISERVICIOS MECANICO CHEO, C.A.",
+    "meses_deuda": 0,
+    "deuda_mmv": 0.34661,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 2.53,
+    "clasificacion": "Individual",
+    "tipo": "COMERCIAL",
+    "actividad_principal": "VENTA DE REPUESTOS Y ACCESORIOS VEHICULOS (BAJA)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "ead5dcb1-43af-4e17-be3f-8b4e39597864",
+  "identidad": "J-507840433",
+  "monto": 18895.07,
+  "estado": "Aprobado",
+  "ref": "00055834",
+  "fecha": "2026-10-07",
+  "tipo": "Debito",
+  "modulo": "contribuyentes",
+  "cajero": "DZ-dzara",
+  "recibos": [
+   "RECIB-HIST-URB007034-M1"
+  ],
+  "inmuebles": [
+   "URB007034"
+  ],
+  "tasa": 980.61472543,
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "URB007034",
+    "identidad": "J-507840433",
+    "contribuyente": "MULTISERVICIOS MECANICO CHEO, C.A.",
+    "meses_deuda": 0,
+    "deuda_mmv": 0.34661,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 2.53,
+    "clasificacion": "Individual",
+    "tipo": "COMERCIAL",
+    "actividad_principal": "VENTA DE REPUESTOS Y ACCESORIOS VEHICULOS (BAJA)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "85e3789b-698b-478d-9b7d-f92b4143a104",
+  "identidad": "V-6056104",
+  "monto": 959.06,
+  "estado": "Aprobado",
+  "ref": "83022974",
+  "fecha": "2026-10-09",
+  "tipo": "Transferencia",
+  "modulo": "contribuyentes",
+  "cajero": "E-luis",
+  "recibos": [
+   "RECIB-HIST-AURI006024-M1"
+  ],
+  "inmuebles": [
+   "AURI006024"
+  ],
+  "tasa": "973.92",
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "AURI006024",
+    "identidad": "V-6056104",
+    "contribuyente": "MORAIMA JOSEFINA ROJAS TORRES",
+    "meses_deuda": 0,
+    "deuda_mmv": 1.06,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 1.06,
+    "clasificacion": "Individual",
+    "tipo": "RESIDENCIAL",
+    "actividad_principal": "QUINTA (ZONA B)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "afa696bb-eecc-4e07-862e-5705d088ab25",
+  "identidad": "V-5268774",
+  "monto": 1198.44,
+  "estado": "Aprobado",
+  "ref": "26551219",
+  "fecha": "2026-10-09",
+  "tipo": "Transferencia",
+  "modulo": "contribuyentes",
+  "cajero": "E-luis",
+  "recibos": [
+   "RECIB-HIST-AURI005498-M1"
+  ],
+  "inmuebles": [
+   "AURI002977",
+   "AURI003728",
+   "AURI005498"
+  ],
+  "tasa": "973.92",
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "AURI002977",
+    "identidad": "V-5268774",
+    "contribuyente": "BENJAMIN  ARIAS SALAZAR Y RAFAEL IGNACIO ARIAS SALAZAR",
+    "meses_deuda": 0,
+    "deuda_mmv": 0.8,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 0.8,
+    "clasificacion": "Individual",
+    "tipo": "RESIDENCIAL",
+    "actividad_principal": "TERRENOS",
+    "agente_retencion": false
+   },
+   {
+    "inmueble": "AURI003728",
+    "identidad": "V-5268774",
+    "contribuyente": "BENJAMIN  ARIAS SALAZAR",
+    "meses_deuda": 0,
+    "deuda_mmv": 0.8,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 0.8,
+    "clasificacion": "Individual",
+    "tipo": "RESIDENCIAL",
+    "actividad_principal": "TERRENOS",
+    "agente_retencion": false
+   },
+   {
+    "inmueble": "AURI005498",
+    "identidad": "V-5268774",
+    "contribuyente": "ARIAS SALAZAR BENJAMIN",
+    "meses_deuda": 0,
+    "deuda_mmv": 1.06,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 1.06,
+    "clasificacion": "Individual",
+    "tipo": "RESIDENCIAL",
+    "actividad_principal": "QUINTA (ZONA A)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "51100c2c-72f0-4291-a609-ca093b9ddc32",
+  "identidad": "J-501442509",
+  "monto": 326.42,
+  "estado": "Por Verificar",
+  "ref": "37792392",
+  "fecha": "2026-10-09",
+  "tipo": "Transferencia",
+  "modulo": "contribuyentes",
+  "cajero": "E-luis",
+  "recibos": [
+   "RECIB-HIST-AURI007655-M1"
+  ],
+  "inmuebles": [
+   "AURI007655"
+  ],
+  "tasa": "973.92",
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "AURI007655",
+    "identidad": "J-501442509",
+    "contribuyente": "SUCESIÓN MARIA IRENE FERREIRA DE MOLINA",
+    "meses_deuda": 0,
+    "deuda_mmv": 0.22,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 0.22,
+    "clasificacion": "Individual",
+    "tipo": "RESIDENCIAL",
+    "actividad_principal": "CASA (ZONA D)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "f27e5f5b-8512-43a6-835f-d17639250609",
+  "identidad": "V-3992106",
+  "monto": 1206.64,
+  "estado": "Aprobado",
+  "ref": "00443284",
+  "fecha": "2026-10-09",
+  "tipo": "Debito",
+  "modulo": "contribuyentes",
+  "cajero": "H-marianny",
+  "recibos": [
+   "RECIB-HIST-AURI000049-M1"
+  ],
+  "inmuebles": [
+   "AURI000049"
+  ],
+  "tasa": 980.61472543,
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "AURI000049",
+    "identidad": "V-3992106",
+    "contribuyente": "ERMINDA DEL CARMEN NEWMAN AÑEZ",
+    "meses_deuda": 0,
+    "deuda_mmv": 0,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0.02,
+    "mmv_mes": 1.06,
+    "clasificacion": "Individual",
+    "tipo": "RESIDENCIAL",
+    "actividad_principal": "QUINTA (ZONA A)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "1eae21b9-9770-4e69-b7fd-46637c2966bb",
+  "identidad": "J-299527130",
+  "monto": 326.42,
+  "estado": "Aprobado",
+  "ref": "55757696",
+  "fecha": "2026-10-09",
+  "tipo": "Transferencia",
+  "modulo": "contribuyentes",
+  "cajero": "E-luis",
+  "recibos": [
+   "RECIB-HIST-AURI003970-M1"
+  ],
+  "inmuebles": [
+   "AURI003970"
+  ],
+  "tasa": "973",
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "AURI003970",
+    "identidad": "J-299527130",
+    "contribuyente": "SUCESION CIPRIANO ALFREDO HURTADO LABRADOR",
+    "meses_deuda": 0,
+    "deuda_mmv": 0.22,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 0.22,
+    "clasificacion": "Individual",
+    "tipo": "RESIDENCIAL",
+    "actividad_principal": "CASA (ZONA D)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "1b60ff49-b01f-406f-834b-e4ab243a8e1b",
+  "identidad": "V-7051971",
+  "monto": 326.42,
+  "estado": "Aprobado",
+  "ref": "59753744",
+  "fecha": "2026-10-09",
+  "tipo": "Transferencia",
+  "modulo": "contribuyentes",
+  "cajero": "E-luis",
+  "recibos": [
+   "RECIB-HIST-AURI008949-M1"
+  ],
+  "inmuebles": [
+   "AURI008949"
+  ],
+  "tasa": "973.80",
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "AURI008949",
+    "identidad": "V-7051971",
+    "contribuyente": "JOSE LUIS VELASQUEZ MUNDARAY",
+    "meses_deuda": 0,
+    "deuda_mmv": 0.00588,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 0.22,
+    "clasificacion": "Individual",
+    "tipo": "RESIDENCIAL",
+    "actividad_principal": "CASA (ZONA D)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "e82a75b9-361a-45ff-98b6-ad2777b4943a",
+  "identidad": "V-11428086",
+  "monto": 326.42,
+  "estado": "Aprobado",
+  "ref": "59756115",
+  "fecha": "2026-10-09",
+  "tipo": "Transferencia",
+  "modulo": "contribuyentes",
+  "cajero": "E-luis",
+  "recibos": [
+   "RECIB-HIST-AURI008493-M1"
+  ],
+  "inmuebles": [
+   "AURI008493"
+  ],
+  "tasa": "973.80",
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "AURI008493",
+    "identidad": "V-11428086",
+    "contribuyente": "MIRIAN MAGDALENA ALVARADO",
+    "meses_deuda": 0,
+    "deuda_mmv": 0.005881,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 0.22,
+    "clasificacion": "Individual",
+    "tipo": "RESIDENCIAL",
+    "actividad_principal": "CASA (ZONA D)",
+    "agente_retencion": false
+   }
+  ]
+ },
+ {
+  "id": "aa63f6d2-1535-4ed9-ad04-9465f0478a02",
+  "identidad": "J-408799197",
+  "monto": 108757.5,
+  "estado": "Aprobado",
+  "ref": "26008310",
+  "fecha": "2026-10-10",
+  "tipo": "Transferencia",
+  "modulo": "contribuyentes",
+  "cajero": "M-valentina",
+  "recibos": [
+   "RECIB-HIST-URB009992-M1"
+  ],
+  "inmuebles": [
+   "URB007890",
+   "URB033856",
+   "URB009992"
+  ],
+  "tasa": "973.92",
+  "retencion": 0,
+  "actual": [
+   {
+    "inmueble": "URB007890",
+    "identidad": "J-408799197",
+    "contribuyente": "GRUPO UMA MOTORS,S.A",
+    "meses_deuda": 0,
+    "deuda_mmv": 3.38,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 3.38,
+    "clasificacion": "Individual",
+    "tipo": "COMERCIAL",
+    "actividad_principal": "DEPOSITOS (BAJA)",
+    "agente_retencion": true
+   },
+   {
+    "inmueble": "URB033856",
+    "identidad": "J-408799197",
+    "contribuyente": "GRUPO UMA MOTORS, S.A.",
+    "meses_deuda": 0,
+    "deuda_mmv": 30.63308,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 1.98,
+    "clasificacion": "Individual",
+    "tipo": "COMERCIAL",
+    "actividad_principal": "N/A",
+    "agente_retencion": true
+   },
+   {
+    "inmueble": "URB009992",
+    "identidad": "J-408799197",
+    "contribuyente": "GRUPO UMA MOTORS, S.A.",
+    "meses_deuda": 0,
+    "deuda_mmv": 13.75,
+    "deuda_congelada_bs": 0,
+    "saldo_favor_bs": 0,
+    "mmv_mes": 13.75,
+    "clasificacion": "Individual",
+    "tipo": "COMERCIAL",
+    "actividad_principal": "TALLER MECANICO, LATONERIA, PINTURA Y CAUCHOS (MEDIA)",
+    "agente_retencion": true
+   }
+  ]
+ }
+]

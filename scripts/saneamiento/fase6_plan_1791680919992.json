@@ -1,0 +1,133 @@
+{
+ "setPadre": [
+  {
+   "id": "ffdcc5df-adca-4f70-8b88-b1b542b623bd",
+   "inmueble": "URB033946",
+   "antes": null,
+   "despues": "bfb768f0-319a-4dc6-8ee8-29d237cec9fa",
+   "na": "URB033980"
+  },
+  {
+   "id": "445effe6-d29d-49a6-96bd-d79a7edfbba8",
+   "inmueble": "URB016371",
+   "antes": null,
+   "despues": "36889eaf-6037-4051-9a7a-e590bcbade7a",
+   "na": "URB033588"
+  },
+  {
+   "id": "f10bad50-f950-44b0-b1d6-278f4bf4f17e",
+   "inmueble": "URB034116",
+   "antes": null,
+   "despues": "06b2d207-d50e-4177-bad0-44225e6a47b9",
+   "na": "URB016127"
+  },
+  {
+   "id": "2c3d4c5f-bde5-40a6-bd47-41072a0d63e6",
+   "inmueble": "URB016325",
+   "antes": null,
+   "despues": "8e9ed82e-4de2-4ed5-b6dd-7614f23b834a",
+   "na": "URB033592"
+  },
+  {
+   "id": "56144d38-99d0-4de6-be2b-c86387a89292",
+   "inmueble": "URB016153",
+   "antes": null,
+   "despues": "4a47bc07-be00-4d4e-8e9c-27fe2409ff6b",
+   "na": "URB033582"
+  },
+  {
+   "id": "bd09d80c-c6c5-4646-ada3-c3c81f73b6f5",
+   "inmueble": "URB016180",
+   "antes": null,
+   "despues": "83051e82-9d08-496b-a0ed-6727fd0ed2d4",
+   "na": "URB033585"
+  },
+  {
+   "id": "8f4f5541-aa26-407d-a54f-dbc343e43c0f",
+   "inmueble": "URB034118",
+   "antes": null,
+   "despues": "9b941119-1122-4065-8757-a365fa95b56d",
+   "na": "URB016263"
+  },
+  {
+   "id": "f459c2f1-52bc-4a8d-b777-1194276278e7",
+   "inmueble": "URB016237",
+   "antes": null,
+   "despues": "c2700461-7c84-47d4-a2fb-cf41316435e5",
+   "na": "URB033594"
+  },
+  {
+   "id": "4531d37f-6a30-49fe-96d3-c49e793083db",
+   "inmueble": "URB016349",
+   "antes": null,
+   "despues": "d3581be8-73e2-43d5-aa8f-785e6ee7547a",
+   "na": "URB016120"
+  },
+  {
+   "id": "0e02bc2f-1e05-4236-8894-5cce678b2378",
+   "inmueble": "URB016330",
+   "antes": null,
+   "despues": "98f09483-ee01-46b4-8656-d9d571eacabb",
+   "na": "URB033596"
+  },
+  {
+   "id": "e1257c6d-4163-4ed9-a49f-af949d8e9bf9",
+   "inmueble": "URB033934",
+   "antes": null,
+   "despues": "bfb768f0-319a-4dc6-8ee8-29d237cec9fa",
+   "na": "URB033980"
+  }
+ ],
+ "setGrupo": [
+  {
+   "id": "bfb768f0-319a-4dc6-8ee8-29d237cec9fa",
+   "inmueble": "URB033980",
+   "tarifa_mmv": 1.98
+  },
+  {
+   "id": "36889eaf-6037-4051-9a7a-e590bcbade7a",
+   "inmueble": "URB033588",
+   "tarifa_mmv": 4.084
+  },
+  {
+   "id": "06b2d207-d50e-4177-bad0-44225e6a47b9",
+   "inmueble": "URB016127",
+   "tarifa_mmv": 5.6211
+  },
+  {
+   "id": "8e9ed82e-4de2-4ed5-b6dd-7614f23b834a",
+   "inmueble": "URB033592",
+   "tarifa_mmv": 1.8344
+  },
+  {
+   "id": "4a47bc07-be00-4d4e-8e9c-27fe2409ff6b",
+   "inmueble": "URB033582",
+   "tarifa_mmv": 1.8344
+  },
+  {
+   "id": "83051e82-9d08-496b-a0ed-6727fd0ed2d4",
+   "inmueble": "URB033585",
+   "tarifa_mmv": 11.8067
+  },
+  {
+   "id": "9b941119-1122-4065-8757-a365fa95b56d",
+   "inmueble": "URB016263",
+   "tarifa_mmv": 5.0005
+  },
+  {
+   "id": "c2700461-7c84-47d4-a2fb-cf41316435e5",
+   "inmueble": "URB033594",
+   "tarifa_mmv": 8.1049
+  },
+  {
+   "id": "d3581be8-73e2-43d5-aa8f-785e6ee7547a",
+   "inmueble": "URB016120",
+   "tarifa_mmv": 2.8345
+  },
+  {
+   "id": "98f09483-ee01-46b4-8656-d9d571eacabb",
+   "inmueble": "URB033596",
+   "tarifa_mmv": 1.1755
+  }
+ ]
+}

@@ -1,0 +1,138 @@
+[
+  {
+    "id": "c38cfb5f-9f45-40d2-ad4b-0aab61c0fb84",
+    "inmueble": "URB035276",
+    "supIdentidad": "V-12522447",
+    "supNombre": "MARENA JOSEFINA BENCOMO GIMENEZ",
+    "excIdentidad": "V-11097465",
+    "excNombre": "JUAN CARLOSQUINTERO NARANJO"
+  },
+  {
+    "id": "c0c32e47-4f1d-4c2c-8287-1c232bba22bf",
+    "inmueble": "AURI017344",
+    "supIdentidad": "J-401004865",
+    "supNombre": "199-ASOCIACI?N CIVIL URBANIZACI?N LA ENTRADA, ETAPA II",
+    "excIdentidad": "V-2060121",
+    "excNombre": "MARIA EUSTAQUIA LINARES DE CONTE"
+  },
+  {
+    "id": "27f28c06-91d3-4b4f-8af9-b0d955ffb34b",
+    "inmueble": "URB035277",
+    "supIdentidad": "J-507776247",
+    "supNombre": "EMPRENDIMIENTO JOSE FERRER 12",
+    "excIdentidad": "V-5748116",
+    "excNombre": "AMELIA BEZE DE CIRCELLI Y ANTONIO CIRCELLI PELOSI"
+  },
+  {
+    "id": "b687d009-0dfe-4325-9167-5e0abfd5dadb",
+    "inmueble": "URB032238",
+    "supIdentidad": "J-508643950",
+    "supNombre": "VEANCODI'S MOTORS, C.A.",
+    "excIdentidad": "J-7091762",
+    "excNombre": "TERESA CORRALES DE NUNES"
+  },
+  {
+    "id": "995c62f9-6681-43b0-9f16-7a9477e208c9",
+    "inmueble": "AURI002448",
+    "supIdentidad": "V-10267876",
+    "supNombre": "LADERA HERNANDEZ BENILDE ELIZABETH",
+    "excIdentidad": "J-299189898",
+    "excNombre": "SUCESION BLAS VILLEGAS ESTRADA"
+  },
+  {
+    "id": "2e75cecf-5f90-4a8e-bd60-5ca828127786",
+    "inmueble": "URB035278",
+    "supIdentidad": "J-507416992",
+    "supNombre": "DEKOR CLUSTER, C.A.",
+    "excIdentidad": "J-508091191",
+    "excNombre": "EMPRENDIMIENTO CAROLINE MARTINEZ 2"
+  },
+  {
+    "id": "c2cc49e5-181d-4c5d-9b14-1954042c6ab0",
+    "inmueble": "URB007368",
+    "supIdentidad": "J-508424565",
+    "supNombre": "EMPRENDIMIENTO LUIS RUEDA 5",
+    "excIdentidad": "J-000792070",
+    "excNombre": "CENTROS COMERCIALES INDEPENDIENTES, C.A"
+  },
+  {
+    "id": "bfdcd8aa-7a29-438d-8c83-3860adae7adb",
+    "inmueble": "URB032515",
+    "supIdentidad": "J-508643950",
+    "supNombre": "VEANCODI'S MOTORS, C.A.",
+    "excIdentidad": "V-7091762",
+    "excNombre": "TERESA CORRALES DE NUNES"
+  },
+  {
+    "id": "628a054a-97b6-4ef5-8a70-8e06d4eb105e",
+    "inmueble": "AURI000464",
+    "supIdentidad": "V-7099999",
+    "supNombre": "MARIO  DEL NEGRO FREZZA",
+    "excIdentidad": "V-19365166",
+    "excNombre": "TONNY KEVIN DEL NERO FREYTES"
+  },
+  {
+    "id": "30311ec8-5cd5-42a3-9deb-027f83e9767f",
+    "inmueble": "AURI019535",
+    "supIdentidad": "J-296235112",
+    "supNombre": "CORPORACION GUAYABAL P-1 C.A.",
+    "excIdentidad": "V-7084000",
+    "excNombre": "MIRIAM JOSEFINA ESTRADA DE YEPEZ, BELKIS MERCEDES ESTRADA DE GARCES Y OSCAR VICENTE ESTRADA SALINAS"
+  },
+  {
+    "id": "5142cd91-4cf3-4139-977c-d64aa404045f",
+    "inmueble": "URB006005",
+    "supIdentidad": "J-508643950",
+    "supNombre": "VEANCODI'S MOTORS, C.A.",
+    "excIdentidad": "V-7091762",
+    "excNombre": "TERESA DE JESUS CORRALES DE NUNES"
+  },
+  {
+    "id": "4c0e611b-99c5-47fd-8df9-ceb021a9e8d0",
+    "inmueble": "URB033288",
+    "supIdentidad": "J-294108946",
+    "supNombre": "CONDOMINIO TERRAZAS DE MONTE ALEGRE II",
+    "excIdentidad": "J-075259912",
+    "excNombre": "SUPERMERCADOS LUXOR C.A."
+  },
+  {
+    "id": "cb3085be-cfc6-4658-8415-6c5da6424d31",
+    "inmueble": "AURI004982",
+    "supIdentidad": "J-508643950",
+    "supNombre": "VEANCODI'S MOTORS, C.A.",
+    "excIdentidad": "V-7091762",
+    "excNombre": "TERESA DE JESUS CORRALES DE NUNES"
+  },
+  {
+    "id": "c58dfc4f-6a2e-4c5a-8557-8c91b7926eac",
+    "inmueble": "URB002012",
+    "supIdentidad": "J-508643950",
+    "supNombre": "VEANCODI'S MOTORS, C.A.",
+    "excIdentidad": "V-7091762",
+    "excNombre": "TERESA DE JESUS CORRALES DE NUNES"
+  },
+  {
+    "id": "3a58f9bc-1ee7-4bca-967f-ad0bb9b6ee39",
+    "inmueble": "URB002170",
+    "supIdentidad": "J-508643950",
+    "supNombre": "VEANCODI'S MOTORS, C.A.",
+    "excIdentidad": "V-7091762",
+    "excNombre": "TERESA CORRALES DE NUNES"
+  },
+  {
+    "id": "97f824ac-5371-4473-849a-a4a66102fbcd",
+    "inmueble": "URB034617",
+    "supIdentidad": "J-299527521",
+    "supNombre": "LA NUEVA BEGONA",
+    "excIdentidad": "V-7148821",
+    "excNombre": "ANGEL DAVID RAMIREZ MARTINEZ"
+  },
+  {
+    "id": "44b73f23-1170-435e-972a-e4c0d13508af",
+    "inmueble": "URB033341",
+    "supIdentidad": "J-413142520",
+    "supNombre": "DELICATESES MONTENEGRO, C.A",
+    "excIdentidad": "V-15398089",
+    "excNombre": "ADNAN NAIM NAIM"
+  }
+]

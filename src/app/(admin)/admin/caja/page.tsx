@@ -702,25 +702,19 @@ export default function CajaPage() {
         if (detectedPrefix !== docType) setDocType(detectedPrefix);
       }
 
-      // Obtener TODOS los datos frescos del inmueble desde Supabase
+      // Obtener datos frescos del inmueble desde Supabase
       const userIdentVariants = getIdentidadVariantsExact(user.Identidad);
       let orFilterInms = '';
       if (isCodeFormat && (user.CodCont || user.cod_cont)) {
-        const specificCode = user.CodCont || user.cod_cont;
-        // N/A = suma de sus actividades: al buscar por el código de una actividad (o del N/A) se trae
-        // la familia completa (N/A + todas sus actividades). El contenedor N/A no se cobra.
-        const { data: base } = await supabase.from('inmuebles').select('padre_id, identidad').eq('inmueble', specificCode).maybeSingle();
-        const na = base?.padre_id;
-        const codeIdent = base?.identidad || user.Identidad;
-        const codeIdentVars = codeIdent ? getIdentidadVariantsExact(codeIdent) : [];
+        const specificCode = String(user.CodCont || user.cod_cont).trim().toUpperCase();
+        // REQUISITO: Cuando se busca por código, SOLO debe salir la información de ese código
+        // (y si es una matriz N/A, sus actividades hijas vinculadas). NUNCA traer otros inmuebles del RIF.
         orFilterInms = [
           `inmueble.eq.${specificCode}`,
-          `condominio_padre_id.eq.${specificCode}`,
-          `padre_id.eq.${specificCode}`,
-          ...(na ? [`inmueble.eq.${na}`, `padre_id.eq.${na}`] : []),
-          ...(codeIdentVars.length > 0 ? codeIdentVars.map(v => `identidad.eq.${v}`) : userIdentVariants.map(v => `identidad.eq.${v}`))
-        ].filter(Boolean).join(',');
+          `padre_id.eq.${specificCode}`
+        ].join(',');
       } else {
+        // Búsqueda por Cédula o RIF: "si busco por cedula o rif que salga todo"
         orFilterInms = [
           ...userIdentVariants.map(v => `identidad.eq.${v}`),
           `condominio_padre_id.eq.${user.CodCont || user.cod_cont}`,
@@ -758,6 +752,11 @@ export default function CajaPage() {
       if (primaryInm && primaryInm.identidad) {
         user.Identidad = primaryInm.identidad;
         if (primaryInm.contribuyente) user.Contribuyente = primaryInm.contribuyente;
+      }
+      if (isCodeFormat) {
+        user.CodCont = specificCode;
+        user.cod_cont = specificCode;
+        user.isSearchByCode = true;
       }
 
       // Recalcular variantes porque la Identidad pudo haber cambiado al tomarla de Supabase
@@ -876,7 +875,11 @@ export default function CajaPage() {
       }
       
       // Consulta directa a Supabase: siempre fresca, incluye todas las CM- mensuales
-      const facturasOrFilter = userIdentVariants.map(v => `identidad.eq.${v}`).join(',');
+      const facturasOrFilter = isCodeFormat
+        ? (activeInmFresh.length > 0 
+            ? activeInmFresh.map((i: any) => `referencia.ilike.%${i.inmueble}%`).join(',')
+            : `referencia.ilike.%${specificCode}%`)
+        : userIdentVariants.map(v => `identidad.eq.${v}`).join(',');
       const { data: allUserFacturas } = await supabase
         .from('facturas')
         .select('*')

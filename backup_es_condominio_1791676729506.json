@@ -1,0 +1,926 @@
+[
+  {
+    "id": "5f3dad21-0537-4170-8556-4d35433c611b",
+    "inmueble": "AURI009959",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "2d627a98-d573-4e25-95ad-41fa1a6b317b",
+    "inmueble": "AURI010085",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "f0c3aa4b-19a1-46ea-aa5b-9452e52dc818",
+    "inmueble": "AURI010110",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "c93110ab-4681-407a-a2c0-72bd2563cf56",
+    "inmueble": "URB000204",
+    "es_condominio": true,
+    "cant_inmuebles": 13
+  },
+  {
+    "id": "0f67c989-313e-4e55-8e25-b76b85954c8a",
+    "inmueble": "URB000714",
+    "es_condominio": true,
+    "cant_inmuebles": 10
+  },
+  {
+    "id": "e41b2c6b-e53c-4752-87f1-68e1008421d2",
+    "inmueble": "URB000736",
+    "es_condominio": true,
+    "cant_inmuebles": 10
+  },
+  {
+    "id": "7f6eba8a-ece3-4e90-a99c-5724b08f2dc6",
+    "inmueble": "URB000758",
+    "es_condominio": true,
+    "cant_inmuebles": 10
+  },
+  {
+    "id": "8fe32684-18db-4268-ba0f-eb354c893a7e",
+    "inmueble": "URB000780",
+    "es_condominio": true,
+    "cant_inmuebles": 10
+  },
+  {
+    "id": "46e8bbc7-7387-489f-b3f5-16959a13a0df",
+    "inmueble": "URB000791",
+    "es_condominio": true,
+    "cant_inmuebles": 10
+  },
+  {
+    "id": "a7025aec-0bc2-4ac1-b391-12423cdb6be8",
+    "inmueble": "URB000819",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "67f479a6-da56-4d92-95ff-de8a86e91873",
+    "inmueble": "URB001407",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "220ccf87-b5c9-49c4-bee3-b16df39a5144",
+    "inmueble": "URB001525",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "d5903f2d-d5a7-4280-a33a-1c67d970d3a6",
+    "inmueble": "URB001610",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "32a4117a-4be6-4afa-bf50-8aedcca9849b",
+    "inmueble": "URB001928",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "e07381d0-40c9-431f-8979-b7676397560d",
+    "inmueble": "URB002033",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "4515d8ae-1268-43e1-bb58-abb86a6d98f5",
+    "inmueble": "URB002167",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "01595ecc-cdb6-4747-830f-ee2879e17f53",
+    "inmueble": "URB002201",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "ce217647-c8e6-4b8f-8ca9-0e08b3aff4fc",
+    "inmueble": "URB002262",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "7a2da8de-e7b0-4fb2-96b6-4b08f20c00bf",
+    "inmueble": "URB002345",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "48b10425-2483-4e7b-8b44-dffaac7e090a",
+    "inmueble": "URB002415",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "042716fd-193f-4324-b04a-1bd128138126",
+    "inmueble": "URB002505",
+    "es_condominio": true,
+    "cant_inmuebles": 10
+  },
+  {
+    "id": "b36945bc-d450-4d01-ab3c-96d3e543dfca",
+    "inmueble": "URB003643",
+    "es_condominio": true,
+    "cant_inmuebles": 8
+  },
+  {
+    "id": "67295aa9-4951-4081-9804-2173e73bcadc",
+    "inmueble": "URB004178",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "5b35d19f-9dff-44cb-b238-212d35639d2b",
+    "inmueble": "URB006050",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "b4cc0f6e-7af2-467b-b824-42446f7db81f",
+    "inmueble": "URB006069",
+    "es_condominio": true,
+    "cant_inmuebles": 6
+  },
+  {
+    "id": "4d71e329-d35b-4290-ad03-c7df83c1d6f1",
+    "inmueble": "URB006102",
+    "es_condominio": true,
+    "cant_inmuebles": 5
+  },
+  {
+    "id": "06c83f9e-5f6a-4e85-aa05-39ec2ef1d5ae",
+    "inmueble": "URB006176",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "8c37e9d7-b80d-4444-975b-52dbea780d6d",
+    "inmueble": "URB006200",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "f2341e00-703c-4f92-a8f8-1e6c6287ed17",
+    "inmueble": "URB006222",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "a6be4667-d85c-48e4-aefd-70269bbc2577",
+    "inmueble": "URB006244",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "285c8042-8eb0-4c9f-9124-24b46a54b8e1",
+    "inmueble": "URB006266",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "334ac32f-986f-4003-b72f-f367a975adce",
+    "inmueble": "URB006288",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "c7083140-6305-4fe1-a17b-340d9018a034",
+    "inmueble": "URB006310",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "cfcff125-0a26-4176-86fe-85d725b405b3",
+    "inmueble": "URB006332",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "9fb46f6f-d773-4cd7-aab5-b22ce435be15",
+    "inmueble": "URB006354",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "e736cb5a-800a-4f17-b756-8a50d860630a",
+    "inmueble": "URB006376",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "e0c2edf1-f25a-47af-aab6-36957910272f",
+    "inmueble": "URB006398",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "6fd8197b-f6a0-452a-9f2f-8e9e6fd5a5c3",
+    "inmueble": "URB006420",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "26c3f4bf-f6b3-44a8-a255-2ea75f460100",
+    "inmueble": "URB006442",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "3ba02cf6-c731-4102-9e0c-363aa328537e",
+    "inmueble": "URB006464",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "d43896c6-dc4a-4ff7-a329-96bb6220235f",
+    "inmueble": "URB006486",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "202d1a1d-278c-48df-9ce7-b456b6012cf4",
+    "inmueble": "URB006508",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "5cd8430c-b7e8-4335-984b-bb5073503981",
+    "inmueble": "URB006530",
+    "es_condominio": true,
+    "cant_inmuebles": 21
+  },
+  {
+    "id": "a12e9b20-7653-412f-a7d8-628b15a95cab",
+    "inmueble": "URB006714",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "f78767d6-cb03-4b89-ae97-d00b238379e3",
+    "inmueble": "URB006876",
+    "es_condominio": true,
+    "cant_inmuebles": 5
+  },
+  {
+    "id": "53745f41-7810-4c73-84b0-d066d313845d",
+    "inmueble": "URB008118",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "f6f9aa2b-b09c-4591-a928-8f67a536fa14",
+    "inmueble": "URB008123",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "e1b52f36-38d2-4274-a73a-73fcb02e5814",
+    "inmueble": "URB008346",
+    "es_condominio": true,
+    "cant_inmuebles": 10
+  },
+  {
+    "id": "9d9884ba-58ad-47d4-b584-5b0d2ef3c26b",
+    "inmueble": "URB008438",
+    "es_condominio": true,
+    "cant_inmuebles": 18
+  },
+  {
+    "id": "ddead62a-fbe0-464d-a726-e33bff528a29",
+    "inmueble": "URB008490",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "be409d1c-a9da-4b47-963f-3ca55a78bf2a",
+    "inmueble": "URB008540",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "e77d4b98-2eaa-453f-b83c-893f5c9e3cbd",
+    "inmueble": "URB008576",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "8764b2c0-0aa2-4c90-997f-066cae02cc51",
+    "inmueble": "URB008599",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "48877178-512e-4f56-8117-fea108953f96",
+    "inmueble": "URB008636",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "9e5e7b75-cb5c-47ce-ad94-7cd5cc6b417c",
+    "inmueble": "URB008709",
+    "es_condominio": true,
+    "cant_inmuebles": 13
+  },
+  {
+    "id": "e2b5f56c-5749-4a0b-adee-cc21ab6dc9f9",
+    "inmueble": "URB008838",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "5ac1186c-982f-4d4c-b5b3-5a33237d413b",
+    "inmueble": "URB009177",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "f0e9e23c-137b-44cd-953b-702faad37462",
+    "inmueble": "URB010376",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "c9bc754b-29e6-4959-a9c7-ae0cf5b704b3",
+    "inmueble": "URB015335",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "a6d322b5-cd12-4f20-a2e0-f57811db4746",
+    "inmueble": "URB015430",
+    "es_condominio": true,
+    "cant_inmuebles": 5
+  },
+  {
+    "id": "b791130e-5307-4a84-a47d-82a04fab0a19",
+    "inmueble": "URB015501",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "a8c844ef-f57c-41b8-9e30-dcf4c77e8b9f",
+    "inmueble": "URB015868",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "523acb37-1973-4867-93a0-9cd7f7b9560d",
+    "inmueble": "URB015900",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "d01cdc88-5e6a-4080-a16b-a2bd12fea66b",
+    "inmueble": "URB017172",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "b39d64d3-3f9d-48db-86de-0715cf10a1b1",
+    "inmueble": "URB017575",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "9924b759-3a88-4ded-8e7c-0581bb7b3f0c",
+    "inmueble": "URB017576",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "b3a806e1-3dbb-4da8-b77f-307ff7ebbe99",
+    "inmueble": "URB028483",
+    "es_condominio": true,
+    "cant_inmuebles": 10
+  },
+  {
+    "id": "78d859d4-837e-415a-93d8-f9ba87562ff5",
+    "inmueble": "URB031923",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "3b88ae1c-4bb8-42ca-9e60-e741b4c3cd1a",
+    "inmueble": "URB032252",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "c125b591-1a5d-401a-a5d8-1624fb50f7e3",
+    "inmueble": "URB032291",
+    "es_condominio": true,
+    "cant_inmuebles": 1
+  },
+  {
+    "id": "2dc71fee-9c3a-4e98-863f-053d848a06f5",
+    "inmueble": "URB032378",
+    "es_condominio": true,
+    "cant_inmuebles": 1
+  },
+  {
+    "id": "8dd8d491-3a0b-481d-ad48-fed66bd1802d",
+    "inmueble": "URB032501",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "b0102c25-11c5-4b54-b55e-546f09aee0c3",
+    "inmueble": "URB033020",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "aad1c741-f3e5-428a-a5a8-cd1bc3d048e0",
+    "inmueble": "URB033174",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "ead51f51-929c-4af5-828a-cfadc3b4a1dd",
+    "inmueble": "URB033265",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "31da745c-fbb0-4ec8-aab2-c93c759e6c96",
+    "inmueble": "URB033267",
+    "es_condominio": true,
+    "cant_inmuebles": 8
+  },
+  {
+    "id": "39d899bb-409f-48cc-8f0a-69b3e75fcf68",
+    "inmueble": "URB033279",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "bc295254-ea5f-4fe8-864a-7087651e0696",
+    "inmueble": "URB033281",
+    "es_condominio": true,
+    "cant_inmuebles": 6
+  },
+  {
+    "id": "ac6732bd-d2bd-46da-8e72-08734b6e4caa",
+    "inmueble": "URB033295",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "366b0a4d-e9ef-4c6f-8a39-60e78c640f92",
+    "inmueble": "URB033302",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "4758b690-0b9a-47b2-9b79-715d9678b1f1",
+    "inmueble": "URB033314",
+    "es_condominio": true,
+    "cant_inmuebles": 9
+  },
+  {
+    "id": "3364ef77-1fc7-4bd0-bdd4-6bc42e66c33a",
+    "inmueble": "URB033334",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "9d5cb209-5d19-4c21-8702-d3dfe188f6db",
+    "inmueble": "URB033336",
+    "es_condominio": true,
+    "cant_inmuebles": 8
+  },
+  {
+    "id": "6260976e-6257-4c04-9d64-6d0388ef5c61",
+    "inmueble": "URB033337",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "3eb35da4-e3a6-4fb7-9937-5c196d272eb3",
+    "inmueble": "URB033340",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "3cb8386c-83e1-47f5-bdfd-1e48f5870fe5",
+    "inmueble": "URB033343",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "78d7a7ea-b50e-45d9-8605-1d593acc1b87",
+    "inmueble": "URB033346",
+    "es_condominio": true,
+    "cant_inmuebles": 7
+  },
+  {
+    "id": "a5dd5e3b-f252-4417-885f-e1ea392449fc",
+    "inmueble": "URB033347",
+    "es_condominio": true,
+    "cant_inmuebles": 5
+  },
+  {
+    "id": "e8c45e31-f2ab-4173-a1cf-4900041531fb",
+    "inmueble": "URB033351",
+    "es_condominio": true,
+    "cant_inmuebles": 6
+  },
+  {
+    "id": "c4cd0751-feab-4d25-b964-6ce0d9cba02e",
+    "inmueble": "URB033356",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "ab6dedef-f82b-45ad-b5d1-6ac057404217",
+    "inmueble": "URB033372",
+    "es_condominio": true,
+    "cant_inmuebles": 11
+  },
+  {
+    "id": "4a89cf5c-3af6-4d3d-905b-242059182399",
+    "inmueble": "URB033374",
+    "es_condominio": true,
+    "cant_inmuebles": 8
+  },
+  {
+    "id": "7d8e3cd1-da7b-4a81-b9f9-209dfe090999",
+    "inmueble": "URB033379",
+    "es_condominio": true,
+    "cant_inmuebles": 19
+  },
+  {
+    "id": "97d2f319-5d2c-4a5d-8d48-37a5c52de836",
+    "inmueble": "URB033382",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "2394203b-d8ce-4093-9344-097d69269083",
+    "inmueble": "URB033384",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "13314797-5eee-4d23-859e-4860718b9235",
+    "inmueble": "URB033388",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "e4ff2368-a8a5-4402-a4da-e7d4c9d0ed83",
+    "inmueble": "URB033392",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "bc7baa5a-d0ba-401a-b971-4eab3ab0fdde",
+    "inmueble": "URB033395",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "6e6a8abf-3705-4116-9b49-ed9bd49f9cd8",
+    "inmueble": "URB033396",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "2fe32ddf-b205-498b-9687-ba9aef6318e7",
+    "inmueble": "URB033401",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "2ccbe6ea-50fe-4f32-a6d3-c8329be829fb",
+    "inmueble": "URB033410",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "039aee38-66d9-4ea3-a22b-e3a0be5687b6",
+    "inmueble": "URB033412",
+    "es_condominio": true,
+    "cant_inmuebles": 10
+  },
+  {
+    "id": "ae5a712b-b61c-43ce-a79c-3764e1caf0a8",
+    "inmueble": "URB033413",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "8a3479a2-572b-466b-a7dd-f665fd92f486",
+    "inmueble": "URB033414",
+    "es_condominio": true,
+    "cant_inmuebles": 20
+  },
+  {
+    "id": "a93b3ee7-25b7-49da-8006-0f61780146a7",
+    "inmueble": "URB033423",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "91f381ae-c6c1-4f55-b4ad-54d771c7a71b",
+    "inmueble": "URB033426",
+    "es_condominio": true,
+    "cant_inmuebles": 8
+  },
+  {
+    "id": "776a52d5-3666-4fe5-8b11-06a96bf9ed47",
+    "inmueble": "URB033427",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "c3528ac3-de95-4d0a-bc82-518b489b428b",
+    "inmueble": "URB033428",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "b37f94f3-0bd9-47d3-8ba5-f37d91dd6036",
+    "inmueble": "URB033441",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "d513ea1f-fafc-4963-a450-79fcf0cf769e",
+    "inmueble": "URB033442",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "9024bbe0-ee62-4058-b328-a112e0888aad",
+    "inmueble": "URB033446",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "1abb74e6-2f25-4dc8-97d4-46bbf13b38f7",
+    "inmueble": "URB033452",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "df74d03c-2649-49e7-a659-74607a70c0b2",
+    "inmueble": "URB033458",
+    "es_condominio": true,
+    "cant_inmuebles": 9
+  },
+  {
+    "id": "de002705-eb2e-4215-960f-569b26762601",
+    "inmueble": "URB033483",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "d28c11b3-03b7-4ede-b234-60f3c01569e8",
+    "inmueble": "URB033489",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "748e48bc-f11d-4473-94ae-8ed5a7002973",
+    "inmueble": "URB033500",
+    "es_condominio": true,
+    "cant_inmuebles": 5
+  },
+  {
+    "id": "c19cc34a-fa88-4cbb-b883-67a97bcb989c",
+    "inmueble": "URB033511",
+    "es_condominio": true,
+    "cant_inmuebles": 7
+  },
+  {
+    "id": "a8973df4-0cdb-41c6-ba8a-f33f1dc32466",
+    "inmueble": "URB033528",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "f78b8c1a-9e73-4eb7-8afb-e850ec0614b3",
+    "inmueble": "URB033592",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "85eaf0f2-aff3-4efd-b399-255f0838ab5c",
+    "inmueble": "URB033594",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "0fb9b067-7391-430a-9271-b34f69f1117c",
+    "inmueble": "URB033603",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "8d7b7f4b-a623-4a8c-98c5-3c06b278f295",
+    "inmueble": "URB033607",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "70950556-b79e-4700-820b-fed36bb33104",
+    "inmueble": "URB033618",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "6556ac17-bef7-49fe-905d-c31df4f207c5",
+    "inmueble": "URB033637",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "d7496a0f-a6c7-4db4-ab0d-3b3f857b14ba",
+    "inmueble": "URB033658",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "bc12c235-8ef4-4892-b620-240e8106cd3b",
+    "inmueble": "URB033698",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "891b6fca-528a-400a-8117-911390d153a5",
+    "inmueble": "URB033734",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "50b2cfe6-7ac8-4894-aaaf-627e66d0bfe4",
+    "inmueble": "URB033737",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "c8af9332-1659-4424-bf6d-f8a65764b112",
+    "inmueble": "URB033756",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "c60a866c-f329-4ec2-bd72-99d626c67bed",
+    "inmueble": "URB033771",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "ed4c9854-ea54-44ea-bb5f-132c2c1bb633",
+    "inmueble": "URB033772",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "cd25ab56-4726-4ac7-8a9c-3d7dfe8be047",
+    "inmueble": "URB033774",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "356ece5e-0bf1-4fb3-8ed9-0f0c2715cf12",
+    "inmueble": "URB033777",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "1fd71bcb-2973-4ae2-bbfe-19d610ebaea7",
+    "inmueble": "URB033782",
+    "es_condominio": true,
+    "cant_inmuebles": 11
+  },
+  {
+    "id": "d0be79e3-a83f-4822-b3c6-c598ea38c055",
+    "inmueble": "URB033819",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "ec13305d-2e77-4395-8a23-ee7e01506bc9",
+    "inmueble": "URB034002",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "86bed38b-cc7b-4e2c-bdec-6666aeb370f4",
+    "inmueble": "URB034090",
+    "es_condominio": true,
+    "cant_inmuebles": 13
+  },
+  {
+    "id": "f98cd374-f631-4bf9-a735-6a85402b700b",
+    "inmueble": "URB034287",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  },
+  {
+    "id": "b66abc0b-74d7-4879-a8f0-d59fdad069a0",
+    "inmueble": "URB034290",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "c6fc2a4b-cf4a-445b-b6fd-8a12a38a23e5",
+    "inmueble": "URB034295",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "0b50533b-5f66-4c49-8c3b-760e8f11a60f",
+    "inmueble": "URB034464",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "bed72590-4b71-48b2-b451-6d22fc26cb81",
+    "inmueble": "URB034481",
+    "es_condominio": true,
+    "cant_inmuebles": 6
+  },
+  {
+    "id": "f35f0b7e-11f6-4335-8d63-699c0cd77dad",
+    "inmueble": "URB034495",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "ead81d90-532c-4ee3-b823-cd0650944b76",
+    "inmueble": "URB034700",
+    "es_condominio": true,
+    "cant_inmuebles": 5
+  },
+  {
+    "id": "769a4a21-3d03-4397-b5bf-11c13e7c86b3",
+    "inmueble": "URB034779",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "f51aee07-9721-4e6b-8c6c-b3e11a971ed8",
+    "inmueble": "URB034875",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "1d3a58af-7b9c-46ec-992c-ab441482b22c",
+    "inmueble": "URB034935",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "d16f52ca-9ae7-4df1-a5eb-7652155b5b69",
+    "inmueble": "URB034949",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "39c2337e-719e-457d-ab1b-7596ae0c9bbb",
+    "inmueble": "URB034981",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "a74b3809-d77d-4a70-8747-ff9fefa116c2",
+    "inmueble": "URB035003",
+    "es_condominio": true,
+    "cant_inmuebles": 0
+  },
+  {
+    "id": "7554951c-3a6a-4f6e-9b5a-f6bb310dc332",
+    "inmueble": "URB035097",
+    "es_condominio": true,
+    "cant_inmuebles": 2
+  },
+  {
+    "id": "c488d0c5-e106-40ce-8135-85480c7ac678",
+    "inmueble": "URB035157",
+    "es_condominio": true,
+    "cant_inmuebles": 3
+  },
+  {
+    "id": "a9ff9315-0800-4111-9ac9-e76051252f60",
+    "inmueble": "URB035193",
+    "es_condominio": true,
+    "cant_inmuebles": 1
+  },
+  {
+    "id": "9b62889a-9af8-49ec-b376-5b62ae94a50d",
+    "inmueble": "URB035205",
+    "es_condominio": true,
+    "cant_inmuebles": 4
+  }
+]

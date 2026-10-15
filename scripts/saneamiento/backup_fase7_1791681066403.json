@@ -1,0 +1,123 @@
+{
+ "pago": {
+  "id": "33ed6ce2-42e5-4e73-914c-fd63b02bd39a",
+  "identidad": "J-305071764",
+  "monto": 26734.57,
+  "banco": "0134 - Banesco Banco Universal S.a.c.a.",
+  "referencia": "25939019",
+  "tipo": "Transferencia",
+  "estado": "Aprobado",
+  "detalles": {
+   "cajero": "M-valentina",
+   "correo": "PAGATODOATRIA@YAHOO.COM",
+   "cuotas": [],
+   "montos": {
+    "total": 26734.57
+   },
+   "recibos": [
+    "RECIB-HIST-URB008385-M1"
+   ],
+   "analista": "M-valentina",
+   "es_abono": true,
+   "tasa_bcv": 980.61,
+   "telefono": " 02415149161",
+   "identidad": "J-305071764",
+   "servicios": [],
+   "tala_poda": [],
+   "formasPago": [
+    {
+     "fecha": "2026-10-10T16:37:51.301Z",
+     "forma": "03",
+     "monto": 26734.57,
+     "descripcion": "Transferencia"
+    }
+   ],
+   "montoTotal": 26734.57,
+   "fecha_banco": "2026-10-10",
+   "recibo_caja": [
+    {
+     "iva": 0,
+     "caja": "M-valentina",
+     "banco": "0134 - Banesco Banco Universal S.a.c.a.",
+     "rifCi": "J-305071764",
+     "total": 26734.57,
+     "exento": 26734.57,
+     "tasaBcv": 980.61472543,
+     "reciboNo": "5939019",
+     "subTotal": 26734.57,
+     "conceptos": [
+      {
+       "total": 26734.57,
+       "precioUnit": 26734.57,
+       "descripcion": "Pago en Verificación (Transferencia) - Servicio de Aseo Urbano"
+      }
+     ],
+     "formaPago": "TRANSFERENCIA",
+     "controlWeb": "WEB-5939019",
+     "referencia": "25939019",
+     "razonSocial": "ENVAPLAST 97, C.A.",
+     "fechaEmision": "2026-10-10",
+     "domicilioFiscal": "0 0 .  NRO. . SECTOR COLINAS DE GIRARDOT, NAGUANAGUA EDO. CARABOBO",
+     "codContribuyente": "J-305071764",
+     "tipoContribuyente": "Comercial"
+    }
+   ],
+   "saldo_favor": 0,
+   "saldo_usado": 0,
+   "deuda_previa": [],
+   "banco_destino": "BANESCO - 0134 - 8636",
+   "contribuyente": "J-305071764",
+   "enviar_correo": true,
+   "monto_abonado": 26734.57,
+   "observaciones": "",
+   "recibo_caja_at": "2026-10-10T14:26:07.205Z",
+   "comprobante_url": "https://tlhbsykmpmiaqxbhjewb.supabase.co/storage/v1/object/public/comprobantes/comprobantes/J_305071764_1791642362513.jpeg",
+   "factura_digital": {
+    "emitida": false,
+    "pendiente": true,
+    "preparada_at": "2026-10-10T16:37:51.300Z"
+   },
+   "monto_conciliado": "26734.57",
+   "fecha_transaccion": "2026-10-02",
+   "tasa_bcv_original": 980.61472543,
+   "comprobante_nombre": "WhatsApp Image 2026-10-10 at 10.25.09 AM.jpeg",
+   "total_seleccionado": 28051.62,
+   "deuda_total_sistema": 0,
+   "tasa_bcv_conciliacion": 980.61
+  },
+  "created_at": "2026-10-10T16:37:50.331+00:00",
+  "modulo": "contribuyentes",
+  "grupo_pago": null
+ },
+ "inmueble": {
+  "id": "1ca5ca79-4de7-44c7-a710-8edc7fe0a276",
+  "inmueble": "URB008385",
+  "identidad": "J-305071764",
+  "tipo": "COMERCIAL",
+  "actividad_principal": "SUMINISTRO DE MATERIALES PARA INDUSTRIA Y CONSTRUCCION (BAJA)",
+  "direccion": "0 0 .  NRO. . SECTOR COLINAS DE GIRARDOT, NAGUANAGUA EDO. CARABOBO",
+  "estado": "Activo",
+  "cant_inmuebles": 0,
+  "mmv_mes": 3.38,
+  "saldo_favor_bs": 0,
+  "deuda_mmv": 3.38,
+  "created_at": "2023-10-01T23:29:14+00:00",
+  "actividad_economica_id": null,
+  "telefono": " 02415149161",
+  "correo_electronico": "PAGATODOATRIA@YAHOO.COM",
+  "clasificacion": "Individual",
+  "notas": "[7/10/2026] AJUSTE DE DEUDA: Asignados 1 meses (SEPTIEMBRE DE 2026 a SEPTIEMBRE DE 2026 (1 meses)). Total estimado: Bs. 28155.97. Motivo: debe un mes (Autorizado por: dzara)",
+  "deuda_congelada_bs": 0,
+  "multa_bs": 0,
+  "meses_deuda": 0,
+  "condominio_padre_id": null,
+  "es_condominio": false,
+  "agente_retencion": true,
+  "contribuyente": "ENVAPLAST 97, C.A.",
+  "clave_portal": null,
+  "cod_cont": null,
+  "padre_id": null,
+  "licencia": null,
+  "numero_local": null
+ }
+}

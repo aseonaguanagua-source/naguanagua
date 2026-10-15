@@ -1,0 +1,6902 @@
+[
+  {
+    "id": "a2be75ab-b826-4f62-92ed-f7298b784b3b",
+    "inmueble": "AURI013344",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fe00c11b-418e-4184-8109-c404d451f31f",
+    "inmueble": "AURI013358",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2600441f-e86c-4b74-b4a5-e956bca14ea8",
+    "inmueble": "AURI013341",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7cffa105-ff24-4c29-b5c4-39b4ae2afa39",
+    "inmueble": "URB006103",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a46c125e-6a8a-4378-9e40-dbbd9ab3789c",
+    "inmueble": "URB033973",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "78c8b5f7-7aea-45b4-a5fd-f7238f301bd8",
+    "inmueble": "URB018154",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "020d3d9a-5a65-47e1-bf79-c472d924e81b",
+    "inmueble": "URB015570",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "31c3e3dc-75e3-4920-8e23-2333a8b36ceb",
+    "inmueble": "URB004180",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b9bcbd20-7266-42a3-945a-34178348fff4",
+    "inmueble": "URB008099",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "10a98ef9-d33f-4286-a30e-19770918d220",
+    "inmueble": "URB001934",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "04c3563f-daf5-431b-933e-fbc70131e16e",
+    "inmueble": "URB035141",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "439501ab-b2f0-4744-abe1-46924f680990",
+    "inmueble": "URB018534",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "49153bfd-010d-4554-beb0-6e74ed7875f7",
+    "inmueble": "URB005720",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6cd518f5-e018-43f2-ad39-912a49bc79f4",
+    "inmueble": "URB034736",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "72d725ae-3a74-418c-9441-13ba13433876",
+    "inmueble": "URB003283",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "99706f56-f12d-4f2c-b59c-3eec61c179e9",
+    "inmueble": "URB015433",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a6aeab5c-b783-467b-9279-35f9acd92b39",
+    "inmueble": "URB035102",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c180d0de-2f7d-475a-b3ec-c70cd88eb6f1",
+    "inmueble": "URB007146",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c18cf227-de4d-420b-a2f3-a2c0f22ffc00",
+    "inmueble": "URB002166",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c7677756-f8fe-40e4-915f-102e9161ea12",
+    "inmueble": "URB014990",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f3f4a5b1-558c-4353-a802-e07a69f2d9eb",
+    "inmueble": "URB000611",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fb2cae9f-9b44-419d-a693-d29c69073464",
+    "inmueble": "URB004585",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1b7a6f35-c9fd-4cce-bedd-0be81a3ef2f3",
+    "inmueble": "URB016582",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "24fe1fae-09a2-4cef-8a3d-9ba0375078e5",
+    "inmueble": "URB016861",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "965dd04b-810b-4d1f-afb0-84bdcff387ec",
+    "inmueble": "URB006027",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "75184a9b-0788-4fdb-9362-5c868fd7b0fa",
+    "inmueble": "URB004795",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f937e09b-5521-4028-9081-77e2e6f55f29",
+    "inmueble": "URB004753",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f3a11913-6e34-4aec-a4c2-12f77f05b5f9",
+    "inmueble": "URB031893",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "15d48378-0043-40f7-b72d-2b59868d6b57",
+    "inmueble": "URB031904",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0ff1f05c-7eb7-4e5b-922a-ba3a7b299cc0",
+    "inmueble": "URB004805",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "23434622-0147-4ff6-b107-26f1068c1939",
+    "inmueble": "URB018578",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fc1e2e90-a773-490c-8bd9-0f9dd4b13576",
+    "inmueble": "URB001831",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "563f5a88-7c74-4ab5-98df-2a3c95c93870",
+    "inmueble": "URB032292",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "39190969-807a-4957-ab5d-349ab729e2d8",
+    "inmueble": "URB004953",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "91091b80-a8ca-4982-9c2f-250f3101a20a",
+    "inmueble": "URB004693",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cbe0a02f-0d8a-4862-b26d-e2aa9b128fa1",
+    "inmueble": "URB009293",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "52b0ec8c-29c5-4085-85c4-96b382287ee3",
+    "inmueble": "URB034778",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6b64f0c9-d2f3-4f40-ac78-aaa11344660b",
+    "inmueble": "URB004710",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f8753e02-a12c-4617-8fa8-bf87ac7a69c5",
+    "inmueble": "AURI000713",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f88d7d02-6b39-4bf2-afb1-31afaea84c99",
+    "inmueble": "URB004829",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ab5231b7-0431-47a4-8df9-3cfd9c5beb25",
+    "inmueble": "URB004789",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "138be8d9-3880-4717-bc14-d0379570602b",
+    "inmueble": "URB033957",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "deba9bbe-6dd7-4d57-819f-6af6481ab004",
+    "inmueble": "URB002211",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e854dadf-509f-4345-9607-13a203138669",
+    "inmueble": "AURI002713",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b38c217d-a9fa-4ba0-bd4d-98603842d36c",
+    "inmueble": "URB004766",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b760e211-c7ed-49f3-8670-f2ee4e736a62",
+    "inmueble": "URB015336",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c0ed164d-106d-4389-8b4f-af45528bb206",
+    "inmueble": "URB000053",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "932bbef0-5af6-45da-abeb-78d1d4ea318d",
+    "inmueble": "URB004782",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d639b118-5a6e-43cd-b3fc-de92d731fbe2",
+    "inmueble": "URB031791",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0e933fe4-8908-4960-b87c-03bc83a11ac5",
+    "inmueble": "URB034436",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "33107e20-c904-4d75-a9ae-feac1a298855",
+    "inmueble": "URB004787",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "275a7466-03c9-4683-b2aa-8a992a1518dc",
+    "inmueble": "URB004743",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cb572f96-d362-48dc-b928-dfda33039c73",
+    "inmueble": "URB004815",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dd988ce8-62fc-4c1c-af34-9aad2539894a",
+    "inmueble": "URB015628",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5c916886-9ddc-4884-9d44-73a80c8488cc",
+    "inmueble": "URB034530",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "71891f17-e122-461c-9b69-4670d2bfd5c8",
+    "inmueble": "URB034270",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a0e4de8d-7d8f-490f-ae92-6aca8ec72e4f",
+    "inmueble": "URB006109",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "be1ac7d4-9026-4a18-a0d8-4835fe8224c6",
+    "inmueble": "URB004762",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fcef6260-1cb3-488c-bfee-3160e94977ad",
+    "inmueble": "URB004984",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b8e94886-4415-42eb-8306-0154b19fd344",
+    "inmueble": "URB001750",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fa57a577-d750-4cf7-913b-b85f8b26b336",
+    "inmueble": "AURI002389",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2af14041-01de-4b4f-83eb-0f9d47477066",
+    "inmueble": "URB004708",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0cfe4990-61c7-4b51-86ac-a356e7ec0b66",
+    "inmueble": "URB008809",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b089fe9b-06e0-411a-825f-b7defedae584",
+    "inmueble": "URB004810",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9d5cb209-5d19-4c21-8702-d3dfe188f6db",
+    "inmueble": "URB033336",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "84ae517e-3196-4d52-ae3b-2f12b5a9d730",
+    "inmueble": "URB004686",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e9a1197b-7116-4c42-85c7-de26f52b5dbb",
+    "inmueble": "URB000195",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "32eeec66-8eaf-47fe-8529-0527ab0474ad",
+    "inmueble": "URB030809",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c8303159-1ba8-41d8-b9e5-760d6518b406",
+    "inmueble": "URB008673",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b02cd0c8-7f5b-4fa9-a923-35dabd5c1711",
+    "inmueble": "URB030338",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f7ea1475-5a16-4fe7-8c38-d7e3947e0a64",
+    "inmueble": "URB032379",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5f3797d1-b1cf-4617-a106-4bedfa281cc0",
+    "inmueble": "URB005512",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6e41b7a5-5952-467e-a0a8-be355b09b769",
+    "inmueble": "URB017115",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e563e4b5-b5ad-49c0-98c6-c826843b889a",
+    "inmueble": "URB004370",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f082071f-1332-4cc5-b1be-dec5d0b2f695",
+    "inmueble": "URB017366",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "de520655-1817-41ba-bb3a-05f1d2d3d5e2",
+    "inmueble": "URB031857",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e10522f1-46c4-418d-be4a-4d54af822d4f",
+    "inmueble": "URB004796",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e284c38f-a157-47a5-aecf-d5387131e6f5",
+    "inmueble": "URB031797",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "210e8c01-3b51-4756-aedb-487a5a0c333e",
+    "inmueble": "URB008239",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d87cea29-85c1-4674-949d-6cf6de656120",
+    "inmueble": "AURI005982",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4c6c1701-e606-498a-98f9-bc9b0a206bc7",
+    "inmueble": "URB015817",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5c7ad32f-65e0-4e2d-9e32-4216a90c67f2",
+    "inmueble": "URB031834",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c1077ae6-5968-4f04-92dc-e302bf01dcfc",
+    "inmueble": "URB002417",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1fbf58f4-19ae-4d38-8dcf-18e24510547f",
+    "inmueble": "URB031895",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6ca36515-fb34-4e53-b585-ba65c7e561eb",
+    "inmueble": "URB031837",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7c41db1e-ad0e-4936-af5d-01884e21ca22",
+    "inmueble": "URB034721",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c5cfd654-1d71-47e8-9d92-0301a69ba573",
+    "inmueble": "URB031821",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b3f35fae-f11e-4288-945b-5febb1ebb2a9",
+    "inmueble": "URB001662",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "12381394-abb1-4125-988c-3bba2422508a",
+    "inmueble": "URB029237",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5cc5fb7b-dfc3-4555-a986-e5f870f661f7",
+    "inmueble": "URB035174",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "80d6070b-576c-47db-8685-bd40f5b02c5c",
+    "inmueble": "URB015619",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "17c1c1fa-70e6-430d-8eb7-1027e24fa44e",
+    "inmueble": "URB008064",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c2e84968-8a1a-4c4d-b919-03ac8f3c4fcd",
+    "inmueble": "URB008447",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0eea65ba-bb6a-4e8b-bb7e-1db3cf25e222",
+    "inmueble": "URB000485",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "565d5585-2c56-427b-8249-d83258194d57",
+    "inmueble": "URB031273",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5031c9c5-eb4a-4095-ace5-5f5083f140cf",
+    "inmueble": "URB004177",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c6f31b5f-6395-49a6-bbbf-34a9b502398f",
+    "inmueble": "URB034488",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7ce5b4e1-ea3e-474d-b105-022ba2149cf1",
+    "inmueble": "URB035189",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "836663e2-15d9-44ac-9b84-9a5c4d3b4793",
+    "inmueble": "URB006831",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "872d69ac-b1cc-4983-acc6-2edd8c1a9480",
+    "inmueble": "URB034812",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "88e9fd22-cd76-42af-b7d5-405fe5fdeb74",
+    "inmueble": "URB003430",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a4b4d799-f25e-49a4-9469-9354b328c362",
+    "inmueble": "URB001793",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ffdb5be9-382f-4ebf-b2cf-eb8982f9dbb8",
+    "inmueble": "URB008577",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a2948254-99eb-4007-acf8-edd77f28b0ff",
+    "inmueble": "URB031876",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b627fe07-d675-4f5c-8e08-e9a59b28dfc6",
+    "inmueble": "AURI000955",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fc06b651-71a2-4e67-ad89-925eb74d9bc0",
+    "inmueble": "URB032803",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fcfe8227-7a9c-44eb-97a8-91a60b2cbed7",
+    "inmueble": "URB016320",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1ba9b692-43bf-4cd9-84d1-85a153ac9a00",
+    "inmueble": "URB002582",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d67ef232-cd98-4e2d-a4fb-0b4e4c7201b4",
+    "inmueble": "URB031905",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1080a339-427d-4110-babf-81f492300b74",
+    "inmueble": "URB034738",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "32454635-d63e-440e-ab9a-267bfb4ec600",
+    "inmueble": "URB017145",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3fd92870-3e7f-45a6-b4e3-1fec721ae58d",
+    "inmueble": "URB018150",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "56e8a857-261d-448f-af7d-85d09019ef97",
+    "inmueble": "URB002982",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "521709e5-8691-467d-8560-89c161ca699a",
+    "inmueble": "URB003013",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "65bfcac0-0556-4406-9a6f-fa438a8058af",
+    "inmueble": "URB004261",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5958d3d3-99d7-4630-9029-e34f0e26ba1a",
+    "inmueble": "URB003007",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "921ab245-dbdf-4270-a828-f4c5df0d7d4c",
+    "inmueble": "URB000699",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "327f06ab-f8dd-4580-894f-2c8ed7c0b514",
+    "inmueble": "URB009937",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "aceaf2c7-85ef-4606-9c1c-a46fd43c1363",
+    "inmueble": "URB034719",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "074a1fef-68f7-4d8d-b4f9-dff0fd6e6d5f",
+    "inmueble": "URB034712",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "881f1a80-9e49-4ab4-8706-f2343e979c00",
+    "inmueble": "URB001850",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1f6aa11b-36e2-487e-9d9d-10eec062d117",
+    "inmueble": "URB002581",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ccaa37ea-fb86-4a63-aff3-48c6bbca9343",
+    "inmueble": "URB029862",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "32f32676-bb4d-4f72-a726-5d1c7d516025",
+    "inmueble": "URB008500",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "366b880e-bfab-4ad6-a9a8-f4bd2d4cdb61",
+    "inmueble": "URB015009",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5cd8687f-4b4f-4939-b460-bd2951e00ca5",
+    "inmueble": "URB034826",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6b7dc54e-222e-464e-8ce6-eabfb6d0c02c",
+    "inmueble": "URB004778",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "eaee3fe8-560b-400e-a30e-90cd37651bde",
+    "inmueble": "URB006100",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b5eda6b4-c32b-431c-bce2-f3827125ba44",
+    "inmueble": "URB003505",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bed65984-d0bc-4dcd-aa6b-ebeb016cb951",
+    "inmueble": "URB004546",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7c2887e2-0790-4bea-92ae-3d3b8e13c136",
+    "inmueble": "URB034733",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f9ee8835-cf2b-4ec8-b33d-7a03c4d6268f",
+    "inmueble": "URB002792",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "16ffcc5f-77f0-4be5-bc70-80bc6dbc735c",
+    "inmueble": "URB034672",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "080dd8bf-19b4-4fd5-a8c3-5bcbabd832c0",
+    "inmueble": "URB018302",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8bf9283a-d0fb-41a4-af64-88b1cba91786",
+    "inmueble": "URB017077",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b232721b-5ca2-426b-988d-8a654d10b67e",
+    "inmueble": "URB018351",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "950c433d-ff29-4922-960b-b45da0798f58",
+    "inmueble": "URB005419",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1cfb13cf-2ca6-46be-9fdd-f346ef7d91bd",
+    "inmueble": "AURI003657",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5b497fa0-8eb3-428d-972d-33edb2683f3f",
+    "inmueble": "URB031853",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3d3a8998-5856-40ce-b912-410222c4e831",
+    "inmueble": "URB033625",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6e88df20-62ce-40d9-bddd-8e6c919a6eac",
+    "inmueble": "URB031864",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6c9fe8e8-17c5-4571-b563-ba110d245983",
+    "inmueble": "URB032253",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4cdbffc0-43ee-4849-a308-f57aaeb212f0",
+    "inmueble": "URB001996",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "55bae59f-d666-4ba8-8e80-2d95f22721b5",
+    "inmueble": "URB015590",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "819dfab5-4303-4d10-a640-ddfe3176acee",
+    "inmueble": "AURI009949",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "56667601-bd18-4904-a137-16539b993fc9",
+    "inmueble": "URB001723",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5be1c4af-2642-44a9-91cf-1bf1859e39df",
+    "inmueble": "URB000216",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "992b5a44-5af5-40a9-a1fc-18a88ee63a97",
+    "inmueble": "URB031819",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9be42ad3-d9ec-4753-9d95-c3137337a0ad",
+    "inmueble": "URB008317",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7f3d2551-fdf7-4f6a-8ede-fc2e4f77d512",
+    "inmueble": "URB015229",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "92ccf87a-9ea1-4dd6-a23e-028f9179b0b0",
+    "inmueble": "URB010418",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ba2db315-e0ec-42fb-adb8-eadd14917796",
+    "inmueble": "URB008798",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a2af932a-284d-49a8-a30f-04ad06cdb078",
+    "inmueble": "URB031807",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d95993da-36cc-4ee7-81f7-319200bbea2f",
+    "inmueble": "URB002941",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "378fea04-0345-49e3-a561-397debe27350",
+    "inmueble": "URB008579",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cf62f135-4990-4f82-aec0-3ffcf8b8a36d",
+    "inmueble": "URB031896",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c8f6e8b0-051a-4801-8494-b2b6244439de",
+    "inmueble": "URB034818",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f99f9f63-c110-4cfc-92dc-43b15e9ba476",
+    "inmueble": "URB031888",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "649eaf82-4773-4b4d-a780-b19b345241da",
+    "inmueble": "URB002487",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "63ffbf5f-bbf6-46c0-af1c-2935a80d1747",
+    "inmueble": "URB031865",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "86b999ec-5ffe-4c2b-8de2-f4458bbf9050",
+    "inmueble": "URB032241",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "85eeba68-27dd-4df6-858a-e4ed1a776d3f",
+    "inmueble": "URB034744",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "987f6177-16bf-4bfb-b647-0ab11d42cfb3",
+    "inmueble": "AURI003662",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "eb7fce07-3431-45c6-b9f8-3937c80f1685",
+    "inmueble": "URB001617",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b967c432-b870-4c89-aaa0-9ddf3d1ac4f3",
+    "inmueble": "URB002434",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e50b499d-107c-46de-8131-c94810e9283d",
+    "inmueble": "URB031875",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d1f442b6-70ee-44bf-bc37-e7acd8a46433",
+    "inmueble": "URB016890",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0ad5ea6b-d244-48fa-9c47-aec8f7efcf81",
+    "inmueble": "URB002725",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e22caa4c-4285-4350-affa-38395fb8b9d4",
+    "inmueble": "URB031913",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "60a90bf3-e64b-4293-a53f-f0943a288359",
+    "inmueble": "URB033494",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "04f8c2ba-b454-496e-b2c5-9ffb6bce74e9",
+    "inmueble": "URB034756",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9cc0e0cc-f429-4fb6-a42f-95305b1c98b1",
+    "inmueble": "URB001730",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "62ff9bd6-9487-4e29-a0fa-1769585b20a2",
+    "inmueble": "AURI000941",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d66354a5-3a65-4b28-9eac-83c0e29c9f4b",
+    "inmueble": "URB002855",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d82b637a-3468-41f3-ace2-be0a26d5cef5",
+    "inmueble": "URB002794",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f483fc71-c6c5-4549-a956-e936ad01b458",
+    "inmueble": "URB002753",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f72b4b16-6226-487e-9ff6-889f3c722ff7",
+    "inmueble": "URB002770",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "03745221-bc66-436c-b976-81f6dea63bda",
+    "inmueble": "URB004824",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "04a19097-7dfe-40f6-befd-db1ab2e9ec0b",
+    "inmueble": "URB004757",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "07ba40b8-c2e8-44c3-b281-359f2834b9e3",
+    "inmueble": "URB004833",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "05908bfe-03ab-4db6-a563-6ca94975bebc",
+    "inmueble": "URB034080",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "328dc341-9fd7-403f-9eaf-98a7ece7ca54",
+    "inmueble": "URB031840",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "40784384-b1ab-4983-b3e3-e85e66cd18ed",
+    "inmueble": "URB030949",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "444b75b6-969f-46cf-975b-46396409c9ed",
+    "inmueble": "URB035160",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "50919c00-4c99-4295-b2ba-d34b844e7829",
+    "inmueble": "URB002559",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5ea6fd07-8e43-4da8-99ab-41b5776fc448",
+    "inmueble": "URB016517",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6f9fbb8e-073b-4ee0-b224-6014e3465cc5",
+    "inmueble": "URB016561",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7734b3a4-d9f8-457f-8b9e-b193b66c57c2",
+    "inmueble": "URB029868",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "31c69380-7af2-4c49-8f3d-3893508d29b4",
+    "inmueble": "URB031891",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7adbf6c9-5ebe-4a12-ba25-cb36733200d4",
+    "inmueble": "URB030345",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7e1d4787-2b7c-4a7e-b1ca-fcd696d4acda",
+    "inmueble": "URB002750",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7c8f6c54-843f-4702-adb0-b01da08a80ef",
+    "inmueble": "URB016983",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "88c96018-6401-4007-a2b8-a7b9f8aa41d2",
+    "inmueble": "URB031828",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9d2029f0-a85e-4e04-9e35-5124243c8c77",
+    "inmueble": "URB001753",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9295a168-a7a3-41b3-988a-25e936fee13b",
+    "inmueble": "URB004008",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9a9b50d5-c266-49be-9e35-5cad8b99edb0",
+    "inmueble": "URB030900",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ad7e0413-d1b5-42d8-ab6f-0974c59ead2b",
+    "inmueble": "URB002490",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "aeb55356-05e8-406c-a822-47be2d3f63c7",
+    "inmueble": "URB001682",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b36549a4-91b6-463a-b13e-bde3b3483a85",
+    "inmueble": "URB008839",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bafc07a3-4fc8-4225-ade8-97d9227faea5",
+    "inmueble": "URB002786",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "24f01577-95b7-4356-b2f9-1073d45c6c5d",
+    "inmueble": "URB008648",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cdfe9bef-54c1-4771-afc1-34dd5592d1c7",
+    "inmueble": "URB000040",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "42de9a91-1eef-4cb5-ba4e-e0a44f06ac04",
+    "inmueble": "URB031889",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d807cd81-4e75-4682-89d9-d583523bddba",
+    "inmueble": "URB001709",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e21e540c-c510-48a6-9c77-e20fa50f4f73",
+    "inmueble": "URB003135",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e32de2e1-23b1-4eaa-91bd-71befa6bcfab",
+    "inmueble": "URB004674",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e5a21398-be52-4c25-9c0f-362b4bf37d43",
+    "inmueble": "URB009377",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ed3cd835-9282-4606-a011-38d48365adcc",
+    "inmueble": "URB009376",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "efba9fb2-bf0a-4023-99c5-a37f184ecd8e",
+    "inmueble": "URB002834",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f260352f-742a-4994-99b0-b952d474fa63",
+    "inmueble": "URB016518",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fd504c60-00c6-4ee3-b0d4-ec53402ff573",
+    "inmueble": "URB004730",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1e3e183e-eb59-4c50-800a-ce6da09d01b6",
+    "inmueble": "URB006838",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "13d684ce-32a4-4d14-b4c7-a2aaec4262f1",
+    "inmueble": "URB008243",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1b2f8fee-06d1-4fd6-80af-160ae3e139eb",
+    "inmueble": "URB008491",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1fdd0cbe-7324-4a01-bdc3-17910becb8a7",
+    "inmueble": "URB004695",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "20eb1c75-1c03-4807-a6bc-948cbcf43244",
+    "inmueble": "URB004745",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "214b301c-10a7-4118-9adc-20a2786c7bfe",
+    "inmueble": "URB004706",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "274d3da5-1cdf-4f68-8e8f-bdf3624318cc",
+    "inmueble": "URB004813",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2810f9d2-224a-4bdb-8fc2-86f3fbf44773",
+    "inmueble": "URB016519",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2e70242e-e377-4e11-8dc4-5ac78b484b25",
+    "inmueble": "URB034714",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "372344ff-5282-4ab0-b6fe-f2a433bacef2",
+    "inmueble": "URB004761",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3b523cd9-1aca-47d6-b2f6-95644ff4fbbc",
+    "inmueble": "URB004773",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4019e8b5-8fce-4608-9ecb-0587d5cbb6f7",
+    "inmueble": "URB004827",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "426bf774-776f-4e3d-a0ee-8c95a13e4d0c",
+    "inmueble": "URB004711",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "497dcaa2-69a8-42df-8028-3a5fc6b3bbc4",
+    "inmueble": "URB002850",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4f1437e2-5ceb-4c77-aaf5-6cc9105c248f",
+    "inmueble": "URB000607",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "50086f36-4f7b-4ed3-bd35-545b30d88e4a",
+    "inmueble": "URB004703",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "51aeb29c-9f32-4e69-bd22-14880728e627",
+    "inmueble": "URB015621",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "557af60d-2322-4d8f-a84d-061bc0bc61b4",
+    "inmueble": "URB004811",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5907b845-ea81-422c-8254-9d4491236404",
+    "inmueble": "URB004802",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5aebc036-eda8-4353-95c1-a4f2249d593d",
+    "inmueble": "URB015650",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4aaaa4ce-cfd5-4677-a947-7fd7af936b7a",
+    "inmueble": "AURI017233",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8acf9e3a-51de-47e1-816d-eb9595458109",
+    "inmueble": "URB033170",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5b55b25b-d841-4951-8a13-3271eef0f829",
+    "inmueble": "URB004784",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "601359db-2401-4cc3-81ec-6a416597934c",
+    "inmueble": "URB004800",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "68fe832e-a926-4a9e-9f8e-14cd6c07eabb",
+    "inmueble": "URB004692",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6b25b84e-11a0-427f-bc98-86e84dfb8599",
+    "inmueble": "URB001651",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6ceb860f-9fc1-41d8-863a-4d3da05bed16",
+    "inmueble": "URB030933",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "71823df9-067b-462e-afb5-cf6b91e21e86",
+    "inmueble": "URB004754",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7b34fc18-492e-4506-8745-c14f3c1abed9",
+    "inmueble": "URB001648",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7b4249e5-585b-43ae-a8e7-3e71a0a0c4e3",
+    "inmueble": "URB004765",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "818f0e0a-8160-4612-84ef-01023e36bfb5",
+    "inmueble": "URB004729",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8866eca8-70c6-491d-8d0f-46f54c50bdf8",
+    "inmueble": "URB004763",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8be339ef-6d2b-481c-afd3-917fb75b7689",
+    "inmueble": "URB004714",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8cbef1dc-fa7a-447e-b44c-c0f466759c34",
+    "inmueble": "URB008240",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "90dba806-dca7-435b-a5f0-d84d4a0ad0bf",
+    "inmueble": "URB004760",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "933c520f-59b0-44f4-9ba1-243c42201f45",
+    "inmueble": "URB004713",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "93a13435-abf5-4647-a1ad-38f1f97e7601",
+    "inmueble": "URB004818",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9d87f4da-a46d-49b7-9b3f-d8ddc47e02b6",
+    "inmueble": "URB004771",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a2fd5f74-a5ef-48d2-944f-c962ba4bd51c",
+    "inmueble": "URB001645",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b4d45551-178c-4010-9959-ce972ad28c84",
+    "inmueble": "URB004751",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b81b6faf-efbf-4ad1-9412-97bf2b57767a",
+    "inmueble": "URB004704",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bbafb7a6-27fe-437b-ad3e-afbd56b65e16",
+    "inmueble": "URB004756",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bcef1240-75f6-41ac-8377-bce0578ceb1e",
+    "inmueble": "URB008578",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf1c7c89-1b0d-42bf-9563-c4caff1c33da",
+    "inmueble": "URB008244",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c10693b4-fa67-4c94-9bbc-fdb8b6a7b297",
+    "inmueble": "URB016896",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c63c8f30-2884-4765-83b3-399a2b5b9664",
+    "inmueble": "URB004718",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c656fa83-24f2-4bc9-a88c-27284a30bcc5",
+    "inmueble": "URB004752",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c7d46383-228b-43b9-a279-c180dd08327a",
+    "inmueble": "URB004776",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c8637c56-92d9-4264-b9fc-39f7a47072e9",
+    "inmueble": "URB008245",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dc3ba0ce-8744-4a7d-bb96-f301e54c4402",
+    "inmueble": "URB004819",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e74e0baa-0257-4665-92a9-aed0ac721b37",
+    "inmueble": "URB004746",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e96f81b7-b109-49de-b9ac-b0f49b0f2560",
+    "inmueble": "URB004825",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f4df024b-9768-4241-b953-2fc8245d338a",
+    "inmueble": "URB004707",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fac0041c-c96c-4bc1-a565-b14cf1123f4a",
+    "inmueble": "URB004720",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ff1e3fbb-92a5-46a3-8d08-93937bf8557b",
+    "inmueble": "URB004728",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "048cc3c4-dfca-4ecd-b5b1-a476d1cb945e",
+    "inmueble": "URB034696",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1a950ae4-33d9-4f85-b8e4-c92e282cb371",
+    "inmueble": "URB031799",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "22ff8e77-8ece-4d4b-8a3b-07156c9ed149",
+    "inmueble": "URB001711",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "25506e10-80be-4a06-9373-10b88018e197",
+    "inmueble": "URB031809",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2e5c9450-58aa-441c-bd48-7a12d6334ecc",
+    "inmueble": "URB031884",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3ea71ec5-b9a7-443e-b45c-dc955244882d",
+    "inmueble": "URB031878",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4080d8c9-ab48-4732-9e73-5c7816b771dd",
+    "inmueble": "URB031855",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5af21995-8804-4b67-8d9e-5c6b8802b8b8",
+    "inmueble": "URB031867",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5bbb2b32-aa36-419d-961c-0c3da7b1b4b6",
+    "inmueble": "URB031816",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5e392805-e907-4373-b8cb-a72604ab3b24",
+    "inmueble": "URB031915",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6738f683-fa71-45c7-968a-4539cfd0b7c7",
+    "inmueble": "URB018257",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5fcf0045-dc47-42f4-a95f-1b5411d0ea96",
+    "inmueble": "URB031795",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "63401ed0-d2a2-4f7b-a4ef-cf646333fe16",
+    "inmueble": "URB031794",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6b09e6c6-e47e-42ba-9302-bb92c1c60bab",
+    "inmueble": "URB031906",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "737b3f77-9aa0-41ff-bbae-df932c615bc9",
+    "inmueble": "URB031910",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "77693fa6-5105-47ed-aaa1-85dc0d9809e5",
+    "inmueble": "URB031847",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "79ae2ac8-6758-4556-9b8e-16daa6d402ec",
+    "inmueble": "URB031803",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7f49497d-1375-4743-9c8a-d16fb618335b",
+    "inmueble": "URB031823",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "82d7e83b-59ca-4a5c-92e4-53b7cc191f0b",
+    "inmueble": "URB031908",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8314bba3-1555-466d-957b-1d97658b151b",
+    "inmueble": "URB031900",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8381d092-2bc6-4d7f-a9ed-4b1ca2a4335b",
+    "inmueble": "URB031885",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "973a11c4-e762-4c79-84eb-907a720e4e6f",
+    "inmueble": "URB031804",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9ee7f74d-1504-4b6c-9a86-fd71f9401ba0",
+    "inmueble": "URB031870",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a6fa2592-631b-4194-8a85-a064a8011aab",
+    "inmueble": "URB031811",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a82cf852-bc86-4604-84ed-bdecebb90698",
+    "inmueble": "URB001705",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ace4d609-8245-4c15-ae2b-0c63dacd224a",
+    "inmueble": "URB001741",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c2b9ae43-723e-4419-b0d0-0e35d6c5a5d0",
+    "inmueble": "URB031903",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cb782afc-d27d-4a4f-8678-b7fcdbf41e3c",
+    "inmueble": "URB031798",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cead0115-a1a7-47fe-8dda-cf14a71f4c38",
+    "inmueble": "URB034740",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "eb37d39f-bab2-431e-a99b-6d6618d9d69c",
+    "inmueble": "URB031897",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "eb496b7d-d108-4c10-b0e5-7801fb5ef9a7",
+    "inmueble": "URB031902",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f80f0867-fa95-457f-bea4-9e5c20d04db8",
+    "inmueble": "URB001791",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f9f7b0cb-97b3-4ca8-876f-173af8d68d95",
+    "inmueble": "URB001664",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fc0819c4-bac9-4529-9c12-27a13c29c20d",
+    "inmueble": "URB031890",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fe103ffc-544d-42c8-bf9a-12cd322ff9d6",
+    "inmueble": "URB001712",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ff50ecdb-54b5-4e1a-b047-95a3cbddff94",
+    "inmueble": "URB031886",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "192a3c8a-8080-4796-a366-90dfd2cf750f",
+    "inmueble": "URB008200",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f71b00ee-b083-48d7-a9d1-d0c75cfee02b",
+    "inmueble": "URB010415",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "11346d8d-1f6c-45a8-bbe9-1ceb3b1d8fa5",
+    "inmueble": "URB002777",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1636a01d-40b1-427b-8454-932a37e0fa5e",
+    "inmueble": "URB016584",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "19d341ef-0e6c-4ced-a157-5a76b69cf75f",
+    "inmueble": "URB018262",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1f40f298-1329-45ed-ab09-f6813e6c82f0",
+    "inmueble": "URB001650",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4081564b-5da6-4e17-b69c-e0be0a719715",
+    "inmueble": "URB008237",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "41fc37e7-9811-4183-b1f7-edef09c87c46",
+    "inmueble": "URB032115",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5070c0ab-d54a-4406-986a-a6406e0b1101",
+    "inmueble": "URB016993",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "51346712-3925-444d-8172-daa6600140a0",
+    "inmueble": "URB001652",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "52fee136-6b8c-40b3-8352-d66fc33b888e",
+    "inmueble": "URB008235",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5edeeec0-105a-476e-9f1d-f1d9d6132289",
+    "inmueble": "URB031805",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6423c5ab-27e0-48cd-bfcf-46c42247c905",
+    "inmueble": "URB030922",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "69fdd92e-804d-4c1a-9e48-adb8dfe392a9",
+    "inmueble": "URB009379",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6dc63477-1ced-4ebb-9f15-4028f64e9cc1",
+    "inmueble": "URB008556",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f53634c8-570e-4bec-a4cd-ba0f2325cb23",
+    "inmueble": "URB034298",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "843014cb-5376-4844-90f8-75392042bd35",
+    "inmueble": "URB001653",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9d9b791b-9567-4170-b116-ad5508188686",
+    "inmueble": "URB001618",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a1732adf-6891-4ace-b608-6e9cd96af16d",
+    "inmueble": "URB017031",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a8bb5180-bb49-44a9-b7a2-9efcc0017090",
+    "inmueble": "URB016828",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a8fb86f5-2fbc-4325-b059-3eba01b87412",
+    "inmueble": "URB000210",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ae2d24af-d526-451f-858f-83ee0874d3d6",
+    "inmueble": "URB008236",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b11d53d3-3bb6-47b1-8062-8ae610afdc8e",
+    "inmueble": "URB002489",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "baf2daf9-9a76-4e57-a5b4-ec625dae7e97",
+    "inmueble": "URB034829",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bdf2979c-94f2-471d-a496-1b9deccb7197",
+    "inmueble": "URB004668",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf14e9d4-2d6f-4a0f-98e0-b7443dc1e281",
+    "inmueble": "URB002070",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c0d92baa-8c80-4537-b272-6ad8ee56ba5f",
+    "inmueble": "URB006036",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cc7fa7aa-45d1-4d30-a6f7-46cb466f3efd",
+    "inmueble": "URB001654",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e2c82efc-59d7-4978-8495-f6a6d9feffca",
+    "inmueble": "URB017042",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e99e4984-4d99-4621-ac38-029e146147ae",
+    "inmueble": "URB015626",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ee4b6542-25f9-4d32-b0c4-0a87daf79d8f",
+    "inmueble": "URB008521",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b42224aa-7e58-4da2-82e5-6b85abb54ac8",
+    "inmueble": "URB002407",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0db05800-b76c-42b7-8d31-540841e2a15a",
+    "inmueble": "URB034796",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5ede016a-d5a2-480b-840a-b9468433c324",
+    "inmueble": "URB031866",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5fc2ce9e-3d35-470e-9c21-64f2222046a5",
+    "inmueble": "URB000055",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "287a475f-6cc8-40da-976e-5c843864133b",
+    "inmueble": "URB031881",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "68e6196e-bf3f-4529-8ad0-e97b8ea98727",
+    "inmueble": "AURI008465",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c716a89a-c19b-4605-b076-4de095244942",
+    "inmueble": "URB003010",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d2bd8e4a-407f-47f3-8322-07744c72efc0",
+    "inmueble": "URB030451",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d75c1a2b-395a-4b3f-b3e9-6e459b5829af",
+    "inmueble": "URB002823",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2d4a22ba-fe42-42b6-82e4-9ffbbd82b60d",
+    "inmueble": "URB029871",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "368c43c0-224b-4458-afb5-d65d1d549327",
+    "inmueble": "URB015161",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ffcf3a24-bf00-47be-a973-89f2374d7fdf",
+    "inmueble": "URB005952",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "998bd722-bfd3-4279-8493-620c77f6fb9e",
+    "inmueble": "URB003103",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0cb89e38-e872-41c6-b1de-878afd94246b",
+    "inmueble": "URB010417",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4da95d16-9743-4807-b7c2-a3895ded6461",
+    "inmueble": "URB002963",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "939d408e-ee1a-48cc-a88c-b182c4094f80",
+    "inmueble": "AURI000235",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b0b712d2-03a2-4887-96e7-bc358d1a6b6b",
+    "inmueble": "URB004734",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "55d857d4-006c-43ba-9746-a99b1ae10dc9",
+    "inmueble": "URB018536",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b72d2599-cf19-4971-83b2-66d3f1cbd9bb",
+    "inmueble": "URB031275",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2288127e-9473-4aa3-b59c-0cca671c0079",
+    "inmueble": "URB031851",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ba5913de-2ba5-4842-b0ab-d3d5a879ad36",
+    "inmueble": "URB031832",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c4e797e8-d4c7-4881-b80d-718b8ef37123",
+    "inmueble": "URB002961",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d41942dc-b02c-44e9-b94b-9a2453ea71c2",
+    "inmueble": "URB018506",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e807731f-6755-4152-baa3-d3333e3e2086",
+    "inmueble": "URB016106",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f4ac9495-7ac0-4ee8-a720-bd23996030db",
+    "inmueble": "URB002486",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e1d68aaf-c417-414f-8e7e-5a9ca686f38e",
+    "inmueble": "URB003015",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fd29f2d1-81a4-4625-abe1-51277a2e985b",
+    "inmueble": "URB030947",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "17c41095-d6ac-43c6-88ba-3fe8e5b3f8c3",
+    "inmueble": "URB008520",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1b830399-7341-4ac1-a6fa-1d49e17b893d",
+    "inmueble": "URB030336",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1d268978-d53a-480d-88e9-22fc6eaf509f",
+    "inmueble": "URB002254",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "62597346-93a6-471e-a960-ee63a5171fd2",
+    "inmueble": "AURI003956",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4a4bb12e-6ca7-4e21-b30f-15814d1a3519",
+    "inmueble": "URB032078",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6c52cc68-1f4a-4ffb-be2f-de32c99fa43e",
+    "inmueble": "URB000604",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "725135c0-e699-4160-aa09-34254ea28652",
+    "inmueble": "URB001742",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "751bb5cf-1280-4ac7-a5ec-5eda9abfd5b4",
+    "inmueble": "URB035159",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "78670622-e484-4ee7-9c89-f06ca8c9cc41",
+    "inmueble": "URB016840",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b28a05cc-7e3a-494a-900e-2b10fc640f63",
+    "inmueble": "URB009124",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b98fe39a-ae9f-4c75-af01-a90973d828dd",
+    "inmueble": "URB018535",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ba3d479c-e631-49ef-8cd7-92a4667291ee",
+    "inmueble": "URB030948",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c93dccf4-a75d-4773-8265-78546dcf33f2",
+    "inmueble": "AURI006349",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d4bda063-741b-4ee0-9bf9-eda34695d326",
+    "inmueble": "URB003282",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "184b47be-af54-433b-96ad-fda7594adb8b",
+    "inmueble": "URB012217",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1f9ee493-550d-4775-925a-fae93d5a71ff",
+    "inmueble": "URB014916",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c65148d8-b579-4a89-bd18-aebc3c0ee348",
+    "inmueble": "URB000074",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "51394e7e-ec59-4da0-9296-967666cb35f8",
+    "inmueble": "URB018258",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7e31473d-da1a-4a7c-bdd6-0c08596a26cd",
+    "inmueble": "URB002977",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9cf795d9-dae8-4b09-833b-23d883c3e1e3",
+    "inmueble": "URB033095",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3b5c9067-597d-4087-a6bd-93fa878f32fe",
+    "inmueble": "URB003660",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5cc02bef-946e-4694-bc59-318be5b595e7",
+    "inmueble": "URB006920",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf43d386-d435-4b2f-b664-c30b6349c38c",
+    "inmueble": "URB006995",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c99c63b4-f57b-4da8-8589-5a438b7e13cd",
+    "inmueble": "URB007249",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "060a8d65-c66e-4f4c-aa49-cdd1048101d9",
+    "inmueble": "URB032245",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fe9613fa-3d0d-48b1-9403-289efbcf7498",
+    "inmueble": "URB030901",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "58630a9f-c8f0-4727-bad1-5267cd9475e0",
+    "inmueble": "URB031259",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "147a609b-8648-47b3-babd-a676ebe490ca",
+    "inmueble": "URB009106",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6bbae449-2ca9-45f5-80ae-210ebf67a34f",
+    "inmueble": "URB001805",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9a9173a0-095d-48f2-88db-94fbaacfea37",
+    "inmueble": "URB005385",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cf823095-596a-4d53-bd07-a5d57e84db89",
+    "inmueble": "URB005596",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dada9ea2-bce1-4b32-8ade-c58a48876038",
+    "inmueble": "URB001849",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dd4b8bf9-7115-4e78-810d-6b865c4503f4",
+    "inmueble": "URB034816",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f6365c7e-2109-4854-bf99-bbc803e30710",
+    "inmueble": "AURI006979",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "06054d80-1987-48dc-bd03-2c86e78de4c3",
+    "inmueble": "URB009405",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "09686e11-44cb-4415-a8b7-a793759fdfdb",
+    "inmueble": "URB013330",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "16caeb58-7d03-4c85-a595-577639ae863e",
+    "inmueble": "URB004675",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "187e92d8-cc2f-496a-9d22-67af26c20389",
+    "inmueble": "AURI002205",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "26850769-23f6-4f5e-a5b2-303f97d576fc",
+    "inmueble": "URB007245",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "56a2c7d8-b406-482c-9e3f-11353a579661",
+    "inmueble": "URB008601",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "342f61d5-0fad-4c00-858d-46b1dfd04aaa",
+    "inmueble": "URB034845",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "434d5525-6059-429d-ac7f-6e7e3b6474b3",
+    "inmueble": "URB004768",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "63235b9d-d14b-4ff7-a478-27f68d55aacf",
+    "inmueble": "URB014920",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a723d1ca-0494-4299-9103-4939d4399d4f",
+    "inmueble": "URB004583",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "af0ef014-4119-499b-8667-fbf174ba13e0",
+    "inmueble": "URB004841",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d687a86a-032c-44e1-808a-29c48571e40a",
+    "inmueble": "URB008872",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e0a49859-1cd8-4847-af90-23d1232358d9",
+    "inmueble": "URB004666",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f08fc72b-fd79-49df-9cab-b486f7e3fb98",
+    "inmueble": "URB001646",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "04f36390-52c1-4f26-be1d-8f9855018b12",
+    "inmueble": "URB035015",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1dc713ec-cd49-422b-b4d1-342908a01ddd",
+    "inmueble": "URB014956",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "24def35b-14b8-4d78-b5a5-9e9984494e93",
+    "inmueble": "URB008238",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4b9ff1b3-367b-4643-923c-7ae991164bde",
+    "inmueble": "URB015502",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "61c4e6ae-fe86-4972-888b-7cc449b5dd06",
+    "inmueble": "AURI000275",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8fd34bbd-7d5f-4b9b-a059-187136e6c771",
+    "inmueble": "URB007057",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a31622ec-80c9-4224-a792-1b17da2981d2",
+    "inmueble": "URB008198",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a7d5b63b-ab74-4a50-9510-a71954314740",
+    "inmueble": "URB015337",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c67c1bbc-ff45-4836-935e-777c982a5cd5",
+    "inmueble": "URB035158",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c9ce7aae-fed7-466e-be35-b908457adc97",
+    "inmueble": "URB002071",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d1cb3857-c168-4433-9ea1-d7e47b0d9ecf",
+    "inmueble": "URB001408",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "daa87cbb-2599-4313-a399-9cf78945a6a0",
+    "inmueble": "URB016977",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "50ef311c-4059-4b9c-9379-45c328eff04e",
+    "inmueble": "URB031830",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7b6e2b4c-8e13-4191-8f4f-171bbb9f6b26",
+    "inmueble": "URB003053",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8c6e0165-20f8-4f2e-b38d-32b860430862",
+    "inmueble": "URB004371",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "97dc3082-fa4d-4b84-bbc7-619a121247a5",
+    "inmueble": "URB032672",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e201ff63-6dde-4f1f-882a-060b66b9b24c",
+    "inmueble": "URB015865",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e6841b2c-9822-478c-9382-7e84b6ed69b2",
+    "inmueble": "URB008323",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e86bc7cd-8afe-4af8-97c2-9c853ba60eea",
+    "inmueble": "URB031817",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e9df562d-25fa-46a9-91df-8df23b99af44",
+    "inmueble": "URB030811",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "27bc8aa8-50c2-406c-84ad-20b76e147f45",
+    "inmueble": "URB035151",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2d5ab550-bd5a-42a0-97f9-f698d6cb129c",
+    "inmueble": "URB032530",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "639c5319-ef32-4bfa-bae2-233e7d79572a",
+    "inmueble": "URB005304",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c70cea3c-b44b-41ba-90a3-8abdfb733276",
+    "inmueble": "URB027931",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "51b44169-2d10-4327-a3c5-c6fc8d8240c1",
+    "inmueble": "URB003187",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b0108cc3-56ef-418c-bb3f-257624c55ec7",
+    "inmueble": "AURI000445",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d6e912fe-1c5f-44a8-8db9-38d2ab7e46d0",
+    "inmueble": "AURI004453",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "be6f1db7-809f-477c-8559-08db2e33f065",
+    "inmueble": "URB004794",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e0d5c266-bc75-4fa0-9f33-8db6302eaecc",
+    "inmueble": "URB002186",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "29133fcd-c5ac-4ec2-8f7c-456f46acd0e7",
+    "inmueble": "URB004968",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9054a152-4f5d-45b4-aa5d-39af185d2979",
+    "inmueble": "URB005934",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "32f304e5-d3aa-4e46-9eca-f77b91322e98",
+    "inmueble": "URB005933",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b1442d81-9f7e-4252-8364-c03d17f34682",
+    "inmueble": "URB025358",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "391ebd15-fbb2-4948-9b08-ff2807ff0091",
+    "inmueble": "URB030917",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "45d899a4-9658-42d9-a57e-20a9790dc73e",
+    "inmueble": "URB030905",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "be0403ed-a0f6-4ed9-aa4f-66d802ec3960",
+    "inmueble": "URB030911",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e910dda8-462f-4874-bb57-e18e11db2c0a",
+    "inmueble": "URB030906",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6bc539fd-c859-4534-b3a0-28fe430f0bd8",
+    "inmueble": "URB033495",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4c92a77b-2bc1-4376-bbca-b0aef6eb36c9",
+    "inmueble": "URB033481",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d9b9b64d-03c7-4e09-bc1d-f841c2d6f525",
+    "inmueble": "URB016988",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fb27da83-eccc-4c6d-8ef9-dc630c7abea2",
+    "inmueble": "AURI004988",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b90bca78-58c0-449b-93cc-7da9a09d34e5",
+    "inmueble": "URB002379",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f3e54c94-ae08-4060-860b-c79286699477",
+    "inmueble": "URB033093",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ca5f882e-345b-4b49-8766-2a04ed76d2e4",
+    "inmueble": "URB002932",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d910a7cd-ca2a-427e-8ee2-8d9545ad7d70",
+    "inmueble": "URB033479",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9fa8365e-c106-4278-ab8a-67268425e964",
+    "inmueble": "URB002944",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3816e244-059a-4dd0-9abf-0b45e7a1f338",
+    "inmueble": "URB001476",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3b88ae1c-4bb8-42ca-9e60-e741b4c3cd1a",
+    "inmueble": "URB032252",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8253a9f4-5484-4e61-b4bb-7978b19ec16d",
+    "inmueble": "URB032738",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6dd76c56-503e-4946-9d7a-83523774d1ee",
+    "inmueble": "URB034933",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bd21a036-7f86-4c17-825b-23462802e37d",
+    "inmueble": "URB034123",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5b4a06fe-48cb-4837-819b-85771bbb01b1",
+    "inmueble": "AURI017760",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d1970bc8-200e-476a-ad3e-04f20aa4cb7d",
+    "inmueble": "URB003924",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c011ac9f-667c-4079-b542-d72e07403832",
+    "inmueble": "URB005048",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "36457e9d-75cb-483f-85b2-a3771c4dba20",
+    "inmueble": "AURI004975",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7decb045-51c1-4d72-852a-6404624d9e87",
+    "inmueble": "URB006121",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0a6ea3ec-3dae-481e-bb42-395dba240fa8",
+    "inmueble": "URB034821",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "40a0788b-bae6-403a-95ef-845cb20c8637",
+    "inmueble": "URB005935",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "27d1b16d-281c-45c8-b3d1-00520fcc8c63",
+    "inmueble": "URB006979",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "885a5d67-2004-487e-b049-949e3b02eb47",
+    "inmueble": "URB034442",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d8a1012a-3db8-4fe8-9abf-7c3e3dd007c2",
+    "inmueble": "URB031267",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "398732e1-5f3e-48a7-bacd-7fa8ebce5d0e",
+    "inmueble": "AURI003654",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dc275f05-40d9-405e-a67e-bc2ea413220e",
+    "inmueble": "URB004474",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "00af5ae1-0ec0-467b-807b-83e7d15b29f7",
+    "inmueble": "URB000484",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f5b7c1c5-0440-4fe3-9e21-cf4ad76da31e",
+    "inmueble": "URB000196",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a1374d88-fb28-4c9d-b2bb-e79ff60178f8",
+    "inmueble": "AURI017511",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f101d925-8d7a-4d5b-bf95-9afbb32eb2b9",
+    "inmueble": "URB032958",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1bc70fed-125f-4f12-9f44-40a4f588fe8e",
+    "inmueble": "URB034327",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f9585560-d72d-476e-8697-73b7b91357ad",
+    "inmueble": "URB004627",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7b5117f6-71d0-42dc-8a5c-0f72a0853c2a",
+    "inmueble": "URB032504",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "26d1f3d8-d7f9-4a7a-968b-f7c715821e55",
+    "inmueble": "URB033701",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "70d854ee-9a47-4e27-97d2-fb22b6012e9c",
+    "inmueble": "URB016560",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "13824cc3-56ec-4493-b238-d78d1ff41ea5",
+    "inmueble": "URB002180",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7f7223be-2129-4339-b5e2-876c37b22392",
+    "inmueble": "URB017243",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "09eb4614-b52a-4022-bda0-cc3ac2907cd4",
+    "inmueble": "URB007449",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ede1c0e0-6018-48d9-8335-f9b21046f389",
+    "inmueble": "URB016659",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "93a7fbc0-6be7-4b7d-9748-a05442e0461e",
+    "inmueble": "URB032852",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "557862dc-0369-4083-b1a4-b11a8141c3db",
+    "inmueble": "URB033967",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b5eaa328-7fe1-4695-b4cf-c989feae75f5",
+    "inmueble": "URB034450",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c9e66b5e-96de-45de-ad62-ee8cdb7a0194",
+    "inmueble": "AURI005675",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e02142d1-6325-47e7-9231-a5d1f290af6b",
+    "inmueble": "URB032350",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9ce52f98-852b-43e3-9e7c-38cf92d6b0bc",
+    "inmueble": "URB015435",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0d1fa225-8d4f-48cd-a491-92ca90b60f22",
+    "inmueble": "AURI006373",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c75164f7-1d0f-481b-ac66-013913a06244",
+    "inmueble": "URB033684",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f97178f0-df56-4e81-978e-a8d9baeb4926",
+    "inmueble": "URB033190",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ce191f38-23b3-4372-9c2d-d25bfb2bde41",
+    "inmueble": "URB032908",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2dd5aad1-f399-4d29-952c-425456122af5",
+    "inmueble": "URB028591",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ac8c6bfb-aaee-455f-9300-b7227ab176f2",
+    "inmueble": "URB001519",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ac74a380-522a-4c05-9ad7-566ce426c51b",
+    "inmueble": "AURI019226",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4654c1f8-dfaa-4b2d-917b-5b4c88f14a13",
+    "inmueble": "URB007111",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2a4728aa-5077-498a-8db9-8b23a6dac89a",
+    "inmueble": "URB007358",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9500ee6b-c722-45bf-8dff-4d86f13ba44d",
+    "inmueble": "URB001729",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4bcdc5cf-49a3-4a4d-99f7-f448474c5b99",
+    "inmueble": "URB005407",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "523132e8-7189-481d-8159-b3e19b405682",
+    "inmueble": "URB004269",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f6bb398d-d5cc-4afb-a761-cb2ff495d5ca",
+    "inmueble": "URB002174",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "92a57a3a-0923-4206-a303-8cfb751a303f",
+    "inmueble": "URB000401",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "42f16796-7c3f-445e-bc32-593c0031b95a",
+    "inmueble": "URB017236",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1c7f7da9-b0d7-4580-9303-1f85a1cadb29",
+    "inmueble": "URB033671",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a12e9b20-7653-412f-a7d8-628b15a95cab",
+    "inmueble": "URB006714",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "06f23c70-74f0-4945-bf99-cafc8ab23ba9",
+    "inmueble": "URB001931",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e8186a6e-5dda-45d4-9d4b-e2fc468111de",
+    "inmueble": "URB033080",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "21edfda2-e163-4fab-879b-9d084dd17005",
+    "inmueble": "URB003785",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4425a5d4-0587-459a-b930-03deed85fafd",
+    "inmueble": "URB001398",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4f2dfd38-9761-457f-9214-40458247c719",
+    "inmueble": "URB002177",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "719cabe0-ce36-4fb5-b2ad-5b59903dc050",
+    "inmueble": "URB032804",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4022f027-1bb9-425a-bba4-4268125edfa1",
+    "inmueble": "URB033660",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "73ef1364-e40b-425e-9a25-c58b31d552cc",
+    "inmueble": "URB007165",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a101220c-b65a-4067-8170-aa402eaf607e",
+    "inmueble": "URB005620",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9c141241-3864-4119-a8b0-7d673f6af247",
+    "inmueble": "AURI006570",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bd2ed3a3-6554-4832-aa8b-184b718ef939",
+    "inmueble": "URB002219",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4aac3c8e-97d4-41fd-b86a-013cd4b6b4a8",
+    "inmueble": "AURI002589",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e4a96f54-d219-48d2-959c-52e5b0ba6500",
+    "inmueble": "AURI002795",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e970c878-b653-4e36-ae0b-3875fa81f131",
+    "inmueble": "URB008450",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "440f9d44-35a9-4a87-bed5-787cfcd9e8ce",
+    "inmueble": "URB018350",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "261ddc28-1b05-41d3-875d-e3d9c86ad25c",
+    "inmueble": "URB008771",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e1eb4c44-4bcf-409d-a61e-e94a0811c204",
+    "inmueble": "AURI000355",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c7fc9354-2c06-40e9-97e0-fb807b6c5805",
+    "inmueble": "URB002488",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7d6463f4-73a6-4e6c-88fd-4cd773bdbefa",
+    "inmueble": "URB005545",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "baaf5d66-68de-41e5-a0f0-4652eaffa1f5",
+    "inmueble": "URB001400",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c41e4352-c75b-4c47-8367-5590d3c7d906",
+    "inmueble": "AURI004051",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "05f0e91c-1100-463f-b005-17f0427ff81e",
+    "inmueble": "URB006037",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "606c71c6-158d-4704-8d9d-d72cd0f06bcf",
+    "inmueble": "URB034302",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9aa4894c-fb54-4578-9c2e-019feb68aa44",
+    "inmueble": "AURI000006",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "10d02153-935a-4f79-b05f-5ca0f2742393",
+    "inmueble": "URB033644",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9624a11e-c521-4972-af7b-4270707ad29c",
+    "inmueble": "URB002284",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "af9375fb-14fc-40fa-af39-b18a6d5ceb35",
+    "inmueble": "URB006671",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5920160c-fa88-4ffa-bf7f-5078b1863c66",
+    "inmueble": "URB008242",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "099c40e9-7bab-4834-97fd-f0f3ff808cbe",
+    "inmueble": "URB008932",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "480f70fe-d765-4dd7-a57b-4d4fdb1fc780",
+    "inmueble": "URB034098",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7c61e73b-78e4-4342-8cd0-d722685b46e7",
+    "inmueble": "URB010515",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4c8e630a-7465-4452-a93f-5b1ee7780032",
+    "inmueble": "URB033722",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1fa11269-4ab9-40d0-baac-9d50a3545c34",
+    "inmueble": "AURI005611",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c6cc441c-67f6-470a-8b66-56aefc304627",
+    "inmueble": "AURI003167",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "35587222-ca89-4e91-9f6a-1ebc1a1f31ae",
+    "inmueble": "URB032808",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1d7816d2-3ce9-4c35-9dd4-ffa8d6cb2139",
+    "inmueble": "AURI007937",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "652f6fdd-1371-4f4a-aa3e-2e524d57bb1f",
+    "inmueble": "URB016559",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "571bdc0a-63b1-4b51-950d-22bb19b492a6",
+    "inmueble": "URB032898",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9c994d0d-b060-40fc-84f0-ddcaa6458247",
+    "inmueble": "URB032692",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ba7660fd-483c-47e1-bb22-9d68cfd1aaf4",
+    "inmueble": "AURI002733",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "af6ec582-16bf-4751-987d-c1f5a9a45981",
+    "inmueble": "URB002987",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2495c5c7-089c-4415-a373-34f27ba7cc96",
+    "inmueble": "URB003905",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "588e5971-d13e-42ae-9ba0-49a1c209beac",
+    "inmueble": "URB017189",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e0de0308-c507-4138-9bc5-5e8d842088e5",
+    "inmueble": "URB006099",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1b92bf12-f144-4405-a474-a1b6dba5d58d",
+    "inmueble": "URB001936",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "94727047-16cf-468b-ab46-0b9f6a3da450",
+    "inmueble": "URB006890",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "271a2d71-f9e9-4a45-af51-7896d726c50d",
+    "inmueble": "URB009999",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "18ff6b51-c23e-46a2-ba57-f78951986255",
+    "inmueble": "URB002176",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b505d5f6-0e80-4bd8-befc-f9e4c7d5c2b8",
+    "inmueble": "URB034183",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6162439f-6bcb-4855-941a-7a059f4d4dcc",
+    "inmueble": "URB009153",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "26deaf4b-4106-4dca-ae03-bafd8dffdd8a",
+    "inmueble": "URB005329",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "88eb4ea6-439e-45cd-bb50-b6fa88dabeec",
+    "inmueble": "URB033447",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "166a7f53-0942-40c6-bd61-d4b0c836d045",
+    "inmueble": "AURI001074",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "744e689e-20c1-401b-8efa-71b2b3e6abcc",
+    "inmueble": "AURI005923",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "419e53cd-4a21-4d44-a36a-45eee2c5caae",
+    "inmueble": "AURI005125",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "19b689fa-c219-4b99-9bd2-01932409c459",
+    "inmueble": "URB002721",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "54480059-462e-4219-aaad-a3d7697100a1",
+    "inmueble": "URB032805",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5fda8d39-f426-4b23-8d81-514c22d5e2ce",
+    "inmueble": "URB005205",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "581b6960-9865-4aa6-8487-1e379a2ee3d1",
+    "inmueble": "URB034185",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "27f18a3c-dcec-4498-8e70-ea474d4399b9",
+    "inmueble": "URB017121",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4487b085-1c19-4fe7-b7d4-5db46233db15",
+    "inmueble": "AURI004301",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c5b50e7b-3230-48d7-ba5c-7f9708a6b84d",
+    "inmueble": "AURI002438",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "51a7033e-0a53-481a-87e4-76c0985673aa",
+    "inmueble": "URB015879",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d3f04c4b-0999-446c-8938-6d2a22a46a05",
+    "inmueble": "AURI001777",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "256446bc-eac1-4b5e-a335-436aab757275",
+    "inmueble": "AURI018980",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7d0effbe-8a3d-4c87-823f-a3f571ad4da3",
+    "inmueble": "URB016617",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cfd2d6ef-d800-469b-a83c-f8e310057d1c",
+    "inmueble": "URB006839",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d25c2796-daf0-4279-8129-24c125aa3c99",
+    "inmueble": "URB024818",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7f42ead0-efa1-4d32-9f1c-2c5d27afea13",
+    "inmueble": "AURI007452",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "13d87213-9381-40f3-8c9a-93b8e02fdd6b",
+    "inmueble": "AURI006958",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "91a3f653-d9c7-41b5-9701-658eb60d4cff",
+    "inmueble": "URB027211",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6853dd1a-df97-4db0-8a7a-0d5ba67e28c0",
+    "inmueble": "URB000567",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4e900df0-9557-483b-9de8-fe8e0b1f646c",
+    "inmueble": "URB002387",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "01fc7bc6-7219-4729-ae4a-8eb1c6d57064",
+    "inmueble": "URB007997",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6b1bd39d-f6c9-452a-b415-be887536226c",
+    "inmueble": "URB008792",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f9e130f3-7c2a-4af7-8258-66a4f19fc603",
+    "inmueble": "URB030480",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "61ff17d4-d6a3-4169-ae78-a42b78968fde",
+    "inmueble": "URB033055",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1b9d6fcd-fe0f-4a3b-89d3-7aeda9fb3a11",
+    "inmueble": "AURI007747",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e418d80d-4acc-43b7-bea0-4d5d12752036",
+    "inmueble": "URB001420",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d1f9bf3e-224a-4570-9527-8ef1776f3065",
+    "inmueble": "URB002165",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "43a2c431-d50a-4676-96fe-576f6ebf899c",
+    "inmueble": "URB030341",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d3e871f5-0482-4757-811f-ecd29b4f6336",
+    "inmueble": "URB003155",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8789c4ee-fd81-4a25-abf3-49e88b0f5153",
+    "inmueble": "URB007149",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "887f24be-0123-4184-8592-c1de563fbab5",
+    "inmueble": "URB002386",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a982929c-7a62-414b-9c72-b4440c2899e2",
+    "inmueble": "AURI008466",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a21d9ad7-ac86-4001-b086-524e8785c79a",
+    "inmueble": "AURI004447",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3c9c394e-73e4-43e2-9c5c-d4308d74ab6c",
+    "inmueble": "URB034451",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3377629b-b028-4fcf-9ff6-29b8e9ef51a5",
+    "inmueble": "URB027816",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6655c54c-8bb7-4781-b2c8-3bb7d0b56002",
+    "inmueble": "URB008990",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7d46eb8c-45cc-48cb-9766-d93e2a7af5ec",
+    "inmueble": "URB004510",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "09146c0f-1419-4d3d-8bc6-cdaca7946fcb",
+    "inmueble": "AURI001449",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "30a4147e-8add-4ae8-a4af-64abc244bd8d",
+    "inmueble": "URB002026",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "36962bd7-3e73-4943-be3d-31811a83f91d",
+    "inmueble": "URB001484",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2eebb2ac-4ed7-439f-ba37-93daf737297d",
+    "inmueble": "URB034743",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c810236a-5d14-483a-845e-db3da5f19f66",
+    "inmueble": "URB032648",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e66763f1-8196-40b7-9a21-811413aec470",
+    "inmueble": "AURI004479",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "10684ecd-f4e0-4eda-a832-0f47865e9c27",
+    "inmueble": "AURI005360",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dda99494-9c5f-47c0-a4bc-886dc60b84f6",
+    "inmueble": "URB002028",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c946678a-dfcd-4ed0-81db-41924e7c2c0a",
+    "inmueble": "AURI002067",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e5b81c21-243e-4bf7-9ef9-b97e77a13d84",
+    "inmueble": "AURI001251",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "eb0eea72-d8ad-47e4-94db-cf300d1b6ea2",
+    "inmueble": "AURI016377",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9e3e3638-1d64-4957-a1a0-0e56cb6ea824",
+    "inmueble": "AURI019564",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1341ed85-e755-47c1-badb-538ebdd73cf8",
+    "inmueble": "URB015338",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fc382f0c-b4bf-492d-99b0-5fc5f441141b",
+    "inmueble": "AURI019426",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6b9a0a24-8510-4ce2-bf01-2dfd557e38f0",
+    "inmueble": "URB018119",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2cf9e90c-82f8-48e7-84d6-19810e14d7e9",
+    "inmueble": "AURI006408",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5bb85e24-6570-4e80-a7c8-f06cded6135d",
+    "inmueble": "URB002560",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d7d16ce5-3b16-4c41-9fb1-531a471767bf",
+    "inmueble": "URB009397",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9d395169-2314-4559-981a-f878c1d0e8df",
+    "inmueble": "AURI003085",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "63d0f105-4741-451c-b12e-7648df66a89b",
+    "inmueble": "AURI002064",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a6bbf895-1e47-46ad-ab96-9b2783337487",
+    "inmueble": "AURI005667",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "163fbbe3-d272-4294-8e2d-fea879dfa332",
+    "inmueble": "URB032338",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cc5a0cfd-0062-424d-8c66-1a034a554483",
+    "inmueble": "URB030339",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "09138216-e8f7-4206-86e2-f454a6210666",
+    "inmueble": "URB017094",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5aae88f1-b4a6-49a4-9e72-d919eed3bd2f",
+    "inmueble": "URB033527",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "89509f13-738d-47a9-9701-1109824ad9e5",
+    "inmueble": "URB007029",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ab81bb1e-11df-43bd-9ae0-61df705fde30",
+    "inmueble": "URB032642",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "151a0099-3d90-40ed-88cb-c3f699efbbf5",
+    "inmueble": "URB008181",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d6c1111b-0ee8-45f5-9116-d155f61a322a",
+    "inmueble": "URB030950",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "62e2189f-cf3d-4f4b-adcd-9147ba224e30",
+    "inmueble": "URB002163",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4949c2e6-8f65-4c60-9090-3ad1bbba2ff4",
+    "inmueble": "URB033974",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "97f6e819-264d-4e27-9c93-9c1b076bd62d",
+    "inmueble": "URB033079",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "14e9b63c-4d83-4dcf-8f6b-af678c54baaf",
+    "inmueble": "URB002768",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f287c02e-9117-4005-a18b-fea1fc2a7b2a",
+    "inmueble": "URB016562",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fe1e034b-9a29-4f7f-a74e-b9f54ceb3b56",
+    "inmueble": "URB009181",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9e7e988a-0c77-4c9e-a133-12737dc1fe3d",
+    "inmueble": "URB032342",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "55ba5ea5-d923-4681-b370-f0552b701080",
+    "inmueble": "AURI004449",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7b088321-f7ac-4ab7-a03f-8a538f92fe70",
+    "inmueble": "URB002956",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "15d1c4a6-76fb-4a84-ae88-663cc056c249",
+    "inmueble": "AURI013328",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5fc886f5-0334-41fc-a932-372d41dace71",
+    "inmueble": "AURI013345",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "06c5870e-fc83-4c5c-b821-f0f1c657b75f",
+    "inmueble": "AURI013342",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "17304a72-dbce-4901-be26-a44843582f5e",
+    "inmueble": "AURI002386",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1a27292b-b765-4af1-b8cd-0adcf95fd1d8",
+    "inmueble": "URB033227",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5cdf8eba-9663-4969-a09f-6c7c3098de68",
+    "inmueble": "AURI013326",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "42dfb032-013f-4bc4-af5f-bfa6e3acd088",
+    "inmueble": "URB032326",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6daf5db5-bc58-46b1-8e2b-3e461ba3ea1d",
+    "inmueble": "URB035196",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cb2349da-0038-4000-93ff-0186c7f59156",
+    "inmueble": "URB002027",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d565c099-60c4-4056-b849-86e55d8a0c60",
+    "inmueble": "AURI001123",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3c88513b-82c8-46d9-baf9-5c94268f7642",
+    "inmueble": "URB032635",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3d955336-3945-4588-8963-9fbd2d37fd97",
+    "inmueble": "AURI003655",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0cf2e375-5d34-46d8-a3a4-71aed29a93bc",
+    "inmueble": "AURI002788",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf40b062-c3f5-40b9-8f2d-7cf8dbb1e007",
+    "inmueble": "URB034449",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "806bbcbc-4285-4e7d-9c96-a6bae97da6e2",
+    "inmueble": "URB035178",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4c06b9dd-6827-46ec-aeaa-2ac349efcb9f",
+    "inmueble": "URB002225",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f191db1e-092b-4746-a9c9-c44e3195bbb9",
+    "inmueble": "AURI007249",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7955cfda-0139-46fb-9ad2-81b69db98a90",
+    "inmueble": "URB018595",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "16e92dd8-2756-4db1-8342-fb1b130b3333",
+    "inmueble": "AURI003652",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0d31aa12-75c2-4183-bec8-c47297be5279",
+    "inmueble": "URB030344",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b86d4d19-cfcb-4fe2-9af4-c60af0434f15",
+    "inmueble": "AURI001784",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c42a4b33-d310-4cda-83b2-3ad6e5463795",
+    "inmueble": "URB028552",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9024bbe0-ee62-4058-b328-a112e0888aad",
+    "inmueble": "URB033446",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "49a8a8a3-18b8-43f2-afb7-fea6bbf72fa1",
+    "inmueble": "AURI018408",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2b3c34f4-b215-48d8-b12c-f0af65304562",
+    "inmueble": "URB000521",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b94bfec1-b28e-4ae6-8be2-b90c867443e8",
+    "inmueble": "URB000214",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5de838d3-15f5-460d-bdb0-b428f50a45e2",
+    "inmueble": "URB035190",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "35595c4c-0fe1-43bf-a1f6-24cc1fefc8d7",
+    "inmueble": "URB005521",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3cc5ee62-e06e-466d-a503-4636ba281d5a",
+    "inmueble": "URB017137",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e32e33be-42d0-46fa-b8a9-ce4c8beefeae",
+    "inmueble": "URB032668",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4cb2f411-fd04-43e0-9518-13dfb670b443",
+    "inmueble": "URB005955",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5fea55d2-c471-4732-85d2-b95a17395cb1",
+    "inmueble": "AURI000735",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1534631c-201c-4370-a54c-57a115cdf336",
+    "inmueble": "URB004902",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "275617f8-49b3-4ad7-a68a-3687aff98784",
+    "inmueble": "URB018622",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "20413f31-f41c-41a8-9640-537778b1f1b6",
+    "inmueble": "URB014950",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4c58d5fd-4d5c-46f2-a372-3a985b81eb8d",
+    "inmueble": "AURI001582",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6ad30e30-1808-4370-ac9c-fe187241ac15",
+    "inmueble": "URB000684",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5f7a28a9-9a6e-4d08-849b-e11d25667e8a",
+    "inmueble": "URB016823",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7d7b5a2c-3b12-4f72-8633-1754c65a9497",
+    "inmueble": "URB024814",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "42bfe603-edaf-4619-899e-2cdc8ce3b767",
+    "inmueble": "URB000588",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c5a7152d-b556-480c-b348-d5307bc0c19e",
+    "inmueble": "URB032095",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e9a8c088-84a7-4ccf-9521-4a4b638cf663",
+    "inmueble": "URB032096",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a837af92-bab8-4e78-b9a5-192c30b4eb28",
+    "inmueble": "URB006008",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9a26d9c2-24bb-4053-a980-212b2c9e5360",
+    "inmueble": "AURI002838",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3fce2820-b413-4470-a5f2-77f3a5671bb3",
+    "inmueble": "URB032094",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0a0ae526-cfac-4e83-9498-29e5cc4cc45f",
+    "inmueble": "URB034228",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "150ada70-034d-4af8-a4b8-20cf9b42932e",
+    "inmueble": "URB008844",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7ced0c0f-798b-45a8-8091-e888f1759b97",
+    "inmueble": "URB002476",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "45abcf4e-c0ea-4486-abd5-fdf87f549f2b",
+    "inmueble": "URB000613",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1c0d689b-dfb4-441a-9ed6-72eba221bbd8",
+    "inmueble": "URB035197",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9d145929-244f-4227-888a-fdb138ee41f2",
+    "inmueble": "AURI006587",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9cb00fbe-8bf6-49d4-aafe-a7be202579c4",
+    "inmueble": "URB002549",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "af06bba6-6dc4-4bad-9038-91efdb36dc06",
+    "inmueble": "URB005703",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4b119889-8392-4f25-9059-b946dea0683e",
+    "inmueble": "URB034184",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9d8c1877-ce86-40ad-bc1f-1cf4646810fe",
+    "inmueble": "AURI013351",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "630468cd-9b9e-4278-a2c1-6fb02d16e0d9",
+    "inmueble": "AURI013361",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e1dae9de-8c01-4c78-b5c9-c171ed8b2041",
+    "inmueble": "AURI013001",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "acd50580-11bb-4c2f-b9f4-f715fd06bd4f",
+    "inmueble": "AURI018621",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cce12532-dc8a-4ba1-bc76-b205bfe6dcae",
+    "inmueble": "URB008270",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4be2da7a-a3f7-4201-a9b1-728062ea6d00",
+    "inmueble": "URB008167",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c38d7331-2c44-452e-8017-6d9bbdb4cd41",
+    "inmueble": "URB004258",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0e9d2ced-625a-42fa-beb2-f3bbed63ae9d",
+    "inmueble": "URB030921",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0869a193-f7ba-4f15-9829-1583eb3929e3",
+    "inmueble": "URB034124",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "69e98406-e4da-45fc-bc65-0bdb1fcc4448",
+    "inmueble": "URB001938",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "691d9f95-8b89-4c4b-9b3b-8f7bce7ccc26",
+    "inmueble": "AURI004451",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "724bf0e2-d37b-4dd0-a8e1-554ef9b9a2db",
+    "inmueble": "URB002950",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fe23e8a8-4a0e-48b5-973c-a2d6b0f73864",
+    "inmueble": "URB000050",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "86b82179-f9d0-4bae-a09f-7d642936400a",
+    "inmueble": "URB031274",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d97838fa-fa5a-48e0-b397-4f2aeb1bf7ac",
+    "inmueble": "URB034057",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "514f3c7a-1696-4832-9e49-92ec74950b26",
+    "inmueble": "URB001622",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1520a5de-f105-4d95-b4d0-1aa8975b98ca",
+    "inmueble": "URB018594",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "30a36176-621e-4c48-82f6-bf5dd4a8a238",
+    "inmueble": "URB008114",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fd062994-e34f-45d3-bd29-8f3234d0eb39",
+    "inmueble": "AURI003115",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5079abcb-f48e-4221-851e-0021502da43f",
+    "inmueble": "URB007485",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "51abb8f3-8af4-4acc-8364-774c00c1c699",
+    "inmueble": "URB002360",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "04ce7aa1-08be-4d6b-83f2-d19efa92f85d",
+    "inmueble": "URB017147",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cc3d9e7f-a751-47d1-a68f-561f1fca63cf",
+    "inmueble": "URB000060",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5c9ad90b-8e33-4f09-bc87-419b67511a93",
+    "inmueble": "URB000509",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5dded885-b830-4ed0-845d-ade4a605aa46",
+    "inmueble": "URB007078",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7d355ea1-af62-4e72-b8d0-74442796adda",
+    "inmueble": "AURI004448",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "253f70e8-276d-4e37-8110-385aede02f93",
+    "inmueble": "URB008842",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2fe8e7b4-487c-49fa-b8ed-64ed0e9583e9",
+    "inmueble": "URB000632",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dd1e5975-f5f5-4699-ab06-4050a22ab07e",
+    "inmueble": "URB003979",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "58cb22c4-a749-4413-a7a2-ee565ee57ac9",
+    "inmueble": "URB007279",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "19272501-7ec1-4912-b09f-e1fdd129afcf",
+    "inmueble": "URB008850",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "52f1be75-e693-48e0-95a7-39b799736bd3",
+    "inmueble": "URB032076",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "44b017db-7e73-477b-a638-d83135f51c12",
+    "inmueble": "AURI008845",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b9d63c2c-c6d7-45e7-995d-9c08d0db6d25",
+    "inmueble": "AURI005814",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1fab3b87-0af8-418f-a0ea-c4ade87fde24",
+    "inmueble": "URB031859",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "65ed51e4-0e82-4ad5-ae8e-264b5118a3a6",
+    "inmueble": "AURI013334",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0964831d-3452-4015-880d-d3752f1d6e41",
+    "inmueble": "URB003037",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4515d8ae-1268-43e1-bb58-abb86a6d98f5",
+    "inmueble": "URB002167",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5407518d-3690-43a5-bc77-ce47796da2ad",
+    "inmueble": "URB029916",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1f296e8c-7e19-421b-b6dd-b9e8e5ad0244",
+    "inmueble": "URB017360",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "25cafe6c-afc8-4a33-b6d0-48d36b1e944c",
+    "inmueble": "URB002266",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cc938839-b93d-45cd-8914-21ee401aac39",
+    "inmueble": "URB034846",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0c1a1bd2-f6ba-46cc-a841-3d11b904099d",
+    "inmueble": "URB034484",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9cb3dfdf-ba53-4539-9b5f-03a5839b0466",
+    "inmueble": "URB006732",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "92d7bec2-a31a-4489-a7a8-350f485a70d9",
+    "inmueble": "URB033959",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "524bf53b-0a77-4a7e-a30d-da1064e23752",
+    "inmueble": "AURI003083",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3462d913-e6db-4f97-80c3-add37a2efe9d",
+    "inmueble": "AURI018241",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0e964fba-2133-45c1-8e5e-501b0da98f40",
+    "inmueble": "AURI000957",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4d51a0c7-0f3b-4da1-9abf-6e84ee439664",
+    "inmueble": "URB016543",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f0da305e-201e-4f89-baae-858c305a354f",
+    "inmueble": "URB034110",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d7647d35-d05c-4b41-8cda-2de9488d1cb5",
+    "inmueble": "URB008641",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2a75eec6-06d3-482e-8137-acf953af5281",
+    "inmueble": "AURI017674",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8d487e4e-a09c-4059-95d1-a6ee84e06ecf",
+    "inmueble": "URB001748",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fb020c9c-a8b0-479a-ba14-7b9f1d82140e",
+    "inmueble": "URB008797",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ae67e0af-878a-4808-880d-65cf5019ffa4",
+    "inmueble": "AURI003595",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "415c4b8f-1e65-47b7-b646-9c907a56815a",
+    "inmueble": "URB032729",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "37b118b1-a806-4a21-8e16-33dcb31a5ab9",
+    "inmueble": "AURI019019",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e26f0efa-7434-4267-9d6f-84ab61c5bdbe",
+    "inmueble": "AURI008486",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4b3ea11f-71fb-482e-beca-f7d9d96a1b7d",
+    "inmueble": "URB033639",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9bce9217-9f94-4650-879c-19bd88bdf0af",
+    "inmueble": "URB032807",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3756d95a-aca7-4f54-b9ed-4be9dcde6941",
+    "inmueble": "URB000597",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2c98a5d9-6e26-425e-b86d-b7f94c28318a",
+    "inmueble": "URB016053",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "658cf47e-cc0e-46e1-b1eb-fa06244c74d7",
+    "inmueble": "URB007221",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9b3e0d58-f2c1-431a-ab9a-c06b9cc7992c",
+    "inmueble": "URB001647",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4bebd54a-bc98-4d1d-b612-5d18b6c946c3",
+    "inmueble": "URB008642",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "244a14ed-1f6a-4597-a6ba-a45aed524df0",
+    "inmueble": "URB004764",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3df39f43-4b78-433d-9c82-953f078e5461",
+    "inmueble": "URB004822",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "61896714-f328-4d4d-9b99-c91d519a0a9d",
+    "inmueble": "URB004826",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "adf8234d-e483-4752-a585-899f956fa53d",
+    "inmueble": "AURI013354",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a7aae524-fafe-464a-93bc-4d522e9a6030",
+    "inmueble": "URB032973",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5ac0e24d-61b3-4766-a000-6a6295f5fcf9",
+    "inmueble": "URB004755",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d1fc3971-6306-4916-9c62-cbee43e80879",
+    "inmueble": "URB004767",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e9241ecb-66d7-4518-bd79-cb961bc02411",
+    "inmueble": "AURI013359",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0768f224-5db3-46ec-bb1e-3739ae69f83e",
+    "inmueble": "URB004697",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ed9521bb-f986-41a6-9c21-0add2507b075",
+    "inmueble": "URB004799",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "babc679a-d334-48f9-a014-33bbcc1328e4",
+    "inmueble": "URB000466",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d8075848-665f-4fa0-b82f-35ec1b3c0bbf",
+    "inmueble": "URB001728",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "84987147-dbc6-4ee3-8006-ea23a07d47d9",
+    "inmueble": "URB031801",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9b0499c7-ec8a-4d42-baee-dba8c1d8e4fb",
+    "inmueble": "URB031808",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a84660b1-b143-4e55-9f3a-34be38e7eb8b",
+    "inmueble": "URB034255",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4aa77883-9bce-4991-b67b-35a01ce90f07",
+    "inmueble": "URB033573",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0251e8a2-be47-4512-bb6d-a88ff48ead20",
+    "inmueble": "AURI002799",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1ab2eb17-a081-4ef6-8343-2cd3bcb34c89",
+    "inmueble": "URB031918",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "16861593-11b7-4769-9b99-5b1e205a9ede",
+    "inmueble": "URB002953",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2eea61d0-b6d9-41d9-9ced-0080102266e9",
+    "inmueble": "URB002384",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf96770e-bd90-4626-91e6-df4676525efd",
+    "inmueble": "URB032110",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dc51ad0f-0c57-46f6-959f-7c518316c4e6",
+    "inmueble": "URB002004",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e21cfe93-4ea4-48b8-8e17-235f2ec1e4f8",
+    "inmueble": "AURI001771",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9ea03d9b-22e6-414c-b47f-8a2dd8165344",
+    "inmueble": "URB008476",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3d7572f2-f393-4011-a66c-acce4e9fbf2a",
+    "inmueble": "URB005653",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c9aaed5c-2c00-4245-b7ca-9ce61fe90cb7",
+    "inmueble": "URB031879",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6f71af67-1c50-430f-8ef0-d976d27f796c",
+    "inmueble": "URB031894",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "104f9fac-1ddc-47ed-a4cb-e783d7d2d022",
+    "inmueble": "URB031839",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9c0a09ec-c6fb-49ff-942c-b9a4dfd692a4",
+    "inmueble": "URB031874",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "705e5277-ee43-4910-9ae5-c0f8ae766c51",
+    "inmueble": "URB031850",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "790ee745-12f3-4366-a466-5bfedd90c66f",
+    "inmueble": "URB031844",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8df6591b-86e4-4fec-95c0-c4eda20c1227",
+    "inmueble": "URB031835",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ecc870f7-8392-42d6-a1b2-535a86bf9ee7",
+    "inmueble": "URB031861",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "aee94d03-2765-4b35-9dcc-7fbf25603f81",
+    "inmueble": "URB031843",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b5a36891-0c58-4e00-ba86-840589425c76",
+    "inmueble": "URB031792",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e4a669a8-c573-497a-91f4-703332a8803a",
+    "inmueble": "URB031820",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a0deb50f-f6ed-4d01-a55e-87bcdd5f49f5",
+    "inmueble": "URB031849",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c3e4b400-7c68-458b-8e1d-c10ae7aa84f2",
+    "inmueble": "URB031887",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3cf26a88-28ee-49d7-916d-ff111ffa4722",
+    "inmueble": "URB031818",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fd9db81f-408a-4ee7-902d-db32d3c91e53",
+    "inmueble": "URB031846",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b9f7cedd-1a98-4cda-973d-9a6e24db59c8",
+    "inmueble": "URB031871",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2d13c31b-aa58-4a73-a65f-3cc53638b9af",
+    "inmueble": "URB032111",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a7c42d1f-baa4-4275-95b2-33a401cf4a69",
+    "inmueble": "URB000591",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3dd74ebf-216c-4045-a029-579c94e8af9b",
+    "inmueble": "AURI003168",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5fb7797b-d5d3-4084-9395-a14e3311e833",
+    "inmueble": "URB031806",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a165d268-c882-4306-b381-e526a208b997",
+    "inmueble": "AURI003902",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "871958b0-baf0-4b44-b1f9-d024bb6905a7",
+    "inmueble": "URB018916",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e6dfd574-9772-4f5d-baa2-d934eaddb7b7",
+    "inmueble": "URB031826",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "10bdf313-4078-47d7-b602-78c7696f4ffd",
+    "inmueble": "URB006105",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "95994b4d-2a59-474d-8d97-588cdec301ad",
+    "inmueble": "URB034775",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "883000ac-60e3-49ab-a6ce-0c0f8752fd10",
+    "inmueble": "URB000817",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7e7b8596-8c1c-42ff-9e2e-da2500311d05",
+    "inmueble": "URB034815",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9d75d940-85f6-4bf9-bef5-19ba3313c530",
+    "inmueble": "AURI019128",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bddcec44-870d-48df-936c-ecc3096f1245",
+    "inmueble": "URB000561",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0f609a9b-f5d3-47b6-8314-5a522e9e3145",
+    "inmueble": "URB006788",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6495ce7b-1505-4898-b503-4e7be60b3547",
+    "inmueble": "URB032062",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "31f69c25-9f91-4729-9e98-290662b10d47",
+    "inmueble": "URB017099",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c4718243-b511-43b8-9ccb-f504df5c8a72",
+    "inmueble": "URB034813",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "93b566ad-3b2c-4150-9e1d-dd9de8e5bd74",
+    "inmueble": "URB005790",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "11323542-08fa-431c-ba98-a9c0d4dda4ac",
+    "inmueble": "URB009369",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a181f0a6-c87a-4453-9c12-511b1a75fbe9",
+    "inmueble": "URB008271",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e0796894-1321-4b6b-84e0-dbf78f92bd6b",
+    "inmueble": "URB034266",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c4aaf2da-a499-491e-9702-35871af53d27",
+    "inmueble": "URB018533",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "45e8f326-f1d4-4d17-baf7-f170b0bb4569",
+    "inmueble": "AURI004452",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "679a4e1b-7829-4876-b073-043030e4d199",
+    "inmueble": "URB015892",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "470a2639-880d-4df7-bec9-f188cbfd3efd",
+    "inmueble": "URB006120",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8dbd7ff7-cc58-4eab-a4b0-b4f8cdc34531",
+    "inmueble": "URB008553",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "375ca604-a975-491f-a4cb-63e50d01d6c3",
+    "inmueble": "URB005631",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b54f9dbb-fb8f-4c08-80f5-66db50ee827f",
+    "inmueble": "URB014993",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "51765b9e-36c8-4c1b-a5a1-a154e6a35f0d",
+    "inmueble": "URB015737",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b1161be8-5737-43d5-8afd-bc4bc6e07bb8",
+    "inmueble": "URB034109",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "24506431-da0b-4759-97c0-b192b6e33466",
+    "inmueble": "URB000615",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "02077110-5f44-4065-b07a-cb285f981d8f",
+    "inmueble": "URB034737",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f6f9aa2b-b09c-4591-a928-8f67a536fa14",
+    "inmueble": "URB008123",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "62a7635b-36c6-4fec-bee5-787cf8acaccd",
+    "inmueble": "AURI013337",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2eb38df0-66da-4de3-9d15-6cea00d9498e",
+    "inmueble": "URB001734",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3332b516-feaf-4378-b4bb-bbb8daaf9096",
+    "inmueble": "URB001717",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f03284c2-700a-4a32-b463-397d5367023a",
+    "inmueble": "URB032494",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "53722b0f-c70b-4c7a-a575-ccc868fe0aa8",
+    "inmueble": "URB034794",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0115e93c-5aa5-4480-9a0e-0b33f05a3314",
+    "inmueble": "AURI006104",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "585c14eb-01a2-4ee0-8806-c673452d41e1",
+    "inmueble": "URB033548",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2ccbe6ea-50fe-4f32-a6d3-c8329be829fb",
+    "inmueble": "URB033410",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6c6b2dc4-94c3-4472-bddd-f4cc386b554f",
+    "inmueble": "URB035177",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "749dbb87-5150-49bd-abb2-6c864c30249d",
+    "inmueble": "AURI013335",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "758f59f3-2b58-45e9-8adf-6a7f6f3a0c94",
+    "inmueble": "URB034071",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f2929f4c-2a9b-4cfb-822b-7a179e47e0da",
+    "inmueble": "URB033685",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a1d156e4-f063-44eb-ba5c-2168427b9650",
+    "inmueble": "URB034258",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c7dc83b1-f256-4c1a-aa40-7a615e41cdea",
+    "inmueble": "AURI001121",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a8df10c1-fb75-4a0a-8507-1c396d717a67",
+    "inmueble": "URB034264",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "188b0a5d-e6a0-4a7a-a05e-fba9d47e248d",
+    "inmueble": "URB002289",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a0ee4cd9-cd30-495d-8e3e-f6153df62fc2",
+    "inmueble": "URB005462",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e7be047e-d005-40c1-a50e-ee507d3be6b3",
+    "inmueble": "URB016804",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b38624fd-99be-4a98-8a4d-69c4e64ec8e1",
+    "inmueble": "URB035175",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b0246142-6b3d-49c2-a6f3-f6087470207f",
+    "inmueble": "URB004878",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f6232671-9d2a-426c-a14d-15bd2e8c347a",
+    "inmueble": "URB010548",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "36856fc7-8eaa-4cda-b97e-6fb97e1cc6b0",
+    "inmueble": "URB001884",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7a56663b-62cd-41a9-b826-028a7e542054",
+    "inmueble": "URB031880",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "826d3425-5c14-496c-802a-cabdb04d278e",
+    "inmueble": "URB001997",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e6c445bc-928d-4906-b17d-7956a7138d22",
+    "inmueble": "URB034271",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8ab8ed3e-d9a2-4e5c-9339-dc8824daca0b",
+    "inmueble": "URB015764",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "90ced5b4-ea3c-4a50-9527-603f8e2b571b",
+    "inmueble": "URB031842",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a24d9285-99f4-4509-9429-493c78d791cb",
+    "inmueble": "URB025420",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "50661665-a3b4-4548-8003-39c19a6619ee",
+    "inmueble": "URB017056",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "508186f7-c3ca-4841-96cb-7b72827dae31",
+    "inmueble": "AURI013340",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "76551ef8-7f88-4f66-b7d4-1f5386b5f4af",
+    "inmueble": "AURI013327",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b1216f36-3578-4d5e-bd90-1a743b524e48",
+    "inmueble": "URB001724",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "755c4403-c85f-476a-8341-1855ce83a36e",
+    "inmueble": "URB033724",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0212a5be-ea59-4a39-9df6-0cd07d4069d1",
+    "inmueble": "URB033404",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b908444f-3644-4261-9d29-11678bd86c7f",
+    "inmueble": "URB034072",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "55cc8c6c-0748-42d9-a430-716b2929120f",
+    "inmueble": "URB008529",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f172fbc9-1b44-43b8-9240-f347241a9386",
+    "inmueble": "URB005492",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6c2a4bea-114b-4c6f-84bd-78083a7e903b",
+    "inmueble": "URB002151",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "afa2f8e7-376e-4c93-948b-4fd44c9336c9",
+    "inmueble": "URB031883",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "77d6e4c8-1d99-44cb-b064-21aee1711e4e",
+    "inmueble": "URB034836",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cf6f5b4d-0538-4419-8394-4df9870168f6",
+    "inmueble": "URB000571",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4f13f0b9-ef44-4161-b2b6-dd78ea6ab213",
+    "inmueble": "URB002723",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "92d8cffd-9c2b-464b-9e04-c18ee07260b8",
+    "inmueble": "URB001670",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c12c239a-131a-4368-8c5a-dbe88c469627",
+    "inmueble": "URB031800",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "eb568a7c-c61e-4414-9d44-311849f0f059",
+    "inmueble": "URB031790",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "12a6b299-85be-4ddb-afb6-ed0860919439",
+    "inmueble": "URB004179",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c627b164-e62e-489e-bfff-a2b6024b79ea",
+    "inmueble": "URB015432",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5d7f46d8-435c-4235-93ea-d9d57e3741b9",
+    "inmueble": "URB030813",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2b58f5e9-704e-41e4-83f6-c3408c9321a1",
+    "inmueble": "URB032256",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf8e0731-1844-4313-b152-2ef8f0cc97ed",
+    "inmueble": "URB031877",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d77ae7a3-2987-4596-ba5c-ab07b3345eb0",
+    "inmueble": "URB030816",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "434e2d52-183a-4aeb-bc48-be7a424f0a19",
+    "inmueble": "URB002680",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e13312ff-116b-4721-bf14-04357b0b4a00",
+    "inmueble": "URB034746",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "714ccd49-6193-48aa-8965-b57f2c80b6e3",
+    "inmueble": "URB008277",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fac7a16c-66f4-41e5-998a-401415ffe9fe",
+    "inmueble": "URB000631",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "74bfadf7-7a69-49c6-a980-d581abd23792",
+    "inmueble": "URB004101",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1ddfd79d-e414-4f21-987d-707783e84c84",
+    "inmueble": "URB004924",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "76d0262e-2db4-4983-aa9f-ea959b2bd9cc",
+    "inmueble": "URB008441",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "67a38110-3c32-4002-bc76-97a26d40eb27",
+    "inmueble": "URB009375",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "376edd2e-1697-49d9-aa52-f0cb2e232f65",
+    "inmueble": "URB031899",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f87b6f15-bdbb-4a89-9b5d-c83befa0a869",
+    "inmueble": "URB008664",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3628fc80-03ae-4657-abe4-fd777e701573",
+    "inmueble": "URB034787",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "daeec1bf-ad49-4e99-8fd6-e41f4d7a332b",
+    "inmueble": "URB033459",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b017477f-e939-4edc-9ae6-15a7088e7fb2",
+    "inmueble": "URB004555",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b7f905fd-4b4f-4bb4-8faf-50389d4e79d7",
+    "inmueble": "URB016949",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e5309251-f6db-4d4c-9884-67b36312a9c3",
+    "inmueble": "URB034807",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "38e5e32d-6fcd-4a2b-868b-979eba75aab6",
+    "inmueble": "URB008241",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a9ae97ad-7028-4240-be3a-4574b093a16f",
+    "inmueble": "URB032800",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7d1be26e-3cfb-4da4-9259-93af97411f21",
+    "inmueble": "URB031810",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf79f7d5-2917-4c0f-b898-fcb02f0e319b",
+    "inmueble": "URB000568",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "29d93e92-d15e-4a50-88cd-3f26d83f760f",
+    "inmueble": "URB032876",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9a653f9e-fd1e-4bc5-9d3a-a72a1938b30b",
+    "inmueble": "URB034795",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a721fc74-7867-4fa4-a30e-96060fbf215e",
+    "inmueble": "URB031845",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3e2fd53b-ca4d-4d2a-8309-2aaefef47bb8",
+    "inmueble": "URB006837",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "18adbfe0-cbfb-4156-a9de-148aeef3f9c0",
+    "inmueble": "URB001780",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e4a0e845-f0dd-49a5-9ffc-980eb8f99b87",
+    "inmueble": "URB009378",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "304e0dcb-de55-410a-8fa3-3c22f8733e0b",
+    "inmueble": "URB008796",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "32f71cf9-6add-46ea-9c7e-c9e686e21de4",
+    "inmueble": "URB034748",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9a890e7d-9c68-4854-bc09-4ddebff2f113",
+    "inmueble": "URB001667",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2ce48a5f-3db7-41dd-a2fe-da0fad5c9e5d",
+    "inmueble": "URB030510",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "912df74e-8f70-412a-b137-34970c6cd99a",
+    "inmueble": "URB031882",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0e96c145-80b8-47d0-afd1-3b54e32cdc5f",
+    "inmueble": "URB004082",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c0651e0c-f065-449f-ad8f-679f23c74167",
+    "inmueble": "URB008665",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "08c845d8-3823-4cee-bf3e-98fa30eab050",
+    "inmueble": "URB022925",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bafbba31-4b65-4c3e-9fc5-e6940eac108e",
+    "inmueble": "URB031838",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "80b82c6c-2403-4f88-93d4-bc2c33a0040b",
+    "inmueble": "URB009102",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "57fcf532-c63b-4fe4-99ee-91d77aecb802",
+    "inmueble": "URB031852",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "810cc638-b3f8-442c-9c53-c3eceba21621",
+    "inmueble": "URB032806",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "506c881c-5bf4-469a-8e00-73362ec90b15",
+    "inmueble": "URB003970",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a01b5167-472d-41ca-8ec9-31476130c2cb",
+    "inmueble": "URB031831",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ba3664b8-1790-438f-a41c-77d53bdd8747",
+    "inmueble": "URB022958",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "05389c38-fb25-4e0f-a8f5-2018a20945dd",
+    "inmueble": "URB031898",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "42333c71-d446-480c-8989-53c26a082df9",
+    "inmueble": "URB034122",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "30311ec8-5cd5-42a3-9deb-027f83e9767f",
+    "inmueble": "AURI019535",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ced26b3a-586d-489e-8936-b92cf358e966",
+    "inmueble": "URB008440",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0dc0b2a4-cb94-47c5-b252-6c400c7f94d0",
+    "inmueble": "URB008649",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "eb6bea94-9301-44a6-8c5c-09ea8b208e47",
+    "inmueble": "AURI013346",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "17211832-864e-4bed-bed6-20b5a9306f15",
+    "inmueble": "URB016843",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bfcf6e6c-859d-4d75-aef2-e03ab60cdad2",
+    "inmueble": "URB032079",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2931304d-11e3-4ce4-8c13-26fa6944f23e",
+    "inmueble": "URB034247",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "22fd1c73-9964-4a94-95ff-181482816268",
+    "inmueble": "URB034749",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0a677f2d-5d22-469c-afa3-be19a865ed68",
+    "inmueble": "URB034261",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "00d69ea7-e755-413c-8fce-882b8c062e87",
+    "inmueble": "URB034938",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8a5c0ea1-2002-49d6-bcc8-96eb438d3ebc",
+    "inmueble": "URB004930",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b67d5661-f146-4dda-8d34-cf03cde7fe3d",
+    "inmueble": "URB015434",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "39a6d823-7353-4490-986e-02b32e01923c",
+    "inmueble": "URB004867",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2f3649f4-4b3b-44e6-9670-0182d58c46c2",
+    "inmueble": "URB022872",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d56c80b6-1e42-4a1a-afaa-6e6bc4b033a9",
+    "inmueble": "URB034079",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0c29c443-6849-4fbd-987f-51d3981c1cdb",
+    "inmueble": "URB016319",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "42ffd4b3-9a1b-40d3-8512-e32a9910c88c",
+    "inmueble": "AURI000641",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "40ac365a-8f91-46b6-b4dd-2f0507721191",
+    "inmueble": "URB015114",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f181b3ce-734c-4cd0-8b34-e608bcf940dd",
+    "inmueble": "AURI016442",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "918a1cd0-f700-4d18-98ca-e0275a070d88",
+    "inmueble": "URB004814",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "193226ab-0b78-4806-850b-1d890f32ab9d",
+    "inmueble": "URB033627",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c28a5f16-1365-451c-95d3-21d66cd76582",
+    "inmueble": "URB017014",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a7f164ed-3c7a-4408-866b-64965266ba38",
+    "inmueble": "URB015912",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ef1e88a5-2ffc-4efe-9c50-63c20802f860",
+    "inmueble": "URB030919",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b2762453-926d-4f61-ad18-4df5305ecb57",
+    "inmueble": "URB002290",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "555010f5-61f0-4899-b862-484642e1463d",
+    "inmueble": "URB033620",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "10947d96-791c-471c-b0b5-347e67291885",
+    "inmueble": "URB004365",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "175c27af-0758-4075-9a40-80057618f583",
+    "inmueble": "URB017055",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "feb506b8-d572-428d-b577-71209f160ee5",
+    "inmueble": "URB004366",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "383bf79d-d148-495a-88d3-89ba8e50959f",
+    "inmueble": "URB033619",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6729ad53-942a-4e8a-a463-1d3a749785e3",
+    "inmueble": "AURI019536",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f60df815-e79b-48af-9e9b-46fcfaada50d",
+    "inmueble": "URB034884",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d457c8c2-95de-46e4-95f5-02812f055cbe",
+    "inmueble": "URB029261",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b854426d-c52f-424b-a81c-4cd695bdcd3c",
+    "inmueble": "URB008451",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "67c8ad19-9326-492d-9d57-231ece82122d",
+    "inmueble": "URB005274",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7369fdd2-ea21-4f8f-9595-eab9b6a50b23",
+    "inmueble": "AURI003169",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "615be690-b402-4452-80b7-848364c99b6e",
+    "inmueble": "URB034269",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "baf87adc-ee0d-4376-bce3-a59237b47aa3",
+    "inmueble": "URB002836",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "92e28c90-d41d-4725-8c6a-f9e6cb18ba58",
+    "inmueble": "AURI013357",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "799c3bef-25d4-4e1c-b949-a8266475057b",
+    "inmueble": "URB034056",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0b15a0e4-2ab4-4929-9e17-d25843815c49",
+    "inmueble": "URB034058",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "35183945-8c74-4f54-98f2-3ced3c38962c",
+    "inmueble": "AURI004450",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9be4b760-eb24-43fe-a662-873dc0a71bf7",
+    "inmueble": "URB034809",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "55569026-fcd9-42de-bf6d-5ee51cc30769",
+    "inmueble": "URB034496",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4f3d1a53-2c93-4457-b4d6-d9646e4b539c",
+    "inmueble": "URB016350",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "26308242-0548-441b-94d5-982f9cf4b2d2",
+    "inmueble": "URB004700",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5a59f2ee-2c83-4480-a218-94455270bf9b",
+    "inmueble": "URB034825",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b1d46fd6-df69-48f4-bda2-9a14d90a5824",
+    "inmueble": "URB002214",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f6af3a96-f1a0-4689-89e6-2b2f7211ea88",
+    "inmueble": "URB001905",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3c59d435-85da-40e0-8078-528db2bbbeed",
+    "inmueble": "URB002722",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ba4e8042-85c7-43cc-938d-6e04bc69f027",
+    "inmueble": "URB002796",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8f07decf-83ff-4d99-83b8-f6ae517d079b",
+    "inmueble": "AURI000970",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "489dfdef-d5a4-42bb-b7fb-65e250c06751",
+    "inmueble": "AURI002418",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "71d160cb-182b-422f-94a2-469bc3f00098",
+    "inmueble": "URB014949",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2b20ce80-a61f-4bb1-8d39-f2283ecc3fcd",
+    "inmueble": "URB034833",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "01203510-fef7-4ced-9a26-bd6eadc40989",
+    "inmueble": "URB035176",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1110d623-7201-409f-b9da-0a4149861975",
+    "inmueble": "URB005589",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6e4b349c-6d47-4dec-9130-2b6158be02f3",
+    "inmueble": "AURI003660",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "43b74198-92d5-4f37-8f3c-b985c26d1640",
+    "inmueble": "AURI003661",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "706ac501-b1b9-41e3-87a9-735f72442255",
+    "inmueble": "URB005936",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b2e46401-b49c-46f3-afc4-93592b442893",
+    "inmueble": "AURI014209",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8bb09c6d-b278-4017-879d-21b526afede5",
+    "inmueble": "URB001808",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c2d441e1-a531-451e-9a7d-547e81ceae65",
+    "inmueble": "URB034844",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9a5adc8b-afca-4ae9-8a0f-78a923279f8b",
+    "inmueble": "AURI013348",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e0e88f21-9265-4a23-9e36-26459077f105",
+    "inmueble": "URB000052",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0d0c8437-82ed-442d-af9b-4968f678d2d0",
+    "inmueble": "AURI006146",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a69590e5-6e28-456b-8191-d6ccdcec49dd",
+    "inmueble": "URB005511",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1318f623-8346-4fff-aac6-8c17758b5329",
+    "inmueble": "URB034328",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "55b974cf-cc07-4565-b13b-dfde38e3e146",
+    "inmueble": "URB001970",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8020f58a-8312-438a-825c-65192eb554bc",
+    "inmueble": "URB034716",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "933a10dc-2bc0-48dd-a02a-45ea282cbd11",
+    "inmueble": "URB030951",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "603dee17-af39-4242-afc6-6cd94e20ce68",
+    "inmueble": "URB008541",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0187cd4a-f1bb-42cb-911e-c5ab97519330",
+    "inmueble": "URB008488",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f08730a5-0444-49d2-9d0b-0026711442e2",
+    "inmueble": "AURI018540",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3e79808c-395e-4e1e-992f-1a66347bdec5",
+    "inmueble": "URB018255",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9d974217-b42f-4594-8194-7a421e1e83b0",
+    "inmueble": "URB016605",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d285a521-5b50-44d9-8f4d-1f5189ea65a5",
+    "inmueble": "URB015726",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a3528190-12d3-453f-a48c-ce692f4e6beb",
+    "inmueble": "URB034326",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "825feee9-4573-4df3-a816-621a770a4e37",
+    "inmueble": "URB000603",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8b9d6535-0147-4137-85bc-51e6a9a948a8",
+    "inmueble": "URB000572",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e0adadfc-299d-4fcb-b5d6-80cbf701a345",
+    "inmueble": "URB032366",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a1e681db-e468-4964-8651-545a09448ceb",
+    "inmueble": "URB033968",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e1f4e5d9-41f4-43d7-acf1-459a97f1c1fe",
+    "inmueble": "URB034256",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e4b1a098-e8ac-4a7a-8d5f-e137506a8529",
+    "inmueble": "URB034161",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f9332533-8db5-4a5f-a191-3506d9180cb5",
+    "inmueble": "AURI014783",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "15327097-617b-4dd8-996b-fefdca9c143f",
+    "inmueble": "URB030343",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "23a268c3-c5bd-480b-8fab-c727e4104db2",
+    "inmueble": "URB032367",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "37f4869a-c091-4961-9f54-2a092e9fe13e",
+    "inmueble": "URB008324",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "aa6b26c0-ecf0-4d9d-96e7-9a6d74e9d865",
+    "inmueble": "URB034822",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "38c82da7-9146-41e3-bfbc-bba89a20fa33",
+    "inmueble": "URB011765",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bed3f9fa-54a8-4945-a0bd-9b50ae78afab",
+    "inmueble": "URB016410",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4c0e611b-99c5-47fd-8df9-ceb021a9e8d0",
+    "inmueble": "URB033288",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "54c64c35-1a1f-43e2-8b95-68c2eb7bbb9e",
+    "inmueble": "URB005949",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "72d10d54-0f39-4625-a875-e0c324107cdd",
+    "inmueble": "AURI019511",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5a18b1c3-b689-443a-b377-6f22f1ebc56d",
+    "inmueble": "URB000049",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ea0e458a-5408-40bb-ae95-2388affbed7c",
+    "inmueble": "URB024812",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e64fe29c-ea4c-46c5-a0d2-68cf36039682",
+    "inmueble": "URB002951",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "981d1238-dfda-4392-bdd3-4bcfbf3b5891",
+    "inmueble": "URB008613",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cf9a7287-eb8c-44ec-923e-1658af9817c1",
+    "inmueble": "URB034806",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "66a1c9e9-c4b3-4197-96d4-29d2cda953fa",
+    "inmueble": "URB034078",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bc5bf95d-a441-4704-a31f-e48b32839d36",
+    "inmueble": "URB003797",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "29318cc6-3f4a-4401-89c0-63c29c983575",
+    "inmueble": "URB009930",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "87bd5452-0c04-4f58-a1a1-fb9a8e236341",
+    "inmueble": "AURI010388",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ee616150-8906-42f6-a2e2-c35fddf1e55a",
+    "inmueble": "AURI005121",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c53ed074-5c2b-410d-a40e-bcd934904f9b",
+    "inmueble": "URB009101",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "79e25c47-1d73-49f6-89ae-d783b68e3ef7",
+    "inmueble": "URB034257",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "66f8a153-cbc2-4aab-af95-318eea39d4a8",
+    "inmueble": "URB017075",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1b9e7b1e-d455-4a5e-a1ba-2cbb9a82a0d9",
+    "inmueble": "AURI000676",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6a0c895e-4286-41d4-9634-eb1ab58bbd8d",
+    "inmueble": "URB031258",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5ace0405-d8de-43e3-ad11-f83074140d77",
+    "inmueble": "URB016520",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "763589af-ca19-430f-ad6f-3356889be833",
+    "inmueble": "URB002276",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "40bfaef8-9abf-4405-b0d9-0995b08e0e0e",
+    "inmueble": "URB010410",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6b7b40e2-fde4-4d99-a37c-a36df63edbe1",
+    "inmueble": "URB034742",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d095c611-699a-449b-b610-d2d99449233f",
+    "inmueble": "URB016110",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d9ecdc5a-779a-4fdd-830b-e93794289723",
+    "inmueble": "URB030366",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fb84121e-34b1-448d-8603-e4efeaa624b4",
+    "inmueble": "URB002378",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "74acac85-2215-457d-b9d6-9fcf84f8a518",
+    "inmueble": "URB031860",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "55ea0c2c-1971-4d4b-ab51-3bfd838e662a",
+    "inmueble": "URB033975",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1bd31bb3-e075-4636-8ac0-696552afb12d",
+    "inmueble": "URB018334",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ac437918-97cb-43e9-af8a-4875cef3a729",
+    "inmueble": "AURI013330",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ac86fad2-1677-4a8d-adda-5c8b9bf556e0",
+    "inmueble": "URB028556",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ad7766af-a225-4b94-a982-bd49b3359072",
+    "inmueble": "URB033530",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e9c75c48-3112-4eb8-ab92-f857830bb7b8",
+    "inmueble": "URB016852",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "61956630-e0ab-4b3a-be21-656d3c7c222c",
+    "inmueble": "URB030334",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "52219552-ede9-43ac-b355-d0c6c5dea721",
+    "inmueble": "URB031774",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8c81b1c5-6793-4dda-b2b0-d343d9b23b15",
+    "inmueble": "URB007328",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2682ef87-df31-4246-a6ae-8514d1f83da6",
+    "inmueble": "URB002326",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dab15be2-bb55-4e3d-a52f-d991bb4a9314",
+    "inmueble": "URB003986",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c518dce4-67b7-49c3-9376-f93465f6fde2",
+    "inmueble": "URB035016",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d61bfc1e-a521-43e2-aaec-d36ec2971a30",
+    "inmueble": "AURI013356",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d8ab6a60-2e2d-42ab-95e6-9cd3f6e894ce",
+    "inmueble": "AURI013350",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fa94e4b4-a209-45c5-85a4-d15218a95788",
+    "inmueble": "URB005680",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f4a7affb-373e-40ad-acdc-efd62387a646",
+    "inmueble": "URB001810",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fd73b2f9-3d14-40b1-9db0-2590be30bf1c",
+    "inmueble": "AURI013349",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6139f0b4-5df9-4432-81d6-ff017a2af386",
+    "inmueble": "AURI013352",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "48eb3351-53c4-4fb5-96c6-511d8717f522",
+    "inmueble": "URB001971",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "71c71383-1c54-4493-8570-3d57ad20b835",
+    "inmueble": "URB034802",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a947422c-d116-454c-a020-a873c4b09ee3",
+    "inmueble": "URB000608",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c1d04c60-cd02-431a-b49f-8bf5be08ead3",
+    "inmueble": "URB003443",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c8efc592-e267-4e74-ab12-9e491c3bd8e4",
+    "inmueble": "URB001674",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d3440dfd-5261-4cfd-8b0a-e3b6d6cfa3f1",
+    "inmueble": "URB000816",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a652fc7f-2ebe-473c-81a7-cc105121e525",
+    "inmueble": "URB030448",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c5889546-bd81-4bd6-a016-802e5b520804",
+    "inmueble": "URB009129",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ec17e285-0611-49a7-8f21-fa7c420becad",
+    "inmueble": "URB025935",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f4f5767a-f00b-45a0-8f98-45c747c55f46",
+    "inmueble": "URB001794",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d209e511-60be-430e-b455-47fc4a7034c1",
+    "inmueble": "URB002996",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2bb36f65-0622-4d7f-a749-40a4696559b1",
+    "inmueble": "URB000599",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7c910c81-8d53-401a-826f-7fd30c963309",
+    "inmueble": "URB035185",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8728e9b1-2496-4942-a472-967ac3a8038a",
+    "inmueble": "URB032077",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8a903fa3-a665-41c6-be6f-23973d9f1136",
+    "inmueble": "URB029260",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ef7377ac-2f88-439d-abeb-1e0634dab3fb",
+    "inmueble": "URB000414",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5b5ffece-deab-416c-a21c-b70f83163272",
+    "inmueble": "AURI000956",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2f505790-12f6-4525-9ec3-f6556691c9de",
+    "inmueble": "URB002032",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "714de746-887b-4d04-aeb2-376e5ac3e814",
+    "inmueble": "AURI002514",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7f186784-0c47-4d9f-9965-c132f0ac9ab0",
+    "inmueble": "URB032257",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9789fffb-f3d3-4d0e-aa64-d20c4fc9c20c",
+    "inmueble": "URB033948",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "70a80983-8ee9-4823-b036-18560b0d8a29",
+    "inmueble": "URB017173",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6bd24220-676a-4a41-8f97-642a3be9af8e",
+    "inmueble": "URB003967",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7362cc34-db30-4b7a-a7f6-fe57c8453b9c",
+    "inmueble": "AURI013343",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e54d3a92-4f4c-4641-8798-357da9662658",
+    "inmueble": "URB034125",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9a9db84f-add5-4383-bac5-a1e7e1bd2b80",
+    "inmueble": "AURI013336",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "56d6084f-c379-4272-9259-49737f7d5b1a",
+    "inmueble": "AURI010386",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "79b9253a-2f33-436d-a80e-43ad8c2ddc2a",
+    "inmueble": "AURI010387",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fb1afff2-c8d8-409b-afbd-60538e4c6df1",
+    "inmueble": "URB000596",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3786c873-4361-4ec1-a366-be0a0831aebf",
+    "inmueble": "AURI000065",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b47ff72e-08ea-4b3e-99cb-d92cf3557c67",
+    "inmueble": "AURI008081",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "08ece822-b58c-458f-bf8e-b0b30aec8f1d",
+    "inmueble": "URB032247",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2c8df217-648d-4234-847e-1cc826afcfdf",
+    "inmueble": "URB033276",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e7902144-cf2e-47be-a3b0-23574458951a",
+    "inmueble": "URB033669",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5d038cbc-441b-48d3-9bcf-4654133c7a2c",
+    "inmueble": "URB017134",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f40fad68-785c-472c-aac7-1aea1a9359e8",
+    "inmueble": "AURI007579",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "96e29de1-5fe0-4163-a3d2-d01f0e4e398c",
+    "inmueble": "AURI003658",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "148a8a62-9fbd-4036-879a-7e2d4e1c6c70",
+    "inmueble": "URB001878",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f919a4bf-7733-4802-99aa-4f81ab408e40",
+    "inmueble": "URB009262",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b38d84d2-942a-4b8a-9a9d-9e33efa99d23",
+    "inmueble": "URB030899",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4f8b872a-f497-4ddc-b327-65866d780ac7",
+    "inmueble": "URB003908",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "aa9d7fca-3047-43f2-876c-5427c425594e",
+    "inmueble": "URB002970",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7dda785c-0b13-4771-8f2f-8436c33dcac0",
+    "inmueble": "URB015019",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5ff4ec9c-4c2b-4f0c-a76f-ab6d7616dd05",
+    "inmueble": "URB008531",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "79510dc5-9fd0-4c37-b599-f1adcec67b55",
+    "inmueble": "AURI000960",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f487111b-349a-4db3-8fd9-7e1b4c6efa53",
+    "inmueble": "AURI003084",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b0eb8f15-49d0-4708-ab53-d101d2b48e12",
+    "inmueble": "URB000606",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "503e1ebc-5412-411d-a81b-1facba2ecb12",
+    "inmueble": "URB015580",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8b6cd1e3-11bc-42f9-befd-dfe80a7a409f",
+    "inmueble": "URB002416",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d145687a-8c17-4ddf-86ab-5981779cb293",
+    "inmueble": "URB029262",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf0d0509-a86f-4ced-9843-476eb44f2b73",
+    "inmueble": "AURI000961",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "74c4fe8d-915e-4ed8-b590-0b2bccce1e73",
+    "inmueble": "URB032347",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a4a25cae-e16e-45f5-bd71-08f9fa061d90",
+    "inmueble": "URB018442",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e72f2b29-9762-4a5f-9d9c-5715102c75ea",
+    "inmueble": "URB033096",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d317a55c-d93f-4ec7-be6f-81616edcc1d0",
+    "inmueble": "URB005334",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4013db13-c72a-4032-b159-3af2ed36c994",
+    "inmueble": "AURI009430",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "00d2c603-8479-4ee3-b727-aa41fcf611bf",
+    "inmueble": "AURI002695",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7b269cc2-b482-4969-811b-77c2377b1017",
+    "inmueble": "URB015938",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9aaa89cf-acf8-4fa2-97cf-2884d2052a3f",
+    "inmueble": "AURI018876",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cf6f3a8a-b58a-43a6-b830-aa6c897d5c18",
+    "inmueble": "URB034292",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5da7d348-85e0-4603-bbd9-dc2d528d98bc",
+    "inmueble": "URB000587",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "476fb0e7-2a2b-4f1b-89b0-6e52e4bb7024",
+    "inmueble": "URB000602",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7c366f13-43f5-4168-9c82-1a090bea1743",
+    "inmueble": "URB004262",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fcea3bd1-fb04-458a-96c7-f0461d2ee7ea",
+    "inmueble": "URB002939",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "974319a0-3bc7-45d1-98c7-ece5d5758d5e",
+    "inmueble": "URB015143",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "07384d9d-396e-470f-9304-59e9933b41af",
+    "inmueble": "URB010416",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b0920edd-dc21-407b-ad8c-2f924fd584e8",
+    "inmueble": "URB030337",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "65365599-b4e0-498c-b6e0-24ad85e06f6d",
+    "inmueble": "URB002800",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cc2fc623-7659-4080-b92a-a2950ba81f3d",
+    "inmueble": "URB032801",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "102db9e6-7080-4d36-839d-41a8835f1111",
+    "inmueble": "AURI007296",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9c85154c-0e87-4034-a480-40f8bb63d4db",
+    "inmueble": "URB017003",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "15493859-0343-4b4f-8ffe-3073bc4c98ce",
+    "inmueble": "URB017350",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1acc83f3-fb47-4888-a3c8-430d76875c29",
+    "inmueble": "URB017029",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "17e79a50-5911-481f-bacd-40669e5b99de",
+    "inmueble": "URB017327",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d09652a8-d41f-4789-8242-ab1e8a3b476d",
+    "inmueble": "URB032414",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "105f6af7-ab41-4168-9bb0-44a63f30b743",
+    "inmueble": "URB030481",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "280baee1-1e0a-4eaf-9536-3a4c9aaff5f8",
+    "inmueble": "URB008569",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ab67580b-9303-46f6-a5a1-5ededdffbd56",
+    "inmueble": "URB002811",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1cbcaeac-e89f-4709-a714-c77b94c72f27",
+    "inmueble": "AURI003653",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "771db1bd-2e96-4347-9a99-520f0e71ccba",
+    "inmueble": "URB017323",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "eeab8475-58ea-4909-bfac-fbc2dcdb0295",
+    "inmueble": "URB004780",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "aa4f3dc2-7516-4b9f-813b-8c92922fe515",
+    "inmueble": "URB005739",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8a32e619-0f91-48fc-8e40-537f29bb72a7",
+    "inmueble": "URB002810",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3ec1145d-7359-41bc-8635-bfa1e06c787f",
+    "inmueble": "URB005719",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6a277d91-e510-4b0a-9bf3-0ee71959c52c",
+    "inmueble": "URB010413",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ae3af8db-d1cf-4404-a79a-c185724c7222",
+    "inmueble": "URB004554",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "13ca520a-ac83-4499-a819-a006dde32073",
+    "inmueble": "AURI013338",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c5f4e614-396f-4ed0-a77a-045a82a913ee",
+    "inmueble": "URB004791",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e2916229-3266-4927-9852-9e0695c529ed",
+    "inmueble": "URB008197",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "367f77ee-8d1f-4cae-af50-303e63ca88ee",
+    "inmueble": "URB004739",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3d8b3990-60c4-4eb2-9545-ef5da549e676",
+    "inmueble": "URB002795",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "64ba8e38-860a-4f64-bccf-b851ec8193ff",
+    "inmueble": "URB030898",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "243aaaab-3d6d-4201-8ab2-830e22732243",
+    "inmueble": "URB032312",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "11da0116-1cee-4dc9-828d-2bfd85b6e731",
+    "inmueble": "URB005950",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "af76147d-e9b3-443e-b4cc-8d772766de70",
+    "inmueble": "URB002561",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f2b73740-2363-40b8-847e-c8fd24db5327",
+    "inmueble": "URB017022",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "579880fc-a418-40c7-99d2-31a988b3bc99",
+    "inmueble": "URB002799",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "017ab7ea-1220-4d65-9498-ad82c4a4f13f",
+    "inmueble": "URB002224",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "68943c9f-f247-49ff-ba08-2f919c008604",
+    "inmueble": "URB002773",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ba5c8eac-3329-402f-85b5-f53fe2dd786d",
+    "inmueble": "URB000595",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "226306ca-b801-474c-8ec4-fb3fc2134bb9",
+    "inmueble": "URB004694",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "35c7ebe4-3fa9-4194-b96f-f583ad2cd150",
+    "inmueble": "URB004712",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cc6c5a45-81c1-4424-b8b7-fc8f2c76b631",
+    "inmueble": "URB005416",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b335525b-af3e-4f9a-af87-98cc50fedc89",
+    "inmueble": "URB001666",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "84580d7a-2a99-405d-9be8-75b9ba80675c",
+    "inmueble": "URB017063",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "61d56553-d942-4dcf-b258-36caa69697d7",
+    "inmueble": "URB016841",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "53b45da6-cde9-46c9-a95c-16c6060cf127",
+    "inmueble": "URB031841",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4c4c8551-66c1-4b8a-821e-d2d1b6ed6538",
+    "inmueble": "URB031813",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9e5ae597-4807-4a4e-943f-eb9af5bb1e34",
+    "inmueble": "URB031815",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a7d58fb9-844d-4492-b561-4122588030c3",
+    "inmueble": "URB031796",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "28d7c15b-0b80-4617-ae37-d665436402fc",
+    "inmueble": "URB031856",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c77be6c5-0706-4209-88ba-a1b854b538b9",
+    "inmueble": "URB031862",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "30eced66-692a-42e0-9fd1-e4d5b1dc6fc8",
+    "inmueble": "URB031873",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "32342299-bb50-4b44-acb5-5b95e1db7c6f",
+    "inmueble": "URB031872",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0655e216-64a4-4bfe-b725-7303c644b8d6",
+    "inmueble": "URB031824",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2374771c-414f-4dc3-8849-3688766b943b",
+    "inmueble": "URB031833",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "078775b2-1ca9-4f5f-a3f5-08221f93fcf6",
+    "inmueble": "URB001786",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2020bf19-24e2-4dc6-b6dd-83d1583e42e9",
+    "inmueble": "URB001754",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "694355c8-a036-4dd2-b00f-d43320f2f906",
+    "inmueble": "URB031863",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3b86d4cb-7d6f-467d-8a3d-f663806f063e",
+    "inmueble": "AURI019231",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0f74c4f3-2300-45cf-8729-0fb989367d7a",
+    "inmueble": "AURI019351",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "000efe6a-cf67-4cf4-a157-0619cda79054",
+    "inmueble": "URB031916",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "183356b1-42b5-4702-928e-c79d90965858",
+    "inmueble": "URB031892",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "443074e1-6201-4a44-bd4b-2cdfb3ab3856",
+    "inmueble": "URB031793",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0182ebb7-b80b-4de2-8d8e-e97eb9e97f8d",
+    "inmueble": "URB031854",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "03c5ef66-9c03-4985-a8dd-6997053e1567",
+    "inmueble": "URB001776",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "de6f844b-1ecf-4bf0-b5ae-3cb98607791c",
+    "inmueble": "URB001686",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fc639a27-a5c9-4300-bfa6-9c02ab800dec",
+    "inmueble": "URB001714",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2863d54a-508d-4f5b-b976-3a6c4c7341eb",
+    "inmueble": "URB031829",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5627e28c-d1df-445b-a73f-8805ba292685",
+    "inmueble": "URB031812",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0488a89c-b34d-4087-8cad-4dfcfa815520",
+    "inmueble": "URB031836",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "612f00cb-c344-4479-9d38-4c7853e0bffd",
+    "inmueble": "URB031825",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3798a434-4967-4fb6-9247-82a2681505b1",
+    "inmueble": "URB031814",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7eb1dbc2-5bcd-4865-8f5f-18d745d455da",
+    "inmueble": "URB031802",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "163788e9-a412-4a1d-99d6-ecfb3425bc5a",
+    "inmueble": "URB031848",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5ad9f6ca-7b41-4705-9353-df0c97872ddf",
+    "inmueble": "URB031907",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6c9ed5f8-87ce-4f98-a8d8-d249c116fc14",
+    "inmueble": "URB031914",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "16299ddf-efeb-46ac-a21c-88f4442c4492",
+    "inmueble": "URB031911",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "351d639b-168a-4ec4-b833-ac4070a00493",
+    "inmueble": "URB031901",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2215824f-5bf6-41c4-97c3-c9c75cbc84c7",
+    "inmueble": "URB001687",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2343f9ad-213f-4f06-8dcd-e3b2da168d07",
+    "inmueble": "URB034155",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d196f0fd-50c3-4dea-b1ba-a5f48aca2d72",
+    "inmueble": "URB016098",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a8aa9739-a307-4f34-b904-bdd8f861c586",
+    "inmueble": "URB031858",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a43f2edd-cff2-4aff-9d0b-7c7684242724",
+    "inmueble": "URB016992",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8f6705e3-64bd-4f6c-94f1-3827540db9aa",
+    "inmueble": "URB031869",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "96ffdbd5-1f11-4dfb-9657-f0ea214332c6",
+    "inmueble": "URB031912",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c028db01-271f-48c4-8a53-05e6602ca58c",
+    "inmueble": "URB031822",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8a31ca4d-2a93-4aa1-881c-d695cf56b59e",
+    "inmueble": "URB000818",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "226119bc-70f2-4b3f-bd74-2d5a3a494348",
+    "inmueble": "URB008630",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b78ecc4c-ffec-48c8-a42b-efb5a6a10b03",
+    "inmueble": "URB026119",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d4e3595f-dd27-4bda-9c31-132d9c44a722",
+    "inmueble": "URB016542",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d703e7ca-1ce7-40e6-9997-a5e89b6224cc",
+    "inmueble": "URB004566",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dd441391-642f-439e-9e6a-079a8b23ee4c",
+    "inmueble": "AURI003656",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dfe4f16f-4800-449f-a2c2-d277937aa1d0",
+    "inmueble": "URB035195",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0a02a765-d376-494f-8ea3-2c207307920d",
+    "inmueble": "URB008674",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "60d407fc-49e1-40a0-b8e0-b5d769b4294b",
+    "inmueble": "URB030926",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3b1c43e5-e1f7-42f2-86ce-55feb7338e88",
+    "inmueble": "URB034745",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "24d5f8dc-54fa-49a4-a6f7-58f033d5adad",
+    "inmueble": "URB004670",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8cd02d29-ea1d-43fd-a4cd-100f46cadb07",
+    "inmueble": "URB000609",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e9b4cd19-e8c6-4566-bc1d-5dd45b539b37",
+    "inmueble": "URB002298",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d34fdf61-2433-4f82-9fcf-18feccc2af6b",
+    "inmueble": "URB018153",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "04350855-cee1-4c14-964a-3704bc303f38",
+    "inmueble": "URB016589",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d2331423-710d-4e84-abf9-0c15384500e6",
+    "inmueble": "AURI010379",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f81239cf-4e23-4467-bbcc-4eac9cf22347",
+    "inmueble": "URB007536",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "52781d42-5bef-420f-86d5-cbf213bc66a6",
+    "inmueble": "URB031263",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c1a71821-6f4c-46aa-97c5-7a9f144d2433",
+    "inmueble": "URB024620",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f242c56b-7a66-49a1-8480-8174c6b2a03b",
+    "inmueble": "URB004945",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9400e8b1-9407-4aed-8549-7f78948f922f",
+    "inmueble": "URB033154",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "58a3b155-436b-4d63-8044-93ae1c088afb",
+    "inmueble": "URB008524",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8e214d54-dce8-4ec7-bd25-f5ae0eff3166",
+    "inmueble": "URB030342",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c39dd7ca-75ed-4622-a65e-369319d7e17d",
+    "inmueble": "URB000601",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "958cd78e-4df8-4362-b136-9446c53e596d",
+    "inmueble": "URB002943",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "537cd1b6-232b-471e-8140-f789c6859347",
+    "inmueble": "URB002969",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5816f183-99e7-426d-8ce1-d8fd0da9b8e2",
+    "inmueble": "URB034724",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a6caeff3-33cb-4576-8a6c-fb4fb4162076",
+    "inmueble": "URB002938",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "76669b01-2360-4e5e-8042-76d777e4ea44",
+    "inmueble": "URB031917",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a109225e-ef70-4d14-bc37-b841b8c6d5a4",
+    "inmueble": "URB003988",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "80327130-598d-46d7-8665-dce37e5cd316",
+    "inmueble": "URB015290",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c107fbe9-5f72-4c0d-aada-0caacc5dc549",
+    "inmueble": "URB000700",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "12f5435a-5d63-4d6f-8f65-c0a62f5a214d",
+    "inmueble": "URB000600",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "40549c67-b610-47f6-962c-909a7cb06dc2",
+    "inmueble": "URB002539",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "79d7ec31-c129-4abe-ac98-a81c1e7906ca",
+    "inmueble": "URB000598",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4472641c-95fa-4450-a280-4f6d2390284a",
+    "inmueble": "AURI003659",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "667987f5-df36-41e8-9cb8-8d50d12f14dd",
+    "inmueble": "URB002821",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "760663a0-0c20-4690-8940-c55ed5194118",
+    "inmueble": "URB019398",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6d7d5c4a-213d-470c-908f-dd1eb02a5ab6",
+    "inmueble": "URB034531",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b3d1aa51-6540-4156-b7bc-fc11156a02df",
+    "inmueble": "URB018545",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e1f05e7d-9b0d-47ca-91b4-591d2d5a533c",
+    "inmueble": "AURI010389",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "cde9e69b-564d-4937-af87-31135e45c489",
+    "inmueble": "URB003974",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "fb4bbd43-84f6-4e68-be77-8d5f80dd534d",
+    "inmueble": "URB031827",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2ac107d0-8326-4128-8bf9-aba475129bac",
+    "inmueble": "URB030814",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "637a3736-42b8-4e2b-9523-348f932a3d30",
+    "inmueble": "URB031909",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1cf4adba-2a16-4a96-ae3d-4484b12c5567",
+    "inmueble": "URB021977",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "401cf296-ef57-4567-b8dc-589fd4019ed3",
+    "inmueble": "URB000645",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b6664c51-d32c-49ea-a5c6-52fe9a4a1db4",
+    "inmueble": "URB001649",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "27590037-80f0-4353-ad6e-248d67c0b6fa",
+    "inmueble": "URB030938",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf0a4173-ecf5-4b5e-b603-e65dcb1a5633",
+    "inmueble": "URB021966",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "aa368dce-907a-4c7a-98cd-6f20ee06a7c8",
+    "inmueble": "URB016930",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9bcc6be3-1b55-4949-82ff-eef8d7e7d9f3",
+    "inmueble": "URB001715",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9ea711c8-22f5-4ee6-8628-f178505a446f",
+    "inmueble": "URB002835",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "65c3b864-fe05-40ad-b420-0107b4016337",
+    "inmueble": "URB016107",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "357d854b-e8f3-4a2e-a3a0-15e46eddd617",
+    "inmueble": "URB034727",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "75308b50-6e21-44a6-98ea-1d94a4f0b82a",
+    "inmueble": "AURI006343",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dfb83024-7067-4b2d-a25b-de983509e889",
+    "inmueble": "URB002935",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b56acf2e-d9fd-423a-a076-4e5aea51285f",
+    "inmueble": "URB000212",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e916d702-667a-4cc4-96b2-33b5acb6ae76",
+    "inmueble": "URB003334",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "919c4e7a-3b2e-463a-bee0-3c2ad1db585f",
+    "inmueble": "URB005951",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e8c2ee61-1617-4b60-8218-ab2ba64668f7",
+    "inmueble": "URB030768",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "525a7c46-9606-4081-9e1f-25f686ff30e8",
+    "inmueble": "URB035183",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "95a757c8-6e24-49a6-a694-72311b5a3676",
+    "inmueble": "URB001787",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d0ff5564-3ecd-41a5-921a-c3941bc24f88",
+    "inmueble": "URB000213",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9513f8e7-0255-4e85-9fc9-583e6bfbcc2f",
+    "inmueble": "URB017315",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b7dc1ae4-5da9-40dc-a363-95c5a8a73448",
+    "inmueble": "URB003036",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e96db009-663d-4109-aff0-434081634f8e",
+    "inmueble": "URB034754",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "85fdc3f6-9837-482d-a347-ed4b8092c1a1",
+    "inmueble": "URB017394",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8c4cfc77-66d6-4fa2-8957-8105044eed5b",
+    "inmueble": "URB034169",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "faa160a5-1173-4a27-8aa9-088d31065914",
+    "inmueble": "URB034747",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ad6c5684-ef00-4852-84e3-2643534e5f2a",
+    "inmueble": "URB030924",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0de4de40-6ad1-49f4-a4bc-9f238f7e1d77",
+    "inmueble": "URB001737",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a186fc4b-ee5f-4810-a7fe-2bea71b27811",
+    "inmueble": "URB016105",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "61089bc2-d4cc-45d0-a8fe-b6927dc1c075",
+    "inmueble": "URB008439",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5324c55e-0729-44e1-a6ff-f08f1ae662fc",
+    "inmueble": "URB016535",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "80376a8a-a2ca-4183-993a-41cbd706ac03",
+    "inmueble": "URB003940",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "09461c83-b39c-4c05-9552-a129f2f2d0ca",
+    "inmueble": "URB004119",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "10c41009-4d4a-49b5-9d7d-68bac0c37d96",
+    "inmueble": "URB032308",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bf874fc0-4633-48eb-a938-c8025a8326c2",
+    "inmueble": "URB008195",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d3c79316-0c78-4b8a-bd07-75d1907e46b3",
+    "inmueble": "URB015180",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2566d39f-3798-4fda-9bb1-055a6f49df33",
+    "inmueble": "URB008196",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "459d80e8-404b-4b42-89f7-4e2923d14bc9",
+    "inmueble": "URB008199",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8aef39e9-3aed-4934-81aa-aca656fd0412",
+    "inmueble": "URB016989",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b612d697-d4cb-4142-bbc2-c9d316653301",
+    "inmueble": "URB006106",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d5e3e461-35ae-4388-9ca6-f37006dae916",
+    "inmueble": "URB034803",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f5afc230-a8f0-4bee-adb5-4b51d16d7166",
+    "inmueble": "URB034359",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dd364ea0-63cf-4ad8-b96c-9b58121a11bb",
+    "inmueble": "AURI000958",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7286ecf7-fea5-4232-80bf-fccb4078cc31",
+    "inmueble": "URB033514",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6c4d06e5-8fea-4628-aa05-9261f67bc577",
+    "inmueble": "URB002325",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f991cc7c-24d2-4b3a-85bb-0d59c43822a7",
+    "inmueble": "URB033469",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "91e96887-e01b-4c52-a71b-d34f55c88a25",
+    "inmueble": "URB034827",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "44104314-1910-483d-aed7-463007cc06eb",
+    "inmueble": "AURI006921",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a6c6e980-adef-479c-9dc9-74f0b2aec42c",
+    "inmueble": "AURI006885",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b96f9aee-6f50-4d47-89b1-f9aa1e5178a5",
+    "inmueble": "URB032701",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6f36187c-2787-46e7-ae60-da3a719322dc",
+    "inmueble": "URB032250",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "57afa8bc-6b7f-4f2d-a619-51c313fdae1f",
+    "inmueble": "AURI008021",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1f61efea-f7f9-45b7-8e96-42edac3b3b75",
+    "inmueble": "URB032536",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f66ef908-eab1-4067-8ce8-d25bc0d92529",
+    "inmueble": "URB005852",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "741eceae-c201-44d9-b9fd-7ea859e95fe8",
+    "inmueble": "AURI017676",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1cb094f4-bcf4-46ab-b72b-6f68363bfc0c",
+    "inmueble": "URB002428",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "269a5d73-b44c-4173-b802-93e8d218aca0",
+    "inmueble": "URB002200",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3aa9e6db-70c0-48cf-b917-ea9e4fea1630",
+    "inmueble": "URB002655",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "664d9eef-3c7d-4122-8212-be0d020cf617",
+    "inmueble": "URB002112",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "9df8948b-248e-4e40-8726-9592ded390ac",
+    "inmueble": "URB033273",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0dc842b3-e6fc-484f-8ba7-ce7ccffb138e",
+    "inmueble": "URB000614",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e5e3a84a-dbc3-499b-aa09-d50f005e9192",
+    "inmueble": "URB030447",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8a00fc5e-d316-4045-abd6-eea16764896d",
+    "inmueble": "URB008509",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ca3a5301-bb3c-47c0-8220-8a4ac8466c80",
+    "inmueble": "URB033167",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "154b7959-a5ae-4e3e-92e8-8579173819a9",
+    "inmueble": "URB007680",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8ac0c5bc-9b7b-447d-9e34-f8630f35d2b5",
+    "inmueble": "URB008544",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "00f9014e-d259-4c77-b632-0e3a81b5e81c",
+    "inmueble": "URB015862",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4b195bf4-7eb0-43b4-9e43-2c967619cb64",
+    "inmueble": "URB032058",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "97a34a04-a51b-49f0-9f37-a3e82fcafbed",
+    "inmueble": "URB034197",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dc31e58b-ff8c-4402-8967-6a15489b402a",
+    "inmueble": "URB032057",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c3d29d8b-acc6-43a9-bc85-f7ca53934bf6",
+    "inmueble": "URB008600",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "541ea894-2ece-47db-891f-1a9cfd722009",
+    "inmueble": "URB032546",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b562b7b1-f41f-4d68-9d80-6fdcf55774ff",
+    "inmueble": "URB004305",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a2e6bf89-ea2a-459c-8712-720b186f4fce",
+    "inmueble": "AURI003602",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "97f824ac-5371-4473-849a-a4a66102fbcd",
+    "inmueble": "URB034617",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "640987a4-8391-4594-abe1-f58bdc8bfc59",
+    "inmueble": "URB003582",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e3b0da20-ec09-4ff2-8feb-13315f6f498a",
+    "inmueble": "URB032711",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7e078eb6-473c-421c-93bc-6b71107746f0",
+    "inmueble": "URB006122",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "258e2ae7-0b63-4672-90da-620ba75cfbdf",
+    "inmueble": "URB033124",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bb19e3b9-251f-4f31-aec9-7edfffd2cd90",
+    "inmueble": "URB003034",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6de02b2e-9d5d-4f00-9451-504bd40a92bc",
+    "inmueble": "AURI003333",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d5243efd-71cf-4aec-9ccb-492312a886a3",
+    "inmueble": "URB008631",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "000460f3-755c-4cb5-b628-470ec68865ba",
+    "inmueble": "AURI003821",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e5b6ff71-14e0-41ab-a3e6-402947b0092b",
+    "inmueble": "URB006104",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1c01cb3d-1efc-4a52-a719-2fc1282e5ae5",
+    "inmueble": "AURI019050",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "8cb249ba-be66-4aac-a842-6639f320e49a",
+    "inmueble": "URB002550",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dfd8cdaf-8f7c-456f-a1e3-ed471cdc3893",
+    "inmueble": "URB015150",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e7b5494a-df48-4039-afec-c31be2531b4f",
+    "inmueble": "AURI002851",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "ba3fbaf0-a7dc-4b5b-ab03-9a9cccfab874",
+    "inmueble": "URB034142",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "177afc3e-638c-4d34-9a3a-a23909bb2807",
+    "inmueble": "URB035194",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "3ccb9237-2f12-457c-9f01-769e8fd60cc4",
+    "inmueble": "URB035111",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "2acab9cd-1e4a-4f1f-b59d-d6b93bd4e4ad",
+    "inmueble": "URB031868",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b66de55d-3aa6-4173-8859-71557eaf65ab",
+    "inmueble": "URB006783",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "07bfebf1-d793-4304-a6d3-af1887c4fc60",
+    "inmueble": "URB009366",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "175b4144-7391-42e4-bf5c-9bdcce6a24e1",
+    "inmueble": "URB008692",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "967071cb-2fb9-4999-8053-d862b5ec9170",
+    "inmueble": "URB008799",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "4ce8445c-4799-4dca-9d32-9e5ea0b8f40b",
+    "inmueble": "URB008183",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "81d442c2-4b76-4ffc-8b54-f5550151cc85",
+    "inmueble": "URB005319",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "dc2d3bbf-b8b9-4f0c-9b5f-3b9c235e43f7",
+    "inmueble": "AURI008464",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "d21dd2a3-f619-4da6-9d2b-e7fe33975d4d",
+    "inmueble": "URB034723",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b10b0c54-f632-4df1-8e5e-f5d7e9fbc052",
+    "inmueble": "URB006840",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e710a2cb-7073-4127-8eba-8942d75a8870",
+    "inmueble": "URB010414",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "78ed7721-e634-4378-b984-52aaaa11cf5b",
+    "inmueble": "URB033003",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "89996acc-f0f2-4572-8403-16a51379459f",
+    "inmueble": "AURI008604",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "0b6d6f9f-a75e-4213-b9f6-600060df111b",
+    "inmueble": "URB034831",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "87c10d32-ea5b-47c8-ae5d-aab557c38cc8",
+    "inmueble": "URB029224",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5107ba41-ccfb-4646-93e3-079c66aef061",
+    "inmueble": "URB032516",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "703d01ab-44be-4198-92ca-5a4f5387a859",
+    "inmueble": "URB033961",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "04a90e44-2864-429a-8e7e-9b68ca9e4ae5",
+    "inmueble": "URB015431",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bb51e760-b1a0-4fc9-9ac7-83e2cf680636",
+    "inmueble": "URB033529",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "46d2b340-b981-4ffc-be7b-879ccf661d5e",
+    "inmueble": "URB034168",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b5f5e5db-e97e-42d3-995a-dbd164f3ebe8",
+    "inmueble": "URB010409",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "f896c9eb-3385-4e20-931a-ef1c732bf200",
+    "inmueble": "URB033960",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e8816294-624a-46d2-bf6c-0b8812a979d3",
+    "inmueble": "URB033455",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "e4eccf1f-5f46-4c58-a760-7feda2082d28",
+    "inmueble": "URB001929",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "98a2063f-449b-46e2-ae64-762e98036874",
+    "inmueble": "URB032545",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "802e768e-a49f-4dc6-b18e-5473a96f11f0",
+    "inmueble": "URB008510",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "93c85878-3fc4-4563-a34e-b719f0d1f28a",
+    "inmueble": "URB008508",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "bea27b04-678d-4fdf-8113-5f743ccd6c92",
+    "inmueble": "URB035110",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c0082cf2-479b-4268-8cb2-8d868f97759b",
+    "inmueble": "URB034715",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b602eb64-8be9-4d30-8591-872633e5c022",
+    "inmueble": "URB002057",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "65bf28a5-526e-4296-bf18-0e389f856c41",
+    "inmueble": "URB004525",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "1d289e95-c988-41c8-89b2-614beb49b149",
+    "inmueble": "URB002338",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "c04b351d-531c-41c4-bd64-b84e3bdcc116",
+    "inmueble": "URB002584",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "22e8b6a4-9e1f-421c-9571-7f13d8244ffa",
+    "inmueble": "URB034447",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "6f1ce53a-f653-4bba-a17b-1bd7e58e7407",
+    "inmueble": "URB032329",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "be8548b3-ee2d-4110-953c-0de004ea6ee7",
+    "inmueble": "URB000415",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "a70cf3a4-49ca-4d53-a38e-8705635749ef",
+    "inmueble": "AURI002791",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "5b8d31e7-df52-4687-8aa1-0047b344d9cd",
+    "inmueble": "URB033018",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "7d204db6-deda-49c5-bced-a69ca34808b9",
+    "inmueble": "URB034777",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "63b2fcfc-6692-40cb-9877-eadd613e3848",
+    "inmueble": "URB034301",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "048491b0-89b7-49fe-85c4-9bdb7cdd6a21",
+    "inmueble": "URB010412",
+    "estado": "Inactivo"
+  },
+  {
+    "id": "b58413cc-e15f-4ea5-9b0f-ca0b08a884d7",
+    "inmueble": "URB007238",
+    "estado": "Inactivo"
+  }
+]

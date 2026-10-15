@@ -1598,59 +1598,85 @@ function ContribuyentesPageContent() {
       const term = serverSearchTerm.trim();
       const rawDigits = term.replace(/[^0-9]/g, '');
       const cleanPrefixTerm = term.replace(/[-\s]/g, '');
+      const isCodeFormat = /^(AURI|URB|[A-Z]{3,})\d+/i.test(term) || /^[A-Z]+\d+$/i.test(term);
 
-      // Generar condiciones OR para PostgREST
-      const inmsConds = [
-        `identidad.ilike.%${term}%`,
-        `inmueble.ilike.%${term}%`,
-        `contribuyente.ilike.%${term}%`
-      ];
-      if (rawDigits.length >= 4) {
-        inmsConds.push(`identidad.ilike.%${rawDigits}%`);
-      }
-      if (cleanPrefixTerm !== term && cleanPrefixTerm.length >= 3) {
-        inmsConds.push(`identidad.ilike.%${cleanPrefixTerm}%`);
-        inmsConds.push(`inmueble.ilike.%${cleanPrefixTerm}%`);
-      }
+      let allFoundInmuebles: any[] = [];
+      let contsData: any[] = [];
 
-      const contsConds = [
-        `identidad.ilike.%${term}%`,
-        `nombre.ilike.%${term}%`,
-        `email.ilike.%${term}%`
-      ];
-      if (rawDigits.length >= 4) {
-        contsConds.push(`identidad.ilike.%${rawDigits}%`);
-      }
-      if (cleanPrefixTerm !== term && cleanPrefixTerm.length >= 3) {
-        contsConds.push(`identidad.ilike.%${cleanPrefixTerm}%`);
-      }
-
-      const [{ data: inmsData, error: inmsError }, { data: contsData, error: contsError }] = await Promise.all([
-        supabase.from('inmuebles')
-          .select('*')
-          .or(inmsConds.join(','))
-          .limit(100),
-        supabase.from('contribuyentes')
-          .select('*')
-          .or(contsConds.join(','))
-          .limit(100)
-      ]);
-        
-      if (inmsError) throw inmsError;
-
-      // Si encontramos inmuebles, recopilar todas las identidades y buscar sus otros inmuebles vinculados
-      const identsSet = new Set<string>();
-      (inmsData || []).forEach((i: any) => { if (i.identidad) identsSet.add(i.identidad); });
-      (contsData || []).forEach((c: any) => { if (c.identidad) identsSet.add(c.identidad); });
-
-      let allFoundInmuebles = inmsData || [];
-      if (identsSet.size > 0 && identsSet.size <= 25) {
-        const { data: siblings } = await supabase
+      if (isCodeFormat) {
+        // Búsqueda específica por código de inmueble: SOLO traer ese código (y sus hijos si es matriz N/A)
+        const { data: inmsDirect, error: inmsErr } = await supabase
           .from('inmuebles')
           .select('*')
-          .in('identidad', Array.from(identsSet));
-        if (siblings && siblings.length > 0) {
-          allFoundInmuebles = siblings;
+          .or(`inmueble.ilike.%${term}%,padre_id.ilike.%${term}%`)
+          .limit(50);
+        if (inmsErr) throw inmsErr;
+
+        // Si el código buscado tiene hijos asociados por padre_id, traerlos para estructurar la matriz N/A
+        const matchedCodes = (inmsDirect || []).map((i: any) => i.inmueble).filter(Boolean);
+        let childInms: any[] = [];
+        if (matchedCodes.length > 0) {
+          const { data: cData } = await supabase
+            .from('inmuebles')
+            .select('*')
+            .in('padre_id', matchedCodes);
+          childInms = cData || [];
+        }
+
+        const existingSet = new Set((inmsDirect || []).map((i: any) => i.id));
+        allFoundInmuebles = [...(inmsDirect || [])];
+        childInms.forEach((c: any) => {
+          if (!existingSet.has(c.id)) {
+            allFoundInmuebles.push(c);
+            existingSet.add(c.id);
+          }
+        });
+      } else {
+        // Búsqueda por Cédula, RIF o Razón Social: "si busco por cedula o rif que salga todo"
+        const inmsConds = [
+          `identidad.ilike.%${term}%`,
+          `contribuyente.ilike.%${term}%`
+        ];
+        if (rawDigits.length >= 4) {
+          inmsConds.push(`identidad.ilike.%${rawDigits}%`);
+        }
+        if (cleanPrefixTerm !== term && cleanPrefixTerm.length >= 3) {
+          inmsConds.push(`identidad.ilike.%${cleanPrefixTerm}%`);
+        }
+
+        const contsConds = [
+          `identidad.ilike.%${term}%`,
+          `nombre.ilike.%${term}%`,
+          `email.ilike.%${term}%`
+        ];
+        if (rawDigits.length >= 4) {
+          contsConds.push(`identidad.ilike.%${rawDigits}%`);
+        }
+        if (cleanPrefixTerm !== term && cleanPrefixTerm.length >= 3) {
+          contsConds.push(`identidad.ilike.%${cleanPrefixTerm}%`);
+        }
+
+        const [{ data: inmsList, error: inmsError }, { data: cList, error: contsError }] = await Promise.all([
+          supabase.from('inmuebles').select('*').or(inmsConds.join(',')).limit(100),
+          supabase.from('contribuyentes').select('*').or(contsConds.join(',')).limit(100)
+        ]);
+        if (inmsError) throw inmsError;
+        contsData = cList || [];
+
+        // Si buscó por Cédula/RIF/Nombre, recopilar identidades y traer TODOS los inmuebles vinculados al titular
+        const identsSet = new Set<string>();
+        (inmsList || []).forEach((i: any) => { if (i.identidad) identsSet.add(i.identidad); });
+        (contsData || []).forEach((c: any) => { if (c.identidad) identsSet.add(c.identidad); });
+
+        allFoundInmuebles = inmsList || [];
+        if (identsSet.size > 0 && identsSet.size <= 25) {
+          const { data: siblings } = await supabase
+            .from('inmuebles')
+            .select('*')
+            .in('identidad', Array.from(identsSet));
+          if (siblings && siblings.length > 0) {
+            allFoundInmuebles = siblings;
+          }
         }
       }
       
@@ -1682,8 +1708,10 @@ function ContribuyentesPageContent() {
 
       sortedInms.forEach((row: any) => {
         const cod = row.inmueble || row.cod_cont;
-        const parentKey = row.padre_id ? row.padre_id : (row.condominio_padre_id ? row.condominio_padre_id : null);
-        const groupKey = parentKey || cod || row.id || row.identidad;
+        // Si el usuario buscó por un código que es un local hijo, no subsumirlo bajo el padre
+        const isSearchedChild = isCodeFormat && term.toUpperCase() === String(cod).toUpperCase();
+        const parentKey = isSearchedChild ? null : (row.padre_id ? row.padre_id : (row.condominio_padre_id ? row.condominio_padre_id : null));
+        const groupKey = isCodeFormat ? (isSearchedChild ? cod : (parentKey || cod)) : (parentKey || cod || row.id || row.identidad);
 
         if (groupKey && !mapResults.has(groupKey)) {
           const rowEstado = row.estado || 'Activo';
@@ -1709,16 +1737,21 @@ function ContribuyentesPageContent() {
         } else if (groupKey && mapResults.has(groupKey)) {
           const existing = mapResults.get(groupKey);
           existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
-          existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
+          // No duplicar deudas hijas si el contenedor matriz N/A ya contiene la deuda global de la unidad
+          const isNAParentUnit = existing.Actividad === 'N/A' || row.actividad_principal === 'N/A';
+          if (!isNAParentUnit) {
+            existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
+          } else {
+            existing.DeudaMMV = Math.max(existing.DeudaMMV || 0, parseFloat(row.deuda_mmv || 0));
+          }
           existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
           existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * 57 * tcmmv));
           const rowEstado = row.estado || 'Activo';
           if (rowEstado === 'Activo') {
             existing.Estado = 'Activo';
-            if (row.actividad_principal) existing.Actividad = row.actividad_principal;
           }
           existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
-          if (cod && !existing.CodCont.includes(cod)) {
+          if (!isCodeFormat && cod && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
           }
           mapResults.set(groupKey, existing);

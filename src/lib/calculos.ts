@@ -287,7 +287,7 @@ export const calcularMensualidad = (
     // REGLA N/A: un registro "N/A" no tiene actividad propia; su tarifa es la SUMA de sus actividades
     // (que se cobran en sus propios registros). Si no tiene tarifa guardada válida, NO se cobra nada
     // (nunca aplicar el F.O. por defecto 1.98 a un N/A).
-    const esNAInm = actividad.trim().toUpperCase() === 'N/A' &&
+    const esNAInm = (actividad.trim().toUpperCase() === 'N/A' || /^(N\/?A|NA|NINGUNA|SIN ACTIVIDAD|-)$/i.test(actividad.trim())) &&
       !(typeof clasificacionOrInm === 'object' && clasificacionOrInm?.es_condominio === true);
     if (esNAInm && !(mmv !== undefined && mmv >= 1.54)) return 0;
     // Comercial / Industrial / Institucional:
@@ -314,8 +314,17 @@ export const calcularMensualidad = (
     baseCalculada = fo * 57 * tasa * 0.1280;
   }
 
+  // REGLA CRÍTICA N/A:
+  // En las matrices N/A o inmuebles que agrupan locales comerciales, el valor mmv_mes ya representa
+  // la sumatoria exacta de las actividades de todos sus locales. Por lo tanto, la cantidad para el cálculo
+  // de la mensualidad SIEMPRE debe ser 1 (nunca triplicar ni multiplicar la sumatoria por cant_inmuebles).
+  const esNA = (actividad.trim().toUpperCase() === 'N/A' || /^(N\/?A|NA|NINGUNA|SIN ACTIVIDAD|-)$/i.test(actividad.trim())) &&
+    !(typeof clasificacionOrInm === 'object' && clasificacionOrInm?.es_condominio === true);
+  const esMatrizNAParent = typeof clasificacionOrInm === 'object' && (clasificacionOrInm?.isNAParent || esNA);
+  const cantidadFinal = esMatrizNAParent ? 1 : Math.max(1, cantidad);
+
   // Multiplicamos por la cantidad de inmuebles
-  return baseCalculada * Math.max(1, cantidad);
+  return baseCalculada * cantidadFinal;
 };
 
 /**

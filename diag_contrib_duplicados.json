@@ -1,0 +1,6454 @@
+[
+  [
+    {
+      "id": "f48a335d-5841-45b0-ad8d-437ed044a1de",
+      "identidad": "V-81197069",
+      "nombre": "HELMUT GROSSE PALENCIA",
+      "created_at": "2026-09-30T23:06:45.554648+00:00"
+    },
+    {
+      "id": "45e2284b-4ea2-4f4c-99e7-efe6448aad8e",
+      "identidad": "E-81197069",
+      "nombre": "HELMUT GROSSE PALENCIA",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "6195c82e-0c2a-4424-b285-a9519c4beff8",
+      "identidad": "V-18207970",
+      "nombre": "LUIS MIGUEL MOLINA SANCHEZ",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "c6d45865-e70d-419d-ab96-9bea48a065d3",
+      "identidad": "V-018207970",
+      "nombre": "LUIS MIGUEL MOLINA SANCHEZ",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "70f4a3f7-3589-463d-bd1a-3866197eae86",
+      "identidad": "V-1140688",
+      "nombre": "ISAZA LOBANA JORGE",
+      "created_at": "2026-09-30T23:06:42.142777+00:00"
+    },
+    {
+      "id": "3d76da23-fd1a-43a1-bebe-ff236a4cc530",
+      "identidad": "E-1140688",
+      "nombre": "ISAZA LOBANA JORGE",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a6cc9efc-ac4c-4c7b-87f1-ece117225275",
+      "identidad": "E-822468783",
+      "nombre": "HUANSHEN CEN (COMERCIAL DE YONG)",
+      "created_at": "2026-09-22T01:49:39.943774+00:00"
+    },
+    {
+      "id": "b5c68e02-30a2-4d25-b989-082037c3abbc",
+      "identidad": "V-822468783",
+      "nombre": "HUANSHEN CEN (COMERCIAL DE YONG)",
+      "created_at": "2026-09-30T23:06:54.189632+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b063f08f-5965-4b43-a7a1-d7b844ff7968",
+      "identidad": "E-802111",
+      "nombre": "GIUSEPPE ABBONDANDOLO",
+      "created_at": "2026-10-06T15:21:03.108828+00:00"
+    },
+    {
+      "id": "522e723d-45d7-49f3-a10b-ab8e7c55c8ef",
+      "identidad": "802111",
+      "nombre": "GIUSEPPE ABBONDANDOLO",
+      "created_at": "2026-10-05T19:39:36.171009+00:00"
+    }
+  ],
+  [
+    {
+      "id": "08b7e6ea-b4d6-46b2-b13a-9566d6124c17",
+      "identidad": "E-81632174",
+      "nombre": "DIB RAZOUK YACOB",
+      "created_at": "2026-09-22T01:49:36.648443+00:00"
+    },
+    {
+      "id": "d570d54b-9a78-4fa5-b8cf-903e5ddfab86",
+      "identidad": "V-81632174",
+      "nombre": "DIB RAZOUK YACOB",
+      "created_at": "2026-09-30T23:07:01.503941+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5f7c025f-593a-41b9-8b0c-79879f9fdd08",
+      "identidad": "E-822779126",
+      "nombre": "JIN HUA HU (CHINESSE CUISINE)",
+      "created_at": "2026-09-22T01:49:36.648443+00:00"
+    },
+    {
+      "id": "45275e8d-e79d-4270-b8a0-fe07a69f33a1",
+      "identidad": "V-822779126",
+      "nombre": "JIN HUA HU (CHINESSE CUISINE)",
+      "created_at": "2026-09-30T23:06:52.594228+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3c40cff2-9238-4954-a01e-a440265e508b",
+      "identidad": "E-81241643",
+      "nombre": "JOSE LUIS GONCALVES RIVEIRO",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "834cef5a-5770-41cb-9dcd-0245436ed792",
+      "identidad": "V-81241643",
+      "nombre": "JOSE LUIS GONCALVES RIVEIRO PORTUGUES",
+      "created_at": "2026-09-30T23:07:04.414323+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5ad2076a-b958-4e82-950d-3bf1c0536077",
+      "identidad": "V-6396089",
+      "nombre": "DELGADO NELSON",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "1bc8b3e5-49d8-4dcc-906b-17d001b6a1aa",
+      "identidad": "V-06396089",
+      "nombre": "NELSON JESUS DELGADO LEON",
+      "created_at": "2026-09-30T23:07:01.271806+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2647f73e-be4e-46a6-ae54-ffd3cf80d531",
+      "identidad": "E-784073",
+      "nombre": "URSULA ELSE ENGELBERTZ DE THIELEN Y HARALD SIMON THIELEN ENGELBERTZ",
+      "created_at": "2026-09-22T01:49:36.648443+00:00"
+    },
+    {
+      "id": "e3b324a7-f389-4998-9270-25cc9b01d499",
+      "identidad": "V-784073",
+      "nombre": "URSULA ELSE ENGELBERTZ DE THIELEN Y HARALD SIMON THIELEN ENGELBERTZ",
+      "created_at": "2026-09-30T23:06:44.219764+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3c25b892-7272-483e-9947-171c51f5031c",
+      "identidad": "E-81710107",
+      "nombre": "JACK DEBORAH DEADRIE Y JACK JACK DEBORAH",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "4b9b9337-9d60-45a4-929d-03fcae2e94a4",
+      "identidad": "V-81710107",
+      "nombre": "JACK DEBORAH DEADRIE Y JACK JACK DEBORAH",
+      "created_at": "2026-09-30T23:06:56.259584+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d4da0111-38b1-4b10-9fd9-fe6adee19bfd",
+      "identidad": "E-81334343",
+      "nombre": "FERNANDA DE FARIA",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "a67d5ca6-50ae-432c-abb2-3bda2d88d63a",
+      "identidad": "V-81334343",
+      "nombre": "FERNANDA DE FARIA",
+      "created_at": "2026-09-30T23:06:56.259584+00:00"
+    }
+  ],
+  [
+    {
+      "id": "483b297e-7807-4a09-a81a-8aa25a9e447d",
+      "identidad": "J-90125477",
+      "nombre": "CONSTRUCCIONES Y SERVICIOS, C.A. COYSERCA.",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "a9159214-a3cc-4b21-802f-00f50176217f",
+      "identidad": "J-090125477",
+      "nombre": "CONSTRUCCIONES Y SERVICIOS, C.A. (COYSERCA)",
+      "created_at": "2026-09-22T01:49:38.626932+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d24e52b9-3a2a-4b41-b452-d156921ccec8",
+      "identidad": "V-81955846",
+      "nombre": "BRIGIDA CUNHA",
+      "created_at": "2026-09-30T23:06:43.96991+00:00"
+    },
+    {
+      "id": "96f305bf-97d4-4651-8e44-18ffecd9bc63",
+      "identidad": "E-81955846",
+      "nombre": "BRIGIDA CUNHA",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    }
+  ],
+  [
+    {
+      "id": "77ab2001-48c9-4d5f-9fbb-b214bad51a5b",
+      "identidad": "V-07092587",
+      "nombre": "BERNANDINO SEVERINO ALFONZO",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "16aec4bb-67e2-403d-9b35-82b603c30795",
+      "identidad": "V-7092587",
+      "nombre": "BERNARDINO  SEVERINO ALFONZO",
+      "created_at": "2026-09-22T01:49:39.573976+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4b560a15-57b5-4040-9f9f-c596b4ce2ccc",
+      "identidad": "0000000-AURI011820",
+      "nombre": "BLAS PENA",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "21459ca7-5f43-495b-a423-d2d187208a44",
+      "identidad": "000000000-URB011820",
+      "nombre": "PINTO OJEDA DIDIMO ALBERTO",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    }
+  ],
+  [
+    {
+      "id": "33b8a7a4-3e87-4b2d-a87c-2f431f7a111b",
+      "identidad": "00000000-AURI017799",
+      "nombre": "DANIEL ENRIQUE VALERO MARQUEZ",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "c93cab7b-363f-4a4f-a548-c6e859650e39",
+      "identidad": "V-17799",
+      "nombre": "EUGENIO RUIZ",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "56123afc-e70f-4c94-bef7-459bd244e8fd",
+      "identidad": "0000000-URB019332",
+      "nombre": "YAKARY SEIJAS",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "dbd7ae54-c29e-45a6-84aa-81f69a4e2f1a",
+      "identidad": "V-19332",
+      "nombre": "SUCESION INES MARIA HIDALGO DE FONSECA",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ff4447e2-5b36-416b-ab5d-a9bd67dccd05",
+      "identidad": "00-URB014359",
+      "nombre": "DE RAMIREZ GLAMIR",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "0f097ae5-a123-4baf-9c36-d52c296916ba",
+      "identidad": "0000-AURI014359",
+      "nombre": "SEGUNDO GONZALEZ",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    }
+  ],
+  [
+    {
+      "id": "531e8bcf-a11a-4a97-af59-f6a3b2abbbff",
+      "identidad": "00-URB013033",
+      "nombre": "CORREA MEDINA ERNESTO JOSE",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "2f474c7f-e32a-401b-916f-45564ee4031b",
+      "identidad": "AURI013033",
+      "nombre": "SONIA BRACAMONTE",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    }
+  ],
+  [
+    {
+      "id": "51e5a6d9-2b1a-41de-afde-7b84faaa567d",
+      "identidad": "E-84997894",
+      "nombre": "ELIZABETH RAMIREZ RUIZ",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "86d939c4-941a-4e49-8736-ab7455d7f703",
+      "identidad": "V-84997894",
+      "nombre": "ELIZABETH RAMIREZ RUIZ",
+      "created_at": "2026-09-30T23:06:59.69602+00:00"
+    }
+  ],
+  [
+    {
+      "id": "36113ab1-c31e-4df8-90e0-678168409982",
+      "identidad": "E-24637222",
+      "nombre": "ROMAN RAUL",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "55107414-d367-408d-a3d3-9985066f9d40",
+      "identidad": "V-24637222",
+      "nombre": "ROMAN RAUL",
+      "created_at": "2026-09-30T23:06:59.69602+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3fb32fb1-0178-46dc-8fb9-823dd8555bd4",
+      "identidad": "E-81100762",
+      "nombre": "ROBERTO MORELLI STEFANINI",
+      "created_at": "2026-09-22T01:49:40.32122+00:00"
+    },
+    {
+      "id": "d0eb099a-35ae-4b3c-9572-98f68b8c7445",
+      "identidad": "V-81100762",
+      "nombre": "ROBERTO MORELLI STEFANINI",
+      "created_at": "2025-11-25T10:18:00+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4f88d6be-9be7-4b4f-b8da-700e413e18d2",
+      "identidad": "E-310304769",
+      "nombre": "CONDOMINIO CONJ RES  TERRAZAS DE MAÑONGO (TORRE 1)",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "f2a97493-5f1f-4f16-894a-9bcbb6eb9f66",
+      "identidad": "J-310304769",
+      "nombre": "CONDOMINIO TORRE 3",
+      "created_at": "2026-09-22T01:49:38.265961+00:00"
+    }
+  ],
+  [
+    {
+      "id": "97dfa7f6-ac5b-4b6a-b2b9-f108eba28254",
+      "identidad": "AURI013044",
+      "nombre": "LEOPOLDO JELAMBI",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "40da7f53-e8c8-4900-9a1d-df039a82a5a3",
+      "identidad": "00-URB013044",
+      "nombre": "MARGARITA RIVAS DE MONTOYA",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    }
+  ],
+  [
+    {
+      "id": "82766c90-6678-46f3-8d4a-76e624a1597f",
+      "identidad": "AURI012597",
+      "nombre": "MARIA NUNES",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "51b8309d-4181-4288-a911-db55f7b666ca",
+      "identidad": "00-URB012597",
+      "nombre": "MERCEDES ELENA ANTICH DE SALVATI",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    }
+  ],
+  [
+    {
+      "id": "0ab86535-9e73-4920-9580-6aa314384f17",
+      "identidad": "000000000-URB011792",
+      "nombre": "DE MA ADRIAN ZULLY",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "a7626b52-e76e-4c25-bc08-38ee95429c05",
+      "identidad": "0000000-AURI011792",
+      "nombre": "DAISY OLIVO",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    }
+  ],
+  [
+    {
+      "id": "fc66eb04-6431-4fea-8c37-d345629f5df8",
+      "identidad": "AURI012409",
+      "nombre": "JUAN PABLO PEREZ",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "6138f861-b91a-4781-9719-82244b268bd1",
+      "identidad": "000000000-URB012409",
+      "nombre": "CURE VALBUENA JORGE LUIS",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    }
+  ],
+  [
+    {
+      "id": "94517197-8bc7-4dcf-8ee8-d3d011a09fd4",
+      "identidad": "0000-AURI014323",
+      "nombre": "LISBETH MUJICA",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "44c908f0-4048-43aa-b47d-38d188bd3728",
+      "identidad": "000000000-URB014323",
+      "nombre": "KARELVIS DE LOZANO",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    }
+  ],
+  [
+    {
+      "id": "fe497e20-075f-4da1-ac20-d17c0bfa6abd",
+      "identidad": "V-83214076",
+      "nombre": "LIMEI LIANG",
+      "created_at": "2026-09-30T23:06:44.745645+00:00"
+    },
+    {
+      "id": "5ed205b2-f44a-49f1-92c9-bf1ac74e077c",
+      "identidad": "E-83214076",
+      "nombre": "LIMEI LIANG",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    }
+  ],
+  [
+    {
+      "id": "15174d08-1c2b-4b9e-bb88-6ccee7742535",
+      "identidad": "000000000-URB011795",
+      "nombre": "DOMINGUEZ ARIAS MILAGROS OCARINA",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "6c309fac-b0f7-42a7-9f2e-385056ef06a5",
+      "identidad": "0000000-AURI011795",
+      "nombre": "RAFAEL MORALES",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    }
+  ],
+  [
+    {
+      "id": "024ce3df-6e11-4b3c-b3b3-425e523b1598",
+      "identidad": "0000-AURI017801",
+      "nombre": "RAFAEL PARRA",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "59cbeedb-6244-4a29-8f5c-881bf40e57b1",
+      "identidad": "V-17801",
+      "nombre": "DINORA PEREZ",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7ab4f091-b63b-424a-a0ec-505cfd0260d7",
+      "identidad": "E-8841232",
+      "nombre": "CLAUDIO DE FRENZA",
+      "created_at": "2026-09-22T01:49:40.131807+00:00"
+    },
+    {
+      "id": "1cef6e6d-1e60-4da6-b094-a4ef470d3337",
+      "identidad": "V-8841232",
+      "nombre": "CLAUDIO DE FRENZA",
+      "created_at": "2026-09-22T01:49:37.45501+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9e99cb85-4d5a-443f-bc87-a7b7836a734f",
+      "identidad": "000000000-URB021233",
+      "nombre": "GOMEZ M ODILA",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "595386ea-cbfe-4045-99b9-73eecebbe878",
+      "identidad": "V-21233",
+      "nombre": "WILLIAN CHACON",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "850764a8-a429-459d-9ef8-8882442bf680",
+      "identidad": "AURI018540",
+      "nombre": "GUSTAVO CAMACHO",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "1cc04a86-bea9-4e20-b71d-1368974c006c",
+      "identidad": "V-18540",
+      "nombre": "ANA MARIA LOYO",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    }
+  ],
+  [
+    {
+      "id": "596c60ba-9867-465d-bb15-19d6ec371c24",
+      "identidad": "E-881489",
+      "nombre": "ISIDORO BRACCHITTA ARESTIA",
+      "created_at": "2026-09-22T01:49:38.455+00:00"
+    },
+    {
+      "id": "4ebe17ad-d208-454a-a8fc-4c5075f7df2c",
+      "identidad": "V-881489",
+      "nombre": "ISIDORO BRACCHITTA ARESTIA",
+      "created_at": "2026-09-30T23:06:42.924128+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8de4603b-9278-4697-b374-d9ea48142148",
+      "identidad": "V-81391737",
+      "nombre": "LINEY MARIA LOPEZ LOPEZ",
+      "created_at": "2026-09-30T23:06:42.142777+00:00"
+    },
+    {
+      "id": "a2325ff0-ecc3-40f5-b62f-96c2351f3882",
+      "identidad": "E-81391737",
+      "nombre": "LINEY MARIA LOPEZ LOPEZ",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2502927b-b6a9-4544-8cee-f4c7aa18a124",
+      "identidad": "V-84418797",
+      "nombre": "JEAN CARLOS OREJARENA NARANJO",
+      "created_at": "2026-09-30T23:06:42.924128+00:00"
+    },
+    {
+      "id": "3e8a65d3-cdbd-466b-a9b5-13479a13a058",
+      "identidad": "E-84418797",
+      "nombre": "JEAN CARLOS OREJARENA NARANJO",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3d4f8a28-0db5-4fa3-8b6e-adb29831d251",
+      "identidad": "URB016654",
+      "nombre": "LOCAL DESOCUPADO",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "9094804d-84d7-4e26-97d3-e25365002165",
+      "identidad": "V-16654",
+      "nombre": "MATILDE PIETRI",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1ad6d120-82ff-4a48-bab3-643b4b85bad5",
+      "identidad": "V-81958994",
+      "nombre": "MARCIA ANDREA PESTANA DO VALE DE TARHAN",
+      "created_at": "2026-09-30T23:03:58.004469+00:00"
+    },
+    {
+      "id": "ea6be7c3-77d1-477a-9c17-d9a8a08e5be9",
+      "identidad": "E-81958994",
+      "nombre": "MARCIA ANDREA PESTANA DO VALE DE TARHAN",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "56462d6c-071d-4f7f-ab17-7a2d2ef25ae3",
+      "identidad": "V-81394817",
+      "nombre": "MANUEL  JARDIM SOUSA DOS SANTOS Y MARIA LOURDES MENDES DE GOUVEIA",
+      "created_at": "2026-09-30T23:06:42.142777+00:00"
+    },
+    {
+      "id": "3d9b3cd1-e079-4e85-a5d9-239ebe5f9845",
+      "identidad": "E-81394817",
+      "nombre": "MANUEL  JARDIM SOUSA DOS SANTOS Y MARIA LOURDES MENDES DE GOUVEIA",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9040ba2e-d0d7-4ce2-8d80-c68ddb31231b",
+      "identidad": "V-8596000",
+      "nombre": "MARIA DIAZ",
+      "created_at": "2026-09-22T01:49:38.265961+00:00"
+    },
+    {
+      "id": "8befc8f5-5d58-4da8-906d-829b369bd9bf",
+      "identidad": "V-08596000",
+      "nombre": "MARIA DE NOGUEIRAS",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7280d754-350c-4562-a1ab-ec4556fbb022",
+      "identidad": "000000-AURI017798",
+      "nombre": "HERNANDEZ OSCAR",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "e195316e-1c3c-4a4d-84bb-fbcdf5833aa1",
+      "identidad": "V-17798",
+      "nombre": "RAFAEL ESCALONA",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "fe0cdcb3-1ad2-4176-b838-a33336265bf2",
+      "identidad": "V-81044162",
+      "nombre": "JUAN JOSE PEREZ SOSA",
+      "created_at": "2026-09-22T01:49:40.131807+00:00"
+    },
+    {
+      "id": "a9b8c6b4-dc1d-4b90-96f0-3ca917d20dfa",
+      "identidad": "E-81044162",
+      "nombre": "JUAN JOSE PEREZ SOSA",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a0a14268-80a2-489b-8e41-987a15483375",
+      "identidad": "J-299607428",
+      "nombre": "16-RESIDENCIAS COSTA NORTE",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "6d27b311-b753-4876-a482-544b61aebdae",
+      "identidad": "E-299607428",
+      "nombre": "12-RESIDENCIAS COSTA NORTE",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    }
+  ],
+  [
+    {
+      "id": "806fb343-6120-4265-8e15-2b15f01b4bf8",
+      "identidad": "J-400910935",
+      "nombre": "4-CONDOMINIO VILLAS MAGDALA",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "575ad349-3862-466c-9e29-664386f7fce4",
+      "identidad": "E-400910935",
+      "nombre": "4-CONDOMINIO VILLAS MAGDALA",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ba4f3ddf-3668-425c-ab2b-0ac1080c7a8c",
+      "identidad": "00-URB020610",
+      "nombre": "EVELYN FIGUEROA",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "4788c45a-4cf6-4ca1-9a1e-bd2bf1054a33",
+      "identidad": "V-20610",
+      "nombre": "ADRIANA RODRIGUEZ",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e5bf10a6-20f7-407b-9e4f-a40ae28ed3e0",
+      "identidad": "00-URB016604",
+      "nombre": "LOCAL DESOCUPADO",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "d241b5aa-3bf3-473a-9ff1-1fc84954a71d",
+      "identidad": "V-16604",
+      "nombre": "MARCEL WALTER",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7204ef6e-9a68-445c-afc4-f8a28a87c52f",
+      "identidad": "00000000-URB016658",
+      "nombre": "YOGA PILATES MAT 89",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "a47e229b-9afb-4bae-b5fc-23182d7beca5",
+      "identidad": "V-16658",
+      "nombre": "NORA JAIMES",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    }
+  ],
+  [
+    {
+      "id": "00b2c59c-fd97-4865-99a7-e31f00a208a5",
+      "identidad": "V-81725330",
+      "nombre": "MANUEL ESTEBAN HERNANDEZ LOPEZ",
+      "created_at": "2026-09-30T23:04:22.991676+00:00"
+    },
+    {
+      "id": "22900b31-4de7-45c1-a6fb-19b86696be1b",
+      "identidad": "E-81725330",
+      "nombre": "MANUEL ESTEBAN HERNANDEZ LOPEZ",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    }
+  ],
+  [
+    {
+      "id": "62551b24-7179-4639-bbf2-dac830ec28c8",
+      "identidad": "E-81790663",
+      "nombre": "XIANG YONG FANG DE FUNG",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "02255848-2ded-4fea-b341-61482046e7c9",
+      "identidad": "V-81790663",
+      "nombre": "XIANG YONG FANG DE FUNG",
+      "created_at": "2026-09-22T01:49:38.990393+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2444b2ef-1d81-42fd-9d0c-14e8585a99c2",
+      "identidad": "V-08689039",
+      "nombre": "RONALD EDUARDO OJEDA TOVAR (MANTENIMIENTO DE PATENTE)",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "634fba38-182b-4623-a453-606505f55517",
+      "identidad": "V-8689039",
+      "nombre": "RONALD EDUARDO OJEDA TOVAR Y YIPCIA DEL VALLE MATUTE ROMERO",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8c45e215-8aa5-4346-969d-fa9946d2baac",
+      "identidad": "G-200000040",
+      "nombre": "MINISTERIO DEL PODER POPULAR PARA LA DEFENSA (PROGRAMA I)",
+      "created_at": "2026-09-22T01:49:38.626932+00:00"
+    },
+    {
+      "id": "023b04b3-87ef-40a2-bc07-724e98ea2a71",
+      "identidad": "V-200000040",
+      "nombre": "MINISTERIO DEL PODER POPULAR PARA LA DEFENSA (PROGRAMA I)",
+      "created_at": "2026-09-30T23:06:48.943024+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7ca512aa-604d-474c-9d7d-6e35aa50cfc8",
+      "identidad": "J-298028599",
+      "nombre": "54-CONJUNTO RESIDENCIAL FLAMBOYANT",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "ab6e3b76-72c7-4a6f-9afc-276033efa96e",
+      "identidad": "E-298028599",
+      "nombre": "53-CONJUNTO RESIDENCIAL FLAMBOYANT",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    }
+  ],
+  [
+    {
+      "id": "84a07fda-749f-4930-9e42-1413eb8d895f",
+      "identidad": "J-309159852",
+      "nombre": "80-CONDOMINIO CONJ. RESID. VALLE REAL",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "76cd1acb-d429-4c7e-af6a-892dfd84dbf3",
+      "identidad": "E-309159852",
+      "nombre": "CONDOMINIO CONJ. RESID. VALLE REAL",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a21f5529-96e9-46ad-85fd-333161c5bdd4",
+      "identidad": "J-310640483",
+      "nombre": "69-CONDOMINIO PARQUE COROMILA",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "b4bf0482-a34b-42e0-b731-a1120349221d",
+      "identidad": "E-310640483",
+      "nombre": "55-CONDOMINIO PARQUE COROMILA",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2152394a-9637-4a4b-8154-cb2c1f047920",
+      "identidad": "00-URB020632",
+      "nombre": "MARI CARMEN PEREZ",
+      "created_at": "2026-10-10T17:08:28.995808+00:00"
+    },
+    {
+      "id": "4803607e-3ca9-4b06-ad8e-0a215f24c076",
+      "identidad": "V-20632",
+      "nombre": "VILMA DE RODRÍGUEZ",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c5ae2dd1-7765-46af-a2ed-b7c216c7475a",
+      "identidad": "G-200023112",
+      "nombre": "MINISTERIO DEL PODER POPULAR PARA LA AGRICULTURA Y TIERRAS",
+      "created_at": "2026-09-22T01:49:40.131807+00:00"
+    },
+    {
+      "id": "b4b00b2e-95a8-4915-8509-655a3d820fe6",
+      "identidad": "V-200023112",
+      "nombre": "MINISTERIO DEL PODER POPULAR PARA LA AGRICULTURA Y TIERRAS",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9678ae58-a14a-4403-9fad-52d26633baf6",
+      "identidad": "G-200036923",
+      "nombre": "INSTITUTO DE PREVISION SOCIAL DE LAS FUERZAS ARMADAS NACIONALES, (I.P.S.F.A.)",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "22fc015f-3c10-487a-bd9a-60e464735cf6",
+      "identidad": "V-200036923",
+      "nombre": "INSTITUTO DE PREVISION SOCIAL DE LAS FUERZAS ARMADAS NACIONALES, (I.P.S.F.A.)",
+      "created_at": "2026-09-30T23:06:44.219764+00:00"
+    }
+  ],
+  [
+    {
+      "id": "27c38125-ba3b-4595-a49d-e4c5e45ee9cd",
+      "identidad": "J-7091762",
+      "nombre": "TERESA CORRALES DE NUNES",
+      "created_at": "2026-10-10T18:47:53.828255+00:00"
+    },
+    {
+      "id": "205d3cf6-cd97-4185-aa55-7522d26f0393",
+      "identidad": "V-7091762",
+      "nombre": "TERESA CORRALES DE NUNES",
+      "created_at": "2026-10-10T18:47:53.828255+00:00"
+    }
+  ],
+  [
+    {
+      "id": "97b0b65f-dd99-480e-8e6e-e9ff6d1a2e52",
+      "identidad": "G-200051876",
+      "nombre": "BANCO DEL TESORO, C.A.  BANCO UNIVERSAL",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "5307eb8c-b83d-43e8-8854-a3118d954a48",
+      "identidad": "V-200051876",
+      "nombre": "BANCO DEL TESORO, C.A.  BANCO UNIVERSAL",
+      "created_at": "2026-09-30T23:07:06.516697+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4f6cfe1b-c12a-4446-81be-47c374649104",
+      "identidad": "G-200091487",
+      "nombre": "BANCO DIGITAL DE LOS TRABAJADORES, BANCO UNIVERSAL, C.A.",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "994f42ca-59a5-4e67-b3f3-20c6782093d4",
+      "identidad": "J-200091487",
+      "nombre": "BANCO DIGITAL DE LOS TRABAJADORES, BANCO UNIVERSAL, C.A.",
+      "created_at": "2026-09-30T23:07:06.516697+00:00"
+    }
+  ],
+  [
+    {
+      "id": "fd3a4ff7-333a-4687-ac6f-5cb0425ed9f2",
+      "identidad": "J-298952016",
+      "nombre": "27-CONJ. RESID. Y COMERCIAL GUAYABAL GARDEN",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "44eb370f-9923-4fa7-bedb-12f5ddd192c0",
+      "identidad": "E-298952016",
+      "nombre": "7-CONJ. RESID. Y COMERCIAL GUAYABAL GARDEN",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    }
+  ],
+  [
+    {
+      "id": "591b820b-d909-4c9f-8ea5-00718fef6faf",
+      "identidad": "J-306600515",
+      "nombre": "39-COND RESIDENCIAS MANGO S SUITE",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "93535937-a4a3-4962-8918-344246d97f92",
+      "identidad": "G-306600515",
+      "nombre": "13-COND RESIDENCIAS MANGO S SUITE",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b9e3cbbd-2026-4d47-947e-08e76e0bed2e",
+      "identidad": "V-84546254",
+      "nombre": "WING MAN VIVIAN CARON, JNNY ZHAN FENG",
+      "created_at": "2026-10-03T17:35:11.459791+00:00"
+    },
+    {
+      "id": "47ff4fa1-0b79-4504-a5c4-49e7a0c9ed86",
+      "identidad": "E-84546254",
+      "nombre": "WING MAN VIVIAN CARON CHAN, JONNY ZHANG FENG",
+      "created_at": "2026-10-03T17:35:11.459791+00:00"
+    }
+  ],
+  [
+    {
+      "id": "396f04e5-6d2a-47d4-bc9b-b1aa6305f1a7",
+      "identidad": "V-07140995",
+      "nombre": "PAULA ROSIRI TORRES GOMEZ, OSCAR ALFREDO",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "f801d82b-9302-4bce-a180-df5edb24d2e8",
+      "identidad": "V-7140995",
+      "nombre": "PAULA ROSIRI TORRES GOMEZ Y CARLOS ARTURO RAMIREZ ROA",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1ae75ef4-275b-4be0-b6c4-bb3363981bd9",
+      "identidad": "V-7682344",
+      "nombre": "MARIA SILVIA SALAS",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "70e76958-6cbf-48d5-b990-6ea726f162f2",
+      "identidad": "V-07682344",
+      "nombre": "LUIS DE LA COVA",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f22e0d9a-bfb0-409a-9816-b86e606dfa95",
+      "identidad": "V-3850722",
+      "nombre": "LUIS BERBIN",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "5f103bfe-c745-49f6-837b-9990e6bde936",
+      "identidad": "V-03850722",
+      "nombre": "LUIS RODRIGUEZ",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    }
+  ],
+  [
+    {
+      "id": "df2e3a2f-3e7c-4e66-933d-a5f40a63dc28",
+      "identidad": "V-4862847",
+      "nombre": "NORMA OMAIRA PIÑERO DE TANGARI",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "4d5ae66e-3af4-4bbb-9cc6-dcd23826e0ee",
+      "identidad": "V-04862847",
+      "nombre": "NORMA OMAIRA PI�ERO DE TANCARI",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    }
+  ],
+  [
+    {
+      "id": "91ce7cbb-ec94-4351-ba7f-5d74a8164205",
+      "identidad": "V-3924783",
+      "nombre": "HEBERTO   MARQUEZ RINCON Y JACK ADOLFO ORTIZ GOMEZ",
+      "created_at": "2026-09-22T01:49:37.45501+00:00"
+    },
+    {
+      "id": "fc6b0843-ebe1-4bef-8446-8208431780c8",
+      "identidad": "V-03924783",
+      "nombre": "HEBERTO RINCON",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f7c39fde-ca40-429e-949d-e6043e5b0ab8",
+      "identidad": "J-309019147",
+      "nombre": "18-CONDOMINIO CONJUNTO RESID TENNIS GARDEN TORRE A",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "292e6091-5f35-4ab0-9188-4290d306dcb1",
+      "identidad": "E-309019147",
+      "nombre": "18-CONDOMINIO CONJUNTO RESID TENNIS GARDEN TORRE A",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    }
+  ],
+  [
+    {
+      "id": "12e58626-524d-458f-8180-9a5bb66bbc63",
+      "identidad": "G-200054549",
+      "nombre": "FUNDACION CARABOBEÑA PARA EL DESARROLLO DEL DEPORTE",
+      "created_at": "2026-09-22T01:49:39.943774+00:00"
+    },
+    {
+      "id": "159959e0-48fb-453f-ae7d-47a1b6509aba",
+      "identidad": "V-200054549",
+      "nombre": "FUNDACION CARABOBEÑA PARA EL DESARROLLO DEL DEPORTE",
+      "created_at": "2026-09-30T23:07:06.516697+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8b7f3da0-b6a8-4264-9b9a-339a150d5df0",
+      "identidad": "E-310208000",
+      "nombre": "24-CONDOMINIO RESD. LA PAZ TORRE A",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "358a5f47-c157-426d-8063-101506a27511",
+      "identidad": "J-310208000",
+      "nombre": "27-CONDOMINIO RESD. LA PAZ TORRE A",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7b676ef3-0249-4218-aeec-bef8d3cddd18",
+      "identidad": "E-297947477",
+      "nombre": "65-CONDOMINIO DEL CONJUNTO RESIDENCIAL VALLE ARRIBA APARTAMENTOS",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "f0bee9b1-f339-4335-b378-37b4d85f510c",
+      "identidad": "J-297947477",
+      "nombre": "67-CONDOMINIO DEL CONJUNTO RESIDENCIAL VALLE ARRIBA APARTAMENTOS",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b08ed0b2-fe36-4fe2-af03-11e1f224d291",
+      "identidad": "E-295634463",
+      "nombre": "45-CONDOMINIO RESIDENCIAS TAGUAY SUITE",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "41c4d886-9a8b-4abc-9918-be5037674813",
+      "identidad": "J-295634463",
+      "nombre": "61-CONDOMINIO RESIDENCIAS TAGUAY SUITE",
+      "created_at": "2026-09-22T01:49:38.626932+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ca76dc26-12db-48cf-b834-43bc52119d75",
+      "identidad": "J-306696105",
+      "nombre": "X CONDOMINIO CONJUNTO RESIDENCIAL LA GRANJA II",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "5bc84719-d8e0-41ed-8c4f-241a0bc6575b",
+      "identidad": "E-306696105",
+      "nombre": "X CONDOMINIO CONJUNTO RESIDENCIAL LA GRANJA II",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5ce4495f-481d-4139-bd80-39078bc7f2c1",
+      "identidad": "E-297884840",
+      "nombre": "47-CONJUNTO RESIDENCIAL BROMELIA",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "0b90809f-b5ac-4b66-8ae0-9a85dede1b06",
+      "identidad": "J-297884840",
+      "nombre": "47-CONJUNTO RESIDENCIAL BROMELIA",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7323c88a-3a7b-41e3-a9e6-4de51d9de4a4",
+      "identidad": "E-309625560",
+      "nombre": "COND RESD TAZAJAL TORRE SUR",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "75ac6f39-09e0-4dc8-84ad-650041586977",
+      "identidad": "J-309625560",
+      "nombre": "33-COND RESD TAZAJAL TORRE SUR",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "40a61ba9-e2ef-401f-9494-99c4f048d519",
+      "identidad": "E-313829340",
+      "nombre": "38-CONDOMINIO CONJUNTO RESIDENCIAL VALLE CLARO",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "f6894f9c-9eed-484a-8aad-2911e81e0588",
+      "identidad": "J-313829340",
+      "nombre": "56-CONDOMINIO CONJUNTO RESIDENCIAL VALLE CLARO",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9cb17b3d-7529-41db-84fb-13d642aa49f5",
+      "identidad": "V-82225291",
+      "nombre": "WU TONG XI",
+      "created_at": "2026-09-30T23:04:39.804875+00:00"
+    },
+    {
+      "id": "7ed7dd9f-1c41-4f5f-a30a-e3cd8e2317e2",
+      "identidad": "E-82225291",
+      "nombre": "WU TONG XI",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    }
+  ],
+  [
+    {
+      "id": "277a2e48-6d7b-42d6-ac3f-840a58c42b5e",
+      "identidad": "V-82279083",
+      "nombre": "ILYAS  GHANOUM Y NELLY ELIZABETH BESERENI DE GHANOUM",
+      "created_at": "2026-09-30T23:06:42.65488+00:00"
+    },
+    {
+      "id": "25c9d32d-9e0f-4d58-91bf-1e02d901fce2",
+      "identidad": "E-82279083",
+      "nombre": "ILYAS  GHANOUM Y NELLY ELIZABETH BESERENI DE GHANOUM",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f9c6a6d7-1257-4552-a5aa-b9a90cd7f8dd",
+      "identidad": "E-401004865",
+      "nombre": "ASOCIACI?N CIVIL URBANIZACI?N LA ENTRADA, ETAPA II",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "0de1b08b-2111-42ad-81c4-9aaca584e6d8",
+      "identidad": "J-401004865",
+      "nombre": "39-ASOCIACI?N CIVIL URBANIZACI?N LA ENTRADA, ETAPA II",
+      "created_at": "2026-09-22T01:49:38.626932+00:00"
+    }
+  ],
+  [
+    {
+      "id": "31cb2f38-7c26-4682-888c-85c47bc0c2ac",
+      "identidad": "E-309736710",
+      "nombre": "50-CONJ RESD LOS TULIPANES",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "4dcd4f5a-7013-4c20-b683-f48547774106",
+      "identidad": "J-309736710",
+      "nombre": "58-CONJ RESD LOS TULIPANES",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "95e5d633-b1e8-4249-8bdb-fa71337639bc",
+      "identidad": "E-297630945",
+      "nombre": "102-CONDOMINIO RESIDENCIAS MORICHAL",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "aca6c728-924a-4283-ab5a-310d32de8a6c",
+      "identidad": "J-297630945",
+      "nombre": "102-CONDOMINIO RESIDENCIAS MORICHAL",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2aafa2aa-1282-4ac9-b1ae-0e0667ebb4cb",
+      "identidad": "E-316477622",
+      "nombre": "23-ASOC DE VECINOS DE LA URB EL CAFETAL",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "b04f5c7c-3a1f-4124-9cf4-ae1cae0daa30",
+      "identidad": "J-316477622",
+      "nombre": "32-ASOC DE VECINOS DE LA URB EL CAFETAL",
+      "created_at": "2026-09-22T01:49:38.626932+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9bf9fcb2-c332-423b-b52e-a4130c661d15",
+      "identidad": "V-82246686",
+      "nombre": "JINKANG ZHENG",
+      "created_at": "2026-09-30T23:04:56.256654+00:00"
+    },
+    {
+      "id": "ab72be6a-a8d4-479b-aa36-f7e4623e9abc",
+      "identidad": "E-82246686",
+      "nombre": "JINKANG ZHENG",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    }
+  ],
+  [
+    {
+      "id": "67e2579e-7669-4170-aec7-e03db53b2dc4",
+      "identidad": "E-81235074",
+      "nombre": "JORGE LINDO",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "d0723a80-00f1-4db1-b692-b406496c605f",
+      "identidad": "V-81235074",
+      "nombre": "JORGE LINDO",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1e8f1522-d699-432a-bda7-da38f4144cff",
+      "identidad": "V-81199248",
+      "nombre": "JOAO DE BARROS GONCALVES",
+      "created_at": "2026-09-30T23:05:22.490876+00:00"
+    },
+    {
+      "id": "9b0d8eab-c08f-4c73-9d5e-432b3138905a",
+      "identidad": "E-81199248",
+      "nombre": "JOAO DE BARROS GONCALVES",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2f6659e3-3c4b-4657-b053-1a5454a4dc56",
+      "identidad": "E-817049179",
+      "nombre": "CESAR CABEZAS MARTINEZ (INVERSIONES CABEZAS MARTINEZ)",
+      "created_at": "2026-09-22T01:49:38.455+00:00"
+    },
+    {
+      "id": "5f63e25f-2418-459b-bc9d-b407c23344b9",
+      "identidad": "V-817049179",
+      "nombre": "CESAR CABEZAS MARTINEZ (INVERSIONES CABEZAS MARTINEZ)",
+      "created_at": "2026-09-30T23:06:46.646775+00:00"
+    }
+  ],
+  [
+    {
+      "id": "90737835-979e-43ec-8cc2-35be506e3fa4",
+      "identidad": "V-08599324",
+      "nombre": "VILLAVICENCIO MIRIAN",
+      "created_at": "2026-09-30T23:06:42.399579+00:00"
+    },
+    {
+      "id": "c2e7c22f-1622-412b-8306-ed958ffed823",
+      "identidad": "V-8599324",
+      "nombre": "GLADYS ESPERANZA LAYA DE GIL",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "dcb374dc-2506-49e2-8e0c-412058dbd300",
+      "identidad": "E-81042756",
+      "nombre": "MARIA TORRES",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "7bcae107-cf0c-4935-9ba7-f7f52149f8ad",
+      "identidad": "V-81042756",
+      "nombre": "MARIA TORRES",
+      "created_at": "2026-09-30T23:06:44.505437+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2df091aa-727f-4673-8879-3c78a94e2a32",
+      "identidad": "V-744676",
+      "nombre": "NATALINA CORDONE DE CORDONE",
+      "created_at": "2026-09-30T23:06:39.276825+00:00"
+    },
+    {
+      "id": "107e728a-e5c8-4495-a924-d994f7500a2b",
+      "identidad": "E-744676",
+      "nombre": "NATALINA CORDONE DE CORDONE",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4771c9de-77dd-4eb2-8411-656cf95b2c90",
+      "identidad": "V-81950922",
+      "nombre": "ROGELIO RAFAEL LOPEZ PEREZ",
+      "created_at": "2026-09-30T23:06:39.544721+00:00"
+    },
+    {
+      "id": "2414e749-bf15-4f32-bb47-2bebd39cdc72",
+      "identidad": "E-81950922",
+      "nombre": "ROGELIO RAFAEL LOPEZ PEREZ",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    }
+  ],
+  [
+    {
+      "id": "84244e24-88ab-4583-a30c-ba03c21352b8",
+      "identidad": "J-075899962",
+      "nombre": "CONSTRUCCIONES E INVERSIONES CARIBE, C.A",
+      "created_at": "2026-09-22T01:49:38.455+00:00"
+    },
+    {
+      "id": "0b136dd9-8a27-4564-bd47-6236b5b59f78",
+      "identidad": "J-75899962",
+      "nombre": "CONSTRUCCIONES E INVERSIONES CARIBE, C.A",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "0f95d26d-eb0d-4193-bb14-3811786c32f4",
+      "identidad": "V-82270651",
+      "nombre": "WU XIAOQING",
+      "created_at": "2026-09-30T23:06:39.544721+00:00"
+    },
+    {
+      "id": "57028ab4-fbd3-4396-9120-5fa1dfba155f",
+      "identidad": "E-82270651",
+      "nombre": "WU XIAOQING",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    }
+  ],
+  [
+    {
+      "id": "cb8330a3-301c-44a9-8f63-233637d3f7b3",
+      "identidad": "V-82146624",
+      "nombre": "CARLOS JOSE CATARINO CRESPO",
+      "created_at": "2026-09-30T23:06:39.544721+00:00"
+    },
+    {
+      "id": "ea849935-3a93-456e-932a-580b308a1fd8",
+      "identidad": "E-82146624",
+      "nombre": "CARLOS JOSE CATARINO CRESPO",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d522d804-b43c-46d2-b8f5-3c879577b763",
+      "identidad": "V-81954416",
+      "nombre": "DANIEL NIÑO",
+      "created_at": "2026-09-30T23:06:39.544721+00:00"
+    },
+    {
+      "id": "7aa111ab-589a-4822-81fd-a9d13b15a755",
+      "identidad": "E-81954416",
+      "nombre": "NI�O GALAN DANIEL",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    }
+  ],
+  [
+    {
+      "id": "09a969b3-69a5-4c1e-a7a1-b3e81007e7aa",
+      "identidad": "V-3957880",
+      "nombre": "YLDEFONZO JOSE PUERTA APONTE",
+      "created_at": "2026-09-22T01:49:37.45501+00:00"
+    },
+    {
+      "id": "a72288c9-0bee-4c4e-b411-f2af2a589abc",
+      "identidad": "V-03957880",
+      "nombre": "YLDEFONZO JOSE PUERTA APONTE",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f892a634-a678-464e-bb28-06616fa0b392",
+      "identidad": "V-81977503",
+      "nombre": "ALFONSO VALLES VIVES",
+      "created_at": "2026-09-30T23:06:39.824934+00:00"
+    },
+    {
+      "id": "81dc6731-80de-4e65-80cd-80e44093c8a1",
+      "identidad": "E-81977503",
+      "nombre": "ALFONSO VALLES VIVES",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9937ed06-27ed-468e-ba3d-fe106fc9defc",
+      "identidad": "V-84491134",
+      "nombre": "RUILIAN WU",
+      "created_at": "2026-09-30T23:06:39.824934+00:00"
+    },
+    {
+      "id": "9d4bb847-fd66-4133-8bf9-d1015228b9f1",
+      "identidad": "E-84491134",
+      "nombre": "RUILIAN WU",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3da1bc2d-662e-45db-8dce-54fa157d33f3",
+      "identidad": "V-9995152",
+      "nombre": "GRISSELL MORANTES HERNANDEZ",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "7c48ab52-b322-488e-b95a-13bb515e0b8e",
+      "identidad": "V-09995152",
+      "nombre": "GRISSELL MORANTES HERNENDEZ Y EDUARDO",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b0f42894-3f6a-4568-a75b-9072606b83c4",
+      "identidad": "E-82151371",
+      "nombre": "CARLOS MARIO NARANJO ROJAS",
+      "created_at": "2026-09-22T01:49:38.455+00:00"
+    },
+    {
+      "id": "49f998ac-4e2f-49a7-a07e-6bdcecdf083d",
+      "identidad": "V-82151371",
+      "nombre": "CARLOS NARANJO",
+      "created_at": "2026-09-30T23:06:41.868604+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7d2cb734-eaaf-45fb-92d6-f103d3ae2ff5",
+      "identidad": "J-403404437",
+      "nombre": "CONSORCIO GLOBAL C Y D",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "cfdabbdb-6366-4831-b508-3e2557c98bb4",
+      "identidad": "E-403404437",
+      "nombre": "CONSORCIO GLOBAL C Y D",
+      "created_at": "2026-09-30T23:06:52.594228+00:00"
+    }
+  ],
+  [
+    {
+      "id": "55ceb646-703d-4da0-835d-77acc463d4ce",
+      "identidad": "V-82294546",
+      "nombre": "CHARLY YOUSSEF ABDALLAH",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "d4b5e1ca-9259-40d9-ad40-3d983eac2d13",
+      "identidad": "E-82294546",
+      "nombre": "CHARLY YOUSSEF ABDALLAH",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f430ecea-7e77-43c7-8fe1-ccd7517b2160",
+      "identidad": "E-83586151",
+      "nombre": "MARIA LUZ GIMON DE MATUSZYCZK",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "5e5685e8-2191-48dc-8c0c-2cc53e9e869d",
+      "identidad": "V-83586151",
+      "nombre": "MARIA LUZ GIMON DE MATUSZYCZK",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5c7327a9-c3b8-4856-ad26-44718796b804",
+      "identidad": "V-83406191",
+      "nombre": "QIJUN LIANG",
+      "created_at": "2026-09-30T23:06:42.399579+00:00"
+    },
+    {
+      "id": "1e105099-8d1e-45d2-a92b-dd3471772e51",
+      "identidad": "E-83406191",
+      "nombre": "QIJUN LIANG",
+      "created_at": "2026-10-03T17:35:11.459791+00:00"
+    }
+  ],
+  [
+    {
+      "id": "41fa9ec4-2957-4f32-a52a-5a9688a54e9c",
+      "identidad": "E-821021602",
+      "nombre": "NANCY MARTIN GARCIA ( NANCY ACCESORIOS)",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "97520d7e-59fb-4975-bcbb-6ec0e7428c45",
+      "identidad": "V-821021602",
+      "nombre": "NANCY MARTIN GARCIA ( NANCY ACCESORIOS)",
+      "created_at": "2026-09-30T23:07:05.476621+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c58c749f-0999-4b59-a883-39db36e469a0",
+      "identidad": "E-216271",
+      "nombre": "GRAZIA TURCHIO DE ANIASI",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    },
+    {
+      "id": "eaf7b9a2-f20a-410a-b747-5b26e3206ba3",
+      "identidad": "V-216271",
+      "nombre": "GRAZIA TURCHIO DE ANIASI",
+      "created_at": "2026-09-30T23:06:56.259584+00:00"
+    }
+  ],
+  [
+    {
+      "id": "dd8a6a10-96cb-4108-bded-dc7d12777554",
+      "identidad": "E-83664164",
+      "nombre": "SHIFU YE Y XIUMEI WU",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "ec9fa657-0140-49dc-9af9-6e74e2572578",
+      "identidad": "V-83664164",
+      "nombre": "SHIFU YE Y XIUMEI WU",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "88b25091-fe70-4da6-98a3-ca39ef7641b5",
+      "identidad": "V-81042028",
+      "nombre": "ROSMIRA RAMIREZ ROJAS",
+      "created_at": "2026-09-30T23:06:42.142777+00:00"
+    },
+    {
+      "id": "ac460e09-8123-4302-86a4-f68659994adf",
+      "identidad": "E-81042028",
+      "nombre": "ROSMIRA RAMIREZ ROJAS",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5d12458f-0da0-45fd-af6a-3cc4537f2c69",
+      "identidad": "V-81516259",
+      "nombre": "JOSE ANTONIO LORETO VIEIRA",
+      "created_at": "2026-09-30T23:06:40.187176+00:00"
+    },
+    {
+      "id": "59ab2d13-2775-41b4-923b-17aa6464450b",
+      "identidad": "E-81516259",
+      "nombre": "JOSE ANTONIO LORETO VIEIRA",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    }
+  ],
+  [
+    {
+      "id": "98a7fdda-fd64-4b00-91d3-8b52ef027afb",
+      "identidad": "V-84556779",
+      "nombre": "FRANCESCO RUZZA",
+      "created_at": "2026-09-30T23:06:42.65488+00:00"
+    },
+    {
+      "id": "5efe81ae-c5bb-47ab-9d3d-caacdea03c64",
+      "identidad": "E-84556779",
+      "nombre": "FRANCESCO RUZZA",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    }
+  ],
+  [
+    {
+      "id": "fd48c2cf-9eba-444f-8045-23ea1ff26848",
+      "identidad": "V-84497110",
+      "nombre": "AMIRPAYMAN FOROUTAN",
+      "created_at": "2026-09-30T23:06:40.465835+00:00"
+    },
+    {
+      "id": "f75f7399-45ce-49fa-83e7-cea0fea351d8",
+      "identidad": "E-84497110",
+      "nombre": "AMIRPAYMAN FOROUTAN",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9c3840fc-3e37-4414-83c9-ab4e2ead6fb7",
+      "identidad": "V-01364834",
+      "nombre": "MERY RAMONA ROMERO DE LOPEZ",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "700f7609-a65e-4cc6-8f78-740ef74991ad",
+      "identidad": "V-1364834",
+      "nombre": "MERY RAMONA ROMERO DE LOPEZ",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e24f0943-eff7-4337-b802-cace2d6e20fc",
+      "identidad": "V-81290134",
+      "nombre": "JESUS  VILANOBA REGUEIRA",
+      "created_at": "2026-09-30T23:06:40.465835+00:00"
+    },
+    {
+      "id": "8cc7ee62-fd7c-4ec0-9141-f8b6159c7e55",
+      "identidad": "E-81290134",
+      "nombre": "JESUS  VILANOBA REGUEIRA",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a7afac52-b5e7-4def-bf49-68ba0ab925ba",
+      "identidad": "V-81197516",
+      "nombre": "MARIA AUGUSTA DE SOUSA PEREIRA",
+      "created_at": "2026-09-30T23:06:40.465835+00:00"
+    },
+    {
+      "id": "b0f1d91d-1077-4983-b887-02fc21a4f4a7",
+      "identidad": "E-81197516",
+      "nombre": "MARIA AUGUSTA DE SOUSA PEREIRA",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "51090ddd-7c08-4352-8881-cabc317c2156",
+      "identidad": "V-84438529",
+      "nombre": "Zuoyuan zheng",
+      "created_at": "2026-09-30T23:06:40.465835+00:00"
+    },
+    {
+      "id": "37fe2df8-efd3-4568-a8db-95646e00c9c6",
+      "identidad": "E-84438529",
+      "nombre": "Zuoyuan zheng",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3009da11-b33a-46e5-8c7f-9d1e7b756915",
+      "identidad": "V-81240115",
+      "nombre": "GUILLERMO SEGURA CASQUET",
+      "created_at": "2026-09-30T23:06:40.732012+00:00"
+    },
+    {
+      "id": "60af97d7-d457-4f3e-a7f7-f847eda1d05e",
+      "identidad": "E-81240115",
+      "nombre": "GUILLERMO SEGURA CASQUET",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e77bd603-b0fd-449d-9514-605b96020847",
+      "identidad": "V-82054501",
+      "nombre": "THOMAS CUIFFARDI",
+      "created_at": "2026-09-30T23:06:40.732012+00:00"
+    },
+    {
+      "id": "953184dc-add5-4f6f-9908-7ab9f14e0e5c",
+      "identidad": "E-82054501",
+      "nombre": "THOMAS CUIFFARDI",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7d565cb5-b7b3-4962-9d17-e1ea31d224a0",
+      "identidad": "V-81813847",
+      "nombre": "JOAQUIM NOGUEIRA DA SILVA",
+      "created_at": "2026-09-30T23:06:40.732012+00:00"
+    },
+    {
+      "id": "a01820ff-931a-4fa2-976d-857fa061b997",
+      "identidad": "E-81813847",
+      "nombre": "JOAQUIM NOGUEIRA DA SILVA",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4dfad1d7-8d44-4607-9889-299b16d5f957",
+      "identidad": "V-984403",
+      "nombre": "Deolisse Aguilera Y Cesidio Schiappucci",
+      "created_at": "2026-09-30T23:06:40.732012+00:00"
+    },
+    {
+      "id": "a5011709-d0fb-4a1c-8e1a-d595a83799c4",
+      "identidad": "E-984403",
+      "nombre": "Deolisse Aguilera Y Cesidio Schiappucci",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7ef81aeb-9ea9-47db-8e44-43f18992627d",
+      "identidad": "V-81923910",
+      "nombre": "DANIEL VALVERDE NORTES Y YOLANDA MARIA VALVERDE NORTES",
+      "created_at": "2026-09-30T23:06:40.732012+00:00"
+    },
+    {
+      "id": "1eacd9af-b44c-4547-8959-94a51571dc53",
+      "identidad": "E-81923910",
+      "nombre": "DANIEL VALVERDE NORTES Y YOLANDA MARIA VALVERDE NORTES",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "35f07cf7-1c8c-4fcb-ab90-841957daabae",
+      "identidad": "V-882165",
+      "nombre": "ROSA CARBALLO DE GOMEZ",
+      "created_at": "2026-09-30T23:06:40.732012+00:00"
+    },
+    {
+      "id": "a5c1cf36-91cf-455f-8572-c3de1128906e",
+      "identidad": "E-882165",
+      "nombre": "ROSA CARBALLO DE GOMEZ",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2667b975-ab20-49c5-85bf-dd709043777f",
+      "identidad": "V-844116767",
+      "nombre": "HUIXIONG ZHENG  (RESTAURANT LA MURALLA HUIXIONZ ZHENG, FP)",
+      "created_at": "2026-09-30T23:04:53.023289+00:00"
+    },
+    {
+      "id": "741eab1c-3f47-4407-8482-28e0dabe9a4e",
+      "identidad": "E-844116767",
+      "nombre": "HUIXIONG ZHENG  (RESTAURANT LA MURALLA HUIXIONZ ZHENG, FP)",
+      "created_at": "2026-10-03T17:35:11.459791+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4088c763-0e36-449e-89b6-66001db0f2f1",
+      "identidad": "G-200083875",
+      "nombre": "SERVICIO AUTONOMO DE REGISTROS Y NOTARIAS",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    },
+    {
+      "id": "ae264bbf-e4e0-46ef-a4a4-e6633c78eedc",
+      "identidad": "V-200083875",
+      "nombre": "SERVICIO AUTONOMO DE REGISTROS Y NOTARIAS",
+      "created_at": "2026-09-30T23:06:45.794114+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4b11a078-6378-49b3-853d-86ffec20bebb",
+      "identidad": "V-82278071",
+      "nombre": "JINXIANG FENG",
+      "created_at": "2026-09-30T23:06:41.023785+00:00"
+    },
+    {
+      "id": "b4d6d032-5378-4980-aef5-cb99ce1fcc2e",
+      "identidad": "E-82278071",
+      "nombre": "JINXIANG FENG",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    }
+  ],
+  [
+    {
+      "id": "39a425dd-8f24-4957-975b-ddd03e7df621",
+      "identidad": "V-82246958",
+      "nombre": "LIANG HUILI",
+      "created_at": "2026-09-30T23:06:41.336989+00:00"
+    },
+    {
+      "id": "1096c08b-87f4-4935-beeb-7fa3c302cfb3",
+      "identidad": "E-82246958",
+      "nombre": "LIANG HUILI",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7424728b-7e2d-4c8f-b2dd-5e9758325b71",
+      "identidad": "V-8538126",
+      "nombre": "BORTOLUSSI YEPEZ DINO ANTONIO",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "d4ea7629-bc2c-4d9d-9dc9-ba3a9d0fc56f",
+      "identidad": "V-08538126",
+      "nombre": "DINO ANTONIO BORTOLUSSI YEPEZ",
+      "created_at": "2026-09-30T23:06:48.690617+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f44a7c91-3143-4d98-9038-37bdf427634c",
+      "identidad": "G-200000589",
+      "nombre": "INSTITUTO AUTONOMO CIRCULO DE LAS FUERZAS ARMADAS",
+      "created_at": "2026-09-22T01:49:39.943774+00:00"
+    },
+    {
+      "id": "68e87949-50be-42d9-9182-2d1bc9358049",
+      "identidad": "J-200000589",
+      "nombre": "INSTITUTO AUTONOMO CIRCULO DE LA FUERZA ARMADA NACIONAL BOLIVARIANA",
+      "created_at": "2026-10-01T01:11:29.350472+00:00"
+    }
+  ],
+  [
+    {
+      "id": "6e06b012-31c7-4442-a15b-b5d7552fd04b",
+      "identidad": "E-82246741",
+      "nombre": "ZHENG DE CHO SUPING Y CHO LO STEPHEN YING LUNG",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "4072fc11-e47e-4d40-8a37-c66b95983b47",
+      "identidad": "V-82246741",
+      "nombre": "ZHENG DE CHO SUPING Y CHO LO STEPHEN YING LUNG",
+      "created_at": "2026-09-30T23:04:33.30809+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ee6866b6-4ebc-41c4-97d0-b9bc5364cb4f",
+      "identidad": "V-84112004",
+      "nombre": "SANTIAGO ARIAS JIMENEZ",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "e4eeb4f5-df84-4a5c-9b08-b26d6829e12a",
+      "identidad": "E-84112004",
+      "nombre": "SANTIAGO ARIAS JIMENEZ",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7c1a68aa-d26f-4e17-95c6-47ab2eab36fb",
+      "identidad": "V-883878",
+      "nombre": "ALCINO  GOMES TORRES",
+      "created_at": "2026-09-30T23:04:00.172797+00:00"
+    },
+    {
+      "id": "675a0981-acee-41bd-bfa6-6475372a2e20",
+      "identidad": "E-883878",
+      "nombre": "ALCINO  GOMES TORRES",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    }
+  ],
+  [
+    {
+      "id": "927dcfed-2158-4cb8-8a27-d57581dec805",
+      "identidad": "E-81458189",
+      "nombre": "ADRIANA MARIA BLEINNSSTEINNSS CAMPOS",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "cbe5749b-c5df-4adb-a049-5634c7ae0c70",
+      "identidad": "V-81458189",
+      "nombre": "ADRIANA MARIA BLEINNSSTEINNSS CAMPOS",
+      "created_at": "2026-09-30T23:07:06.748059+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3b1efc87-f89e-4cf4-811e-1b3be4827350",
+      "identidad": "E-82015228",
+      "nombre": "JURGEN PELZER",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "431f162b-4c8b-4e84-a40f-9c50fc875d7c",
+      "identidad": "V-82015228",
+      "nombre": "JURGEN PELZER",
+      "created_at": "2026-09-30T23:06:45.554648+00:00"
+    }
+  ],
+  [
+    {
+      "id": "54a731de-7d86-41ae-b50e-eb6f9639c2e3",
+      "identidad": "V-81702058",
+      "nombre": "GIOVANNI BATTISTA MENEGON STELLA",
+      "created_at": "2026-09-30T23:06:42.142777+00:00"
+    },
+    {
+      "id": "c53e3d57-398b-4c7d-8ba1-eb6b2b18a0e0",
+      "identidad": "E-81702058",
+      "nombre": "GIOVANNI BATTISTA MENEGON STELLA",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8f42b44b-1a70-42e8-8905-9f205bfbdb74",
+      "identidad": "V-3852197",
+      "nombre": "EUGENIO RAMON DIAZ ORTA",
+      "created_at": "2026-09-22T01:49:39.573976+00:00"
+    },
+    {
+      "id": "a98531e4-ed1f-4de8-835e-961a14a55832",
+      "identidad": "V-03852197",
+      "nombre": "EUGENIO RAMON DIAZ ORTA",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1f5e1eee-741a-4865-a0fd-182a324f0a03",
+      "identidad": "V-9316918",
+      "nombre": "FRANCISCO RAMON MEJIA PRADA Y HENRY DANIEL LORETO GONZALEZ",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "dcc155e8-a703-43c3-bb5b-85cbf6a920b2",
+      "identidad": "V-09316918",
+      "nombre": "RAMON PRADA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    }
+  ],
+  [
+    {
+      "id": "21bb0b78-79ef-4162-aebd-5a7e8941babb",
+      "identidad": "V-066823438",
+      "nombre": "JULIO CESAR BENAVIDEZ",
+      "created_at": "2026-09-22T01:49:38.626932+00:00"
+    },
+    {
+      "id": "6e96d49b-9db1-4823-bc87-92718d3af706",
+      "identidad": "V-66823438",
+      "nombre": "JULIO CESAR BENAVIDEZ",
+      "created_at": "2026-09-22T01:49:40.131807+00:00"
+    }
+  ],
+  [
+    {
+      "id": "04c350ab-bab3-423f-b733-5c3ec610918f",
+      "identidad": "V-154803",
+      "nombre": "PEREZ ALVAREZ FRANCISCO",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "f2ca328d-9ba2-4001-ba5a-0dbf575d2ced",
+      "identidad": "V-00154803",
+      "nombre": "PEREZ ALVAREZ FRANCISCO",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "dbed7cd0-42d9-45bd-8617-433545dd4cfa",
+      "identidad": "V-07063710",
+      "nombre": "NU�EZ FELIPE ITALO VICTOR",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "c8db0dcb-418f-4437-a0ed-72fe92acc00f",
+      "identidad": "V-7063710",
+      "nombre": "NU�EZ FELIPE ITALO VICTOR",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d3195fff-0fd8-4e9b-9d6a-d85f57ef7829",
+      "identidad": "V-04874357",
+      "nombre": "CURVELO MIRANDA FRANCISCO JOSE",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "5b5ff8b6-9823-432c-a6d2-235497c1a894",
+      "identidad": "V-4874357",
+      "nombre": "FRANCISCO JOSE CURVELO MIRANDA",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e09d8db9-2de3-4d93-a1f0-0cfa2e3e2fe7",
+      "identidad": "V-7027581",
+      "nombre": "DEYANIRA LASTENIA LEON TOVAR",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "4cc3c8be-d7b3-42e5-b625-dbe7c585554a",
+      "identidad": "V-07027581",
+      "nombre": "DEYANIRA LASTENIA LEON TOVAR",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    }
+  ],
+  [
+    {
+      "id": "717c52b4-9e77-4b85-93a4-60e0fecef375",
+      "identidad": "V-5673065",
+      "nombre": "WILLIAM ORTIZ",
+      "created_at": "2026-09-22T01:49:38.07096+00:00"
+    },
+    {
+      "id": "21e97f26-a61b-43d0-a5ee-928952090491",
+      "identidad": "V-05673065",
+      "nombre": "WILLIAM ORTIZ",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    }
+  ],
+  [
+    {
+      "id": "084c9082-1ae2-4626-94d6-22b26f2609e8",
+      "identidad": "E-844821363",
+      "nombre": "BEATRIZ AURELIA DURAN DE PALOMINO (COMERCIAL PERUVIAN DURAN, F.P)",
+      "created_at": "2026-10-03T17:35:10.155098+00:00"
+    },
+    {
+      "id": "59432f54-2f82-4438-bc50-f848c2a524b1",
+      "identidad": "V-844821363",
+      "nombre": "BEATRIZ AURELIA DURAN DE PALOMINO (COMERCIAL PERUVIAN DURAN, F.P)",
+      "created_at": "2026-09-30T23:06:55.729587+00:00"
+    }
+  ],
+  [
+    {
+      "id": "07346da5-f56b-44dd-896a-6b179e5ae6f8",
+      "identidad": "G-200122390",
+      "nombre": "PARROQUIA SAN CAYETANO",
+      "created_at": "2026-10-03T17:35:10.155098+00:00"
+    },
+    {
+      "id": "1845377f-0fd3-4e74-9ed7-a3a68b428ffa",
+      "identidad": "V-200122390",
+      "nombre": "PARROQUIA SAN CAYETANO",
+      "created_at": "2026-09-30T23:06:56.021936+00:00"
+    }
+  ],
+  [
+    {
+      "id": "83209132-3223-4407-a7ca-eb695da9fa31",
+      "identidad": "E-81446036",
+      "nombre": "AGOSTINHO  FERNANDEZ",
+      "created_at": "2026-10-03T17:35:10.155098+00:00"
+    },
+    {
+      "id": "a0a1c825-78ea-4dad-a8de-369374a8a71b",
+      "identidad": "V-81446036",
+      "nombre": "AGOSTINHO  FERNANDEZ",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "63a94648-cef8-452b-a5db-16569f629c04",
+      "identidad": "V-3059112",
+      "nombre": "PINTO AGUDO PABLO JOSE",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "a420a3ed-7df6-4f7b-a515-eab5ffc6c71a",
+      "identidad": "V-03059112",
+      "nombre": "PABLO AGUDO",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    }
+  ],
+  [
+    {
+      "id": "cbd8d9da-3299-415e-afa1-e78982a158e0",
+      "identidad": "V-8917528",
+      "nombre": "JOSE NEPTALI QUINES Y CARMEN ELISA CARRIL COA",
+      "created_at": "2026-09-22T01:49:39.352344+00:00"
+    },
+    {
+      "id": "95974f99-c114-4e96-b5ae-c70e96ea0cbc",
+      "identidad": "V-08917528",
+      "nombre": "JOSE NEPTALI QUINES",
+      "created_at": "2026-09-30T23:06:51.040296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "487d427d-6b11-42d0-bb85-7b3ad21d415d",
+      "identidad": "E-81197874",
+      "nombre": "ADIS NAYIBE NAVARRO DE ORDONEZ Y WILLIAM ALFREDO ORDONEZ MARTINEZ",
+      "created_at": "2026-09-22T01:49:39.352344+00:00"
+    },
+    {
+      "id": "bc3e3cb5-9263-4f03-a29e-a4b8fb722317",
+      "identidad": "V-81197874",
+      "nombre": "DENNIS MARIA NAVARRO DE LOS REYES",
+      "created_at": "2023-10-02T00:02:14+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1c0efe71-7557-4a5a-a53e-7719d2f4a5f6",
+      "identidad": "V-7049583",
+      "nombre": "MARIANA MAIGUALIDA CASTILLO SAAVEDRA",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "79f7d09d-18d5-41a9-b986-c2e8d281f516",
+      "identidad": "V-07049583",
+      "nombre": "MARIANA MAIGUALIDA CASTILLO SAAVEDRA",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ed17e8ef-25de-494b-b9d8-67c362dee2c1",
+      "identidad": "V-81225289",
+      "nombre": "ALICIA EMILIANA MONTOYA GONZALEZ Y OSWALDO GIUSEPPE MASTRODOMENICO MARTINO",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "dccc1727-ead4-4f28-8c69-c20043c72348",
+      "identidad": "E-81225289",
+      "nombre": "ALICIA EMILIANA MONTOYA GONZALEZ Y OSWALDO GIUSEPPE MASTRODOMENICO MARTINO",
+      "created_at": "2026-09-22T01:49:39.352344+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f750a81c-77e3-4de1-8a06-934bbe0855b6",
+      "identidad": "V-03921567",
+      "nombre": "ANA CRISTINA GONZALEZ PACHECO",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "dd1dbdea-befb-4775-ac6e-56cf5effc408",
+      "identidad": "V-3921567",
+      "nombre": "ANA CRISTINA GONZALEZ DE PACHECO",
+      "created_at": "2026-09-30T23:06:46.885066+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d9586b68-65b6-4cdd-afd2-94557af7b19b",
+      "identidad": "V-07125948",
+      "nombre": "ALFREDO CALABRESE SPANO",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "4eecc628-761b-4138-81a9-2afbe0cfcf7d",
+      "identidad": "V-7125948",
+      "nombre": "ALFREDO  CALABRESE SPANO",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ad15921a-58ec-4be8-a9bd-01cf75c4328a",
+      "identidad": "V-07006533",
+      "nombre": "EGLEE YOLANDA QUINTERO SUAREZ Y PAOLA PE",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "735dfd09-ba98-445c-8c86-265f50c04303",
+      "identidad": "V-7006533",
+      "nombre": "EGLE YOLANDA QUINTERO SUAREZ",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ba541335-5fd0-4f7a-a728-b120ce8d35e8",
+      "identidad": "V-04461870",
+      "nombre": "HUMBERTO OCHOA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "ae2b4acd-ca01-493e-bd6c-489f7d71caa9",
+      "identidad": "V-4461870",
+      "nombre": "HUMBERTO JOSE OCHOA SALCEDO",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d4bb8375-0950-4841-ab37-c722b11c1bd9",
+      "identidad": "E-003746138",
+      "nombre": "SALVATORE SCIVOLETTO ABBATE",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "a863e30a-5d10-46e6-bd94-0ec950bd7353",
+      "identidad": "V-003746138",
+      "nombre": "SALVATORE SCIVOLETTO ABBATE",
+      "created_at": "2026-09-30T23:06:45.301222+00:00"
+    }
+  ],
+  [
+    {
+      "id": "51b37900-4ca1-4cdb-8ae5-363c605e0237",
+      "identidad": "V-5470003",
+      "nombre": "MIRIAM JOSEFINA GONZALEZ DE NARVAEZ",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "a93c64dc-6449-4dcf-a23e-41c5441bbbb2",
+      "identidad": "V-05470003",
+      "nombre": "GONZALEZ MIRIAM",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a795acdc-81ae-4e36-9982-6be728411953",
+      "identidad": "J-000029709",
+      "nombre": "VENEZOLANO DE CREDITO, S.A. BANCO UNIVERSAL",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "2ac3e478-fafd-4117-a2be-90bc7f844590",
+      "identidad": "J-00029709",
+      "nombre": "VENEZOLANA DE CREDITO S.A BANCO UNIVERSAL",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e669cc60-9701-4d16-aa7d-4684558858c8",
+      "identidad": "E-820531143",
+      "nombre": "OSCAR GRANDE GOMEZ  (TRANSPORTE GRANDE)",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "2acd7c1e-a4e3-4867-8212-67d3c7c6b902",
+      "identidad": "V-820531143",
+      "nombre": "OSCAR GRANDE GOMEZ  (TRANSPORTE GRANDE)",
+      "created_at": "2026-09-30T23:06:58.876123+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f0b45fa3-d4c3-4581-bc90-714fabe5b749",
+      "identidad": "V-00021254",
+      "nombre": "prueba3",
+      "created_at": "2026-09-22T01:49:40.32122+00:00"
+    },
+    {
+      "id": "72b48acb-473a-41a4-8144-12c3184daad2",
+      "identidad": "V-21254",
+      "nombre": "LUZ LANDAETA",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    }
+  ],
+  [
+    {
+      "id": "df109cb0-6d4f-4fa7-ae18-797e1a695a9f",
+      "identidad": "V-81982471",
+      "nombre": "FERMIN  MONCALEANO AVILA",
+      "created_at": "2026-09-30T23:06:41.868604+00:00"
+    },
+    {
+      "id": "83768051-16e6-40e1-9c67-1e04767a8eb2",
+      "identidad": "E-81982471",
+      "nombre": "FERMIN  MONCALEANO AVILA",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e453e582-f9be-4dfb-aaf5-4ce4b04132bd",
+      "identidad": "E-81735085",
+      "nombre": "Guadalupe Cevallo",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "1ca42fe6-08de-4113-802a-0d327da857c2",
+      "identidad": "V-81735085",
+      "nombre": "Guadalupe Cevallo",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1af63c43-ed65-4bd5-8027-b28d21926a0e",
+      "identidad": "E-81074030",
+      "nombre": "VIRGINIA URSINA TURBAY DE YAMAL",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "8fd9bfb9-5186-479b-8a09-1b685f645135",
+      "identidad": "V-81074030",
+      "nombre": "Virginia de Yamal* / Soraya Yamal",
+      "created_at": "2026-09-30T23:06:44.505437+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9479094a-300d-40a5-bfd0-e6c72652db32",
+      "identidad": "V-7103044",
+      "nombre": "KAIRETH ELIZABETH VILORIA DE MARCANO Y JESUS RAMON MARCANO MALAVE",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "3fe4936a-73e5-4bac-a1c1-c3bb21889703",
+      "identidad": "V-07103044",
+      "nombre": "KAIRETH ELIZABETH VILORIA DE MARCANO",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a2e6f21d-02f4-4d08-8dcb-c6089b24cf7b",
+      "identidad": "E-84386405",
+      "nombre": "MARLY YULIETH CUELLAR",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "0e3083f2-b4ed-40a0-bb23-51381c7eb788",
+      "identidad": "V-84386405",
+      "nombre": "MARLY YULIETH CUELLAR",
+      "created_at": "2026-09-30T23:07:01.783832+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7b9463a8-5476-463c-91b2-adf1fc342adf",
+      "identidad": "E-81812115",
+      "nombre": "MARÍA FERNANDA DE PIMENTA",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "7f5d43f6-d79c-438a-8965-5ef5ea749646",
+      "identidad": "V-81812115",
+      "nombre": "MARÍA FERNANDA DE PIMENTA",
+      "created_at": "2026-09-30T23:06:43.96991+00:00"
+    }
+  ],
+  [
+    {
+      "id": "49a580d5-b2e0-4f63-9d72-79b62b0dc71d",
+      "identidad": "E-5643983",
+      "nombre": "LOLA MARQUEZ",
+      "created_at": "2026-09-22T01:49:40.494779+00:00"
+    },
+    {
+      "id": "6aaeffed-f9c5-474d-99f0-c235f9237f68",
+      "identidad": "V-5643983",
+      "nombre": "LOLA MARQUEZ",
+      "created_at": "2026-09-30T23:07:01.783832+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a1cd0165-c0c3-44c9-aec5-62ec18042a0e",
+      "identidad": "E-834005",
+      "nombre": "MARIA CIDALIA RODRIGUEZ",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "c7918ea9-b342-4fd5-8480-e5f572863a0b",
+      "identidad": "V-834005",
+      "nombre": "MARIA CIDALIA RODRIGUEZ",
+      "created_at": "2026-09-30T23:06:51.855491+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c5facbf8-2d60-4a14-9945-6189c76879c8",
+      "identidad": "E-81703487",
+      "nombre": "XIMENA PAOLA GUAJARDO CASTELLON",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "e098d242-e62d-49d7-a044-69c38fb21ca8",
+      "identidad": "V-81703487",
+      "nombre": "XIMENA GUAJARDO",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a93f11aa-bd0a-4c8d-ae3d-29db6367679a",
+      "identidad": "E-82263029",
+      "nombre": "ROSARIO IOZZIA",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "26840efc-03ed-4ed9-b1d9-a3ff4d966f1b",
+      "identidad": "V-82263029",
+      "nombre": "ROSARIO IOZZIA",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2f62c669-fdb0-453f-9d2b-fd13f594b021",
+      "identidad": "V-701579",
+      "nombre": "ROSA ROMELIA SOTO DE RIERA",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "9d799bc1-85c6-4b7b-ae3f-42612388933c",
+      "identidad": "V-00701579",
+      "nombre": "ROSA ROMELIA SOTO DE RIERA",
+      "created_at": "2026-09-30T23:06:46.090738+00:00"
+    }
+  ],
+  [
+    {
+      "id": "38e8e6e9-1663-40cc-9b28-82894f896427",
+      "identidad": "E-571532",
+      "nombre": "MIGUEL RODRIGUEZ",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "40943b41-dfc1-4f18-86d9-f4d0319ce73e",
+      "identidad": "V-571532",
+      "nombre": "MIGUEL RODRIGUEZ",
+      "created_at": "2026-09-30T23:06:59.393071+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5e717938-b011-4967-b9bc-c0ed1174edfa",
+      "identidad": "E-571244",
+      "nombre": "JUAN RODRIGUEZ Y ROSA DE RODRIGUEZ",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "fd792203-3eca-45ce-bceb-10a80f8eb39b",
+      "identidad": "V-571244",
+      "nombre": "JUAN RODRIGUEZ Y ROSA DE RODRIGUEZ",
+      "created_at": "2026-09-30T23:07:06.2351+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c3337c16-1ff8-4da6-b8c2-137cb404a21e",
+      "identidad": "E-81197518",
+      "nombre": "MARIA EDITE DE SOUSA DE DA SILVA",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "5afc9ae8-bdb1-4aad-95ef-bc0f64d71578",
+      "identidad": "V-81197518",
+      "nombre": "MARIA EDITE DE SOUSA DE DA SILVA",
+      "created_at": "2026-09-30T23:06:42.399579+00:00"
+    }
+  ],
+  [
+    {
+      "id": "923d77a1-11f7-4731-9f0b-5a2600108ff4",
+      "identidad": "E-750598",
+      "nombre": "JUANA  RODRIGUEZ DE MEDINA",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "49d067d4-c4b5-40f2-b1bb-bdcf55dd9e50",
+      "identidad": "V-750598",
+      "nombre": "JUANA  RODRIGUEZ DE MEDINA",
+      "created_at": "2026-09-30T23:06:52.089441+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4eb21818-92e4-4045-b767-880ada9f853f",
+      "identidad": "E-81447931",
+      "nombre": "ROBERTO PEDRO RODRIGUEZ BURGOS",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "78ef254c-9ea9-46eb-a966-94e898ba5475",
+      "identidad": "V-81447931",
+      "nombre": "ROBERTO PEDRO RODRIGUEZ BURGOS",
+      "created_at": "2026-09-30T23:06:45.026278+00:00"
+    }
+  ],
+  [
+    {
+      "id": "192e2fcc-f97c-4f14-a903-a15f36812424",
+      "identidad": "E-82201760",
+      "nombre": "YANTANG ZHENG Y  CHUMSHEN HE MO",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "02b0249c-59d9-4d5f-a512-832b4717b644",
+      "identidad": "V-82201760",
+      "nombre": "YANTANG ZHENG Y  CHUMSHEN HE MO",
+      "created_at": "2026-09-30T23:07:00.484846+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ee27c699-3a85-422a-af70-218eb20f6c8f",
+      "identidad": "E-84409165",
+      "nombre": "MANUEL ERNESTO DUARTE DIAZ",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "b799e873-c5ec-4c0a-a64f-a92f0e4499d4",
+      "identidad": "V-84409165",
+      "nombre": "MANUEL ERNESTO DUARTE DIAZ",
+      "created_at": "2026-09-30T23:07:05.710815+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f2d61d98-37eb-41cf-9d77-d3385ae12d23",
+      "identidad": "E-81218226",
+      "nombre": "JOSE LUIS CALVI�O VISPO",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "a620b20c-614e-4be2-8be3-e754caa86bc9",
+      "identidad": "V-81218226",
+      "nombre": "JOSE LUIS CALVI�O VISPO",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c2efdb52-9dd2-4962-a303-79008e9ba1a8",
+      "identidad": "E-959452",
+      "nombre": "TERESA  PALERMO DE VASSALLO",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "35cea044-9fb4-412d-a89c-7d41e44d4e34",
+      "identidad": "V-959452",
+      "nombre": "PALERMO DE VASSALLO TERESA",
+      "created_at": "2026-09-22T01:49:39.943774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "68fe47ac-71c6-45a4-bd85-106e7cebfcb0",
+      "identidad": "E-81607915",
+      "nombre": "GHAZALAH JAAFAR",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "9adfe5e8-9a32-45f5-8445-45a176ca6a94",
+      "identidad": "V-81607915",
+      "nombre": "GHAZALAH JAAFAR",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4ed88e24-ce1c-48f5-8f14-55859346ec39",
+      "identidad": "E-82278771",
+      "nombre": "JIEXIA  WU",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "5e3557eb-d8ce-4ee5-b818-0e84ddc09467",
+      "identidad": "V-82278771",
+      "nombre": "JIEXIA  WU",
+      "created_at": "2026-09-30T23:07:04.122376+00:00"
+    }
+  ],
+  [
+    {
+      "id": "6fbf6235-6c37-4e00-8272-4f156c047641",
+      "identidad": "E-882148",
+      "nombre": "PIA ALATI CASINELLI",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "3b205174-c311-40c0-999f-0f0541e115f6",
+      "identidad": "V-882148",
+      "nombre": "PIA ALATI CASINELLI",
+      "created_at": "2026-09-30T23:06:43.454837+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2afa6c71-7c8e-49a1-b963-8fa50429a009",
+      "identidad": "E-82194677",
+      "nombre": "PEDRO REY CASTRO",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "b4003ee9-3246-4fdb-925e-29f3249dd21f",
+      "identidad": "V-82194677",
+      "nombre": "PEDRO REY CASTRO",
+      "created_at": "2026-09-30T23:07:06.2351+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f33faa45-9004-46c1-90a9-98c8fc889ead",
+      "identidad": "E-81199857",
+      "nombre": "FRANCISCO JAVIER RIBEIRO MACHADO",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "adb4fa4c-725a-4406-874d-cef483241e25",
+      "identidad": "V-81199857",
+      "nombre": "FRANCISCO JAVIER RIBEIRO MACHADO",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "accb9cc0-ef25-495d-af94-fca96153d5d4",
+      "identidad": "E-81422903",
+      "nombre": "JORGE GUSTAVO MUÑOZ SOTO",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "855b46bc-fd9c-4f5b-8a89-c59c2abd517b",
+      "identidad": "V-81422903",
+      "nombre": "JORGE GUSTAVO MUÑOZ SOTO",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "006f8438-7662-433d-889d-c98900b50262",
+      "identidad": "E-81154574",
+      "nombre": "LUIS HERACLITO ROJAS SILVA",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "fe2d090a-0b85-4aff-826e-d82400f5725a",
+      "identidad": "V-81154574",
+      "nombre": "LUIS HERACLITO ROJAS SILVA",
+      "created_at": "2026-09-30T23:06:59.166412+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4762fceb-5bcd-4f97-ac39-dc4a44755298",
+      "identidad": "E-82226613",
+      "nombre": "RUHAO LIANG",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "61ddf1d3-1558-4686-944f-f42aa250027c",
+      "identidad": "V-82226613",
+      "nombre": "RUHAO LIANG",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "208ca13b-945b-4e9a-ab48-105ad6af027c",
+      "identidad": "E-84483604",
+      "nombre": "FENG XUEBING",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "746c0b16-ea62-45e0-9271-8c27f991b742",
+      "identidad": "V-84483604",
+      "nombre": "FENG XUEBING",
+      "created_at": "2026-09-30T23:06:44.505437+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3f9125ea-4ee0-4b44-80d9-bfa532b6507a",
+      "identidad": "V-2525252",
+      "nombre": "ABREU DOUGLAS",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "1de6869f-4be3-41c3-80e4-c12c2dfb2189",
+      "identidad": "V-02525252",
+      "nombre": "HERNANDEZ FRANCIS",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    }
+  ],
+  [
+    {
+      "id": "dbfc57f7-bf55-4ce4-9c65-77cb348ed2ab",
+      "identidad": "E-1040657",
+      "nombre": "ROCCO DE FRENZA AMORUSO",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "9f013e21-390d-4778-b157-bc1f92a0207b",
+      "identidad": "V-1040657",
+      "nombre": "ROCCO DE FRENZA AMORUSO",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a0c55868-3d4a-4458-9636-f6afec3dd9c2",
+      "identidad": "E-81197341",
+      "nombre": "JUAN GUILLERMO MONTOYA GIL",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "faa0cce2-be78-4254-882b-0a3369e69cfb",
+      "identidad": "V-81197341",
+      "nombre": "JUAN GUILLERMO MONTOYA GIL",
+      "created_at": "2026-09-30T23:07:05.710815+00:00"
+    }
+  ],
+  [
+    {
+      "id": "50fe9e87-79f2-4624-b640-dde41cd05b02",
+      "identidad": "E-81044052",
+      "nombre": "JESUSA  PEREIRA GONZALEZ",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "f8e02fd2-36c1-44ad-97ac-4e68a684f221",
+      "identidad": "V-81044052",
+      "nombre": "JESUSA  PEREIRA GONZALEZ",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "455e29ce-83ec-4d9b-8339-759015573505",
+      "identidad": "E-81838703",
+      "nombre": "VICTOR  GRANDA",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "0af6f37d-bca6-432a-8a92-2cb7e9e53758",
+      "identidad": "V-81838703",
+      "nombre": "VICTOR  GRANDA",
+      "created_at": "2026-09-30T23:06:53.127877+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f0ea7e42-a1fc-4d55-a8d2-63ca6afbaf56",
+      "identidad": "E-82245446",
+      "nombre": "ZHIGUAN   FANG",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "257ddc52-9f6c-4d7f-bbc1-08cd86a58718",
+      "identidad": "V-82245446",
+      "nombre": "ZHIGUAN   FANG",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "cedc6c37-1529-4da1-af6b-bcb72f392a2f",
+      "identidad": "E-81955428",
+      "nombre": "GUSTAVO MANUEL CAZORLA MARRERO",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "c5d2f858-2c63-4799-a003-64f01dc7ac69",
+      "identidad": "V-81955428",
+      "nombre": "GUSTAVO MANUEL CAZORLA MARRERO",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ab1fd35e-fb11-4c28-b2d7-e95d9a7ee18e",
+      "identidad": "G-200042311",
+      "nombre": "FISCO MUNICIPAL DE NAGUANAGUA",
+      "created_at": "2026-09-22T01:49:38.07096+00:00"
+    },
+    {
+      "id": "3c7caaf7-0267-4fc3-b125-83d6c7202fb6",
+      "identidad": "V-200042311",
+      "nombre": "FISCO MUNICIPAL DE NAGUANAGUA",
+      "created_at": "2026-09-30T23:06:57.606191+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2521dc73-bf47-4f4f-961c-0716467d7aec",
+      "identidad": "E-82075521",
+      "nombre": "SERGIO ALEJANDRO TIRADO PAZ Y ANGELA MARIA MEJIA GARCIA",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "c3639d6d-8069-4142-a637-add1c2a995ff",
+      "identidad": "V-82075521",
+      "nombre": "SERGIO ALEJANDRO TIRADO PAZ Y ANGELA MARIA MEJIA GARCIA",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "76d302b4-a27a-4554-81b3-bdfef2090e5a",
+      "identidad": "E-81709550",
+      "nombre": "NICOLA COZZOLINO CANO",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "fe6c5b51-a56f-4529-880d-96eee5b24f20",
+      "identidad": "V-81709550",
+      "nombre": "NICOLA COZZOLINO CANO",
+      "created_at": "2026-09-30T23:06:44.505437+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5b605fcd-27fc-489b-b551-8137f12d9642",
+      "identidad": "E-81172063",
+      "nombre": "VIRGILIO LEOPOLDINO DE ANDRADE",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "2ba50596-ba2c-4431-864a-3d4de2e56ecd",
+      "identidad": "V-81172063",
+      "nombre": "VIRGILIO LEOPOLDINO DE ANDRADE",
+      "created_at": "2026-09-30T23:06:40.732012+00:00"
+    }
+  ],
+  [
+    {
+      "id": "65df2cb1-bca0-4daf-8060-23f03cf4b860",
+      "identidad": "E-82140980",
+      "nombre": "JORGE ALEJANDRO TEJERO MAESO",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "5bcb58d9-abaa-4aff-aca8-498ee7e2badf",
+      "identidad": "V-82140980",
+      "nombre": "JORGE ALEJANDRO TEJERO MAESO",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d0c001b9-6dad-4be0-95a3-ce31384afc63",
+      "identidad": "E-81162276",
+      "nombre": "LEONOR DE AURIA",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "21b4a0f0-59d6-4c86-97fb-f84eaad6479b",
+      "identidad": "V-81162276",
+      "nombre": "LEONOR DE AURIA",
+      "created_at": "2026-09-30T23:07:04.644308+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7eda43d9-8cac-4e12-8fe2-88ad1cf65c50",
+      "identidad": "E-82198253",
+      "nombre": "XUEQING ZHOU",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "1d58b217-6a54-436a-8bd5-a2fd736efe12",
+      "identidad": "V-82198253",
+      "nombre": "XUEQING ZHOU",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2dafdc71-5533-4aa5-8b46-7e4184fcbde6",
+      "identidad": "E-81924895",
+      "nombre": "MARIA ROSARIO AGUIRRE BARRUETABEÑA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "ce53c2a0-b784-41ab-b98a-95d3424afa45",
+      "identidad": "V-81924895",
+      "nombre": "MARIA ROSARIO AGUIRRE BARRUETABEÑA",
+      "created_at": "2026-09-30T23:06:54.454253+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ac60c54b-4984-420a-b507-84a29319a284",
+      "identidad": "E-83216128",
+      "nombre": "GUAN AIHUA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "776a95a5-ddd5-4fb1-8404-11f2d1e4f9cc",
+      "identidad": "V-83216128",
+      "nombre": "GUAN AIHUA",
+      "created_at": "2026-09-30T23:06:43.165955+00:00"
+    }
+  ],
+  [
+    {
+      "id": "85c01b56-eccf-4d3d-9b95-3070f057f057",
+      "identidad": "E-81669498",
+      "nombre": "LEMUS INIRIDA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "bdb7650d-4c5b-4e57-9631-c3a5f3365192",
+      "identidad": "V-81669498",
+      "nombre": "LEMUS INIRIDA",
+      "created_at": "2026-09-30T23:07:03.373712+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8a8ead87-120d-4234-9970-062fdc0d2134",
+      "identidad": "E-81144439",
+      "nombre": "MARY BELTRAN GUTIERREZ Y ABELARDO RAMON ESCOBAR RUEDA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "c1b90a82-ae8d-46fa-8111-69cff32a9fba",
+      "identidad": "V-81144439",
+      "nombre": "MARY BELTRAN GUTIERREZ",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1ff9abac-1c01-42ee-be6a-dc8623c71f96",
+      "identidad": "E-83574189",
+      "nombre": "HUANXIA MO",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "bc97111f-2ff0-4a70-ae1f-136e278444f6",
+      "identidad": "V-83574189",
+      "nombre": "HUANXIA MO",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2bcfc22c-d79e-43a5-8556-128d00780d84",
+      "identidad": "E-82246326",
+      "nombre": "LI FURONG",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "86ee90ce-dd61-4164-9229-db61e14882c9",
+      "identidad": "V-82246326",
+      "nombre": "LI FURONG",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a93e349c-7d9d-4457-8803-51b4c67df4b7",
+      "identidad": "E-81894854",
+      "nombre": "NORGE MANUEL FLEITAS FUMERO",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "d0c5f89f-f88f-499f-936d-45a5f26788c4",
+      "identidad": "V-81894854",
+      "nombre": "NORGE MANUEL FLEITAS FUMERO",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "cabedb36-0107-4022-a6b5-6f005e30bdb1",
+      "identidad": "E-82246319",
+      "nombre": "CHUNXIANG ZHANG",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "3f5b1e09-2060-4d1c-ad11-c7fb48368f16",
+      "identidad": "V-82246319",
+      "nombre": "CHUNXIANG ZHANG",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ab4c1592-064b-4671-9409-ac910085ff86",
+      "identidad": "E-01100070",
+      "nombre": "MARIA DE TRIANA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "426b2089-600b-438a-8acc-e18f0eaaffc4",
+      "identidad": "V-01100070",
+      "nombre": "MARIA DE TRIANA",
+      "created_at": "2026-09-30T23:07:02.021128+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3cfee888-786c-46ff-be67-5b756fd86b46",
+      "identidad": "E-80899686",
+      "nombre": "ALCINO DE ALMADA VIEIRA AMERICANO",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "528bcbf0-961f-4571-ae80-0fc9487e9797",
+      "identidad": "V-80899686",
+      "nombre": "ALCINO DE ALMADA VIEIRA AMERICANO",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b4657ede-399e-454f-808a-4b99ce905b52",
+      "identidad": "E-811716600",
+      "nombre": "JOSE SAVINO",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "462dc6c8-570f-4a1a-9ef6-6906d88c4189",
+      "identidad": "V-811716600",
+      "nombre": "JOSE SAVINO",
+      "created_at": "2026-09-30T23:06:41.336989+00:00"
+    }
+  ],
+  [
+    {
+      "id": "055c5722-07d6-4b72-b6b4-229a199525f5",
+      "identidad": "E-81961546",
+      "nombre": "RAFFI NALBANFIAN",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "e350f8ef-2080-42b1-8980-496531edd440",
+      "identidad": "V-81961546",
+      "nombre": "RAFFI NALBANFIAN",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "78f1c43f-189a-43aa-91a4-33505177412e",
+      "identidad": "E-927132",
+      "nombre": "MANUEL MARCELINO CESAR DE FREITAS",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "06361867-e991-476b-b924-09d1171b79ea",
+      "identidad": "V-927132",
+      "nombre": "MANUEL MARCELINO CESAR DE FREITAS",
+      "created_at": "2026-09-30T23:07:04.414323+00:00"
+    }
+  ],
+  [
+    {
+      "id": "feeb375b-7dd6-4f63-b01f-7d36a2ae35c5",
+      "identidad": "E-84486372",
+      "nombre": "XIAOQUIN WU",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "7763cfb5-3fea-452b-87af-9fbc10ec4108",
+      "identidad": "V-84486372",
+      "nombre": "XIAOQUIN WU",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ed7d11cc-e28f-4ce7-af7e-213306ba5e21",
+      "identidad": "E-84483067",
+      "nombre": "FENG JIAJIN",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "d8d1fe3a-2f79-4439-bf93-332be83a365f",
+      "identidad": "V-84483067",
+      "nombre": "FENG JIAJIN",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "95fe9343-88ec-4455-8cd2-6d6b83d494ea",
+      "identidad": "E-81711883",
+      "nombre": "ADOLFO CORREA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "7dcec5c9-11a5-42f4-91b5-406c444e7d8d",
+      "identidad": "V-81711883",
+      "nombre": "ADOLFO CORREA",
+      "created_at": "2026-09-30T23:07:02.021128+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f1f69d88-4eb6-4071-a755-4489bbdf8ff2",
+      "identidad": "E-84365012",
+      "nombre": "WU XIHONG",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "768f6a76-1ab1-4b3f-8bc0-118a22fda3b8",
+      "identidad": "V-84365012",
+      "nombre": "WU XIHONG",
+      "created_at": "2026-09-30T23:07:05.204616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e56a7796-afe6-414c-9b88-9e2402ee7589",
+      "identidad": "E-81728687",
+      "nombre": "GORKA YON DIAZ DE LEZANA FERNANDEZ",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "1ad23822-9c39-4e72-b226-d1a3f9b7ce37",
+      "identidad": "V-81728687",
+      "nombre": "GORKA YON DIAZ DE LEZANA FERNANDEZ",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f69ef59f-41f9-4ca8-bc31-95b9881f909d",
+      "identidad": "E-82043289",
+      "nombre": "JOHANDY HERNANDEZ CABRERA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "8d75b0d4-2d73-457c-87d1-1880177f0659",
+      "identidad": "V-82043289",
+      "nombre": "JOHANDY HERNANDEZ CABRERA",
+      "created_at": "2026-09-30T23:07:05.204616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "756e7933-e901-461b-9bc4-1d0c78b53a39",
+      "identidad": "E-81442118",
+      "nombre": "JUAN CARLOS CANDELE",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "2be5a761-e928-4b44-8eb3-ac76b2cbdb69",
+      "identidad": "V-81442118",
+      "nombre": "JUAN CARLOS CANDELE",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b7d24af2-69ab-4dfa-93ae-7231fd9d9984",
+      "identidad": "E-81322860",
+      "nombre": "AMADEU DE JESUS FERREIRA",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "6680d39e-9446-4801-b7f7-12d7a299ecd9",
+      "identidad": "V-81322860",
+      "nombre": "AMADEU DE JESUS FERREIRA",
+      "created_at": "2026-09-30T23:06:40.187176+00:00"
+    }
+  ],
+  [
+    {
+      "id": "28ee642b-1373-4ed2-b942-a1bae6205d39",
+      "identidad": "E-81959743",
+      "nombre": "TOMAS  AZCARATE CAÑAMAQUE",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "1dde25fd-2a37-4910-ba2d-588bde0415db",
+      "identidad": "V-81959743",
+      "nombre": "TOMAS  AZCARATE CAÑAMAQUE",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f5e38f3d-261e-4dcf-95d0-812e159e13ec",
+      "identidad": "E-81954332",
+      "nombre": "GLORIA VARGAS",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "fa86c52f-802d-4204-9609-d78b1f39db39",
+      "identidad": "V-81954332",
+      "nombre": "GLORIA VARGAS",
+      "created_at": "2026-09-30T23:07:02.304587+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e4c937f9-9ee1-43bb-94ba-4c9c517d36aa",
+      "identidad": "E-82067956",
+      "nombre": "LEONARDO DAMONI",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "b37dead8-ffed-4839-9221-eeafddd253ab",
+      "identidad": "V-82067956",
+      "nombre": "LEONARDO DAMONI",
+      "created_at": "2026-09-30T23:06:56.259584+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c3d59d75-26db-43fe-9c69-b9094e422073",
+      "identidad": "E-82237301",
+      "nombre": "MIRIAM DEL CARMEN VERA MARTINEZ",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "871d8d76-2356-4644-9dae-1558d5473f7c",
+      "identidad": "V-82237301",
+      "nombre": "MIRIAM DEL CARMEN VERA MARTINEZ",
+      "created_at": "2026-09-30T23:07:06.2351+00:00"
+    }
+  ],
+  [
+    {
+      "id": "18740c63-a0e1-4a39-a483-d6a86edc88cf",
+      "identidad": "E-82137623",
+      "nombre": "JEAN PAUL CHOY ÑUFLO",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "c4de2bd2-c22d-464e-b4a1-717e51978d82",
+      "identidad": "V-82137623",
+      "nombre": "JEAN PAUL CHOY ÑUFLO",
+      "created_at": "2026-09-30T23:07:01.271806+00:00"
+    }
+  ],
+  [
+    {
+      "id": "540a69ab-b6e2-4df1-aa72-4c6d76e245a1",
+      "identidad": "E-81398494",
+      "nombre": "VICTOR FRANCISCO LAZO HUAMAN",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "205faf2e-f04e-40db-ac0f-9b6f78ea648f",
+      "identidad": "V-81398494",
+      "nombre": "VICTOR FRANCISCO LAZO HUAMAN",
+      "created_at": "2026-09-30T23:07:06.2351+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4d4fee3d-b812-4302-84b5-19145f87af80",
+      "identidad": "E-816333604",
+      "nombre": "ROBERTO CRUZ LOZANO",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "8de4ac7d-18ac-4858-9fb2-bb775435914a",
+      "identidad": "V-816333604",
+      "nombre": "ROBERTO CRUZ LOZANO",
+      "created_at": "2026-09-30T23:06:59.393071+00:00"
+    }
+  ],
+  [
+    {
+      "id": "50919123-bb3b-4804-bacd-86ffdc17d6c3",
+      "identidad": "E-81514830",
+      "nombre": "FRANCISCO JAVIER ARRARTE TANGUIS",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "62df612c-b8bc-409e-8904-b803dd33e8ec",
+      "identidad": "V-81514830",
+      "nombre": "FRANCISCO JAVIER ARRARTE TANGUIS",
+      "created_at": "2026-09-30T23:06:44.745645+00:00"
+    }
+  ],
+  [
+    {
+      "id": "353929f6-22b0-42d5-80c6-940df0bfc0a6",
+      "identidad": "E-82278661",
+      "nombre": "WU PEICI",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "dcccec30-b8d4-4dc1-ac66-45cd4788ea66",
+      "identidad": "V-82278661",
+      "nombre": "WU PEICI",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3d71551c-a101-453f-aa9c-1719b8771592",
+      "identidad": "E-82281355",
+      "nombre": "RONGFU WU",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "40e52eaa-e1a2-43cd-bfbe-161aeeca6762",
+      "identidad": "V-82281355",
+      "nombre": "RONGFU WU",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "401cb6d7-18f5-4c36-acf0-44bacc648986",
+      "identidad": "E-81196484",
+      "nombre": "LUIGI PETRELLA GERMANO",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "060a87dc-1ff4-4a60-84d8-651c1f9b7283",
+      "identidad": "V-81196484",
+      "nombre": "LUIGI PETRELLA GERMANO",
+      "created_at": "2026-09-30T23:06:42.65488+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e0b74d8b-9c0d-4aaf-9acf-9f72b13381c6",
+      "identidad": "V-81184144",
+      "nombre": "JOAQUIN MANUEL DE JESUS VALENTE",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "57c192fa-d1ff-480c-ab75-2cf1ba380e9b",
+      "identidad": "E-81184144",
+      "nombre": "JOAQUIN MANUEL DE JESUS VALENTE E IVELISSE DEL CARMEN UZCATEGUI DE VALENTE",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8b45e6a7-1f8f-40e6-bff4-1e37408bb2e5",
+      "identidad": "E-81995614",
+      "nombre": "CONCEICAO  DE SOUSA VICENTE TEIXEIRA Y YULEISY MARIA DA SILVA DE SOUSA",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "09d93dc6-da03-4318-bbcd-0324da9f0229",
+      "identidad": "V-81995614",
+      "nombre": "CONCEICAO  DE SOUSA VICENTE TEIXEIRA Y YULEISY MARIA DA SILVA DE SOUSA",
+      "created_at": "2026-09-30T23:06:42.142777+00:00"
+    }
+  ],
+  [
+    {
+      "id": "25992963-c044-41cb-afda-a18e0ecf8df0",
+      "identidad": "E-81720005",
+      "nombre": "ALFREDO SIDONIO DE FREITAS JARDIM",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "63e7d0aa-eacb-4f26-a20c-a75e38e8b9fa",
+      "identidad": "V-81720005",
+      "nombre": "ALFREDO SIDONIO DE FREITAS JARDIM",
+      "created_at": "2026-09-30T23:06:45.301222+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3199354f-e8e1-429a-a3a3-fbf9e9645263",
+      "identidad": "E-81085881",
+      "nombre": "FERNANDO GONCALVES DE ABREU SERRANO Y A ANA MARIA VIEIRA DE FREITAS",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "08ee9d0a-4469-4c62-a3a2-6cde994ca4d6",
+      "identidad": "V-81085881",
+      "nombre": "FERNANDO GONCALVES DE ABREU SERRANO Y A ANA MARIA VIEIRA DE FREITAS",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    }
+  ],
+  [
+    {
+      "id": "bef436e3-2e8b-4862-8f65-f2b26cdc7b0f",
+      "identidad": "E-81690589",
+      "nombre": "GUMERSINDO  GANDARA GONZALEZ",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "33de7a55-2d8f-42e8-ac97-e911f496d6c3",
+      "identidad": "V-81690589",
+      "nombre": "GUMERSINDO  GANDARA GONZALEZ",
+      "created_at": "2026-09-30T23:06:58.119954+00:00"
+    }
+  ],
+  [
+    {
+      "id": "20c6fd5a-f626-46f6-8bab-5841963241c7",
+      "identidad": "E-81196889",
+      "nombre": "ROBERTO ANGEL BRAVO SILVA",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "21b1bb48-ada9-4d6a-b436-9f0a5458f70d",
+      "identidad": "V-81196889",
+      "nombre": "ROBERTO ANGEL BRAVO SILVA",
+      "created_at": "2026-09-30T23:07:05.476621+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f609bc7f-f5f7-4b6d-a6c2-b94b0b8b90aa",
+      "identidad": "E-84497151",
+      "nombre": "ZEHAO LIANG",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "903b0ea2-5f16-41b5-aa04-2d4b2ce4aa4e",
+      "identidad": "V-84497151",
+      "nombre": "ZEHAO LIANG",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d1f1c68d-36b9-4f9d-ab4f-8437f7d28e18",
+      "identidad": "E-81734047",
+      "nombre": "HOMERO LOPEZ",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "e3e0523a-bef9-4dc0-85b2-e5be1758f597",
+      "identidad": "V-81734047",
+      "nombre": "HOMERO LOPEZ",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "21233121-f5ae-44e7-96a0-d629d88b4f86",
+      "identidad": "E-927992",
+      "nombre": "VIRGILIA  FIGUEIRA DA SILVA",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "2bbe6f0f-85b6-44b9-b653-ba52505c6363",
+      "identidad": "V-927992",
+      "nombre": "VIRGILIA  FIGUEIRA DA SILVA",
+      "created_at": "2026-09-30T23:06:52.089441+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7ecff9ec-becd-4c02-a0d0-e4f886134eb1",
+      "identidad": "E-81632056",
+      "nombre": "CECILIO GONCALVEZ ANDRADE  Y LORINDA RODRIGUEZ DE GONCALVEZ",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "290e71a0-e74a-42cc-9959-20c02fda0152",
+      "identidad": "V-81632056",
+      "nombre": "CECILIO GONCALVEZ ANDRADE  Y LORINDA RODRIGUEZ DE GONCALVEZ",
+      "created_at": "2026-09-30T23:06:39.824934+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c0853567-9fa4-4a95-b6cf-608777622c17",
+      "identidad": "E-81954887",
+      "nombre": "BUNYS YANETT MEJIA PEREZ",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "bdb18500-efe8-4bf3-96bf-fc780b111e9d",
+      "identidad": "V-81954887",
+      "nombre": "BUNYS YANETT MEJIA PEREZ",
+      "created_at": "2026-09-30T23:06:39.824934+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9e79aa83-80a5-4478-9277-5c535d1af192",
+      "identidad": "E-82270437",
+      "nombre": "ZHENG MEIHUA",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "ed791209-1a0e-4502-9b38-53c67bb10f2a",
+      "identidad": "V-82270437",
+      "nombre": "ZHENG MEIHUA",
+      "created_at": "2026-09-30T23:07:01.271806+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f1c215cc-6fc9-4bf4-848d-f7b25aad710f",
+      "identidad": "E-82246876",
+      "nombre": "RUIFENG WU",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "00fb17e2-19f4-4a79-9540-5c3fc89ac6a6",
+      "identidad": "V-82246876",
+      "nombre": "RUIFENG WU",
+      "created_at": "2026-09-30T23:06:40.465835+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e874c349-93c2-4c19-9461-5c35fa209ef5",
+      "identidad": "E-82276999",
+      "nombre": "WEIRONG  CAO",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "e61fb970-e9c5-4c85-89dd-c500c0236fcd",
+      "identidad": "V-82276999",
+      "nombre": "WEIRONG  CAO",
+      "created_at": "2026-09-30T23:07:05.476621+00:00"
+    }
+  ],
+  [
+    {
+      "id": "acd6b7de-71ac-4cb2-ad56-f24ce03ceb14",
+      "identidad": "E-82278640",
+      "nombre": "LIU MIN",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "5114d169-24ec-4a4a-9614-f0fb077ca1ca",
+      "identidad": "V-82278640",
+      "nombre": "LIU MIN",
+      "created_at": "2026-09-30T23:07:06.2351+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3afab101-effb-4a79-9b44-99d3b066f248",
+      "identidad": "E-82075693",
+      "nombre": "XIAO LAN FENG FENG",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "fe2c8293-30f7-45be-8d11-deacfdfbafeb",
+      "identidad": "V-82075693",
+      "nombre": "XIAO LAN FENG FENG",
+      "created_at": "2026-09-30T23:06:43.165955+00:00"
+    }
+  ],
+  [
+    {
+      "id": "799d9589-d272-4d28-8bc5-d80f5423c966",
+      "identidad": "E-82297410",
+      "nombre": "MARIO EDUARDO CUBAS QUIROZ",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "6d2057fd-e60e-42f6-ac57-46dfa3420338",
+      "identidad": "V-82297410",
+      "nombre": "MARIO EDUARDO CUBAS QUIROZ",
+      "created_at": "2026-09-30T23:06:59.166412+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8d4fe1b3-0102-4a3d-97ea-36bce3f9de01",
+      "identidad": "E-207378",
+      "nombre": "IRMA FRANK DE FUCHS",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "cbbdbb3e-819e-41c3-8d4b-bc1165d9bc42",
+      "identidad": "V-207378",
+      "nombre": "IRMA FRANK DE FUCHS",
+      "created_at": "2026-09-30T23:06:43.454837+00:00"
+    }
+  ],
+  [
+    {
+      "id": "0dc2da09-ea96-46bd-ad26-95881df5ed55",
+      "identidad": "E-81182521",
+      "nombre": "MARIA TERESA VIEIRA",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "1ea57871-9b61-4772-b519-a59c5e7fd573",
+      "identidad": "V-81182521",
+      "nombre": "MARIA TERESA VIEIRA",
+      "created_at": "2026-09-30T23:07:06.2351+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f87d641b-ec49-4f62-bc44-e3ce9a47e9fa",
+      "identidad": "E-81705470",
+      "nombre": "LORENZA MUÑOZ NAJERA",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "8ee292e5-506d-4914-9c99-a1dc34742b0d",
+      "identidad": "V-81705470",
+      "nombre": "LORENZA MUÑOZ NAJERA",
+      "created_at": "2026-09-30T23:06:43.696193+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5f562a03-9cc4-430e-be6b-86d17783a446",
+      "identidad": "E-811949917",
+      "nombre": "HECTOR ROLANDO COUSIÑO SALAS (ELEC-MOTOR)",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "c58611e5-2bf7-4823-8848-e71991cf5ef9",
+      "identidad": "V-811949917",
+      "nombre": "HECTOR ROLANDO COUSIÑO SALAS (ELEC-MOTOR)",
+      "created_at": "2026-09-30T23:06:59.69602+00:00"
+    }
+  ],
+  [
+    {
+      "id": "dc9d5a71-4da8-4050-bc7f-feb30ade3226",
+      "identidad": "V-03055553",
+      "nombre": "WILFREDO ROJAS",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "b3b9951b-bd30-4e0e-b99b-7fab8a2a286d",
+      "identidad": "V-3055553",
+      "nombre": "WILFREDO  SANDOVAL ROJAS",
+      "created_at": "2026-09-22T01:49:37.08336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1edf7334-9228-4e4c-8b95-224967da9c01",
+      "identidad": "V-7112460",
+      "nombre": "MARLENE DE LOS ANGELES PINTO MENDOZA, BELKIS AUXILIADORA PINTO MENDOZA, MEDARDO ALFONZO PINTO MENDOZA, HUMBERTO RICARDO PINTO MENDOZA Y LUCRECIA DE LAS MERCEDES PINTO MENDOZA",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "28ade2ea-6ce1-4c8a-8708-d83cee4a3126",
+      "identidad": "V-07112460",
+      "nombre": "PINTO MENDOZA MARLENE DE LOS ANGELES",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    }
+  ],
+  [
+    {
+      "id": "103b1a52-2b2b-4990-8cf8-54140a9d88ce",
+      "identidad": "E-958753",
+      "nombre": "DULCE MARIA TAMES DE MORETE",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "6ebb87fd-457d-4f66-a467-9a9337776b33",
+      "identidad": "V-958753",
+      "nombre": "DULCE MARIA TAMES DE MORETE",
+      "created_at": "2026-09-30T23:06:49.454453+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ae2e1a92-a644-40df-b82e-90ead4a660c8",
+      "identidad": "E-81197044",
+      "nombre": "ALBINO MOREIRA DA SILVA",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "dfe60532-b71f-4cc1-8f7d-e0d357302128",
+      "identidad": "V-81197044",
+      "nombre": "ALBINO MOREIRA DA SILVA",
+      "created_at": "2026-09-30T23:06:50.782138+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e56d31db-890a-4918-b289-388391fe2b7b",
+      "identidad": "E-81182443",
+      "nombre": "FRANCO MARERI LUPY",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "06cc4019-d72c-4e24-ba94-16a5a552538d",
+      "identidad": "V-81182443",
+      "nombre": "FRANCO MARERI LUPY",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7e703c34-d4d2-40a0-ba48-7a6f07fde9b2",
+      "identidad": "E-81096469",
+      "nombre": "MIRTHA RIVADENEIRA",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "780c7683-c200-4635-940f-9d895cd2bc77",
+      "identidad": "V-81096469",
+      "nombre": "MIRTHA RIVADENEIRA",
+      "created_at": "2026-09-30T23:06:48.943024+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4b62ec1c-8a46-4811-9575-f0c715a77028",
+      "identidad": "E-81634139",
+      "nombre": "MARGARITA TERESA CLARO DE SMITH",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "a9b434a6-7422-4288-a87b-cc51881f5f02",
+      "identidad": "V-81634139",
+      "nombre": "MARGARITA TERESA CLARO DE SMITH",
+      "created_at": "2026-09-30T23:06:59.393071+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4f3825cb-a8f8-45f2-a517-1c86e27213a1",
+      "identidad": "E-00468395",
+      "nombre": "JOAO DE SOUSA",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "107631a5-491f-494b-82b3-8b9a14687dfa",
+      "identidad": "V-00468395",
+      "nombre": "JOAO DE SOUSA",
+      "created_at": "2026-09-30T23:06:59.393071+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c1b03715-7ebb-49a4-8313-6d9b7cd4fd4e",
+      "identidad": "E-81198015",
+      "nombre": "MARTA LILIAN RENDON DE ESTRADA",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "a60a4e5f-8006-42fe-a448-8cf84cdfe1bf",
+      "identidad": "V-81198015",
+      "nombre": "MARTA LILIAN RENDON DE ESTRADA",
+      "created_at": "2026-09-30T23:07:05.204616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9581d436-fffc-4902-bee0-ee3cf5b27c09",
+      "identidad": "E-84417454",
+      "nombre": "IVAN CEN",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "88eb4e7c-5ce1-4289-b68a-b647c2f2ae25",
+      "identidad": "V-84417454",
+      "nombre": "IVAN CEN",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2e07b6f0-3b5f-4214-963d-af80fb76766e",
+      "identidad": "E-82278106",
+      "nombre": "JIANCHAN WU",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "b09be7e5-b7fa-4fea-b502-e2f93b6e623e",
+      "identidad": "V-82278106",
+      "nombre": "JIANCHAN WU",
+      "created_at": "2026-09-30T23:06:45.554648+00:00"
+    }
+  ],
+  [
+    {
+      "id": "bb367e65-43e1-4542-817f-7062c5e7e756",
+      "identidad": "E-01041083",
+      "nombre": "OTILIA ALONSO GARCIA",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "2808e3a8-e8fa-4aed-b7ee-d403fd89c57c",
+      "identidad": "V-01041083",
+      "nombre": "OTILIA ALONSO GARCIA",
+      "created_at": "2026-09-30T23:06:59.393071+00:00"
+    }
+  ],
+  [
+    {
+      "id": "fa9fe7a2-7427-4e8d-afd0-6d07adcef780",
+      "identidad": "E-82274783",
+      "nombre": "ALDANA WANDELT",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "c644aa79-ee9d-430b-9f17-4b24e3037d84",
+      "identidad": "V-82274783",
+      "nombre": "ALDANA WANDELT",
+      "created_at": "2026-09-30T23:07:04.122376+00:00"
+    }
+  ],
+  [
+    {
+      "id": "0b595929-9bb2-444e-9c48-843bb4c85387",
+      "identidad": "E-81960651",
+      "nombre": "LUIS FELIPE CUBAS QUIROZ",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "82addc34-3afb-4a2b-ae88-f3874e0b952f",
+      "identidad": "V-81960651",
+      "nombre": "LUIS FELIPE CUBAS QUIROZ",
+      "created_at": "2026-09-30T23:06:40.187176+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4f7fbc0e-fbd5-464c-a3dd-fc22b243fb56",
+      "identidad": "E-81705435",
+      "nombre": "NANCY EUGENIA TAVIO DE RAMIA Y LOURDES NANCY RAMIA DE BEGOVICH",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "ee352036-2fad-4082-a101-bb6e59d3cd43",
+      "identidad": "V-81705435",
+      "nombre": "NANCY EUGENIA TAVIO DE RAMIA Y LOURDES NANCY RAMIA DE BEGOVICH",
+      "created_at": "2026-09-30T23:06:46.090738+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7b6474d5-74b0-4625-982f-f77ec44a1938",
+      "identidad": "E-82296630",
+      "nombre": "ZHUYING CEN Y WENJIN FENG",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "bcdea878-3c54-4bc3-93ac-babcaf5a7aed",
+      "identidad": "V-82296630",
+      "nombre": "ZHUYING CEN Y WENJIN FENG",
+      "created_at": "2026-09-30T23:06:44.505437+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f9886132-f66f-40fe-aeb2-b247d9551805",
+      "identidad": "E-822182324",
+      "nombre": "FATIMA LATAQUI",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "7ded6073-2e23-4813-a00e-0250a3f84b3c",
+      "identidad": "V-822182324",
+      "nombre": "FATIMA LATAQUI",
+      "created_at": "2026-09-30T23:07:00.25141+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9e2d2d4e-c29c-4ea5-9a28-553865393662",
+      "identidad": "E-82122900",
+      "nombre": "MARIA DELFINA GARCIA VARGAS",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "d4eb941c-cae8-4be3-81b5-1402ea0118f5",
+      "identidad": "V-82122900",
+      "nombre": "MARIA DELFINA GARCIA VARGAS",
+      "created_at": "2026-09-30T23:07:04.644308+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f48706b4-a871-45d4-8e4a-531bef2737d6",
+      "identidad": "E-82166878",
+      "nombre": "JESUS BERMUDEZ",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "4335888c-9c4e-410f-ae11-b5646466f688",
+      "identidad": "V-82166878",
+      "nombre": "JESUS BERMUDEZ",
+      "created_at": "2026-09-30T23:06:56.259584+00:00"
+    }
+  ],
+  [
+    {
+      "id": "0c20243d-328a-4d27-aa97-24b43f5af30b",
+      "identidad": "E-81671494",
+      "nombre": "ALICIA ESTER CUBO DE LUCINI",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "44cc1fcf-87a6-455d-8a24-4f3f9e5ff01a",
+      "identidad": "V-81671494",
+      "nombre": "ALICIA ESTER CUBO DE LUCINI Y MARIO RUBEN LUCINI",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "49bd9bb8-f6ea-4482-80a7-9070c6f8aa97",
+      "identidad": "E-82075793",
+      "nombre": "ANGEL FABIAN HINOSTROZA CASTILLO",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "297a16b5-693e-4022-8b31-e627c1d58c9c",
+      "identidad": "V-82075793",
+      "nombre": "ANGEL FABIAN HINOSTROZA CASTILLO",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b0b26bf5-3e5a-4f3e-90dc-922ea9a75f2c",
+      "identidad": "E-81420996",
+      "nombre": "ROSTAGNO JORGE",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "321d67ef-9cd5-4488-a28b-06e22170aeeb",
+      "identidad": "V-81420996",
+      "nombre": "ROSTAGNO JORGE",
+      "created_at": "2026-09-30T23:06:46.090738+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a2fbd0cc-dc26-4049-9dc2-0bd818c3dabb",
+      "identidad": "E-81816936",
+      "nombre": "MARIA ANGELICA MUNIZAGA FLORES",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "3bc49052-c46c-4c14-93a8-433c8c96bf8c",
+      "identidad": "V-81816936",
+      "nombre": "MARIA ANGELICA MUNIZAGA FLORES",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "687290e6-c7fe-4c92-8ac7-2daeafe93a2d",
+      "identidad": "E-81923105",
+      "nombre": "XIWU LI LIANG",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "5347d942-9fc0-450f-b994-406ad8695034",
+      "identidad": "V-81923105",
+      "nombre": "XIWU LI LIANG",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d7ac342d-7db5-48cb-aa19-cd08c3e5f267",
+      "identidad": "E-83216101",
+      "nombre": "CHUNRONG ZHANG Y JONATHAN ZHANG WU",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "12b38728-1a35-4a68-984f-3d8a75f80e70",
+      "identidad": "V-83216101",
+      "nombre": "CHUNRONG ZHANG Y JONATHAN ZHANG WU",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8b4a7c9f-34ff-4121-8662-a1cc2809cba9",
+      "identidad": "E-113262140",
+      "nombre": "GLADYS JOSEFINA ARCAY",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "6a441709-d6f5-41ff-a307-14e3e10f3741",
+      "identidad": "V-113262140",
+      "nombre": "GLADYS JOSEFINA ARCAY",
+      "created_at": "2026-09-30T23:07:04.951634+00:00"
+    }
+  ],
+  [
+    {
+      "id": "904079c0-ef2e-4212-9ca0-fc998383a063",
+      "identidad": "E-487156",
+      "nombre": "ANGEL BLANCO PAZ",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "54b7b788-5107-4a93-832f-bff947263ea9",
+      "identidad": "V-487156",
+      "nombre": "ANGEL BLANCO PAZ",
+      "created_at": "2026-09-30T23:07:06.748059+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a578ed62-47f0-44b1-b041-99f4adc61e47",
+      "identidad": "E-81500773",
+      "nombre": "TEIXEIRA ALFREDO CEPRIANO",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "a327914f-51d6-4994-8404-c098adccd778",
+      "identidad": "V-81500773",
+      "nombre": "TEIXEIRA ALFREDO CEPRIANO",
+      "created_at": "2026-09-30T23:07:05.204616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b13f3d86-a0a3-470a-a67e-d4b15fd46610",
+      "identidad": "E-81973489",
+      "nombre": "CRISTIAN MARCELO STIPANOV AMPUERO",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "fb0971fa-0b1f-4135-a5a5-ad28d02d498f",
+      "identidad": "V-81973489",
+      "nombre": "CRISTIAN MARCELO STIPANOV AMPUERO",
+      "created_at": "2026-09-30T23:07:04.951634+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ddee5df3-bf0d-46ee-8c07-669879d83822",
+      "identidad": "V-5437211",
+      "nombre": "MARIA HERMINIA DOMINGUEZ VALENZUELA Y JOSE DA SILVA RAMOS",
+      "created_at": "2026-09-22T01:49:38.990393+00:00"
+    },
+    {
+      "id": "9d67745c-0b67-4fc7-9841-bb6797d3ab24",
+      "identidad": "V-05437211",
+      "nombre": "DOMINGUEZ VALENZUELA MARIA HERMINIA",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    }
+  ],
+  [
+    {
+      "id": "bece0e1d-2a72-4ff1-a106-71cc5875bad2",
+      "identidad": "E-8220666",
+      "nombre": "LIANG YIWEN",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "a689760b-7f60-41f9-b264-4920591288a9",
+      "identidad": "V-8220666",
+      "nombre": "LIANG YIWEN",
+      "created_at": "2026-09-30T23:06:39.544721+00:00"
+    }
+  ],
+  [
+    {
+      "id": "950f4c7a-17c9-4818-834f-218c3866fab8",
+      "identidad": "E-957364",
+      "nombre": "PEDRO RODRIGUEZ FRAGA",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "7c8acbb8-c17b-4fbf-9efc-54ca95d2440b",
+      "identidad": "V-957364",
+      "nombre": "PEDRO RODRIGUEZ FRAGA",
+      "created_at": "2026-09-30T23:06:40.732012+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c8ef4515-24bc-4c32-bfbf-8d9e73823e60",
+      "identidad": "E-919937",
+      "nombre": "ARMANDO DUARTE MOREIRA",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "9938d698-4376-4484-a3aa-ae5ea87bbb98",
+      "identidad": "V-919937",
+      "nombre": "ARMANDO DUARTE MOREIRA",
+      "created_at": "2026-09-30T23:06:46.090738+00:00"
+    }
+  ],
+  [
+    {
+      "id": "76b2abf7-d615-4595-b771-78478c37c467",
+      "identidad": "E-7121536",
+      "nombre": "MEDINA CHACON EMILSY ROSIO",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "b818473e-b971-400c-bff7-133005859b1f",
+      "identidad": "V-7121536",
+      "nombre": "MEDINA CHACON EMILSY ROSIO",
+      "created_at": "2026-09-30T23:06:49.733797+00:00"
+    }
+  ],
+  [
+    {
+      "id": "011a2937-4da4-4d74-8763-bfd6083fc304",
+      "identidad": "E-82292925",
+      "nombre": "HUANCAI FENG Y XUEMEI HUANG",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "fcbb289b-e030-44f1-99c6-af504ccabc03",
+      "identidad": "V-82292925",
+      "nombre": "HUANCAI FENG Y XUEMEI HUANG",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f41b776f-ca1a-45c6-937a-09b8652082f0",
+      "identidad": "E-81196736",
+      "nombre": "ADRIAN ESTEBAN FRANCO CARMELINGO",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "887f6bb1-b8cc-4a5b-b83f-1b34b1cf0bdc",
+      "identidad": "V-81196736",
+      "nombre": "ADRIAN ESTEBAN FRANCO CARMELINGO",
+      "created_at": "2026-09-30T23:06:59.924795+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e16fea05-7842-4dc1-8784-9a4a8b5d5b2c",
+      "identidad": "E-22740642",
+      "nombre": "JESUS CHACON",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "1ba7ffd2-eede-4fb3-9276-bb0d5782b89b",
+      "identidad": "V-22740642",
+      "nombre": "JESUS CHACON",
+      "created_at": "2026-09-30T23:06:45.554648+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2239ffae-5de2-4099-b68b-3d2c4380e959",
+      "identidad": "E-11744053",
+      "nombre": "MARILYN GOITIA VASQUEZ",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "31f2b7cd-c788-425f-bc40-26d40eba52e9",
+      "identidad": "V-11744053",
+      "nombre": "MARILYN GOITIA VASQUEZ",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4bb91a1c-2d93-4033-983d-8d33a18d8981",
+      "identidad": "E-82061807",
+      "nombre": "KARINA CRISTINA ULLOA SALAZAR Y FIDEL ESTEBAN BARREAT FELICI",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "f4ff50c4-02f7-473c-acf6-6605c55fe245",
+      "identidad": "V-82061807",
+      "nombre": "KARINA CRISTINA ULLOA SALAZAR Y FIDEL ESTEBAN BARREAT FELICI",
+      "created_at": "2026-09-30T23:06:43.454837+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7c0d50b4-d3fd-4396-b65a-9ae4fe2eb0ca",
+      "identidad": "E-81422707",
+      "nombre": "CHRISTIAN ANTONIO MARTIN DIAZ Y GLENDA TERESA ALTAMAR DE MARTIN",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "b8ffa06d-2443-4157-a2f4-da6d3cce01fe",
+      "identidad": "V-81422707",
+      "nombre": "CHRISTIAN ANTONIO MARTIN DIAZ Y GLENDA TERESA ALTAMAR DE MARTIN",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b6bcb7a2-cb2b-4b6d-b9a6-a4aa5bfabd14",
+      "identidad": "E-785844",
+      "nombre": "ANDREA ENA AFONSO DE MEDEROS",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "60e58753-9088-4d24-ada6-d81a95f628fe",
+      "identidad": "V-785844",
+      "nombre": "ANDREA ENA AFONSO DE MEDEROS",
+      "created_at": "2026-09-30T23:07:00.968939+00:00"
+    }
+  ],
+  [
+    {
+      "id": "423e4ac0-6a6e-4cf0-853c-a340e34a7f34",
+      "identidad": "E-80579585",
+      "nombre": "JOSE MANUEL RODRIGUES PENTEADO",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "81da1abc-3866-481b-8be9-2b00f71948e3",
+      "identidad": "V-80579585",
+      "nombre": "JOSE MANUEL RODRIGUES PENTEADO",
+      "created_at": "2026-09-30T23:07:04.951634+00:00"
+    }
+  ],
+  [
+    {
+      "id": "86f37c8f-c6b4-42e6-8b82-70b80f052962",
+      "identidad": "E-82156982",
+      "nombre": "MARIO APONTE HERRERA",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "768c5ade-753a-4173-af86-29a4ddd66295",
+      "identidad": "V-82156982",
+      "nombre": "MARIO APONTE HERRERA",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ff00aae1-fc9c-4eb8-8561-92ca93337c47",
+      "identidad": "E-774034",
+      "nombre": "GIOVANNA BOZZI DE FERRI",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "76105048-dd18-4f11-b47f-016046e36eeb",
+      "identidad": "V-774034",
+      "nombre": "GIOVANNA BOZZI DE FERRI",
+      "created_at": "2026-09-30T23:07:06.748059+00:00"
+    }
+  ],
+  [
+    {
+      "id": "252ec941-f51d-4248-b19f-a2145a175e53",
+      "identidad": "E-81115242",
+      "nombre": "RITA MARIA GONCALVEZ BARROS Y ANA PAULA BARROS GONCALVEZ",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "92b81829-b9a1-448c-932b-4f51a95c664e",
+      "identidad": "V-81115242",
+      "nombre": "RITA MARIA GONCALVEZ BARROS Y ANA PAULA BARROS GONCALVEZ",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7919bfcb-b803-4ffb-9145-b81032675088",
+      "identidad": "E-81726840",
+      "nombre": "FEDERICO MIGUEL PALAZZO Y A YSABEL CRISTINA RIVAS LAREZ",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "a5c9d33b-8f85-4085-9570-5871468c3da7",
+      "identidad": "V-81726840",
+      "nombre": "FEDERICO MIGUEL PALAZZO Y A YSABEL CRISTINA RIVAS LAREZ",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "939593f8-b218-4cbe-8c0f-a3a02dc7b765",
+      "identidad": "E-81705205",
+      "nombre": "MARIA IRENE DA COSTA DE ALVES",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    },
+    {
+      "id": "1f493e1e-a321-46cb-8dde-918a8eca6923",
+      "identidad": "V-81705205",
+      "nombre": "MARIA IRENE DA COSTA DE ALVES",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2f9b8d9c-7240-491f-8226-f57fe47773df",
+      "identidad": "V-04312541",
+      "nombre": "ANTONIO OSWALDO CARRANZA TORO",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "172c7765-42f7-43d7-a82c-8bdcab076ef5",
+      "identidad": "V-4312541",
+      "nombre": "ANTONIO OSWALDO CARRANZA TORO Y NANCY TERESITA FIGUEROA DE CARRANZA",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    }
+  ],
+  [
+    {
+      "id": "fdf91dad-42ce-4a74-80e7-0e20dd898fa1",
+      "identidad": "E-81679006",
+      "nombre": "DA SILVA ROCHA MANUEL DORINDO",
+      "created_at": "2026-09-22T01:49:37.08336+00:00"
+    },
+    {
+      "id": "9cabc573-6b53-437f-9eb6-8d6559ed8e1f",
+      "identidad": "V-81679006",
+      "nombre": "MANUEL DORINDO DA SILVA ROCHA, CARLOS JOSE CATARINO CRESPO Y JESUS ANTONIO ARAQUE",
+      "created_at": "2026-09-22T01:49:37.08336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "47199317-c54e-4f39-af52-2c5fa110ae12",
+      "identidad": "J-500682964",
+      "nombre": "SEED THE SUN , C. A.",
+      "created_at": "2026-09-22T01:49:37.45501+00:00"
+    },
+    {
+      "id": "ace103a9-6b71-4148-b4c9-5f25ffa223bd",
+      "identidad": "E-500682964",
+      "nombre": "SEED THE SUN , C. A.",
+      "created_at": "2026-10-03T17:35:11.459791+00:00"
+    }
+  ],
+  [
+    {
+      "id": "47ecae8b-daf4-44e4-8c2b-5a895a4dbade",
+      "identidad": "V-09827100",
+      "nombre": "JUAN CARLOS ESPERRAGOZA MORENO",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "68a849ad-aa7a-4b69-a938-d228ad4f1e1f",
+      "identidad": "V-9827100",
+      "nombre": "JUAN CARLOS ESPARRAGOZA MORENO",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9e62b666-9b4d-445b-83b3-ba288f084f35",
+      "identidad": "V-8553004",
+      "nombre": "LUZ MIRULGIA VICUÑA MATOS",
+      "created_at": "2026-09-22T01:49:38.265961+00:00"
+    },
+    {
+      "id": "6109ca8a-f689-4493-8b99-880e20260d97",
+      "identidad": "V-08553004",
+      "nombre": "LUZ MIRULGIA VICU?A MATOS",
+      "created_at": "2026-09-30T23:06:48.690617+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c81a6d9c-e075-4503-b2d5-6b7b731fd60a",
+      "identidad": "V-07004609",
+      "nombre": "MARIA DI CARLOS PAREDES",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "7b80a98b-09cc-42d0-b2dc-d18ac7533fac",
+      "identidad": "V-7004609",
+      "nombre": "MARIA DI CARLO PAREDES, LAURENTH ANTONIETA GRASSO DI CARLO Y ENGELBERTH KEYTH",
+      "created_at": "2026-09-22T01:49:38.265961+00:00"
+    }
+  ],
+  [
+    {
+      "id": "6cb115d9-5d5d-4d8b-b556-774853b01051",
+      "identidad": "E-845842445",
+      "nombre": "CONSTANTINO CONCHOY HUAYPAR",
+      "created_at": "2026-09-22T01:49:38.455+00:00"
+    },
+    {
+      "id": "acf91bd6-e76c-4154-8f38-8e80ccf951ee",
+      "identidad": "J-845842445",
+      "nombre": "WALTER AMANCA ARQQUE",
+      "created_at": "2026-10-03T17:35:11.459791+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3ea5dae2-ca57-43b0-9285-3064152c080a",
+      "identidad": "V-82126389",
+      "nombre": "carmen miguez",
+      "created_at": "2026-09-22T01:49:38.990393+00:00"
+    },
+    {
+      "id": "8caae4e7-3d78-4355-9eb9-669b75324d83",
+      "identidad": "E-82126389",
+      "nombre": "MARIA DEL CARMEN MIGUEZ",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    }
+  ],
+  [
+    {
+      "id": "57757e04-6b55-4b24-8d73-7987b03f1a7f",
+      "identidad": "E-82245762",
+      "nombre": "IRMA OROBIO",
+      "created_at": "2026-09-22T01:49:38.990393+00:00"
+    },
+    {
+      "id": "3af0b692-6881-4c6b-bcbd-587052329809",
+      "identidad": "V-82245762",
+      "nombre": "IRMA OROBIO",
+      "created_at": "2026-09-30T23:06:45.554648+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a2f076c1-e14f-49b1-ad3f-4211181d41a3",
+      "identidad": "E-81085223",
+      "nombre": "MARIA DE FATIMA DA SILVA DE DA SILVA",
+      "created_at": "2026-09-22T01:49:39.573976+00:00"
+    },
+    {
+      "id": "f832ea60-c188-4fb3-a1fa-ce54c20f1e41",
+      "identidad": "V-81085223",
+      "nombre": "Maria Fatima Da Silva",
+      "created_at": "2026-09-30T23:07:05.476621+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5bb6c739-83df-4b0c-8424-3bd18e85cb86",
+      "identidad": "V-83012332",
+      "nombre": "ZHEN YANYAN Y DONG WENJIAN",
+      "created_at": "2026-09-30T23:06:39.276825+00:00"
+    },
+    {
+      "id": "b2d65837-e2c6-4dc9-a46f-7d8834e17269",
+      "identidad": "E-83012332",
+      "nombre": "ZHEN YANYAN Y DONG WENJIAN",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d7e0e7fa-2fc5-4cea-bb7a-683fc0655d2b",
+      "identidad": "V-81177487",
+      "nombre": "DANIEL ENRIQUE LORZA JIMENEZ Y GUADALUPE RODRIGUEZ DE LORZA",
+      "created_at": "2026-09-30T23:06:39.276825+00:00"
+    },
+    {
+      "id": "392513d9-9823-4e2c-a88a-cb534b54d87d",
+      "identidad": "E-81177487",
+      "nombre": "DANIEL ENRIQUE LORZA JIMENEZ",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d0928965-a484-4721-b6dc-941fe66e8035",
+      "identidad": "V-84392408",
+      "nombre": "MARY SOL GONZALEZ ARANGO",
+      "created_at": "2026-09-30T23:06:39.544721+00:00"
+    },
+    {
+      "id": "e144cf94-ab20-4f84-a8d4-751191ceefc8",
+      "identidad": "E-84392408",
+      "nombre": "MARY SOL GONZALEZ ARANGO",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    }
+  ],
+  [
+    {
+      "id": "363c256c-32e8-4dba-8dca-89071731f445",
+      "identidad": "V-82277902",
+      "nombre": "HAOBANG ZHENG",
+      "created_at": "2026-09-30T23:06:39.824934+00:00"
+    },
+    {
+      "id": "69a76e94-8f34-409f-9a7d-90975d0e402e",
+      "identidad": "E-82277902",
+      "nombre": "HAOBANG ZHENG",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    }
+  ],
+  [
+    {
+      "id": "27351459-7e28-46f1-abb5-20cd1a0bf505",
+      "identidad": "E-840341367",
+      "nombre": "MARIA CLARA TORO DE FERREIRA",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "815074d6-84f7-4321-9e0e-e377df957d0a",
+      "identidad": "V-840341367",
+      "nombre": "MARIA CLARA TORO DE FERREIRA",
+      "created_at": "2026-09-30T23:07:00.25141+00:00"
+    }
+  ],
+  [
+    {
+      "id": "88b35e07-1ca6-42ff-bc05-5a708e81be16",
+      "identidad": "E-81236626",
+      "nombre": "CARLOS ALBINO MARAMBIO MORONI",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "ffbbfbcc-c92d-47a5-95c2-e58e55925a18",
+      "identidad": "V-81236626",
+      "nombre": "CARLOS ALBINO MARAMBIO MORONI",
+      "created_at": "2026-09-30T23:07:00.25141+00:00"
+    }
+  ],
+  [
+    {
+      "id": "23de893c-0a2a-4ef8-ae94-4d96f194e9a6",
+      "identidad": "E-81954450",
+      "nombre": "PEDRO JOSE CAZORLA BATISTA",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "e4e3b15a-d42b-4f1d-b4d9-3d701f6ad6a0",
+      "identidad": "V-81954450",
+      "nombre": "PEDRO JOSE CAZORLA BATISTA",
+      "created_at": "2026-09-30T23:06:46.341402+00:00"
+    }
+  ],
+  [
+    {
+      "id": "476b9e43-0202-42c1-ad47-68670249a111",
+      "identidad": "E-82195175",
+      "nombre": "ELIER LIBORIO ROQUETA LANDROVE",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "9ff162ad-629e-41c2-b703-f09c1c3c145f",
+      "identidad": "V-82195175",
+      "nombre": "ELIER LIBORIO ROQUETA LANDROVE",
+      "created_at": "2026-09-30T23:06:59.924795+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8f396437-1729-47ed-8446-ceb09b24abde",
+      "identidad": "E-774353",
+      "nombre": "CONCEPCION  PRUNES DE LOPEZ",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "f4727f96-607c-482e-abbb-b9baa4848529",
+      "identidad": "V-774353",
+      "nombre": "CONCEPCION  PRUNES DE LOPEZ",
+      "created_at": "2026-09-30T23:06:58.119954+00:00"
+    }
+  ],
+  [
+    {
+      "id": "aa1068da-8d36-4fe0-8e90-f81e12d7e9ce",
+      "identidad": "V-81194592",
+      "nombre": "RODOLFO MANTILLA VALDIVIESO",
+      "created_at": "2026-09-30T23:06:42.399579+00:00"
+    },
+    {
+      "id": "06ae9df9-7ef8-457c-9e60-6e161571e505",
+      "identidad": "E-81194592",
+      "nombre": "RODOLFO  MANTILLA VALDIVIESO",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f0e2755c-0301-4c73-9e5c-c61d0a454419",
+      "identidad": "V-7169088",
+      "nombre": "JUDITH TERESA RUIZ MATO",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "1c4934b5-d865-44f0-85af-0bcde173d2c2",
+      "identidad": "V-07169088",
+      "nombre": "JUDITH TERESA RUIZ MATO",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    }
+  ],
+  [
+    {
+      "id": "74c1ae80-13b9-40fb-8120-b69fe027afc2",
+      "identidad": "V-81239716",
+      "nombre": "ROSALIA JOSEFINA VASQUEZ VALENZUELA",
+      "created_at": "2026-09-30T23:06:40.465835+00:00"
+    },
+    {
+      "id": "bd1988b4-92a9-42c2-be2d-81621d24eacc",
+      "identidad": "E-81239716",
+      "nombre": "ROSALIA JOSEFINA VASQUEZ VALENZUELA",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    }
+  ],
+  [
+    {
+      "id": "62ff82ad-0960-421c-ad95-6691816a93d2",
+      "identidad": "V-83214108",
+      "nombre": "WU YAOJUAN Y NONGXIAO LIANG",
+      "created_at": "2026-09-30T23:06:40.465835+00:00"
+    },
+    {
+      "id": "fcf8bc11-b28a-4556-ad15-5b240e5b02ac",
+      "identidad": "E-83214108",
+      "nombre": "WU YAOJUAN Y NONGXIAO LIANG",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a1501279-e211-4ff8-b1f7-13630ddb712e",
+      "identidad": "E-82211826",
+      "nombre": "PIERGIORGIO  RIGHETTI",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "12ad6aec-b9ce-4b20-98ce-f4d8403a4100",
+      "identidad": "V-82211826",
+      "nombre": "PIERGIORGIO  RIGHETTI",
+      "created_at": "2026-09-30T23:07:04.951634+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ab712767-ccbf-47e2-831d-7f2ac35e5779",
+      "identidad": "V-84498601",
+      "nombre": "DAYBY YISSENIA SILVA ARREAGA",
+      "created_at": "2026-09-30T23:06:41.336989+00:00"
+    },
+    {
+      "id": "80ab5a40-bda0-4158-98dd-cf7c205fe847",
+      "identidad": "E-84498601",
+      "nombre": "DAYBY YISSENIA SILVA ARREAGA",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f27dfec6-2ef1-451b-96c5-063afccfc400",
+      "identidad": "E-84410652",
+      "nombre": "JIAQI FENG",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "8ec585d9-6722-46d7-8d38-cd118c84d339",
+      "identidad": "V-84410652",
+      "nombre": "JIAQI FENG",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "88853257-6f8a-4737-927d-177052ecd325",
+      "identidad": "V-6152631",
+      "nombre": "LUZ AMPARO CONTRERAS QUINTERO",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "3da552ad-8efe-42ce-9200-cf3d709b80ef",
+      "identidad": "V-06152631",
+      "nombre": "LUZ AMPARO CONTRERAS QUINTERO",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2704833c-fbd1-4042-875a-dbf64c597cff",
+      "identidad": "E-82278732",
+      "nombre": "CHUN HUA LIN",
+      "created_at": "2026-10-03T17:35:09.385036+00:00"
+    },
+    {
+      "id": "8ddea77b-419f-41be-ab26-257af63f3c2a",
+      "identidad": "V-82278732",
+      "nombre": "CHUN HUA LIN",
+      "created_at": "2026-09-30T23:06:52.594228+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ecb8aac4-7feb-4d95-a939-b0ae1f8bcf30",
+      "identidad": "V-06442667",
+      "nombre": "CECILIA GAMBOA",
+      "created_at": "2026-09-30T23:06:41.582631+00:00"
+    },
+    {
+      "id": "2500912e-dcf6-418e-b4d8-6be37b00c84e",
+      "identidad": "V-6442667",
+      "nombre": "ALIX CECILIA GAMBOA",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    }
+  ],
+  [
+    {
+      "id": "863a538e-2611-4aff-8714-9e85efb177f0",
+      "identidad": "V-81194992",
+      "nombre": "MARIA CONSUELO ABARZUA DE COUSIÑO",
+      "created_at": "2026-09-30T23:06:41.582631+00:00"
+    },
+    {
+      "id": "0c701338-bb00-4052-a21d-92b14ce3084f",
+      "identidad": "E-81194992",
+      "nombre": "MARIA CONSUELO ABARZUA DE COUSIÑO",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a5cce377-e4f8-4806-bb6a-cc0761ae9310",
+      "identidad": "E-822716507",
+      "nombre": "FAEZ MUSTAFA ISMAIL",
+      "created_at": "2026-10-03T17:35:09.385036+00:00"
+    },
+    {
+      "id": "b57236d1-cdc8-4d53-93fb-193b74c6e1e2",
+      "identidad": "V-822716507",
+      "nombre": "FAEZ MUSTAFA ISMAIL",
+      "created_at": "2026-09-30T23:06:52.594228+00:00"
+    }
+  ],
+  [
+    {
+      "id": "245030d9-1f92-4f4d-af55-f4aff6b8e514",
+      "identidad": "E-814147510",
+      "nombre": "VARIEDADES TOMASA �OPO DE PE�A (�OPO TOMASA)",
+      "created_at": "2026-10-03T17:35:10.706616+00:00"
+    },
+    {
+      "id": "cd3146db-d045-4a2d-aebb-f53266f648db",
+      "identidad": "V-814147510",
+      "nombre": "VARIEDADES TOMASA �OPO DE PE�A (�OPO TOMASA)",
+      "created_at": "2026-09-30T23:07:02.021128+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9ce47457-a881-40f7-ab90-5c04fbf303dc",
+      "identidad": "E-81651950",
+      "nombre": "DOMINGO BARBOZA PEREIRA",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "90c77aeb-9b84-4731-9333-92ab9d7c1510",
+      "identidad": "V-81651950",
+      "nombre": "DOMINGO BARBOZA PEREIRA",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    }
+  ],
+  [
+    {
+      "id": "da93b432-71f9-41a1-8353-a9f32dbac0d8",
+      "identidad": "E-00957473",
+      "nombre": "SAVAGE LUMSDEN RICHARD HOWARD",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "3c08d0d3-b8e9-45e8-8a2a-7be8883393a0",
+      "identidad": "V-00957473",
+      "nombre": "SAVAGE LUMSDEN RICHARD HOWARD",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c3e6d61f-29df-4044-a58e-c8f46aa8b287",
+      "identidad": "V-04133862",
+      "nombre": "ENRIQUE NICOLAS RIVAS FLORES Y GLADYS PASCUALA PRIMERANO DE RIVAS",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "9cd5a0db-501c-4c88-88af-359f8e00f70b",
+      "identidad": "V-4133862",
+      "nombre": "ENRIQUE NICOLAS RIVAS FLORES",
+      "created_at": "2026-09-22T01:49:39.352344+00:00"
+    }
+  ],
+  [
+    {
+      "id": "64e656da-ee98-4dc6-b169-2a0675bca910",
+      "identidad": "E-81527733",
+      "nombre": "ALFONSO GUERRA RODRIGUEZ Y MANUEL VAZQUEZ LOPEZ",
+      "created_at": "2026-10-03T17:35:10.155098+00:00"
+    },
+    {
+      "id": "0bcba966-6710-4837-9ee7-5a9895ded496",
+      "identidad": "V-81527733",
+      "nombre": "ALFONSO GUERRA RODRIGUEZ Y MANUEL VAZQUEZ LOPEZ",
+      "created_at": "2026-09-30T23:06:44.219764+00:00"
+    }
+  ],
+  [
+    {
+      "id": "31840e67-2a72-4bd4-a354-df0539bd9c35",
+      "identidad": "V-07087495",
+      "nombre": "ROSA DANELLY RODRIGUEZ MOLINA",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "cf46c852-e976-4238-9f4c-7cee1bec1472",
+      "identidad": "V-7087495",
+      "nombre": "ROSA DANELLY RODRIGUEZ MOLINA",
+      "created_at": "2026-09-22T01:49:38.07096+00:00"
+    }
+  ],
+  [
+    {
+      "id": "78d38473-e252-4d48-8e67-2f8339fab90b",
+      "identidad": "V-5543667",
+      "nombre": "PEDRO ANTONIO CALDERA MARQUEZ Y LUZ AMPARO CONTRERAS DE CALDERA",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "e5b682a1-7099-402b-84b8-9765be5d597a",
+      "identidad": "V-05543667",
+      "nombre": "PEDRO ANTONIO CALDERA MARQUEZ",
+      "created_at": "2026-09-22T01:49:38.626932+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3d4ed6e7-0b3f-476f-acf4-8d3ddc947fda",
+      "identidad": "E-2574266",
+      "nombre": "GINZA GARCIA DE PINEDA",
+      "created_at": "2026-10-03T17:35:11.459791+00:00"
+    },
+    {
+      "id": "4fa8f85a-ef70-43a0-b325-e0278f7b924f",
+      "identidad": "V-2574266",
+      "nombre": "GINZA GARCIA DE PINEDA",
+      "created_at": "2026-09-22T01:49:36.648443+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f41a570b-16bc-4a02-8e8b-7f1b6837445f",
+      "identidad": "E-822493451",
+      "nombre": "NADIM LAILA",
+      "created_at": "2026-10-03T17:35:10.155098+00:00"
+    },
+    {
+      "id": "846ebeae-6d11-4242-9e75-2ddb56dc4fcb",
+      "identidad": "V-822493451",
+      "nombre": "NADIM LAILA",
+      "created_at": "2026-09-30T23:06:49.226828+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1d8d3611-3576-4ff8-8f1c-9df5976d5b68",
+      "identidad": "E-81754748",
+      "nombre": "MIGUEL SALGADO ARCIA",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "7e3db3af-9501-4d4f-8b52-61398d12bb3d",
+      "identidad": "V-81754748",
+      "nombre": "MIGUEL SALGADO ARCIA",
+      "created_at": "2026-09-30T23:06:58.119954+00:00"
+    }
+  ],
+  [
+    {
+      "id": "73e49902-72c5-478c-b3e9-030578dff30d",
+      "identidad": "E-823410037",
+      "nombre": "NABIL AL SALEM SEJNAUI",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "e40d944a-6410-48d7-922e-3ed3a1fef283",
+      "identidad": "V-823410037",
+      "nombre": "NABIL AL SALEM SEJNAUI",
+      "created_at": "2026-09-30T23:06:58.641417+00:00"
+    }
+  ],
+  [
+    {
+      "id": "23fd1bbc-bab2-4303-9ea7-691971f59214",
+      "identidad": "E-81355500",
+      "nombre": "CLAUDIO LA ROSA Y DANIELA SALADINI DE LA ROSA",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "d7074837-da3f-4be5-b36e-a4b0207e6c67",
+      "identidad": "V-81355500",
+      "nombre": "CLAUDIO LA ROSA Y DANIELA SALADINI DE LA ROSA",
+      "created_at": "2026-09-30T23:06:45.026278+00:00"
+    }
+  ],
+  [
+    {
+      "id": "918884ec-eb23-43df-96b6-25ca43c1f572",
+      "identidad": "E-81044637",
+      "nombre": "VITO LUCIANO DE ZOVI",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "d2338b73-6621-4f08-bdbb-fce7b4603563",
+      "identidad": "V-81044637",
+      "nombre": "VITO LUCIANO DE ZOVI",
+      "created_at": "2026-09-30T23:07:04.414323+00:00"
+    }
+  ],
+  [
+    {
+      "id": "156522e3-e5ad-4046-9a20-aa283354635f",
+      "identidad": "E-1040534",
+      "nombre": "SILVIA MARIA RODRIGUEZ DE FREITES Y FERDINANDO FREITES FREITES",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "dff9930a-02a9-4c1e-96ba-9439d6c6dd33",
+      "identidad": "V-1040534",
+      "nombre": "SILVIA M. FREITAS",
+      "created_at": "2026-09-30T23:06:51.855491+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ce23ad2e-7f5c-4237-bc09-79259cfc1bd2",
+      "identidad": "E-844866596",
+      "nombre": "DIJUN WU  (RESTAURANT WU 2012)",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "b9c01753-113f-4452-b5a0-2fab5063e8ab",
+      "identidad": "V-844866596",
+      "nombre": "DIJUN WU  (RESTAURANT WU 2012)",
+      "created_at": "2026-09-30T23:06:59.166412+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2f1cbb3d-0e40-4d17-9d70-bf08837f1e1e",
+      "identidad": "E-82109608",
+      "nombre": "NADIM ABDUL KARIM HANNA Y WAH KIT NG SHUM",
+      "created_at": "2026-09-22T01:49:38.825774+00:00"
+    },
+    {
+      "id": "8dc6c12e-8f35-4daf-a679-b58d2df49e06",
+      "identidad": "V-82109608",
+      "nombre": "NADIM ABDUL KARIM HANNA Y ANGELA GIUSEPPINA TERESA SCALIA DE HANNA",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ecf45ff4-9738-4a1a-b5e3-4536f99c9199",
+      "identidad": "G-00042311",
+      "nombre": "FISCO MUNICIPAL DE NAGUANAGUA",
+      "created_at": "2026-09-22T01:49:40.660688+00:00"
+    },
+    {
+      "id": "9db34522-87f3-4d92-9e8b-b5c9a94f7592",
+      "identidad": "V-00042311",
+      "nombre": "FISCO MUNICIPAL DE NAGUANAGUA",
+      "created_at": "2026-09-30T23:06:45.026278+00:00"
+    }
+  ],
+  [
+    {
+      "id": "23239a80-5d51-4c79-a227-eb05a131f5b8",
+      "identidad": "E-00300865",
+      "nombre": "MARIA DE VI�A",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "fb33c326-7aa9-45cc-ae73-6002e0262598",
+      "identidad": "V-00300865",
+      "nombre": "MARIA DE VI�A",
+      "created_at": "2026-09-30T23:07:00.484846+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2f37eedd-4584-4d2b-adfa-921dd852f154",
+      "identidad": "E-81043921",
+      "nombre": "ZAHER MOUSAN",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "2390348d-75bc-42fe-b721-846dea767080",
+      "identidad": "V-81043921",
+      "nombre": "ZAHER MOUSAN",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "36ef4742-825a-4766-95b5-1e7f65e32ffd",
+      "identidad": "E-82053348",
+      "nombre": "BENIGNA GLADIS MORERA PEREZ",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "4fcd7ca6-a6ea-431b-b892-7e4e427badec",
+      "identidad": "V-82053348",
+      "nombre": "BENIGNA GLADIS MORERA PEREZ",
+      "created_at": "2026-09-30T23:06:42.65488+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4d1dcc93-39ae-491e-b326-5b807b906403",
+      "identidad": "E-84487946",
+      "nombre": "SIMÓN GALLEGO ROSZKO Y ROMINA VANESSA OSIO GALLEGOS",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "efd58402-9695-4d1f-af08-136aa77ccf1b",
+      "identidad": "V-84487946",
+      "nombre": "SIMÓN GALLEGO ROSZKO Y ROMINA VANESSA OSIO GALLEGOS",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4cea949d-1e91-4e88-882f-f5c91bff160a",
+      "identidad": "E-83040019",
+      "nombre": "FRANZ AÑAÑOS COLCHAO",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "8b2e8c6f-0fb0-49cb-97df-41f706228124",
+      "identidad": "V-83040019",
+      "nombre": "FRANZ AÑAÑOS COLCHAO",
+      "created_at": "2026-09-30T23:06:43.696193+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7ae4abf9-3f61-4c76-8a14-943990755be8",
+      "identidad": "E-82273076",
+      "nombre": "PAOLO FERRARO",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "3ad9887e-b2d1-4063-9e92-86abe30d1fd8",
+      "identidad": "V-82273076",
+      "nombre": "PAOLO FERRARO",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a5051b95-6e63-40d6-932e-ea3f8d114e8b",
+      "identidad": "E-958826",
+      "nombre": "ABELARDO ARSENIO LUIS MEDINA",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "6d0f4316-e69e-4120-bee4-685db2197ba4",
+      "identidad": "V-958826",
+      "nombre": "ABELARDO ARSENIO LUIS MEDINA",
+      "created_at": "2026-09-30T23:07:00.484846+00:00"
+    }
+  ],
+  [
+    {
+      "id": "bf5e6e9c-8ca9-4f6e-a2ad-be561018c7de",
+      "identidad": "E-82062838",
+      "nombre": "RODOLPHE FRANCIS MAILLET",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "4c7c2ae7-dd0c-4c99-999a-119e2359cf68",
+      "identidad": "V-82062838",
+      "nombre": "RODOLPHE FRANCIS MAILLET",
+      "created_at": "2026-09-30T23:07:02.563296+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a0acb56f-feec-4bb9-a407-51cbc0590678",
+      "identidad": "E-82076910",
+      "nombre": "HAOYANG   ZHENG",
+      "created_at": "2026-09-22T01:49:40.845283+00:00"
+    },
+    {
+      "id": "3b3a9134-c0fc-4f84-acf1-3943ed8b042b",
+      "identidad": "V-82076910",
+      "nombre": "HAOYANG   ZHENG",
+      "created_at": "2026-09-30T23:07:03.373712+00:00"
+    }
+  ],
+  [
+    {
+      "id": "69f429f6-af15-4e39-8778-bb7f93a9d0fc",
+      "identidad": "E-956690",
+      "nombre": "ADRIANA SUSANA GONZALEZ ALVAREZ",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "f7b4bee1-6de5-4930-b28d-5a55aabdc6e0",
+      "identidad": "V-956690",
+      "nombre": "ADRIANA SUSANA GONZALEZ ALVAREZ",
+      "created_at": "2026-09-30T23:06:44.505437+00:00"
+    }
+  ],
+  [
+    {
+      "id": "7f427131-bd1a-42d8-998a-2a9718f3e655",
+      "identidad": "E-81667241",
+      "nombre": "JON MIKEL LAUCIRICA AGUIRRE",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "0e17c79e-0cc6-4b02-b7af-343638c8e8e3",
+      "identidad": "V-81667241",
+      "nombre": "JON MIKEL LAUCIRICA AGUIRRE",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "dfbcc880-60cd-40db-a475-7fd7a06eef94",
+      "identidad": "E-957177",
+      "nombre": "CARMELA  SCOLA DE MOTA",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "df896d2d-cd7f-4bfd-be79-4d07cf109190",
+      "identidad": "V-957177",
+      "nombre": "CARMELA  SCOLA DE MOTA",
+      "created_at": "2026-09-30T23:06:44.745645+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c5289712-dcdb-496f-a971-ee8a24eaf0e6",
+      "identidad": "E-1040342",
+      "nombre": "DONNA MARIE GARCIA DE JIMENEZ Y A HERNAN JOSE JIMENEZ GONZALEZ",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "55b6116b-8efb-4aad-9c2e-e1f62c642186",
+      "identidad": "V-1040342",
+      "nombre": "DONNA MARIE GARCIA DE JIMENEZ Y A HERNAN JOSE JIMENEZ GONZALEZ",
+      "created_at": "2026-09-30T23:06:58.119954+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e142805f-d583-47e5-8a6c-1553e3037e49",
+      "identidad": "E-882709",
+      "nombre": "LORENZA CALDARELLA DE NANI",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "ff086d43-53d6-4d6b-ae64-ca5977e95ae7",
+      "identidad": "V-882709",
+      "nombre": "LORENZA CALDARELLA DE NANI",
+      "created_at": "2026-09-30T23:07:04.951634+00:00"
+    }
+  ],
+  [
+    {
+      "id": "fff0f009-2c25-430d-abba-f752e2c644ab",
+      "identidad": "E-82090798",
+      "nombre": "TING FENG FENG",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "57849b51-092b-4f06-b6e7-265d657e9cea",
+      "identidad": "V-82090798",
+      "nombre": "TING FENG FENG",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9bd3c3f7-f886-4c98-8bb1-b8a16f3c0e90",
+      "identidad": "E-81044283",
+      "nombre": "LAURA POL VECCHIES",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "d82143b3-baff-4862-bb41-9b8b8d5b4283",
+      "identidad": "V-81044283",
+      "nombre": "LAURA POL VECCHIES",
+      "created_at": "2026-09-30T23:07:04.122376+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f57c8b22-9c89-4455-a55d-058d4e76324b",
+      "identidad": "E-81182777",
+      "nombre": "LUIS FERNANDO GERMAN RUBIO Y ROSSANA MARIA AQUINO BARRIOS",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "9bfcd59f-f282-47f9-bea1-af77e9d04a0f",
+      "identidad": "V-81182777",
+      "nombre": "LUIS FERNANDO GERMAN RUBIO Y ROSSANA MARIA AQUINO BARRIOS",
+      "created_at": "2026-09-30T23:07:01.783832+00:00"
+    }
+  ],
+  [
+    {
+      "id": "85b8ddad-faf5-4d0c-acc7-9a241180eafd",
+      "identidad": "E-83556147",
+      "nombre": "DELFINO DANIEL ALEJANDRO",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "d0c2c028-555b-4b0d-a6e0-b8aa9375f0bd",
+      "identidad": "V-83556147",
+      "nombre": "DELFINO DANIEL ALEJANDRO",
+      "created_at": "2026-09-30T23:06:42.142777+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8330b3c4-4be8-4223-9bfc-6f6f05e12ab6",
+      "identidad": "E-82294315",
+      "nombre": "MARIA ELISA ARDILA ROMERO",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "4ce6f7ce-50ba-461f-8f35-e1c5e8150dc9",
+      "identidad": "V-82294315",
+      "nombre": "MARIA ELISA ARDILA ROMERO",
+      "created_at": "2026-09-30T23:07:04.122376+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b08a0c46-dc39-4584-904e-437b2d4d092a",
+      "identidad": "E-81734735",
+      "nombre": "QIAO QING FENG ZHENG",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "744312a8-03f7-48bc-be9b-faef606928ed",
+      "identidad": "V-81734735",
+      "nombre": "QIAO QING FENG ZHENG",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b0e152bd-873f-4357-af81-ad1078ea5887",
+      "identidad": "E-81044567",
+      "nombre": "FRANCISCO MOREIRA GUIDO",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "1f8bfccc-f278-43ac-bfb6-c75b23e3cc7f",
+      "identidad": "V-81044567",
+      "nombre": "FRANCISCO MOREIRA GUIDO",
+      "created_at": "2026-09-30T23:06:46.646775+00:00"
+    }
+  ],
+  [
+    {
+      "id": "68b86245-64d9-4f0e-96f1-7e7731e8a07d",
+      "identidad": "E-84496282",
+      "nombre": "WESSAM  GHANAM Y DANIELA CHAHIRA ABO HAMRA AMER",
+      "created_at": "2026-09-22T01:49:41.028131+00:00"
+    },
+    {
+      "id": "3191810c-8fc4-40a1-81ae-3f648d3c2823",
+      "identidad": "V-84496282",
+      "nombre": "WESSAM  GHANAM Y DANIELA CHAHIRA ABO HAMRA AMER",
+      "created_at": "2026-09-30T23:07:05.476621+00:00"
+    }
+  ],
+  [
+    {
+      "id": "74eda562-3205-4c10-ab46-ece50f123ba9",
+      "identidad": "E-81813846",
+      "nombre": "JANUARIO  NOGUEIRA DA SILVA",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "cfc7ecfa-773e-4a50-a734-27eb6b6473d1",
+      "identidad": "V-81813846",
+      "nombre": "JANUARIO  NOGUEIRA DA SILVA",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9de3abdd-7f82-458a-bde6-d92637785bc6",
+      "identidad": "E-81100625",
+      "nombre": "NATALINA  BASTOS VALENTE DE PINHO Y MANUEL MARIA DA SILVA PINHO",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "c63314b1-c915-4d98-8c4d-cc12a69ae803",
+      "identidad": "V-81100625",
+      "nombre": "NATALINA  BASTOS VALENTE DE PINHO Y MANUEL MARIA DA SILVA PINHO",
+      "created_at": "2026-09-30T23:07:05.710815+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8c035080-db5c-4f3d-bddc-a0b90ef86e6a",
+      "identidad": "E-016532960",
+      "nombre": "CARLOS FERNANDO CARBALLO CAMARGO",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "68447173-7782-4819-a604-8b20d115abe2",
+      "identidad": "V-016532960",
+      "nombre": "CARLOS FERNANDO CARBALLO CAMARGO",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "98aef0dd-6574-4d8a-9f25-4f6563fe4750",
+      "identidad": "E-81906581",
+      "nombre": "ZUNILDA INES GUIDO DE SPATAFORA",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "bc46e20f-b856-404e-94d7-ef228a862b0a",
+      "identidad": "V-81906581",
+      "nombre": "ZUNILDA INES GUIDO DE SPATAFORA",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1c3c221b-87bb-48ec-8cfe-aeae93ebda45",
+      "identidad": "E-81814360",
+      "nombre": "CARMEN NORTES DE VALVERDE",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "6a7b4c7c-6705-44c9-a684-a31394cea4a3",
+      "identidad": "V-81814360",
+      "nombre": "CARMEN NORTES DE VALVERDE",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "35d9d233-c8cd-40ac-9bbf-f316a1a4d6d8",
+      "identidad": "E-82278355",
+      "nombre": "WEIMING FENG  Y  XIULING HE",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "8c8e1da9-3012-4a46-9591-52127ead9300",
+      "identidad": "V-82278355",
+      "nombre": "WEIMING FENG  Y  XIULING HE",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "71b964f9-825e-411d-87e0-bd05a8ac4eb8",
+      "identidad": "E-83412040",
+      "nombre": "WEIXIAN FENG",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "1a2b2138-e786-4e0c-9c90-b50753d19a6c",
+      "identidad": "V-83412040",
+      "nombre": "WEIXIAN FENG",
+      "created_at": "2026-09-30T23:06:42.924128+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e55c0983-4033-4de3-953f-3c012b84962d",
+      "identidad": "E-81412100",
+      "nombre": "JUAN PEÑA NUNURA Y TOMASA FREDESVINDA ÑOPO DE PEÑA",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "1dc97510-8ee7-41cb-8fd7-517dab93a4b5",
+      "identidad": "V-81412100",
+      "nombre": "JUAN PEÑA NUNURA Y TOMASA FREDESVINDA ÑOPO DE PEÑA",
+      "created_at": "2026-09-30T23:06:52.357003+00:00"
+    }
+  ],
+  [
+    {
+      "id": "26d5fa25-c7d9-437b-9725-26a5296397ab",
+      "identidad": "E-82290978",
+      "nombre": "YU JU LIAO",
+      "created_at": "2026-09-22T01:49:41.21494+00:00"
+    },
+    {
+      "id": "96efcde1-c18a-48f4-8104-c10be5a8fbdf",
+      "identidad": "V-82290978",
+      "nombre": "YU JU LIAO",
+      "created_at": "2026-09-30T23:06:52.896505+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5d4fbeaa-1118-4fa9-b0ff-0cfcc29032a3",
+      "identidad": "E-82244338",
+      "nombre": "QINYUAN CHEN",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "ba88e51e-4805-416f-b66d-64dae698a2ac",
+      "identidad": "V-82244338",
+      "nombre": "QINYUAN CHEN",
+      "created_at": "2026-09-30T23:07:05.204616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "bea05135-bf4d-48bb-89d1-18d3f143f9d9",
+      "identidad": "E-81042927",
+      "nombre": "HERMENEGILDO ENRIQUE RODRIGUEZ POMBROL",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "f91751ac-840a-43d8-811e-33c6ef9328d0",
+      "identidad": "V-81042927",
+      "nombre": "HERMENEGILDO ENRIQUE RODRIGUEZ POMBROL",
+      "created_at": "2026-09-30T23:06:44.219764+00:00"
+    }
+  ],
+  [
+    {
+      "id": "0ce5befd-54e8-4628-915f-ae34309535b9",
+      "identidad": "E-84545792",
+      "nombre": "CHUNRU WU",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "5c970c41-b21b-4719-99b7-dc8dfabbca22",
+      "identidad": "V-84545792",
+      "nombre": "CHUNRU WU",
+      "created_at": "2026-09-30T23:07:05.204616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3f7925be-fc25-42c5-88ec-44de74f82561",
+      "identidad": "E-84481262",
+      "nombre": "MAGALY NAVARRO DE LEON",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "506e480f-f390-414f-a17a-fdb4e79f281d",
+      "identidad": "V-84481262",
+      "nombre": "MAGALY NAVARRO DE LEON",
+      "created_at": "2026-09-30T23:07:05.204616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "6fc828b4-677f-4d90-be12-fac173263640",
+      "identidad": "E-82155746",
+      "nombre": "MARTHA ESPERANZA AMAYA AGUILAR Y MARJORIE SOLEDAD GALINDO AMAYA",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "1a783f63-cf22-439c-be28-043f5832b163",
+      "identidad": "V-82155746",
+      "nombre": "MARTHA ESPERANZA AMAYA AGUILAR Y MARJORIE SOLEDAD GALINDO AMAYA",
+      "created_at": "2026-09-30T23:07:05.204616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "31848d6c-d81a-4850-8062-aa260aac037f",
+      "identidad": "E-83608169",
+      "nombre": "JESUS ORTIZ MARRERO",
+      "created_at": "2026-09-22T01:49:41.392826+00:00"
+    },
+    {
+      "id": "ebe48d7e-ad4e-4aa7-87e8-3c528aeee0fa",
+      "identidad": "V-83608169",
+      "nombre": "JESUS ORTIZ MARRERO",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b733b6dd-7982-4bd2-a8f4-b1bdd33cc1d9",
+      "identidad": "E-83412041",
+      "nombre": "MIAOJUAN LIANG",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "6e510fe8-bb3f-4f86-8321-8b1d3bc8d53d",
+      "identidad": "V-83412041",
+      "nombre": "MIAOJUAN LIANG",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5b1ef3d5-f0c9-403f-a6db-80f30c857957",
+      "identidad": "E-82278604",
+      "nombre": "HUIMIN WU",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "66674818-ed69-4639-a0fe-045990b2fadf",
+      "identidad": "V-82278604",
+      "nombre": "HUIMIN WU",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "bceb2325-0335-4634-b2f1-94d956704b06",
+      "identidad": "E-81173070",
+      "nombre": "CARLOS XAVIER GOIS DOS SANTOS",
+      "created_at": "2026-09-22T01:49:41.56497+00:00"
+    },
+    {
+      "id": "5dc05a46-4c0c-4525-85ea-78594516cff0",
+      "identidad": "V-81173070",
+      "nombre": "CARLOS XAVIER GOIS DOS SANTOS",
+      "created_at": "2026-09-30T23:06:44.505437+00:00"
+    }
+  ],
+  [
+    {
+      "id": "fd69df95-060b-4c9e-9240-4364a1624567",
+      "identidad": "E-82075836",
+      "nombre": "IRACEMA MANCERA",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "3fc1094e-b5ec-411b-a0b8-ad099d45338d",
+      "identidad": "V-82075836",
+      "nombre": "IRACEMA MANCERA",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "aa4fb3d9-2414-46ed-b839-8132ed0a0310",
+      "identidad": "E-82078581",
+      "nombre": "ZAMARY POULETT VERGARA CASTRO",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "db329336-fddb-4766-b0cb-5734022093ec",
+      "identidad": "V-82078581",
+      "nombre": "ZAMARY POULETT VERGARA CASTRO",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9aa1a58a-d9b6-4c5c-b471-3df7d216021f",
+      "identidad": "E-902674",
+      "nombre": "MARIA  MALDERA DE AGRIESTI",
+      "created_at": "2026-09-22T01:49:41.7353+00:00"
+    },
+    {
+      "id": "5ebe4a81-bcf1-4a9a-9049-87306de12e18",
+      "identidad": "V-902674",
+      "nombre": "MARIA  MALDERA DE AGRIESTI",
+      "created_at": "2026-09-30T23:06:58.119954+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2ebb8061-0a73-406e-8356-774c77ab2b70",
+      "identidad": "E-82281384",
+      "nombre": "GEOVANNI CHRISTOPHER MEDINA GILER Y MARIA AUXILIADORA MEDINA SILVA",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "aa2ed1fc-b213-49ab-b74a-a8e8db0e7a02",
+      "identidad": "V-82281384",
+      "nombre": "GEOVANNI CHRISTOPHER MEDINA GILER Y MARIA AUXILIADORA MEDINA SILVA",
+      "created_at": "2026-09-30T23:07:05.204616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "1fc880de-f3e8-4cf2-845a-70b1d57c381b",
+      "identidad": "E-389195",
+      "nombre": "GIUSEPPE VALENTI INGALA",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "2c2c7c1b-14cc-452c-aeea-f464d71c06bb",
+      "identidad": "V-389195",
+      "nombre": "GIUSEPPE VALENTI INGALA",
+      "created_at": "2026-09-30T23:06:59.393071+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9d3fa4e3-8a2d-425e-b996-576e9270d902",
+      "identidad": "E-82290894",
+      "nombre": "LIU TZU LING",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "25c56788-bbdd-43cb-90c6-f495d98ef127",
+      "identidad": "V-82290894",
+      "nombre": "LIU TZU LING",
+      "created_at": "2026-09-30T23:06:55.210019+00:00"
+    }
+  ],
+  [
+    {
+      "id": "aeec02e5-5063-48ce-bdb9-d59abeafe1ae",
+      "identidad": "E-872583",
+      "nombre": "CONCEPCION PEREZ DE FUMERO",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "c0767c75-f1bd-40de-a80a-4a415ea0f336",
+      "identidad": "V-872583",
+      "nombre": "CONCEPCION PEREZ DE FUMERO",
+      "created_at": "2026-09-30T23:06:51.855491+00:00"
+    }
+  ],
+  [
+    {
+      "id": "ca5a12fd-79c8-48e1-bb23-fbe4a659de8e",
+      "identidad": "E-82065244",
+      "nombre": "DANIELLA PAZ CASTILLO ZEPEDA",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "283b4a45-9a21-491d-afb4-0d337b598840",
+      "identidad": "V-82065244",
+      "nombre": "DANIELLA PAZ CASTILLO ZEPEDA",
+      "created_at": "2026-09-30T23:07:02.304587+00:00"
+    }
+  ],
+  [
+    {
+      "id": "dd5120ab-d3de-4b30-be63-6188e35be61d",
+      "identidad": "E-81700755",
+      "nombre": "MANUEL JOAQUIN DIAZ MOUTA",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "384a5842-113e-42ff-810f-b82c950ca872",
+      "identidad": "V-81700755",
+      "nombre": "MANUEL JOAQUIN DIAZ MOUTA",
+      "created_at": "2026-09-30T23:06:46.341402+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b938cf91-5839-4b55-bf15-ba973988b2eb",
+      "identidad": "E-82277839",
+      "nombre": "HAORONG  ZHANG",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "b7e11dff-9e61-46d1-ae98-82ca54c09741",
+      "identidad": "V-82277839",
+      "nombre": "HAORONG  ZHANG",
+      "created_at": "2026-09-30T23:07:06.2351+00:00"
+    }
+  ],
+  [
+    {
+      "id": "433bc625-fed0-463b-bba3-f47b3c832ff6",
+      "identidad": "E-81186611",
+      "nombre": "BRIGITTE URSULA CHRISTA KULPOK DE LACAVA",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "3ba3e2fc-8b90-4d3c-bac0-b61f6ac41d7c",
+      "identidad": "V-81186611",
+      "nombre": "BRIGITTE URSULA CHRISTA KULPOK DE LACAVA",
+      "created_at": "2026-09-30T23:06:59.69602+00:00"
+    }
+  ],
+  [
+    {
+      "id": "83097b1d-df40-4c17-9b10-af8784d952e7",
+      "identidad": "E-84385981",
+      "nombre": "JORGE ENRIQUE RUEDA VARGAS",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "33df339b-e740-4cc3-8fd4-13c587002c74",
+      "identidad": "V-84385981",
+      "nombre": "JORGE ENRIQUE RUEDA VARGAS",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5ac702ad-17c1-4963-a54d-6e620be313e7",
+      "identidad": "E-81440207",
+      "nombre": "JESUS ALBERTO PEREZ MONTERREY",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "118f2596-34a3-45e7-9361-0c59d00650a1",
+      "identidad": "V-81440207",
+      "nombre": "JESUS ALBERTO PEREZ MONTERREY",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2b652c82-d40f-4791-9750-7961c07da5bd",
+      "identidad": "E-584096",
+      "nombre": "MARIA JUDITE DE FARIA DE SEMIAO",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "835f40e7-ac61-438b-82d3-aabbae0654e6",
+      "identidad": "V-584096",
+      "nombre": "MARIA JUDITE DE FARIA DE SEMIAO",
+      "created_at": "2026-09-30T23:06:45.301222+00:00"
+    }
+  ],
+  [
+    {
+      "id": "18fd9826-f57f-4f30-9b59-8ca36fa92a09",
+      "identidad": "E-81271947",
+      "nombre": "CARLOS ARTURO PEREIRA Y MARIA ELENA SALCEDO MARQUEZ",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "37e0fe24-7fa3-4d89-9dc7-84c2eb5c36d4",
+      "identidad": "V-81271947",
+      "nombre": "CARLOS ARTURO PEREIRA Y MARIA ELENA SALCEDO MARQUEZ",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "076607fd-130d-40a4-82df-9fe608a55c14",
+      "identidad": "E-81116215",
+      "nombre": "CIELO MARLE JACOME DE BASTIANELLO",
+      "created_at": "2026-09-22T01:49:41.919988+00:00"
+    },
+    {
+      "id": "0a495b1d-f6e3-481f-a55d-d04e849def20",
+      "identidad": "V-81116215",
+      "nombre": "CIELO MARLE JACOME DE BASTIANELLO",
+      "created_at": "2026-09-30T23:06:43.96991+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5069074e-aea2-43b3-a9b1-94a6f39dcebf",
+      "identidad": "E-81194696",
+      "nombre": "GAETANO  DI MICELI GURDANELLA Y ARACELIS DE LA CRUZ LOAIZA DE MICELI",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "5c45212d-3ef0-4574-a382-9381463d73a7",
+      "identidad": "V-81194696",
+      "nombre": "GAETANO  DI MICELI GURDANELLA Y ARACELIS DE LA CRUZ LOAIZA DE MICELI",
+      "created_at": "2026-09-30T23:07:05.994573+00:00"
+    }
+  ],
+  [
+    {
+      "id": "442d7e08-f9d1-46a8-94fa-44dc50fdaf13",
+      "identidad": "V-04447755",
+      "nombre": "HAYDEE ESPERANZA RIVERA",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "32b4c080-2ac3-4cea-9c6c-6c9844fd1beb",
+      "identidad": "V-4447755",
+      "nombre": "HAYDEE RIVERA",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "26876f64-f484-474c-9208-901f5b0bc467",
+      "identidad": "E-84264400",
+      "nombre": "FABIAN MAURICIO ALBERTO LUZURIAGA DEL CASTILLO Y YAMILI JOSEFINA ROJAS DE LUZURIAGA",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "7b8287e7-5f45-46b0-900d-6cc4c1e414be",
+      "identidad": "V-84264400",
+      "nombre": "FABIAN MAURICIO ALBERTO LUZURIAGA DEL CASTILLO Y YAMILI JOSEFINA ROJAS DE LUZURIAGA",
+      "created_at": "2026-09-30T23:06:44.505437+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a36ab772-5d9d-41ad-9927-871f6d66d473",
+      "identidad": "E-81224305",
+      "nombre": "WILLIAM CRAAIG",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "9feed9e1-72fc-47e8-a8ed-e22e496f7867",
+      "identidad": "V-81224305",
+      "nombre": "WILLIAM CRAAIG",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "5f47772b-9739-4ae1-be9e-acc68db7217e",
+      "identidad": "E-1041768",
+      "nombre": "LUISA GONCALVES TEIXEIRA",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "977059a6-68a2-4acb-a7bd-5da65fac3135",
+      "identidad": "V-1041768",
+      "nombre": "LUISA GONCALVES TEIXEIRA",
+      "created_at": "2026-09-30T23:06:44.219764+00:00"
+    }
+  ],
+  [
+    {
+      "id": "a8628a72-394a-4b86-9113-b42beb367053",
+      "identidad": "E-811992740",
+      "nombre": "VITO PATANO SPALIERNO",
+      "created_at": "2026-09-22T01:49:42.116583+00:00"
+    },
+    {
+      "id": "670046b8-42d6-4582-a586-e09c2259f3f3",
+      "identidad": "V-811992740",
+      "nombre": "VITO PATANO SPALIERNO",
+      "created_at": "2026-09-30T23:06:59.393071+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f2baf989-716a-415a-be8c-c0d5f118ea5d",
+      "identidad": "E-82195789",
+      "nombre": "WU BINGLING",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "5f3e5a9a-9ce6-4385-9ff7-3f41170038fc",
+      "identidad": "V-82195789",
+      "nombre": "WU BINGLING",
+      "created_at": "2026-09-30T23:07:00.25141+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c4c1476b-09a7-4f11-ab33-fba3e8de69af",
+      "identidad": "E-82053114",
+      "nombre": "OSCAR GRANDE GOMEZ",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "f757e097-27fb-42f4-a1f8-8339147b5459",
+      "identidad": "V-82053114",
+      "nombre": "OSCAR GRANDE GOMEZ",
+      "created_at": "2026-09-30T23:06:46.090738+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e61d58df-4989-4398-ae2b-f128d364182c",
+      "identidad": "E-811024506",
+      "nombre": "JAMILE PADILHA ABBOUD ( TOP S Y DISEÑOS)",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "456741d2-69b0-4764-8171-9b69c668bd5f",
+      "identidad": "V-811024506",
+      "nombre": "JAMILE PADILHA ABBOUD ( TOP S Y DISEÑOS)",
+      "created_at": "2026-09-30T23:06:59.69602+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c1f8c1b8-ea4c-4078-8393-b57e1d077d84",
+      "identidad": "E-815262428",
+      "nombre": "MARTHA LUCIA PEREZ MORALES (DIST. Y LICORERIA FUNDACION CARABOBO)",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "21d1487f-3a1e-4f37-ad03-6943b515e50b",
+      "identidad": "V-815262428",
+      "nombre": "MARTHA LUCIA PEREZ MORALES (DIST. Y LICORERIA FUNDACION CARABOBO)",
+      "created_at": "2026-09-30T23:06:59.69602+00:00"
+    }
+  ],
+  [
+    {
+      "id": "262a9001-6d11-4cee-a7bb-cdb28b23f381",
+      "identidad": "E-81056749",
+      "nombre": "ISSA DOUMIT SULEIMAN",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    },
+    {
+      "id": "3fdf37c2-4004-4efa-87a2-93f9e5d84c14",
+      "identidad": "V-81056749",
+      "nombre": "ISSA DOUMIT SULEIMAN",
+      "created_at": "2026-09-30T23:06:59.69602+00:00"
+    }
+  ],
+  [
+    {
+      "id": "cdaac7b7-0cc5-4145-ac0d-5c2e271fae02",
+      "identidad": "E-82105839",
+      "nombre": "SANDRA DEL CARMEN CARRILLO OSPINO Y ANTONIO MENENDEZ GONZALEZ",
+      "created_at": "2026-09-22T01:49:42.307182+00:00"
+    },
+    {
+      "id": "3fa8cbad-b7ea-45fd-9555-1c9260900eb2",
+      "identidad": "V-82105839",
+      "nombre": "SANDRA DEL CARMEN CARRILLO OSPINO Y ANTONIO MENENDEZ GONZALEZ",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "bfc6981d-8d5e-4f1e-a992-e9475da23ca0",
+      "identidad": "V-7121154",
+      "nombre": "MANDUH ABDER MASUD",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "02e9e7d0-e147-4bff-a6d6-ba33d9c55a81",
+      "identidad": "V-07121154",
+      "nombre": "MANUDUH ABDER MASUD",
+      "created_at": "2026-09-22T01:49:38.626932+00:00"
+    }
+  ],
+  [
+    {
+      "id": "3a728381-efda-496a-91cb-4993d1886c9f",
+      "identidad": "J-075252705",
+      "nombre": "LOCAL DESOCUPADO",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    },
+    {
+      "id": "aea8e237-0062-4304-b4d1-4e82df2f41fc",
+      "identidad": "J-75252705",
+      "nombre": "LOCAL DESOCUPADO",
+      "created_at": "2026-09-22T01:49:42.638473+00:00"
+    }
+  ],
+  [
+    {
+      "id": "81f8da4e-cc03-4409-8372-1714139aa784",
+      "identidad": "E-82076830",
+      "nombre": "MAXIMILIANO ALFREDO ROTH PEREZ",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "a4b1415d-1d99-45ae-a827-8a3012057faa",
+      "identidad": "V-82076830",
+      "nombre": "MAXIMILIANO ALFREDO ROTH PEREZ",
+      "created_at": "2026-09-30T23:07:04.122376+00:00"
+    }
+  ],
+  [
+    {
+      "id": "17c7b95c-0798-4827-a52a-1c9dd38dafc3",
+      "identidad": "E-82127358",
+      "nombre": "ARNOLDO RUFINO SANABRIA FLEITAS",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "5f229bee-3849-44e7-a075-e8f7f36d8365",
+      "identidad": "V-82127358",
+      "nombre": "ARNOLDO RUFINO SANABRIA FLEITAS",
+      "created_at": "2026-09-30T23:07:02.304587+00:00"
+    }
+  ],
+  [
+    {
+      "id": "6926e76b-c091-46d2-84a1-91c53560809f",
+      "identidad": "E-782917",
+      "nombre": "JULIA NOBREGA DE NUÑEZ",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "f971fa73-395b-4ed2-a2de-29d3f957ec3f",
+      "identidad": "V-782917",
+      "nombre": "JULIA NOBREGA DE NUÑEZ",
+      "created_at": "2026-09-30T23:06:49.454453+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f1a3250d-a20f-4d5d-965a-f1f13787c641",
+      "identidad": "E-81421604",
+      "nombre": "ADONIS GEORGES DAOU RIZK",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    },
+    {
+      "id": "ccd1a300-c43b-4332-8df6-5fea0188bc66",
+      "identidad": "V-81421604",
+      "nombre": "ADONIS GEORGES DAOU RIZK",
+      "created_at": "2026-09-30T23:07:02.855026+00:00"
+    }
+  ],
+  [
+    {
+      "id": "86004999-6a5d-4874-843e-a80051a7ea65",
+      "identidad": "V-3581821",
+      "nombre": "DAVID NADAL",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "1fbc4296-d187-4b7c-8ac2-30b6ba31f3dd",
+      "identidad": "V-03581821",
+      "nombre": "NADAL FERNANDEZ DAVID ENRIQUE",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    }
+  ],
+  [
+    {
+      "id": "13ccca39-f98d-469b-ac34-a076790fedc6",
+      "identidad": "E-1051981",
+      "nombre": "GERTRUD KLAMING DE ABERER",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "7457fb17-f7fb-4891-8adf-4822a0c3f7e7",
+      "identidad": "V-1051981",
+      "nombre": "GERTRUD KLAMING DE ABERER",
+      "created_at": "2026-09-30T23:06:51.855491+00:00"
+    },
+    {
+      "id": "f8956f66-f978-4cca-916a-20df99df718d",
+      "identidad": "V-01051981",
+      "nombre": "GERTRUD KLAMING DE ABERER",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    },
+    {
+      "id": "30117c87-6fa0-4edb-a9d3-1c50a1a6f9c2",
+      "identidad": "E-01051981",
+      "nombre": "GERTRUD KLAMING DE ABERER",
+      "created_at": "2026-10-03T17:35:10.706616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "da28cb73-885e-4a88-b782-a57212ca5f57",
+      "identidad": "E-81728432",
+      "nombre": "EVA ALVAREZ TELLADO",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "b08c5fef-823d-4ba8-b616-7c8b3d5f1877",
+      "identidad": "V-81728432",
+      "nombre": "EVA ALVAREZ TELLADO",
+      "created_at": "2026-09-30T23:06:46.090738+00:00"
+    }
+  ],
+  [
+    {
+      "id": "61bb7c0f-2f2d-473f-a9c0-9afd4ad35212",
+      "identidad": "E-82223592",
+      "nombre": "CARLOS MARIO TABORDA OROZCO",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    },
+    {
+      "id": "c73a03da-3879-4cb1-9c28-0a06b8f2ca8f",
+      "identidad": "V-82223592",
+      "nombre": "CARLOS MARIO TABORDA OROZCO",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f1db3214-6471-4d51-af96-36d053fbe8b4",
+      "identidad": "E-82246079",
+      "nombre": "XIAONA WU",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    },
+    {
+      "id": "e2abad86-4dea-43b1-a959-aecb986bd55f",
+      "identidad": "V-82246079",
+      "nombre": "XIAONA WU",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "74e9d036-87eb-4d0e-9b29-aff118caa40b",
+      "identidad": "E-84411575",
+      "nombre": "MEITING WU",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    },
+    {
+      "id": "fa874ba5-90ba-4536-99c9-eb6fafa6b225",
+      "identidad": "V-84411575",
+      "nombre": "MEITING WU",
+      "created_at": "2026-09-30T23:06:44.219764+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e7e061fc-0b48-4131-89c8-8839df6203e5",
+      "identidad": "E-82265727",
+      "nombre": "JINFENG  FENG",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    },
+    {
+      "id": "ba6f8572-39d0-4b27-866e-ff932e317838",
+      "identidad": "V-82265727",
+      "nombre": "JINFENG  FENG",
+      "created_at": "2026-09-30T23:06:54.976568+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b7c8e4a8-4e92-4ae5-951e-1f9841368907",
+      "identidad": "E-1028418",
+      "nombre": "MARIA GORETE DA COSTA SANTOS",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    },
+    {
+      "id": "31809319-8709-45e7-a488-ad7edb4e9238",
+      "identidad": "V-1028418",
+      "nombre": "MARIA GORETE DA COSTA SANTOS",
+      "created_at": "2026-09-30T23:06:46.090738+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2b683f7b-844b-4af2-8001-8c14c0152e87",
+      "identidad": "E-81626225",
+      "nombre": "FERNANDO RAMON PEREZ GARCIA",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    },
+    {
+      "id": "0b22f9be-03d5-49c0-a32a-75071672d13a",
+      "identidad": "V-81626225",
+      "nombre": "FERNANDO RAMON PEREZ GARCIA",
+      "created_at": "2026-09-30T23:06:58.876123+00:00"
+    }
+  ],
+  [
+    {
+      "id": "797254b1-461c-4659-8ee6-e35a1c97cdeb",
+      "identidad": "E-844104394",
+      "nombre": "XUEXIAN ZHENG",
+      "created_at": "2026-10-03T17:35:10.706616+00:00"
+    },
+    {
+      "id": "d48e0126-29e0-4a29-9d47-733596ed6884",
+      "identidad": "V-844104394",
+      "nombre": "XUEXIAN ZHENG",
+      "created_at": "2026-09-30T23:06:48.177679+00:00"
+    }
+  ],
+  [
+    {
+      "id": "b026b70e-2b1f-479b-b653-e6f119e3bd4a",
+      "identidad": "V-08610532",
+      "nombre": "CARLOS JOSE AGREDA",
+      "created_at": "2026-09-30T23:06:48.690617+00:00"
+    },
+    {
+      "id": "61e7b4fd-dd20-40d9-ae30-8ae1ec1d3970",
+      "identidad": "V-8610532",
+      "nombre": "CARLOS JOSE AGREDA",
+      "created_at": "2026-09-22T01:49:38.455+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c3c63051-b5e0-4912-86d1-a866583832f1",
+      "identidad": "V-03581137",
+      "nombre": "MIGUEL ANGEL COLMENARES Y SONIA MARIA A",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "866e1759-737c-411c-92f5-02eac9328b4e",
+      "identidad": "V-3581137",
+      "nombre": "MIGUEL COLMENARES",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    }
+  ],
+  [
+    {
+      "id": "719869c2-c1dd-46db-ad97-3b61b6384b8f",
+      "identidad": "V-818137926",
+      "nombre": "MARIO VICENTE SALAZAR RODRIGUEZ",
+      "created_at": "2026-09-30T23:06:54.189632+00:00"
+    },
+    {
+      "id": "b660d3bd-822a-4097-bf4e-ddfbd5e8639d",
+      "identidad": "E-818137926",
+      "nombre": "MARIO VICENTE SALAZAR RODRIGUEZ",
+      "created_at": "2026-10-03T17:35:10.46998+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9a7456ee-d968-4726-bb88-6de24343817f",
+      "identidad": "V-81311684",
+      "nombre": "AMILCAR  BASTOS COSME QUINTA",
+      "created_at": "2026-09-30T23:06:54.688336+00:00"
+    },
+    {
+      "id": "86330bce-61ee-4c9b-b2f0-22b84b52b99c",
+      "identidad": "E-81311684",
+      "nombre": "AMILCAR  BASTOS COSME QUINTA",
+      "created_at": "2026-10-03T17:35:10.706616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "40531015-02f2-4e5e-9151-836c891010b6",
+      "identidad": "V-09539059",
+      "nombre": "GIACOMO VIOLANTE PASSANISI",
+      "created_at": "2026-09-30T23:07:02.021128+00:00"
+    },
+    {
+      "id": "2a7dca47-2b36-4f99-b394-333b8580ed7e",
+      "identidad": "V-9539059",
+      "nombre": "GIACOMO  VIOLANTE PASSANISI",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8e5bdbe4-14aa-484a-8985-196da7e56ad1",
+      "identidad": "V-03311945",
+      "nombre": "ANA PASTORA PULIDO DE PERRUOLO",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    },
+    {
+      "id": "56901ce9-39dc-4024-acbf-a8a2ae38e0dd",
+      "identidad": "V-3311945",
+      "nombre": "ANA PASTORA PULIDO CONTRERAS",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8894b08e-b55d-4105-a941-ea5afbedff99",
+      "identidad": "V-08531663",
+      "nombre": "HERNANDEZ RODRIGUEZ RAFAEL ELIAS",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    },
+    {
+      "id": "ab06a3b6-45bc-445a-a29b-7685ec662a34",
+      "identidad": "V-8531663",
+      "nombre": "RAFAEL ELIAS HERNANDEZ RODRIGUEZ",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    }
+  ],
+  [
+    {
+      "id": "cc2dfdfd-c4ab-4c98-bdfd-498b0a731284",
+      "identidad": "V-81629994",
+      "nombre": "MIGUEL ANGEL RODRIGUEZ RIVERA Y SARINA CASCONE DE RODRIGUEZ",
+      "created_at": "2026-09-30T23:07:06.748059+00:00"
+    },
+    {
+      "id": "561ba16a-3f9c-47df-aa4b-c981ec56e031",
+      "identidad": "E-81629994",
+      "nombre": "MIGUEL ANGEL RODRIGUEZ RIVERA Y SARINA CASCONE DE RODRIGUEZ",
+      "created_at": "2026-09-22T01:49:43.331933+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2be6be11-8a74-45a8-b276-1ef789d0aefd",
+      "identidad": "V-80900175",
+      "nombre": "JORGE PATRICIO CAMPOS GREENE",
+      "created_at": "2026-09-30T23:07:06.748059+00:00"
+    },
+    {
+      "id": "e4c0d416-4c31-4648-bc36-e7f8a1c73831",
+      "identidad": "E-80900175",
+      "nombre": "JORGE PATRICIO CAMPOS GREENE",
+      "created_at": "2026-10-03T17:35:10.706616+00:00"
+    }
+  ],
+  [
+    {
+      "id": "22b0f7f9-f2e7-4a5f-90ad-efddff118414",
+      "identidad": "V-01330042",
+      "nombre": "JOYA MALPICA GABRIEL OSWALDO",
+      "created_at": "2026-09-22T01:49:42.469011+00:00"
+    },
+    {
+      "id": "96e4b4e2-e5a6-4921-ac2c-094a03f9277b",
+      "identidad": "V-1330042",
+      "nombre": "GABRIEL OSWALDO JOYA MALPICA Y JESUS ALEJANDRO JOYA CEVALLOS",
+      "created_at": "2026-09-22T01:49:42.999553+00:00"
+    }
+  ],
+  [
+    {
+      "id": "88449655-7791-4acf-a58c-6a86942383d5",
+      "identidad": "V-07116673",
+      "nombre": "ROSA ELENA PEREZ CAMACHO",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "8a632228-622f-4a47-8b4a-f30b3ecfd857",
+      "identidad": "V-7116673",
+      "nombre": "ROSA ELENA PEREZ CAMACHO",
+      "created_at": "2026-09-22T01:49:38.07096+00:00"
+    }
+  ],
+  [
+    {
+      "id": "4c66d7c8-7460-4a11-998c-9b28652f05c6",
+      "identidad": "V-04282329",
+      "nombre": "JOSE NAVAS",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "dfe56e2d-ccb4-4e90-b313-fc14c0954351",
+      "identidad": "V-4282329",
+      "nombre": "JOSE EUGENIO NAVAS GAMEZ",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "2ea415c9-f326-4f8d-adad-cdaa0b06f951",
+      "identidad": "V-03287669",
+      "nombre": "GLADYS ARGARITA OJEDA GUEVARA",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "7917f5cc-85ec-4b90-aa76-0ac8be24ecc9",
+      "identidad": "V-3287669",
+      "nombre": "GLADYS MARGARITA OJEDA GUEVARA",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "8f63b5cd-4b06-481d-9a0d-9662003fc481",
+      "identidad": "V-08658608",
+      "nombre": "MARIA SILVA",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    },
+    {
+      "id": "4defd337-4388-477e-935f-a571d176ecd9",
+      "identidad": "V-8658608",
+      "nombre": "MARIA ANGEL SOTERAN SILVA",
+      "created_at": "2026-09-22T01:49:42.832562+00:00"
+    }
+  ],
+  [
+    {
+      "id": "d3590771-bff5-42bd-ab01-2aac980806e8",
+      "identidad": "V-03984418",
+      "nombre": "ARQUIMEDES JESUS LOPEZ KAFFURE",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    },
+    {
+      "id": "06c3d400-106d-42a2-baa6-346614ef69e7",
+      "identidad": "V-3984418",
+      "nombre": "ARQUIMEDES JESUS LOPEZ KAFFURE",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    }
+  ],
+  [
+    {
+      "id": "45b0daf4-298d-4d0c-880a-64e90878a7a7",
+      "identidad": "V-01687352",
+      "nombre": "JOSEFINA DEL CARMEN ANDRADE DE VIVAS",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    },
+    {
+      "id": "face3954-148c-45e8-96b0-6e169a24ad9d",
+      "identidad": "V-1687352",
+      "nombre": "JOSEFINA DEL CARMEN ANDRADE DE VIVAS",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    }
+  ],
+  [
+    {
+      "id": "86b937a7-3c2c-4dd9-98e1-a16bd80e2ba7",
+      "identidad": "V-01584768",
+      "nombre": "PEREZ ERASMO",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    },
+    {
+      "id": "61f72b42-871e-42da-9da7-a9e5b6facd96",
+      "identidad": "V-1584768",
+      "nombre": "PEREZ ERASMO",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    }
+  ],
+  [
+    {
+      "id": "c94c9e98-eeda-41bc-8603-223aa6e309a2",
+      "identidad": "V-07062419",
+      "nombre": "NANCY XIHOMARA CADENAS ROMAN",
+      "created_at": "2026-09-30T23:07:03.889751+00:00"
+    },
+    {
+      "id": "2ea10051-49af-4896-99fb-7f364b1e536a",
+      "identidad": "V-7062419",
+      "nombre": "NANCY XIHOMARA CADENAS ROMAN",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e31f2bd0-45f6-4b63-9a0c-15000b666a85",
+      "identidad": "V-7911904",
+      "nombre": "ALEX JACKELINE TORCUATO SIERRA",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    },
+    {
+      "id": "d2f01b1e-67c9-4962-b04d-79b267436722",
+      "identidad": "V-07911904",
+      "nombre": "ALEX JACKELINE TORCUATO SIERRA",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    }
+  ],
+  [
+    {
+      "id": "f4e07b65-9a52-478d-9042-7226eb61657e",
+      "identidad": "V-1584799",
+      "nombre": "CONSTRUCCIONES E INVERSIONES CARIBE C.A",
+      "created_at": "2026-09-22T01:49:38.626932+00:00"
+    },
+    {
+      "id": "e5ec1f94-42c4-4dcb-9c65-d3a6bd3bc014",
+      "identidad": "V-01584799",
+      "nombre": "CONSTRUCCIONES E INVERSIONES CARIBE, C.A",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    }
+  ],
+  [
+    {
+      "id": "9898ecbf-bd09-44a3-85fe-837d9566278a",
+      "identidad": "V-01584897",
+      "nombre": "GIMENEZ JOSE",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "e4294b0a-539e-46bb-baa3-b57ef9858e9a",
+      "identidad": "V-1584897",
+      "nombre": "GIMENEZ JOSE",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    }
+  ],
+  [
+    {
+      "id": "e15a78f2-cfe2-4431-ae42-ac28e17517cf",
+      "identidad": "V-02218302",
+      "nombre": "MARCOS ROGELIO SANCHEZ OSTOS",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "8b9b049a-3c90-4d8a-9475-9a32845e191c",
+      "identidad": "V-2218302",
+      "nombre": "MARCOS ROGELIO SANCHEZ OSTOS Y LUCY GARCIA DE SANCHEZ",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    }
+  ],
+  [
+    {
+      "id": "680a161f-cfa3-46b1-9ef0-6c2bb08a9ed6",
+      "identidad": "V-1583276",
+      "nombre": "VRIZUELA FLOR MARIA",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "b5d7b3a3-ad24-4f5e-9bcb-cbb6c3e10400",
+      "identidad": "V-01583276",
+      "nombre": "VRIZUELA FLOR MARIA",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    }
+  ],
+  [
+    {
+      "id": "52143dd2-a425-49c5-a4d4-6c9866888c6a",
+      "identidad": "V-1582413",
+      "nombre": "COLMENAREZ EDITZA",
+      "created_at": "2026-09-22T01:49:43.16907+00:00"
+    },
+    {
+      "id": "5baf6349-9975-44dd-a9c4-5933ae3a043c",
+      "identidad": "V-01582413",
+      "nombre": "COLMENAREZ EDITZA",
+      "created_at": "2026-09-30T23:07:03.621914+00:00"
+    }
+  ],
+  [
+    {
+      "id": "aeb77a41-e4dc-4c64-bc34-aa0f33a23560",
+      "identidad": "V-81735983",
+      "nombre": "ANASTASSIOS CONSTANTIN SIDERIS MARUGAS",
+      "created_at": "2026-09-30T23:07:04.122376+00:00"
+    },
+    {
+      "id": "e9ba3c89-3cbd-4e0e-bbf5-2af872def244",
+      "identidad": "E-81735983",
+      "nombre": "ANASTASSIOS CONSTANTIN SIDERIS MARUGAS",
+      "created_at": "2026-10-03T17:35:10.706616+00:00"
+    }
+  ]
+]
