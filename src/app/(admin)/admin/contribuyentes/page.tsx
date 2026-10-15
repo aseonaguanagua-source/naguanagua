@@ -171,12 +171,10 @@ function ContribuyentesPageContent() {
 
   useEffect(() => {
     let result = isShowingServerResults ? serverResults : contribuyentes;
-    if (!isShowingServerResults) {
-      if (activeTab === 'Activos') {
-        result = result.filter((c: any) => c.Estado !== 'Eliminado' && c.Estado !== 'Inactivo');
-      } else {
-        result = result.filter((c: any) => c.Estado === 'Eliminado' || c.Estado === 'Inactivo');
-      }
+    if (activeTab === 'Activos') {
+      result = result.filter((c: any) => c.Estado !== 'Eliminado' && c.Estado !== 'Inactivo');
+    } else {
+      result = result.filter((c: any) => c.Estado === 'Eliminado' || c.Estado === 'Inactivo');
     }
     
     if (showWithNotes) {

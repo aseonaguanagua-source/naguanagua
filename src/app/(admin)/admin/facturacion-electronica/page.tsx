@@ -403,10 +403,27 @@ export default function FacturacionElectronicaPage() {
     const esRet = !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion);
     setEmitEsRetencion(esRet);
     const montoRet = parseFloat(String(pago.detalles?.monto_retencion_iva || pago.detalles?.retencion_iva || 0)) || 0;
-    const montoFacturaDet = parseFloat(String(pago.detalles?.monto_factura || 0)) || 0;
-    const ref = totalRef && totalRef > 0
-      ? totalRef
-      : (montoFacturaDet > 0 ? montoFacturaDet : (parseFloat(pago.monto) || 0) + (esRet ? montoRet : 0));
+    
+    // Obtener suma de recibos si existe desglose en detalles
+    const montosMap = pago.detalles?.montos;
+    let sumRecibos = 0;
+    if (montosMap && typeof montosMap === 'object') {
+      sumRecibos = Object.values(montosMap).reduce((acc: number, val: any) => acc + (parseFloat(String(val)) || 0), 0);
+    }
+
+    const montoFacturaDet = parseFloat(String(pago.detalles?.monto_factura || 0)) || sumRecibos || 0;
+    const saldoFavor = parseFloat(String(pago.detalles?.saldo_a_favor_nuevo || pago.detalles?.monto_sobrante || pago.detalles?.saldo_favor || pago.detalles?.saldo_favor_generado || 0)) || 0;
+    
+    // Si pagaron por encima, el monto de la factura NO debe incluir el saldo a favor / sobrante
+    const montoPagoNeto = Math.max(0, (parseFloat(pago.monto) || 0) - saldoFavor);
+    let ref = totalRef && totalRef > 0 ? totalRef : 0;
+    if (!ref) {
+      if (montoFacturaDet > 0) {
+        ref = montoFacturaDet;
+      } else {
+        ref = montoPagoNeto + (esRet ? montoRet : 0);
+      }
+    }
     setTotalReferencia(ref);
     const montoTotal = totalOverride && totalOverride > 0 ? totalOverride : ref;
     const baseEstimada = (montoTotal / 1.16).toFixed(2);
@@ -993,8 +1010,19 @@ export default function FacturacionElectronicaPage() {
                           </div>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 font-mono font-black text-slate-900 text-sm">
-                        Bs {pago.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td className="py-3.5 px-4 font-mono text-sm">
+                        <div className="font-black text-slate-900">
+                          Bs {pago.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        {(() => {
+                          const sFavor = parseFloat(String(pago.detalles?.saldo_a_favor_nuevo || pago.detalles?.monto_sobrante || pago.detalles?.saldo_favor || pago.detalles?.saldo_favor_generado || 0)) || 0;
+                          if (sFavor <= 0) return null;
+                          return (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                              + Bs {fmtBs(sFavor)} en N/Crédito
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
                         {new Date(pago.created_at).toLocaleDateString('es-VE')}
@@ -1644,6 +1672,22 @@ export default function FacturacionElectronicaPage() {
                     <span>¿Es Pago con Retención de IVA (75%)? (Agente de Retención)</span>
                   </label>
                 </div>
+
+                {(() => {
+                  const sFavor = parseFloat(String(selectedPagoForEmit.detalles?.saldo_a_favor_nuevo || selectedPagoForEmit.detalles?.monto_sobrante || selectedPagoForEmit.detalles?.saldo_favor || selectedPagoForEmit.detalles?.saldo_favor_generado || 0)) || 0;
+                  if (sFavor <= 0) return null;
+                  return (
+                    <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs space-y-1">
+                      <div className="font-bold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span>Pago con Excedente acreditado a Nota de Crédito</span>
+                      </div>
+                      <p className="text-[11px] text-blue-800 leading-snug">
+                        El contribuyente canceló <strong>Bs. {fmtBs(selectedPagoForEmit.monto)}</strong>. De ese monto, <strong>Bs. {fmtBs(sFavor)}</strong> están por encima del servicio facturado y se registraron en su <strong>Nota de Crédito / Saldo a Favor</strong>. La Factura Electrónica se emite estrictamente por el servicio real: <strong>Bs. {fmtBs(totalReferencia)}</strong>.
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* CAMPOS DE AJUSTE */}

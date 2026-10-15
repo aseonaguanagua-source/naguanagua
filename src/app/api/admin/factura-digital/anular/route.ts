@@ -629,14 +629,29 @@ export async function POST(request: Request) {
     // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
     const conRetencion = pagoTieneRetencion(detPago);
 
-    // CUADRE: la factura debe totalizar lo cobrado en caja (el monto cobrado ya incluye IVA).
-    // Si los items se calcularon como base y no cuadran, se reescalan proporcionalmente.
-    // No aplica a mixtos/residenciales excluidos (ahí el cobro incluye la parte residencial).
+    // CUADRE: la factura debe totalizar el servicio facturado.
+    // REGLA: Lo que esté por encima al pago NO se debe trasladar a la factura electrónica,
+    // solo sumarse a la nota de crédito.
     const r2 = (n: number) => Math.round(n * 100) / 100;
-    const montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + (parseFloat(String(detPago.monto_retencion_iva || 0)) || 0);
+    const saldoFavorGenerado = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
+    const montoFacturaGuardado = parseFloat(String(detPago.monto_factura || 0)) || 0;
+    const montoRetencionGuardada = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
+
+    let montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + montoRetencionGuardada - saldoFavorGenerado;
+    if (montoFacturaGuardado > 0) {
+      montoCobrado = montoFacturaGuardado;
+    }
+
     const totalCalculado = totalGravado + totalExento + totalIVA;
-    // Monto objetivo: el total editado a mano (si lo hay) o lo cobrado en caja
-    const objetivo = totalManualNum > 0 ? totalManualNum : montoCobrado;
+
+    // Si los items calculados ya totalizan el servicio real (totalCalculado > 0)
+    // y lo pagado/cobrado es igual o mayor (pagaron completo o por encima),
+    // el objetivo de la factura electrónica es estrictamente el total del servicio (totalCalculado).
+    // Lo que esté por encima NO se traslada a la factura digital; solo va a la nota de crédito.
+    const objetivo = totalManualNum > 0
+      ? totalManualNum
+      : (totalCalculado > 0 && montoCobrado >= totalCalculado - 0.05 ? totalCalculado : montoCobrado);
+
     // Caja de Condominios: los renglones ya son exactos (si hubo residenciales, lo cobrado incluye esa parte)
     const aplicarCuadre = totalManualNum > 0 || (lineasCondo ? excluidosResidenciales === 0 : (!esMixto && excluidosResidenciales === 0));
     if (aplicarCuadre && objetivo > 0 && totalCalculado > 0 && Math.abs(totalCalculado - objetivo) > 0.01) {
@@ -872,8 +887,9 @@ export async function POST(request: Request) {
               const forma = casilla(hit ? hit[1] : tipoPago, 40);
               const ref = casilla(refPago, 25);
               const banco = casilla(bancoPago, Math.max(0, 100 - 2 - forma.length - ref.length));
+              const retCalculada = r2(totalIVA * 0.75);
               const montoRetNum = conRetencion
-                ? (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || r2(totalIVA * 0.75))
+                ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
                 : 0;
 
               if (conRetencion && montoRetNum > 0 && totalAPagar > montoRetNum) {
@@ -959,8 +975,9 @@ export async function POST(request: Request) {
           {
             Campo: 'Observaciones',
             Valor: (() => {
+              const retCalculada = r2(totalIVA * 0.75);
               const montoRetNum = conRetencion
-                ? (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || r2(totalIVA * 0.75))
+                ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
                 : 0;
               const f2 = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
               if (conRetencion && montoRetNum > 0) {
@@ -996,14 +1013,14 @@ export async function POST(request: Request) {
       if (Math.abs(totalAPagar - totalManualNum) > tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con el monto editado (${totalManualNum.toFixed(2)}).`);
     } else {
-      const montoRet = conRetencion ? (parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0)) || (totalIVA * 0.75)) : 0;
-      const cobradoTotal = montoCobrado + montoRet;
-      if (montoCobrado > 0 && !conRetencion && totalAPagar > montoCobrado + tol)
-        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja (${montoCobrado.toFixed(2)}).`);
-      if (montoCobrado > 0 && conRetencion && totalAPagar > cobradoTotal + tol + 1.0)
+      const retCalculada = r2(totalIVA * 0.75);
+      const montoRet = conRetencion ? (retCalculada || parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0))) : 0;
+      const montoCobradoNeto = (parseFloat(String(pagoRow?.monto || 0)) || 0) - saldoFavorGenerado;
+      const cobradoTotal = montoCobradoNeto + montoRet;
+      if (montoCobradoNeto > 0 && !conRetencion && totalAPagar > montoCobradoNeto + tol)
+        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja (${montoCobradoNeto.toFixed(2)}).`);
+      if (montoCobradoNeto > 0 && conRetencion && totalAPagar > cobradoTotal + tol + 1.0)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja + retención (${cobradoTotal.toFixed(2)}).`);
-      if (montoCobrado > 0 && !conRetencion && !esMixto && excluidosResidenciales === 0 && Math.abs(totalAPagar - montoCobrado) > tol)
-        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) no coincide con lo cobrado (${montoCobrado.toFixed(2)}).`);
     }
     if (Math.abs(sumItems - totalAPagar) > tol + 0.01 * detallesItems.length)
       erroresFiscales.push(`La suma de los ítems (${sumItems.toFixed(2)}) no coincide con el total (${totalAPagar.toFixed(2)}).`);

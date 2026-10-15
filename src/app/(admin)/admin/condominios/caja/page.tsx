@@ -164,7 +164,14 @@ function Caja() {
     if (t.length < 3) { setRes(null); return; }
     const h = setTimeout(async () => {
       setBuscando(true);
-      try { const r = await fetch(`/api/admin/condominios?buscar=${encodeURIComponent(t)}`); setRes(await r.json()); } finally { setBuscando(false); }
+      try {
+        const r = await fetch(`/api/admin/condominios?buscar=${encodeURIComponent(t)}`);
+        const json = await r.json();
+        setRes({
+          condominios: (json.condominios || []).filter((c: any) => c.estado !== 'Eliminado'),
+          unidades: (json.unidades || []).filter((u: any) => u.estado !== 'Eliminada' && u.condominios?.estado !== 'Eliminado')
+        });
+      } finally { setBuscando(false); }
     }, 350);
     return () => clearTimeout(h);
   }, [q]);

@@ -343,7 +343,7 @@ export async function cargarCondominio(codigo: string) {
     }
   }
 
-  const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).order('inmueble').range(a, b));
+  const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).neq('estado', 'Eliminada').order('inmueble').range(a, b));
   
   // Fetch agente_retencion manually since there's no FK relation
   const codigosUnidades = rawUnidades.map((u: any) => u.inmueble).filter(Boolean);
@@ -402,7 +402,7 @@ export async function resumenGeneral() {
   const tasa = await tasaVigente();
   const condos = await todas((a, b) => sb.from('condominios').select('*').neq('estado', 'Eliminado').order('nombre').range(a, b));
   const unidades = await todas((a, b) => sb.from('condominio_unidades')
-    .select('*').order('id').range(a, b));
+    .select('*').neq('estado', 'Eliminada').order('id').range(a, b));
   const { data: multas } = await sb.from('condominio_multas').select('id,condominio_id,unidad_id,monto_bs,monto_mmv,estado,concepto,periodo,creada_por,created_at').eq('estado', 'Pendiente');
   const porCondo = new Map<string, any[]>();
   unidades.forEach(u => { if (!porCondo.has(u.condominio_id)) porCondo.set(u.condominio_id, []); porCondo.get(u.condominio_id)!.push(u); });
@@ -460,8 +460,13 @@ export async function resumenGeneral() {
 export async function buscarPorDueno(identidad: string) {
   const n = M.normId(identidad);
   if (n.length < 4) return [];
-  const { data: us } = await sb.from('condominio_unidades').select('*, condominios!inner(codigo,nombre,modalidad,tipo)').ilike('identidad', `%${n}%`).limit(300);
-  return (us || []).filter((u: any) => M.normId(u.identidad) === n);
+  const { data: us } = await sb.from('condominio_unidades')
+    .select('*, condominios!inner(codigo,nombre,modalidad,tipo,estado)')
+    .neq('estado', 'Eliminada')
+    .neq('condominios.estado', 'Eliminado')
+    .ilike('identidad', `%${n}%`)
+    .limit(300);
+  return (us || []).filter((u: any) => u.estado !== 'Eliminada' && (u.condominios?.estado !== 'Eliminado') && M.normId(u.identidad) === n);
 }
 
 /**

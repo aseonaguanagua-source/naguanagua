@@ -7,6 +7,7 @@ import Link from 'next/link';
 
 export default function InmueblesPage() {
   const { inmuebles } = useAppContext();
+  const activeInmuebles = React.useMemo(() => (inmuebles || []).filter((i: any) => i.estado !== 'Eliminado' && i.Estado !== 'Eliminado'), [inmuebles]);
 
   // Map JSON to the columns shown in the UI "Inmueble Master (Condominio)"
   const columns = [
@@ -93,7 +94,7 @@ export default function InmueblesPage() {
       </div>
 
       {/* DataTable */}
-      <DataTable data={inmuebles} columns={columns} itemsPerPage={20} />
+      <DataTable data={activeInmuebles} columns={columns} itemsPerPage={20} />
     </div>
   );
 }

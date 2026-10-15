@@ -55,7 +55,7 @@ export default function CondominiosPage() {
       try {
         const r = await fetch(`/api/admin/condominios?buscar=${encodeURIComponent(t)}`, { cache: 'no-store' });
         const j = await r.json();
-        setUnidadesQ(j.unidades || []);
+        setUnidadesQ((j.unidades || []).filter((u: any) => u.estado !== 'Eliminada'));
       } catch { setUnidadesQ([]); }
     }, 350);
     return () => clearTimeout(h);
@@ -67,7 +67,7 @@ export default function CondominiosPage() {
     try {
       const r = await fetch(`/api/admin/condominios?dueno=${encodeURIComponent(dueno)}`);
       const d = await r.json();
-      setDuenoRes(d.unidades || []);
+      setDuenoRes((d.unidades || []).filter((u: any) => u.estado !== 'Eliminada'));
     } finally { setBuscandoDueno(false); }
   };
 

@@ -30,7 +30,7 @@ export default function PorFacturarPage() {
       const validos = (inmuebles || []).filter(inv => {
         const cant = parseInt(inv.cant_inmuebles || '0', 10);
         const mmv = parseFloat(inv.mmv_mes || '0');
-        return inv.identidad && cant > 0 && mmv > 0 && inv.estado !== 'Inactivo';
+        return inv.identidad && cant > 0 && mmv > 0 && inv.estado !== 'Inactivo' && inv.estado !== 'Eliminado';
       });
 
       const proyecciones = validos.map((inv, index) => {

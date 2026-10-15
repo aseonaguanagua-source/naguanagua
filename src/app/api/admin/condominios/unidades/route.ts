@@ -157,6 +157,14 @@ export async function PATCH(req: Request) {
         inmUpd.notas = Object.keys(existingNotes).length > 0 ? JSON.stringify(existingNotes) : null;
       }
       if ('actividad' in upd) inmUpd.actividad_principal = upd.actividad;
+      if (upd.estado === 'Eliminada') {
+        inmUpd.estado = 'Eliminado';
+        inmUpd.mmv_mes = 0;
+        inmUpd.deuda_mmv = 0;
+        inmUpd.cant_inmuebles = 0;
+        inmUpd.meses_deuda = 0;
+        await sb.from('condominio_multas').update({ estado: 'Anulada' }).eq('unidad_id', id).eq('estado', 'Pendiente');
+      }
       if (Object.keys(inmUpd).length > 0) {
         await sb.from('inmuebles').update(inmUpd).eq('inmueble', inmuebleAActualizar);
       }

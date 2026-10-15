@@ -176,10 +176,13 @@ export interface PagoSesion {
 export interface ConfirmPayload {
   montoReal: number;
   finalTotal: number;
+  totalConImpuestos?: number;
   saldoAFavorNuevo: number;
   esAbono: boolean;
   descuentoSaldoFavor: number;
   reqRef: boolean;
+  realMontoRetencionIVA?: number;
+  comprobanteRetencion?: string;
   recibosSeleccionados: string[];
   cuotasSeleccionadas: CuotaSeleccion[];
   serviciosSeleccionados: string[];

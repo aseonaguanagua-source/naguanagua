@@ -465,7 +465,8 @@ export default function CajaPage() {
     // 1. PRIORIDAD ABSOLUTA: Búsqueda exacta por Código de Inmueble (AURI..., URB...)
     const matchedInm = (inmuebles || []).find((i: any) => {
       const cod = (i.inmueble || i.Inmueble || i.cod_cont || '').trim().toUpperCase();
-      return cod === rawSearch || cod === inputClean.toUpperCase();
+      const vivo = i.estado !== 'Eliminado' && i.Estado !== 'Eliminado';
+      return vivo && (cod === rawSearch || cod === inputClean.toUpperCase());
     });
 
     if (matchedInm) {
@@ -504,6 +505,7 @@ export default function CajaPage() {
         .from('inmuebles')
         .select('*')
         .ilike('inmueble', rawSearch)
+        .neq('estado', 'Eliminado')
         .limit(1)
         .maybeSingle();
 
@@ -545,9 +547,9 @@ export default function CajaPage() {
         ? new Set(getIdentidadVariantsExact(`${activePrefix}-${inputClean}`).map(v => v.replace(/-/g, '').toUpperCase()))
         : new Set<string>();
 
-      user = contribuyentes.find((c: any) => c.Identidad && exactSet.has(String(c.Identidad).replace(/-/g, '').toUpperCase()))
+      user = contribuyentes.find((c: any) => c.Estado !== 'Eliminado' && c.Identidad && exactSet.has(String(c.Identidad).replace(/-/g, '').toUpperCase()))
         || contribuyentes.find((c: any) => {
-          if (!c.Identidad) return false;
+          if (!c.Identidad || c.Estado === 'Eliminado') return false;
           const idClean = String(c.Identidad).replace(/-/g, '').toUpperCase();
           return searchVariantsSet.has(idClean);
         });
@@ -556,6 +558,7 @@ export default function CajaPage() {
       if (!user && !/^\d+$/.test(inputClean) && inputClean.length >= 3) {
         const searchWords = rawSearch.split(/\s+/).filter((w: string) => w.length >= 2);
         user = contribuyentes.find((c: any) => {
+          if (c.Estado === 'Eliminado') return false;
           const cName = (c.Contribuyente || c.nombre || '').toUpperCase();
           return searchWords.every((w: string) => cName.includes(w));
         });
@@ -569,7 +572,7 @@ export default function CajaPage() {
         let inmFallback: any = null;
 
         if (isNameSearch && searchWords.length > 0) {
-          let qInm = supabase.from('inmuebles').select('*');
+          let qInm = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado');
           for (const w of searchWords) {
             qInm = qInm.ilike('contribuyente', `%${w}%`);
           }
@@ -580,6 +583,7 @@ export default function CajaPage() {
           const { data: inmById } = await supabase
             .from('inmuebles')
             .select('*')
+            .neq('estado', 'Eliminado')
             .or(orConditions.join(','))
             .limit(1)
             .maybeSingle();
@@ -935,6 +939,7 @@ export default function CajaPage() {
       const misInmuebles = activeInmFresh.length > 0 
         ? activeInmFresh
         : inmuebles.filter((i: any) => {
+            if (i.estado === 'Eliminado' || i.Estado === 'Eliminado') return false;
             const ui = (user.Identidad || '').replace(/-/g,'').toUpperCase();
             const ii = (i.identidad || '').replace(/-/g,'').toUpperCase();
             const nakedUi = ui.replace(/^[VEJPG]/i, '');
@@ -1599,6 +1604,10 @@ export default function CajaPage() {
       // Use manual debit amount if provided
       if (montoDebito && parseLocalFloat(montoDebito) > 0) {
         montoReal = parseLocalFloat(montoDebito);
+        const diffDeb = Math.round((montoReal - finalTotal) * 100) / 100;
+        if (diffDeb > 0.02) {
+          saldoAFavorNuevo = diffDeb;
+        }
       }
     } else if (paymentMethod === 'Saldo a Favor') {
       // El método paga con el saldo directamente (totalBs completo, sin descuento previo)
@@ -1616,7 +1625,7 @@ export default function CajaPage() {
     
     // ── Abrir modal de confirmación en lugar de confirm() nativo ──
     setConfirmPayload({
-      montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion,
+      montoReal, finalTotal, totalConImpuestos, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion,
       recibosSeleccionados: selectedRecibos,
       cuotasSeleccionadas: selectedCuotas,
       serviciosSeleccionados: selectedServicios,
@@ -1628,6 +1637,8 @@ export default function CajaPage() {
   const handleConfirmAndPay = async () => {
     if (!confirmPayload) return;
     const { montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion } = confirmPayload;
+    const totalConImpuestos = confirmPayload.totalConImpuestos ?? Math.round((finalTotal + (realMontoRetencionIVA || 0) + (descuentoSaldoFavor || 0)) * 100) / 100;
+    const isAutoAprobado = ['Debito', 'Credito', 'Saldo a Favor', 'TMD', 'TVD'].includes(paymentMethod);
     setIsConfirmModalOpen(false);
     setIsProcessing(true);
     ultimoPagoIdRef.current = null;
@@ -1692,9 +1703,9 @@ export default function CajaPage() {
             fecha_emision: new Date().toISOString()
           })
         }]);
-        // ─ Acreditar nuevo Saldo a Favor (fix I-6: usa inmueble principal, no inmuebles[0]) ─
-        if (['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod)) {
-          const result = await acreditarSaldoFavor(foundUser.Identidad, saldoAFavorNuevo);
+        // ─ Acreditar nuevo Saldo a Favor para métodos inmediatos (débito, crédito, punto, etc.) ─
+        if (!reqRef || isAutoAprobado) {
+          const result = await acreditarSaldoFavor(foundUser.Identidad, saldoAFavorNuevo, foundUser.CodCont || foundUser.cod_cont);
           if (!result.ok) console.error('Error acreditando saldo:', result.error);
         }
       }
@@ -1711,7 +1722,6 @@ export default function CajaPage() {
         if (!result.ok) console.error('Error al pagar con Saldo a Favor:', result.error);
       }
 
-      const isAutoAprobado = ['Debito', 'Credito', 'Saldo a Favor', 'TMD', 'TVD'].includes(paymentMethod);
       // Detect abono: montoDebito provided and < finalTotal, o marcado como abono/pago multiple
       const diffDebito = montoDebito && parseLocalFloat(montoDebito) > 0 ? (confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor) - parseLocalFloat(montoDebito) : 0;
       const esAbonoParcial = (diffDebito > 0.02) || !!confirmPayload.esAbono || (montoReal < (confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor) - 0.02);
@@ -1846,12 +1856,20 @@ export default function CajaPage() {
             fecha_transaccion: fechaTransaccion,
             tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
             nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
-            monto_retencion_iva: montoRetencionIVA,
+            monto_retencion_iva: realMontoRetencionIVA,
             iva_percent: ivaPercent,
             es_condominio: isCondominio,
             condominio_modo: condominioModo,
             condominio_hijos_pagados: condominioModo === 'Local' ? selectedHijos : (condominioModo === 'Total' ? condominioHijos.map(h => h.id) : []),
-            deuda_previa: deudaPrevia
+            deuda_previa: deudaPrevia,
+            // Desglose del pago por encima para la factura electrónica:
+            saldo_favor: saldoAFavorNuevo,
+            saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+            monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+            monto_factura: totalConImpuestos, // Monto total de la factura fiscal
+            monto_neto_factura: finalTotal,   // Monto neto de la factura sin la retención
+            es_retencion: realMontoRetencionIVA > 0,
+            agente_retencion: realMontoRetencionIVA > 0
           })
         });
         if (insertErr) {
@@ -1912,7 +1930,16 @@ export default function CajaPage() {
             currentDetalles.montos = digitalMontos;
             currentDetalles.contribuyente = foundUser.Contribuyente;
             currentDetalles.identidad = foundUser.Identidad;
-            currentDetalles.montoTotal = montoReal;
+            // Para la factura digital, el montoTotal es el total del servicio/factura (sin sumar el pago por encima):
+            currentDetalles.montoTotal = totalConImpuestos;
+            currentDetalles.saldo_favor = saldoAFavorNuevo;
+            currentDetalles.saldo_a_favor_nuevo = saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined;
+            currentDetalles.monto_sobrante = saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined;
+            currentDetalles.monto_factura = totalConImpuestos;
+            currentDetalles.monto_neto_factura = finalTotal;
+            currentDetalles.monto_retencion_iva = realMontoRetencionIVA;
+            currentDetalles.es_retencion = realMontoRetencionIVA > 0;
+            currentDetalles.agente_retencion = realMontoRetencionIVA > 0;
             currentDetalles.isCondominio = isCondominio;
             currentDetalles.formasPago = [
               {
@@ -1921,7 +1948,7 @@ export default function CajaPage() {
                 forma: paymentMethod === 'Debito' ? '03' : ['Credito', 'TMD', 'TVD'].includes(paymentMethod) ? '02' : '05',
                 banco: banco || undefined,
                 referencia: reqRef ? referencia : referenciaDebito || undefined,
-                monto: montoReal
+                monto: finalTotal
               }
             ];
             await actualizarPago(pagoId, { detalles: currentDetalles });
@@ -2564,6 +2591,14 @@ export default function CajaPage() {
             cajero: cajero_id,
             banco_destino: bancoDestino,
             saldo_favor: saldoAFavorNuevo,
+            saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+            monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+            monto_factura: totalConImpuestos,
+            monto_neto_factura: finalTotal,
+            monto_retencion_iva: realMontoRetencionIVA,
+            es_retencion: realMontoRetencionIVA > 0,
+            agente_retencion: realMontoRetencionIVA > 0,
+            iva_percent: ivaPercent,
             es_abono: esAbono,
             monto_abonado: esAbono ? montoReal : undefined,
             total_seleccionado: totalBs,
