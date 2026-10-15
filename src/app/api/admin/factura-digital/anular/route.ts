@@ -637,7 +637,8 @@ export async function POST(request: Request) {
     const montoFacturaGuardado = parseFloat(String(detPago.monto_factura || 0)) || 0;
     const montoRetencionGuardada = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
 
-    let montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + montoRetencionGuardada - saldoFavorGenerado;
+    const sfReal = (conRetencion && Math.abs(saldoFavorGenerado - montoRetencionGuardada) < 0.05) ? 0 : saldoFavorGenerado;
+    let montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + montoRetencionGuardada - sfReal;
     if (montoFacturaGuardado > 0) {
       montoCobrado = montoFacturaGuardado;
     }

@@ -402,7 +402,7 @@ export default function FacturacionElectronicaPage() {
     setEmitModulo(pago.modulo || (pago.condominio ? 'condominios' : 'caja'));
     const esRet = !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion);
     setEmitEsRetencion(esRet);
-    const montoRet = parseFloat(String(pago.detalles?.monto_retencion_iva || pago.detalles?.retencion_iva || 0)) || 0;
+    let montoRet = parseFloat(String(pago.montoRetencion || pago.detalles?.monto_retencion_iva || pago.detalles?.retencion_iva || 0)) || 0;
     
     // Obtener suma de recibos si existe desglose en detalles
     const montosMap = pago.detalles?.montos;
@@ -412,16 +412,25 @@ export default function FacturacionElectronicaPage() {
     }
 
     const montoFacturaDet = parseFloat(String(pago.detalles?.monto_factura || 0)) || sumRecibos || 0;
-    const saldoFavor = parseFloat(String(pago.detalles?.saldo_a_favor_nuevo || pago.detalles?.monto_sobrante || pago.detalles?.saldo_favor || pago.detalles?.saldo_favor_generado || 0)) || 0;
+    let saldoFavor = parseFloat(String(pago.detalles?.saldo_a_favor_nuevo || pago.detalles?.monto_sobrante || pago.detalles?.saldo_favor || pago.detalles?.saldo_favor_generado || 0)) || 0;
     
+    // Si el saldo a favor coincide con la retención, era la retención y no un saldo a favor / nota de crédito
+    if (esRet && Math.abs(saldoFavor - montoRet) < 0.05) {
+      saldoFavor = 0;
+    }
+
     // Si pagaron por encima, el monto de la factura NO debe incluir el saldo a favor / sobrante
     const montoPagoNeto = Math.max(0, (parseFloat(pago.monto) || 0) - saldoFavor);
     let ref = totalRef && totalRef > 0 ? totalRef : 0;
     if (!ref) {
-      if (montoFacturaDet > 0) {
+      if (montoFacturaDet > 0 && montoFacturaDet >= montoPagoNeto) {
         ref = montoFacturaDet;
       } else {
-        ref = montoPagoNeto + (esRet ? montoRet : 0);
+        if (esRet && montoRet <= 0 && montoPagoNeto > 0) {
+          ref = Math.round((montoPagoNeto * (1.16 / 1.04)) * 100) / 100;
+        } else {
+          ref = montoPagoNeto + (esRet ? montoRet : 0);
+        }
       }
     }
     setTotalReferencia(ref);
@@ -1014,9 +1023,15 @@ export default function FacturacionElectronicaPage() {
                         <div className="font-black text-slate-900">
                           Bs {pago.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
+                        {pago.conRetencion && (
+                          <div className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                            Retención IVA (75%): Bs {fmtBs(pago.montoRetencion || pago.detalles?.monto_retencion_iva || 0)}
+                          </div>
+                        )}
                         {(() => {
                           const sFavor = parseFloat(String(pago.detalles?.saldo_a_favor_nuevo || pago.detalles?.monto_sobrante || pago.detalles?.saldo_favor || pago.detalles?.saldo_favor_generado || 0)) || 0;
-                          if (sFavor <= 0) return null;
+                          const mRet = parseFloat(String(pago.montoRetencion || pago.detalles?.monto_retencion_iva || 0)) || 0;
+                          if (sFavor <= 0 || (pago.conRetencion && Math.abs(sFavor - mRet) < 0.05)) return null;
                           return (
                             <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
                               + Bs {fmtBs(sFavor)} en N/Crédito
@@ -1675,7 +1690,8 @@ export default function FacturacionElectronicaPage() {
 
                 {(() => {
                   const sFavor = parseFloat(String(selectedPagoForEmit.detalles?.saldo_a_favor_nuevo || selectedPagoForEmit.detalles?.monto_sobrante || selectedPagoForEmit.detalles?.saldo_favor || selectedPagoForEmit.detalles?.saldo_favor_generado || 0)) || 0;
-                  if (sFavor <= 0) return null;
+                  const mRet = parseFloat(String(selectedPagoForEmit.montoRetencion || selectedPagoForEmit.detalles?.monto_retencion_iva || 0)) || 0;
+                  if (sFavor <= 0 || (emitEsRetencion && Math.abs(sFavor - mRet) < 0.05)) return null;
                   return (
                     <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs space-y-1">
                       <div className="font-bold flex items-center gap-1.5">

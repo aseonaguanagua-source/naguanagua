@@ -32,7 +32,26 @@ export async function GET(request: Request) {
       throw pagosErr;
     }
 
-    const pagos = (rawPagos || []).filter(p => !['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')));
+    // 1) Separar pagos de retención (tipo 'Retencion de IVA') que son comprobantes vinculados al pago principal
+    const retencionPorPagoVinculado = new Map<string, { id: string; monto: number; referencia: string }>();
+    (rawPagos || []).forEach(p => {
+      if (p.tipo === 'Retencion de IVA') {
+        const d = parseDetalles(p.detalles);
+        const vinc = d?.pago_vinculado;
+        if (vinc) {
+          retencionPorPagoVinculado.set(String(vinc), {
+            id: p.id,
+            monto: parseFloat(p.monto || '0') || 0,
+            referencia: p.referencia || 'N/A',
+          });
+        }
+      }
+    });
+
+    const pagos = (rawPagos || []).filter(p => 
+      p.tipo !== 'Retencion de IVA' &&
+      !['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(p?.estado || ''))
+    );
 
     // Normalizador de identidades (sin guiones ni símbolos)
     const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -78,6 +97,30 @@ export async function GET(request: Request) {
     // Inmuebles referenciados en los recibos pagados (para clasificar factura vs recibo y rescatar nombre)
     const detallesPorPago = new Map<string, any>();
     const codigos = new Set<string>();
+    const pagoIds = (pagos || []).map(p => p.id);
+
+    // Buscar retenciones vinculadas a estos pagos en la base de datos para asegurar el enlace
+    if (pagoIds.length > 0) {
+      for (let i = 0; i < pagoIds.length; i += 200) {
+        const chunk = pagoIds.slice(i, i + 200);
+        const { data: retsDb } = await supabase
+          .from('pagos_reportados')
+          .select('id, monto, referencia, detalles')
+          .eq('tipo', 'Retencion de IVA')
+          .filter('detalles->>pago_vinculado', 'in', `(${chunk.join(',')})`);
+        (retsDb || []).forEach((r: any) => {
+          const d = parseDetalles(r.detalles);
+          if (d?.pago_vinculado) {
+            retencionPorPagoVinculado.set(String(d.pago_vinculado), {
+              id: r.id,
+              monto: parseFloat(r.monto || '0') || 0,
+              referencia: r.referencia || 'N/A'
+            });
+          }
+        });
+      }
+    }
+
     (pagos || []).forEach(p => {
       const det = parseDetalles(p.detalles);
       detallesPorPago.set(p.id, det);
@@ -155,6 +198,32 @@ export async function GET(request: Request) {
         nombreResuelto = det.contribuyente || cont?.nombre || 'Contribuyente ' + pago.identidad;
       }
 
+      const vincRet = retencionPorPagoVinculado.get(String(pago.id));
+      const montoRetGuardada = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)) || 0;
+      const montoRetNum = montoRetGuardada > 0 ? montoRetGuardada : (vincRet ? vincRet.monto : 0);
+      const tieneRetencion = montoRetNum > 0 || !!det.es_retencion || !!det.agente_retencion || !!vincRet;
+
+      // Si el pago tiene retención y se guardó saldo_favor igual a la retención, se limpia para no mostrarlo como Nota de Crédito
+      const sFavorGuardado = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
+      if (tieneRetencion && montoRetNum > 0 && Math.abs(sFavorGuardado - montoRetNum) < 0.05) {
+        delete det.saldo_a_favor_nuevo;
+        delete det.monto_sobrante;
+        delete det.saldo_favor;
+        delete det.saldo_favor_generado;
+      }
+
+      if (tieneRetencion) {
+        det.conRetencion = true;
+        det.es_retencion = true;
+        det.agente_retencion = true;
+        det.monto_retencion_iva = montoRetNum;
+        det.retencion_iva = montoRetNum;
+        det.porcentaje_retencion = 75;
+      }
+
+      // Los pagos con retención comercial siempre corresponden a factura fiscal
+      const docFinal = tieneRetencion ? 'factura' : clasif.documento;
+
       return {
         id: pago.id,
         pagoId: pago.id,
@@ -175,7 +244,7 @@ export async function GET(request: Request) {
         // Condominio: a quién va la factura (al condominio o a cada dueño) y si es parte de un pago repartido
         condominio: infoCondo(pago, det),
         // Clasificación del documento
-        documento: clasif.documento,
+        documento: docFinal,
         subtipo: clasif.subtipo,
         mixto: clasif.mixto,
         inmuebles: clasif.inmuebles,
@@ -192,8 +261,11 @@ export async function GET(request: Request) {
         notaCreditoUrl: fd?.nota_credito?.url || null,
         notaCreditoControl: fd?.nota_credito?.numero_control || null,
         // Agente de retención: la factura se envía solo al aprobar su comprobante
-        conRetencion: (parseFloat(String(det.monto_retencion_iva || 0)) || 0) > 0 || !!det.es_retencion || !!det.agente_retencion,
-        esRetencion: (parseFloat(String(det.monto_retencion_iva || 0)) || 0) > 0 || !!det.es_retencion || !!det.agente_retencion,
+        conRetencion: tieneRetencion,
+        esRetencion: tieneRetencion,
+        montoRetencion: montoRetNum,
+        referenciaRetencion: vincRet?.referencia || det.referencia_retencion || null,
+        pagoRetencionId: vincRet?.id || det.pago_retencion_id || null,
         modulo: pago.modulo || (infoCondo(pago, det) ? 'condominios' : 'caja'),
         detalles: det,
         retencionEstado: fd?.retencion?.estado || null,
@@ -206,7 +278,7 @@ export async function GET(request: Request) {
         // Recibo impreso en Caja (original guardado en el pago; si no, se reconstruye al descargar)
         reciboCajaGuardado: Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0,
         // Procesado = factura emitida (facturas) o recibo enviado (recibos)
-        procesado: clasif.documento === 'factura' ? emitida : reciboEnviado,
+        procesado: docFinal === 'factura' ? emitida : reciboEnviado,
       };
     });
 
