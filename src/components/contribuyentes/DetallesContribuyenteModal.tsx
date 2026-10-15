@@ -5,7 +5,8 @@ import {
   X, Users, Building2, Store, FileText, MapPin, Phone, Mail,
   Calendar, DollarSign, Download, Printer, Percent, Calculator,
   AlertCircle, CheckCircle, Clock, ShieldCheck, AlertTriangle,
-  Receipt, Wallet, ExternalLink, ArrowRight, Copy, Check, Eye
+  Receipt, Wallet, ExternalLink, ArrowRight, Copy, Check, Eye,
+  ChevronDown, ChevronUp, Layers, PieChart
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatBs, getIdentidadVariantsExact } from '@/lib/formatters';
@@ -59,6 +60,12 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   const [pagosDb, setPagosDb] = useState<any[]>([]);
   const [serviciosEspDb, setServiciosEspDb] = useState<any[]>([]);
   const [selectedInmSolvencia, setSelectedInmSolvencia] = useState('');
+  const [expandedNAs, setExpandedNAs] = useState<Record<string, boolean>>({});
+  const [selectedInmCode, setSelectedInmCode] = useState<string | null>(null);
+
+  const toggleExpandNA = (code: string) => {
+    setExpandedNAs(prev => ({ ...prev, [code]: !prev[code] }));
+  };
 
   // Cargar datos en vivo al abrir el modal
   useEffect(() => {
@@ -74,7 +81,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       .map(c => c.trim().toUpperCase())
       .filter(Boolean);
 
-    // 1. Cargar todos los inmuebles de este contribuyente
+    // 1. Cargar todos los inmuebles de este contribuyente y sus vínculos jerárquicos (padres / hijos)
     const fetchInmuebles = async () => {
       try {
         let query = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado');
@@ -86,9 +93,57 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           query = query.in('inmueble', codes);
         }
         const { data } = await query.order('inmueble', { ascending: true });
+        let allInms = [...(data || [])];
+
+        // 1.1 Si encontramos inmuebles, buscar si alguno tiene locales hijos asociados por padre_id
+        const foundCodes = allInms.map((i: any) => i.inmueble).filter(Boolean);
+        if (foundCodes.length > 0) {
+          const { data: hijosData } = await supabase
+            .from('inmuebles')
+            .select('*')
+            .neq('estado', 'Eliminado')
+            .in('padre_id', foundCodes);
+          if (hijosData && hijosData.length > 0) {
+            const existingCodes = new Set(allInms.map((i: any) => i.inmueble));
+            hijosData.forEach((h: any) => {
+              if (!existingCodes.has(h.inmueble)) {
+                allInms.push(h);
+                existingCodes.add(h.inmueble);
+              }
+            });
+          }
+        }
+
+        // 1.2 Si algún inmueble tiene padre_id que no esté en la lista, traer al padre N/A
+        const missingPadres = allInms
+          .map((i: any) => i.padre_id)
+          .filter((p): p is string => Boolean(p) && !allInms.some((x: any) => x.inmueble === p));
+        if (missingPadres.length > 0) {
+          const { data: padresData } = await supabase
+            .from('inmuebles')
+            .select('*')
+            .neq('estado', 'Eliminado')
+            .in('inmueble', missingPadres);
+          if (padresData && padresData.length > 0) {
+            const existingCodes = new Set(allInms.map((i: any) => i.inmueble));
+            padresData.forEach((p: any) => {
+              if (!existingCodes.has(p.inmueble)) {
+                allInms.push(p);
+                existingCodes.add(p.inmueble);
+              }
+            });
+          }
+        }
+
         if (isMounted) {
-          if (data && data.length > 0) {
-            setInmueblesList(data);
+          if (allInms.length > 0) {
+            setInmueblesList(allInms);
+            // Auto expandir N/A por defecto
+            const defaultExpanded: Record<string, boolean> = {};
+            allInms.forEach((i: any) => {
+              if (i.inmueble) defaultExpanded[i.inmueble] = true;
+            });
+            setExpandedNAs(prev => ({ ...defaultExpanded, ...prev }));
           } else {
             // Fallback a los que tengamos en memoria
             const memInms = inmueblesGlobal.filter((i: any) =>
@@ -166,29 +221,83 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
   // Cálculo de deuda consolidada
   const tasaEfectiva = tcmmv > 0 ? tcmmv : (bcvRate > 0 ? bcvRate : 1);
+  // Inmuebles sin eliminar
   const userInms = useMemo(() => {
     return inmueblesList.filter(i => i.estado !== 'Eliminado');
   }, [inmueblesList]);
+
+  // Unificación jerárquica: Inmuebles N/A con sus locales e hijos
+  const unifiedInmuebles = useMemo(() => {
+    // 1. Agrupar hijos por su padre_id
+    const hijosByPadre = new Map<string, any[]>();
+    userInms.forEach(i => {
+      const p = i.padre_id;
+      if (p) {
+        if (!hijosByPadre.has(p)) hijosByPadre.set(p, []);
+        hijosByPadre.get(p)!.push(i);
+      }
+    });
+
+    // 2. Identificar cuáles inmuebles son hijos de un padre presente en userInms
+    const childCodesSet = new Set<string>();
+    userInms.forEach(i => {
+      if (i.padre_id && userInms.some(p => p.inmueble === i.padre_id && p.inmueble !== i.inmueble)) {
+        childCodesSet.add(i.inmueble);
+      }
+    });
+
+    // 3. Generar entidades principales (los hijos quedan unificados bajo su padre N/A)
+    return userInms
+      .filter(i => !childCodesSet.has(i.inmueble))
+      .map(inm => {
+        const hijos = hijosByPadre.get(inm.inmueble) || [];
+        const isNA = /^(N\/?A|NA|NINGUNA|SIN ACTIVIDAD|-)$/i.test((inm.actividad_principal || '').trim()) || hijos.length > 0;
+        const sumHijosMMV = hijos.reduce((acc, h) => acc + (parseFloat(h.mmv_mes) || 0), 0);
+        
+        // La tarifa del N/A es la sumatoria de las actividades de sus hijos
+        const mmvTotal = (isNA && hijos.length > 0 && sumHijosMMV > 0) 
+          ? (parseFloat(inm.mmv_mes) || sumHijosMMV) 
+          : (parseFloat(inm.mmv_mes) || 0.91);
+
+        const mesesPadre = parseInt(inm.meses_deuda || '0');
+        const maxMesesHijos = hijos.length > 0 ? Math.max(...hijos.map(h => parseInt(h.meses_deuda || '0'))) : 0;
+        const mesesDeuda = Math.max(mesesPadre, maxMesesHijos);
+
+        return {
+          inm,
+          codigo: inm.inmueble,
+          isNAParent: isNA && hijos.length > 0,
+          hijos,
+          sumHijosMMV,
+          mmvTotal,
+          mesesDeuda
+        };
+      });
+  }, [userInms]);
 
   // Verificar si es agente de retención (75% IVA)
   const esAgente = useMemo(() => {
     return userInms.some(i => i.agente_retencion === true || String(i.agente_retencion) === 'true');
   }, [userInms]);
 
-  // Deuda total acumulada de los inmuebles
+  // Deuda total acumulada de los inmuebles (unificada para no duplicar N/A con sus hijos)
   const resumenDeudaInmuebles = useMemo(() => {
     let totalBase = 0;
     let totalIva = 0;
     let totalMultas = 0;
     let mesesMax = 0;
 
-    userInms.forEach((inm) => {
-      const meses = Math.max(0, parseInt(inm.meses_deuda || '0'));
+    unifiedInmuebles.forEach((group) => {
+      const { inm, isNAParent, mmvTotal, mesesDeuda } = group;
+      const meses = Math.max(0, mesesDeuda);
       if (meses > mesesMax) mesesMax = meses;
       if (meses <= 0) return;
 
       const esRes = isResidencialInm(inm);
-      const baseMes = calcularMensualidad(inm, tasaEfectiva);
+      // Para un N/A matriz, su mensualidad base se computa sobre mmvTotal (sumatoria de sus hijos)
+      const baseMes = isNAParent 
+        ? mmvTotal * 57 * tasaEfectiva 
+        : calcularMensualidad(inm, tasaEfectiva);
       const baseInm = baseMes * meses;
       const ivaInm = esRes ? 0 : baseInm * 0.16;
 
@@ -208,7 +317,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
     const totalPagar = Math.max(0, subtotal - retencion75);
 
     return { totalBase, totalIva, totalMultas, subtotal, retencion75, totalPagar, mesesMax };
-  }, [userInms, tasaEfectiva, esAgente]);
+  }, [unifiedInmuebles, tasaEfectiva, esAgente]);
 
   // Condominio padre si aplica
   const condominioPadre = useMemo(() => {
@@ -324,7 +433,8 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             <div className="bg-white/5 rounded-xl p-2.5 border border-white/10">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Inmuebles / Locales</span>
               <span className="text-base font-black text-white tabular-nums">
-                {userInms.length} {userInms.length === 1 ? 'local' : 'locales'}
+                {unifiedInmuebles.length} {unifiedInmuebles.length === 1 ? 'unidad' : 'unidades'}
+                {userInms.length > unifiedInmuebles.length ? ` (${userInms.length} actividades)` : ''}
               </span>
             </div>
 
@@ -348,7 +458,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
         <div className="bg-slate-100/80 border-b border-slate-200 px-4 sm:px-6 flex gap-1 overflow-x-auto shrink-0 select-none">
           {[
             { id: 'perfil', label: 'Perfil y Contacto', icon: Users },
-            { id: 'inmuebles', label: `Inmuebles (${userInms.length})`, icon: Building2 },
+            { id: 'inmuebles', label: `Inmuebles (${unifiedInmuebles.length}${userInms.length > unifiedInmuebles.length ? ` · ${userInms.length} act.` : ''})`, icon: Building2 },
             { id: 'deuda', label: `Estado de Cuenta (${facturasDb.length} recibos)`, icon: DollarSign },
             { id: 'pagos', label: `Historial de Pagos (${pagosDb.length})`, icon: Receipt },
             { id: 'servicios', label: `Servicios y Convenios (${serviciosEspDb.length})`, icon: FileText },
@@ -490,26 +600,239 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           {/* ══════════════════════════════════════════════════════
               TAB 2: INMUEBLES Y LOCALES
              ══════════════════════════════════════════════════════ */}
+          {/* ══════════════════════════════════════════════════════
+              TAB 2: INMUEBLES Y LOCALES (UNIFICACIÓN N/A Y ACTIVIDADES)
+             ══════════════════════════════════════════════════════ */}
           {activeTab === 'inmuebles' && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm">Catálogo de Inmuebles y Locales Asociados</h3>
-                  <p className="text-xs text-slate-500">Listado de unidades pertenecientes o declaradas por este contribuyente ({userInms.length}).</p>
+                  <p className="text-xs text-slate-500">
+                    Listado de unidades pertenecientes o declaradas ({unifiedInmuebles.length} {unifiedInmuebles.length === 1 ? 'unidad principal' : 'unidades principales'}{userInms.length > unifiedInmuebles.length ? `, con ${userInms.length} actividades/locales en total` : ''}).
+                  </p>
                 </div>
               </div>
 
-              {userInms.length === 0 ? (
+              {unifiedInmuebles.length === 0 ? (
                 <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-500 text-xs">
                   No se encontraron inmuebles registrados bajo esta cédula/RIF.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {userInms.map((inm, idx) => {
-                    const meses = parseInt(inm.meses_deuda || '0');
-                    const baseMes = calcularMensualidad(inm, tasaEfectiva);
+                <div className="space-y-4">
+                  {unifiedInmuebles.map((group, idx) => {
+                    const { inm, isNAParent, hijos, sumHijosMMV, mmvTotal, mesesDeuda } = group;
+                    const meses = mesesDeuda;
+                    const baseMes = isNAParent 
+                      ? mmvTotal * 57 * tasaEfectiva 
+                      : calcularMensualidad(inm, tasaEfectiva);
                     const esRes = isResidencialInm(inm);
+                    const isExpanded = !!expandedNAs[inm.inmueble];
+                    const isSelected = selectedInmCode === inm.inmueble;
 
+                    if (isNAParent) {
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`bg-white rounded-2xl border transition-all overflow-hidden ${
+                            isSelected 
+                              ? 'border-indigo-400 ring-2 ring-indigo-200 shadow-md' 
+                              : 'border-indigo-200/90 shadow-2xs hover:shadow-sm'
+                          }`}
+                        >
+                          {/* Encabezado Matriz N/A */}
+                          <div 
+                            onClick={() => {
+                              setSelectedInmCode(inm.inmueble);
+                              toggleExpandNA(inm.inmueble);
+                            }}
+                            className="p-4 bg-gradient-to-r from-indigo-50/70 via-white to-slate-50 cursor-pointer border-b border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-mono text-xs font-black text-indigo-800 bg-indigo-100 px-2.5 py-0.5 rounded border border-indigo-200 flex items-center gap-1">
+                                  🏛️ {inm.inmueble}
+                                </span>
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-indigo-600 text-white uppercase tracking-wider flex items-center gap-1">
+                                  <Layers className="w-3 h-3" />
+                                  Unidad Matriz N/A
+                                </span>
+                                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                                  {hijos.length} {hijos.length === 1 ? 'actividad/local' : 'actividades/locales'} agrupados
+                                </span>
+                                <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
+                                  meses > 0 ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                }`}>
+                                  {meses > 0 ? `${meses} meses de deuda` : 'Al día'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1 text-xs">
+                                <span className="font-bold text-slate-800">
+                                  Tarifa Mensual Agrupada:
+                                </span>
+                                <span className="font-black text-indigo-950 text-sm">
+                                  Bs. {formatBs(baseMes * (esRes ? 1 : 1.16))}
+                                </span>
+                                <span className="text-xs text-indigo-700 font-semibold bg-indigo-100/60 px-2 py-0.5 rounded">
+                                  {mmvTotal.toFixed(2)} MMV
+                                </span>
+                                <span className="text-[11px] text-slate-500 italic hidden md:inline">
+                                  (Sumatoria exacta de sus {hijos.length} actividades)
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onImprimirEstadoDeCuenta(inm.inmueble, 'separados');
+                                }}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                                title={`Descargar Estado de Cuenta del Inmueble Matriz ${inm.inmueble}`}
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>PDF Matriz N/A</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedInmCode(inm.inmueble);
+                                  toggleExpandNA(inm.inmueble);
+                                }}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl transition-colors shadow-2xs"
+                              >
+                                <span>{isExpanded ? 'Ocultar Desglose' : `Ver ${hijos.length} Actividades`}</span>
+                                {isExpanded ? <ChevronUp className="w-4 h-4 text-indigo-600" /> : <ChevronDown className="w-4 h-4 text-indigo-600" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Sección Desplegable: Desglose de Actividades Hijas */}
+                          {isExpanded && (
+                            <div className="p-4 bg-slate-50/70 border-t border-indigo-100 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <PieChart className="w-4 h-4 text-indigo-600" />
+                                  <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wide">
+                                    Desglose de Actividades y Locales que Componen la Tarifa N/A
+                                  </h4>
+                                </div>
+                                <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200">
+                                  ∑ {sumHijosMMV.toFixed(2)} MMV
+                                </span>
+                              </div>
+
+                              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-xs text-left">
+                                    <thead className="bg-slate-100/80 text-slate-600 font-bold text-[10px] uppercase border-b border-slate-200">
+                                      <tr>
+                                        <th className="px-3 py-2.5">Código Inmueble / Local</th>
+                                        <th className="px-3 py-2.5">Actividad Económica Declarada</th>
+                                        <th className="px-3 py-2.5 text-right">Tarifa (MMV)</th>
+                                        <th className="px-3 py-2.5 text-right">Monto Estimado (Bs)</th>
+                                        <th className="px-3 py-2.5 text-center">Ponderación (%)</th>
+                                        <th className="px-3 py-2.5 text-center">Acción</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {hijos.map((hijo: any, hIdx: number) => {
+                                        const hijoMMV = parseFloat(hijo.mmv_mes || 0);
+                                        const hijoBs = hijoMMV * 57 * tasaEfectiva * 1.16;
+                                        const pct = mmvTotal > 0 ? (hijoMMV / mmvTotal) * 100 : 0;
+
+                                        return (
+                                          <tr key={hIdx} className="hover:bg-indigo-50/30 transition-colors">
+                                            <td className="px-3 py-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                              <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                                                {hijo.inmueble}
+                                              </span>
+                                              {hijo.numero_local && (
+                                                <span className="ml-1.5 text-[10px] text-slate-500">
+                                                  Loc. {hijo.numero_local}
+                                                </span>
+                                              )}
+                                            </td>
+
+                                            <td className="px-3 py-2.5">
+                                              <span className="font-bold text-slate-800 block">
+                                                {cleanClasificacionActividad(hijo.actividad_principal) || hijo.actividad_principal || 'Actividad Comercial'}
+                                              </span>
+                                              {hijo.direccion && (
+                                                <span className="text-[10px] text-slate-400 block truncate max-w-xs" title={hijo.direccion}>
+                                                  {hijo.direccion}
+                                                </span>
+                                              )}
+                                            </td>
+
+                                            <td className="px-3 py-2.5 text-right font-black text-indigo-950 whitespace-nowrap">
+                                              {hijoMMV.toFixed(2)} MMV
+                                            </td>
+
+                                            <td className="px-3 py-2.5 text-right font-bold text-slate-900 whitespace-nowrap">
+                                              Bs. {formatBs(hijoBs)}
+                                            </td>
+
+                                            <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                                              <div className="inline-flex items-center gap-1.5">
+                                                <div className="w-16 bg-slate-200 rounded-full h-2 overflow-hidden">
+                                                  <div 
+                                                    className="bg-indigo-600 h-2 rounded-full" 
+                                                    style={{ width: `${Math.min(100, pct)}%` }} 
+                                                  />
+                                                </div>
+                                                <span className="font-bold text-[10px] text-slate-600 w-9 text-right">
+                                                  {pct.toFixed(1)}%
+                                                </span>
+                                              </div>
+                                            </td>
+
+                                            <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                                              <button
+                                                type="button"
+                                                onClick={() => onImprimirEstadoDeCuenta(hijo.inmueble, 'separados')}
+                                                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                                title={`Estado de Cuenta individual de ${hijo.inmueble}`}
+                                              >
+                                                <Printer className="w-3 h-3" />
+                                                <span>PDF Local</span>
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                    <tfoot className="bg-indigo-50/60 font-black text-indigo-950 border-t border-indigo-200 text-xs">
+                                      <tr>
+                                        <td colSpan={2} className="px-3 py-2 text-right">
+                                          Total Sumatoria de Actividades ({hijos.length}):
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-indigo-900">
+                                          {sumHijosMMV.toFixed(2)} MMV
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-indigo-900">
+                                          Bs. {formatBs(sumHijosMMV * 57 * tasaEfectiva * 1.16)}
+                                        </td>
+                                        <td colSpan={2} className="px-3 py-2 text-center text-[10px] text-emerald-700 font-bold">
+                                          ✓ Cuadratura exacta con Matriz {inm.inmueble}
+                                        </td>
+                                      </tr>
+                                    </tfoot>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // Inmueble independiente / no N/A
                     return (
                       <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-sm transition-all space-y-3">
                         <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
@@ -649,6 +972,60 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                 <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>Conforme a la Ordenanza Municipal, el mes corriente más reciente está exento de recargo de mora.</span>
               </div>
+
+              {/* Desglose Explicativo de Tarifas para Inmuebles N/A */}
+              {unifiedInmuebles.some(g => g.isNAParent) && (
+                <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-indigo-700" />
+                      <h4 className="font-bold text-xs text-indigo-950 uppercase tracking-wide">
+                        Composición de Tarifas para Inmuebles Matriz N/A (Sumatoria de Actividades Hijas)
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-extrabold text-indigo-800 bg-white px-2.5 py-0.5 rounded border border-indigo-200 shadow-2xs">
+                      Regla Ordenanza
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-indigo-900 leading-relaxed">
+                    Las unidades clasificadas como <span className="font-bold font-mono">N/A</span> agrupan múltiples locales u oficinas. La tarifa mensual facturada corresponde a la <span className="font-bold">sumatoria exacta</span> de las actividades económicas de sus locales hijos:
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    {unifiedInmuebles.filter(g => g.isNAParent).map((g, gIdx) => (
+                      <div key={gIdx} className="bg-white rounded-xl p-3.5 border border-indigo-200 shadow-2xs space-y-2 text-xs">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                          <span className="font-mono font-black text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                            🏛️ {g.codigo} (Matriz N/A)
+                          </span>
+                          <span className="font-black text-indigo-950 text-xs">
+                            {g.mmvTotal.toFixed(2)} MMV / mes
+                          </span>
+                        </div>
+                        <ul className="space-y-1.5 text-[11px] text-slate-700">
+                          {g.hijos.map((h: any, hIdx: number) => (
+                            <li key={hIdx} className="flex items-center justify-between">
+                              <span className="truncate pr-2 font-medium text-slate-800">
+                                • <span className="font-mono font-bold text-slate-600">{h.inmueble}</span>: {cleanClasificacionActividad(h.actividad_principal)}
+                              </span>
+                              <span className="font-mono font-bold text-indigo-900 shrink-0">
+                                {parseFloat(h.mmv_mes || 0).toFixed(2)} MMV
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-bold text-slate-500">
+                          <span>Total ({g.hijos.length} actividades):</span>
+                          <span className="font-black text-indigo-950 font-mono">
+                            {g.sumHijosMMV.toFixed(2)} MMV = {g.mmvTotal.toFixed(2)} MMV
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Tabla de Períodos Facturados */}
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
