@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import { cajaActiva, prepararCobro, registrarCobro, SolicitudCobro } from '@/lib/condominios/cobro';
+import { getIdentidadVariantsExact } from '@/lib/formatters';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -36,11 +37,33 @@ export async function POST(req: Request) {
       // Extraer saldo a favor con admin
       let saldoFavorDisp = 0;
       let currId = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : cobro.condo?.identidad;
-      if (currId) {
-         const { data } = await sb.from('inmuebles').select('saldo_favor_bs').eq('identidad', currId);
-         saldoFavorDisp = (data || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
+      const condoCod = cobro.condo?.codigo;
+
+      // 1. Si es modo CONDOMINIO, sumar el abono registrado en la tabla condominios
+      if (cobro.modo === 'CONDOMINIO' && condoCod) {
+        const { data: cRow } = await sb.from('condominios').select('abono_bs').eq('codigo', condoCod).maybeSingle();
+        if (cRow && cRow.abono_bs) {
+          saldoFavorDisp += parseFloat(cRow.abono_bs) || 0;
+        }
+      }
+
+      // 2. Sumar saldo a favor de los inmuebles (por variantes de RIF o por código de inmueble)
+      if (currId || condoCod) {
+        const idVars = currId ? getIdentidadVariantsExact(currId) : [];
+        let query = sb.from('inmuebles').select('saldo_favor_bs');
+        if (idVars.length > 0 && condoCod) {
+          query = query.or(`${idVars.map(v => `identidad.eq.${v}`).join(',')},inmueble.eq.${condoCod}`);
+        } else if (idVars.length > 0) {
+          query = query.or(idVars.map(v => `identidad.eq.${v}`).join(','));
+        } else if (condoCod) {
+          query = query.eq('inmueble', condoCod);
+        }
+        const { data: inmSF } = await query;
+        const sfInm = (inmSF || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
+        saldoFavorDisp += sfInm;
       }
       
+      saldoFavorDisp = Math.round(saldoFavorDisp * 100) / 100;
       return NextResponse.json({ ...cobro, cajaActiva: activa, saldoFavorActivo: saldoFavorDisp });
     }
 

@@ -463,11 +463,12 @@ function Caja() {
   };
 
   const handleCrearNotaManual = async () => {
-    if (!notaManualMonto || parseFloat(notaManualMonto) <= 0) return alert('Ingrese un monto válido');
+    const montoNota = parseLocalFloat(notaManualMonto);
+    if (!montoNota || montoNota <= 0) return alert('Ingrese un monto válido');
     if (!notaManualRef || notaManualRef.trim().length !== 8) return alert('La referencia debe tener exactamente 8 caracteres.');
     if (!cobro) return;
 
-    let targetId = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : cobro.condo.identidad;
+    let targetId = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : (cobro.condo.identidad || cobro.condo.codigo);
     let targetName = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.nombre : cobro.condo.nombre;
 
     if (!targetId) return alert('No hay un identificador válido para acreditar el saldo.');
@@ -479,14 +480,15 @@ function Caja() {
         tipo: 'Nota de Credito',
         estado: 'Vigente',
         detalles: JSON.stringify({
-          monto: formatBs(notaManualMonto),
+          monto: montoNota.toFixed(2),
           origen_referencia: `Manual: ${notaManualRef}`,
           fecha_emision: new Date().toISOString()
         })
       }]);
-      const montoNota = parseFloat(notaManualMonto);
-      const result = await acreditarSaldoFavor(targetId, montoNota);
-      if (!result.ok) console.error('Error acreditando saldo en nota manual:', result.error);
+      const result = await acreditarSaldoFavor(targetId, montoNota, cobro.condo?.codigo);
+      if (!result.ok) {
+        console.error('Aviso acreditando saldo en nota manual:', result.error);
+      }
       
       setSaldoFavorActivo(prev => prev + montoNota);
       setSuccessMsg('Nota de crédito manual generada exitosamente.');
@@ -626,12 +628,21 @@ function Caja() {
                 {isLoadingNotas ? <tr><td colSpan={6} className="text-center py-4 text-slate-500">Cargando...</td></tr> :
                 notasCredito.map(n => {
                   let details: any = {};
-                  try { details = JSON.parse(n.detalles); } catch(e){}
+                  try {
+                    details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {});
+                  } catch(e){}
+                  const rawMonto = details.monto ?? details.monto_bs ?? 0;
+                  const formattedMonto = formatBs(rawMonto);
                   return (
                     <tr key={n.id} className="border-b hover:bg-slate-50">
-                      <td className="px-4 py-3">{new Date(n.created_at).toLocaleDateString()}</td><td className="px-4 py-3 font-medium">{n.identidad}</td><td className="px-4 py-3">{n.contribuyente}</td><td className="px-4 py-3 text-right font-bold text-emerald-600">Bs. {details.monto}</td><td className="px-4 py-3 text-center">{details.origen_referencia}</td><td className="px-4 py-3 text-center"><span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-semibold">{n.estado}</span></td>
+                      <td className="px-4 py-3">{new Date(n.created_at).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 font-medium">{n.identidad}</td>
+                      <td className="px-4 py-3">{n.contribuyente}</td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-600">Bs. {formattedMonto}</td>
+                      <td className="px-4 py-3 text-center">{details.origen_referencia || '-'}</td>
+                      <td className="px-4 py-3 text-center"><span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-semibold">{n.estado}</span></td>
                     </tr>
-                  )
+                  );
                 })}
               </tbody>
             </table>

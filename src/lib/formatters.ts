@@ -4,12 +4,28 @@
  */
 
 /**
- * Formatea montos numéricos al estándar venezolano (de-DE con coma decimal y punto de miles)
+ * Convierte cualquier representación de monto (número, string con punto, string con coma)
+ * a un número flotante válido.
  */
-export function formatBs(amount: number | string): string {
-  if (!amount) return '0,00';
-  const num = typeof amount === 'string' ? parseFloat(amount.toString().replace(/[^\d.-]/g, '')) : amount;
-  if (isNaN(num)) return '0,00';
+export function parseLocalFloat(val: any): number {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (!val && val !== 0) return 0;
+  let str = String(val).trim();
+  if (str.includes(',')) {
+    // Si contiene coma, los puntos son separadores de miles y la coma es decimal
+    str = str.replace(/\./g, '').replace(',', '.');
+  }
+  const n = parseFloat(str);
+  return isNaN(n) ? 0 : n;
+}
+
+/**
+ * Formatea montos numéricos al estándar venezolano (de-DE con coma decimal y punto de miles).
+ * Es idemptotente: formatBs(formatBs(x)) === formatBs(x).
+ */
+export function formatBs(amount: number | string | null | undefined): string {
+  if (amount === null || amount === undefined || amount === '') return '0,00';
+  const num = parseLocalFloat(amount);
   return num.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 

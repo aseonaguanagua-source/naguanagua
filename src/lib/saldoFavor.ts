@@ -27,20 +27,25 @@ interface SaldoUpdateResult {
  * Obtiene el saldo total a favor de un contribuyente sumando todos sus inmuebles.
  * También retorna el inmueble "principal" donde se consolida el saldo.
  */
-export async function getSaldoFavorTotal(identidad: string): Promise<{
+export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: string): Promise<{
   total: number;
   inmueblePrincipalId: string | null;
 }> {
-  // NOTA: la tabla inmuebles NO tiene columna `principal` (consultarla hacía fallar TODAS las notas de crédito).
   const id = String(identidad || '').trim().toUpperCase();
   const sinGuion = id.replace(/-/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
   const variantes = [...new Set([id, sinGuion, conGuion].filter(Boolean))];
-  const { data, error } = await supabase
-    .from('inmuebles')
-    .select('id, saldo_favor_bs, estado')
-    .in('identidad', variantes)
-    .order('id', { ascending: true });
+
+  let query = supabase.from('inmuebles').select('id, saldo_favor_bs, estado, inmueble');
+  if (codigoInmueble) {
+    query = query.or(`identidad.in.(${variantes.join(',')}),inmueble.eq.${codigoInmueble.toUpperCase()}`);
+  } else if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
+    query = query.or(`inmueble.eq.${id},identidad.in.(${variantes.join(',')})`);
+  } else {
+    query = query.in('identidad', variantes);
+  }
+
+  const { data, error } = await query.order('id', { ascending: true });
 
   if (error || !data || data.length === 0) {
     return { total: 0, inmueblePrincipalId: null };
@@ -58,16 +63,31 @@ export async function getSaldoFavorTotal(identidad: string): Promise<{
 }
 
 /**
- * Acredita saldo a favor al inmueble principal del contribuyente.
- * Si el contribuyente tiene un inmueble marcado como principal, lo usa.
- * De lo contrario usa el inmueble más antiguo (menor id).
+ * Acredita saldo a favor al inmueble principal del contribuyente y/o condominio.
  */
 export async function acreditarSaldoFavor(
   identidad: string,
-  monto: number
+  monto: number,
+  codigoCondominio?: string
 ): Promise<SaldoUpdateResult> {
-  const { inmueblePrincipalId } = await getSaldoFavorTotal(identidad);
+  const { inmueblePrincipalId } = await getSaldoFavorTotal(identidad, codigoCondominio);
+  
+  // Si es un condominio y tiene registro en tabla condominios, actualizar abono_bs
+  if (codigoCondominio) {
+    const { data: condoRow } = await supabase
+      .from('condominios')
+      .select('id, abono_bs')
+      .eq('codigo', codigoCondominio.toUpperCase())
+      .maybeSingle();
+
+    if (condoRow) {
+      const nuevoAbono = (parseFloat(condoRow.abono_bs || '0') || 0) + monto;
+      await supabase.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', condoRow.id);
+    }
+  }
+
   if (!inmueblePrincipalId) {
+    if (codigoCondominio) return { ok: true, nuevoSaldo: monto };
     return { ok: false, error: 'No se encontraron inmuebles para el contribuyente' };
   }
 
@@ -91,37 +111,65 @@ export async function acreditarSaldoFavor(
 }
 
 /**
- * Descuenta saldo a favor del inmueble principal del contribuyente.
+ * Descuenta saldo a favor del inmueble principal del contribuyente o condominio.
  * El saldo no puede quedar negativo — se aplica Math.max(0, ...).
  */
 export async function descontarSaldoFavor(
   identidad: string,
-  monto: number
+  monto: number,
+  codigoCondominio?: string
 ): Promise<SaldoUpdateResult> {
+  let pendiente = Math.round((Number(monto) || 0) * 100) / 100;
+
+  // Si hay abono en condominios, descontar primero de allí
+  if (codigoCondominio) {
+    const { data: cRow } = await supabase
+      .from('condominios')
+      .select('id, abono_bs')
+      .eq('codigo', codigoCondominio.toUpperCase())
+      .maybeSingle();
+
+    if (cRow && (parseFloat(cRow.abono_bs || '0') || 0) > 0) {
+      const abonoAct = parseFloat(cRow.abono_bs || '0') || 0;
+      const desc = Math.min(abonoAct, pendiente);
+      await supabase.from('condominios').update({ abono_bs: Math.round((abonoAct - desc) * 100) / 100 }).eq('id', cRow.id);
+      pendiente = Math.round((pendiente - desc) * 100) / 100;
+    }
+  }
+
+  if (pendiente <= 0.009) return { ok: true, nuevoSaldo: 0 };
+
   const id = String(identidad || '').trim().toUpperCase();
   const sinGuion = id.replace(/-/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
-  const { data: inms, error: e1 } = await supabase
-    .from('inmuebles')
-    .select('id, saldo_favor_bs')
-    .in('identidad', [...new Set([id, sinGuion, conGuion].filter(Boolean))])
-    .order('id', { ascending: true });
+  const variantes = [...new Set([id, sinGuion, conGuion].filter(Boolean))];
+
+  let q = supabase.from('inmuebles').select('id, saldo_favor_bs');
+  if (codigoCondominio) {
+    q = q.or(`identidad.in.(${variantes.join(',')}),inmueble.eq.${codigoCondominio.toUpperCase()}`);
+  } else if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
+    q = q.or(`inmueble.eq.${id},identidad.in.(${variantes.join(',')})`);
+  } else {
+    q = q.in('identidad', variantes);
+  }
+
+  const { data: inms, error: e1 } = await q.order('id', { ascending: true });
   if (e1) return { ok: false, error: e1.message };
   if (!inms || inms.length === 0) {
+    if (codigoCondominio) return { ok: true, nuevoSaldo: 0 };
     return { ok: false, error: 'No se encontraron inmuebles para el contribuyente' };
   }
 
   // El saldo puede estar repartido en varios inmuebles: se descuenta de cada uno hasta cubrir el monto
-  let resto = Math.round((Number(monto) || 0) * 100) / 100;
   let total = 0;
   for (const inm of inms) {
     const s = parseFloat(inm.saldo_favor_bs || '0') || 0;
     total += s;
-    if (resto <= 0.009 || s <= 0.009) continue;
-    const usa = Math.min(s, resto);
+    if (pendiente <= 0.009 || s <= 0.009) continue;
+    const usa = Math.min(s, pendiente);
     const { error } = await supabase.from('inmuebles').update({ saldo_favor_bs: Math.round((s - usa) * 100) / 100 }).eq('id', inm.id);
     if (error) return { ok: false, error: error.message };
-    resto = Math.round((resto - usa) * 100) / 100;
+    pendiente = Math.round((pendiente - usa) * 100) / 100;
   }
   return { ok: true, nuevoSaldo: Math.max(0, Math.round((total - (Number(monto) || 0)) * 100) / 100) };
 }
