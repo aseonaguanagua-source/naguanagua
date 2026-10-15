@@ -1080,18 +1080,16 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                               </button>
                             )}
 
-                            {userInms.length > 1 && (
-                              <button
-                                type="button"
-                                disabled={eliminandoCode === inm.inmueble}
-                                onClick={() => handleQuitarActividad(inm.inmueble, cleanClasificacionActividad(inm.actividad_principal) || inm.actividad_principal || 'Actividad Comercial')}
-                                className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
-                                title={`Quitar esta actividad comercial (${inm.inmueble})`}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>{eliminandoCode === inm.inmueble ? 'Quitando...' : 'Quitar Actividad'}</span>
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              disabled={eliminandoCode === inm.inmueble}
+                              onClick={() => handleQuitarActividad(inm.inmueble, cleanClasificacionActividad(inm.actividad_principal) || inm.actividad_principal || 'Actividad Comercial')}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                              title={`Quitar esta actividad comercial (${inm.inmueble})`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>{eliminandoCode === inm.inmueble ? 'Quitando...' : 'Quitar Actividad'}</span>
+                            </button>
                           </div>
                         </div>
                       </div>

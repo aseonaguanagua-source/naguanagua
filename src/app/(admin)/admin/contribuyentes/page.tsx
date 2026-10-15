@@ -1789,7 +1789,46 @@ function ContribuyentesPageContent() {
     } catch { /* el motivo ya se mostró en pantalla */ }
   };
 
-  const handleEdit = (row: any) => {
+  const handleEliminarActividad = async (index: number) => {
+    const local = formData?.locales?.[index];
+    if (!local) return;
+    const desc = local.actividad || local.tipoResidencia || local.numeracion || local.codigo || 'esta actividad';
+    if (!window.confirm(`¿Está seguro de que desea eliminar la actividad/inmueble "${desc}" (${local.codigo || 'Nuevo'}) de este contribuyente?\n\nAl confirmar, este inmueble/actividad será dado de baja en el sistema.`)) {
+      return;
+    }
+
+    if (local.codigo) {
+      try {
+        const { error } = await supabase
+          .from('inmuebles')
+          .update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0 })
+          .eq('inmueble', local.codigo);
+        if (error) {
+          console.error('Error eliminando inmueble en BD:', error);
+          alert('Error al dar de baja en BD: ' + error.message);
+        }
+      } catch (err: any) {
+        console.error(err);
+      }
+    }
+
+    const newLocales = (formData.locales || []).filter((_: any, i: number) => i !== index);
+    const newCodes = (formData.__inmuebleCodes || []).filter((c: string) => c !== local.codigo);
+    
+    setFormData({
+      ...formData,
+      locales: newLocales,
+      cantidadInmuebles: newLocales.length,
+      __inmuebleCodes: newCodes
+    });
+    
+    if (local.codigo) {
+      await refreshUserData(formData.Identidad);
+      alert(`La actividad ${local.codigo} (${desc}) ha sido dada de baja exitosamente.`);
+    }
+  };
+
+  const handleEdit = async (row: any) => {
     let telefonoPrefijo = '0414';
     let telefonoNumero = '';
     if (row.Telefono) {
@@ -1820,92 +1859,114 @@ function ContribuyentesPageContent() {
 
     let autoClasificacion = row.Clasificacion || 'A';
     
-    // Auto-detectar condominio si viene de una importación con clasificación 'A'
+    // Auto-detectar si el nombre explícitamente es un condominio
     if (autoClasificacion !== 'Condominio') {
       const nombreLC = (row.Contribuyente || '').toLowerCase();
-      // Antes: cant > 1 lo convertía en Condominio y al guardar quedaba marcado como tal.
-      // Varios locales/actividades del mismo dueño NO son un condominio.
       if (nombreLC.includes('condominio') || nombreLC.includes('residencias') || nombreLC.includes('conjunto')) {
         autoClasificacion = 'Condominio';
       }
     }
 
-    const parseAreaToLevel = (areaNum: number) => {
-      if (!areaNum || areaNum <= 50) return '0 - 50 m²';
-      if (areaNum <= 100) return '51 - 100 m²';
-      if (areaNum <= 200) return '101 - 200 m²';
-      return 'Mayor a 201 m²';
-    };
-
-    let isCondominio = false;
+    let isCondominio = autoClasificacion === 'Condominio';
     let locales: any[] = [];
     let cantidadInmuebles = 1;
     let TipoResidencia = ordenanzaData.tiposResidenciales[0].label;
     let ActividadComercial = '';
     let NivelMetraje = ordenanzaData.nivelesMetraje[0];
 
-    const misInmuebles = inmuebles.filter((i: any) => i.identidad === row.Identidad && i.estado !== 'Eliminado');
+    const targetIdClean = (row.Identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    const targetIdNum = targetIdClean.replace(/^[VEJPG]/i, '');
+    const codes = String(row.CodCont || row.cod_cont || row.inmueble || '').split(/\s+/).map(c => c.trim().toUpperCase()).filter(Boolean);
+
+    // 1. Filtrar inmuebles de la memoria local
+    let misInmuebles = inmuebles.filter((i: any) => {
+      if (i.estado === 'Eliminado') return false;
+      const iIdClean = (i.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      const iIdNum = iIdClean.replace(/^[VEJPG]/i, '');
+      if (targetIdClean && (iIdClean === targetIdClean || (targetIdNum && iIdNum === targetIdNum))) return true;
+      if (codes.length > 0) {
+        if (codes.includes(String(i.inmueble || '').toUpperCase())) return true;
+        if (codes.includes(String(i.padre_id || '').toUpperCase())) return true;
+      }
+      return false;
+    });
+
+    // 2. Traer también directo de Supabase para tener 100% certeza de traer todas las actividades (incluyendo hijas con padre_id)
+    try {
+      const idVariants = getIdentidadVariantsExact(row.Identidad || '');
+      let q = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado');
+      if (codes.length > 0) {
+        q = q.or(`${codes.map(c => `inmueble.eq.${c}`).join(',')},${codes.map(c => `padre_id.eq.${c}`).join(',')}`);
+      } else if (idVariants.length > 0) {
+        q = q.or(idVariants.map(v => `identidad.eq.${v}`).join(','));
+      }
+      const { data: dbData } = await q;
+      if (dbData && dbData.length > 0) {
+        const existingCodes = new Set(misInmuebles.map(i => i.inmueble));
+        dbData.forEach((di: any) => {
+          if (!existingCodes.has(di.inmueble)) {
+            misInmuebles.push(di);
+            existingCodes.add(di.inmueble);
+          }
+        });
+      }
+      const allFoundCodes = misInmuebles.map(i => i.inmueble).filter(Boolean);
+      if (allFoundCodes.length > 0) {
+        const { data: hijos } = await supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').in('padre_id', allFoundCodes);
+        if (hijos && hijos.length > 0) {
+          const existingCodes = new Set(misInmuebles.map(i => i.inmueble));
+          hijos.forEach((h: any) => {
+            if (!existingCodes.has(h.inmueble)) {
+              misInmuebles.push(h);
+              existingCodes.add(h.inmueble);
+            }
+          });
+        }
+      }
+    } catch (_) {}
+
+    misInmuebles.sort((a: any, b: any) => (a.inmueble || '').localeCompare(b.inmueble || ''));
     const usoDe = (inm: any) => (isResidencialInm(inm) ? 'Residencial' : 'Comercial');
     
     if (misInmuebles.length > 0) {
-      if (misInmuebles.length > 1 || autoClasificacion === 'Condominio') {
-        isCondominio = true;
-        if (misInmuebles.length <= 1) autoClasificacion = 'Condominio';
-        cantidadInmuebles = misInmuebles.length;
-        
-        locales = misInmuebles.map((inm: any, idx: number) => {
-          const uso = usoDe(inm);
-          const act = inm.actividad_principal || '';
-          const desocupado = uso === 'Comercial' && /DESOCUPAD/i.test(act);
-          const an = actividadYNivelDeInmueble(inm);
-          const loc: any = {
-            id: `local-${idx}-${Date.now()}`,
-            codigo: inm.inmueble,
-            numeracion: inm.inmueble || `Inmueble ${idx + 1}`,
-            uso,
-            estatus: desocupado ? 'Desocupado' : 'Ocupado',
-            actividad: uso === 'Residencial' || desocupado ? '' : an.actividad,
-            tipoResidencia: uso === 'Residencial' ? act : '',
-            nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
-            mmvActual: inm.mmv_mes,
-            agente_retencion: inm.agente_retencion === true || String(inm.agente_retencion) === 'true'
-          };
-          loc.__orig = { uso: loc.uso, actividad: loc.actividad, nivel: loc.nivel, tipoResidencia: loc.tipoResidencia, estatus: loc.estatus, agente_retencion: loc.agente_retencion };
-          return loc;
-        });
-      } else {
-        const principal = misInmuebles[0];
-        const uso = usoDe(principal);
-        const act = principal.actividad_principal || '';
+      cantidadInmuebles = misInmuebles.length;
+      locales = misInmuebles.map((inm: any, idx: number) => {
+        const uso = usoDe(inm);
+        const act = inm.actividad_principal || '';
         const desocupado = uso === 'Comercial' && /DESOCUPAD/i.test(act);
-        const an = actividadYNivelDeInmueble(principal);
-        if (uso === 'Residencial') {
-          TipoResidencia = principal.actividad_principal || TipoResidencia;
-        } else {
-          ActividadComercial = an.actividad;
-          NivelMetraje = ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0];
-        }
-        locales = [{
-          id: `local-0-${Date.now()}`,
-          codigo: principal.inmueble,
-          numeracion: principal.inmueble || 'Inmueble 1 (Principal)',
+        const an = actividadYNivelDeInmueble(inm);
+        const loc: any = {
+          id: `local-${idx}-${Date.now()}`,
+          codigo: inm.inmueble,
+          numeracion: inm.inmueble || `Inmueble ${idx + 1}`,
           uso,
           estatus: desocupado ? 'Desocupado' : 'Ocupado',
-          actividad: uso === 'Residencial' || desocupado ? '' : an.actividad,
-          tipoResidencia: uso === 'Residencial' ? act : '',
+          actividad: uso === 'Residencial' || desocupado ? '' : (an.actividad || act),
+          tipoResidencia: uso === 'Residencial' ? (act || ordenanzaData.tiposResidenciales[0].label) : '',
           nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
-          mmvActual: principal.mmv_mes,
-          agente_retencion: principal.agente_retencion === true || String(principal.agente_retencion) === 'true',
-          __orig: {
-            uso,
-            actividad: uso === 'Residencial' || desocupado ? '' : an.actividad,
-            nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
-            tipoResidencia: uso === 'Residencial' ? act : '',
-            estatus: desocupado ? 'Desocupado' : 'Ocupado',
-            agente_retencion: principal.agente_retencion === true || String(principal.agente_retencion) === 'true'
-          }
-        }];
-      }
+          mmvActual: inm.mmv_mes,
+          direccion: inm.direccion || '',
+          agente_retencion: inm.agente_retencion === true || String(inm.agente_retencion) === 'true'
+        };
+        loc.__orig = { uso: loc.uso, actividad: loc.actividad, nivel: loc.nivel, tipoResidencia: loc.tipoResidencia, estatus: loc.estatus, agente_retencion: loc.agente_retencion };
+        return loc;
+      });
+      ActividadComercial = locales[0]?.actividad || '';
+      TipoResidencia = locales[0]?.tipoResidencia || TipoResidencia;
+      NivelMetraje = locales[0]?.nivel || NivelMetraje;
+    } else {
+      locales = [{
+        id: `local-0-${Date.now()}`,
+        codigo: null,
+        numeracion: 'Inmueble 1',
+        uso: 'Comercial',
+        estatus: 'Ocupado',
+        actividad: todasLasActividades[0]?.label || '',
+        tipoResidencia: ordenanzaData.tiposResidenciales[0]?.label || '',
+        nivel: ordenanzaData.nivelesMetraje[0],
+        agente_retencion: false,
+        esNuevo: true
+      }];
     }
 
     setFormData({ 
@@ -1925,8 +1986,6 @@ function ContribuyentesPageContent() {
       actividadesExtra: [],
       __inmuebleCodes: misInmuebles.map((i: any) => i.inmueble).filter(Boolean),
       Nota: '',
-      
-      
     });
     setOriginalData({ ...row, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia, NivelMetraje });
     setEditingId(row.Identidad);
@@ -2622,204 +2681,51 @@ function ContribuyentesPageContent() {
                     {ordenanzaData.clasificaciones.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
+              </div>
 
-                {(formData.Clasificacion === 'Residencial') && !formData.isCondominio && (
-                  <div>
-                    <label className="block text-[10px] font-medium text-slate-500 mb-1">Tipo de Residencia (Clasificador)</label>
-                    <select 
-                      value={formData.TipoResidencia || ordenanzaData.tiposResidenciales[0].label} 
-                      onChange={e => setFormData({...formData, TipoResidencia: e.target.value})}
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500"
-                    >
-                      {ordenanzaData.tiposResidenciales.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
-                    </select>
-                  </div>
-                )}
+              {/* Checkbox de Condominio informativo */}
+              <div className="flex items-center gap-2 mt-4 mb-2">
+                <input 
+                  type="checkbox" 
+                  id="isCondominio" 
+                  checked={formData.isCondominio || false}
+                  onChange={e => setFormData({
+                    ...formData, 
+                    isCondominio: e.target.checked
+                  })}
+                  className="w-4 h-4 text-blue-600 rounded border-slate-300 cursor-pointer" 
+                />
+                <label htmlFor="isCondominio" className="text-xs font-medium text-slate-700 cursor-pointer">
+                  {isNew ? 'Es un Condominio (Edificio / Centro Comercial)' : 'Clasificado como Condominio'}
+                </label>
+              </div>
 
-                {(formData.Clasificacion?.includes('Comercial') || formData.Clasificacion === 'Industrial' || formData.Clasificacion === 'Mixto') && !formData.isCondominio && (
-                  <>
-                    <div>
-                      <label className="block text-[10px] font-medium text-slate-500 mb-1">Actividad Económica (Buscador y Lista)</label>
-                      <Select
-                        options={todasLasActividades.map(a => ({ value: a.label, label: a.label }))}
-                        value={{ value: formData.ActividadComercial, label: formData.ActividadComercial }}
-                        onChange={(selected: any) => setFormData({...formData, ActividadComercial: selected?.value || ''})}
-                        placeholder="Buscar o seleccionar..."
-                        className="text-sm text-slate-700"
-                        styles={{
-                          control: (base) => ({
-                            ...base,
-                            minHeight: '38px',
-                            borderColor: '#cbd5e1',
-                            boxShadow: 'none',
-                            '&:hover': { borderColor: '#3b82f6' }
-                          })
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-medium text-slate-500 mb-1">Nivel (Rango de Metraje)</label>
-                      <select 
-                        value={formData.NivelMetraje || ordenanzaData.nivelesMetraje[0]} 
-                        onChange={e => setFormData({...formData, NivelMetraje: e.target.value})}
-                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500"
+              {/* Desglose Completo de Actividades Comerciales e Inmuebles */}
+              {Array.isArray(formData.locales) && formData.locales.length > 0 && (
+                <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                  <div className="bg-slate-100/90 px-4 py-2.5 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-slate-700" />
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                        Actividades Comerciales e Inmuebles ({formData.locales.length})
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-medium">|</span>
+                      <button
+                        type="button"
+                        onClick={() => handleAgregarInmuebleExtra('Comercial')}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition shadow-2xs cursor-pointer"
                       >
-                        {ordenanzaData.nivelesMetraje.map(n => <option key={n} value={n}>{n}</option>)}
-                      </select>
+                        <Store className="w-3.5 h-3.5 text-purple-600" /> + Agregar Actividad Comercial
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAgregarInmuebleExtra('Residencial')}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition shadow-2xs cursor-pointer"
+                      >
+                        <HomeIcon className="w-3.5 h-3.5 text-blue-600" /> + Agregar Vivienda
+                      </button>
                     </div>
-                  </>
-                )}
-              </div>
-
-              {/* Actividades comerciales adicionales (mismo contribuyente, sin modo condominio) */}
-              {(formData.Clasificacion?.includes('Comercial') || formData.Clasificacion === 'Industrial') && !formData.isCondominio && (
-                <div className="mt-4 border border-emerald-200 rounded bg-emerald-50/40 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-[11px] font-bold text-emerald-800 uppercase">Actividades comerciales adicionales</h4>
-                    <button
-                      type="button"
-                      id="btn-agregar-actividad"
-                      onClick={() => setFormData({ ...formData, actividadesExtra: [...(formData.actividadesExtra || []), { actividad: '', nivel: ordenanzaData.nivelesMetraje[0] }] })}
-                      className="text-[11px] font-semibold px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                    >
-                      + Agregar actividad
-                    </button>
-                  </div>
-                  {(formData.actividadesExtra || []).length === 0 ? (
-                    <p className="text-[10px] text-slate-500">Si el contribuyente ejerce más de una actividad, agréguelas aquí. Cada una se registra como un inmueble con su propia tarifa.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {(formData.actividadesExtra || []).map((a: any, i: number) => (
-                        <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_200px_auto] gap-2 items-end">
-                          <div>
-                            <label className="block text-[10px] font-medium text-slate-500 mb-1">Actividad #{i + 2}</label>
-                            <Select
-                              options={todasLasActividades.map(x => ({ value: x.label, label: x.label }))}
-                              value={a.actividad ? { value: a.actividad, label: a.actividad } : null}
-                              onChange={(sel: any) => {
-                                const arr = [...(formData.actividadesExtra || [])];
-                                arr[i] = { ...arr[i], actividad: sel?.value || '' };
-                                setFormData({ ...formData, actividadesExtra: arr });
-                              }}
-                              placeholder="Buscar actividad..."
-                              className="text-sm"
-                              menuPosition="fixed"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-medium text-slate-500 mb-1">Nivel</label>
-                            <select
-                              value={a.nivel || ordenanzaData.nivelesMetraje[0]}
-                              onChange={e => {
-                                const arr = [...(formData.actividadesExtra || [])];
-                                arr[i] = { ...arr[i], nivel: e.target.value };
-                                setFormData({ ...formData, actividadesExtra: arr });
-                              }}
-                              className="w-full border border-slate-300 rounded px-2 py-2 text-sm outline-none"
-                            >
-                              {ordenanzaData.nivelesMetraje.map(n => <option key={n} value={n}>{n}</option>)}
-                            </select>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, actividadesExtra: (formData.actividadesExtra || []).filter((_: any, j: number) => j !== i) })}
-                            className="text-[11px] px-2 py-2 rounded border border-red-200 text-red-600 hover:bg-red-50"
-                          >
-                            Quitar
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            {/* Banner para agregar vivienda o local comercial extra */}
-            <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-purple-50/90 border border-blue-200/80 rounded-xl p-4 mt-6 mb-3 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-blue-600" />
-                    <span>Inmuebles y Locales del Contribuyente ({formData.isCondominio && formData.locales?.length ? formData.locales.length : 1})</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    ¿Este contribuyente posee más de un inmueble? Agregue viviendas (residenciales) o locales comerciales extra bajo este mismo titular.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    id="btn-agregar-vivienda-extra"
-                    onClick={() => handleAgregarInmuebleExtra('Residencial')}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-700 bg-white hover:bg-blue-50 border border-blue-300 rounded-lg transition shadow-xs cursor-pointer active:scale-95"
-                  >
-                    <HomeIcon className="w-4 h-4 text-blue-600" /> + Agregar Vivienda (Residencial)
-                  </button>
-                  <button
-                    type="button"
-                    id="btn-agregar-local-extra"
-                    onClick={() => handleAgregarInmuebleExtra('Comercial')}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-purple-700 bg-white hover:bg-purple-50 border border-purple-300 rounded-lg transition shadow-xs cursor-pointer active:scale-95"
-                  >
-                    <Store className="w-4 h-4 text-purple-600" /> + Agregar Local Comercial
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 mt-4 mb-2">
-              <input 
-                type="checkbox" 
-                id="isCondominio" 
-                checked={formData.isCondominio || false}
-                onChange={e => setFormData({
-                  ...formData, 
-                  isCondominio: e.target.checked, 
-                  cantidadInmuebles: e.target.checked ? (formData.cantidadInmuebles || 0) : 0,
-                  locales: e.target.checked ? (formData.locales || []) : []
-                })}
-                className="w-4 h-4 text-blue-600 rounded border-slate-300" 
-              />
-              <label htmlFor="isCondominio" className="text-xs font-medium text-slate-700">{isNew ? 'Es un Condominio (Contiene múltiples inmuebles)' : 'Varios inmuebles / actividades (editar cada uno por separado)'}</label>
-            </div>
-
-            {formData.isCondominio && (
-              <div className="mb-4">
-                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Cantidad de Locales / Apartamentos</label>
-                 <input 
-                   type="number" 
-                   min="0"
-                   max="200"
-                   value={formData.cantidadInmuebles || 0}
-                   onChange={handleCantidadChange}
-                   className="w-32 border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" 
-                 />
-              </div>
-            )}
-            
-            {formData.isCondominio && formData.cantidadInmuebles > 0 && (
-              <div className="mt-4 border border-slate-200 rounded overflow-hidden">
-                <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold text-slate-700 uppercase">Desglose de Inmuebles ({formData.cantidadInmuebles})</h4>
-                    <span className="text-[10px] text-slate-400 font-medium">|</span>
-                    <button
-                      type="button"
-                      onClick={() => handleAgregarInmuebleExtra('Residencial')}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition"
-                    >
-                      <HomeIcon className="w-3 h-3 text-blue-600" /> + Vivienda
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAgregarInmuebleExtra('Comercial')}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded transition"
-                    >
-                      <Store className="w-3 h-3 text-purple-600" /> + Local
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5">
                     <input 
                       type="checkbox" 
                       id="uniformConfig"
@@ -3011,16 +2917,11 @@ function ContribuyentesPageContent() {
                        <div className="flex items-center justify-center pb-1">
                          <button
                            type="button"
-                           onClick={() => {
-                             if(window.confirm(`¿Está seguro de que desea eliminar este inmueble/actividad (${local.codigo || local.numeracion})? Al guardar los cambios, esta actividad será dada de baja.`)) {
-                               const newLocales = formData.locales.filter((_: any, i: number) => i !== index);
-                               setFormData({ ...formData, locales: newLocales, cantidadInmuebles: newLocales.length });
-                             }
-                           }}
-                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded shadow-sm transition-colors w-full md:w-auto justify-center mt-2 md:mt-0"
-                           title="Eliminar Actividad/Inmueble"
+                           onClick={() => handleEliminarActividad(index)}
+                           className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-sm transition-all w-full md:w-auto justify-center mt-2 md:mt-0 cursor-pointer"
+                           title="Eliminar esta actividad del contribuyente"
                          >
-                           <Trash2 className="w-4 h-4" /> <span>Eliminar</span>
+                           <Trash2 className="w-4 h-4" /> <span>Eliminar Actividad</span>
                          </button>
                        </div>
                     </div>
@@ -3028,6 +2929,7 @@ function ContribuyentesPageContent() {
                 </div>
               </div>
             )}
+          </div>
           </div>
 
           {/* Section: Notas (Solo Edición) */}
