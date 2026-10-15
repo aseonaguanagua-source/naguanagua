@@ -363,7 +363,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       const esRes = isResidencialInm(inm);
       // Para un N/A matriz, su mensualidad base se computa sobre mmvTotal (sumatoria de sus hijos)
       const baseMes = isNAParent 
-        ? mmvTotal * 57 * tasaEfectiva 
+        ? calcularMensualidad({ ...inm, mmv_mes: mmvTotal }, tasaEfectiva) 
         : calcularMensualidad(inm, tasaEfectiva);
       const baseInm = baseMes * meses;
       const ivaInm = esRes ? 0 : baseInm * 0.16;
@@ -400,10 +400,11 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   // Inmuebles solventes para descarga de solvencia
   const inmsSolventes = useMemo(() => {
     return userInms.filter(inm => {
-      const meses = parseInt(inm.meses_deuda || '0');
+      const meses = parseInt(inm.meses_deuda || '0', 10);
       const mmv = parseFloat(inm.deuda_mmv || '0');
       const cong = parseFloat(inm.deuda_congelada_bs || '0');
-      return meses === 0 && mmv <= 0.01 && cong <= 0.01;
+      const mult = parseFloat(inm.multa_bs || '0');
+      return meses === 0 && mmv <= 0.0001 && cong <= 0.01 && mult <= 0.01 && inm.estado !== 'Eliminado';
     });
   }, [userInms]);
 
@@ -726,7 +727,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                     const { inm, isNAParent, hijos, sumHijosMMV, mmvTotal, mesesDeuda } = group;
                     const meses = mesesDeuda;
                     const baseMes = isNAParent 
-                      ? mmvTotal * 57 * tasaEfectiva 
+                      ? calcularMensualidad({ ...inm, mmv_mes: mmvTotal }, tasaEfectiva) 
                       : calcularMensualidad(inm, tasaEfectiva);
                     const esRes = isResidencialInm(inm);
                     const isExpanded = !!expandedNAs[inm.inmueble];
@@ -845,7 +846,8 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                     <tbody className="divide-y divide-slate-100">
                                       {hijos.map((hijo: any, hIdx: number) => {
                                         const hijoMMV = parseFloat(hijo.mmv_mes || 0);
-                                        const hijoBs = hijoMMV * 57 * tasaEfectiva * 1.16;
+                                        const hijoBase = calcularMensualidad(hijo, tasaEfectiva);
+                                        const hijoBs = hijoBase * (isResidencialInm(hijo) ? 1 : 1.16);
                                         const pct = mmvTotal > 0 ? (hijoMMV / mmvTotal) * 100 : 0;
 
                                         return (
@@ -942,7 +944,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                           {sumHijosMMV.toFixed(2)} MMV
                                         </td>
                                         <td className="px-3 py-2 text-right text-indigo-900">
-                                          Bs. {formatBs(sumHijosMMV * 57 * tasaEfectiva * 1.16)}
+                                          Bs. {formatBs(calcularMensualidad({ ...inm, mmv_mes: sumHijosMMV }, tasaEfectiva) * (esRes ? 1 : 1.16))}
                                         </td>
                                         <td colSpan={2} className="px-3 py-2 text-center text-[10px] text-emerald-700 font-bold">
                                           ✓ Cuadratura exacta con Matriz {inm.inmueble}
@@ -1031,7 +1033,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                           </button>
 
                           <div className="flex items-center gap-2">
-                            {meses === 0 && (
+                            {meses === 0 && parseFloat(inm.deuda_mmv || '0') <= 0.0001 && parseFloat(inm.deuda_congelada_bs || '0') <= 0.01 && (
                               <button
                                 type="button"
                                 onClick={() => onGenerarSolvencia(viewData, inm.inmueble)}

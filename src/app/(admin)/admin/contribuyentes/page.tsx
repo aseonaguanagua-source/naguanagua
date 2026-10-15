@@ -3477,15 +3477,22 @@ function ContribuyentesPageContent() {
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  const isCondoCheck = (row.CantidadInmuebles && parseInt(row.CantidadInmuebles) > 1) || 
+                  const inmsList = String(row.CodCont || row.cod_cont || row.inmueble || '').trim().split(/\s+/).filter(Boolean);
+                  const isMulti = inmsList.length > 1 || (row.CantidadInmuebles && parseInt(row.CantidadInmuebles) > 1) || 
                                        (row.Contribuyente && row.Contribuyente.toUpperCase().includes('CONDOMINIO'));
                   
-                  if (isCondoCheck) {
-                    // Open view modal to let them select specific unit
+                  if (isMulti) {
+                    // Abrir modal para elegir el inmueble solvente específico
                     setViewData(row);
                     setIsViewModalOpen(true);
                   } else {
-                    generarSolvenciaIndividual(row, 'general');
+                    const singleInm = inmsList[0] || String(row.CodCont || row.cod_cont || row.inmueble || '').trim();
+                    if (!singleInm) {
+                      setViewData(row);
+                      setIsViewModalOpen(true);
+                      return;
+                    }
+                    generarSolvenciaIndividual(row, singleInm);
                   }
                 }}
                 className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 p-1.5 rounded transition-colors flex items-center gap-1"

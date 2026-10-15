@@ -97,15 +97,48 @@ export default function SolvenciaPage() {
   const deudaMMVNum = activeInm ? parseFloat(String(activeInm.deuda_mmv || '0')) : 999;
   const deudaCongeladaNum = activeInm ? parseFloat(String(activeInm.deuda_congelada_bs || '0')) : 0;
   
-  // Regla oficial de solvencia:
+  const [serverSolvencia, setServerSolvencia] = useState<{ checked: boolean; solvente: boolean; mensaje: string }>({ checked: false, solvente: false, mensaje: '' });
+
+  useEffect(() => {
+    if (!activeInm || !portalDoc) return;
+    let cancel = false;
+    fetch('/api/solvencia', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identidad: portalDoc, inmueble: activeInm.inmueble })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!cancel && typeof data?.solvente === 'boolean') {
+          setServerSolvencia({
+            checked: true,
+            solvente: data.solvente,
+            mensaje: data.mensaje || ''
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancel) {
+          setServerSolvencia({ checked: true, solvente: !inmuebleTieneDeuda(activeInm) && facturasPendientes.length === 0, mensaje: '' });
+        }
+      });
+    return () => { cancel = true; };
+  }, [activeInm?.inmueble, portalDoc]);
+
+  // Regla oficial de solvencia: única por inmueble y requiere 0 deuda, 0 facturas pendientes y validación de padrón
   const isSolvente = Boolean(
     activeInm && 
     !inmuebleTieneDeuda(activeInm) && 
-    !isBlockedByCondo
+    facturasPendientes.length === 0 &&
+    !isBlockedByCondo &&
+    (!serverSolvencia.checked || serverSolvencia.solvente)
   );
 
   const handleDescargarPDF = async () => {
-    if (!activeInm) return;
+    if (!activeInm || !isSolvente) {
+      alert(`Trámite denegado: El inmueble ${activeInm?.inmueble || ''} registra obligaciones tributarias pendientes y no se encuentra solvente.`);
+      return;
+    }
     setDownloading(true);
     try {
       await generarSolvenciaPDF({
@@ -176,7 +209,7 @@ export default function SolvenciaPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {inmueblesList.map((inm: any) => {
               const isSelected = (inm.inmueble || inm.id) === selectedInmId;
-              const inmSolv = parseInt(String(inm.meses_deuda || '0'), 10) === 0 && parseFloat(String(inm.deuda_mmv || '0')) <= 0;
+              const inmSolv = !inmuebleTieneDeuda(inm);
               const isCondo = !!inm.condominio_padre_id || (inm.actividad_principal || '').includes('HIJO_DE:');
 
               return (
@@ -284,23 +317,39 @@ export default function SolvenciaPage() {
           {/* ======================================================= */}
           {/* PLANTILLA OFICIAL DE CERTIFICADO DE SOLVENCIA MUNICIPAL */}
           {/* ======================================================= */}
-          <div className={`bg-white rounded-2xl shadow-xl border overflow-hidden relative transition-all print:shadow-none print:border-none print:m-0 print:p-0 ${
-            !isSolvente ? 'border-rose-300 opacity-90' : 'border-slate-300'
-          }`}>
-
-            {/* Marca de agua de No Solvente si no cumple requisitos */}
-            {!isSolvente && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none bg-white/40 backdrop-blur-[1px]">
-                <div className="border-8 border-rose-600/30 px-10 py-6 rounded-3xl -rotate-12 text-center shadow-2xl">
-                  <span className="text-4xl md:text-6xl font-black text-rose-600/40 tracking-widest block uppercase">
-                    NO SOLVENTE
-                  </span>
-                  <span className="text-xs md:text-sm font-black text-rose-700/50 tracking-wider block mt-2 uppercase">
-                    Validez Legal Anulada por Deuda Activa
-                  </span>
+          {!isSolvente ? (
+            <div className="bg-white rounded-2xl p-8 sm:p-12 border-2 border-rose-200 text-center space-y-5 shadow-sm print:hidden">
+              <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                <ShieldAlert className="w-9 h-9" />
+              </div>
+              <div className="max-w-lg mx-auto space-y-3">
+                <h3 className="text-xl sm:text-2xl font-black text-rose-950 uppercase tracking-tight">
+                  Certificado de Solvencia No Disponible
+                </h3>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  El inmueble <strong className="font-mono text-slate-900 font-bold">{activeInm?.inmueble}</strong> registra obligaciones tributarias pendientes por concepto de aseo urbano ({mesesDeudaNum > 0 ? `${mesesDeudaNum} mes(es) en mora` : 'pagos pendientes'}).
+                </p>
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-semibold text-left space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-rose-950">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    Principio de Solvencia Individual Única por Inmueble:
+                  </div>
+                  <p className="text-rose-800">
+                    De conformidad con el Artículo 48 de la Ordenanza Municipal de Aseo Urbano, la solvencia es un documento único e individual por inmueble y no puede ser emitido, visualizado ni impreso mientras existan períodos en mora.
+                  </p>
                 </div>
               </div>
-            )}
+              <div className="pt-2">
+                <Link
+                  href="/portal/pagos"
+                  className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl text-xs transition-colors shadow-sm"
+                >
+                  Ir al Módulo de Pagos para Liquidar Deuda <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-300 overflow-hidden relative transition-all print:shadow-none print:border-none print:m-0 print:p-0">
 
             <div className="p-8 sm:p-12 relative z-10 text-slate-800 print:p-6">
               
@@ -505,40 +554,27 @@ export default function SolvenciaPage() {
             </div>
 
           </div>
+          )}
 
-          {/* BOTÓN IMPRIMIR / DESCARGAR */}
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2 print:hidden">
-            {isSolvente ? (
-              <>
-                <button 
-                  onClick={handleDescargarPDF}
-                  disabled={downloading}
-                  className="flex items-center gap-2.5 px-7 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg hover:shadow-emerald-600/20 text-sm disabled:opacity-50"
-                >
-                  {downloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-                  {downloading ? 'Generando PDF Oficial...' : 'Descargar Certificado Oficial (PDF)'}
-                </button>
-                <button 
-                  onClick={() => window.print()} 
-                  className="flex items-center gap-2.5 px-7 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-all shadow text-sm"
-                >
-                  <Printer className="w-5 h-5" /> Imprimir en Navegador
-                </button>
-              </>
-            ) : (
-              <div className="text-center space-y-2">
-                <button 
-                  disabled 
-                  className="flex items-center gap-2.5 px-8 py-3 bg-slate-300 text-slate-500 rounded-xl font-bold cursor-not-allowed text-sm opacity-80"
-                >
-                  <Printer className="w-5 h-5" /> Descarga Bloqueada (Inmueble con Deuda)
-                </button>
-                <p className="text-xs text-slate-500">
-                  Para habilitar la descarga de este documento, debe saldar los meses en mora en la pestaña <strong>Donde Pagar</strong>.
-                </p>
-              </div>
-            )}
-          </div>
+          {/* BOTÓN IMPRIMIR / DESCARGAR (SOLO DISPONIBLE CUANDO ESTÁ 100% SOLVENTE) */}
+          {isSolvente && (
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2 print:hidden">
+              <button 
+                onClick={handleDescargarPDF}
+                disabled={downloading}
+                className="flex items-center gap-2.5 px-7 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg hover:shadow-emerald-600/20 text-sm disabled:opacity-50"
+              >
+                {downloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                {downloading ? 'Generando PDF Oficial...' : 'Descargar Certificado Oficial (PDF)'}
+              </button>
+              <button 
+                onClick={() => window.print()} 
+                className="flex items-center gap-2.5 px-7 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-all shadow text-sm"
+              >
+                <Printer className="w-5 h-5" /> Imprimir en Navegador
+              </button>
+            </div>
+          )}
         </>
       )}
 
