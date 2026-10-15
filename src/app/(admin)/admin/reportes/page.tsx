@@ -67,12 +67,26 @@ export default function ReportesPage() {
     setIsAdmin(adminCheck || canViewAllReports);
 
     const loadPagos = async () => {
-      const { data } = await supabase.from('pagos_reportados').select('*').not('estado','in','(Anulado,Reversado,Condonado)').order('created_at', { ascending: false });
-      if (data) {
-        setPagos(data.map(aplicarMontoReporte));
+      let allPagos: any[] = [];
+      let from = 0;
+      const PAGE_SIZE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('pagos_reportados')
+          .select('*')
+          .not('estado','in','(Anulado,Reversado,Condonado)')
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error || !data || data.length === 0) break;
+        allPagos.push(...data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      if (allPagos.length > 0) {
+        setPagos(allPagos.map(aplicarMontoReporte));
         if (adminCheck || canViewAllReports) {
           const cajerosSet = new Set<string>();
-          data.forEach((p: any) => {
+          allPagos.forEach((p: any) => {
             try {
               const dets = typeof p.detalles === 'object' ? p.detalles : JSON.parse(p.detalles || '{}');
               if (dets.cajero) cajerosSet.add(dets.cajero);

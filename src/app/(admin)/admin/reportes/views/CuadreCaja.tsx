@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { ChevronDown, Printer, ArrowLeft, Pencil } from 'lucide-react';
+import { ChevronDown, Printer, ArrowLeft, Pencil, Search, X } from 'lucide-react';
 import { generarCuadreCajaPDF } from '../generators/CuadreCaja';
 
 interface Props {
@@ -50,6 +50,86 @@ function isTransfPago(p: any) {
   return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p) && !isRetencionPago(p);
 }
 
+function getNombre(p: any, contribuyentes: any[] = []): string {
+  if (!p.identidad) return p.contribuyente || '';
+  const clean = (s: string) => (s || '').replace(/[-.\s]/g, '').toUpperCase();
+  const idClean = clean(p.identidad);
+  const found = contribuyentes.find((c: any) => clean(c.identidad || '') === idClean || clean(c.Identidad || '') === idClean);
+  return found?.contribuyente || found?.Contribuyente || p.contribuyente || '';
+}
+
+function coincideBusqueda(p: any, term: string, contribuyentes: any[] = []): boolean {
+  if (!term || !term.trim()) return true;
+  const q = term.trim().toLowerCase();
+  const qClean = q.replace(/[^a-z0-9]/gi, '');
+  const det = parseDet(p);
+
+  // 1. Identidad / RIF / Cédula
+  const idRaw = String(p.identidad || '').toLowerCase();
+  const idClean = idRaw.replace(/[^a-z0-9]/gi, '');
+  if (idRaw.includes(q)) return true;
+  if (qClean && idClean.includes(qClean)) return true;
+
+  // 2. Nombre / Contribuyente
+  const nombre = String(getNombre(p, contribuyentes) || p.contribuyente || det.contribuyente || '').toLowerCase();
+  if (nombre.includes(q)) return true;
+
+  // 3. Referencia bancaria
+  const refRaw = String(p.referencia || det.referencia || '').toLowerCase();
+  const refClean = refRaw.replace(/[^a-z0-9]/gi, '');
+  if (refRaw.includes(q)) return true;
+  if (qClean && refClean.includes(qClean)) return true;
+  const refSinCeros = refClean.replace(/^0+/, '');
+  const qSinCeros = qClean.replace(/^0+/, '');
+  if (qSinCeros && refSinCeros && (refSinCeros.includes(qSinCeros) || qSinCeros.includes(refSinCeros))) return true;
+
+  // 4. Monto
+  const montoNum = parseFloat(p.monto) || 0;
+  const montoConcNum = parseFloat(det.monto_conciliado) || 0;
+  const montoStr = String(p.monto || '');
+  const montoConcStr = String(det.monto_conciliado || '');
+  const montoBsStr = fmtBs(montoNum).toLowerCase();
+  const montoConcBsStr = fmtBs(montoConcNum).toLowerCase();
+  if (montoStr.includes(q) || montoConcStr.includes(q)) return true;
+  if (montoBsStr.includes(q) || montoConcBsStr.includes(q)) return true;
+  const qNumClean = q.replace(/[^0-9]/g, '');
+  if (qNumClean.length >= 2) {
+    const m1Clean = montoNum.toFixed(2).replace(/[^0-9]/g, '');
+    const m2Clean = montoConcNum.toFixed(2).replace(/[^0-9]/g, '');
+    if (m1Clean.includes(qNumClean) || m2Clean.includes(qNumClean)) return true;
+  }
+
+  // 5. Recibos / Facturas
+  const recs = (Array.isArray(det.recibos) ? det.recibos.join(' ') : String(det.recibos || '')).toLowerCase();
+  if (recs.includes(q)) return true;
+  if (qClean && recs.replace(/[^a-z0-9]/gi, '').includes(qClean)) return true;
+
+  // 6. Bancos
+  const banco = String(p.banco || '').toLowerCase();
+  const bDest = String(det.banco_destino || det.banco_receptor || det.banco_emisor || '').toLowerCase();
+  if (banco.includes(q) || bDest.includes(q)) return true;
+
+  // 7. Aprobación y Lote
+  const aprob = String(det.aprobacion || '').toLowerCase();
+  const lote = String(det.lote || '').toLowerCase();
+  if (aprob.includes(q) || lote.includes(q)) return true;
+
+  // 8. Cajero / Analista
+  const cajero = String(det.cajero || det.analista || '').toLowerCase();
+  if (cajero.includes(q)) return true;
+
+  // 9. Tipo y Estado
+  const tipo = String(p.tipo || '').toLowerCase();
+  const estado = String(p.estado || '').toLowerCase();
+  if (tipo.includes(q) || estado.includes(q)) return true;
+
+  // 10. Código de Inmueble
+  const codInm = String(det.cod_inmueble || '').toLowerCase();
+  if (codInm && (codInm.includes(q) || (qClean && codInm.replace(/[^a-z0-9]/gi, '').includes(qClean)))) return true;
+
+  return false;
+}
+
 const FORMAS = ['Todas', 'Tarjetas (Débito y Crédito)', 'Debito', 'Credito (TMD / TVD)', 'Transferencia', 'Deposito', 'Saldo a Favor', 'Retenciones IVA'];
 
 export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contribuyentes = [], onBack, onPagoActualizado }: Props) {
@@ -58,6 +138,8 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const [forma, setForma] = useState('Todas');
   const [fecha, setFecha] = useState(today);
   const [showReport, setShowReport] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [buscarEnTodoHistorial, setBuscarEnTodoHistorial] = useState(false);
 
   // ── Corrección de monto y fecha (cuadre de caja y reportes) ──
   const [editar, setEditar] = useState<null | { p: any; monto: string; fecha: string; motivo: string; guardando: boolean; error?: string }>(null);
@@ -105,6 +187,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const getFilteredPagos = () => {
     const s = new Date(fecha + 'T00:00:00');
     const e = new Date(fecha + 'T23:59:59');
+    const hasSearch = !!searchTerm.trim();
     return pagos.filter(p => {
       // Excluir pagos anulados o rechazados
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
@@ -112,7 +195,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       const d = new Date(p.created_at);
       const fTx = det.fecha_transaccion || det.fecha_banco || '';
       const fechaCoincide = (d >= s && d <= e) || (fTx && fTx === fecha);
-      if (!fechaCoincide) return false;
+      if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
 
       const pCajero = det.cajero || det.analista || '';
       if (!isAdmin) {
@@ -139,14 +222,17 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       // Las transferencias registradas por cajero deben salir en su cuadre
       // Solo transferencias del portal web sin cajero requieren estar previamente conciliadas
       if (isTransfPago(p) && !det.cajero && p.estado !== 'Aprobado' && p.estado !== 'Con Diferencia') return false;
+
+      if (hasSearch && !coincideBusqueda(p, searchTerm, contribuyentes)) return false;
+
       return true;
     });
   };
 
   const pagosFiltrados = useMemo(() => {
-    if (!showReport) return [];
+    if (!showReport && !searchTerm.trim()) return [];
     return getFilteredPagos();
-  }, [showReport, pagos, fecha, cajero, forma, isAdmin, currentUser]);
+  }, [showReport, pagos, fecha, cajero, forma, isAdmin, currentUser, searchTerm, buscarEnTodoHistorial]);
 
   const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
   const creditos = pagosFiltrados.filter(p => isCreditoPago(p));
@@ -198,7 +284,55 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       </button>
 
       <div style={S.hdr}>
-        <div style={S.hdrTitle}>Cuadre Caja</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+          <div style={S.hdrTitle}>Cuadre Caja</div>
+          {searchTerm.trim() && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+              <span style={{ background: '#dbeafe', color: '#1e40af', padding: '3px 10px', borderRadius: 999, fontWeight: 700, border: '1px solid #bfdbfe' }}>
+                {pagosFiltrados.length} resultado(s)
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* BUSCADOR GENERAL CUADRE DE CAJA */}
+        <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', marginBottom: 12 }}>
+          <Search size={18} color="#2563eb" style={{ flexShrink: 0 }} />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={e => {
+              setSearchTerm(e.target.value);
+              if (!showReport && e.target.value.trim()) setShowReport(true);
+            }}
+            placeholder="Buscar por RIF, cédula, monto, referencia, recibo, contribuyente, banco, cajero..."
+            style={{ border: 'none', outline: 'none', width: '100%', fontSize: 13, color: '#1e293b', background: 'transparent' }}
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2, display: 'flex', alignItems: 'center' }}
+              title="Limpiar búsqueda"
+            >
+              <X size={16} />
+            </button>
+          )}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap', borderLeft: '1px solid #e2e8f0', paddingLeft: 12, userSelect: 'none' }} title="Ignora la fecha seleccionada y busca en todos los registros cargados">
+            <input
+              type="checkbox"
+              checked={buscarEnTodoHistorial}
+              onChange={e => {
+                setBuscarEnTodoHistorial(e.target.checked);
+                if (!showReport) setShowReport(true);
+              }}
+              style={{ cursor: 'pointer' }}
+            />
+            <span style={{ fontWeight: buscarEnTodoHistorial ? 700 : 500, color: buscarEnTodoHistorial ? '#1e40af' : '#64748b' }}>
+              Buscar en todo el historial
+            </span>
+          </label>
+        </div>
+
         <div style={S.hdrRow}>
           <div style={S.fw}>
             <span style={S.fl}>Recaudacion - Cuadre Caja</span>
@@ -440,7 +574,20 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
             </div>
           </>}
           {pagosFiltrados.length === 0 && (
-            <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>No se encontraron registros.</div>
+            <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No se encontraron registros.</div>
+              {searchTerm && (
+                <div style={{ fontSize: 13, color: '#94a3b8' }}>
+                  Ningún pago coincide con &quot;<b>{searchTerm}</b>&quot;.
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    style={{ marginLeft: 8, background: '#e2e8f0', color: '#1e293b', border: 'none', padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                  >
+                    Limpiar búsqueda
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

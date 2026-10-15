@@ -117,7 +117,10 @@ export async function POST(request: Request) {
     let lineasCondo: any[] | null = null;
     let condoDet: any = null;
     {
-      const { data: pm } = await supabase.from('pagos_reportados').select('modulo, detalles').eq('id', pagoId).maybeSingle();
+      const { data: pm } = await supabase.from('pagos_reportados').select('modulo, detalles, estado').eq('id', pagoId).maybeSingle();
+      if (pm && ['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(pm.estado || ''))) {
+        return NextResponse.json({ error: `No se puede emitir factura para un pago con estado ${pm.estado}.` }, { status: 400 });
+      }
       let dm: any = pm?.detalles || {};
       if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
       if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {

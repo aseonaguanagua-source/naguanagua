@@ -5,6 +5,7 @@ import { FileSpreadsheet, Download, Filter, RefreshCw, Zap, Printer, X, CheckCir
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { actualizarPago } from '@/lib/actualizarPago';
+import { descontarSaldoFavor } from '@/lib/saldoFavor';
 import { logAudit } from '@/lib/audit';
 import tarifasData from '@/data/tarifas.json';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
@@ -117,11 +118,24 @@ export default function EstadoCuentaPage() {
     if (!confirm(`┬┐Est├ís seguro de ${accion.toUpperCase()} este pago por Bs. ${pago.monto}?`)) return;
 
     try {
-      // 1. Update the pago record
-      await actualizarPago(pago.id, { estado: accion === 'Aprobar' ? 'Aprobado' : 'Rechazado' }, { soloSiEstado: pago.estado || 'Por Verificar' });
-
       // 2. Parse details
       const detalles = { ...{ recibos: [] as string[], cuotas: [] as any[] }, ...parseDetalles(pago.detalles) };
+
+      // 1. Update the pago record
+      if (accion === 'Rechazar') {
+        delete (detalles as any).factura_digital;
+        (detalles as any).factura_digital = { emitida: false, pendiente: false, rechazada: true, rechazada_at: new Date().toISOString() };
+        const sf = parseFloat(String((detalles as any).saldo_favor || (detalles as any).saldo_favor_bs || 0)) || 0;
+        (detalles as any).saldo_favor = 0;
+        (detalles as any).saldo_favor_bs = 0;
+        (detalles as any).saldo_favor_acreditado = false;
+        await actualizarPago(pago.id, { estado: 'Rechazado', detalles }, { soloSiEstado: pago.estado || 'Por Verificar' });
+        if (sf > 0.009) {
+          await descontarSaldoFavor(pago.identidad, sf);
+        }
+      } else {
+        await actualizarPago(pago.id, { estado: 'Aprobado' }, { soloSiEstado: pago.estado || 'Por Verificar' });
+      }
 
       // 3. Update related items
       if (accion === 'Rechazar') {

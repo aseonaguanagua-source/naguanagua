@@ -14,9 +14,11 @@ export async function GET(request: Request) {
     const fecha = (searchParams.get('fecha') || '').trim(); // YYYY-MM-DD (hora Venezuela)
 
     // Obtener los pagos reportados (de un día concreto, o los más recientes)
+    // No listar pagos Rechazados, Anulados, Reversados o Condonados
     let pagosQuery = supabase
       .from('pagos_reportados')
       .select('*')
+      .not('estado', 'in', '(Rechazado,Anulado,Reversado,Condonado)')
       .order('created_at', { ascending: false });
     if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
       const { desde, hasta } = rangoDiaCaracas(fecha);
@@ -24,11 +26,13 @@ export async function GET(request: Request) {
     } else {
       pagosQuery = pagosQuery.limit(300);
     }
-    const { data: pagos, error: pagosErr } = await pagosQuery;
+    const { data: rawPagos, error: pagosErr } = await pagosQuery;
 
     if (pagosErr) {
       throw pagosErr;
     }
+
+    const pagos = (rawPagos || []).filter(p => !['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')));
 
     // Normalizador de identidades (sin guiones ni símbolos)
     const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

@@ -13,7 +13,7 @@ import { calcularMensualidad, isResidencialInm, cleanClasificacionActividad } fr
 import { desglosarPago } from '@/lib/desglosePago';
 import { FILTROS_MODULO, FiltroModulo, OR_CONDOMINIOS, infoCondominioPago, pasaFiltroModulo, rifsCondominios, useCondominiosLigero } from '@/lib/condominios/pagosCondominio';
 import { actualizarPago } from '@/lib/actualizarPago';
-import { acreditarSaldoFavor } from '@/lib/saldoFavor';
+import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 
 /** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios. */
 const fechaTransaccionDe = (det: any): string => {
@@ -670,7 +670,23 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         tasa_bcv_original: tasaOriginal || undefined,
       };
 
-      // Si la tasa cambi�, actualizar montos de las recibos seleccionadas
+      if (estatus === 'Rechazado') {
+        // Rechazado: eliminar cualquier preparación o cola de factura digital
+        delete (updatedDet as any).factura_digital;
+        (updatedDet as any).factura_digital = {
+          emitida: false,
+          pendiente: false,
+          rechazada: true,
+          rechazada_at: new Date().toISOString()
+        };
+        // Limpiar saldo a favor en el detalle del pago rechazado
+        (updatedDet as any).saldo_favor = 0;
+        (updatedDet as any).saldo_favor_bs = 0;
+        (updatedDet as any).monto_saldo_favor = 0;
+        (updatedDet as any).saldo_favor_acreditado = false;
+      }
+
+      // Si la tasa cambió, actualizar montos de las recibos seleccionadas
       if (estatus === 'Aprobado' && hayRecalculo && facturasParaConciliar.length > 0) {
         const tasaCambioFinal = tasaParaGuardar / (tasaOriginal || tasaParaGuardar);
         for (const fac of facturasParaConciliar) {
@@ -713,13 +729,61 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
       // Aprobado: marcar recibos como Pagado o aplicar abono proporcional
       // Rechazado: devolver los recibos a Pendiente para que puedan pagarse en Caja
-      if (estatus === 'Rechazado' && recibos.length > 0) {
-        await supabase.from('facturas').update({ estado: 'Pendiente' }).in('referencia', recibos);
-        if (det.cuotas && det.cuotas.length > 0) {
-           await supabase.from('convenios_cuotas').update({ estado: 'Pendiente' }).in('id', det.cuotas.map((c: any) => typeof c === 'object' ? c.id : c));
+      if (estatus === 'Rechazado') {
+        if (recibos.length > 0) {
+          await supabase.from('facturas').update({ estado: 'Pendiente' }).in('referencia', recibos);
+          if (det.cuotas && det.cuotas.length > 0) {
+             await supabase.from('convenios_cuotas').update({ estado: 'Pendiente' }).in('id', det.cuotas.map((c: any) => typeof c === 'object' ? c.id : c));
+          }
+          if (det.servicios && det.servicios.length > 0) {
+             await supabase.from('servicios_especiales').update({ estado: 'Pendiente' }).in('referencia', det.servicios.map((s: any) => typeof s === 'string' ? s : s.referencia));
+          }
         }
-        if (det.servicios && det.servicios.length > 0) {
-           await supabase.from('servicios_especiales').update({ estado: 'Pendiente' }).in('referencia', det.servicios.map((s: any) => typeof s === 'string' ? s : s.referencia));
+
+        // Restaurar deuda en meses para recibos históricos (RECIB-HIST-*) si se habían descontado
+        const histRefsRech = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
+        if (histRefsRech.length > 0) {
+          const { data: inmListRech } = await supabase.from('inmuebles').select('*').eq('identidad', pago.identidad);
+          if (inmListRech && inmListRech.length > 0) {
+            for (const inm of inmListRech) {
+              const histThisInm = histRefsRech.filter((r: string) => r.includes(`-${inm.inmueble || inm.codigo}-`));
+              if (histThisInm.length > 0) {
+                const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+                const nuevoMeses = numMesesInm + histThisInm.length;
+                const mmv = parseFloat(String(inm.mmv_mes || 0)) || 0;
+                await supabase.from('inmuebles').update({
+                  meses_deuda: nuevoMeses,
+                  deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
+                }).eq('id', inm.id);
+              }
+            }
+          }
+        }
+
+        // Revertir saldo a favor si el pago tenía o había generado saldo a favor
+        const excedenteCaja = parseFloat(String(det.saldo_favor || det.saldo_favor_bs || det.monto_saldo_favor || 0)) || 0;
+        const diferenciaMonto = pago.estado === 'Con Diferencia' ? (parseFloat(String(det.monto_conciliado || pago.monto || 0)) || 0) : 0;
+        const saldoRevertir = excedenteCaja > 0 ? excedenteCaja : diferenciaMonto;
+
+        if (saldoRevertir > 0 || det.saldo_favor_acreditado || pago.estado === 'Con Diferencia' || pago.estado === 'Aprobado') {
+          const montoFinal = saldoRevertir > 0 ? saldoRevertir : (parseFloat(String(pago.monto || 0)) || 0);
+          if (montoFinal > 0.009) {
+            await descontarSaldoFavor(pago.identidad, montoFinal, det.codigo_condominio || det.condominio?.codigo);
+          }
+          // Anular Notas de Crédito emitidas en documentos para este pago
+          try {
+            const ors = [];
+            if (pago.referencia) ors.push(`detalles->>origen_referencia.ilike.%${pago.referencia}%`);
+            if (pago.id) ors.push(`detalles->>origen_referencia.ilike.%${pago.id}%`);
+            if (ors.length > 0) {
+              await supabase.from('documentos')
+                .update({ estado: 'Anulada' })
+                .eq('tipo', 'Nota de Credito')
+                .or(ors.join(','));
+            }
+          } catch (e) {
+            console.error('Error anulando nota de credito por rechazo:', e);
+          }
         }
       }
 
