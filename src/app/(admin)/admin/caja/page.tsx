@@ -487,9 +487,9 @@ export default function CajaPage() {
         isSearchByCode: true
       };
       
-      // Si buscaron exactamente por un CÓDIGO (AURI / URB) y resulta ser un condominio, bloqueamos con alerta.
-      if (user.isSearchByCode && (user.es_condominio || user.condominio_padre_id)) {
-        alert('Este código pertenece a un condominio o a un local de condominio. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
+      // Si buscaron exactamente por un CÓDIGO (AURI / URB) y resulta ser una matriz de condominio, bloqueamos con alerta.
+      if (user.isSearchByCode && user.es_condominio === true) {
+        alert('Este código pertenece a una matriz de condominio completa. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
         setIsSearching(false);
         return;
       }
@@ -523,8 +523,8 @@ export default function CajaPage() {
           isSearchByCode: true
         };
         
-        if (user.isSearchByCode && (user.es_condominio || user.condominio_padre_id)) {
-          alert('Este código pertenece a un condominio o a un local de condominio. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
+        if (user.isSearchByCode && user.es_condominio === true) {
+          alert('Este código pertenece a una matriz de condominio completa. Por favor, realice el cobro desde el módulo de Condominios -> Caja.');
           setIsSearching(false);
           return;
         }
@@ -728,11 +728,11 @@ export default function CajaPage() {
         .select('*')
         .or(orFilterInms);
       
-      // Filtrar los inmuebles eliminados/inactivos y restringir los locales de condominios y condominios en sí
+      // Filtrar los inmuebles eliminados/inactivos y restringir únicamente matrices de condominios en sí
       const specificCode = (user.CodCont || user.cod_cont || '').toUpperCase();
       const activeInmFresh = (inmFresh || []).filter((i: any) => {
         if (i.estado === 'Eliminado') return false;
-        if (i.condominio_padre_id || i.es_condominio) return false;
+        if (i.es_condominio === true) return false;
         // Si es el código específico buscado se permite (por si vinieron a pagar para reactivarlo),
         // pero todos los demás inmuebles del RIF deben ser estrictamente Activos para no mezclar inactivos
         const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
@@ -740,15 +740,10 @@ export default function CajaPage() {
         return String(i.estado || 'Activo').trim().toLowerCase() === 'activo';
       });
 
-      if (activeInmFresh.length === 0 && (inmFresh || []).some((i:any) => i.condominio_padre_id || i.es_condominio)) {
-         alert('El usuario no posee inmuebles individuales activos. Sus propiedades pertenecen a condominios, los cuales deben cobrarse por el módulo Condominios -> Caja.');
+      if (activeInmFresh.length === 0 && (inmFresh || []).some((i:any) => i.es_condominio === true)) {
+         alert('El código consultado es una matriz de condominio. Para cobrar el edificio completo, debe dirigirse al módulo de Condominios -> Caja.');
          setIsSearching(false);
          return;
-      } else if (activeInmFresh.length > 0 && (inmFresh || []).some((i:any) => i.condominio_padre_id || i.es_condominio)) {
-         // Notificar a los cajeros si el usuario tiene propiedades mixtas
-         setTimeout(() => {
-           alert('⚠️ NOTIFICACIÓN AL CAJERO:\n\nEste contribuyente posee inmuebles regulares aquí, pero TAMBIÉN posee propiedades vinculadas a Condominios.\n\nPara cobrar las propiedades de condominio, debe dirigirse al módulo de Condominios -> Caja.');
-         }, 500);
       }
 
       // Adoptar la Identidad real y actualizada desde el inmueble buscado o el primer inmueble fresco

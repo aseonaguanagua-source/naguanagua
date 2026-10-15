@@ -63,8 +63,8 @@ export async function GET(request: Request) {
       inmuebles = byName || [];
     }
 
-    // Restringir: ocultar inmuebles que están dentro de un condominio o que son condominios
-    inmuebles = inmuebles.filter((i: any) => !i.condominio_padre_id && !i.es_condominio);
+    // Restringir: ocultar matrices de condominios completos (las unidades filiales sí se permiten)
+    inmuebles = inmuebles.filter((i: any) => !i.es_condominio);
 
     // Ocultar inmuebles desactivados (Inactivo / Eliminado) a menos que se haya buscado específicamente por ese código
     const qUpper = q.toUpperCase();
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
           const cod = String(i.inmueble || '').toUpperCase();
           if (seen.has(cod)) return false;
           seen.add(cod);
-          if (i.condominio_padre_id || i.es_condominio || i.estado === 'Eliminado') return false;
+          if (i.es_condominio || i.estado === 'Eliminado') return false;
           return i.inmueble?.toUpperCase() === qUpper || String(i.estado || 'Activo').toLowerCase() === 'activo';
         });
         inmuebles = combined;

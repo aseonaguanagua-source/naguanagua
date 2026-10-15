@@ -214,6 +214,11 @@ function Caja() {
         // Fetch Saldo Favor
         setSaldoFavorActivo(j.saldoFavorActivo || 0);
 
+        // Si se buscó por un local o unidad específica, auto-filtrar en la tabla de unidades
+        if (j.condo && j.condo.codigo !== codigo.toUpperCase()) {
+          setFiltroU(codigo);
+        }
+
         // Verificar datos de contacto para mostrar modal si faltan
         if (j.condo) {
           const tel = j.condo.telefono || '';

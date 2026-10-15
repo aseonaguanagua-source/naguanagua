@@ -279,8 +279,36 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
 }
 
 export async function cargarCondominio(codigo: string) {
-  const { data: condo, error } = await sb.from('condominios').select('*').eq('codigo', codigo.toUpperCase()).maybeSingle();
+  let { data: condo, error } = await sb.from('condominios').select('*').eq('codigo', codigo.toUpperCase()).maybeSingle();
   if (error) throw new Error(error.message);
+
+  if (!condo) {
+    // 1. Buscar si el código ingresado corresponde a una unidad hija registrada en condominio_unidades
+    const { data: unidad } = await sb.from('condominio_unidades')
+      .select('condominio_id')
+      .ilike('inmueble', codigo.trim())
+      .limit(1)
+      .maybeSingle();
+
+    if (unidad?.condominio_id) {
+      const { data: condoByUnidad } = await sb.from('condominios').select('*').eq('id', unidad.condominio_id).maybeSingle();
+      condo = condoByUnidad;
+    }
+  }
+
+  if (!condo) {
+    // 2. Buscar si en inmuebles tiene condominio_padre_id
+    const { data: inmHijo } = await sb.from('inmuebles')
+      .select('condominio_padre_id')
+      .ilike('inmueble', codigo.trim())
+      .maybeSingle();
+
+    if (inmHijo?.condominio_padre_id) {
+      const { data: condoByPadre } = await sb.from('condominios').select('*').eq('codigo', inmHijo.condominio_padre_id.toUpperCase()).maybeSingle();
+      condo = condoByPadre;
+    }
+  }
+
   if (!condo) return null;
 
   const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas, clave_portal').eq('inmueble', condo.codigo).maybeSingle();
