@@ -6,7 +6,7 @@ import {
   Calendar, DollarSign, Download, Printer, Percent, Calculator,
   AlertCircle, CheckCircle, Clock, ShieldCheck, AlertTriangle,
   Receipt, Wallet, ExternalLink, ArrowRight, Copy, Check, Eye,
-  ChevronDown, ChevronUp, Layers, PieChart
+  ChevronDown, ChevronUp, Layers, PieChart, Trash2
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatBs, getIdentidadVariantsExact } from '@/lib/formatters';
@@ -32,6 +32,7 @@ interface DetallesContribuyenteModalProps {
   onAjustarDeuda: (row: any) => void;
   onExonerarMultas: (row: any) => void;
   onDeleteFactura?: (factura: any) => void;
+  onRefresh?: () => void;
 }
 
 export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProps> = ({
@@ -49,11 +50,14 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   onEdit,
   onAjustarDeuda,
   onExonerarMultas,
-  onDeleteFactura
+  onDeleteFactura,
+  onRefresh
 }) => {
   const [activeTab, setActiveTab] = useState<'perfil' | 'inmuebles' | 'deuda' | 'pagos' | 'servicios'>('perfil');
   const [copiedId, setCopiedId] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [eliminandoCode, setEliminandoCode] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Datos específicos del contribuyente cargados desde la base de datos
   const [inmueblesList, setInmueblesList] = useState<any[]>([]);
@@ -210,13 +214,75 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       });
 
     return () => { isMounted = false; };
-  }, [isOpen, viewData]);
+  }, [isOpen, viewData, refreshKey]);
 
   const copyIdentidad = () => {
     if (viewData?.Identidad) {
       navigator.clipboard.writeText(viewData.Identidad);
       setCopiedId(true);
       setTimeout(() => setCopiedId(false), 2000);
+    }
+  };
+
+  const handleQuitarActividad = async (inmCode: string, actDesc: string, padreCode?: string) => {
+    if (!window.confirm(`¿Está seguro de que desea quitar la actividad comercial "${actDesc}" (${inmCode}) de este contribuyente?\n\nAl confirmar, este inmueble/actividad será dado de baja en el sistema.`)) {
+      return;
+    }
+
+    setEliminandoCode(inmCode);
+    try {
+      // 1. Dar de baja en la tabla inmuebles
+      const { error: errInm } = await supabase
+        .from('inmuebles')
+        .update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0 })
+        .eq('inmueble', inmCode);
+
+      if (errInm) throw new Error('Error al actualizar inmueble: ' + errInm.message);
+
+      // 2. Si tenía padre N/A, recalcular la tarifa sumatoria del padre N/A
+      if (padreCode) {
+        const { data: remainingHijos } = await supabase
+          .from('inmuebles')
+          .select('mmv_mes')
+          .neq('estado', 'Eliminado')
+          .eq('padre_id', padreCode)
+          .neq('inmueble', inmCode);
+
+        const newMMV = (remainingHijos || []).reduce((acc: number, h: any) => acc + (parseFloat(h.mmv_mes) || 0), 0);
+        await supabase
+          .from('inmuebles')
+          .update({ mmv_mes: newMMV > 0 ? newMMV : 0.91 })
+          .eq('inmueble', padreCode);
+      }
+
+      // 3. Auditoría
+      try {
+        const u = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('usuario') || '{}') : {};
+        await supabase.from('auditoria').insert([{
+          accion: 'Actividad Comercial Eliminada',
+          usuario: u.nombre || u.usuario || 'admin',
+          modulo: '/admin/contribuyentes',
+          detalles: {
+            inmueble: inmCode,
+            actividad: actDesc,
+            padre_id: padreCode || null,
+            contribuyente: viewData.Contribuyente,
+            identidad: viewData.Identidad,
+            criticidad: 'MEDIA'
+          }
+        }]);
+      } catch (_) {}
+
+      // 4. Refrescar datos en el modal y globalmente
+      setRefreshKey(k => k + 1);
+      if (onRefresh) onRefresh();
+
+      alert(`La actividad comercial ${inmCode} (${actDesc}) fue quitada exitosamente.`);
+    } catch (e: any) {
+      console.error(e);
+      alert('No se pudo quitar la actividad: ' + (e?.message || 'Error desconocido'));
+    } finally {
+      setEliminandoCode(null);
     }
   };
 
@@ -510,7 +576,10 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                       <FileText className="w-4 h-4 text-emerald-600" /> Datos de Identificación Fiscal
                     </h3>
                     <button
-                      onClick={() => onEdit(viewData)}
+                      onClick={() => {
+                        onClose();
+                        onEdit(viewData);
+                      }}
                       className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
                     >
                       ✏️ Editar datos
@@ -838,15 +907,27 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                             </td>
 
                                             <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                                              <button
-                                                type="button"
-                                                onClick={() => onImprimirEstadoDeCuenta(hijo.inmueble, 'separados')}
-                                                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
-                                                title={`Estado de Cuenta individual de ${hijo.inmueble}`}
-                                              >
-                                                <Printer className="w-3 h-3" />
-                                                <span>PDF Local</span>
-                                              </button>
+                                              <div className="inline-flex items-center gap-1.5">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => onImprimirEstadoDeCuenta(hijo.inmueble, 'separados')}
+                                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                                  title={`Estado de Cuenta individual de ${hijo.inmueble}`}
+                                                >
+                                                  <Printer className="w-3 h-3" />
+                                                  <span>PDF Local</span>
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  disabled={eliminandoCode === hijo.inmueble}
+                                                  onClick={() => handleQuitarActividad(hijo.inmueble, cleanClasificacionActividad(hijo.actividad_principal) || hijo.actividad_principal || 'Actividad Comercial', inm.inmueble)}
+                                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                                                  title={`Quitar actividad comercial ${hijo.inmueble} de este contribuyente`}
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                  <span>{eliminandoCode === hijo.inmueble ? 'Quitando...' : 'Quitar'}</span>
+                                                </button>
+                                              </div>
                                             </td>
                                           </tr>
                                         );
@@ -938,7 +1019,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                           </div>
                         </div>
 
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                           <button
                             type="button"
                             onClick={() => onImprimirEstadoDeCuenta(inm.inmueble, 'separados')}
@@ -949,17 +1030,32 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                             <span>PDF Estado Cuenta Local</span>
                           </button>
 
-                          {meses === 0 && (
-                            <button
-                              type="button"
-                              onClick={() => onGenerarSolvencia(viewData, inm.inmueble)}
-                              className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer"
-                              title="Descargar Solvencia de este inmueble"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>Solvencia</span>
-                            </button>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {meses === 0 && (
+                              <button
+                                type="button"
+                                onClick={() => onGenerarSolvencia(viewData, inm.inmueble)}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer"
+                                title="Descargar Solvencia de este inmueble"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Solvencia</span>
+                              </button>
+                            )}
+
+                            {userInms.length > 1 && (
+                              <button
+                                type="button"
+                                disabled={eliminandoCode === inm.inmueble}
+                                onClick={() => handleQuitarActividad(inm.inmueble, cleanClasificacionActividad(inm.actividad_principal) || inm.actividad_principal || 'Actividad Comercial')}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                                title={`Quitar esta actividad comercial (${inm.inmueble})`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>{eliminandoCode === inm.inmueble ? 'Quitando...' : 'Quitar Actividad'}</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

@@ -1700,7 +1700,11 @@ function ContribuyentesPageContent() {
           existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
           existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * 57 * tcmmv));
           const rowEstado = row.estado || 'Activo';
-          if (rowEstado === 'Activo') existing.Estado = 'Activo';
+          if (rowEstado === 'Activo') {
+            existing.Estado = 'Activo';
+            if (row.actividad_principal) existing.Actividad = row.actividad_principal;
+          }
+          existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
           const cod = row.inmueble || row.cod_cont;
           if (cod && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
@@ -3756,6 +3760,12 @@ function ContribuyentesPageContent() {
         onAjustarDeuda={(row) => { setSelectedDebtRow(row); setDebtModalOpen(true); }}
         onExonerarMultas={(row) => { setSelectedExonerarRow(row); setExonerarModalOpen(true); }}
         onDeleteFactura={handleDeleteFactura}
+        onRefresh={async () => {
+          if (viewData?.Identidad) {
+            await refreshUserData(viewData.Identidad);
+          }
+          await refreshData();
+        }}
       />
 
       {/* Modal Ajuste Deuda */}

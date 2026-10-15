@@ -508,7 +508,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
           const rowEstado = row.estado || 'Activo';
           if (rowEstado === 'Activo') {
+            const eraInactivo = existing.Estado !== 'Activo';
             existing.Estado = 'Activo';
+            if (eraInactivo || !existing.Actividad || existing.Actividad === 'No aplica') {
+              existing.Actividad = row.actividad_principal || existing.Actividad;
+              existing.ActividadComercial = row.actividad_principal || existing.ActividadComercial;
+              if (row.inmueble) existing.CodCont = row.inmueble;
+            }
+            if (row.direccion && (!existing.Direccion || existing.Direccion === '0 0')) {
+              existing.Direccion = row.direccion;
+            }
           } else if (existing.Estado !== 'Activo') {
             if (rowEstado === 'Eliminado') {
               existing.Estado = 'Eliminado';
@@ -516,6 +525,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               existing.Estado = 'Inactivo';
             }
           }
+          existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
           if (cod && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
           }
@@ -889,7 +899,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let nuevaActividad = '';
       const cambios: string[] = [];
 
-      if (data.isCondominio && Array.isArray(data.locales) && data.locales.length > 0) {
+      if (Array.isArray(data.locales) && data.locales.length > 0) {
         // 3a. Varios inmuebles/actividades: actualizar SOLO los que cambiaron; insertar los nuevos; dar de baja los eliminados
         const nuevos = data.locales.filter((l: any) => !l.codigo);
         const codigosNuevos = nuevos.length > 0 ? await siguientesCodigosInmueble(nuevos.length) : [];
@@ -967,7 +977,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           
           if (!objetivo) {
             if (codigosPropios.length > 1) {
-              throw new Error('No se pudo determinar qué inmueble modificar. Edite cada inmueble por separado.');
+              const primerCodigo = codigosPropios[0];
+              upd.actividad_principal = nuevaActividad;
+              upd.tipo = nuevaClasificacion === 'Residencial' ? 'RESIDENCIAL' : 'COMERCIAL';
+              upd.mmv_mes = mmv;
+              cambios.push(`${primerCodigo}: ${orig.ActividadComercial || orig.TipoResidencia || '-'} → ${nuevaActividad} (${mmv} MMV)`);
             } else {
               // El contribuyente no tiene ningún inmueble. Creamos uno nuevo.
               const codigos = await siguientesCodigosInmueble(1);
@@ -1000,8 +1014,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (data.esAgenteRetencion !== undefined) {
           upd.agente_retencion = data.esAgenteRetencion === true;
         }
-        if (Object.keys(upd).length > 0 && objetivo) {
-          const { error: eU } = await supabase.from('inmuebles').update(upd).eq('inmueble', objetivo);
+        const targetCode = objetivo || (codigosPropios.length > 0 ? codigosPropios[0] : null);
+        if (Object.keys(upd).length > 0 && targetCode) {
+          const { error: eU } = await supabase.from('inmuebles').update(upd).eq('inmueble', targetCode);
           if (eU) throw eU;
         }
         // Actividades comerciales adicionales → un inmueble nuevo por cada una
