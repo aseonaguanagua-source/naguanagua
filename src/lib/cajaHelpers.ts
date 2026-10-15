@@ -142,13 +142,10 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
     const rawDir = (inm.direccion || '').trim();
     const padreId = (inm as any).condominio_padre_id || (inm as any).padre_id;
 
-    // Buscar si ya pertenece a un cluster existente por mismo padre o misma dirección
+    // Buscar si ya pertenece a un cluster existente ÚNICAMENTE por padre jerárquico explícito (N/A o condominio)
     const matchedCluster = clusters.find((c) => {
       if (padreId && c.inms.some((i: any) => i.condominio_padre_id === padreId || i.padre_id === padreId || i.inmueble === padreId)) {
         return true;
-      }
-      if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
-        return isSameLocal(rawDir, c.direccion, 0.70);
       }
       return false;
     });

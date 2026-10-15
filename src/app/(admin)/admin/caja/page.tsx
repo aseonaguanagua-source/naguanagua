@@ -3491,32 +3491,55 @@ export default function CajaPage() {
                               </div>
 
                               {/* Listado de unidades / actividades */}
-                              <div className="space-y-1.5 py-2 max-h-[300px] overflow-y-auto pointer-events-none">
-                                {activitiesCalc.map(({ inm, mmv, far, totalUCD, bsMensual, inmRecibos, isActSelected }, actIdx) => (
-                                  <div key={actIdx} className={`flex items-center justify-between text-[11px] p-2 rounded-lg border transition-all ${isAllClusterSelected || isActSelected ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-400/40' : 'bg-white border-slate-200 opacity-60'}`}>
-                                    <div className="flex items-center gap-2">
-                                      <input 
-                                        type="checkbox"
-                                        checked={isAllClusterSelected || isActSelected}
-                                        readOnly
-                                        disabled
-                                        className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 bg-slate-100"
-                                      />
-                                      <span className="font-bold text-slate-700">
-                                        {isResCluster ? `Unidad ${actIdx + 1}:` : `Actividad ${actIdx + 1}:`} {inm.actividad_principal || (isResCluster ? 'Apartamento' : 'Comercial')}
-                                      </span>
-                                      <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1 py-0.2 rounded">
-                                        Cód: {inm.inmueble}
-                                      </span>
-                                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/90 px-1.5 py-0.5 rounded">
-                                        Unificada
+                              <div className="space-y-1.5 py-2 max-h-[300px] overflow-y-auto">
+                                {activitiesCalc.map(({ inm, mmv, far, totalUCD, bsMensual, inmRecibos, isActSelected }, actIdx) => {
+                                  const isChecked = isActSelected;
+                                  return (
+                                    <div 
+                                      key={actIdx} 
+                                      className={`flex items-center justify-between text-[11px] p-2 rounded-lg border transition-all ${isChecked ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-400/40' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                      <label className="flex items-center gap-2 cursor-pointer flex-1">
+                                        <input 
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={(e) => {
+                                            if (isCondominio) {
+                                              if (e.target.checked) {
+                                                if (inm.id) setSelectedHijos(prev => Array.from(new Set([...prev, inm.id])));
+                                                setCondominioModo('Local');
+                                              } else {
+                                                if (inm.id) setSelectedHijos(prev => prev.filter(id => id !== inm.id));
+                                              }
+                                            } else {
+                                              const actRefs = inmRecibos.map((r: any) => r.referencia);
+                                              if (actRefs.length > 0) {
+                                                if (e.target.checked) {
+                                                  setSelectedRecibos(prev => Array.from(new Set([...prev, ...actRefs])));
+                                                } else {
+                                                  setSelectedRecibos(prev => prev.filter((ref: string) => !actRefs.includes(ref)));
+                                                }
+                                              }
+                                            }
+                                          }}
+                                          className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                                        />
+                                        <span className="font-bold text-slate-700">
+                                          {isResCluster ? `Unidad ${actIdx + 1}:` : `Actividad ${actIdx + 1}:`} {inm.actividad_principal || (isResCluster ? 'Apartamento' : 'Comercial')}
+                                        </span>
+                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1 py-0.2 rounded">
+                                          Cód: {inm.inmueble}
+                                        </span>
+                                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/90 px-1.5 py-0.5 rounded">
+                                          Unificada
+                                        </span>
+                                      </label>
+                                      <span className="text-[10px] font-medium text-slate-600 font-mono shrink-0 ml-2">
+                                        FO: {mmv.toFixed(4)} {isResCluster ? `| FAR: ${far.toFixed(4)} ` : ''}| {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = <strong className="text-slate-900">{formatBs(bsMensual)} Bs/mes</strong> {isResCluster ? '(Exento)' : <span className="text-blue-700 font-bold ml-1">(con IVA: Bs. {formatBs(bsMensual * 1.16)})</span>}
                                       </span>
                                     </div>
-                                    <span className="text-[10px] font-medium text-slate-600 font-mono">
-                                      FO: {mmv.toFixed(4)} {isResCluster ? `| FAR: ${far.toFixed(4)} ` : ''}| {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = <strong className="text-slate-900">{formatBs(bsMensual)} Bs/mes</strong> {isResCluster ? '(Exento)' : <span className="text-blue-700 font-bold ml-1">(con IVA: Bs. {formatBs(bsMensual * 1.16)})</span>}
-                                    </span>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
 
                               {/* Panel de Tarifa Mensual Unificada */}
