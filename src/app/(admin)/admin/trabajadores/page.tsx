@@ -372,6 +372,39 @@ export default function TrabajadoresPage() {
     }
   };
 
+  const handleDeleteWorker = async (worker: any) => {
+    const confirmacion = window.confirm(
+      `¿Está absolutamente seguro de ELIMINAR definitivamente al trabajador "${worker.nombre}" (${worker.usuario})?\n\nEsta acción eliminará su cuenta de acceso y liberará su letra de caja (${worker.letra || 'Sin letra'}).`
+    );
+    if (!confirmacion) return;
+
+    try {
+      const { error } = await supabase
+        .from('trabajadores')
+        .delete()
+        .eq('id', worker.id);
+
+      if (error) throw error;
+
+      await logAudit(
+        'Eliminación Definitiva de Trabajador',
+        {
+          trabajador: worker.nombre,
+          usuario: worker.usuario,
+          rol: worker.rol,
+          letra: worker.letra
+        },
+        'SEGURIDAD',
+        'ALTA'
+      );
+
+      setTrabajadores(prev => prev.filter(t => t.id !== worker.id));
+      alert(`Trabajador "${worker.nombre}" eliminado definitivamente.`);
+    } catch (err: any) {
+      alert(`Error al eliminar trabajador: ${err.message}`);
+    }
+  };
+
   const handleEdit = (trabajador: any) => {
     const rawPerms = trabajador.permisos || {};
     // Normalizar objeto de permisos
@@ -699,6 +732,13 @@ export default function TrabajadoresPage() {
             className="text-xs font-bold bg-white hover:bg-indigo-600 text-slate-700 hover:text-white px-3 py-1 rounded border border-slate-300 hover:border-indigo-600 transition-colors shadow-2xs"
           >
             Editar Permisos
+          </button>
+          <button
+            onClick={() => handleDeleteWorker(row)}
+            className="text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 px-2 py-1 rounded border border-rose-200 transition-colors shadow-2xs"
+            title="Eliminar trabajador permanentemente"
+          >
+            Eliminar
           </button>
         </div>
       )

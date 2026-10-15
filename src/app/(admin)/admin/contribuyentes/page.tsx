@@ -2994,9 +2994,34 @@ function ContribuyentesPageContent() {
               <div className="flex gap-4 mb-8 pt-4 border-t border-slate-100">
                 <button 
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('¿Está seguro que desea DESACTIVAR este usuario? No podrá ingresar al portal.')) {
-                      alert('Usuario desactivado exitosamente (Simulación).');
+                  onClick={async () => {
+                    const ident = formData.Identidad;
+                    const nombre = formData.Contribuyente || ident;
+                    if (!window.confirm(`¿Está seguro que desea DESACTIVAR el acceso de ${nombre} (${ident})?\n\nEl contribuyente quedará en estado "Inactivo" y no podrá ingresar al portal web.`)) {
+                      return;
+                    }
+                    try {
+                      const { error } = await supabase
+                        .from('inmuebles')
+                        .update({ estado: 'Inactivo' })
+                        .eq('identidad', ident);
+
+                      if (error) throw error;
+
+                      await addAuditLog(
+                        'DESACTIVAR_CONTRIBUYENTE',
+                        JSON.stringify({
+                          identidad: ident,
+                          contribuyente: nombre,
+                          motivo: 'Desactivado desde ficha de datos de seguridad'
+                        })
+                      );
+
+                      alert(`Acceso desactivado exitosamente para ${nombre}.`);
+                      setEditingId(null);
+                      await refreshData();
+                    } catch (err: any) {
+                      alert(`Error al desactivar contribuyente: ${err.message}`);
                     }
                   }}
                   className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-4 py-2 rounded text-xs font-bold transition-colors"
@@ -3005,9 +3030,34 @@ function ContribuyentesPageContent() {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('ALERTA CRÍTICA: ¿Está absolutamente seguro de ELIMINAR este usuario y todo su historial de forma permanente?')) {
-                      alert('Función de eliminación bloqueada por seguridad. Requiere permisos de Super Administrador.');
+                  onClick={async () => {
+                    const ident = formData.Identidad;
+                    const nombre = formData.Contribuyente || ident;
+                    if (!window.confirm(`ALERTA CRÍTICA: ¿Está absolutamente seguro de ELIMINAR al contribuyente ${nombre} (${ident})?\n\nAl confirmar, su estado cambiará a "Eliminado", se revocará su acceso al portal y se dará de baja en el sistema.`)) {
+                      return;
+                    }
+                    try {
+                      const { error } = await supabase
+                        .from('inmuebles')
+                        .update({ estado: 'Eliminado', clave_portal: null })
+                        .eq('identidad', ident);
+
+                      if (error) throw error;
+
+                      await addAuditLog(
+                        'ELIMINAR_CONTRIBUYENTE',
+                        JSON.stringify({
+                          identidad: ident,
+                          contribuyente: nombre,
+                          motivo: 'Eliminado definitivamente desde ficha de contribuyente'
+                        })
+                      );
+
+                      alert(`Contribuyente ${nombre} eliminado exitosamente.`);
+                      setEditingId(null);
+                      await refreshData();
+                    } catch (err: any) {
+                      alert(`Error al eliminar contribuyente: ${err.message}`);
                     }
                   }}
                   className="bg-red-100 text-red-700 hover:bg-red-200 px-4 py-2 rounded text-xs font-bold transition-colors"

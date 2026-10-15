@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     // Buscar en inmuebles
     const { data: records, error } = await supabase
       .from("inmuebles")
-      .select("contribuyente, cod_cont, clave_portal, identidad, correo_electronico, telefono")
+      .select("contribuyente, cod_cont, clave_portal, identidad, correo_electronico, telefono, estado")
       .or(orFilter)
       .limit(1);
 
@@ -63,8 +63,18 @@ export async function POST(request: Request) {
       clave_portal: null,
       identidad: contribRec?.identidad,
       correo_electronico: contribRec?.email,
-      telefono: contribRec?.telefono
+      telefono: contribRec?.telefono,
+      estado: 'Activo'
     };
+
+    // Validar si el contribuyente está desactivado o eliminado
+    const estadoNorm = (user.estado || 'Activo').trim().toLowerCase();
+    if (estadoNorm === 'inactivo' || estadoNorm === 'eliminado' || estadoNorm === 'suspendido') {
+      return NextResponse.json(
+        { error: "Este contribuyente se encuentra inactivo o suspendido. Comuníquese con la administración tributaria." },
+        { status: 403 }
+      );
+    }
 
     // Si el usuario viene por botón "Primer Ingreso" o no tiene clave asignada
     if (primerIngreso || !user.clave_portal) {
