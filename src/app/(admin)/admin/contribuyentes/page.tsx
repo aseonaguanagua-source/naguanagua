@@ -171,9 +171,7 @@ function ContribuyentesPageContent() {
 
   useEffect(() => {
     let result = isShowingServerResults ? serverResults : contribuyentes;
-    if (isShowingServerResults) {
-      result = result.filter((c: any) => c.Estado !== 'Eliminado');
-    } else {
+    if (!isShowingServerResults) {
       if (activeTab === 'Activos') {
         result = result.filter((c: any) => c.Estado !== 'Eliminado' && c.Estado !== 'Inactivo');
       } else {

@@ -82,7 +82,7 @@ export async function GET(request: Request) {
           const cod = String(i.inmueble || '').toUpperCase();
           if (seen.has(cod)) return false;
           seen.add(cod);
-          if (i.estado === 'Eliminado') return false;
+          if (i.estado === 'Eliminado' && cod !== qUpper) return false;
           if (i.es_condominio && cod !== qUpper) return false;
           return cod === qUpper || String(i.estado || 'Activo').toLowerCase() === 'activo';
         });
