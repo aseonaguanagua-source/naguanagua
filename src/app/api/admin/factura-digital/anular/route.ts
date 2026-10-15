@@ -242,7 +242,9 @@ export async function POST(request: Request) {
     const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     const obtenerMesAseoTexto = (fechaBase?: string | Date) => {
+      if (detPago?.concepto) return String(detPago.concepto);
       if (detPago?.mes_aseo) return String(detPago.mes_aseo);
+      if (detPago?.detalle) return String(detPago.detalle);
       const d = new Date(fechaBase || detPago?.fecha_transaccion || pagoRow?.created_at || fechaActual);
       if (!isNaN(d.getTime())) {
         const mIdx = d.getUTCMonth() === 0 ? 11 : d.getUTCMonth() - 1;

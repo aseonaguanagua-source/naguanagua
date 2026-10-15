@@ -48,10 +48,16 @@ export async function GET(request: Request) {
       }
     });
 
-    const pagos = (rawPagos || []).filter(p => 
-      p.tipo !== 'Retencion de IVA' &&
-      !['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(p?.estado || ''))
-    );
+    const pagos = (rawPagos || []).filter(p => {
+      if (p.tipo === 'Retencion de IVA') return false;
+      if (['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(p?.estado || ''))) return false;
+      const d = parseDetalles(p.detalles);
+      // REGLA: Los abonos que no han completado el pago total del mes no deben salir en factura electrónica
+      if (d?.es_abono === true || p.tipo === 'Abono' || d?.pago_parcial === true) {
+        return false;
+      }
+      return true;
+    });
 
     // Normalizador de identidades (sin guiones ni símbolos)
     const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

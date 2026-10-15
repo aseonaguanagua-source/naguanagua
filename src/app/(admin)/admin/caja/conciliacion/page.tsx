@@ -740,21 +740,45 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
 
-        // Restaurar deuda en meses para recibos históricos (RECIB-HIST-*) si se habían descontado
-        const histRefsRech = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
-        if (histRefsRech.length > 0) {
-          const { data: inmListRech } = await supabase.from('inmuebles').select('*').eq('identidad', pago.identidad);
-          if (inmListRech && inmListRech.length > 0) {
-            for (const inm of inmListRech) {
-              const histThisInm = histRefsRech.filter((r: string) => r.includes(`-${inm.inmueble || inm.codigo}-`));
-              if (histThisInm.length > 0) {
-                const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
-                const nuevoMeses = numMesesInm + histThisInm.length;
-                const mmv = parseFloat(String(inm.mmv_mes || 0)) || 0;
-                await supabase.from('inmuebles').update({
-                  meses_deuda: nuevoMeses,
-                  deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
-                }).eq('id', inm.id);
+        // Rechazar o anular comprobante de retención de IVA vinculado al pago rechazado
+        await supabase.from('pagos_reportados').update({ estado: 'Rechazado' }).filter('detalles->>pago_vinculado', 'eq', pago.id);
+
+        // Restaurar estado de deuda si el pago se rechaza
+        // PREFERENCIA 1: Si Caja guardó la foto exacta de deuda_previa al registrar el pago, restaurar exactamente esa foto
+        if (Array.isArray(det.deuda_previa) && det.deuda_previa.length > 0) {
+          for (const prev of det.deuda_previa) {
+            if (prev.id || prev.inmueble) {
+              const q = supabase.from('inmuebles').update({
+                meses_deuda: Math.max(0, parseInt(String(prev.meses_deuda || 0))),
+                deuda_mmv: parseFloat(String(prev.deuda_mmv || 0)),
+                multa_bs: parseFloat(String(prev.multa_bs || 0)),
+                deuda_congelada_bs: parseFloat(String(prev.deuda_congelada_bs || 0)),
+                saldo_favor_bs: parseFloat(String(prev.saldo_favor_bs || 0)),
+              });
+              if (prev.id) await q.eq('id', prev.id);
+              else await q.eq('inmueble', prev.inmueble);
+            }
+          }
+        } else {
+          // Fallback: solo restaurar meses si el pago estuvo previamente Aprobado (nunca sumar meses a pagos por verificar)
+          const pagoEstabaAprobado = pago.estado === 'Aprobado' || pago.estado === 'Con Diferencia';
+          if (pagoEstabaAprobado) {
+            const histRefsRech = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
+            if (histRefsRech.length > 0) {
+              const { data: inmListRech } = await supabase.from('inmuebles').select('*').eq('identidad', pago.identidad);
+              if (inmListRech && inmListRech.length > 0) {
+                for (const inm of inmListRech) {
+                  const histThisInm = histRefsRech.filter((r: string) => r.includes(`-${inm.inmueble || inm.codigo}-`));
+                  if (histThisInm.length > 0) {
+                    const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+                    const nuevoMeses = numMesesInm + histThisInm.length;
+                    const mmv = parseFloat(String(inm.mmv_mes || 0)) || 0;
+                    await supabase.from('inmuebles').update({
+                      meses_deuda: nuevoMeses,
+                      deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
+                    }).eq('id', inm.id);
+                  }
+                }
               }
             }
           }

@@ -15,6 +15,7 @@ export async function POST(req: Request) {
       modulo,
       marcarAnulada,
       fecha,
+      concepto,
       usuario
     } = await req.json();
 
@@ -120,6 +121,21 @@ export async function POST(req: Request) {
       nuevosDetalles.fecha_banco = fecha;
       if (Array.isArray(nuevosDetalles.recibo_caja) && nuevosDetalles.recibo_caja[0]) {
         nuevosDetalles.recibo_caja[0].fechaTransaccion = fecha;
+      }
+    }
+
+    if (concepto !== undefined) {
+      const cleanConcepto = String(concepto).trim();
+      nuevosDetalles.concepto = cleanConcepto;
+      nuevosDetalles.detalle = cleanConcepto;
+      nuevosDetalles.mes_aseo = cleanConcepto;
+      if (Array.isArray(nuevosDetalles.recibo_caja)) {
+        nuevosDetalles.recibo_caja.forEach((rc: any) => {
+          if (rc) {
+            rc.concepto = cleanConcepto;
+            rc.detalle = cleanConcepto;
+          }
+        });
       }
     }
 

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
-import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X, Building2, Store, Receipt, CheckSquare, Square, Filter, ChevronRight, DollarSign, Sparkles, AlertCircle, Coins, Zap } from 'lucide-react';
+import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X, Building2, Store, Receipt, CheckSquare, Square, Filter, ChevronRight, DollarSign, Sparkles, AlertCircle, Coins, Zap, Trash2 } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { actualizarPago } from '@/lib/actualizarPago';
@@ -153,6 +153,9 @@ export default function CajaPage() {
   const [useSaldoFavor, setUseSaldoFavor] = useState<boolean>(true);
   
   const [isNotaModalOpen, setIsNotaModalOpen] = useState(false);
+  const [contribNotas, setContribNotas] = useState<any[]>([]);
+  const [loadingNotas, setLoadingNotas] = useState(false);
+  const [notaTab, setNotaTab] = useState<'lista' | 'crear'>('lista');
   const [isPagoMultiple, setIsPagoMultiple] = useState(false);
 
   // Modal de Confirmación de Pago
@@ -172,6 +175,10 @@ export default function CajaPage() {
 
   // Recibo imprimible post-pago
   const [reciboData, setReciboData] = React.useState<any>(null);
+  // Pagos / Abonos pendientes por conciliar para el contribuyente consultado
+  const [pagosPorConciliar, setPagosPorConciliar] = React.useState<any[]>([]);
+  const [montoPorConciliar, setMontoPorConciliar] = React.useState<number>(0);
+  const [notificacionConciliacion, setNotificacionConciliacion] = React.useState<{ monto: number; referencia?: string; visible: boolean } | null>(null);
   // Pago al que pertenece el próximo recibo generado: el recibo se guarda en ese pago
   // (detalles.recibo_caja) para poder descargarlo después desde Facturación Electrónica.
   const ultimoPagoIdRef = React.useRef<string | null>(null);
@@ -224,8 +231,41 @@ export default function CajaPage() {
   useEffect(() => {
     if (activeTab === 'NotasCredito') fetchNotasCredito();
     // Cleanup: cancelar si se desmonta el tab
-    return () => { fetchNotasCreditoAbortRef.current?.abort(); };
   }, [activeTab, fetchNotasCredito]);
+
+  // Manejo de Notas de Crédito
+  const [filtroNotas, setFiltroNotas] = useState('');
+  const [deletingNotaId, setDeletingNotaId] = useState<string | null>(null);
+
+  const handleEliminarNotaCredito = async (n: any, formattedMonto: string) => {
+    const confirmMsg = `¿Está seguro de eliminar esta Nota de Crédito por Bs. ${formattedMonto} perteneciente a ${n.contribuyente} (${n.identidad})?\n\nEsta acción eliminará el registro y revertirá cualquier saldo a favor pendiente asociado a esta nota.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setDeletingNotaId(n.id);
+    try {
+      const res = await fetch('/api/admin/documentos/eliminar-nota-credito', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: n.id,
+          usuario: getCajeroId() || 'Admin'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+
+      setSuccessMsg(data.mensaje || 'Nota de crédito eliminada correctamente');
+      setTimeout(() => setSuccessMsg(''), 5000);
+      fetchNotasCredito();
+      if (foundUser && (foundUser.Identidad === n.identidad || foundUser.Contribuyente === n.contribuyente)) {
+        handleSearch();
+      }
+    } catch (err: any) {
+      alert('Error eliminando nota de crédito: ' + (err.message || err));
+    } finally {
+      setDeletingNotaId(null);
+    }
+  };
 
   // BCV Rate Override States
   const [showRateModal, setShowRateModal] = useState(false);
@@ -445,6 +485,9 @@ export default function CajaPage() {
     setSelectedServicios([]);
     setServiciosEsp([]);
     setPagosPendientes([]);
+    setPagosPorConciliar([]);
+    setMontoPorConciliar(0);
+    setNotificacionConciliacion(null);
     setTotalBs(0);
 
     // Extraer prefijo si fue pegado o escrito en el input (ej: J-075477308 o V075477308)
@@ -985,6 +1028,7 @@ export default function CajaPage() {
                 combined.push({
                   id: `multa-${inm.inmueble}`,
                   referencia: `MULTA-${inm.inmueble}`,
+                  inmueble: inm.inmueble,
                   identidad: user.Identidad,
                   contribuyente: user.Contribuyente,
                   emision: fechaMora.toISOString(),
@@ -1008,6 +1052,7 @@ export default function CajaPage() {
               combined.push({
                 id: `multa-${inm.inmueble}`,
                 referencia: `MULTA-${inm.inmueble}`,
+                inmueble: inm.inmueble,
                 identidad: user.Identidad,
                 contribuyente: user.Contribuyente,
                 emision: fechaMora.toISOString(),
@@ -1039,6 +1084,7 @@ export default function CajaPage() {
                 combined.push({
                   id: `dummy-hist-${inm.inmueble}-${i}`,
                   referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
+                  inmueble: inm.inmueble,
                   identidad: user.Identidad,
                   contribuyente: user.Contribuyente,
                   emision: dateIso,
@@ -1126,14 +1172,34 @@ export default function CajaPage() {
       });
       setTalaPoda(filteredTala);
 
-      // Cargar pagos pendientes de verificar para bloquear seleccion
-      // Solo 'Por Verificar' bloquea — significa que ya hay una transferencia enviada esperando conciliación
-      const { data: pagosPendData } = await supabase
+      // Cargar pagos pendientes de verificar para bloquear seleccion y notificar monto por conciliar
+      const { data: allPorVerificar } = await supabase
         .from('pagos_reportados')
         .select('*')
-        .or(facturasOrFilter)
         .eq('estado', 'Por Verificar');
-      setPagosPendientes(pagosPendData || []);
+
+      const userInmCodes = (activeInmFresh || []).map((i: any) => String(i.inmueble || '').trim().toLowerCase()).filter(Boolean);
+      const cleanIdents = Array.from(new Set([
+        ...userIdentVariants,
+        user.Identidad,
+        user.identidad,
+        user.CodCont,
+        user.cod_cont,
+        ...(activeInmFresh || []).map((i: any) => i.inmueble),
+        ...(activeInmFresh || []).map((i: any) => i.identidad_propietario)
+      ].filter(Boolean))).map(id => String(id).replace(/[^a-zA-Z0-9]/g, '').toLowerCase());
+
+      const arrPagosPend = (allPorVerificar || []).filter((p: any) => {
+        const pIdentClean = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        if (pIdentClean && cleanIdents.includes(pIdentClean)) return true;
+        const detStr = JSON.stringify(p.detalles || '').toLowerCase();
+        return userInmCodes.some(code => code && detStr.includes(code));
+      });
+
+      const totalPendConciliar = arrPagosPend.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
+      setPagosPendientes(arrPagosPend);
+      setPagosPorConciliar(arrPagosPend);
+      setMontoPorConciliar(totalPendConciliar);
 
       // Buscar si es un Condominio (Padre)
       const parentCodes = (isCodeFormat && (user.CodCont || user.cod_cont))
@@ -1569,11 +1635,12 @@ export default function CajaPage() {
       if (referencia.length !== 8) return alert("La referencia debe tener exactamente 8 caracteres.");
       if (!fechaTransaccion) return alert("La fecha de transacción es obligatoria.");
       
-      // Verificar referencia duplicada
+      // Verificar referencia duplicada (excluyendo pagos rechazados)
       const { data: dupCheck } = await supabase
         .from('pagos_reportados')
         .select('id')
         .eq('referencia', referencia)
+        .neq('estado', 'Rechazado')
         .limit(1);
       if (dupCheck && dupCheck.length > 0) {
         return alert(`⚠️ ADVERTENCIA: El número de referencia "${referencia}" ya fue registrado previamente en el sistema. Verifique antes de continuar.`);
@@ -1642,6 +1709,360 @@ export default function CajaPage() {
     setIsConfirmModalOpen(false);
     setIsProcessing(true);
     ultimoPagoIdRef.current = null;
+
+    // ── GENERADOR UNIFICADO DE RECIBOS POR INMUEBLE ──
+    const armarRecibosCobro = (params: {
+      selectedRefs: string[];
+      montoReal: number;
+      paymentMethod: string;
+      banco: string;
+      referencia: string;
+      esAbono: boolean;
+      montoPendiente?: number;
+      selectedHijosIds?: string[];
+    }) => {
+      const { selectedRefs, montoReal, paymentMethod, banco, referencia, esAbono, montoPendiente, selectedHijosIds } = params;
+      const cajero_id_recibo = getCajeroId();
+      const refNumBase = (referencia || Date.now().toString()).slice(-7).padStart(7, '0');
+
+      const allInmsPool = [
+        ...(freshInmuebles || []),
+        ...(condominioHijos || []),
+        ...((inmuebles as any[]) || []),
+        ...getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser)
+      ];
+      const inmsByCode = new Map<string, any>();
+      allInmsPool.forEach((i: any) => {
+        if (i?.inmueble) {
+          const k = String(i.inmueble).trim().toUpperCase();
+          if (!inmsByCode.has(k)) inmsByCode.set(k, i);
+        }
+      });
+      const userInmsRec = Array.from(inmsByCode.values());
+
+      const primerInm = userInmsRec[0] || (freshInmuebles && freshInmuebles[0]) || {
+        inmueble: foundUser.CodCont || foundUser.cod_cont || foundUser.Identidad,
+        cod_cont: foundUser.CodCont || foundUser.cod_cont || foundUser.Identidad,
+        contribuyente: foundUser.Contribuyente || '',
+        direccion: foundUser.Direccion || 'NAGUANAGUA, CARABOBO',
+        tipo: foundUser.Tipo || 'RESIDENCIAL'
+      };
+
+      const MESES_REC = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+      const getMesRec = (emision: string) => {
+        if (!emision) return '---';
+        const p = emision.split('-');
+        return p.length >= 2 ? `${MESES_REC[parseInt(p[1])-1]} ${p[0]}` : emision;
+      };
+      const mesKeyDeRef = (ref: string): string | null => {
+        const f = recibos.find((r: any) => r.referencia === ref);
+        if (f?.emision) {
+          const p = String(f.emision).split('-');
+          if (p.length >= 2) return `${p[0]}-${p[1].slice(0, 2)}`;
+        }
+        const m = ref.match(/^RECIB-HIST-(.+)-M(\d+)$/);
+        if (m) {
+          const inmR = userInmsRec.find((i: any) => i.inmueble === m[1]);
+          const total = Math.max(1, parseInt(inmR?.meses_deuda || '0') || 0);
+          const hoyR = new Date();
+          const d = new Date(hoyR.getFullYear(), hoyR.getMonth() - total + parseInt(m[2]) - 1, 1);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+        const cm = ref.match(/-(\d{2})-(\d{4})$/);
+        if (cm) return `${cm[2]}-${cm[1]}`;
+        return null;
+      };
+      const etiquetaMes = (ref: string) => { const k = mesKeyDeRef(ref); return k ? getMesRec(k) : ''; };
+      const periodoDeKeys = (keys: (string | null)[]) => {
+        const ks = [...new Set(keys.filter(Boolean) as string[])].sort();
+        if (ks.length === 0) return undefined;
+        if (ks.length === 1) return getMesRec(ks[0]);
+        return `DESDE ${getMesRec(ks[0])} HASTA ${getMesRec(ks[ks.length - 1])} (${ks.length} MESES)`;
+      };
+      const periodoDeRefs = (refs: string[]) => periodoDeKeys(refs.filter(r => !/^MULTA-/i.test(r)).map(mesKeyDeRef));
+
+      const formaPagoLabel = paymentMethod === 'TMD' ? 'TMD (TARJETA CRÉDITO MASTER)'
+        : paymentMethod === 'TVD' ? 'TVD (TARJETA CRÉDITO VISA)'
+        : paymentMethod === 'Credito' ? 'TARJETA DE CRÉDITO'
+        : paymentMethod === 'Debito' ? 'PUNTO DE VENTA (DÉBITO)'
+        : paymentMethod === 'Transferencia' ? 'TRANSFERENCIA'
+        : paymentMethod;
+
+      const bancoLabel = ['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod) ? paymentMethod : (banco || paymentMethod || 'Caja');
+
+      const resolverInmuebleDeRef = (ref: string) => {
+        if (ref.startsWith('RECIB-HIST-')) {
+          const parts = ref.split('-');
+          const cod = parts[2] ? parts[2].trim().toUpperCase() : '';
+          if (cod) {
+            const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
+            if (match) return match;
+            return {
+              inmueble: cod,
+              cod_cont: cod,
+              contribuyente: foundUser.Contribuyente || '',
+              direccion: foundUser.Direccion || 'NAGUANAGUA, CARABOBO',
+              tipo: foundUser.Tipo || 'RESIDENCIAL'
+            };
+          }
+        }
+        if (ref.startsWith('MULTA-')) {
+          const cod = ref.replace(/^MULTA-/i, '').split('-')[0].trim().toUpperCase();
+          if (cod) {
+            const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
+            if (match) return match;
+            return {
+              inmueble: cod,
+              cod_cont: cod,
+              contribuyente: foundUser.Contribuyente || '',
+              direccion: foundUser.Direccion || 'NAGUANAGUA, CARABOBO',
+              tipo: foundUser.Tipo || 'RESIDENCIAL'
+            };
+          }
+        }
+        if (ref.startsWith('CM-')) {
+          const parts = ref.split('-');
+          if (parts.length >= 2) {
+            const cod = parts[1].trim().toUpperCase();
+            const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
+            if (match) return match;
+          }
+        }
+        const f = recibos.find((r: any) => r.referencia === ref);
+        if (f?.inmueble) {
+          const cod = String(f.inmueble).trim().toUpperCase();
+          const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
+          if (match) return match;
+          return {
+            inmueble: cod,
+            cod_cont: cod,
+            contribuyente: f.contribuyente || foundUser.Contribuyente || '',
+            direccion: f.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO',
+            tipo: f.clasificacion || foundUser.Tipo || 'RESIDENCIAL'
+          };
+        }
+        if (f?._inmId && f._inmId !== 'Facturación General' && f._inmId !== 'Acumulados') {
+          const cod = String(f._inmId).trim().toUpperCase();
+          const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
+          if (match) return match;
+        }
+        // Subcadena de algún código de inmueble en la referencia
+        const matchSub = userInmsRec.find((i: any) => i.inmueble && ref.toUpperCase().includes(String(i.inmueble).toUpperCase()));
+        if (matchSub) return matchSub;
+        return primerInm;
+      };
+
+      const facturasPorInmueble: Record<string, { inm: any; refs: string[] }> = {};
+      if (selectedRefs && selectedRefs.length > 0) {
+        selectedRefs.forEach((ref: string) => {
+          const inm = resolverInmuebleDeRef(ref);
+          const inmKey = (inm?.inmueble || primerInm?.inmueble || '__general__').toUpperCase();
+          if (!facturasPorInmueble[inmKey]) {
+            facturasPorInmueble[inmKey] = { inm: inm || primerInm, refs: [] };
+          }
+          facturasPorInmueble[inmKey].refs.push(ref);
+        });
+      }
+
+      if (selectedHijosIds && selectedHijosIds.length > 0) {
+        selectedHijosIds.forEach((hId: string) => {
+          const matchHijo = allInmsPool.find((i: any) => i.id === hId || i.inmueble === hId);
+          if (matchHijo) {
+            const inmKey = String(matchHijo.inmueble || matchHijo.id).toUpperCase();
+            if (!facturasPorInmueble[inmKey]) {
+              facturasPorInmueble[inmKey] = { inm: matchHijo, refs: [] };
+            }
+          }
+        });
+      }
+
+      const grupos = Object.values(facturasPorInmueble);
+
+      if (grupos.length === 0) {
+        const activeUserInms = userInmsRec.filter((i: any) => (i.actividad_principal || '').toUpperCase() !== 'N/A' && i.inmueble);
+        if (activeUserInms.length > 1) {
+          const porcion = Math.round((montoReal / activeUserInms.length) * 100) / 100;
+          return activeUserInms.map((inmItem: any, idx: number) => {
+            const refNum = `${refNumBase}-${idx + 1}`;
+            const esResInm = isResidencialInm(inmItem);
+            return {
+              reciboNo: refNum,
+              controlWeb: `WEB-${refNum}`,
+              fechaEmision: new Date().toISOString().split('T')[0],
+              codContribuyente: inmItem?.inmueble || inmItem?.cod_cont || foundUser.Identidad || '',
+              razonSocial: inmItem?.contribuyente || foundUser.Contribuyente || '',
+              domicilioFiscal: ((inmItem?.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+              rifCi: foundUser.Identidad,
+              caja: cajero_id_recibo,
+              periodo: periodoDeRefs(selectedRefs),
+              conceptos: [{
+                descripcion: esAbono ? `Abono Parcial a Deuda - Inmueble ${inmItem?.inmueble || ''}` : `Servicio de Aseo Urbano - Inmueble ${inmItem?.inmueble || ''}`,
+                precioUnit: porcion,
+                total: porcion
+              }],
+              subTotal: porcion,
+              exento: esResInm ? porcion : 0,
+              iva: esResInm ? 0 : parseFloat((porcion - (porcion / 1.16)).toFixed(2)),
+              total: porcion,
+              formaPago: formaPagoLabel,
+              banco: bancoLabel,
+              referencia: referencia || 'N/A',
+              tasaBcv: currentBcvRate || tcmmv || undefined,
+              tipoContribuyente: esResInm ? 'Residencial' : 'Comercial',
+              esAbono: !!esAbono,
+              montoCancelado: esAbono ? porcion : undefined,
+              montoPendiente: esAbono ? (montoPendiente ? Math.round((montoPendiente / activeUserInms.length) * 100) / 100 : undefined) : undefined,
+            };
+          });
+        }
+        const singleInm = primerInm;
+        const refNum = refNumBase;
+        const esResInm = isResidencialInm(singleInm);
+        return [{
+          reciboNo: refNum,
+          controlWeb: `WEB-${refNum}`,
+          fechaEmision: new Date().toISOString().split('T')[0],
+          codContribuyente: singleInm?.inmueble || singleInm?.cod_cont || foundUser.Identidad || '',
+          razonSocial: singleInm?.contribuyente || foundUser.Contribuyente || '',
+          domicilioFiscal: ((singleInm?.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+          rifCi: foundUser.Identidad,
+          caja: cajero_id_recibo,
+          periodo: periodoDeRefs(selectedRefs),
+          conceptos: [{
+            descripcion: esAbono ? `Abono Parcial a Deuda - Inmueble ${singleInm?.inmueble || ''}` : `Servicio de Aseo Urbano y Domiciliario`,
+            precioUnit: montoReal,
+            total: montoReal
+          }],
+          subTotal: montoReal,
+          exento: esResInm ? montoReal : 0,
+          iva: esResInm ? 0 : parseFloat((montoReal - (montoReal / 1.16)).toFixed(2)),
+          total: montoReal,
+          formaPago: formaPagoLabel,
+          banco: bancoLabel,
+          referencia: referencia || 'N/A',
+          tasaBcv: currentBcvRate || tcmmv || undefined,
+          tipoContribuyente: esResInm ? 'Residencial' : 'Comercial',
+          esAbono: !!esAbono,
+          montoCancelado: esAbono ? montoReal : undefined,
+          montoPendiente: esAbono ? montoPendiente : undefined,
+        }];
+      }
+
+      const recibosGenerados = grupos.map((grupo, idx) => {
+        const inmGrupo = grupo.inm || primerInm;
+        const conceptosGrupo: any[] = [];
+        grupo.refs.forEach((ref: string) => {
+          if (ref.startsWith('RECIB-HIST-')) {
+            const pDet = pagosPendientes.find((p: any) => p.facturas && p.facturas[0]?.referencia === ref);
+            if (pDet && pDet.facturas && pDet.facturas[0]) {
+              const f = pDet.facturas[0];
+              conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Base Imponible`, precioUnit: parseFloat(f.base), total: parseFloat(f.base) });
+              if (parseFloat(f.iva) > 0) {
+                conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - IVA (16%)`, precioUnit: parseFloat(f.iva), total: parseFloat(f.iva) });
+              }
+              const porcentajeMulta = f.clasificacion.toLowerCase().includes('residencial') ? '10%' : '12%';
+              if (parseFloat(f.multa) > 0) {
+                conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Multa (${porcentajeMulta})`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
+              }
+            } else {
+              const parts = ref.split('-');
+              const inmId = parts[2];
+              const inm = userInmsRec.find((i: any) => i.inmueble === inmId) || inmuebles.find((i: any) => i.inmueble === inmId) || inmGrupo;
+              const esRes = isResidencialInm(inm);
+              const bm = parseFloat(calcularMensualidad(inm, currentBcvRate).toFixed(2));
+              const f = recibos.find((r: any) => r.referencia === ref);
+              const emision = f?.emision ? new Date(f.emision) : new Date();
+              const today = new Date();
+              const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
+              const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
+              const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
+              const isUltimoMes = mesNum >= totalMeses || monthsDiff <= 1;
+              const esMesExon = isMesExoneradoMulta(inm?.notas, emision);
+              const multa = (!isUltimoMes && monthsDiff > 1 && !esMesExon) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
+              const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+              conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - Base Imponible`, precioUnit: bm, total: bm });
+              if (iva > 0) {
+                conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - IVA (16%)`, precioUnit: iva, total: iva });
+              }
+              if (multa > 0) {
+                conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - Multa (${esRes ? '10%' : '12%'})`, precioUnit: multa, total: multa });
+              }
+            }
+          } else {
+            const f = recibos.find((r: any) => r.referencia === ref);
+            const montoF = f ? parseFloat(getReciboMonto(f) || '0') : 0;
+            conceptosGrupo.push({
+              descripcion: `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${getMesRec(f?.emision || '')}`,
+              precioUnit: montoF,
+              total: montoF
+            });
+          }
+        });
+
+        let totalGrupo = conceptosGrupo.reduce((s: number, c: any) => s + c.total, 0);
+        if (esAbono && grupos.length === 1 && montoReal > 0) {
+          totalGrupo = montoReal;
+          conceptosGrupo.length = 0;
+          conceptosGrupo.push({
+            descripcion: `Abono Parcial a Deuda - Inmueble ${inmGrupo?.inmueble || ''}`,
+            precioUnit: montoReal,
+            total: montoReal
+          });
+        } else if (esAbono && grupos.length > 1 && montoReal > 0) {
+          const sumTotales = grupos.reduce((acc, g) => acc + (g.refs.length || 1), 0);
+          const porcion = Math.round((montoReal * ((grupo.refs.length || 1) / (sumTotales || 1))) * 100) / 100;
+          totalGrupo = porcion;
+          conceptosGrupo.length = 0;
+          conceptosGrupo.push({
+            descripcion: `Abono Parcial a Deuda - Inmueble ${inmGrupo?.inmueble || ''}`,
+            precioUnit: porcion,
+            total: porcion
+          });
+        } else if (totalGrupo <= 0 && grupos.length > 1 && montoReal > 0) {
+          const porcion = Math.round((montoReal / grupos.length) * 100) / 100;
+          totalGrupo = porcion;
+          conceptosGrupo.push({
+            descripcion: `Servicio de Aseo Urbano - Inmueble ${inmGrupo?.inmueble || ''}`,
+            precioUnit: porcion,
+            total: porcion
+          });
+        }
+
+        const refNum = grupos.length > 1 ? `${refNumBase}-${idx + 1}` : refNumBase;
+        const esResInm = isResidencialInm(inmGrupo);
+
+        return {
+          reciboNo: refNum,
+          controlWeb: `WEB-${refNum}`,
+          fechaEmision: new Date().toISOString().split('T')[0],
+          codContribuyente: inmGrupo?.inmueble || inmGrupo?.cod_cont || inmGrupo?.id || foundUser.Identidad,
+          razonSocial: inmGrupo?.contribuyente || foundUser.Contribuyente || '',
+          domicilioFiscal: ((inmGrupo?.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+          rifCi: foundUser.Identidad,
+          caja: cajero_id_recibo,
+          conceptos: conceptosGrupo.length > 0 ? conceptosGrupo : [{
+            descripcion: `Servicio de Aseo Urbano - Inmueble ${inmGrupo?.inmueble || ''}`,
+            precioUnit: totalGrupo || montoReal,
+            total: totalGrupo || montoReal
+          }],
+          subTotal: totalGrupo || montoReal,
+          exento: esResInm ? (totalGrupo || montoReal) : 0,
+          iva: esResInm ? 0 : parseFloat(((totalGrupo || montoReal) - ((totalGrupo || montoReal) / 1.16)).toFixed(2)),
+          total: totalGrupo || montoReal,
+          formaPago: formaPagoLabel,
+          banco: bancoLabel,
+          referencia: referencia || 'N/A',
+          tasaBcv: currentBcvRate || tcmmv || undefined,
+          tipoContribuyente: esResInm ? 'Residencial' : 'Comercial',
+          periodo: periodoDeRefs(grupo.refs),
+          esAbono: !!esAbono,
+          montoCancelado: esAbono ? (totalGrupo || montoReal) : undefined,
+          montoPendiente: esAbono ? montoPendiente : undefined,
+        };
+      });
+
+      return recibosGenerados;
+    };
     
     try {
       // ── CONTROL DE CONCURRENCIA ATÓMICO (PREVENCIÓN DE COBRO DOBLE MULTI-OPERADOR) ──
@@ -1878,7 +2299,8 @@ export default function CajaPage() {
         }
         ultimoPagoIdRef.current = pagoId;
         // ── GENERAR COMPROBANTE DE RETENCIÓN DE IVA COMO NOTA DE CRÉDITO ──
-        if (realMontoRetencionIVA > 0) {
+        // REGLA: La retención solo se genera/aplica cuando se cubra el pago total del mes (no para abonos parciales)
+        if (realMontoRetencionIVA > 0 && !esAbonoDebito) {
           const pagoRetId = crypto.randomUUID();
           await supabase.from('pagos_reportados').insert({
             id: pagoRetId,
@@ -2201,6 +2623,8 @@ export default function CajaPage() {
           }
         }
 
+
+
         if (esAbonoDebito) {
           (window as any).__lastPaymentAbono = { 
             esAbono: true, 
@@ -2209,34 +2633,17 @@ export default function CajaPage() {
             tasaBcv: currentBcvRate
           };
           try {
-            const cajero_id_recibo = getCajeroId();
-            const refNum = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
-            setReciboData({
-              reciboNo: refNum,
-              controlWeb: `WEB-${refNum}`,
-              fechaEmision: new Date().toISOString().split('T')[0],
-              codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
-              razonSocial: foundUser.Contribuyente || '',
-              domicilioFiscal: (foundUser.Direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
-              rifCi: foundUser.Identidad,
-              caja: cajero_id_recibo,
-              conceptos: [{
-                descripcion: `Abono Parcial a Deuda ${isCondominio ? 'Condominio' : ''}`,
-                precioUnit: montoReal,
-                total: montoReal
-              }],
-              subTotal: montoReal,
-              exento: montoReal,
-              iva: 0,
-              total: montoReal,
-              formaPago: paymentMethod === 'TMD' ? 'TMD (TARJETA CRÉDITO MASTER)' : paymentMethod === 'TVD' ? 'TVD (TARJETA CRÉDITO VISA)' : paymentMethod === 'Credito' ? 'TARJETA DE CRÉDITO' : paymentMethod === 'Debito' ? 'PUNTO DE VENTA (DÉBITO)' : paymentMethod,
+            const arr = armarRecibosCobro({
+              selectedRefs: selectedRecibos,
+              montoReal,
+              paymentMethod,
               banco: ['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod) ? paymentMethod : (banco || 'Debito'),
               referencia: reqRef ? referencia : referenciaDebito,
-              tasaBcv: currentBcvRate || tcmmv || undefined,
               esAbono: true,
-              montoCancelado: montoReal,
               montoPendiente: Math.max(0, (isCondominio ? totalDeudaCondominio : (foundUser.DeudaTotal || finalTotal)) - montoReal),
+              selectedHijosIds: selectedHijos
             });
+            setReciboData(arr.length === 1 ? arr[0] : arr);
           } catch(e) {}
         } else {
           (window as any).__lastPaymentAbono = { esAbono: false, tasaBcv: currentBcvRate };
@@ -2293,19 +2700,20 @@ export default function CajaPage() {
         if (!esAbonoDebito) {
           try {
             const cajero_id_recibo = getCajeroId();
-            if (isCondominio) {
-              const hijosPagados = condominioModo === 'Local'
-                ? condominioHijos.filter((h: any) => selectedHijos.includes(h.id))
-                : condominioHijos;
+            const poolHijos = (condominioHijos && condominioHijos.length > 0) ? condominioHijos : [];
+            const hijosPagados = selectedHijos.length > 0
+              ? poolHijos.filter((h: any) => selectedHijos.includes(h.id))
+              : (isCondominio && poolHijos.length > 0 ? poolHijos : []);
 
+            const refNumBase = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
+
+            if (hijosPagados.length > 1) {
               const MESES_C = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
               const hoyC = new Date();
-              // Mes i (1 = más antiguo) de una deuda de `total` meses que termina el mes pasado
               const mesDeuda = (total: number, i: number) => new Date(hoyC.getFullYear(), hoyC.getMonth() - total + i - 1, 1);
               const lblMes = (d: Date) => `${MESES_C[d.getMonth()]} ${d.getFullYear()}`;
-              const extremos: Date[] = [];
 
-              const conceptosCondo = hijosPagados.map((hijo: any) => {
+              const arrCondo = hijosPagados.map((hijo: any, idx: number) => {
                 const infoDebt = getHijoDebt(hijo);
                 const localDesc = getLocalLabel(hijo);
                 const nombreLocal = hijo.contribuyente ? ` - ${hijo.contribuyente}` : '';
@@ -2313,206 +2721,87 @@ export default function CajaPage() {
                 if (infoDebt.mesesTotales > 0 && infoDebt.mesesAPagar > 0) {
                   const ini = mesDeuda(infoDebt.mesesTotales, 1);
                   const fin = mesDeuda(infoDebt.mesesTotales, infoDebt.mesesAPagar);
-                  extremos.push(ini, fin);
                   rango = infoDebt.mesesAPagar === 1 ? lblMes(ini) : `${lblMes(ini)} a ${lblMes(fin)}`;
                 }
                 const descMeses = infoDebt.mesesTotales > 1
                   ? ` [${infoDebt.mesesAPagar} mes${infoDebt.mesesAPagar !== 1 ? 'es' : ''} cancelado${infoDebt.mesesAPagar !== 1 ? 's' : ''}${rango ? `: ${rango}` : ''}${infoDebt.mesesTotales > infoDebt.mesesAPagar ? ` • Restan ${infoDebt.mesesTotales - infoDebt.mesesAPagar}` : ' • Al día'}]`
                   : (rango ? ` [${rango}]` : '');
+
+                const refNum = `${refNumBase}-${idx + 1}`;
+                const esResInm = isResidencialInm(hijo);
+                const montoHijo = infoDebt.total > 0 ? infoDebt.total : parseFloat((montoReal / hijosPagados.length).toFixed(2));
                 return {
-                  descripcion: `Aseo Urbano - ${localDesc}${nombreLocal}${descMeses} (${hijo.inmueble || ''})`,
-                  precioUnit: infoDebt.total,
-                  total: infoDebt.total
+                  reciboNo: refNum,
+                  controlWeb: `WEB-${refNum}`,
+                  fechaEmision: new Date().toISOString().split('T')[0],
+                  codContribuyente: hijo.inmueble || hijo.id || foundUser.Identidad,
+                  razonSocial: hijo.contribuyente || foundUser.Contribuyente || '',
+                  domicilioFiscal: ((hijo.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+                  rifCi: foundUser.Identidad,
+                  caja: cajero_id_recibo,
+                  periodo: rango || undefined,
+                  conceptos: [{
+                    descripcion: `Aseo Urbano - ${localDesc}${nombreLocal}${descMeses} (${hijo.inmueble || ''})`,
+                    precioUnit: montoHijo,
+                    total: montoHijo
+                  }],
+                  subTotal: montoHijo,
+                  exento: esResInm ? montoHijo : 0,
+                  iva: esResInm ? 0 : parseFloat((montoHijo - (montoHijo / 1.16)).toFixed(2)),
+                  total: montoHijo,
+                  formaPago: 'PUNTO DE VENTA',
+                  banco: 'Debito',
+                  referencia: reqRef ? referencia : referenciaDebito,
+                  tasaBcv: currentBcvRate || tcmmv || undefined,
+                  tipoContribuyente: esResInm ? 'Residencial' : 'Comercial',
+                  esAbono: false,
                 };
               });
-              extremos.sort((a, b) => a.getTime() - b.getTime());
-              const periodoCondo = extremos.length === 0 ? undefined
-                : lblMes(extremos[0]) === lblMes(extremos[extremos.length - 1]) ? lblMes(extremos[0])
-                : `DESDE ${lblMes(extremos[0])} HASTA ${lblMes(extremos[extremos.length - 1])}`;
-
-              const refNum = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
+              setReciboData(arrCondo);
+            } else if (hijosPagados.length === 1) {
+              const hijo = hijosPagados[0];
+              const infoDebt = getHijoDebt(hijo);
+              const localDesc = getLocalLabel(hijo);
+              const nombreLocal = hijo.contribuyente ? ` - ${hijo.contribuyente}` : '';
+              const refNum = refNumBase;
+              const esResInm = isResidencialInm(hijo);
+              const montoHijo = infoDebt.total > 0 ? infoDebt.total : montoReal;
               setReciboData({
                 reciboNo: refNum,
                 controlWeb: `WEB-${refNum}`,
                 fechaEmision: new Date().toISOString().split('T')[0],
-                codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
-                razonSocial: foundUser.Contribuyente || '',
-                domicilioFiscal: (foundUser.Direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
+                codContribuyente: hijo.inmueble || hijo.id || foundUser.Identidad,
+                razonSocial: hijo.contribuyente || foundUser.Contribuyente || '',
+                domicilioFiscal: ((hijo.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
                 rifCi: foundUser.Identidad,
                 caja: cajero_id_recibo,
-                periodo: periodoCondo,
-                conceptos: conceptosCondo.length > 0 ? conceptosCondo : [{
-                  descripcion: `Cobro Consolidado Condominio (${condominioHijos.length} Unidades)`,
-                  precioUnit: montoReal,
-                  total: montoReal
+                conceptos: [{
+                  descripcion: `Aseo Urbano - ${localDesc}${nombreLocal} (${hijo.inmueble || ''})`,
+                  precioUnit: montoHijo,
+                  total: montoHijo
                 }],
-                subTotal: sumBase || montoReal,
-                exento: 0,
-                iva: sumIVA,
-                total: montoReal,
+                subTotal: montoHijo,
+                exento: esResInm ? montoHijo : 0,
+                iva: esResInm ? 0 : parseFloat((montoHijo - (montoHijo / 1.16)).toFixed(2)),
+                total: montoHijo,
                 formaPago: 'PUNTO DE VENTA',
                 banco: 'Debito',
                 referencia: reqRef ? referencia : referenciaDebito,
                 tasaBcv: currentBcvRate || tcmmv || undefined,
+                tipoContribuyente: esResInm ? 'Residencial' : 'Comercial',
                 esAbono: false,
               });
             } else {
-            const userInmsRec = (inmuebles as any[]).filter((i: any) =>
-              (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
-            );
-            const primerInm = userInmsRec[0];
-            const MESES_REC = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-            const getMesRec = (emision: string) => {
-              if (!emision) return '---';
-              const p = emision.split('-');
-              return p.length >= 2 ? `${MESES_REC[parseInt(p[1])-1]} ${p[0]}` : emision;
-            };
-            // Mes (YYYY-MM) al que corresponde una referencia pagada
-            const mesKeyDeRef = (ref: string): string | null => {
-              const f = recibos.find((r: any) => r.referencia === ref);
-              if (f?.emision) {
-                const p = String(f.emision).split('-');
-                if (p.length >= 2) return `${p[0]}-${p[1].slice(0, 2)}`;
-              }
-              const m = ref.match(/^RECIB-HIST-(.+)-M(\d+)$/);
-              if (m) {
-                const inmR = userInmsRec.find((i: any) => i.inmueble === m[1]);
-                const total = Math.max(1, parseInt(inmR?.meses_deuda || '0') || 0);
-                const hoyR = new Date();
-                const d = new Date(hoyR.getFullYear(), hoyR.getMonth() - total + parseInt(m[2]) - 1, 1);
-                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-              }
-              const cm = ref.match(/-(\d{2})-(\d{4})$/);
-              if (cm) return `${cm[2]}-${cm[1]}`;
-              return null;
-            };
-            const etiquetaMes = (ref: string) => { const k = mesKeyDeRef(ref); return k ? getMesRec(k) : ''; };
-            const periodoDeKeys = (keys: (string | null)[]) => {
-              const ks = [...new Set(keys.filter(Boolean) as string[])].sort();
-              if (ks.length === 0) return undefined;
-              if (ks.length === 1) return getMesRec(ks[0]);
-              return `DESDE ${getMesRec(ks[0])} HASTA ${getMesRec(ks[ks.length - 1])} (${ks.length} MESES)`;
-            };
-            const periodoDeRefs = (refs: string[]) => periodoDeKeys(refs.filter(r => !/^MULTA-/i.test(r)).map(mesKeyDeRef));
-
-            // Agrupar facturas seleccionadas por inmueble
-            const facturasPorInmueble: Record<string, { inm: any; refs: string[] }> = {};
-            selectedRecibos.forEach((ref: string) => {
-              // Extraer código de inmueble de la referencia CM-I-000080-09-2026
-              const matchedInm = userInmsRec.find((i: any) => i.inmueble && ref.includes(i.inmueble));
-              const inmKey = matchedInm?.inmueble || '__general__';
-              if (!facturasPorInmueble[inmKey]) {
-                facturasPorInmueble[inmKey] = { inm: matchedInm || primerInm, refs: [] };
-              }
-              facturasPorInmueble[inmKey].refs.push(ref);
-            });
-
-            const grupos = Object.values(facturasPorInmueble);
-            const recibosArray = grupos.map((grupo, idx) => {
-              const inmGrupo = grupo.inm || primerInm;
-              const conceptosGrupo: any[] = [];
-              grupo.refs.forEach((ref: string) => {
-                if (ref.startsWith('RECIB-HIST-')) {
-                  const pDet = pagosPendientes.find((p: any) => p.facturas && p.facturas[0]?.referencia === ref);
-                  if (pDet && pDet.facturas && pDet.facturas[0]) {
-                    const f = pDet.facturas[0];
-                    conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Base Imponible`, precioUnit: parseFloat(f.base), total: parseFloat(f.base) });
-                    if (parseFloat(f.iva) > 0) {
-                      conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - IVA (16%)`, precioUnit: parseFloat(f.iva), total: parseFloat(f.iva) });
-                    }
-                    const porcentajeMulta = f.clasificacion.toLowerCase().includes('residencial') ? '10%' : '12%';
-                    if (parseFloat(f.multa) > 0) {
-                      conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Multa (${porcentajeMulta})`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
-                    }
-                  } else {
-                    const parts = ref.split('-');
-                    const inmId = parts[2];
-                    const inm = userInmsRec.find((i: any) => i.inmueble === inmId) || inmuebles.find((i: any) => i.inmueble === inmId) || primerInm;
-                    const esRes = isResidencialInm(inm);
-                    const bm = parseFloat(calcularMensualidad(inm, currentBcvRate).toFixed(2));
-                    const f = recibos.find((r: any) => r.referencia === ref);
-                    const emision = f?.emision ? new Date(f.emision) : new Date();
-                    const today = new Date();
-                    const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-                    const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
-                    const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
-                    const isUltimoMes = mesNum >= totalMeses || monthsDiff <= 1;
-                    const esMesExon = isMesExoneradoMulta(inm?.notas, emision);
-                    const multa = (!isUltimoMes && monthsDiff > 1 && !esMesExon) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
-                    const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
-                    conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - Base Imponible`, precioUnit: bm, total: bm });
-                    if (iva > 0) {
-                      conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - IVA (16%)`, precioUnit: iva, total: iva });
-                    }
-                    if (multa > 0) {
-                      conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - Multa (${esRes ? '10%' : '12%'})`, precioUnit: multa, total: multa });
-                    }
-                  }
-                } else {
-                  const f = recibos.find((r: any) => r.referencia === ref);
-                  const montoF = f ? parseFloat(getReciboMonto(f) || '0') : 0;
-                  conceptosGrupo.push({
-                    descripcion: `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${getMesRec(f?.emision || '')}`,
-                    precioUnit: montoF,
-                    total: montoF
-                  });
-                }
-              });
-              const totalGrupo = conceptosGrupo.reduce((s: number, c: any) => s + c.total, 0);
-              const refNum = (grupo.refs[0] || '').split('-').pop()?.padStart(7, '0') || String(idx + 1).padStart(7, '0');
-              return {
-                reciboNo: refNum,
-                controlWeb: `WEB-${refNum}`,
-                fechaEmision: new Date().toISOString().split('T')[0],
-                codContribuyente: inmGrupo?.cod_cont || foundUser.Identidad,
-                razonSocial: inmGrupo?.contribuyente || foundUser.Contribuyente || '',
-                domicilioFiscal: ((inmGrupo?.direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
-                rifCi: foundUser.Identidad,
-                caja: cajero_id_recibo,
-                conceptos: conceptosGrupo,
-                subTotal: totalGrupo,
-                exento: totalGrupo,
-                iva: 0,
-                total: totalGrupo,
-                formaPago: 'PUNTO DE VENTA',
-                banco: 'Debito',
-                referencia: reqRef ? referencia : referenciaDebito,
-                tasaBcv: currentBcvRate || tcmmv || undefined,
-                tipoContribuyente: 'Residencial',
-                periodo: periodoDeRefs(grupo.refs),
-              };
-            });
-
-            if (recibosArray.length === 0) {
-              const refNum = (referenciaDebito || Date.now().toString()).slice(-7).padStart(7, '0');
-              setReciboData({
-                reciboNo: refNum,
-                controlWeb: `WEB-${refNum}`,
-                fechaEmision: new Date().toISOString().split('T')[0],
-                codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
-                razonSocial: foundUser.Contribuyente || '',
-                domicilioFiscal: ((foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
-                rifCi: foundUser.Identidad,
-                caja: cajero_id_recibo,
-                periodo: periodoDeRefs(selectedRecibos),
-                conceptos: [{
-                  descripcion: `Servicio de Aseo Urbano y Domiciliario`,
-                  precioUnit: montoReal,
-                  total: montoReal
-                }],
-                subTotal: montoReal,
-                exento: montoReal,
-                iva: 0,
-                total: montoReal,
-                formaPago: paymentMethod === 'TMD' ? 'TMD (TARJETA CRÉDITO MASTER)' : paymentMethod === 'TVD' ? 'TVD (TARJETA CRÉDITO VISA)' : paymentMethod === 'Credito' ? 'TARJETA DE CRÉDITO' : paymentMethod === 'Debito' ? 'PUNTO DE VENTA (DÉBITO)' : paymentMethod,
+              const arr = armarRecibosCobro({
+                selectedRefs: selectedRecibos,
+                montoReal,
+                paymentMethod,
                 banco: ['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod) ? paymentMethod : (banco || 'Debito'),
                 referencia: reqRef ? referencia : referenciaDebito,
-                tasaBcv: currentBcvRate || tcmmv || undefined,
-                tipoContribuyente: isResidencialInm(foundUser) ? 'Residencial' : 'Comercial',
+                esAbono: false,
+                selectedHijosIds: selectedHijos
               });
-            } else {
-              setReciboData(recibosArray.length === 1 ? recibosArray[0] : recibosArray);
-            }
+              setReciboData(arr.length === 1 ? arr[0] : arr);
             }
           } catch(rErr) { console.warn('Error al generar recibo automático:', rErr); }
         }
@@ -2618,7 +2907,8 @@ export default function CajaPage() {
         if (pErr) throw pErr;
         ultimoPagoIdRef.current = pagoIdT;
         // ── GENERAR COMPROBANTE DE RETENCIÓN DE IVA COMO NOTA DE CRÉDITO ──
-        if (realMontoRetencionIVA > 0) {
+        // REGLA: La retención solo se genera/aplica cuando se cubra el pago total del mes (no para abonos parciales)
+        if (realMontoRetencionIVA > 0 && !esAbono) {
           const pagoRetId = crypto.randomUUID();
           await supabase.from('pagos_reportados').insert({
             id: pagoRetId,
@@ -2675,7 +2965,16 @@ export default function CajaPage() {
           await updateServiciosEspecialesEstado(selectedServicios, 'Por Verificar');
         }
 
-        setSuccessMsg(`${paymentMethod} registrado(a). Ha sido enviado(a) al módulo de Emisión de recibos para su conciliación automática o manual.`);
+        const montoStr = montoReal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        setSuccessMsg(`✅ ${paymentMethod} registrado(a) con éxito. MONTO POR CONCILIAR: Bs. ${montoStr} (Ref: ${referencia || 'S/R'}). Ha sido enviado al módulo de Conciliación.`);
+        setNotificacionConciliacion({
+          monto: montoReal,
+          referencia: referencia || 'S/R',
+          visible: true
+        });
+        setPagosPorConciliar(prev => [...prev, { referencia: referencia || 'S/R', monto: montoReal, tipo: paymentMethod }]);
+        setMontoPorConciliar(prev => prev + montoReal);
+
         // ── AUDITORÍA: Transferencia registrada ──
         logAudit(`${paymentMethod} Registrada (Por Verificar)`, {
           contribuyente: foundUser.Contribuyente,
@@ -2688,34 +2987,113 @@ export default function CajaPage() {
           es_abono: esAbono,
         }, 'TRANSFERENCIA');
 
-        // Generar recibo de constancia de pago para transferencia
+        // Generar recibos independientes por inmueble para transferencia
         try {
+          const poolHijos = (condominioHijos && condominioHijos.length > 0) ? condominioHijos : [];
+          const hijosPagados = selectedHijos.length > 0
+            ? poolHijos.filter((h: any) => selectedHijos.includes(h.id))
+            : (isCondominio && poolHijos.length > 0 ? poolHijos : []);
+
           const cajero_id_recibo = getCajeroId();
-          const refNum = (referencia || Date.now().toString()).slice(-7).padStart(7, '0');
-          setReciboData({
-            reciboNo: refNum,
-            controlWeb: `WEB-${refNum}`,
-            fechaEmision: new Date().toISOString().split('T')[0],
-            codContribuyente: foundUser.Identidad || foundUser.cod_cont || '',
-            razonSocial: foundUser.Contribuyente || '',
-            domicilioFiscal: ((foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
-            rifCi: foundUser.Identidad,
-            caja: cajero_id_recibo,
-            conceptos: [{
-              descripcion: `Pago en Verificación (${paymentMethod}) - Servicio de Aseo Urbano`,
-              precioUnit: montoReal,
-              total: montoReal
-            }],
-            subTotal: montoReal,
-            exento: montoReal,
-            iva: 0,
-            total: montoReal,
-            formaPago: 'TRANSFERENCIA',
-            banco: banco || 'Transferencia',
-            referencia: referencia || 'N/A',
-            tasaBcv: currentBcvRate || tcmmv || undefined,
-            tipoContribuyente: isResidencialInm(foundUser) ? 'Residencial' : 'Comercial',
-          });
+          const refNumBase = (referencia || Date.now().toString()).slice(-7).padStart(7, '0');
+
+          if (hijosPagados.length > 1) {
+            const MESES_C = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+            const hoyC = new Date();
+            const mesDeuda = (total: number, i: number) => new Date(hoyC.getFullYear(), hoyC.getMonth() - total + i - 1, 1);
+            const lblMes = (d: Date) => `${MESES_C[d.getMonth()]} ${d.getFullYear()}`;
+
+            const arrCondo = hijosPagados.map((hijo: any, idx: number) => {
+              const infoDebt = getHijoDebt(hijo);
+              const localDesc = getLocalLabel(hijo);
+              const nombreLocal = hijo.contribuyente ? ` - ${hijo.contribuyente}` : '';
+              let rango = '';
+              if (infoDebt.mesesTotales > 0 && infoDebt.mesesAPagar > 0) {
+                const ini = mesDeuda(infoDebt.mesesTotales, 1);
+                const fin = mesDeuda(infoDebt.mesesTotales, infoDebt.mesesAPagar);
+                rango = infoDebt.mesesAPagar === 1 ? lblMes(ini) : `${lblMes(ini)} a ${lblMes(fin)}`;
+              }
+              const descMeses = infoDebt.mesesTotales > 1
+                ? ` [${infoDebt.mesesAPagar} mes${infoDebt.mesesAPagar !== 1 ? 'es' : ''} cancelado${infoDebt.mesesAPagar !== 1 ? 's' : ''}${rango ? `: ${rango}` : ''}${infoDebt.mesesTotales > infoDebt.mesesAPagar ? ` • Restan ${infoDebt.mesesTotales - infoDebt.mesesAPagar}` : ' • Al día'}]`
+                : (rango ? ` [${rango}]` : '');
+
+              const refNum = `${refNumBase}-${idx + 1}`;
+              const esResInm = isResidencialInm(hijo);
+              const montoHijo = infoDebt.total > 0 ? infoDebt.total : parseFloat((montoReal / hijosPagados.length).toFixed(2));
+              return {
+                reciboNo: refNum,
+                controlWeb: `WEB-${refNum}`,
+                fechaEmision: new Date().toISOString().split('T')[0],
+                codContribuyente: hijo.inmueble || hijo.id || foundUser.Identidad,
+                razonSocial: hijo.contribuyente || foundUser.Contribuyente || '',
+                domicilioFiscal: ((hijo.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+                rifCi: foundUser.Identidad,
+                caja: cajero_id_recibo,
+                periodo: rango || undefined,
+                conceptos: [{
+                  descripcion: `Aseo Urbano - ${localDesc}${nombreLocal}${descMeses} (${hijo.inmueble || ''})`,
+                  precioUnit: montoHijo,
+                  total: montoHijo
+                }],
+                subTotal: montoHijo,
+                exento: esResInm ? montoHijo : 0,
+                iva: esResInm ? 0 : parseFloat((montoHijo - (montoHijo / 1.16)).toFixed(2)),
+                total: montoHijo,
+                formaPago: 'TRANSFERENCIA',
+                banco: banco || 'Transferencia',
+                referencia: referencia || 'N/A',
+                tasaBcv: currentBcvRate || tcmmv || undefined,
+                tipoContribuyente: esResInm ? 'Residencial' : 'Comercial',
+                esAbono: !!esAbono,
+              };
+            });
+            setReciboData(arrCondo);
+          } else if (hijosPagados.length === 1) {
+            const hijo = hijosPagados[0];
+            const infoDebt = getHijoDebt(hijo);
+            const localDesc = getLocalLabel(hijo);
+            const nombreLocal = hijo.contribuyente ? ` - ${hijo.contribuyente}` : '';
+            const refNum = refNumBase;
+            const esResInm = isResidencialInm(hijo);
+            const montoHijo = infoDebt.total > 0 ? infoDebt.total : montoReal;
+            setReciboData({
+              reciboNo: refNum,
+              controlWeb: `WEB-${refNum}`,
+              fechaEmision: new Date().toISOString().split('T')[0],
+              codContribuyente: hijo.inmueble || hijo.id || foundUser.Identidad,
+              razonSocial: hijo.contribuyente || foundUser.Contribuyente || '',
+              domicilioFiscal: ((hijo.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+              rifCi: foundUser.Identidad,
+              caja: cajero_id_recibo,
+              conceptos: [{
+                descripcion: `Aseo Urbano - ${localDesc}${nombreLocal} (${hijo.inmueble || ''})`,
+                precioUnit: montoHijo,
+                total: montoHijo
+              }],
+              subTotal: montoHijo,
+              exento: esResInm ? montoHijo : 0,
+              iva: esResInm ? 0 : parseFloat((montoHijo - (montoHijo / 1.16)).toFixed(2)),
+              total: montoHijo,
+              formaPago: 'TRANSFERENCIA',
+              banco: banco || 'Transferencia',
+              referencia: referencia || 'N/A',
+              tasaBcv: currentBcvRate || tcmmv || undefined,
+              tipoContribuyente: esResInm ? 'Residencial' : 'Comercial',
+              esAbono: !!esAbono,
+            });
+          } else {
+            const arr = armarRecibosCobro({
+              selectedRefs: selectedRecibos,
+              montoReal,
+              paymentMethod: 'Transferencia',
+              banco: banco || 'Transferencia',
+              referencia: referencia || 'N/A',
+              esAbono: !!esAbono,
+              montoPendiente: esAbono ? Math.max(0, (foundUser.DeudaTotal || finalTotal) - montoReal) : undefined,
+              selectedHijosIds: selectedHijos
+            });
+            setReciboData(arr.length === 1 ? arr[0] : arr);
+          }
         } catch(e) {}
       }
 
@@ -2772,6 +3150,68 @@ export default function CajaPage() {
     setIsProcessing(false);
   };
 
+  const parseNotaDetalles = (d: any) => {
+    if (!d) return {};
+    if (typeof d === 'object') return d;
+    try { return JSON.parse(d); } catch { return {}; }
+  };
+
+  const fetchContribNotas = async (identidad: string) => {
+    if (!identidad) return;
+    setLoadingNotas(true);
+    try {
+      const idClean = identidad.trim().toUpperCase();
+      const sinGuion = idClean.replace(/-/g, '');
+      const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : idClean;
+      const variantes = [...new Set([idClean, sinGuion, conGuion].filter(Boolean))];
+
+      const { data, error } = await supabase
+        .from('documentos')
+        .select('*')
+        .eq('tipo', 'Nota de Credito')
+        .in('identidad', variantes)
+        .order('id', { ascending: false });
+
+      if (error) console.error('Error cargando notas de credito:', error);
+      setContribNotas(data || []);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setLoadingNotas(false);
+    }
+  };
+
+  const handleEliminarNota = async (nota: any) => {
+    const det = parseNotaDetalles(nota.detalles);
+    const montoNota = parseFloat(det.monto || '0') || 0;
+    if (!confirm(`¿Está seguro de eliminar esta Nota de Crédito por Bs. ${montoNota.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}?\n\nAl eliminarla, se anulará el documento y se descontará del saldo a favor del contribuyente.`)) return;
+
+    try {
+      const { error: delErr } = await supabase.from('documentos').delete().eq('id', nota.id);
+      if (delErr) throw delErr;
+
+      if (montoNota > 0 && foundUser) {
+        await descontarSaldoFavor(foundUser.Identidad, montoNota, foundUser.CodCont || foundUser.cod_cont);
+      }
+
+      await logAudit('Nota de Crédito Eliminada', {
+        nota_id: nota.id,
+        identidad: nota.identidad,
+        contribuyente: nota.contribuyente,
+        monto_bs: montoNota,
+        detalles: nota.detalles
+      }, 'CAJA', 'CRITICA');
+
+      alert('Nota de crédito eliminada y saldo a favor descontado exitosamente.');
+      if (foundUser?.Identidad) {
+        await fetchContribNotas(foundUser.Identidad);
+        await refreshUserData(foundUser.Identidad);
+      }
+    } catch (err: any) {
+      alert('Error eliminando nota de crédito: ' + err.message);
+    }
+  };
+
   const handleCrearNotaManual = async () => {
     const montoNota = parseLocalFloat(notaManualMonto);
     if (!montoNota || montoNota <= 0) return alert('Ingrese un monto válido');
@@ -2806,9 +3246,12 @@ export default function CajaPage() {
       setFoundUser({ ...foundUser, SaldoFavor: (foundUser.SaldoFavor || 0) + montoNota });
       
       setSuccessMsg('Nota de crédito manual generada exitosamente.');
-      setIsNotaModalOpen(false);
       setNotaManualMonto('');
       setNotaManualRef('');
+      setNotaTab('lista');
+      if (foundUser?.Identidad) {
+        await fetchContribNotas(foundUser.Identidad);
+      }
       setTimeout(() => setSuccessMsg(''), 4000);
       refreshUserData(foundUser.Identidad); // Refresh user data properly
     } catch (e: any) {
@@ -3156,13 +3599,77 @@ export default function CajaPage() {
 
       {foundUser && (
         <div className="space-y-6">
+          {/* Banner de Pagos / Abonos Por Conciliar */}
+          {montoPorConciliar > 0 && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 p-4 rounded-xl flex items-start gap-3 shadow-sm">
+              <div className="p-2 bg-amber-200/80 rounded-lg text-amber-900 text-xl font-bold shrink-0">⚠️</div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h3 className="text-sm font-extrabold text-amber-950 uppercase tracking-wide">
+                    Atención en Caja: Pagos / Abonos Por Conciliar
+                  </h3>
+                  <span className="text-xs font-bold bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300">
+                    {pagosPorConciliar.length} {pagosPorConciliar.length === 1 ? 'operación pendiente' : 'operaciones pendientes'}
+                  </span>
+                </div>
+                <p className="text-xs text-amber-900 mt-1">
+                  Este contribuyente tiene un monto acumulado por conciliar de{' '}
+                  <strong className="text-sm font-black text-amber-950">
+                    Bs. {montoPorConciliar.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </strong>
+                  {' '}en el módulo de Conciliación bancaria.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {pagosPorConciliar.map((p: any, idx: number) => (
+                    <span key={idx} className="text-[11px] bg-white border border-amber-300 text-amber-900 px-2 py-0.5 rounded-md font-mono font-semibold shadow-2xs">
+                      Ref: {p.referencia || 'S/R'} — Bs. {parseFloat(p.monto || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({p.tipo || 'Transferencia'})
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Notificación flotante / destacada tras registrar pago por conciliar */}
+          {notificacionConciliacion && notificacionConciliacion.visible && (
+            <div className="bg-emerald-50 border-2 border-emerald-500 p-4 rounded-xl flex items-start justify-between gap-3 shadow-md">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-emerald-200 rounded-lg text-emerald-900 text-xl font-bold shrink-0">✅</div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-emerald-950 uppercase tracking-wide">
+                    Pago Registrado — Pendiente por Conciliar
+                  </h3>
+                  <p className="text-xs text-emerald-800 mt-1">
+                    Monto pendiente por conciliar: <strong className="text-sm font-black text-emerald-950">Bs. {notificacionConciliacion.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    {notificacionConciliacion.referencia ? ` (Ref: ${notificacionConciliacion.referencia})` : ''}.
+                    La operación se ha enviado a Conciliación.
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setNotificacionConciliacion(null)}
+                className="text-emerald-700 hover:text-emerald-900 font-bold text-xs px-2 py-1 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors cursor-pointer"
+              >
+                ✕ Cerrar
+              </button>
+            </div>
+          )}
+
           <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row items-start justify-between gap-4">
             <div className="flex-1 w-full overflow-hidden">
               <div className="flex items-center gap-4 flex-wrap">
                 <h2 className="text-xl font-bold text-slate-800">{foundUser.Contribuyente}</h2>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setIsNotaModalOpen(true)} className="text-[10px] sm:text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-full border border-slate-300 transition-colors">
-                    + Agregar Saldo a Favor / Nota Manual
+                  <button 
+                    onClick={() => { 
+                      setIsNotaModalOpen(true); 
+                      setNotaTab('lista');
+                      if (foundUser?.Identidad) fetchContribNotas(foundUser.Identidad); 
+                    }} 
+                    className="text-[10px] sm:text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-full border border-slate-300 transition-colors flex items-center gap-1.5"
+                  >
+                    <span>📜</span>
+                    <span>Notas de Crédito / Saldo a Favor</span>
                   </button>
                   <label className="flex items-center gap-1.5 cursor-pointer bg-violet-50 hover:bg-violet-100 border border-violet-200 px-3 py-1.5 rounded-full transition-colors">
                     <input 
@@ -4954,7 +5461,7 @@ export default function CajaPage() {
                         setReferencia(val);
                         setDupRefWarning('');
                         if (val.length >= 4) {
-                          const { data } = await supabase.from('pagos_reportados').select('id').eq('referencia', val).limit(1);
+                          const { data } = await supabase.from('pagos_reportados').select('id').eq('referencia', val).neq('estado', 'Rechazado').limit(1);
                           if (data && data.length > 0) setDupRefWarning(`âš ï¸ Esta referencia "${val}" ya fue registrada antes.`);
                         }
                       }}
@@ -5366,38 +5873,161 @@ export default function CajaPage() {
         </div>
       )}
 
-      {/* Modal Nota Manual */}
+      {/* Modal Saldo a Favor / Notas de Crédito */}
       {isNotaModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
-              <h3 className="font-bold text-slate-800">Generar Nota de Crédito Manual</h3>
-              <button onClick={() => setIsNotaModalOpen(false)} className="text-slate-500 hover:text-slate-700 font-bold">&times;</button>
-            </div>
-            <div className="p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Monto (Bs)</label>
-                <input 
-                  type="number" step="0.01" 
-                  value={notaManualMonto} onChange={e => setNotaManualMonto(e.target.value)}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                  placeholder="Ej. 1000.00"
-                />
+                <h3 className="font-bold text-slate-800 text-base">Notas de Crédito y Saldo a Favor</h3>
+                <p className="text-xs text-slate-500 font-medium">{foundUser?.Contribuyente} ({foundUser?.Identidad})</p>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Motivo / Referencia Origen (8 caracteres)</label>
-                <input 
-                  type="text" 
-                  maxLength={8}
-                  value={notaManualRef} onChange={e => setNotaManualRef(e.target.value.slice(0, 8))}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                  placeholder="Ej. 12345678"
-                />
-              </div>
+              <button onClick={() => setIsNotaModalOpen(false)} className="text-slate-400 hover:text-slate-700 text-2xl leading-none font-bold">&times;</button>
             </div>
-            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-end gap-3">
-              <button onClick={() => setIsNotaModalOpen(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded">Cancelar</button>
-              <button onClick={handleCrearNotaManual} className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded shadow-sm">Generar Nota</button>
+
+            {/* Tabs */}
+            <div className="flex border-b border-slate-200 bg-slate-100/70 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setNotaTab('lista')}
+                className={`flex-1 py-2.5 px-4 text-center transition-colors border-b-2 ${
+                  notaTab === 'lista'
+                    ? 'border-emerald-600 text-emerald-700 bg-white font-bold'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📜 Notas Registradas ({contribNotas.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setNotaTab('crear')}
+                className={`flex-1 py-2.5 px-4 text-center transition-colors border-b-2 ${
+                  notaTab === 'crear'
+                    ? 'border-emerald-600 text-emerald-700 bg-white font-bold'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                ➕ Generar Nueva Nota
+              </button>
+            </div>
+
+            <div className="p-5 max-h-[60vh] overflow-y-auto">
+              {notaTab === 'lista' ? (
+                <div className="space-y-3">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex justify-between items-center">
+                    <div>
+                      <span className="text-[11px] uppercase font-bold text-emerald-700 tracking-wider block">Saldo a Favor Actual</span>
+                      <span className="text-xl font-extrabold text-emerald-800">
+                        Bs. {(foundUser?.SaldoFavor || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNotaTab('crear')}
+                      className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg transition-colors shadow-xs"
+                    >
+                      + Nueva Nota
+                    </button>
+                  </div>
+
+                  {loadingNotas ? (
+                    <div className="py-8 text-center text-slate-400 text-xs animate-pulse">Cargando notas de crédito...</div>
+                  ) : contribNotas.length === 0 ? (
+                    <div className="py-8 text-center">
+                      <div className="text-3xl mb-2">📄</div>
+                      <p className="text-sm font-semibold text-slate-700">No hay notas de crédito registradas</p>
+                      <p className="text-xs text-slate-500 mt-1">Este contribuyente no posee notas de crédito vigentes en el sistema.</p>
+                      <button
+                        type="button"
+                        onClick={() => setNotaTab('crear')}
+                        className="mt-3 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg border border-slate-300"
+                      >
+                        Crear la primera nota
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                      {contribNotas.map((n: any) => {
+                        const det = parseNotaDetalles(n.detalles);
+                        const monto = parseFloat(det.monto || '0') || 0;
+                        const fecha = det.fecha_emision ? new Date(det.fecha_emision).toLocaleDateString('es-VE') : (n.created_at ? new Date(n.created_at).toLocaleDateString('es-VE') : 'N/A');
+                        const ref = det.origen_referencia || 'Manual';
+
+                        return (
+                          <div key={n.id} className="p-3 bg-white hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-slate-800">Bs. {monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${n.estado === 'Vigente' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                                  {n.estado || 'Vigente'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 truncate mt-0.5">
+                                <span className="font-semibold text-slate-700">Origen:</span> {ref} &bull; <span className="text-slate-400">{fecha}</span>
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-mono truncate">ID: {n.id}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleEliminarNota(n)}
+                              title="Eliminar Nota de Crédito y descontar saldo"
+                              className="text-xs bg-red-50 hover:bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-lg border border-red-200 transition-colors flex items-center gap-1 shrink-0"
+                            >
+                              <span>🗑️</span>
+                              <span>Eliminar</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                    💡 Al generar una nota de crédito manual, se aumentará inmediatamente el <strong>saldo a favor</strong> del contribuyente para ser usado en sus próximos pagos en Caja.
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Monto de la Nota (Bs)</label>
+                    <input 
+                      type="number" step="0.01" 
+                      value={notaManualMonto} onChange={e => setNotaManualMonto(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                      placeholder="Ej. 1000.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Motivo / Referencia Origen (8 caracteres)</label>
+                    <input 
+                      type="text" 
+                      maxLength={8}
+                      value={notaManualRef} onChange={e => setNotaManualRef(e.target.value.slice(0, 8))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none uppercase font-mono"
+                      placeholder="Ej. 12345678"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">{notaManualRef.length}/8 caracteres</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+              <button 
+                type="button"
+                onClick={() => setIsNotaModalOpen(false)} 
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Cerrar
+              </button>
+              {notaTab === 'crear' && (
+                <button 
+                  type="button"
+                  onClick={handleCrearNotaManual} 
+                  className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors"
+                >
+                  Generar Nota
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -5490,9 +6120,13 @@ export default function CajaPage() {
             <div className="p-4">
               {Array.isArray(reciboData)
                 ? reciboData.map((rd: any, idx: number) => (
-                    <div key={idx} className={idx > 0 ? 'mt-6 pt-6 border-t border-slate-200' : ''}>
+                    <div
+                      key={idx}
+                      className={idx > 0 ? 'mt-6 pt-6 border-t border-slate-200 print:mt-0 print:pt-0 print:border-none print:break-before-page' : 'print:break-inside-avoid'}
+                      style={{ breakBefore: idx > 0 ? 'page' : 'auto', pageBreakBefore: idx > 0 ? 'always' : 'auto' }}
+                    >
                       {reciboData.length > 1 && (
-                        <div className="text-xs font-bold text-slate-500 uppercase mb-2">Recibo {idx + 1} de {reciboData.length} — Inmueble: {rd.codContribuyente}</div>
+                        <div className="text-xs font-bold text-slate-500 uppercase mb-2 print:hidden">Recibo {idx + 1} de {reciboData.length} — Inmueble: {rd.codContribuyente}</div>
                       )}
                       <ReciboImprimible data={rd} />
                     </div>

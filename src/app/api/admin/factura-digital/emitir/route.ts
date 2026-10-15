@@ -194,7 +194,9 @@ export async function POST(request: Request) {
     const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     const obtenerMesAseoTexto = (fechaBase?: string | Date) => {
+      if (detPago?.concepto) return String(detPago.concepto);
       if (detPago?.mes_aseo) return String(detPago.mes_aseo);
+      if (detPago?.detalle) return String(detPago.detalle);
       const d = new Date(fechaBase || detPago?.fecha_transaccion || pagoRow?.created_at || fechaActual);
       if (!isNaN(d.getTime())) {
         // En aseo urbano de Naguanagua, los pagos realizados en el mes M corresponden al mes M-1 (ej. en Octubre se factura Septiembre)
@@ -305,16 +307,20 @@ export async function POST(request: Request) {
           periodoNombre = `${MESES_NOMBRES[dFac.getUTCMonth()]} ${dFac.getUTCFullYear()}`;
         }
       }
-      const descItem = periodoNombre
-        ? `Servicio de Aseo Urbano${esMixto ? ' (porción comercial)' : ''} - Mes de ${periodoNombre} (${fac.referencia})`
-        : `Servicio de Aseo Urbano${esMixto ? ' (porción comercial)' : ''} - ${fac.referencia}`;
+      const descItem = concepto
+        ? (facturasComerciales.length > 1 ? `${String(concepto).trim()} (${fac.referencia})` : String(concepto).trim())
+        : (detPago?.concepto
+            ? (facturasComerciales.length > 1 ? `${String(detPago.concepto).trim()} (${fac.referencia})` : String(detPago.concepto).trim())
+            : (periodoNombre
+                ? `Servicio de Aseo Urbano${esMixto ? ' (porción comercial)' : ''} - Mes de ${periodoNombre} (${fac.referencia})`
+                : `Servicio de Aseo Urbano${esMixto ? ' (porción comercial)' : ''} - ${fac.referencia}`));
 
       return {
         NumeroLinea:             String(lineaNum),
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             descItem,
+        Descripcion:             descItem.slice(0, 250),
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          montoItem.toFixed(2),
@@ -352,7 +358,7 @@ export async function POST(request: Request) {
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             `Servicio de Aseo Urbano - Período ${h.periodoNombre || h.ref}`,
+        Descripcion:             (concepto ? (histItems.length > 1 ? `${String(concepto).trim()} (${h.ref})` : String(concepto).trim()) : (detPago?.concepto ? (histItems.length > 1 ? `${String(detPago.concepto).trim()} (${h.ref})` : String(detPago.concepto).trim()) : `Servicio de Aseo Urbano - Período ${h.periodoNombre || h.ref}`)).slice(0, 250),
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          baseFinal.toFixed(2),
@@ -488,7 +494,7 @@ export async function POST(request: Request) {
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             `Servicio de Aseo Urbano - Mes de ${obtenerMesAseoTexto()} - Condominio ${contribuyente || 'General'}`.slice(0, 250),
+        Descripcion:             (concepto || detPago?.concepto || `Servicio de Aseo Urbano - Mes de ${obtenerMesAseoTexto()} - Condominio ${contribuyente || 'General'}`).slice(0, 250),
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          base.toFixed(2),
@@ -525,7 +531,7 @@ export async function POST(request: Request) {
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             concepto || `Servicio de Aseo Urbano Comercial - Mes de ${obtenerMesAseoTexto()} - ${contribuyente || 'General'}`,
+        Descripcion:             (concepto || detPago?.concepto || detPago?.mes_aseo || `Servicio de Aseo Urbano Comercial - Mes de ${obtenerMesAseoTexto()} - ${contribuyente || 'General'}`).slice(0, 250),
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          base.toFixed(2),

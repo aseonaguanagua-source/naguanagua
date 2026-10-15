@@ -129,6 +129,7 @@ function Caja() {
   const [notasCredito, setNotasCredito] = useState<any[]>([]);
   const [isLoadingNotas, setIsLoadingNotas] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [calcTrigger, setCalcTrigger] = useState(0);
 
   // Computado de deuda tras aplicar Saldo a Favor
   const totalConImpuestos = cobro?.totales?.totalBs || 0;
@@ -147,9 +148,46 @@ function Caja() {
 
   const fetchNotasCredito = async () => {
     setIsLoadingNotas(true);
-    const { data } = await supabase.from('documentos').select('*').eq('tipo', 'Nota de Credito').order('created_at', { ascending: false });
-    if (data) setNotasCredito(data);
-    setIsLoadingNotas(false);
+    try {
+      let qDoc = supabase.from('documentos').select('*').eq('tipo', 'Nota de Credito').order('created_at', { ascending: false });
+      if (c) {
+        const idents = [c.identidad, c.codigo].filter(Boolean);
+        qDoc = qDoc.or(`identidad.in.(${idents.join(',')}),contribuyente.ilike.%${c.nombre || ''}%`);
+      }
+      const { data } = await qDoc;
+      if (data) setNotasCredito(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingNotas(false);
+    }
+  };
+
+  const handleEliminarNota = async (docId: string, monto: number) => {
+    if (!confirm(`¿Está seguro de quitar y eliminar esta Nota de Crédito por Bs. ${formatBs(monto)}?\n\nEsto revertirá automáticamente el saldo a favor o abono del condominio.`)) {
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/documentos/eliminar-nota-credito', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: docId,
+          motivo: 'Eliminación manual desde Caja de Condominios',
+          usuario: 'Admin'
+        })
+      });
+      const resJson = await res.json();
+      if (!res.ok || !resJson.ok) {
+        throw new Error(resJson.error || 'Error al eliminar la nota de crédito');
+      }
+      setSuccessMsg('Nota de crédito eliminada y saldo a favor revertido.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      await fetchNotasCredito();
+      setCalcTrigger(prev => prev + 1);
+    } catch (err: any) {
+      alert('Error eliminando nota de crédito: ' + err.message);
+    }
   };
 
 
@@ -239,7 +277,7 @@ function Caja() {
       } catch (e: any) { setError(e.message); setCobro(null); setSaldoFavorActivo(0); } finally { setCalculando(false); }
     }, 300);
     return () => clearTimeout(h);
-  }, [codigo, modo, claves, abonoLocales, identidad, meses, soloMultas, incluirMultas, tasaOverrideStr, fechaOverrideStr]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [codigo, modo, claves, abonoLocales, identidad, meses, soloMultas, incluirMultas, tasaOverrideStr, fechaOverrideStr, calcTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = cobro?.condo;
   const base = cobro?.estado;
@@ -641,14 +679,34 @@ function Caja() {
 
       {c && cobro && activeTab === 'NotasCredito' && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 print:hidden">
-          <h2 className="text-lg font-semibold text-slate-800 mb-6">Control de Saldos a Favor (Notas de Crédito)</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">Control de Saldos a Favor (Notas de Crédito)</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Notas de crédito vinculadas al condominio {c.nombre} ({c.codigo})</p>
+            </div>
+            <button
+              onClick={() => setIsNotaModalOpen(true)}
+              className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              + Generar Nota de Crédito Manual
+            </button>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-slate-600 uppercase bg-slate-50 border-b">
-                <tr><th className="px-4 py-3">Fecha</th><th className="px-4 py-3">Cédula / RIF</th><th className="px-4 py-3">Contribuyente</th><th className="px-4 py-3 text-right">Monto (Bs)</th><th className="px-4 py-3 text-center">Ref. Origen</th><th className="px-4 py-3 text-center">Estado</th></tr>
+                <tr>
+                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Cédula / RIF</th>
+                  <th className="px-4 py-3">Contribuyente</th>
+                  <th className="px-4 py-3 text-right">Monto (Bs)</th>
+                  <th className="px-4 py-3 text-center">Ref. Origen</th>
+                  <th className="px-4 py-3 text-center">Estado</th>
+                  <th className="px-4 py-3 text-center">Acción</th>
+                </tr>
               </thead>
               <tbody>
-                {isLoadingNotas ? <tr><td colSpan={6} className="text-center py-4 text-slate-500">Cargando...</td></tr> :
+                {isLoadingNotas ? <tr><td colSpan={7} className="text-center py-4 text-slate-500">Cargando...</td></tr> :
+                notasCredito.length === 0 ? <tr><td colSpan={7} className="text-center py-6 text-slate-400">No se encontraron notas de crédito para este condominio.</td></tr> :
                 notasCredito.map(n => {
                   let details: any = {};
                   try {
@@ -656,6 +714,7 @@ function Caja() {
                   } catch(e){}
                   const rawMonto = details.monto ?? details.monto_bs ?? 0;
                   const formattedMonto = formatBs(rawMonto);
+                  const esVigente = n.estado === 'Vigente';
                   return (
                     <tr key={n.id} className="border-b hover:bg-slate-50">
                       <td className="px-4 py-3">{new Date(n.created_at).toLocaleDateString()}</td>
@@ -663,7 +722,24 @@ function Caja() {
                       <td className="px-4 py-3">{n.contribuyente}</td>
                       <td className="px-4 py-3 text-right font-bold text-emerald-600">Bs. {formattedMonto}</td>
                       <td className="px-4 py-3 text-center">{details.origen_referencia || '-'}</td>
-                      <td className="px-4 py-3 text-center"><span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-semibold">{n.estado}</span></td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${esVigente ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                          {n.estado}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {esVigente ? (
+                          <button
+                            onClick={() => handleEliminarNota(n.id, rawMonto)}
+                            className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                            title="Quitar / Eliminar Nota de Crédito y revertir saldo a favor"
+                          >
+                            🗑️ Quitar
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">---</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

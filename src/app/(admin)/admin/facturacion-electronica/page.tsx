@@ -192,6 +192,7 @@ export default function FacturacionElectronicaPage() {
     monto: '',
     referencia: '',
     fecha: '',
+    concepto: '',
     esRetencion: false,
     modulo: 'caja',
     marcarAnulada: false
@@ -462,12 +463,14 @@ export default function FacturacionElectronicaPage() {
   const handleOpenEditModal = (pago: any) => {
     setPagoAEditar(pago);
     const fOrig = (pago.detalles?.fecha_transaccion || pago.created_at || pago.fecha || '').slice(0, 10);
+    const conceptoOrig = pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle || '';
     setEditForm({
       contribuyente: pago.contribuyente || pago.detalles?.contribuyente || '',
       identidad: pago.identidad || '',
       monto: String(pago.monto || ''),
       referencia: pago.referencia && pago.referencia !== 'N/A' ? pago.referencia : '',
       fecha: fOrig || hoyCaracas(),
+      concepto: conceptoOrig,
       esRetencion: !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion),
       modulo: pago.modulo || (pago.condominio ? 'condominios' : 'caja'),
       marcarAnulada: false
@@ -512,6 +515,7 @@ export default function FacturacionElectronicaPage() {
           esRetencion: editForm.esRetencion,
           modulo: editForm.modulo,
           fecha: editForm.fecha,
+          concepto: editForm.concepto,
           marcarAnulada: editForm.marcarAnulada,
           usuario: usuarioActual || 'Administrador'
         })
@@ -965,6 +969,11 @@ export default function FacturacionElectronicaPage() {
                         <span className="font-bold text-slate-800 text-[13px] block">{pago.contribuyente}</span>
                         {pago.referencia && (
                           <span className="text-[10px] text-slate-400 font-mono">Ref: {pago.referencia}</span>
+                        )}
+                        {(pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle) && (
+                          <span className="block text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 mt-0.5 max-w-[280px] truncate" title={pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle}>
+                            📝 {pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle}
+                          </span>
                         )}
                         {pago.inmuebles?.length > 0 && (
                           <span className="block text-[10px] text-slate-400 font-mono">{pago.inmuebles.slice(0, 6).join(', ')}{pago.inmuebles.length > 6 ? ` +${pago.inmuebles.length - 6}` : ''}</span>
@@ -2009,6 +2018,23 @@ export default function FacturacionElectronicaPage() {
                       <option value="condominios">Condominios</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Detalle / Concepto de Facturación */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Detalle / Concepto de lo que se está pagando
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.concepto}
+                    onChange={e => setEditForm(prev => ({ ...prev, concepto: e.target.value }))}
+                    placeholder="Ej: Servicio de Aseo Urbano Comercial - Septiembre 2026"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500 bg-white"
+                  />
+                  <span className="text-[11px] text-slate-500 mt-1 block">
+                    Puedes editar la descripción o período del servicio que saldrá en la factura electrónica.
+                  </span>
                 </div>
 
                 {/* 4. Retención de IVA (75%) */}
