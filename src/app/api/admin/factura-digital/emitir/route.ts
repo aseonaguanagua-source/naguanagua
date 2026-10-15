@@ -648,7 +648,7 @@ export async function POST(request: Request) {
     const tipoPago = String(pagoRow?.tipo || fp0.descripcion || 'Transferencia').trim();
     const bancoRaw = String(pagoRow?.banco || fp0.banco || '').trim();
     const bancoPago = bancoRaw.toLowerCase() === tipoPago.toLowerCase() ? '' : bancoRaw;
-    const refPago = String(pagoRow?.referencia || fp0.referencia || '').trim();
+    const refPago = String(referencia || pagoRow?.referencia || fp0.referencia || '').trim();
     const fechaPago = detPago.fecha_transaccion || pagoRow?.created_at || fechaActual.toISOString();
 
     const docIdentificacion = identidad.replace(/[^A-Z0-9-]/gi, '');

@@ -34,7 +34,18 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   let retencionIva = 0;
   let exento = parseFloat(String(det.multa_bs || 0)) || 0;
 
-  if (det.monto_factura && parseFloat(String(det.monto_factura)) > 0) {
+  if (pago?.totalManual && parseFloat(String(pago.totalManual)) > 0) {
+    totalFactura = parseFloat(String(pago.totalManual));
+    if (esRetencion) {
+      baseImponible = parseFloat(((totalFactura - exento) / 1.16).toFixed(2));
+      iva = parseFloat((totalFactura - exento - baseImponible).toFixed(2));
+      retencionIva = parseFloat((iva * 0.75).toFixed(2));
+    } else {
+      baseImponible = parseFloat(((totalFactura - exento) / 1.16).toFixed(2));
+      iva = parseFloat((totalFactura - exento - baseImponible).toFixed(2));
+      retencionIva = 0;
+    }
+  } else if (det.monto_factura && parseFloat(String(det.monto_factura)) > 0) {
     totalFactura = parseFloat(String(det.monto_factura));
     retencionIva = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0));
     baseImponible = parseFloat(((totalFactura - exento) / 1.16).toFixed(2));
@@ -78,13 +89,13 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   const numeroDoc = pago?.numeroDocumento || det.numero_documento || '00000XXX';
   const numeroCtrl = pago?.numeroControl || det.numero_control || '00-00000XXX';
 
-  const inmuebleCod = det.inmueble || (det.recibos && det.recibos[0]) || (pago?.inmuebles && pago.inmuebles[0]?.inmueble) || 'URB016119';
-  const mesAseo = det.mes_aseo || (pago?.mesesServicio && pago.mesesServicio[0]) || 'Septiembre 2026';
-  const nombreReceptor = pago?.contribuyente || det.contribuyente || 'A.S 24 VALENCIA, C.A';
-  const rifReceptor = pago?.identidad || det.identidad || 'J-295063008';
-  const cajero = det.cajero || det.analista || 'DZ-dzara';
-  const banco = pago?.banco && pago.banco !== 'N/A' ? pago.banco : (det.banco || 'Banesco');
-  const referencia = pago?.referencia && pago.referencia !== 'N/A' ? pago.referencia : (det.referencia || '00000012');
+  const inmuebleCod = det.inmueble || (det.recibos && det.recibos[0]) || (pago?.inmuebles && pago.inmuebles[0]?.inmueble) || (pago?.recibos && pago.recibos[0]) || '';
+  const mesAseo = det.mes_aseo || (pago?.mesesServicio && pago.mesesServicio[0]) || 'Mes en Curso';
+  const nombreReceptor = pago?.contribuyente || det.contribuyente || det.contribuyente_nombre || 'Contribuyente';
+  const rifReceptor = pago?.identidad || det.identidad || '';
+  const cajero = det.cajero || det.analista || 'Administrador';
+  const banco = pago?.banco && pago.banco !== 'N/A' ? pago.banco : (det.banco && det.banco !== 'N/A' ? det.banco : 'Banesco');
+  const referencia = pago?.referencia && pago.referencia !== 'N/A' ? pago.referencia : (det.referencia || 'N/A');
   const tipoPago = pago?.tipo || det.tipo || 'Transferencia';
   const pagoIdCorto = String(pago?.id || det.pagoId || '').slice(0, 8).toUpperCase();
 

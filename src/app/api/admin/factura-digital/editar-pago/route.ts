@@ -59,6 +59,24 @@ export async function POST(req: Request) {
       agente_retencion: flagRetencion,
       es_retencion: flagRetencion,
       modulo: nuevoModulo,
+      ...(flagRetencion ? (() => {
+        const base = parseFloat((nuevoMonto / 1.04).toFixed(2));
+        const iva = parseFloat((base * 0.16).toFixed(2));
+        const retencion = parseFloat((iva * 0.75).toFixed(2));
+        const totalFactura = parseFloat((base + iva).toFixed(2));
+        return {
+          monto_factura: totalFactura,
+          monto_retencion_iva: retencion,
+          retencion_iva: retencion,
+          porcentaje_retencion: 75,
+          conRetencion: true
+        };
+      })() : {
+        monto_factura: nuevoMonto,
+        monto_retencion_iva: 0,
+        retencion_iva: 0,
+        conRetencion: false
+      }),
       ...(marcarAnulada ? {
         factura_digital: {
           ...(det.factura_digital || {}),
@@ -134,6 +152,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      success: true,
       pago: {
         ...pago,
         ...updatePayload

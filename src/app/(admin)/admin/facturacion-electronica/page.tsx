@@ -492,7 +492,7 @@ export default function FacturacionElectronicaPage() {
       });
 
       const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!res.ok || (!data.success && !data.ok)) {
         throw new Error(data.error || 'No se pudo guardar la edición del pago');
       }
 
@@ -1431,7 +1431,13 @@ export default function FacturacionElectronicaPage() {
                 </button>
                 <button
                   onClick={() => {
-                    setSelectedPagoForDemo(selectedPagoForVerify);
+                    const t = totalEditado !== '' ? parseFloat(totalEditado) || 0 : 0;
+                    const original = verificationResult?.totales?.montoTotal || 0;
+                    const demoPago = {
+                      ...selectedPagoForVerify,
+                      ...(t > 0 && Math.abs(t - original) > 0.01 ? { totalManual: t, monto: t } : {})
+                    };
+                    setSelectedPagoForDemo(demoPago);
                   }}
                   className="px-3.5 py-2 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
@@ -1760,12 +1766,53 @@ export default function FacturacionElectronicaPage() {
             </div>
 
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <button
-                onClick={() => setSelectedPagoForEmit(null)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                Cancelar
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedPagoForEmit(null)}
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const base = parseFloat(ajusteMontoServicio) || 0;
+                    const multa = parseFloat(ajusteMontoMulta) || 0;
+                    const iva = parseFloat((base * 0.16).toFixed(2));
+                    let total = parseFloat((base + multa + iva).toFixed(2));
+                    if ((totalForzado || totalReferencia) && multa === 0 && !totalForzado && Math.abs(base - parseFloat((totalReferencia / 1.16).toFixed(2))) < 0.005) total = totalReferencia;
+                    if (totalForzado && multa === 0 && Math.abs(base - parseFloat((totalForzado / 1.16).toFixed(2))) < 0.005) total = totalForzado;
+
+                    const demoPago = {
+                      ...selectedPagoForEmit,
+                      contribuyente: emitContribuyente.trim(),
+                      identidad: emitIdentidad.trim().toUpperCase(),
+                      referencia: emitReferencia.trim(),
+                      monto: total,
+                      totalManual: total,
+                      conRetencion: emitEsRetencion,
+                      esRetencion: emitEsRetencion,
+                      detalles: {
+                        ...(selectedPagoForEmit.detalles || {}),
+                        contribuyente: emitContribuyente.trim(),
+                        identidad: emitIdentidad.trim().toUpperCase(),
+                        referencia: emitReferencia.trim(),
+                        concepto: ajusteConcepto,
+                        es_retencion: emitEsRetencion,
+                        agente_retencion: emitEsRetencion,
+                        conRetencion: emitEsRetencion,
+                        monto_factura: total,
+                        multa_bs: multa
+                      }
+                    };
+                    setSelectedPagoForDemo(demoPago);
+                  }}
+                  className="px-3.5 py-2 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Ver Demo con Cambios</span>
+                </button>
+              </div>
               <button
                 onClick={handleConfirmarEmision}
                 disabled={isEmitting}

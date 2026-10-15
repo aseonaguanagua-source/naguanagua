@@ -396,7 +396,7 @@ export async function cargarCondominio(codigo: string) {
 /** Resumen de todos los condominios (lista + panel). */
 export async function resumenGeneral() {
   const tasa = await tasaVigente();
-  const condos = await todas((a, b) => sb.from('condominios').select('*').order('nombre').range(a, b));
+  const condos = await todas((a, b) => sb.from('condominios').select('*').neq('estado', 'Eliminado').order('nombre').range(a, b));
   const unidades = await todas((a, b) => sb.from('condominio_unidades')
     .select('*').order('id').range(a, b));
   const { data: multas } = await sb.from('condominio_multas').select('id,condominio_id,unidad_id,monto_bs,monto_mmv,estado,concepto,periodo,creada_por,created_at').eq('estado', 'Pendiente');

@@ -360,10 +360,12 @@ function ContribuyentesPageContent() {
       const idClean = (row.Identidad || '').replace(/-/g, '').toUpperCase();
       const idsBuscar = Array.from(new Set([row.Identidad, idClean, row.CodCont, row.cod_cont].filter(Boolean)));
       let misInmuebles = inmuebles.filter((i: any) => 
-        (i.identidad || '').replace(/-/g, '').toUpperCase() === idClean || i.inmueble === row.CodCont || i.inmueble === row.cod_cont
+        i.estado !== 'Eliminado' && i.estado !== 'Inactivo' && (
+          (i.identidad || '').replace(/-/g, '').toUpperCase() === idClean || i.inmueble === row.CodCont || i.inmueble === row.cod_cont
+        )
       );
       try {
-        const { data: dbInms } = await supabase.from('inmuebles').select('*').or(`identidad.in.(${idsBuscar.join(',')}),inmueble.in.(${idsBuscar.join(',')})`);
+        const { data: dbInms } = await supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo').or(`identidad.in.(${idsBuscar.join(',')}),inmueble.in.(${idsBuscar.join(',')})`);
         if (dbInms && dbInms.length > 0) misInmuebles = dbInms;
       } catch (e) {}
 
@@ -1799,7 +1801,7 @@ function ContribuyentesPageContent() {
       try {
         const { error } = await supabase
           .from('inmuebles')
-          .update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0 })
+          .update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0, cant_inmuebles: 0 })
           .eq('inmueble', local.codigo);
         if (error) {
           console.error('Error eliminando inmueble en BD:', error);
@@ -1813,6 +1815,22 @@ function ContribuyentesPageContent() {
     const newLocales = (formData.locales || []).filter((_: any, i: number) => i !== index);
     const newCodes = (formData.__inmuebleCodes || []).filter((c: string) => c !== local.codigo);
     
+    // Si queda un único local, ajustar cant_inmuebles a 1 en BD
+    if (newLocales.length === 1 && newLocales[0].codigo) {
+      try {
+        const { data: unicoInm } = await supabase.from('inmuebles').select('mmv_mes, meses_deuda').eq('inmueble', newLocales[0].codigo).maybeSingle();
+        const mmv = parseFloat(unicoInm?.mmv_mes) || 0.91;
+        const meses = parseInt(unicoInm?.meses_deuda || '1') || 1;
+        await supabase
+          .from('inmuebles')
+          .update({
+            cant_inmuebles: 1,
+            deuda_mmv: Math.round(mmv * meses * 100) / 100
+          })
+          .eq('inmueble', newLocales[0].codigo);
+      } catch (_) {}
+    }
+
     setFormData({
       ...formData,
       locales: newLocales,
@@ -1878,7 +1896,7 @@ function ContribuyentesPageContent() {
 
     // 1. Filtrar inmuebles de la memoria local
     let misInmuebles = inmuebles.filter((i: any) => {
-      if (i.estado === 'Eliminado') return false;
+      if (i.estado === 'Eliminado' || i.estado === 'Inactivo') return false;
       const iIdClean = (i.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
       const iIdNum = iIdClean.replace(/^[VEJPG]/i, '');
       if (targetIdClean && (iIdClean === targetIdClean || (targetIdNum && iIdNum === targetIdNum))) return true;
@@ -1892,7 +1910,7 @@ function ContribuyentesPageContent() {
     // 2. Traer también directo de Supabase para tener 100% certeza de traer todas las actividades (incluyendo hijas con padre_id)
     try {
       const idVariants = getIdentidadVariantsExact(row.Identidad || '');
-      let q = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado');
+      let q = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo');
       if (codes.length > 0) {
         q = q.or(`${codes.map(c => `inmueble.eq.${c}`).join(',')},${codes.map(c => `padre_id.eq.${c}`).join(',')}`);
       } else if (idVariants.length > 0) {
@@ -1910,7 +1928,7 @@ function ContribuyentesPageContent() {
       }
       const allFoundCodes = misInmuebles.map(i => i.inmueble).filter(Boolean);
       if (allFoundCodes.length > 0) {
-        const { data: hijos } = await supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').in('padre_id', allFoundCodes);
+        const { data: hijos } = await supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo').in('padre_id', allFoundCodes);
         if (hijos && hijos.length > 0) {
           const existingCodes = new Set(misInmuebles.map(i => i.inmueble));
           hijos.forEach((h: any) => {

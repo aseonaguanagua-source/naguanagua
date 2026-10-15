@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Building2, Search, RefreshCw, AlertTriangle, CheckCircle2, Wallet, CalendarClock,
-  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download, Pencil, Award, FileText
+  Layers, ChevronLeft, ChevronRight, UserSearch, X, Download, Pencil, Award, FileText, Trash2
 } from 'lucide-react';
 import { SelectorModulo } from '@/components/condominios/SelectorModulo';
 
@@ -69,6 +69,55 @@ export default function CondominiosPage() {
       const d = await r.json();
       setDuenoRes(d.unidades || []);
     } finally { setBuscandoDueno(false); }
+  };
+
+  const [eliminandoCodigo, setEliminandoCodigo] = useState<string | null>(null);
+
+  const handleEliminarCondominio = async (condo: any) => {
+    const conf = window.prompt(
+      `🚨 ALERTA CRÍTICA: ¿Está seguro de que desea ELIMINAR el condominio "${condo.nombre}" (${condo.codigo}) de una sola vez junto con todas sus unidades (${condo.unidades} registradas)?\n\nEsta acción:\n1. Eliminará el condominio de la base de datos.\n2. Eliminará todas sus unidades registradas.\n3. Dará de baja (estado Eliminado) la matriz y todas las unidades en la tabla de inmuebles con deuda en 0.\n4. Anulará sus deudas y multas asociadas.\n\nPara confirmar, escriba exactamente: ELIMINAR`
+    );
+    if (!conf || conf.trim().toUpperCase() !== 'ELIMINAR') {
+      if (conf !== null) alert('Operación cancelada. No se escribió la palabra de confirmación.');
+      return;
+    }
+
+    const motivo = window.prompt('Indique el motivo de la eliminación (mínimo 5 caracteres):', 'Condominio dado de baja por administración');
+    if (!motivo || motivo.trim().length < 5) {
+      alert('Debe indicar un motivo válido para la auditoría.');
+      return;
+    }
+
+    const u = (() => {
+      try {
+        const a = JSON.parse(localStorage.getItem('admin_user_data') || '{}');
+        if (a.usuario) return a.usuario;
+        const usr = JSON.parse(localStorage.getItem('usuario') || '{}');
+        return usr.usuario || usr.nombre || 'Administrador';
+      } catch { return 'Administrador'; }
+    })();
+
+    setEliminandoCodigo(condo.codigo);
+    try {
+      const res = await fetch('/api/admin/condominios', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo: condo.codigo,
+          usuario: u,
+          motivo: motivo.trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar condominio');
+
+      alert(data.mensaje || 'Condominio y todas sus unidades fueron eliminados exitosamente.');
+      await cargar();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setEliminandoCodigo(null);
+    }
   };
 
   const filas = useMemo(() => {
@@ -429,6 +478,15 @@ export default function CondominiosPage() {
                           <Award className="w-3.5 h-3.5 opacity-40" /> Bloqueada
                         </button>
                       )}
+                      <button
+                        onClick={() => handleEliminarCondominio(f)}
+                        disabled={eliminandoCodigo === f.codigo}
+                        title={`Eliminar el condominio "${f.nombre}" y todas sus unidades de una sola vez`}
+                        className="px-2 py-1 rounded-lg border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer shadow-2xs transition-all disabled:opacity-50"
+                      >
+                        {eliminandoCodigo === f.codigo ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-rose-600" />}
+                        Eliminar
+                      </button>
                     </div>
                   </td>
                 </tr>

@@ -152,3 +152,121 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: e?.message || 'Error' }, { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/admin/condominios
+ * Body: { codigo, usuario, motivo }
+ * Elimina un condominio de una sola vez junto con todas sus unidades:
+ * 1. Elimina condominio_multas asociadas.
+ * 2. Elimina condominio_movimientos asociados.
+ * 3. Elimina todas las unidades en condominio_unidades.
+ * 4. Elimina el registro del condominio en la tabla condominios.
+ * 5. Da de baja en la tabla inmuebles (estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0, cant_inmuebles: 0)
+ *    para la matriz y todas las unidades hijas asociadas.
+ * 6. Si no quedan otros inmuebles activos con el RIF del condominio, elimina el registro en contribuyentes.
+ * 7. Registra auditoría crítica.
+ */
+export async function DELETE(req: Request) {
+  try {
+    const { codigo, usuario, motivo } = await req.json();
+    const cod = String(codigo || '').trim().toUpperCase();
+    if (!cod) return NextResponse.json({ error: 'Código de condominio requerido' }, { status: 400 });
+
+    const u = String(usuario || '').trim().toLowerCase();
+    const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
+    if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) {
+      return NextResponse.json({ error: 'Solo un administrador puede eliminar un condominio.' }, { status: 403 });
+    }
+
+    // 1. Cargar el condominio
+    const { data: condo } = await sb.from('condominios').select('*').eq('codigo', cod).maybeSingle();
+    if (!condo) {
+      return NextResponse.json({ error: `Condominio "${cod}" no encontrado.` }, { status: 404 });
+    }
+
+    // 2. Cargar todas sus unidades en condominio_unidades
+    const { data: unidades } = await sb.from('condominio_unidades').select('id, inmueble, numero, identidad').eq('condominio_id', condo.id);
+    const codigosUnidades = (unidades || []).map(un => un.inmueble).filter(Boolean);
+
+    // 3. Cargar todos los inmuebles asociados en inmuebles (matriz + hijas por condominio_padre_id o padre_id)
+    const { data: inmsHijos } = await sb.from('inmuebles')
+      .select('inmueble')
+      .or(`condominio_padre_id.eq.${cod},padre_id.eq.${cod}`);
+    const codigosHijosInms = (inmsHijos || []).map(i => i.inmueble).filter(Boolean);
+
+    const todosLosCodigos = Array.from(new Set([cod, ...codigosUnidades, ...codigosHijosInms]));
+
+    // 4. Eliminar multas de condominio
+    await sb.from('condominio_multas').delete().eq('condominio_id', condo.id);
+
+    // 5. Eliminar movimientos de condominio
+    await sb.from('condominio_movimientos').delete().eq('condominio_id', condo.id);
+
+    // 6. Eliminar unidades en condominio_unidades
+    await sb.from('condominio_unidades').delete().eq('condominio_id', condo.id);
+
+    // 7. Eliminar el condominio de la tabla condominios
+    const { error: errDelCondo } = await sb.from('condominios').delete().eq('id', condo.id);
+    if (errDelCondo) {
+      return NextResponse.json({ error: 'Error al eliminar condominio: ' + errDelCondo.message }, { status: 500 });
+    }
+
+    // 8. En la tabla inmuebles, dar de baja matriz y todas las unidades
+    if (todosLosCodigos.length > 0) {
+      for (let i = 0; i < todosLosCodigos.length; i += 100) {
+        const batch = todosLosCodigos.slice(i, i + 100);
+        await sb.from('inmuebles')
+          .update({
+            estado: 'Eliminado',
+            mmv_mes: 0,
+            deuda_mmv: 0,
+            cant_inmuebles: 0,
+            meses_deuda: 0,
+            saldo_favor_bs: 0,
+            es_condominio: false
+          })
+          .in('inmueble', batch);
+      }
+    }
+
+    // 9. Si el RIF del condominio no tiene más inmuebles activos, dar de baja en contribuyentes
+    if (condo.identidad) {
+      const { data: remainingActive } = await sb.from('inmuebles')
+        .select('id')
+        .eq('identidad', condo.identidad)
+        .neq('estado', 'Eliminado')
+        .limit(1);
+
+      if (!remainingActive || remainingActive.length === 0) {
+        await sb.from('contribuyentes').delete().eq('identidad', condo.identidad);
+      }
+    }
+
+    // 10. Auditoría
+    const nombreUsuario = trab ? `${trab.nombre || trab.usuario} (${trab.usuario})` : (usuario || 'Administrador');
+    await sb.from('auditoria').insert({
+      accion: 'Eliminación completa de condominio y unidades',
+      usuario: nombreUsuario,
+      detalles: {
+        codigo: condo.codigo,
+        nombre: condo.nombre,
+        identidad: condo.identidad,
+        total_unidades_eliminadas: (unidades || []).length,
+        codigos_inmuebles_afectados: todosLosCodigos,
+        motivo: String(motivo || 'Eliminado por el administrador').trim(),
+        _categoria: 'CONDOMINIOS',
+        criticidad: 'CRITICA'
+      }
+    });
+
+    return NextResponse.json({
+      ok: true,
+      mensaje: `Condominio "${condo.nombre}" (${condo.codigo}) y sus ${(unidades || []).length} unidades fueron eliminados exitosamente.`,
+      unidadesEliminadas: (unidades || []).length,
+      codigosAfectados: todosLosCodigos
+    });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Error en el servidor' }, { status: 500 });
+  }
+}
+

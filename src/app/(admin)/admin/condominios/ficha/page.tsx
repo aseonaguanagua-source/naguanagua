@@ -278,6 +278,48 @@ function Ficha() {
     generarPdfMultasCondominio(c, e, cajero);
   };
 
+  const [eliminandoCondo, setEliminandoCondo] = useState(false);
+
+  const handleEliminarCondominioCompleto = async () => {
+    if (!c?.codigo) return;
+    const numUnidades = (d?.unidades || []).length;
+    const conf = window.prompt(
+      `🚨 ALERTA CRÍTICA: ¿Está seguro de que desea ELIMINAR el condominio "${c.nombre}" (${c.codigo}) de una sola vez junto con todas sus ${numUnidades} unidades asociadas?\n\nEsta acción:\n1. Eliminará el condominio de la base de datos.\n2. Eliminará todas sus ${numUnidades} unidades en el módulo de condominios.\n3. Dará de baja (estado Eliminado) la matriz y todas las unidades en la tabla de inmuebles con deuda en 0.\n4. Eliminará sus multas y movimientos de condominio.\n\nPara confirmar, escriba exactamente: ELIMINAR`
+    );
+    if (!conf || conf.trim().toUpperCase() !== 'ELIMINAR') {
+      if (conf !== null) alert('Operación cancelada. No se escribió la palabra de confirmación.');
+      return;
+    }
+
+    const motivo = window.prompt('Indique el motivo de la eliminación (mínimo 5 caracteres):', 'Condominio dado de baja por administración');
+    if (!motivo || motivo.trim().length < 5) {
+      alert('Debe indicar un motivo válido para la auditoría.');
+      return;
+    }
+
+    setEliminandoCondo(true);
+    try {
+      const res = await fetch('/api/admin/condominios', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo: c.codigo,
+          usuario: usuarioActual() || 'Administrador',
+          motivo: motivo.trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar condominio');
+
+      alert(data.mensaje || 'Condominio y todas sus unidades fueron eliminados exitosamente.');
+      window.location.href = '/admin/condominios';
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setEliminandoCondo(false);
+    }
+  };
+
   if (!codigo) return <div className="p-6">Falta el código del condominio.</div>;
 
   return (
@@ -389,6 +431,18 @@ function Ficha() {
               <button onClick={exportarMultas} className="px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
                 <FileText className="w-4 h-4" /> Reporte de Multas
               </button>
+              {admin && (
+                <button
+                  id="btn-eliminar-condominio-completo"
+                  onClick={handleEliminarCondominioCompleto}
+                  disabled={eliminandoCondo}
+                  className="px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 font-extrabold text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
+                  title="Eliminar este condominio y todas sus unidades asociadas de una sola vez"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-700" />
+                  <span>{eliminandoCondo ? 'Eliminando...' : 'Eliminar Condominio'}</span>
+                </button>
+              )}
               <button onClick={cargar} className="p-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer" title="Recargar">
                 <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
               </button>

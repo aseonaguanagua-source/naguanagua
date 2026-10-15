@@ -928,9 +928,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const codigosEliminados = codigosPropios.filter(c => !codigosActuales.includes(c));
         
         for (const codEliminado of codigosEliminados) {
-          const { error: eDel } = await supabase.from('inmuebles').update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0 }).eq('inmueble', codEliminado);
+          const { error: eDel } = await supabase.from('inmuebles').update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0, cant_inmuebles: 0 }).eq('inmueble', codEliminado);
           if (eDel) throw eDel;
           cambios.push(`ELIMINADO: ${codEliminado} dado de baja`);
+        }
+
+        if (data.locales.length === 1 && data.locales[0].codigo) {
+          try {
+            await supabase
+              .from('inmuebles')
+              .update({ cant_inmuebles: 1 })
+              .eq('inmueble', data.locales[0].codigo);
+          } catch (_) {}
         }
         
         for (const local of data.locales) {

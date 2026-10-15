@@ -90,7 +90,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
     // 1. Cargar el inmueble seleccionado y sus vínculos jerárquicos (padres / hijos N/A). NUNCA unificar por cédula.
     const fetchInmuebles = async () => {
       try {
-        let query = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado');
+        let query = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo');
         if (codes.length > 0) {
           // Solo cargar la cuenta/inmueble seleccionada y sus actividades/padres N/A.
           query = query.or(`${codes.map(c => `inmueble.eq.${c}`).join(',')},${codes.map(c => `padre_id.eq.${c}`).join(',')}`);
@@ -107,6 +107,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             .from('inmuebles')
             .select('*')
             .neq('estado', 'Eliminado')
+            .neq('estado', 'Inactivo')
             .in('padre_id', foundCodes);
           if (hijosData && hijosData.length > 0) {
             const existingCodes = new Set(allInms.map((i: any) => i.inmueble));
@@ -128,6 +129,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             .from('inmuebles')
             .select('*')
             .neq('estado', 'Eliminado')
+            .neq('estado', 'Inactivo')
             .in('inmueble', missingPadres);
           if (padresData && padresData.length > 0) {
             const existingCodes = new Set(allInms.map((i: any) => i.inmueble));
@@ -147,6 +149,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               .from('inmuebles')
               .select('inmueble, tipo, actividad_principal, direccion')
               .neq('estado', 'Eliminado')
+              .neq('estado', 'Inactivo')
               .is('padre_id', null)
               .in('identidad', idVariants);
             const otrosFiltrados = (otros || []).filter((o: any) => !codes.includes(o.inmueble));
@@ -248,25 +251,67 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       // 1. Dar de baja en la tabla inmuebles
       const { error: errInm } = await supabase
         .from('inmuebles')
-        .update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0 })
+        .update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0, cant_inmuebles: 0 })
         .eq('inmueble', inmCode);
 
       if (errInm) throw new Error('Error al actualizar inmueble: ' + errInm.message);
 
-      // 2. Si tenía padre N/A, recalcular la tarifa sumatoria del padre N/A
-      if (padreCode) {
-        const { data: remainingHijos } = await supabase
-          .from('inmuebles')
-          .select('mmv_mes')
-          .neq('estado', 'Eliminado')
-          .eq('padre_id', padreCode)
-          .neq('inmueble', inmCode);
+      // 2. Recalcular cant_inmuebles, mmv_mes y deuda_mmv en el padre o en el inmueble restante
+      const targetPadre = padreCode || (inmCode !== viewData.CodCont && viewData.CodCont ? viewData.CodCont : null);
+      const identExacta = viewData.Identidad || '';
 
-        const newMMV = (remainingHijos || []).reduce((acc: number, h: any) => acc + (parseFloat(h.mmv_mes) || 0), 0);
+      const { data: allActive } = await supabase
+        .from('inmuebles')
+        .select('*')
+        .neq('estado', 'Eliminado')
+        .neq('estado', 'Inactivo')
+        .neq('inmueble', inmCode)
+        .or(`padre_id.eq.${targetPadre || inmCode},inmueble.eq.${targetPadre || inmCode},identidad.eq.${identExacta}`);
+
+      const remainingInms = allActive || [];
+      const remainingHijos = targetPadre ? remainingInms.filter(h => h.padre_id === targetPadre && h.inmueble !== targetPadre) : [];
+      const padreObj = targetPadre ? remainingInms.find(h => h.inmueble === targetPadre) : null;
+
+      if (targetPadre && padreObj) {
+        if (remainingHijos.length > 0) {
+          const newMMV = remainingHijos.reduce((acc: number, h: any) => acc + (parseFloat(h.mmv_mes) || 0), 0);
+          const mesesPadre = parseInt(padreObj.meses_deuda || '1') || 1;
+          const newDeuda = Math.round(newMMV * mesesPadre * 100) / 100;
+          await supabase
+            .from('inmuebles')
+            .update({
+              mmv_mes: newMMV > 0 ? newMMV : 0.91,
+              cant_inmuebles: remainingHijos.length,
+              deuda_mmv: newDeuda
+            })
+            .eq('inmueble', targetPadre);
+        } else {
+          // Ya no tiene hijos: vuelve a ser un inmueble individual de 1 sola unidad
+          const mmvIndividual = parseFloat(padreObj.mmv_mes) > 0 ? parseFloat(padreObj.mmv_mes) : 0.91;
+          const mesesPadre = parseInt(padreObj.meses_deuda || '1') || 1;
+          const newDeuda = Math.round(mmvIndividual * mesesPadre * 100) / 100;
+          await supabase
+            .from('inmuebles')
+            .update({
+              cant_inmuebles: 1,
+              mmv_mes: mmvIndividual,
+              deuda_mmv: newDeuda
+            })
+            .eq('inmueble', targetPadre);
+        }
+      } else if (remainingInms.length === 1) {
+        // Queda un único inmueble activo para este contribuyente
+        const unico = remainingInms[0];
+        const mmvU = parseFloat(unico.mmv_mes) > 0 ? parseFloat(unico.mmv_mes) : 0.91;
+        const mesesU = parseInt(unico.meses_deuda || '1') || 1;
+        const newDeuda = Math.round(mmvU * mesesU * 100) / 100;
         await supabase
           .from('inmuebles')
-          .update({ mmv_mes: newMMV > 0 ? newMMV : 0.91 })
-          .eq('inmueble', padreCode);
+          .update({
+            cant_inmuebles: 1,
+            deuda_mmv: newDeuda
+          })
+          .eq('inmueble', unico.inmueble);
       }
 
       // 3. Auditoría
@@ -302,9 +347,9 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
   // Cálculo de deuda consolidada
   const tasaEfectiva = tcmmv > 0 ? tcmmv : (bcvRate > 0 ? bcvRate : 1);
-  // Inmuebles sin eliminar
+  // Inmuebles sin eliminar ni inactivos
   const userInms = useMemo(() => {
-    return inmueblesList.filter(i => i.estado !== 'Eliminado');
+    return inmueblesList.filter(i => i.estado !== 'Eliminado' && i.estado !== 'Inactivo');
   }, [inmueblesList]);
 
   // Unificación jerárquica: Inmuebles N/A con sus locales e hijos
