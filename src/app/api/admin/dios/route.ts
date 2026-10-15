@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import { SESSION_COOKIE, verifySession } from '@/lib/adminSession';
+import { mesesPendientes, pendienteDesdeParaMeses } from '@/lib/condominios/motor';
 
 export const dynamic = 'force-dynamic';
 const DEV_PASS = '1756762';
@@ -119,6 +120,22 @@ export async function POST(req: Request) {
       const audId = await audit(usuario, `editar ${table}`, { tabla: table, pk, id, antes: antesSolo, despues: validos });
       const { data, error } = await sb.from(table).update(validos).eq(pk, id).select('*').maybeSingle();
       if (error) throw error;
+
+      // Sincronizar deudas bidireccionalmente entre condominios e inmuebles en Modo Dios
+      if (table === 'condominios' && 'aseo_pendiente_desde' in validos) {
+        const m = mesesPendientes(validos.aseo_pendiente_desde as string | null | undefined);
+        await sb.from('inmuebles').update({ meses_deuda: m }).eq('inmueble', antes.codigo);
+        await sb.from('inmuebles').update({ meses_deuda: m }).eq('condominio_padre_id', antes.codigo);
+        await sb.from('condominio_unidades').update({ aseo_pendiente_desde: validos.aseo_pendiente_desde }).eq('condominio_id', id);
+      }
+      if (table === 'inmuebles' && 'meses_deuda' in validos) {
+        const d = pendienteDesdeParaMeses(Number(validos.meses_deuda) || 0);
+        await sb.from('condominios').update({ aseo_pendiente_desde: d }).eq('codigo', antes.inmueble);
+        await sb.from('condominio_unidades').update({ aseo_pendiente_desde: d }).eq('inmueble', antes.inmueble);
+        const { data: cP } = await sb.from('condominios').select('id').eq('codigo', antes.inmueble).maybeSingle();
+        if (cP) await sb.from('condominio_unidades').update({ aseo_pendiente_desde: d }).eq('condominio_id', cP.id);
+      }
+
       return NextResponse.json({ row: data, auditoria: audId });
     }
 

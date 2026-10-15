@@ -338,7 +338,29 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
                 meses_deuda: maxMesesHermanos
               })
               .eq('inmueble', inm.condominio_padre_id);
+
+            try {
+              const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
+              const nuevoDesdePadre = pendienteDesdeParaMeses(maxMesesHermanos);
+              await supabase.from('condominios').update({ aseo_pendiente_desde: nuevoDesdePadre }).eq('codigo', inm.condominio_padre_id);
+            } catch (errMotor) {
+              console.warn('Error sincronizando fecha condominio padre:', errMotor);
+            }
           }
+        }
+
+        // Sincronizar condominios y unidades si es matriz de condominio o unidad directa
+        try {
+          const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
+          const nuevoDesde = pendienteDesdeParaMeses(selectedCount);
+          await supabase.from('condominios').update({ aseo_pendiente_desde: nuevoDesde }).eq('codigo', inm.inmueble);
+          await supabase.from('condominio_unidades').update({ aseo_pendiente_desde: nuevoDesde }).eq('inmueble', inm.inmueble);
+          const { data: cPadre } = await supabase.from('condominios').select('id').eq('codigo', inm.inmueble).maybeSingle();
+          if (cPadre) {
+            await supabase.from('condominio_unidades').update({ aseo_pendiente_desde: nuevoDesde }).eq('condominio_id', cPadre.id);
+          }
+        } catch (errMotor) {
+          console.warn('Error sincronizando módulo condominios:', errMotor);
         }
       }
 

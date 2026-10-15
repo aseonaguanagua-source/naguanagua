@@ -64,12 +64,27 @@ export async function mesesInmuebles(codigos?: string[]): Promise<Map<string, { 
  */
 export function sincronizar(condo: any, unidades: any[], meses: Map<string, { meses: number; estado: string }>, hoy = new Date()) {
   const p = meses.get(String(condo.codigo).toUpperCase());
-  const c = p && p.estado !== 'Eliminado' ? { ...condo, aseo_pendiente_desde: M.pendienteDesdeParaMeses(p.meses, hoy) } : condo;
+  let nuevoDesde = condo.aseo_pendiente_desde;
+  if (p && p.estado !== 'Eliminado') {
+    const mesesP = Number(p.meses) || 0;
+    const mesesCondo = M.mesesPendientes(condo.aseo_pendiente_desde, hoy);
+    if (mesesP > 0) {
+      nuevoDesde = M.pendienteDesdeParaMeses(mesesP, hoy);
+    } else if (mesesCondo > 0) {
+      nuevoDesde = condo.aseo_pendiente_desde;
+    } else {
+      nuevoDesde = null;
+    }
+  }
+  const c = { ...condo, aseo_pendiente_desde: nuevoDesde };
   const propias = unidadesPropias(c);
   const us = unidades.map(u => {
     if (!propias) return { ...u, aseo_pendiente_desde: c.aseo_pendiente_desde };
     const m = u.inmueble ? meses.get(String(u.inmueble).toUpperCase()) : undefined;
-    return m ? { ...u, aseo_pendiente_desde: M.pendienteDesdeParaMeses(m.meses, hoy) } : u;
+    if (m && Number(m.meses) > 0) {
+      return { ...u, aseo_pendiente_desde: M.pendienteDesdeParaMeses(m.meses, hoy) };
+    }
+    return u;
   });
   return { condo: c, unidades: us };
 }

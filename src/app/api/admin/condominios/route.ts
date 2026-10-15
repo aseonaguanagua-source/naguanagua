@@ -113,9 +113,12 @@ export async function PATCH(req: Request) {
       }
     }
 
-    // Sincronizar meses en todas las unidades del condominio
+    // Sincronizar meses en todas las unidades del condominio y en la tabla inmuebles
     if ('aseo_pendiente_desde' in upd) {
       await sb.from('condominio_unidades').update({ aseo_pendiente_desde: upd.aseo_pendiente_desde }).eq('condominio_id', antes.id);
+      const mesesCalc = mesesPendientes(upd.aseo_pendiente_desde);
+      await sb.from('inmuebles').update({ meses_deuda: mesesCalc }).eq('inmueble', antes.codigo);
+      await sb.from('inmuebles').update({ meses_deuda: mesesCalc }).eq('condominio_padre_id', antes.codigo);
     }
     if ('multa_meses' in upd && Number(upd.multa_meses) === 0) {
       await sb.from('condominio_unidades').update({ multa_meses: 0, multa_exonerada_hasta: upd.aseo_pendiente_desde || antes.aseo_pendiente_desde }).eq('condominio_id', antes.id);

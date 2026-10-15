@@ -724,7 +724,8 @@ export default function CajaPage() {
         orFilterInms = [
           ...userIdentVariants.map(v => `identidad.eq.${v}`),
           `condominio_padre_id.eq.${user.CodCont || user.cod_cont}`,
-          `condominio_padre_id.eq.${user.Identidad}`
+          `condominio_padre_id.eq.${user.Identidad}`,
+          ...(user.CodCont || user.cod_cont ? [`padre_id.eq.${user.CodCont || user.cod_cont}`] : [])
         ].filter(Boolean).join(',');
       }
 
