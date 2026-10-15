@@ -2447,7 +2447,14 @@ function ContribuyentesPageContent() {
                     <input 
                       type="checkbox" 
                       checked={formData.esAgenteRetencion || false} 
-                      onChange={e => setFormData({...formData, esAgenteRetencion: e.target.checked})} 
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setFormData({
+                          ...formData,
+                          esAgenteRetencion: checked,
+                          locales: (formData.locales || []).map((loc: any) => ({ ...loc, agente_retencion: checked }))
+                        });
+                      }} 
                       className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                     />
                     <span className="text-sm font-medium text-slate-700">Es Agente de Retención</span>

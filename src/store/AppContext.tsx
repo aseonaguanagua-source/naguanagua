@@ -711,7 +711,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               Correo: freshContrib.email || freshContrib.correo_electronico || c.Correo,
               Telefono: freshContrib.telefono || c.Telefono,
               Contribuyente: freshContrib.nombre || c.Contribuyente,
-              esAgenteRetencion: freshInms?.some((i: any) => i.agente_retencion === true) || c.esAgenteRetencion
+              esAgenteRetencion: freshInms ? freshInms.some((i: any) => i.agente_retencion === true) : false
             };
           }
           return c;
@@ -1065,6 +1065,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const { error: eX } = await supabase.from('inmuebles').insert(rows);
           if (eX) throw eX;
         }
+      }
+
+      // Sincronizar agente_retencion en todos los inmuebles y condominios vinculados
+      if (data.esAgenteRetencion !== undefined) {
+        const esAgenteVal = data.esAgenteRetencion === true;
+        await supabase.from('inmuebles').update({ agente_retencion: esAgenteVal }).eq('identidad', identidadExacta);
+        if (codigosPropios.length > 0) {
+          await supabase.from('inmuebles').update({ agente_retencion: esAgenteVal }).in('inmueble', codigosPropios);
+          await supabase.from('inmuebles').update({ agente_retencion: esAgenteVal }).in('condominio_padre_id', codigosPropios);
+        }
+        try {
+          if (codigosPropios.length > 0) {
+            await supabase.from('condominios').update({ agente_retencion: esAgenteVal }).in('codigo', codigosPropios);
+          }
+          await supabase.from('condominios').update({ agente_retencion: esAgenteVal }).eq('identidad', identidadExacta);
+        } catch (_) {}
       }
 
       // Recargar del servidor (fuente de verdad) en lugar de parchear el estado local

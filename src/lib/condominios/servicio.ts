@@ -329,7 +329,11 @@ export async function cargarCondominio(codigo: string) {
   const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas, clave_portal').eq('inmueble', condo.codigo).maybeSingle();
   if (inm) {
     condo.clave_portal = inm.clave_portal || '';
-    condo.agente_retencion = !!inm.agente_retencion;
+    if (condo.agente_retencion !== undefined && condo.agente_retencion !== null) {
+      condo.agente_retencion = !!condo.agente_retencion;
+    } else {
+      condo.agente_retencion = !!inm.agente_retencion;
+    }
     condo.telefono = condo.telefono || inm.telefono || '';
     condo.correo = condo.correo || inm.correo_electronico || '';
     if (!condo.notas && inm.notas) {
@@ -423,7 +427,9 @@ export async function resumenGeneral() {
 
   const filas = condos.map(c => {
     const us = porCondo.get(c.id) || [];
-    c.agente_retencion = !!infoInmuebles.get(c.codigo)?.agente_retencion;
+    c.agente_retencion = c.agente_retencion !== undefined && c.agente_retencion !== null 
+      ? !!c.agente_retencion 
+      : !!infoInmuebles.get(c.codigo)?.agente_retencion;
     const e = calcularEstado(c, us, tasa, new Date(), multasPor.get(c.id) || []);
     return {
       codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, tipo: c.tipo, modalidad: c.modalidad, estado: c.estado,
