@@ -67,6 +67,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   const [selectedInmSolvencia, setSelectedInmSolvencia] = useState('');
   const [expandedNAs, setExpandedNAs] = useState<Record<string, boolean>>({});
   const [selectedInmCode, setSelectedInmCode] = useState<string | null>(null);
+  const [otrosInmuebles, setOtrosInmuebles] = useState<any[]>([]);
 
   const toggleExpandNA = (code: string) => {
     setExpandedNAs(prev => ({ ...prev, [code]: !prev[code] }));
@@ -86,16 +87,15 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       .map(c => c.trim().toUpperCase())
       .filter(Boolean);
 
-    // 1. Cargar todos los inmuebles de este contribuyente y sus vínculos jerárquicos (padres / hijos)
+    // 1. Cargar el inmueble seleccionado y sus vínculos jerárquicos (padres / hijos N/A). NUNCA unificar por cédula.
     const fetchInmuebles = async () => {
       try {
         let query = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado');
-        if (idVariants.length > 0 && codes.length > 0) {
-          query = query.or(`${idVariants.map(v => `identidad.eq.${v}`).join(',')},${codes.map(c => `inmueble.eq.${c}`).join(',')}`);
+        if (codes.length > 0) {
+          // Solo cargar la cuenta/inmueble seleccionada y sus actividades/padres N/A.
+          query = query.or(`${codes.map(c => `inmueble.eq.${c}`).join(',')},${codes.map(c => `padre_id.eq.${c}`).join(',')}`);
         } else if (idVariants.length > 0) {
           query = query.or(idVariants.map(v => `identidad.eq.${v}`).join(','));
-        } else if (codes.length > 0) {
-          query = query.in('inmueble', codes);
         }
         const { data } = await query.order('inmueble', { ascending: true });
         let allInms = [...(data || [])];
@@ -138,6 +138,20 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               }
             });
           }
+        }
+
+        // Consultar otros inmuebles independientes que tenga el titular (para aviso informativo, sin unificar deudas)
+        if (idVariants.length > 0 && codes.length > 0) {
+          try {
+            const { data: otros } = await supabase
+              .from('inmuebles')
+              .select('inmueble, tipo, actividad_principal, direccion')
+              .neq('estado', 'Eliminado')
+              .is('padre_id', null)
+              .in('identidad', idVariants);
+            const otrosFiltrados = (otros || []).filter((o: any) => !codes.includes(o.inmueble));
+            if (isMounted) setOtrosInmuebles(otrosFiltrados);
+          } catch (_) {}
         }
 
         if (isMounted) {
@@ -568,6 +582,27 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
              ══════════════════════════════════════════════════════ */}
           {activeTab === 'perfil' && (
             <div className="space-y-5 animate-in fade-in duration-150">
+              {otrosInmuebles.length > 0 && (
+                <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 text-xs text-amber-950 flex items-start gap-3 shadow-2xs">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1.5 flex-1">
+                    <span className="font-bold text-slate-800 block text-xs">
+                      Este titular posee {otrosInmuebles.length} otro(s) inmueble(s) independiente(s) registrado(s):
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {otrosInmuebles.map((o: any) => (
+                        <span key={o.inmueble} className="bg-white border border-amber-300 text-amber-950 px-2.5 py-1 rounded-lg font-mono font-bold text-[11px] shadow-2xs">
+                          {o.inmueble} · {cleanClasificacionActividad(o.actividad_principal) || o.actividad_principal || o.tipo || 'Inmueble'}
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-[11px] text-amber-800 block">
+                      📌 Cada inmueble se gestiona por separado con su propio estado de cuenta, facturación y solvencia individual.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
                 {/* Tarjeta de Información Fiscal */}

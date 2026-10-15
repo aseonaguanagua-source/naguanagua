@@ -1669,18 +1669,31 @@ function ContribuyentesPageContent() {
         return;
       }
 
+      const identidadesConInmueble = new Set((allFoundInmuebles || []).map((i: any) => i.identidad).filter(Boolean));
+
+      const sortedInms = [...(allFoundInmuebles || [])].sort((a: any, b: any) => {
+        const aIsChild = Boolean(a.padre_id || a.condominio_padre_id);
+        const bIsChild = Boolean(b.padre_id || b.condominio_padre_id);
+        if (aIsChild !== bIsChild) return aIsChild ? 1 : -1;
+        return 0;
+      });
+
       const mapResults = new Map();
 
-      allFoundInmuebles.forEach((row: any) => {
-        if (row.identidad && !mapResults.has(row.identidad)) {
+      sortedInms.forEach((row: any) => {
+        const cod = row.inmueble || row.cod_cont;
+        const parentKey = row.padre_id ? row.padre_id : (row.condominio_padre_id ? row.condominio_padre_id : null);
+        const groupKey = parentKey || cod || row.id || row.identidad;
+
+        if (groupKey && !mapResults.has(groupKey)) {
           const rowEstado = row.estado || 'Activo';
-          mapResults.set(row.identidad, {
+          mapResults.set(groupKey, {
             Identidad: row.identidad,
             Contribuyente: row.contribuyente || row.nombre || 'Sin Nombre',
             Telefono: row.telefono || 'No registrado',
             Correo: row.email || row.correo_electronico || 'No registrado',
-            CodCont: row.inmueble || row.cod_cont || '',
-            cod_cont: row.inmueble || row.cod_cont || '',
+            CodCont: cod || '',
+            cod_cont: cod || '',
             Direccion: row.direccion || '',
             Observaciones: row.notas || '',
             Actividad: row.actividad_principal || 'No aplica',
@@ -1693,8 +1706,8 @@ function ContribuyentesPageContent() {
             Estado: rowEstado,
             FechaRegistro: row.created_at || null
           });
-        } else if (row.identidad && mapResults.has(row.identidad)) {
-          const existing = mapResults.get(row.identidad);
+        } else if (groupKey && mapResults.has(groupKey)) {
+          const existing = mapResults.get(groupKey);
           existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
           existing.DeudaMMV += parseFloat(row.deuda_mmv || 0);
           existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
@@ -1705,16 +1718,15 @@ function ContribuyentesPageContent() {
             if (row.actividad_principal) existing.Actividad = row.actividad_principal;
           }
           existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
-          const cod = row.inmueble || row.cod_cont;
           if (cod && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
           }
-          mapResults.set(row.identidad, existing);
+          mapResults.set(groupKey, existing);
         }
       });
 
       (contsData || []).forEach((c: any) => {
-        if (c.identidad && !mapResults.has(c.identidad)) {
+        if (c.identidad && !identidadesConInmueble.has(c.identidad) && !mapResults.has(c.identidad)) {
           mapResults.set(c.identidad, {
             Identidad: c.identidad,
             Contribuyente: c.nombre || 'Sin Nombre',

@@ -387,8 +387,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setInmuebles(mappedInmuebles);
       setCondominios(apiCondominios);
 
+      const identidadesConInmueble = new Set((allInmuebles || []).map((i: any) => i.identidad).filter(Boolean));
+
+      const sortedInmuebles = [...allInmuebles].sort((a: any, b: any) => {
+        const aIsChild = Boolean(a.padre_id || a.condominio_padre_id);
+        const bIsChild = Boolean(b.padre_id || b.condominio_padre_id);
+        if (aIsChild !== bIsChild) return aIsChild ? 1 : -1;
+        return 0;
+      });
+
       const map = new Map();
-      allInmuebles.forEach((row: any) => {
+      sortedInmuebles.forEach((row: any) => {
         const cod = row.inmueble || row.cod_cont;
         const isCondoChild = Boolean(row.condominio_padre_id);
         const pInfo = row.condominio_padre_id ? parentInfoMap.get(row.condominio_padre_id) : null;
@@ -411,7 +420,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const rowCongelada = esEliminado ? 0 : parseFloat(row.deuda_congelada_bs || 0);
         const rowDeudaBs = rowCongelada + rowMultaBs + (rowDeudaMMV * 57 * currentTcmmv);
 
-        if (row.identidad && !map.has(row.identidad)) {
+        // Agrupación jerárquica:
+        // Se unifican los contenedores N/A con sus actividades hijas vinculadas por padre_id.
+        // Los locales comerciales de condominios se agrupan en su condominio_padre_id.
+        // Los inmuebles independientes NUNCA se unifican entre sí por cédula/RIF.
+        const parentKey = row.padre_id && parentInfoMap.has(row.padre_id)
+          ? row.padre_id
+          : (isCommercialChild && row.condominio_padre_id ? row.condominio_padre_id : null);
+        const groupKey = parentKey || cod || row.id || row.identidad;
+
+        if (groupKey && !map.has(groupKey)) {
           const act = row.actividad_principal || '';
           let clase = 'Residencial';
           if (isResidencialInm(row)) {
@@ -429,7 +447,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const rawEmail = row.contribuyentes?.email || row.email || row.correo_electronico || row.correo;
           const cleanEmail = isFictitiousEmail(rawEmail) ? '' : (rawEmail || '').trim();
 
-          map.set(row.identidad, {
+          map.set(groupKey, {
             id: row.id,
             Identidad: row.identidad,
             Contribuyente: row.contribuyentes?.nombre || row.nombre || row.contribuyente || 'Sin Nombre',
@@ -478,8 +496,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             isChildNormal: isChildNormal,
             childNormalCount: childNormalCount
           });
-        } else if (row.identidad && map.has(row.identidad)) {
-          const existing = map.get(row.identidad);
+        } else if (groupKey && map.has(groupKey)) {
+          const existing = map.get(groupKey);
           existing.SaldoFavor += parseFloat(row.saldo_favor_bs || '0');
           existing.DeudaMMV += rowDeudaMMV;
           existing.DeudaCongelada += rowCongelada;
@@ -529,13 +547,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (cod && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
           }
-          map.set(row.identidad, existing);
+          map.set(groupKey, existing);
         }
       });
 
       // Asegurar inclusión de contribuyentes de la tabla 'contribuyentes' que no tengan inmuebles aún o sean recién registrados
       rawContribuyentes.forEach((c: any) => {
-        if (c.identidad && !map.has(c.identidad)) {
+        if (c.identidad && !identidadesConInmueble.has(c.identidad) && !map.has(c.identidad)) {
           const rawEmail = c.email || c.correo_electronico || c.correo;
           const cleanEmail = isFictitiousEmail(rawEmail) ? '' : (rawEmail || '').trim();
           map.set(c.identidad, {
