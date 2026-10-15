@@ -438,3 +438,34 @@ export const cleanClasificacionActividad = (str?: string | null): string => {
   return cleaned || 'Servicio de Aseo Urbano';
 };
 
+/**
+ * Extrae el Nivel (ALTA, MEDIA, BAJA, ESPECIAL) o la Zona (ZONA A, B, C, D)
+ * a partir de la descripción de la actividad o inmueble.
+ */
+export const extractNivelZona = (str?: string | null): { nivel: string | null; zona: string | null } => {
+  if (!str) return { nivel: null, zona: null };
+  const upper = str.toUpperCase();
+
+  // 1. Extraer Zona (para Residencial / Zonas Catastrales)
+  let zona: string | null = null;
+  const matchZona = upper.match(/\b(ZONA\s+[A-E0-9]+)\b/) || upper.match(/\((ZONA\s+[A-E0-9]+)\)/);
+  if (matchZona) {
+    zona = matchZona[1];
+  } else {
+    const matchSimple = upper.match(/\b(CASA|APARTAMENTO|QUINTA|TOWNHOUSE)\s*\(?([A-D])\)?/);
+    if (matchSimple) {
+      zona = `ZONA ${matchSimple[2]}`;
+    }
+  }
+
+  // 2. Extraer Nivel (para Comercial / Industrial / Actividades Económicas)
+  let nivel: string | null = null;
+  const matchNivel = upper.match(/\b(ALTA|MEDIA|BAJA|ESPECIAL)\b/);
+  if (matchNivel) {
+    nivel = matchNivel[1];
+  }
+
+  return { nivel, zona };
+};
+
+

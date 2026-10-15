@@ -12,7 +12,8 @@ import { supabase } from '@/lib/supabase';
 import { formatBs, getIdentidadVariantsExact } from '@/lib/formatters';
 import {
   calcularMensualidad, isResidencialInm, isExoneradoTotalMultas,
-  isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad
+  isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad,
+  extractNivelZona
 } from '@/lib/calculos';
 
 interface DetallesContribuyenteModalProps {
@@ -384,11 +385,21 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate" title={viewData.Contribuyente}>
                 {viewData.Contribuyente}
               </h2>
-              <p className="text-xs text-slate-300 flex items-center gap-1.5 truncate">
+              <div className="text-xs text-slate-300 flex items-center gap-1.5 truncate flex-wrap pt-0.5">
                 <Store className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span className="truncate">{cleanClasificacionActividad(viewData.Actividad || viewData.actividad_principal) || 'Contribuyente Municipal'}</span>
+                <span className="font-semibold text-slate-200">{cleanClasificacionActividad(viewData.Actividad || viewData.actividad_principal) || 'Contribuyente Municipal'}</span>
+                {extractNivelZona(viewData.Actividad || viewData.actividad_principal).nivel && (
+                  <span className="bg-purple-900/80 text-purple-200 text-[10px] font-extrabold px-2 py-0.5 rounded border border-purple-700/80">
+                    Nivel {extractNivelZona(viewData.Actividad || viewData.actividad_principal).nivel}
+                  </span>
+                )}
+                {extractNivelZona(viewData.Actividad || viewData.actividad_principal).zona && (
+                  <span className="bg-emerald-900/80 text-emerald-200 text-[10px] font-extrabold px-2 py-0.5 rounded border border-emerald-700/80">
+                    {extractNivelZona(viewData.Actividad || viewData.actividad_principal).zona}
+                  </span>
+                )}
                 {viewData.CodCont && <span className="font-mono text-slate-400">· {viewData.CodCont}</span>}
-              </p>
+              </div>
             </div>
 
             {/* Acciones Rápidas del Encabezado */}
@@ -524,7 +535,29 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
                     <div className="col-span-2">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Actividad Principal</span>
-                      <span className="font-medium text-slate-700">{cleanClasificacionActividad(viewData.Actividad || viewData.actividad_principal) || 'No registrada'}</span>
+                      <span className="font-bold text-slate-800">{cleanClasificacionActividad(viewData.Actividad || viewData.actividad_principal) || 'No registrada'}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Nivel Tarifario</span>
+                      {extractNivelZona(viewData.Actividad || viewData.actividad_principal).nivel ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                          ⚡ {extractNivelZona(viewData.Actividad || viewData.actividad_principal).nivel}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-medium">N/A</span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Zona Catastral</span>
+                      {extractNivelZona(viewData.Actividad || viewData.actividad_principal).zona ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          📍 {extractNivelZona(viewData.Actividad || viewData.actividad_principal).zona}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-medium">N/A</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -760,9 +793,21 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                             </td>
 
                                             <td className="px-3 py-2.5">
-                                              <span className="font-bold text-slate-800 block">
-                                                {cleanClasificacionActividad(hijo.actividad_principal) || hijo.actividad_principal || 'Actividad Comercial'}
-                                              </span>
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="font-bold text-slate-800">
+                                                  {cleanClasificacionActividad(hijo.actividad_principal) || hijo.actividad_principal || 'Actividad Comercial'}
+                                                </span>
+                                                {extractNivelZona(hijo.actividad_principal).nivel && (
+                                                  <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.2 rounded border border-purple-200">
+                                                    Nivel {extractNivelZona(hijo.actividad_principal).nivel}
+                                                  </span>
+                                                )}
+                                                {extractNivelZona(hijo.actividad_principal).zona && (
+                                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.2 rounded border border-emerald-200">
+                                                    {extractNivelZona(hijo.actividad_principal).zona}
+                                                  </span>
+                                                )}
+                                              </div>
                                               {hijo.direccion && (
                                                 <span className="text-[10px] text-slate-400 block truncate max-w-xs" title={hijo.direccion}>
                                                   {hijo.direccion}
@@ -855,9 +900,21 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="col-span-2">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Actividad / Ramo</span>
-                            <span className="font-bold text-slate-800 block truncate" title={inm.actividad_principal}>
-                              {cleanClasificacionActividad(inm.actividad_principal) || 'No especificada'}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-800" title={inm.actividad_principal}>
+                                {cleanClasificacionActividad(inm.actividad_principal) || 'No especificada'}
+                              </span>
+                              {extractNivelZona(inm.actividad_principal).nivel && (
+                                <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.2 rounded border border-purple-200">
+                                  Nivel {extractNivelZona(inm.actividad_principal).nivel}
+                                </span>
+                              )}
+                              {extractNivelZona(inm.actividad_principal).zona && (
+                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.2 rounded border border-emerald-200">
+                                  {extractNivelZona(inm.actividad_principal).zona}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           <div>
