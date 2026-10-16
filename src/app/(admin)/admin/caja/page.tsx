@@ -5660,45 +5660,6 @@ export default function CajaPage() {
                         />
                         <span className="text-[10px] text-slate-400">{referenciaDebito.length}/8 dígitos</span>
                       </label>
-                      <label className="block">
-                        <span className="text-xs font-semibold text-slate-600 mb-1 block">
-                          Voucher / Soporte del Punto de Venta (Opcional)
-                        </span>
-                        <div className="border border-dashed border-slate-300 bg-white rounded-lg p-2.5 flex items-center justify-between text-xs relative hover:bg-slate-50 transition-colors">
-                          <input 
-                            type="file" 
-                            accept="image/*,.pdf"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            onChange={(e) => {
-                              if (e.target.files && e.target.files[0]) {
-                                setComprobante(e.target.files[0]);
-                              }
-                            }}
-                          />
-                          {comprobante ? (
-                            <span className="font-semibold text-emerald-700 truncate max-w-[220px]">
-                              📎 {comprobante.name}
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 text-[11px]">
-                              📁 Clic para adjuntar voucher / comprobante (.jpg, .png, .pdf)
-                            </span>
-                          )}
-                          {comprobante && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setComprobante(null);
-                              }}
-                              className="text-[10px] text-red-600 hover:text-red-800 font-bold ml-2 relative z-10"
-                            >
-                              Quitar
-                            </button>
-                          )}
-                        </div>
-                      </label>
                     </div>
                   )}
 

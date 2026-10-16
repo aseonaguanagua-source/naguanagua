@@ -87,46 +87,65 @@ function parseDetalles(raw: any): any {
   try { return JSON.parse(raw); } catch { return {}; }
 }
 
+// ─── EXTRACTOR UNIVERSAL DE COMPROBANTES ────────────────
+export function extraerArchivosComprobante(pago: any): { name: string; url: string; tipo: 'Pago' | 'Retención' | 'Condominio' }[] {
+  if (!pago) return [];
+  const det = parseDetalles(pago.detalles);
+  const urls: { name: string; url: string; tipo: 'Pago' | 'Retención' | 'Condominio' }[] = [];
+
+  const add = (name: string, url: any, tipo: 'Pago' | 'Retención' | 'Condominio') => {
+    if (!url || typeof url !== 'string' || !url.trim()) return;
+    const cleanUrl = url.trim();
+    if (!urls.some(u => u.url === cleanUrl)) {
+      urls.push({ name: name || 'comprobante', url: cleanUrl, tipo });
+    }
+  };
+
+  // 1. Directos en detalles
+  if (det.comprobante_url) add(det.comprobante_nombre || 'Comprobante de Pago', det.comprobante_url, 'Pago');
+  if (det.comprobante_b64) add(det.comprobante_nombre || 'Comprobante de Pago (Base64)', det.comprobante_b64, 'Pago');
+  if (det.soporte_url) add('Soporte de Pago', det.soporte_url, 'Pago');
+  if (det.comprobante && typeof det.comprobante === 'string') add('Comprobante', det.comprobante, 'Pago');
+
+  // 2. Retenciones de IVA (Comprobante SENIAT)
+  if (det.comprobante_retencion_url) add(det.comprobante_retencion_nombre || 'Comprobante Retención IVA (SENIAT)', det.comprobante_retencion_url, 'Retención');
+  if (det.comprobante_retencion_b64) add(det.comprobante_retencion_nombre || 'Comprobante Retención IVA (SENIAT)', det.comprobante_retencion_b64, 'Retención');
+
+  // 3. Raíz del objeto pago
+  if (pago.comprobante_url) add('Comprobante de Pago', pago.comprobante_url, 'Pago');
+  if (pago.comprobante_b64) add('Comprobante de Pago', pago.comprobante_b64, 'Pago');
+
+  // 4. Pagos agregados (Caja de Condominios y pagos múltiples)
+  if (Array.isArray(det.pagos_agregados)) {
+    for (const pa of det.pagos_agregados) {
+      if (pa?.comprobante_url) add(pa.comprobante_nombre || pa.referencia || 'Comprobante Condominio', pa.comprobante_url, 'Condominio');
+      if (pa?.comprobante_b64) add(pa.comprobante_nombre || 'Comprobante Condominio (Base64)', pa.comprobante_b64, 'Condominio');
+    }
+  }
+
+  // 5. Formas de pago
+  if (Array.isArray(det.formasPago)) {
+    for (const fp of det.formasPago) {
+      if (fp?.comprobante_url) add(fp.comprobante_nombre || fp.referencia || 'Comprobante Forma Pago', fp.comprobante_url, 'Pago');
+      if (fp?.comprobante_b64) add(fp.comprobante_nombre || 'Comprobante Forma Pago (Base64)', fp.comprobante_b64, 'Pago');
+    }
+  }
+
+  return urls;
+}
+
 // ─── MODAL COMPROBANTE ──────────────────────────────────
 function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }) {
   const det = parseDetalles(pago.detalles);
-  const [archivos, setArchivos] = useState<{ name: string; url: string }[]>([]);
+  const [archivos, setArchivos] = useState<{ name: string; url: string; tipo: 'Pago' | 'Retención' | 'Condominio' }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const urls: { name: string; url: string }[] = [];
-      // 1. Comprobante directo en la raíz de detalles
-      if (det.comprobante_url) {
-        urls.push({ name: det.comprobante_nombre || 'comprobante.jpg', url: det.comprobante_url });
-      }
-      if (urls.length === 0 && det.comprobante_b64) {
-        urls.push({ name: det.comprobante_nombre || 'comprobante', url: det.comprobante_b64 });
-      }
+      const urls = extraerArchivosComprobante(pago);
 
-      // 2. Comprobantes subidos en pagos agregados (Caja de Condominios y pagos múltiples)
-      if (Array.isArray(det.pagos_agregados)) {
-        for (const pa of det.pagos_agregados) {
-          if (pa?.comprobante_url && !urls.some(u => u.url === pa.comprobante_url)) {
-            urls.push({ name: pa.comprobante_nombre || pa.referencia || 'comprobante_condominio.jpg', url: pa.comprobante_url });
-          }
-          if (pa?.comprobante_b64 && !urls.some(u => u.url === pa.comprobante_b64)) {
-            urls.push({ name: pa.comprobante_nombre || 'comprobante_b64', url: pa.comprobante_b64 });
-          }
-        }
-      }
-
-      // 3. Comprobantes en formasPago
-      if (Array.isArray(det.formasPago)) {
-        for (const fp of det.formasPago) {
-          if (fp?.comprobante_url && !urls.some(u => u.url === fp.comprobante_url)) {
-            urls.push({ name: fp.comprobante_nombre || fp.referencia || 'comprobante.jpg', url: fp.comprobante_url });
-          }
-        }
-      }
-
-      // 4. Si pertenece a un grupo de pago (hermanos con comprobante)
+      // Si pertenece a un grupo de pago (hermanos con comprobante) y no hallamos en el propio registro
       if (urls.length === 0 && (pago.grupo_pago || det.grupo_pago)) {
         try {
           const gId = pago.grupo_pago || (typeof det.grupo_pago === 'string' ? det.grupo_pago : det.grupo_pago?.id);
@@ -136,23 +155,16 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
               .select('detalles')
               .eq('grupo_pago', gId);
             for (const h of hermanos || []) {
-              const hDet = parseDetalles(h.detalles);
-              if (hDet.comprobante_url && !urls.some(u => u.url === hDet.comprobante_url)) {
-                urls.push({ name: hDet.comprobante_nombre || 'comprobante.jpg', url: hDet.comprobante_url });
-              }
-              if (Array.isArray(hDet.pagos_agregados)) {
-                for (const pa of hDet.pagos_agregados) {
-                  if (pa?.comprobante_url && !urls.some(u => u.url === pa.comprobante_url)) {
-                    urls.push({ name: pa.comprobante_nombre || 'comprobante.jpg', url: pa.comprobante_url });
-                  }
-                }
-              }
+              const hUrls = extraerArchivosComprobante(h);
+              hUrls.forEach(u => {
+                if (!urls.some(existing => existing.url === u.url)) urls.push(u);
+              });
             }
           }
         } catch { /* ignorar */ }
       }
 
-      // 5. Fallback opcional a storage si no se halló nada
+      // Fallback opcional a storage si aún no se halló nada
       if (urls.length === 0) {
         try {
           const { data: files } = await supabase.storage
@@ -161,7 +173,7 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
             for (const f of files) {
               const { data: sd } = await supabase.storage.from('documentos')
                 .createSignedUrl('comprobantes/' + f.name, 3600);
-              if (sd?.signedUrl) urls.push({ name: f.name, url: sd.signedUrl });
+              if (sd?.signedUrl) urls.push({ name: f.name, url: sd.signedUrl, tipo: 'Pago' });
             }
           }
         } catch { /* sin storage */ }
@@ -170,7 +182,7 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
       setArchivos(urls);
       setLoading(false);
     })();
-  }, [pago.id]);
+  }, [pago]);
 
   const label = (det.cod_inmueble || pago.cod_inmueble || '') + '-' + (pago.contribuyente || pago.identidad || '');
 
@@ -210,7 +222,12 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
               {archivos.map((arch, i) => (
                 <div key={i} className="border border-slate-200 rounded-xl overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
-                    <span className="text-xs font-mono text-slate-600 truncate max-w-[260px]">{arch.name}</span>
+                    <div className="flex items-center gap-2 truncate max-w-[280px]">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${arch.tipo === 'Retención' ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                        {arch.tipo}
+                      </span>
+                      <span className="text-xs font-mono font-semibold text-slate-700 truncate" title={arch.name}>{arch.name}</span>
+                    </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <a href={arch.url} download target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-semibold">
@@ -1213,6 +1230,64 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               </div>
             </div>
 
+            {/* VISTA PREVIA COMPROBANTE ADJUNTO (DIRECTA EN CONCILIACIÓN) */}
+            {(() => {
+              const compArchivos = extraerArchivosComprobante(pago);
+              return (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <Eye size={14} className="text-blue-600"/> Comprobante(s) Adjunto(s) ({compArchivos.length})
+                    </span>
+                    {compArchivos.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowComp(true)}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-800 underline flex items-center gap-1 cursor-pointer"
+                      >
+                        Ver en pantalla completa
+                      </button>
+                    )}
+                  </div>
+                  {compArchivos.length === 0 ? (
+                    <div className="text-center py-2 text-slate-400 text-xs italic">
+                      No hay comprobante digital adjunto para este pago.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {compArchivos.map((arch, i) => (
+                        <div key={i} className="flex items-center justify-between p-2 bg-white border border-slate-200 rounded text-xs shadow-2xs">
+                          <div className="flex items-center gap-2 truncate max-w-[70%]">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${arch.tipo === "Retención" ? "bg-purple-100 text-purple-800 border border-purple-200" : "bg-blue-100 text-blue-800 border border-blue-200"}`}>
+                              {arch.tipo}
+                            </span>
+                            <span className="truncate font-mono text-[11px] text-slate-700 font-semibold" title={arch.name}>{arch.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setShowComp(true)}
+                              className="px-2 py-0.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-[11px] font-bold flex items-center gap-1 border border-blue-200 cursor-pointer"
+                            >
+                              <Eye size={12}/> Ver
+                            </button>
+                            <a
+                              href={arch.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-0.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-[11px] font-semibold border border-slate-200"
+                            >
+                              Abrir
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* CONCILIACI�N */}
             <div className="grid grid-cols-4 gap-4">
               <div>
@@ -1530,12 +1605,36 @@ export default function ConciliacionPage() {
         <td className="px-3 py-2 text-xs text-slate-600">{pago.banco_destino || det.banco_destino || 'BANESCO - 0134 - 8636'}</td>
         <td className={'px-3 py-2 text-xs '+estatusCls(pago.estado||'')}>{pago.estado || '---'}</td>
         <td className="px-3 py-2 text-sm font-bold text-right text-slate-800">
-          <div className="flex items-center justify-end gap-2">
-            <span>{fmt(m)}</span>
-            {esPendiente && <button onClick={()=>abrir(pago,'conciliar')} title="Conciliar pago" className="text-slate-500 hover:text-blue-700 transition-colors"><Landmark size={18}/></button>}
-            {det.comprobante_url && <button onClick={()=>abrir(pago,'comprobante')} title="Ver comprobante" className="text-blue-600 hover:text-blue-800 transition-colors"><Eye size={18}/></button>}
-            {esAprobado && !det.comprobante_url && <button onClick={()=>abrir(pago,'conciliar')} title="Editar" className="text-green-600 hover:text-green-800 transition-colors"><Pencil size={16}/></button>}
-          </div>
+          {(() => {
+            const compArchivos = extraerArchivosComprobante(pago);
+            const hasComp = compArchivos.length > 0;
+            return (
+              <div className="flex items-center justify-end gap-2">
+                <span>{fmt(m)}</span>
+                {hasComp && (
+                  <button
+                    type="button"
+                    onClick={() => abrir(pago, 'comprobante')}
+                    title={`Ver comprobante (${compArchivos.length} archivo${compArchivos.length > 1 ? 's' : ''})`}
+                    className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-300 px-2 py-0.5 rounded text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <Eye size={13}/>
+                    <span>Ver</span>
+                  </button>
+                )}
+                {esPendiente && (
+                  <button onClick={() => abrir(pago, 'conciliar')} title="Conciliar pago" className="text-slate-500 hover:text-blue-700 transition-colors cursor-pointer">
+                    <Landmark size={18}/>
+                  </button>
+                )}
+                {esAprobado && (
+                  <button onClick={() => abrir(pago, 'conciliar')} title="Editar" className="text-green-600 hover:text-green-800 transition-colors cursor-pointer">
+                    <Pencil size={16}/>
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </td>
       </tr>
     );
