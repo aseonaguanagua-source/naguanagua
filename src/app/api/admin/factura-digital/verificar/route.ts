@@ -89,6 +89,30 @@ export async function POST(request: Request) {
       const sf = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
       const sfReal = (ret > 0 && Math.abs(sf - ret) < 0.05) ? 0 : sf;
       const esRet = ret > 0 || det.es_retencion || det.agente_retencion;
+      const sfUsado = (() => {
+        let u = parseFloat(String(det.saldo_usado ?? det.descuentoSaldoFavor ?? det.descuento_saldo_favor ?? det.saldo_favor_usado ?? det.nota_credito_usada ?? det.monto_saldo_favor ?? 0)) || 0;
+        if (u === 0 && (String(pagoData?.tipo || det.tipo || '').toLowerCase().includes('saldo a favor') || String(pagoData?.tipo || det.tipo || '').toLowerCase().includes('nota de credito'))) {
+          return parseFloat(String(pagoData?.monto || 0)) || 0;
+        }
+        if (u === 0 && Array.isArray(det.pagos_agregados)) {
+          u = det.pagos_agregados
+            .filter((pa: any) => String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') || String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
+            .reduce((sum: number, pa: any) => sum + (parseFloat(String(pa.monto || 0)) || 0), 0);
+        }
+        if (u === 0 && Array.isArray(det.formasPago)) {
+          u = det.formasPago
+            .filter((fp: any) => String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') || String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
+            .reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
+        }
+        if (u === 0 && det.monto_factura) {
+          const mFactura = parseFloat(String(det.monto_factura)) || 0;
+          const mPago = parseFloat(String(pagoData?.monto || 0)) || 0;
+          const dif = Math.round((mFactura - mPago - ret + (sfReal > 0 ? sfReal : 0)) * 100) / 100;
+          if (dif > 0.05) u = dif;
+        }
+        return Math.round(u * 100) / 100;
+      })();
+
       if (esRet) {
         const totalSel = parseFloat(String(det.total_seleccionado || 0));
         const deudaSis = parseFloat(String(det.deuda_total_sistema || 0));
@@ -100,16 +124,16 @@ export async function POST(request: Request) {
         } else if (montoNeto > 0 && ret > 0) {
           montoTotal = montoNeto + ret;
         } else if (ret > 0) {
-          montoTotal = Math.max(0, parseFloat(pagoData.monto || 0) - sfReal) + ret;
+          montoTotal = Math.max(0, parseFloat(pagoData.monto || 0) - sfReal) + ret + sfUsado;
         }
       } else if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
         montoTotal = parseFloat(det.monto_factura);
       } else if (det.total_seleccionado && parseFloat(det.total_seleccionado) > 0) {
         montoTotal = parseFloat(det.total_seleccionado);
       } else if (sfReal > 0 && parseFloat(pagoData.monto || 0) > sfReal) {
-        montoTotal = (parseFloat(pagoData.monto || 0)) - sfReal;
+        montoTotal = (parseFloat(pagoData.monto || 0)) - sfReal + sfUsado;
       } else {
-        montoTotal = parseFloat(String(pagoData.monto || '0'));
+        montoTotal = parseFloat(String(pagoData.monto || '0')) + sfUsado;
       }
     }
 

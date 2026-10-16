@@ -233,7 +233,40 @@ export async function GET(request: Request) {
         det.porcentaje_retencion = 75;
       }
 
-      // Monto de la factura fiscal/recibo: debe ser el valor REAL del servicio (sin contar saldo a favor)
+      // Detección de Nota de Crédito (Saldo a Favor) aplicada en el pago
+      const sfUsado = (() => {
+        let sf = parseFloat(String(
+          det.saldo_usado ?? 
+          det.descuentoSaldoFavor ?? 
+          det.descuento_saldo_favor ?? 
+          det.saldo_favor_usado ?? 
+          det.nota_credito_usada ?? 
+          det.monto_saldo_favor ?? 
+          0
+        )) || 0;
+        if (sf === 0 && (String(pago.tipo || det.tipo || '').toLowerCase().includes('saldo a favor') || String(pago.tipo || det.tipo || '').toLowerCase().includes('nota de credito'))) {
+          return parseFloat(String(pago.monto || det.montoTotal || 0)) || 0;
+        }
+        if (sf === 0 && Array.isArray(det.pagos_agregados)) {
+          sf = det.pagos_agregados
+            .filter((pa: any) => String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') || String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
+            .reduce((sum: number, pa: any) => sum + (parseFloat(String(pa.monto || 0)) || 0), 0);
+        }
+        if (sf === 0 && Array.isArray(det.formasPago)) {
+          sf = det.formasPago
+            .filter((fp: any) => String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') || String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
+            .reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
+        }
+        if (sf === 0 && det.monto_factura) {
+          const mFactura = parseFloat(String(det.monto_factura)) || 0;
+          const mPago = parseFloat(String(pago.monto || det.montoTotal || 0)) || 0;
+          const dif = Math.round((mFactura - mPago - montoRetNum + (sFavorGuardado > 0 ? sFavorGuardado : 0)) * 100) / 100;
+          if (dif > 0.05) sf = dif;
+        }
+        return Math.round(sf * 100) / 100;
+      })();
+
+      // Monto de la factura fiscal/recibo: debe ser el valor REAL del servicio (incluyendo nota de crédito / saldo a favor)
       let montoFacturaReal = parseFloat(pago.monto || '0');
       if (tieneRetencion) {
         // Para retención: El monto fiscal de la factura es el valor BRUTO con IVA (antes de deducir retención)
@@ -247,14 +280,16 @@ export async function GET(request: Request) {
         } else if (montoNetoDet > 0 && montoRetNum > 0) {
           montoFacturaReal = montoNetoDet + montoRetNum;
         } else if (montoRetNum > 0) {
-          montoFacturaReal = Math.max(0, parseFloat(pago.monto || '0') - (sFavorGuardado > 0 ? sFavorGuardado : 0)) + montoRetNum;
+          montoFacturaReal = Math.max(0, parseFloat(pago.monto || '0') - (sFavorGuardado > 0 ? sFavorGuardado : 0)) + montoRetNum + sfUsado;
         }
       } else if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
         montoFacturaReal = parseFloat(det.monto_factura);
       } else if (det.total_seleccionado && parseFloat(det.total_seleccionado) > 0) {
         montoFacturaReal = parseFloat(det.total_seleccionado);
       } else if (sFavorGuardado > 0 && montoFacturaReal > sFavorGuardado) {
-        montoFacturaReal = montoFacturaReal - sFavorGuardado;
+        montoFacturaReal = montoFacturaReal - sFavorGuardado + sfUsado;
+      } else {
+        montoFacturaReal = montoFacturaReal + sfUsado;
       }
       montoFacturaReal = Math.round(montoFacturaReal * 100) / 100;
 
@@ -273,6 +308,7 @@ export async function GET(request: Request) {
         monto: montoFacturaReal,
         montoPagado: parseFloat(pago.monto || '0'),
         saldoAFavor: sFavorGuardado,
+        saldoFavorUsado: sfUsado,
         banco: pago.banco || 'N/A',
         referencia: pago.referencia || 'N/A',
         tipo: pago.tipo || 'Transferencia',

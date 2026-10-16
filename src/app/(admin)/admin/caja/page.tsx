@@ -2440,6 +2440,9 @@ export default function CajaPage() {
             saldo_favor: saldoAFavorNuevo,
             saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
             monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+            saldo_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
+            descuento_saldo_favor: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
+            saldo_favor_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
             monto_factura: totalConImpuestos, // Monto total de la factura fiscal
             monto_retencion_iva: esAbonoDebito ? 0 : realMontoRetencionIVA,
             es_retencion: esAbonoDebito ? false : (realMontoRetencionIVA > 0),
@@ -2513,20 +2516,34 @@ export default function CajaPage() {
             currentDetalles.monto_sobrante = saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined;
             currentDetalles.monto_factura = totalFacturaBruto;
             currentDetalles.monto_neto_factura = finalTotal;
+            currentDetalles.saldo_usado = descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined;
+            currentDetalles.descuento_saldo_favor = descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined;
+            currentDetalles.saldo_favor_usado = descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined;
             currentDetalles.monto_retencion_iva = esAbonoDebito ? 0 : realMontoRetencionIVA;
             currentDetalles.es_retencion = esAbonoDebito ? false : (realMontoRetencionIVA > 0);
             currentDetalles.agente_retencion = esAbonoDebito ? false : (realMontoRetencionIVA > 0);
             currentDetalles.isCondominio = isCondominio;
-            currentDetalles.formasPago = [
-              {
+            const fpsList: any[] = [];
+            if (finalTotal > 0 || paymentMethod !== 'Saldo a Favor') {
+              fpsList.push({
                 descripcion: paymentMethod === 'TMD' ? 'TARJETA DE CRÉDITO MASTER (TMD)' : paymentMethod === 'TVD' ? 'TARJETA DE CRÉDITO VISA (TVD)' : paymentMethod === 'Credito' ? 'TARJETA DE CRÉDITO' : paymentMethod === 'Debito' ? 'TARJETA DE DÉBITO' : paymentMethod,
                 fecha: new Date().toISOString(),
-                forma: paymentMethod === 'Debito' ? '03' : ['Credito', 'TMD', 'TVD'].includes(paymentMethod) ? '02' : '05',
+                forma: paymentMethod === 'Debito' ? '05' : ['Credito', 'TMD', 'TVD'].includes(paymentMethod) ? '06' : '99',
                 banco: banco || undefined,
                 referencia: reqRef ? referencia : referenciaDebito || undefined,
                 monto: finalTotal
-              }
-            ];
+              });
+            }
+            if (descuentoSaldoFavor > 0) {
+              fpsList.push({
+                descripcion: 'COMPENSACIÓN (NOTA DE CRÉDITO / SALDO A FAVOR)',
+                fecha: new Date().toISOString(),
+                forma: '99',
+                referencia: 'NC-SALDO-FAVOR',
+                monto: descuentoSaldoFavor
+              });
+            }
+            currentDetalles.formasPago = fpsList;
             await actualizarPago(pagoId, { detalles: currentDetalles });
           } catch(err) {
             console.error('Error guardando datos para factura digital', err);

@@ -31,6 +31,45 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   let retGuardada = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || pago?.montoRetencion || 0)) || 0;
   const sFavorReal = (esRetencion && Math.abs(sFavor - retGuardada) < 0.05) ? 0 : sFavor;
 
+  // Detección de Nota de Crédito (Saldo a Favor) aplicada en caja
+  const saldoFavorUsado = (() => {
+    let sf = parseFloat(String(
+      det.saldo_usado ?? 
+      det.descuentoSaldoFavor ?? 
+      det.descuento_saldo_favor ?? 
+      det.saldo_favor_usado ?? 
+      det.nota_credito_usada ?? 
+      det.monto_saldo_favor ?? 
+      pago?.saldoUsado ?? 
+      pago?.descuentoSaldoFavor ?? 
+      0
+    )) || 0;
+    if (sf === 0 && (String(pago?.tipo || det.tipo || '').toLowerCase().includes('saldo a favor') || String(pago?.tipo || det.tipo || '').toLowerCase().includes('nota de credito'))) {
+      return parseFloat(String(pago?.monto || det.montoTotal || 0)) || 0;
+    }
+    if (sf === 0 && Array.isArray(det.pagos_agregados)) {
+      sf = det.pagos_agregados
+        .filter((pa: any) => String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') || String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
+        .reduce((sum: number, pa: any) => sum + (parseFloat(String(pa.monto || 0)) || 0), 0);
+    }
+    if (sf === 0 && Array.isArray(det.formasPago)) {
+      sf = det.formasPago
+        .filter((fp: any) => String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') || String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
+        .reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
+    }
+    if (sf === 0 && det.monto_factura) {
+      const mFactura = parseFloat(String(det.monto_factura)) || 0;
+      const mPago = parseFloat(String(pago?.monto || det.montoTotal || 0)) || 0;
+      const mRet = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)) || 0;
+      const sFavorGen = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || 0)) || 0;
+      const dif = Math.round((mFactura - mPago - mRet + (sFavorGen > 0 ? sFavorGen : 0)) * 100) / 100;
+      if (dif > 0.05) {
+        sf = dif;
+      }
+    }
+    return Math.round(sf * 100) / 100;
+  })();
+
   let totalFactura = 0;
   let baseImponible = 0;
   let iva = 0;
@@ -53,17 +92,19 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     } else if (montoFacturaNeto > 0 && retGuardada > 0) {
       totalFactura = parseFloat((montoFacturaNeto + retGuardada).toFixed(2));
     } else if (retGuardada > 0) {
-      const netoCobradoDeuda = Math.max(0, montoPagado - sFavorReal);
+      const netoCobradoDeuda = Math.max(0, montoPagado - sFavorReal) + saldoFavorUsado;
       totalFactura = parseFloat((netoCobradoDeuda + retGuardada).toFixed(2));
     } else {
-      const netoCobradoDeuda = Math.max(0, montoPagado - sFavorReal);
+      const netoCobradoDeuda = Math.max(0, montoPagado - sFavorReal) + saldoFavorUsado;
       const baseEst = (netoCobradoDeuda - exento) / 1.04;
       totalFactura = parseFloat((baseEst * 1.16 + exento).toFixed(2));
     }
   } else if (det.monto_factura && parseFloat(String(det.monto_factura)) > 0) {
     totalFactura = parseFloat(String(det.monto_factura));
+  } else if (det.total_seleccionado && parseFloat(String(det.total_seleccionado)) > 0) {
+    totalFactura = parseFloat(String(det.total_seleccionado));
   } else {
-    totalFactura = Math.max(0, montoPagado - sFavorReal);
+    totalFactura = Math.max(0, (montoPagado - sFavorReal) + saldoFavorUsado);
   }
 
   // Desglose fiscal sobre el Total de la Factura:
@@ -76,6 +117,10 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     retencionIva = 0;
   }
 
+  const esPagoSoloSaldoFavor = String(pago?.tipo || det.tipo || '').toLowerCase().includes('saldo a favor') || String(pago?.tipo || det.tipo || '').toLowerCase().includes('nota de credito');
+  const montoCajaCancelado = esPagoSoloSaldoFavor 
+    ? 0 
+    : Math.max(0, parseFloat((totalFactura - (esRetencion ? retencionIva : 0) - saldoFavorUsado).toFixed(2)));
   const montoNetoCobrado = esRetencion ? parseFloat((totalFactura - retencionIva).toFixed(2)) : totalFactura;
 
   const fechaActual = new Date().toLocaleDateString('es-VE', {
@@ -364,12 +409,32 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
               {/* Columna Izquierda: NOTAS Y FORMAS DE PAGO */}
               <div className="space-y-2">
                 <div>
-                  <div className="font-black text-[10px] sm:text-[10.5px] uppercase text-slate-900">
+                  <div className="font-black text-[10px] sm:text-[10.5px] uppercase text-slate-900 mb-1">
                     NOTAS Y COMENTARIOS
                   </div>
-                  <p className="text-[10px] font-mono text-slate-700">
-                    Pago {pagoIdCorto} Ref. {referencia}
-                  </p>
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded text-[9.5px] space-y-1 text-slate-700 leading-snug">
+                    <p className="font-bold text-slate-900">
+                      Total Facturado y Cancelado: <span className="font-black text-emerald-800 font-mono text-[10.5px]">Bs. {formatBs(totalFactura)}</span>
+                    </p>
+                    {montoCajaCancelado > 0 && (
+                      <p>
+                        • <strong>Pagado en Caja:</strong> Bs. {formatBs(montoCajaCancelado)} <span className="text-slate-500 font-mono">({tipoPago}{referencia && referencia !== 'N/A' ? ` Ref. ${referencia}` : ''}{banco && banco !== 'N/A' ? ` - ${banco}` : ''})</span>
+                      </p>
+                    )}
+                    {saldoFavorUsado > 0 && (
+                      <p className="text-emerald-800 font-semibold bg-emerald-50/80 px-1 py-0.5 rounded border border-emerald-300">
+                        • <strong>Nota de Crédito (Saldo a Favor Aplicado):</strong> Bs. {formatBs(saldoFavorUsado)}
+                      </p>
+                    )}
+                    {esRetencion && retencionIva > 0 && (
+                      <p className="text-amber-800 font-medium">
+                        • <strong>Retención 75% IVA:</strong> Bs. {formatBs(retencionIva)}
+                      </p>
+                    )}
+                    <p className="font-mono text-[9px] text-slate-400 pt-0.5">
+                      Pago ID: {pagoIdCorto} {referencia && referencia !== 'N/A' ? `| Ref. ${referencia}` : ''}
+                    </p>
+                  </div>
                   {esRetencion && (
                     <span className="inline-block mt-1 text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
                       ★ Contribuyente Especial / Agente de Retención (75% IVA)
@@ -382,24 +447,37 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   <div className="bg-slate-100 border-b border-slate-300 py-1 px-2.5 text-[10px] font-black uppercase text-slate-800">
                     Formas de Pago
                   </div>
-                  <div className="p-2.5 text-[10px] space-y-0.5 text-slate-700 bg-white">
-                    <div>
-                      <strong>Forma:</strong> {tipoPago}
-                    </div>
-                    <div>
-                      <strong>Banco:</strong> {banco}
-                    </div>
-                    <div>
-                      <strong>Referencia:</strong> <span className="font-mono">{referencia}</span>
-                    </div>
-                    <div>
-                      <strong>Monto:</strong> Bs. {formatBs(montoNetoCobrado)}
-                    </div>
-                    {esRetencion && (
-                      <div className="text-amber-800 font-bold pt-0.5 border-t border-slate-200 mt-1">
+                  <div className="p-2.5 text-[10px] space-y-1.5 text-slate-700 bg-white">
+                    {montoCajaCancelado > 0 && (
+                      <div>
+                        <div><strong>Forma:</strong> {tipoPago}</div>
+                        {banco && banco !== 'N/A' && <div><strong>Banco:</strong> {banco}</div>}
+                        {referencia && referencia !== 'N/A' && <div><strong>Referencia:</strong> <span className="font-mono">{referencia}</span></div>}
+                        <div><strong>Monto Caja:</strong> Bs. {formatBs(montoCajaCancelado)}</div>
+                      </div>
+                    )}
+                    {saldoFavorUsado > 0 && (
+                      <div className={montoCajaCancelado > 0 ? "pt-1 border-t border-slate-200" : ""}>
+                        <div className="text-emerald-800 font-bold">
+                          <strong>Forma:</strong> Compensación (Saldo a Favor)
+                        </div>
+                        <div>
+                          <strong>Concepto:</strong> Nota de Crédito Aplicada
+                        </div>
+                        <div>
+                          <strong>Monto:</strong> <span className="font-bold text-emerald-700">Bs. {formatBs(saldoFavorUsado)}</span>
+                        </div>
+                      </div>
+                    )}
+                    {esRetencion && retencionIva > 0 && (
+                      <div className="text-amber-800 font-bold pt-1 border-t border-slate-200">
                         <strong>Retención 75% IVA:</strong> Bs. {formatBs(retencionIva)}
                       </div>
                     )}
+                    <div className="pt-1 border-t border-slate-300 font-bold text-slate-900 flex justify-between">
+                      <span>Total Cancelado:</span>
+                      <span className="font-mono text-emerald-900">Bs. {formatBs(totalFactura)}</span>
+                    </div>
                   </div>
                 </div>
               </div>

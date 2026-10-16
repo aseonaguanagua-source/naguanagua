@@ -606,8 +606,45 @@ export async function POST(request: Request) {
     const montoFacturaGuardado = parseFloat(String(detPago.monto_factura || 0)) || 0;
     const montoRetencionGuardada = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
 
+    // Detección de Nota de Crédito (Saldo a Favor) aplicada en el pago
+    const saldoFavorUsado = (() => {
+      let sf = parseFloat(String(
+        detPago.saldo_usado ?? 
+        detPago.descuentoSaldoFavor ?? 
+        detPago.descuento_saldo_favor ?? 
+        detPago.saldo_favor_usado ?? 
+        detPago.nota_credito_usada ?? 
+        detPago.monto_saldo_favor ?? 
+        0
+      )) || 0;
+      if (sf === 0 && (String(pagoRow?.tipo || detPago.tipo || '').toLowerCase().includes('saldo a favor') || String(pagoRow?.tipo || detPago.tipo || '').toLowerCase().includes('nota de credito'))) {
+        return parseFloat(String(pagoRow?.monto || 0)) || 0;
+      }
+      if (sf === 0 && Array.isArray(detPago.pagos_agregados)) {
+        sf = detPago.pagos_agregados
+          .filter((pa: any) => String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') || String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
+          .reduce((sum: number, pa: any) => sum + (parseFloat(String(pa.monto || 0)) || 0), 0);
+      }
+      if (sf === 0 && Array.isArray(detPago.formasPago)) {
+        sf = detPago.formasPago
+          .filter((fp: any) => String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') || String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
+          .reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
+      }
+      if (sf === 0 && detPago.monto_factura) {
+        const mFactura = parseFloat(String(detPago.monto_factura)) || 0;
+        const mPago = parseFloat(String(pagoRow?.monto || 0)) || 0;
+        const mRet = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
+        const sFavorGen = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || 0)) || 0;
+        const dif = Math.round((mFactura - mPago - mRet + (sFavorGen > 0 ? sFavorGen : 0)) * 100) / 100;
+        if (dif > 0.05) {
+          sf = dif;
+        }
+      }
+      return Math.round(sf * 100) / 100;
+    })();
+
     const sfReal = (conRetencion && Math.abs(saldoFavorGenerado - montoRetencionGuardada) < 0.05) ? 0 : saldoFavorGenerado;
-    let montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + montoRetencionGuardada - sfReal;
+    let montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + montoRetencionGuardada + saldoFavorUsado - sfReal;
     if (conRetencion) {
       const totalSel = parseFloat(String(detPago.total_seleccionado || 0));
       const deudaSis = parseFloat(String(detPago.deuda_total_sistema || 0));
@@ -619,7 +656,7 @@ export async function POST(request: Request) {
       } else if (montoNeto > 0 && montoRetencionGuardada > 0) {
         montoCobrado = montoNeto + montoRetencionGuardada;
       } else if (montoRetencionGuardada > 0) {
-        montoCobrado = Math.max(0, (parseFloat(String(pagoRow?.monto || 0)) || 0) - sfReal) + montoRetencionGuardada;
+        montoCobrado = Math.max(0, (parseFloat(String(pagoRow?.monto || 0)) || 0) - sfReal) + montoRetencionGuardada + saldoFavorUsado;
       }
     } else if (montoFacturaGuardado > 0) {
       montoCobrado = montoFacturaGuardado;
@@ -879,27 +916,51 @@ export async function POST(request: Request) {
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
                 : 0;
 
-              if (conRetencion && montoRetNum > 0 && totalAPagar > montoRetNum) {
-                const montoNeto = r2(totalAPagar - montoRetNum);
-                const montoRetFinal = r2(totalAPagar - montoNeto);
-                return [
-                  {
+              // Si hubo Saldo a Favor o Retención de IVA, desglosar claramente las formas de pago
+              if (saldoFavorUsado > 0 || (conRetencion && montoRetNum > 0)) {
+                const montoRetFinal = conRetencion && montoRetNum > 0 ? Math.min(totalAPagar, montoRetNum) : 0;
+                const montoSF = Math.min(r2(totalAPagar - montoRetFinal), saldoFavorUsado);
+                const montoNetoCaja = r2(totalAPagar - montoRetFinal - montoSF);
+
+                const fps: any[] = [];
+                if (montoNetoCaja > 0) {
+                  fps.push({
                     Descripcion: [forma, banco, ref].join('|'),
                     Fecha:       formatearFecha(fechaPago),
                     Forma:       codigo,
-                    Monto:       montoNeto.toFixed(2), // Monto neto cancelado por transferencia
+                    Monto:       montoNetoCaja.toFixed(2),
                     Moneda:      'BSD',
                     TipoCambio:  '0.0000',
-                  },
-                  {
+                  });
+                }
+                if (montoSF > 0) {
+                  fps.push({
+                    Descripcion: ['Compensación (Saldo a Favor)', '', 'NC-SALDO-FAVOR'].join('|'),
+                    Fecha:       formatearFecha(fechaPago),
+                    Forma:       '99',
+                    Monto:       montoSF.toFixed(2),
+                    Moneda:      'BSD',
+                    TipoCambio:  '0.0000',
+                  });
+                }
+                if (montoRetFinal > 0) {
+                  fps.push({
                     Descripcion: ['Retención IVA 75%', '', ''].join('|'),
                     Fecha:       formatearFecha(fechaPago),
-                    Forma:       '99', // Retención de IVA
+                    Forma:       '99',
                     Monto:       montoRetFinal.toFixed(2),
                     Moneda:      'BSD',
                     TipoCambio:  '0.0000',
-                  }
-                ];
+                  });
+                }
+
+                // Asegurar cuadre exacto de formas de pago al céntimo con totalAPagar
+                const sumFps = fps.reduce((acc, it) => acc + parseFloat(it.Monto), 0);
+                const diffFps = r2(totalAPagar - sumFps);
+                if (diffFps !== 0 && fps.length > 0) {
+                  fps[0].Monto = (parseFloat(fps[0].Monto) + diffFps).toFixed(2);
+                }
+                return fps;
               }
 
               // Múltiples formas de pago registradas en caja (sin retención)
@@ -967,11 +1028,23 @@ export async function POST(request: Request) {
                 ? (retCalculada > 0 ? retCalculada : (parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0))
                 : 0;
               const f2 = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-              if (conRetencion && montoRetNum > 0) {
-                const montoNeto = r2(totalAPagar - montoRetNum);
-                return `Forma de Pago: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''} por Bs. ${f2(montoNeto)} (Monto Cancelado sin Retención) | Retención 75% IVA: Bs. ${f2(montoRetNum)}`.slice(0, 255);
+              const montoRetFinal = conRetencion && montoRetNum > 0 ? Math.min(totalAPagar, montoRetNum) : 0;
+              const montoSF = Math.min(r2(totalAPagar - montoRetFinal), saldoFavorUsado);
+              const montoNetoCaja = r2(totalAPagar - montoRetFinal - montoSF);
+
+              const partes: string[] = [];
+              if (montoNetoCaja > 0) {
+                partes.push(`Caja: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''} por Bs. ${f2(montoNetoCaja)}`);
               }
-              return `Forma de Pago: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''} por Bs. ${f2(totalAPagar)} (Cancelado) | Pago ${String(pagoId).slice(0, 8).toUpperCase()}`.slice(0, 255);
+              if (montoSF > 0) {
+                partes.push(`Nota de Crédito (Saldo a Favor): Bs. ${f2(montoSF)}`);
+              }
+              if (montoRetFinal > 0) {
+                partes.push(`Retención 75% IVA: Bs. ${f2(montoRetFinal)}`);
+              }
+              partes.push(`Total Cancelado: Bs. ${f2(totalAPagar)}`);
+              partes.push(`Pago ${String(pagoId).slice(0, 8).toUpperCase()}`);
+              return partes.join(' | ').slice(0, 255);
             })()
           },
         ],
@@ -1002,12 +1075,12 @@ export async function POST(request: Request) {
     } else {
       const retCalculada = r2(totalIVA * 0.75);
       const montoRet = conRetencion ? (retCalculada || parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0))) : 0;
-      const montoCobradoNeto = (parseFloat(String(pagoRow?.monto || 0)) || 0) - saldoFavorGenerado;
+      const montoCobradoNeto = (parseFloat(String(pagoRow?.monto || 0)) || 0) + saldoFavorUsado - saldoFavorGenerado;
       const cobradoTotal = montoCobradoNeto + montoRet;
       if (montoCobradoNeto > 0 && !conRetencion && totalAPagar > montoCobradoNeto + tol)
-        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja (${montoCobradoNeto.toFixed(2)}).`);
+        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja + nota de crédito (${montoCobradoNeto.toFixed(2)}).`);
       if (montoCobradoNeto > 0 && conRetencion && totalAPagar > cobradoTotal + tol + 1.0)
-        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja + retención (${cobradoTotal.toFixed(2)}).`);
+        erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja + retención + nota de crédito (${cobradoTotal.toFixed(2)}).`);
     }
     if (Math.abs(sumItems - totalAPagar) > tol + 0.01 * detallesItems.length)
       erroresFiscales.push(`La suma de los ítems (${sumItems.toFixed(2)}) no coincide con el total (${totalAPagar.toFixed(2)}).`);
