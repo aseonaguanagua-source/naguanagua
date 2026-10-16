@@ -1551,42 +1551,48 @@ export default function CajaPage() {
       }
     });
 
-    // Calcular con precisión de 4 decimales para que las retenciones sean exactas (ej: CECOM)
+    const isCondominioPayer = foundUser?.es_condominio || 
+      foundUser?.Clasificacion?.toLowerCase().includes('condo') ||
+      (freshInmuebles || []).some((i: any) => i.es_condominio === true && (i.identidad === foundUser?.Identidad || i.inmueble === foundUser?.CodCont || i.inmueble === foundUser?.cod_cont));
+
+    const isAgenteGlobal = Boolean(
+      foundUser?.agente_retencion || 
+      foundUser?.esAgenteRetencion || 
+      (freshInmuebles || []).some((i: any) => {
+        if (isCondominioPayer) {
+          return i.es_condominio === true && i.agente_retencion === true;
+        }
+        return i.agente_retencion === true;
+      })
+    );
+
+    // Calcular con precisión canónica de 2 decimales idéntica a recibos y factura SENIAT
     inmSelectedMap.forEach(({ inm, totalMeses, mesesConMora }) => {
       const esRes = isResidencialInm(inm);
-      const bMes = calcularMensualidad(inm, tasaActualUse);
+      const bMes = Math.round(calcularMensualidad(inm, tasaActualUse) * 100) / 100;
       const tasaMora = esRes ? 0.10 : 0.12;
 
-      // Base acumulada con 4 decimales
-      const baseInm = Math.round((bMes * totalMeses) * 10000) / 10000;
+      // Base acumulada a 2 decimales
+      const baseInm = Math.round((bMes * totalMeses) * 100) / 100;
       sb4 += baseInm;
 
-      // IVA: 0% residencial, 16% comercial con 4 decimales
-      const ivaInm = esRes ? 0 : Math.round((baseInm * 0.16) * 10000) / 10000;
+      // IVA: 0% residencial, 16% comercial exacto sobre la base
+      const ivaInm = esRes ? 0 : Math.round((baseInm * 0.16) * 100) / 100;
       siva4 += ivaInm;
 
-      if (!esRes && inm.agente_retencion === true) {
+      const esAgente = inm.agente_retencion === true || isAgenteGlobal;
+      if (!esRes && esAgente) {
         sivaRetencionable4 += ivaInm;
       }
 
-      // Multa acumulada con 4 decimales
-      const multaInm = Math.round(((bMes * tasaMora) * mesesConMora) * 10000) / 10000;
+      // Multa acumulada
+      const multaInm = Math.round(((bMes * tasaMora) * mesesConMora) * 100) / 100;
       smulta4 += multaInm;
     });
 
     selectedCuotas.forEach(sc => {
       const c = cuotasMap.get(`${sc.convId}:${sc.cuotaId}`);
       if (c) extraSb += parseFloat(c.monto || '0');
-    });
-    const isCondominioPayer = foundUser?.es_condominio || 
-      foundUser?.Clasificacion?.toLowerCase().includes('condo') ||
-      (freshInmuebles || []).some((i: any) => i.es_condominio === true && (i.identidad === foundUser?.Identidad || i.inmueble === foundUser?.CodCont || i.inmueble === foundUser?.cod_cont));
-
-    const isAgenteGlobal = foundUser?.agente_retencion || foundUser?.esAgenteRetencion || (freshInmuebles || []).some((i: any) => {
-      if (isCondominioPayer) {
-        return i.es_condominio === true && i.agente_retencion === true;
-      }
-      return i.agente_retencion === true;
     });
 
     selectedServicios.forEach(ref => {
@@ -1613,7 +1619,7 @@ export default function CajaPage() {
     const sb = Math.round((sb4 + extraSb) * 100) / 100;
     const siva = Math.round(siva4 * 100) / 100;
     const smulta = Math.round(smulta4 * 100) / 100;
-    const sivaRetencionable = Math.round(sivaRetencionable4 * 10000) / 10000;
+    const sivaRetencionable = Math.round(sivaRetencionable4 * 100) / 100;
 
     setSumBase(sb);
     setSumIVA(siva);
