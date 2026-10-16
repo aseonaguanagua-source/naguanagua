@@ -33,8 +33,36 @@ export async function GET(request: Request) {
       nombre: records[0].contribuyente, 
       codigo: records[0].cod_cont 
     });
-  } else {
-    // Si no se encuentra, retornamos 404
-    return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
   }
+
+  // Si no está en inmuebles, buscar en contribuyentes
+  const { data: contrib } = await supabase
+    .from('contribuyentes')
+    .select('nombre, identidad')
+    .or(orFilterGet)
+    .limit(1);
+
+  if (contrib && contrib.length > 0) {
+    return NextResponse.json({
+      nombre: contrib[0].nombre,
+      codigo: contrib[0].identidad
+    });
+  }
+
+  // Si no está en contribuyentes, buscar en servicios_especiales
+  const { data: srv } = await supabase
+    .from('servicios_especiales')
+    .select('contribuyente, referencia')
+    .or(orFilterGet)
+    .limit(1);
+
+  if (srv && srv.length > 0) {
+    return NextResponse.json({
+      nombre: srv[0].contribuyente,
+      codigo: srv[0].referencia
+    });
+  }
+
+  // Si no se encuentra en ninguna fuente, retornamos 404
+  return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
 }

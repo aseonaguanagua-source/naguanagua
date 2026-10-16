@@ -708,15 +708,21 @@ export default function CajaPage() {
       // Fallback 3: buscar en tabla servicios_especiales (por código único de planilla o por cédula/RIF)
       if (!user) {
         const isSrvPattern = /^SRV-/i.test(rawSearch) || rawSearch.toUpperCase().includes('SRV-');
-        let qSrv = supabase.from('servicios_especiales').select('*').eq('estado', 'Pendiente');
+        let qSrv = supabase.from('servicios_especiales').select('*');
         if (isSrvPattern) {
           qSrv = qSrv.ilike('referencia', `%${rawSearch.trim()}%`);
         } else {
-          qSrv = qSrv.or(`referencia.ilike.%${rawSearch}%,identidad.in.(${searchVariants.join(',')})`);
+          const srvOrFilters = [
+            `referencia.ilike.%${rawSearch.trim()}%`,
+            ...searchVariants.map(v => `identidad.eq.${v}`)
+          ];
+          qSrv = qSrv.or(srvOrFilters.join(','));
         }
         const { data: srvFallbackList } = await qSrv.order('created_at', { ascending: false });
         if (srvFallbackList && srvFallbackList.length > 0) {
-          const srv = srvFallbackList[0];
+          const srvPendientes = srvFallbackList.filter((s: any) => s.estado === 'Pendiente');
+          const srvListToUse = srvPendientes.length > 0 ? srvPendientes : srvFallbackList;
+          const srv = srvListToUse[0];
           user = {
             Identidad: srv.identidad || 'N/A',
             Contribuyente: srv.contribuyente || 'Contribuyente',
@@ -730,9 +736,9 @@ export default function CajaPage() {
             Actividad: srv.descripcion || 'Servicio Especial',
             SaldoFavor: 0,
             DeudaTotal: parseFloat(srv.monto || '0'),
-            Estado: 'Activo',
+            Estado: srv.estado || 'Activo',
             isServicioEspecialDirecto: true,
-            _serviciosCargados: srvFallbackList
+            _serviciosCargados: srvListToUse
           };
         }
       }
@@ -754,6 +760,10 @@ export default function CajaPage() {
         // Auto-seleccionar para cobro inmediato en taquilla
         setSelectedServicios(srvEsp.map((s: any) => s.referencia));
         setSelectedTalaPoda(tala.map((s: any) => s.referencia));
+        // Los servicios especiales ya tienen el monto total con IVA incluido / tasa exenta
+        setIvaPercent(0);
+        setRetencionIVA(0);
+        setEsAgenteRetencion(false);
         setIsSearching(false);
         return;
       }
@@ -1375,8 +1385,8 @@ export default function CajaPage() {
         setSelectedHijos([]);
       }
       
-      // Calcular IVA inicial (RESIDENCIAL Y CONDOMINIOS RESIDENCIALES 100% EXENTOS DE IVA)
-      if (isResidencialUser || (user.Clasificacion || '').toLowerCase().includes('residencial')) {
+      // Calcular IVA inicial (RESIDENCIAL, CONDOMINIOS RESIDENCIALES Y SERVICIOS 100% EXENTOS DE IVA ADICIONAL)
+      if (user.isServicioEspecialDirecto || user.Tipo === 'SERVICIO' || isResidencialUser || (user.Clasificacion || '').toLowerCase().includes('residencial')) {
         setIvaPercent(0);
         setRetencionIVA(0);
         setEsAgenteRetencion(false);
@@ -2035,7 +2045,10 @@ export default function CajaPage() {
         }
         const singleInm = primerInm;
         const refNum = refNumBase;
-        const esResInm = isResidencialInm(singleInm);
+        const esServicioDirecto = foundUser.isServicioEspecialDirecto || foundUser.Tipo === 'SERVICIO' || (selectedServicios.length > 0 && selectedRecibos.length === 0) || (selectedTalaPoda.length > 0 && selectedRecibos.length === 0);
+        const srvObj = selectedServicios.length > 0 ? serviciosEsp.find(s => selectedServicios.includes(s.referencia)) : talaPoda.find(s => selectedTalaPoda.includes(s.referencia));
+        const srvDesc = srvObj?.descripcion || (selectedTalaPoda.length > 0 ? 'Servicio de Tala y Poda' : 'Servicio Especial / Tasa Administrativa');
+        const esResInm = esServicioDirecto ? true : isResidencialInm(singleInm);
         return [{
           reciboNo: refNum,
           controlWeb: `WEB-${refNum}`,
@@ -2047,7 +2060,7 @@ export default function CajaPage() {
           caja: cajero_id_recibo,
           periodo: periodoDeRefs(selectedRefs),
           conceptos: [{
-            descripcion: esAbono ? `Abono Parcial a Deuda - Inmueble ${singleInm?.inmueble || ''}` : `Servicio de Aseo Urbano y Domiciliario`,
+            descripcion: esAbono ? `Abono Parcial a Deuda - Inmueble ${singleInm?.inmueble || ''}` : (esServicioDirecto ? srvDesc : `Servicio de Aseo Urbano y Domiciliario`),
             precioUnit: montoReal,
             total: montoReal
           }],
@@ -2059,7 +2072,7 @@ export default function CajaPage() {
           banco: bancoLabel,
           referencia: referencia || 'N/A',
           tasaBcv: currentBcvRate || tcmmv || undefined,
-          tipoContribuyente: esResInm ? 'Residencial' : 'Comercial',
+          tipoContribuyente: esResInm ? 'Residencial / Tasa' : 'Comercial',
           esAbono: !!esAbono,
           montoCancelado: esAbono ? montoReal : undefined,
           montoPendiente: esAbono ? montoPendiente : undefined,
@@ -3391,22 +3404,39 @@ export default function CajaPage() {
       }, ...prev]);
 
       // Refrescar datos del contribuyente sin salir de la pantalla
+      const wasServicioDirecto = !!foundUser?.isServicioEspecialDirecto;
       setTimeout(async () => {
         setSuccessMsg('');
-        // refreshUserData: refresca SOLO este contribuyente, evita recargar todo el sistema
-        await refreshUserData(foundUser?.Identidad || '');
-        setSelectedRecibos([]);
-        setSelectedCuotas([]);
-        setSelectedServicios([]);
-        setSelectedTalaPoda([]);
-        setReferencia('');
-        setReferenciaDebito('');
-        setMontoDebito('');
-        setMontoTransferido('');
-        setComprobante(null);
-        setTotalBs(0);
-        setConfirmPayload(null);
-        await handleSearch();
+        if (wasServicioDirecto) {
+          setSelectedRecibos([]);
+          setSelectedCuotas([]);
+          setSelectedServicios([]);
+          setSelectedTalaPoda([]);
+          setReferencia('');
+          setReferenciaDebito('');
+          setMontoDebito('');
+          setMontoTransferido('');
+          setComprobante(null);
+          setTotalBs(0);
+          setConfirmPayload(null);
+          setFoundUser(null);
+          setDocNumber('');
+        } else {
+          // refreshUserData: refresca SOLO este contribuyente, evita recargar todo el sistema
+          await refreshUserData(foundUser?.Identidad || '');
+          setSelectedRecibos([]);
+          setSelectedCuotas([]);
+          setSelectedServicios([]);
+          setSelectedTalaPoda([]);
+          setReferencia('');
+          setReferenciaDebito('');
+          setMontoDebito('');
+          setMontoTransferido('');
+          setComprobante(null);
+          setTotalBs(0);
+          setConfirmPayload(null);
+          await handleSearch();
+        }
       }, 2500);
       
     } catch (err: any) {
@@ -5449,11 +5479,10 @@ export default function CajaPage() {
                       </div>
                       {(() => {
                         const baseMonto = parseFloat(s.monto || '0');
-                        const montoConIva = baseMonto * (1 + ivaPercent);
                         return (
                           <div className="text-right shrink-0">
-                            <span className="font-bold text-green-700 block text-sm">Bs. {formatBs(montoConIva)}</span>
-                            <span className="text-[10px] text-slate-500 font-medium">Base: Bs. {formatBs(baseMonto)} + IVA 16%</span>
+                            <span className="font-bold text-green-700 block text-sm">Bs. {formatBs(baseMonto)}</span>
+                            <span className="text-[10px] text-emerald-600 font-medium">Monto Total (Tasa / IVA Incluido)</span>
                           </div>
                         );
                       })()}

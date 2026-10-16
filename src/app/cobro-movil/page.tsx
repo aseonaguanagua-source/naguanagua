@@ -575,6 +575,10 @@ export default function KioskPage() {
           if (inm) await supabase.from('inmuebles').update({ multa_bs: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
           continue;
         }
+        if (r.startsWith('SRV-')) {
+          await supabase.from('servicios_especiales').update({ estado: 'Pagado' }).eq('referencia', r);
+          continue;
+        }
         const fac = recibos.find(x => x.referencia === r); if (!fac) continue;
         const mFac = getReciboMonto(fac);
         if (dinero >= mFac) { await supabase.from('facturas').update({ estado: 'Pagado' }).eq('referencia', r); dinero -= mFac; }

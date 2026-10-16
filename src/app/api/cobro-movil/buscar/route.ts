@@ -67,7 +67,52 @@ export async function GET(request: Request) {
     }
 
     if (!inmsDB || inmsDB.length === 0) {
-      return NextResponse.json({ error: 'No encontrado. Verifique su Cédula o RIF.' }, { status: 404 });
+      // Fallback: Buscar en servicios_especiales (usuarios no registrados o trámites directos)
+      const isSrv = /^SRV-/i.test(q) || q.toUpperCase().includes('SRV-');
+      let qSrv = supabaseAdmin.from('servicios_especiales').select('*').eq('estado', 'Pendiente');
+      if (isSrv) {
+        qSrv = qSrv.ilike('referencia', `%${q.trim()}%`);
+      } else {
+        qSrv = qSrv.or(['referencia.ilike.%' + q.trim() + '%', ...variants.map(v => 'identidad.eq.' + v)].join(','));
+      }
+      const { data: srvData } = await qSrv.order('created_at', { ascending: false });
+
+      if (srvData && srvData.length > 0) {
+        const srv = srvData[0];
+        const srvFacturas = srvData.map((s: any) => ({
+          id: s.id,
+          referencia: s.referencia,
+          monto: parseFloat(s.monto || '0'),
+          descripcion: s.descripcion || 'Servicio Especial',
+          emision: s.fecha || new Date().toISOString().split('T')[0],
+          estado: 'Pendiente'
+        }));
+        return NextResponse.json({
+          foundUser: {
+            Contribuyente: srv.contribuyente || 'Contribuyente',
+            Identidad: srv.identidad || q,
+            Direccion: srv.direccion_evento || 'Municipio Naguanagua',
+            Clasificacion: 'Servicio Especial',
+            Actividad: srv.descripcion || 'Servicio Especial',
+            EsAgente: false
+          },
+          inmuebles: [{
+            id: srv.referencia,
+            identidad: srv.identidad || q,
+            inmueble: srv.referencia,
+            contribuyente: srv.contribuyente || 'Contribuyente',
+            clasificacion: 'Servicio Especial',
+            tipo: 'SERVICIO',
+            direccion: srv.direccion_evento || 'Municipio Naguanagua',
+            meses_deuda: 0,
+            saldo_favor_bs: 0
+          }],
+          pagos: [],
+          facturas: srvFacturas
+        });
+      }
+
+      return NextResponse.json({ error: 'No encontrado. Verifique su Cédula, RIF o Código de Servicio.' }, { status: 404 });
     }
 
     const p = inmsDB.find((i: any) => !i.condominio_padre_id && !i.es_condominio) || inmsDB[0];
@@ -110,11 +155,27 @@ export async function GET(request: Request) {
       .or(getIdentidadVariantsExact(p.identidad).map(v => `identidad.eq.${v}`).join(','))
       .order('created_at', { ascending: false });
 
+    // También cargar servicios especiales pendientes del usuario registrado
+    const { data: srvPending } = await supabaseAdmin
+      .from('servicios_especiales')
+      .select('*')
+      .eq('estado', 'Pendiente')
+      .or(getIdentidadVariantsExact(p.identidad).map(v => `identidad.eq.${v}`).join(','));
+
+    const srvFacturas = (srvPending || []).map((s: any) => ({
+      id: s.id,
+      referencia: s.referencia,
+      monto: parseFloat(s.monto || '0'),
+      descripcion: s.descripcion || 'Servicio Especial',
+      emision: s.fecha || new Date().toISOString().split('T')[0],
+      estado: 'Pendiente'
+    }));
+
     return NextResponse.json({
       foundUser,
       inmuebles: inmsDB,
       pagos: recDB || [],
-      facturas: facDB || []
+      facturas: [...(facDB || []), ...srvFacturas]
     });
 
   } catch (err: any) {
