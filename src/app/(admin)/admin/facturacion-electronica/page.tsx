@@ -120,20 +120,51 @@ export default function FacturacionElectronicaPage() {
     setAnularEstado({ ...anularEstado, cargando: true });
     try {
       const pago = anularEstado.pago;
+      let uActual = adminUser?.usuario || '';
+      if (!uActual) {
+        try { const u = JSON.parse(localStorage.getItem('admin_user_data') || 'null'); uActual = u?.usuario || 'Administrador'; } catch {}
+      }
       const r = await fetch('/api/admin/factura-digital/anular', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pagoId: pago.id,
-          usuario: adminUser?.usuario,
+          usuario: uActual || 'Administrador',
           contribuyente: pago.contribuyente,
           identidad: pago.identidad,
           numeroFactura: pago.numeroDocumento || pago.numeroControl,
-          recibos: pago.recibos || []
+          recibos: pago.recibos || [],
+          montoTotal: pago.monto || pago.montoTotal,
+          montos: pago.detalles?.montos || {},
+          formasPago: pago.detalles?.formasPago || []
         }),
       });
       const d = await r.json();
-      if (!r.ok) { setAnularEstado({ ...anularEstado, cargando: false, error: d.error || 'No se pudo anular' }); return; }
+      if (!r.ok || d.skipped) { 
+        const errStr = d.error || d.message || 'No se pudo anular la factura';
+        if (errStr.toLowerCase().includes('anulad') || confirm(`The Factory HKA reportó:\n"${errStr}"\n\n¿Desea marcar esta factura como anulada en el sistema (NC Manual) para que quede anulada como el Sambil y habilitar la reemisión limpia?`)) {
+          const rf = await fetch('/api/admin/factura-digital/anular', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pagoId: pago.id,
+              usuario: uActual || 'Administrador',
+              forzarMarcadoAnulada: true
+            }),
+          });
+          const df = await rf.json();
+          if (df.success) {
+            alert('Factura marcada como anulada en el sistema exitosamente (NC-MANUAL).');
+          } else {
+            alert(df.error || 'Error al forzar anulación');
+          }
+          setAnularEstado(null);
+          loadPagos();
+          return;
+        }
+        setAnularEstado({ ...anularEstado, cargando: false, error: errStr }); 
+        return; 
+      }
       setAnularEstado({ ...anularEstado, cargando: false, hecho: true, notaCreditoUrl: d.url });
+      alert(d.yaAnuladaEnTfhka ? 'La factura ya estaba anulada en The Factory HKA y fue sincronizada en el sistema.' : 'Factura anulada correctamente (Nota de Crédito generada en The Factory HKA).');
       loadPagos();
     } catch (e: any) {
       setAnularEstado({ ...anularEstado, cargando: false, error: e.message });
@@ -1246,13 +1277,16 @@ export default function FacturacionElectronicaPage() {
                                           identidad: pago.identidad,
                                           numeroFactura: pago.numeroDocumento || pago.numeroControl,
                                           recibos: pago.recibos || [],
+                                          montoTotal: pago.monto || pago.montoTotal,
+                                          montos: pago.detalles?.montos || {},
+                                          formasPago: pago.detalles?.formasPago || []
                                         }),
                                       });
                                       const d = await r.json();
-                                      if (!r.ok) { 
-                                        const errStr = d.error || '';
-                                        if (errStr.toLowerCase().includes('anulad') || confirm(`The Factory HKA reportó:\n"${errStr}"\n\n¿Desea marcar esta factura como anulada en el sistema para habilitar la reemisión limpia?`)) {
-                                          await fetch('/api/admin/factura-digital/anular', {
+                                      if (!r.ok || d.skipped) { 
+                                        const errStr = d.error || d.message || 'No se pudo anular la factura';
+                                        if (errStr.toLowerCase().includes('anulad') || confirm(`The Factory HKA reportó:\n"${errStr}"\n\n¿Desea marcar esta factura como anulada en el sistema (NC Manual) para que quede anulada como el Sambil y habilitar la reemisión limpia?`)) {
+                                          const rf = await fetch('/api/admin/factura-digital/anular', {
                                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({
                                               pagoId: pago.id,
@@ -1260,16 +1294,21 @@ export default function FacturacionElectronicaPage() {
                                               forzarMarcadoAnulada: true
                                             }),
                                           });
-                                          alert('Factura marcada como anulada en el sistema.');
+                                          const df = await rf.json();
+                                          if (df.success) {
+                                            alert('Factura marcada como anulada en el sistema exitosamente (NC-MANUAL).');
+                                          } else {
+                                            alert(df.error || 'Error al forzar anulación');
+                                          }
                                           setAnularEstado(null);
                                           loadPagos();
                                           return;
                                         }
-                                        alert(errStr || 'No se pudo anular'); 
+                                        alert(errStr); 
                                         setAnularEstado(null); 
                                         return; 
                                       }
-                                      alert('Factura anulada correctamente (Nota de Crédito generada).');
+                                      alert(d.yaAnuladaEnTfhka ? 'La factura ya estaba anulada en The Factory HKA y fue sincronizada en el sistema.' : 'Factura anulada correctamente (Nota de Crédito generada en The Factory HKA).');
                                       setAnularEstado(null);
                                       loadPagos();
                                     } catch (e: any) {

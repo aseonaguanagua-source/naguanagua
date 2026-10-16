@@ -140,11 +140,41 @@ export async function POST(request: Request) {
         fecha_emision: new Date().toISOString(),
         manual: true
       };
+
+      const facturaAfectadaNum = numeroFactura || 
+        dm.factura_digital?.numero_documento || 
+        dm.factura_digital?.numero || 
+        dm.factura_digital?.tfhka_seq || 
+        dm.factura_digital?.raw_response?.resultado?.numeroDocumento ||
+        (dm.factura_digital?.numero_control ? String(parseInt(String(dm.factura_digital.numero_control).replace(/^00-0*/, '') || '0', 10)) : null);
+
+      if (pagoTieneRetencion(dm) || dm.conRetencion || dm.es_retencion) {
+        if (nuevosDetalles.factura_digital?.retencion) {
+          nuevosDetalles.factura_digital.retencion.estado = 'anulada';
+          nuevosDetalles.factura_digital.retencion.fecha_anulacion = new Date().toISOString();
+          nuevosDetalles.factura_digital.retencion.nota_credito = 'ANULADA-MANUAL';
+        }
+        try {
+          await supabase.from('pagos_reportados').update({
+            estado: 'Rechazado',
+            detalles: {
+              nota: `Retención anulada automáticamente por anulación manual de factura digital ${facturaAfectadaNum || ''}.`,
+              fecha_anulacion: new Date().toISOString(),
+              factura_anulada: facturaAfectadaNum || '',
+              nota_credito: 'ANULADA-MANUAL'
+            }
+          }).or(`detalles->>pago_vinculado.eq.${pagoId},id.eq.${nuevosDetalles.pago_retencion_id || '00000000-0000-0000-0000-000000000000'}`)
+            .eq('tipo', 'Retencion de IVA');
+        } catch (eRet) {
+          console.warn('Error cancelando pago de retencion vinculado:', eRet);
+        }
+      }
+
       await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
       await supabase.from('auditoria').insert({
         accion: 'Factura marcada como anulada manualmente',
         usuario: cleanUser || 'Sistema',
-        detalles: { pagoId, identidad: pagoRow.identidad }
+        detalles: { pagoId, identidad: pagoRow.identidad, numeroFactura: facturaAfectadaNum }
       });
       return NextResponse.json({ success: true, anuladaManualmente: true });
     }
@@ -162,23 +192,23 @@ export async function POST(request: Request) {
     if (!facturaAfectada) return NextResponse.json({ error: 'Falta el número de factura afectada.' }, { status: 400 });
 
     const identResuelta = (identidad || pagoRow.identidad || dm.identidad || '').trim();
-    const contribResuelto = (contribuyente || dm.contribuyente || '').trim();
+    const contribResuelto = (contribuyente || dm.contribuyente || dm.nombre || '').trim();
     const recibos: string[] = Array.isArray(recibosBody) && recibosBody.length > 0 
       ? recibosBody 
       : (Array.isArray(dm.recibos) ? dm.recibos : []);
 
-    // REGLA: las multas de inmuebles COMERCIALES se facturan (ítem exento), incluso si el pago es solo multa
-    // (p. ej. local de un condominio comercial). Las multas residenciales nunca se facturan.
-    // Montos por referencia: del payload o, si no vienen (emisión por lote), los que guardó Caja en el pago.
-    const montos: Record<string, any> = montosBody && typeof montosBody === 'object' ? montosBody : {};
+    // Montos por referencia: del payload o, si no vienen, los guardados en el pago
+    const montos: Record<string, any> = (montosBody && typeof montosBody === 'object' && Object.keys(montosBody).length > 0)
+      ? montosBody 
+      : (dm?.montos && typeof dm.montos === 'object' ? dm.montos : {});
     let montosMulta: Record<string, any> = { ...montos };
     if (Array.isArray(recibos) && recibos.some((r: string) => /^MULTA-/i.test(String(r)) && !montos[r])) {
       if (dm?.montos && typeof dm.montos === 'object') montosMulta = { ...dm.montos, ...montos };
     }
 
+    const montoTotalNum = parseFloat(String(montoTotal ?? dm.montoTotal ?? dm.monto_factura ?? pagoRow.monto ?? 0)) || 0;
+
     // --- PAGOS DE LA CAJA DE CONDOMINIOS ---
-    // La factura va a nombre de quien pagó (el condominio completo, o cada dueño por separado: una fila por dueño).
-    // Los montos salen de los renglones guardados en el pago (no de Contribuyentes: los datos no se cruzan).
     let lineasCondo: any[] | null = null;
     let condoDet: any = null;
     if ((pagoRow?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
@@ -203,12 +233,9 @@ export async function POST(request: Request) {
     const propRef = activeProps.length > 0 ? activeProps[0] : (userProps && userProps.length > 0 ? userProps[0] : null);
 
     if (activeProps.length > 0) {
-      // Comercial = al menos un inmueble que NO sea residencial (misma regla usada para el IVA)
       isComercial = activeProps.some((p: any) => !isResidencialInm(p));
     }
 
-    // Solo si NO hay inmuebles registrados se usa el RIF J/G o el nombre como indicio comercial.
-    // Si hay inmuebles, manda la clasificación del inmueble (un condominio residencial con RIF J no se factura).
     if (
       !isComercial &&
       activeProps.length === 0 &&
@@ -221,16 +248,18 @@ export async function POST(request: Request) {
     }
 
     if (lineasCondo) {
-      // Comercial si algún renglón del pago no es residencial (REGLA vigente: lo residencial no se factura)
       isComercial = lineasCondo.some((l: any) => !l.residencial && ((Number(l.aseoBs) || 0) + (Number(l.multaBs) || 0)) > 0);
+    }
+
+    // Si la factura digital ya estaba emitida, por definición es comercial y amerita nota de crédito
+    if (dm.factura_digital?.emitida) {
+      isComercial = true;
     }
 
     if (!isComercial) {
       return NextResponse.json({
-        success: true,
-        skipped: true,
-        message: 'Emisión omitida: el contribuyente es residencial.'
-      });
+        error: 'No se puede anular: el contribuyente es residencial y no tiene factura comercial asociada.'
+      }, { status: 400 });
     }
     // ------------------------------------------------------------------
 
@@ -280,15 +309,15 @@ export async function POST(request: Request) {
           : parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
 
         // Fallback: si deuda ya fue limpiada y no hay monto de caja
-        if (montoBase <= 0 && montoTotal && parseFloat(String(montoTotal)) > 0) {
+        if (montoBase <= 0 && montoTotalNum > 0) {
           // Dividir montoTotal entre la cantidad de recibos HIST
-          montoBase = parseFloat(String(montoTotal)) / histRecibos.length;
+          montoBase = montoTotalNum / (histRecibos.length || 1);
         }
 
         // MULTA: calcular como % del base (NO usar multa_bs que es el total histórico acumulado)
         // Residencial: 10%, Comercial/Industrial: 12%
         // REGLA OFICIAL: El último mes facturado (septiembre pagado en octubre) es SIN multa
-        const esResidencial = isResidencialInm(inm);
+        const esResidencial = dm.factura_digital?.emitida ? false : isResidencialInm(inm);
         const pctMulta = esResidencial ? 0.10 : 0.12;
         const parts = ref.split('-');
         const mesNum = parseInt(parts[parts.length - 1]?.replace('M', '') || '1');
@@ -621,11 +650,50 @@ export async function POST(request: Request) {
       }
     }
 
+    const r2 = (n: number) => Math.round(n * 100) / 100;
     const detallesItems = [...itemsFacturas, ...itemsHist, ...itemsMulta, ...itemsCondo, ...itemsCondoMod, ...itemsGeneral];
 
-    // Si no hay items, no emitir (nada que facturar)
+    // Si no hay renglones calculados (por ejemplo si ya se limpió la deuda en la base de datos),
+    // reconstruir el renglón de anulación con base en lo cobrado / factura emitida
     if (detallesItems.length === 0) {
-      return NextResponse.json({ success: true, skipped: true, message: excluidosResidenciales > 0 ? 'Emisión omitida: los conceptos pagados son residenciales.' : 'Sin items para facturar.' });
+      const cobradoNum = (parseFloat(String(dm.monto_factura || dm.montoTotal || pagoRow?.monto || 0)) || 0);
+      if (cobradoNum > 0) {
+        lineaNum++;
+        const base = r2(cobradoNum / 1.16);
+        const iva = r2(cobradoNum - base);
+        totalGravado += base;
+        totalIVA += iva;
+        const descPeriodo = obtenerMesAseoTexto();
+        detallesItems.push({
+          NumeroLinea:             String(lineaNum),
+          CodigoCIIU:              "0198",
+          CodigoPLU:               "ASEO001",
+          IndicadorBienoServicio:  "2",
+          Descripcion:             `Servicio de Aseo Urbano Comercial - Mes de ${descPeriodo} (Anulación Factura Nº ${facturaAfectada})`,
+          Cantidad:                "1",
+          UnidadMedida:            "NIU",
+          PrecioUnitario:          base.toFixed(2),
+          PrecioUnitarioDescuento: null,
+          MontoBonificacion:       null,
+          DescripcionBonificacion: null,
+          DescuentoMonto:          "0.00",
+          RecargoMonto:            "0",
+          PrecioItem:              base.toFixed(2),
+          PrecioAntesDescuento:    base.toFixed(2),
+          CodigoImpuesto:          "G",
+          TasaIVA:                 "16.00",
+          ValorIVA:                iva.toFixed(2),
+          ValorTotalItem:          cobradoNum.toFixed(2),
+          InfoAdicionalItem:       [],
+          ListaItemOTI:            null,
+        });
+      }
+    }
+
+    if (detallesItems.length === 0) {
+      return NextResponse.json({ 
+        error: 'No se pudieron determinar los renglones de la factura para generar la Nota de Crédito en The Factory HKA.' 
+      }, { status: 400 });
     }
 
     // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
@@ -634,7 +702,6 @@ export async function POST(request: Request) {
     // CUADRE: la factura debe totalizar el servicio facturado.
     // REGLA: Lo que esté por encima al pago NO se debe trasladar a la factura electrónica,
     // solo sumarse a la nota de crédito.
-    const r2 = (n: number) => Math.round(n * 100) / 100;
     const saldoFavorGenerado = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
     const montoFacturaGuardado = parseFloat(String(detPago.monto_factura || 0)) || 0;
     const montoRetencionGuardada = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
@@ -718,7 +785,7 @@ export async function POST(request: Request) {
     const refPago = String(pagoRow?.referencia || fp0.referencia || '').trim();
     const fechaPago = detPago.fecha_transaccion || pagoRow?.created_at || fechaActual.toISOString();
 
-    const docIdentificacion = identidad.replace(/[^A-Z0-9-]/gi, '');
+    const docIdentificacion = (identResuelta || '').replace(/[^A-Z0-9-]/gi, '');
     const primeraLetra = docIdentificacion.charAt(0).toUpperCase();
 
     let tipoId: string;
@@ -730,7 +797,7 @@ export async function POST(request: Request) {
       numId  = docIdentificacion.substring(1).replace(/^-/, '');
     } else {
       // Identidad sin prefijo (solo números) — detectar por nombre del contribuyente y tipo
-      const nombreContrib = (contribuyente || '').toUpperCase();
+      const nombreContrib = (contribResuelto || contribuyente || '').toUpperCase();
       const tipoInmueble  = (propRef?.tipo || '').toUpperCase();
 
       // Indicadores de persona jurídica (empresa)
@@ -758,7 +825,7 @@ export async function POST(request: Request) {
       return false;
     };
 
-    let razonSocialFinal = String(contribuyente || '').trim();
+    let razonSocialFinal = String(contribResuelto || contribuyente || '').trim();
     if (esPlaceholderNombre(razonSocialFinal)) {
       // 1. Inmuebles del usuario ya cargados
       const candProp = (userProps || []).find((p: any) => !esPlaceholderNombre(p.contribuyente));
@@ -785,7 +852,7 @@ export async function POST(request: Request) {
           } else if (propRef?.contribuyente) {
             razonSocialFinal = propRef.contribuyente;
           } else {
-            razonSocialFinal = contribuyente || "CONTRIBUYENTE";
+            razonSocialFinal = contribResuelto || contribuyente || "CONTRIBUYENTE";
           }
         }
       }
@@ -804,7 +871,7 @@ export async function POST(request: Request) {
             SerieFacturaAfectada:         null,
             NumeroFacturaAfectada:        String(facturaAfectada),
             FechaFacturaAfectada:         (dm.factura_digital?.fecha_emision || dm.factura_digital?.fecha) ? formatearFecha((dm.factura_digital.fecha_emision || dm.factura_digital.fecha).split('T')[0]) : formatearFecha(fechaActual.toISOString()),
-            MontoFacturaAfectada:         dm.factura_digital?.montoTotal ? String(dm.factura_digital.montoTotal) : totalAPagar.toFixed(2),
+            MontoFacturaAfectada:         (parseFloat(String(dm.factura_digital?.montoTotal || dm.monto_factura || totalAPagar)) || totalAPagar).toFixed(2),
             ComentarioFacturaAfectada:    "Anulación de Factura",
             RegimenEspTributacion:        null,
             FechaEmision:                 formatearFecha(fechaActual.toISOString()),
