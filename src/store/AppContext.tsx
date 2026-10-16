@@ -944,10 +944,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { error: errC } = await supabase.from('contribuyentes').upsert([contribRecord], { onConflict: 'identidad' });
       if (errC) throw new Error('No se pudo guardar el contribuyente: ' + errC.message);
 
-      // 2. Datos de contacto en sus inmuebles (no toca tarifas)
+      // 2. Datos de contacto y nombre en todos sus inmuebles (sincronización integral)
       const contacto: any = { contribuyente: data.Contribuyente, telefono: data.Telefono, correo_electronico: data.Correo };
       if (notaToSave) contacto.notas = notaToSave;
       
+      const idClean = identidadExacta.replace(/-/g, '').toUpperCase();
+      await supabase.from('inmuebles').update(contacto).or(`identidad.eq.${identidadExacta},identidad.eq.${idClean}`);
       if (codigosPropios.length > 0) {
         const { error: errCont } = await supabase.from('inmuebles').update(contacto).in('inmueble', codigosPropios);
         if (errCont) throw errCont;

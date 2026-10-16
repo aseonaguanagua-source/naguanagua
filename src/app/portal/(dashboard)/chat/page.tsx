@@ -1,68 +1,79 @@
 'use client';
-import { Send, User, MessageCircle } from 'lucide-react';
-import { useState } from 'react';
+import { MessageCircle, Mail, Phone, MapPin, Clock, ExternalLink } from 'lucide-react';
 
 export default function ChatPage() {
-  const [message, setMessage] = useState('');
-  
   return (
-    <div className="h-[calc(100vh-10rem)] bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-      {/* Chat Header */}
-      <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center gap-4">
-        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center relative">
-          <MessageCircle className="w-5 h-5 text-blue-600" />
-          <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+    <div className="max-w-3xl mx-auto space-y-6 pb-16">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-emerald-800 to-emerald-950 p-6 text-white">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-xs">
+              <MessageCircle className="w-8 h-8 text-emerald-300" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black">Centro de Atención al Contribuyente</h1>
+              <p className="text-xs text-emerald-200 mt-1">
+                Alcaldía Bolivariana de Naguanagua • Instituto Autónomo Municipal de Ecosocialismo (IAMEC)
+              </p>
+            </div>
+          </div>
         </div>
-        <div>
-          <h2 className="font-semibold text-slate-700 text-sm">Soporte en línea GLOBAL REC</h2>
-          <p className="text-xs text-green-600 font-medium">Agentes disponibles</p>
-        </div>
-      </div>
 
-      {/* Chat Messages */}
-      <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50 space-y-6">
-        <div className="flex gap-4">
-          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-1">
-            <MessageCircle className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="bg-white p-4 rounded-2xl rounded-tl-sm border border-slate-200 shadow-sm max-w-[80%]">
-            <p className="text-sm text-slate-700">¡Hola! Bienvenido al sistema de soporte de Global Rec. ¿En qué podemos ayudarte el día de hoy?</p>
-            <span className="text-[10px] text-slate-400 block mt-2">10:00 AM</span>
-          </div>
-        </div>
-        
-        <div className="flex gap-4 flex-row-reverse">
-          <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center shrink-0 mt-1">
-            <User className="w-4 h-4 text-slate-600" />
-          </div>
-          <div className="bg-blue-600 p-4 rounded-2xl rounded-tr-sm shadow-sm max-w-[80%] text-white">
-            <p className="text-sm">Hola, tengo una consulta sobre mi recibo de pago de este mes.</p>
-            <span className="text-[10px] text-blue-200 block mt-2 text-right">10:05 AM</span>
-          </div>
-        </div>
-      </div>
+        {/* Canales Oficiales */}
+        <div className="p-6 space-y-5">
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Estimado contribuyente: Ponemos a su disposición los canales oficiales directos de atención ciudadana y asesoría tributaria para la resolución de trámites, estados de cuenta, solvencias y servicios especiales.
+          </p>
 
-      {/* Chat Input */}
-      <div className="p-4 bg-white border-t border-slate-200">
-        <form 
-          onSubmit={(e) => { e.preventDefault(); setMessage(''); }}
-          className="flex items-center gap-2"
-        >
-          <input 
-            type="text" 
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Escribe un mensaje aquí..." 
-            className="flex-1 px-4 py-3 text-sm border border-slate-300 rounded-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50"
-          />
-          <button 
-            type="submit"
-            disabled={!message.trim()}
-            className="w-12 h-12 bg-[#ff5722] text-white rounded-full flex items-center justify-center hover:bg-[#f4511e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Send className="w-5 h-5 ml-1" />
-          </button>
-        </form>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* WhatsApp Recaudación */}
+            <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider">Atención WhatsApp Directa</span>
+                <h3 className="font-bold text-slate-800 text-sm mt-1">Taquilla y Recaudación</h3>
+                <p className="text-xs text-slate-500 mt-1">Asesoría inmediata sobre pagos, verificación de referencias y solvencias.</p>
+              </div>
+              <a 
+                href="https://wa.me/584120400000" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 px-4 rounded-lg transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" /> Escribir por WhatsApp
+              </a>
+            </div>
+
+            {/* Correo Electrónico Institucional */}
+            <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-4 flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase text-blue-800 tracking-wider">Despacho Fiscal</span>
+                <h3 className="font-bold text-slate-800 text-sm mt-1">Facturación y Retenciones</h3>
+                <p className="text-xs text-slate-500 mt-1">Envío de comprobantes de retención IVA 75% y certificados SENIAT.</p>
+              </div>
+              <a 
+                href="mailto:facturacion.naguanagua@gmail.com" 
+                className="mt-4 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2 px-4 rounded-lg transition-colors"
+              >
+                <Mail className="w-4 h-4" /> Enviar Correo
+              </a>
+            </div>
+          </div>
+
+          {/* Horario y Sede Presencial */}
+          <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-2">
+            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-emerald-600" /> Sede de Atención Presencial
+            </h4>
+            <p className="text-xs text-slate-600">
+              Avenida Libertador, frente a la Plaza Bolívar, Centro Comercial o Edificio Sede IAMEC, Naguanagua, Estado Carabobo.
+            </p>
+            <div className="flex items-center gap-2 text-xs text-slate-500 pt-1">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Lunes a Viernes de 8:00 AM a 4:00 PM</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

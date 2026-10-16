@@ -77,8 +77,20 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
     if (portalUser) setUser(portalUser);
     const doc = localStorage.getItem('portal_doc') || localStorage.getItem('portal_codigo') || '';
     if (doc) {
+      const docClean = doc.replace(/-/g,'');
+      supabase.from('contribuyentes').select('nombre')
+        .or(`identidad.eq.${doc},identidad.eq.${docClean}`)
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.nombre) {
+            setUser(data.nombre);
+            localStorage.setItem('portal_user', data.nombre);
+          }
+        });
+
       supabase.from('inmuebles').select('agente_retencion')
-        .or(`identidad.eq.${doc},identidad.eq.${doc.replace(/-/g,'')}`)
+        .or(`identidad.eq.${doc},identidad.eq.${docClean}`)
         .eq('agente_retencion', true).limit(1)
         .then(({ data }) => { if (data && data.length > 0) setIsAgente(true); });
     }

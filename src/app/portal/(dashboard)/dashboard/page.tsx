@@ -31,21 +31,48 @@ export default function DatosContribuyentePage() {
       if (fullDoc) {
         const variants = getIdentidadVariants(fullDoc);
         const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
-        const { data } = await supabase.from('inmuebles')
-          .select('correo_electronico, telefono, direccion, actividad_principal')
+
+        // 1. Obtener datos maestros del contribuyente (para sincronizar cambios de nombre/razón social)
+        const { data: contribData } = await supabase
+          .from('contribuyentes')
+          .select('nombre, email, telefono, direccion')
+          .or(orFilter)
+          .limit(1)
+          .maybeSingle();
+
+        // 2. Obtener inmuebles asociados para actividad y código
+        const { data: inmsData } = await supabase
+          .from('inmuebles')
+          .select('id, inmueble, contribuyente, correo_electronico, telefono, direccion, actividad_principal')
           .or(orFilter)
           .order('id', { ascending: true });
-        if (data && data.length > 0) {
-          const r = data.find(i => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') || data[0];
-          setUserData(prev => ({
-            ...prev,
-            email: r.correo_electronico || '',
-            telefonoMovil: r.telefono || '',
-            direccion: r.direccion || '',
-            nombreComercial: (r.actividad_principal && r.actividad_principal.trim().toUpperCase() !== 'N/A') ? r.actividad_principal : (prev.nombre || ''),
-            esCondominio: !!(r.actividad_principal?.toLowerCase().includes('condominio'))
-          }));
+
+        const rInm = inmsData && inmsData.length > 0
+          ? (inmsData.find(i => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') || inmsData[0])
+          : null;
+
+        const freshNombre = contribData?.nombre || rInm?.contribuyente || nombre;
+        const freshCodigo = rInm?.inmueble || codigo;
+
+        if (freshNombre && freshNombre !== nombre) {
+          localStorage.setItem('portal_user', freshNombre);
         }
+        if (freshCodigo && freshCodigo !== codigo) {
+          localStorage.setItem('portal_codigo', freshCodigo);
+        }
+
+        setUserData(prev => ({
+          ...prev,
+          nombre: freshNombre,
+          codigo: freshCodigo,
+          email: rInm?.correo_electronico || contribData?.email || prev.email,
+          telefonoMovil: rInm?.telefono || contribData?.telefono || prev.telefonoMovil,
+          direccion: rInm?.direccion || contribData?.direccion || prev.direccion,
+          nombreComercial: (rInm?.actividad_principal && rInm.actividad_principal.trim().toUpperCase() !== 'N/A') 
+            ? rInm.actividad_principal 
+            : freshNombre,
+          esCondominio: !!(rInm?.actividad_principal?.toLowerCase().includes('condominio'))
+        }));
       }
     };
     fetchUserData();

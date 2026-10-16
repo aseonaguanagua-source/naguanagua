@@ -50,31 +50,19 @@ export function construirRecibosContribuyente(params: {
   const recibos: any[] = (params.facturas || []).filter(f => ESTADOS_RECIBO_PENDIENTE.includes(f.estado));
 
   // 1. REGLA DE CONDOMINIOS: Ninguna información de meses de condominios sale por sistema
-  // (todo lo demás lo hace condominio por oficina). SOLO la multa de los usuarios sale por sistema.
+  // (el aseo mensual lo gestiona y paga la oficina/administración del condominio).
+  // Los usuarios de condominios SOLO pueden ver y cancelar las multas de ese inmueble.
+  // Y si tiene varios meses de multa, DEBEN SALIR POR MES SEPARADAS, NO TODAS JUNTAS.
+  const condoConMulta: any[] = [];
   condoInms.forEach(inm => {
     const multa = num(inm.multa_bs), congelada = num(inm.deuda_congelada_bs);
-    if (multa > 0 || congelada > 0) {
-      const f = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1, 12, 0, 0).toISOString();
-      recibos.push({
-        id: `multa-${inm.inmueble}`,
-        referencia: `MULTA-${inm.inmueble}`,
-        inmueble: inm.inmueble,
-        identidad: params.identidad,
-        contribuyente: params.contribuyente || inm.contribuyente || '',
-        emision: f,
-        vencimiento: f,
-        estado: 'Pendiente',
-        monto: (multa + congelada).toFixed(2),
-        descripcion: `Multa Municipal (${inm.inmueble})`
-      });
-    }
-  });
+    const totalMulta = multa + congelada;
+    if (totalMulta > 0) {
+      condoConMulta.push(inm);
+      const mesesMulta = parseInt(String(inm.meses_deuda || 0)) || 1;
+      const n = Math.max(1, mesesMulta);
 
-  // 2. INMUEBLES DIRECTOS (No condominio): Multas + Meses de Aseo
-  if (billables.some(tieneDeudaInm)) {
-    billables.forEach(inm => {
-      const multa = num(inm.multa_bs), congelada = num(inm.deuda_congelada_bs);
-      if (multa > 0 || congelada > 0) {
+      if (n === 1) {
         const f = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1, 12, 0, 0).toISOString();
         recibos.push({
           id: `multa-${inm.inmueble}`,
@@ -85,27 +73,77 @@ export function construirRecibosContribuyente(params: {
           emision: f,
           vencimiento: f,
           estado: 'Pendiente',
-          monto: (multa + congelada).toFixed(2),
+          monto: totalMulta.toFixed(2),
           descripcion: `Multa Municipal (${inm.inmueble})`
         });
+      } else {
+        // Distribuir el total de la multa mes a mes de forma exacta
+        const montoBasePorMes = Math.floor((totalMulta / n) * 100) / 100;
+        let acumulado = 0;
+        for (let i = 1; i <= n; i++) {
+          const d = new Date(hoy.getFullYear(), hoy.getMonth() - n + i - 1, 1, 12, 0, 0).toISOString();
+          const montoMes = (i === n) ? (totalMulta - acumulado) : montoBasePorMes;
+          acumulado += montoMes;
+          recibos.push({
+            id: `multa-${inm.inmueble}-${i}`,
+            referencia: `MULTA-${inm.inmueble}-M${i}`,
+            inmueble: inm.inmueble,
+            identidad: params.identidad,
+            contribuyente: params.contribuyente || inm.contribuyente || '',
+            emision: d,
+            vencimiento: d,
+            estado: 'Pendiente',
+            monto: Math.max(0, montoMes).toFixed(2),
+            descripcion: `Multa Municipal (${inm.inmueble}) - Período ${i} de ${n}`
+          });
+        }
       }
+    }
+  });
+
+  // 2. INMUEBLES DIRECTOS (No condominio): La multa va unida con cada mes correspondiente.
+  // Si tiene más locales o residencia fuera del condominio, los meses y sus multas se cancelan normalmente.
+  if (billables.some(tieneDeudaInm)) {
+    billables.forEach(inm => {
       const meses = parseInt(String(inm.meses_deuda || 0)) || 0;
       const formales = recibos.filter(r => String(r.referencia || '').includes(inm.inmueble) &&
         !String(r.referencia).startsWith('RECIB-HIST-') && !String(r.referencia).startsWith('MULTA-')).length;
       const n = Math.max(0, (meses > 0 ? meses : (num(inm.deuda_mmv) > 0 ? 1 : 0)) - formales);
-      for (let i = 1; i <= n; i++) {
-        const d = new Date(hoy.getFullYear(), hoy.getMonth() - n + i - 1, 1, 12, 0, 0).toISOString();
-        recibos.push({
-          id: `dummy-hist-${inm.inmueble}-${i}`,
-          referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
-          inmueble: inm.inmueble,
-          identidad: params.identidad,
-          contribuyente: params.contribuyente || inm.contribuyente || '',
-          emision: d,
-          vencimiento: d,
-          estado: 'Pendiente',
-          monto: '0'
-        });
+      
+      // Si NO tiene meses históricos pendientes pero sí tiene una multa administrativa específica aislada, se emite MULTA-
+      if (n === 0) {
+        const multa = num(inm.multa_bs), congelada = num(inm.deuda_congelada_bs);
+        if (multa > 0 || congelada > 0) {
+          const f = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1, 12, 0, 0).toISOString();
+          recibos.push({
+            id: `multa-${inm.inmueble}`,
+            referencia: `MULTA-${inm.inmueble}`,
+            inmueble: inm.inmueble,
+            identidad: params.identidad,
+            contribuyente: params.contribuyente || inm.contribuyente || '',
+            emision: f,
+            vencimiento: f,
+            estado: 'Pendiente',
+            monto: (multa + congelada).toFixed(2),
+            descripcion: `Multa Municipal (${inm.inmueble})`
+          });
+        }
+      } else {
+        // La multa por mora se une a cada mes correspondiente dentro de cada RECIB-HIST-
+        for (let i = 1; i <= n; i++) {
+          const d = new Date(hoy.getFullYear(), hoy.getMonth() - n + i - 1, 1, 12, 0, 0).toISOString();
+          recibos.push({
+            id: `dummy-hist-${inm.inmueble}-${i}`,
+            referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
+            inmueble: inm.inmueble,
+            identidad: params.identidad,
+            contribuyente: params.contribuyente || inm.contribuyente || '',
+            emision: d,
+            vencimiento: d,
+            estado: 'Pendiente',
+            monto: '0'
+          });
+        }
       }
     });
   }
@@ -114,7 +152,18 @@ export function construirRecibosContribuyente(params: {
     if (!aC && bC) return -1; if (aC && !bC) return 1;
     return String(a.emision || '').localeCompare(String(b.emision || ''));
   });
-  return { billables, naCodes, recibos, soloCondominio, tieneCondominio };
+
+  // Solo se bloquea si TODOS sus inmuebles son de condominio Y NO tienen multas pendientes por pagar.
+  // Si tiene locales o residencias fuera del condominio, o si su condominio tiene multas, SÍ puede cancelar.
+  const soloCondominioSinMulta = soloCondominio && condoConMulta.length === 0;
+
+  return { 
+    billables: [...billables, ...condoConMulta], 
+    naCodes, 
+    recibos, 
+    soloCondominio: soloCondominioSinMulta, 
+    tieneCondominio 
+  };
 }
 
 /** Desglose de un recibo mensual CM- (igual a Caja: base + IVA + multa si tiene más de 1 mes vencido). */

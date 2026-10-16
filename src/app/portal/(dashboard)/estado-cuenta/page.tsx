@@ -31,6 +31,7 @@ export default function EstadoCuentaPage() {
   const [cuotasData, setCuotasData] = useState<any[]>([]);
   const [serviciosEsp, setServiciosEsp] = useState<any[]>([]);
   const [pagosPorVerificar, setPagosPorVerificar] = useState<any[]>([]);
+  const [contribuyenteMaster, setContribuyenteMaster] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -44,13 +45,21 @@ export default function EstadoCuentaPage() {
           const variants = /^[VEJPG][-_\s]?\d+$/i.test(fullDoc.trim()) ? getIdentidadVariantsExact(fullDoc) : getIdentidadVariants(fullDoc);
           const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
-          // 1. Inmuebles  2. Facturas (todas: las pagadas se muestran como historial)
+          // 1. Inmuebles, Facturas y Contribuyente en tiempo real
           const { data: inmsDB } = await supabase.from('inmuebles').select('*').or(orFilter);
           const { data: facturasDB } = await supabase
             .from('facturas')
             .select('*')
             .or(orFilter)
             .order('emision', { ascending: true });
+          const { data: cData } = await supabase
+            .from('contribuyentes')
+            .select('nombre, email, telefono, direccion')
+            .or(orFilter)
+            .limit(1)
+            .maybeSingle();
+
+          if (cData) setContribuyenteMaster(cData);
 
           // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas pendientes y meses históricos
           const rc = construirRecibosContribuyente({ inmuebles: inmsDB || [], facturas: facturasDB || [], identidad: fullDoc });
@@ -190,7 +199,12 @@ export default function EstadoCuentaPage() {
       totalMes = Math.round((d.total - retencionMes) * 100) / 100;
     } else {
       totalMes = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
-      baseMes = totalMes;
+      if (String(r.referencia || '').startsWith('MULTA-')) {
+        multaMes = totalMes;
+        baseMes = 0;
+      } else {
+        baseMes = totalMes;
+      }
     }
 
     return { baseMes, multaMes, ivaMes, retencionMes, totalMes };
@@ -249,10 +263,10 @@ export default function EstadoCuentaPage() {
     const myContribuyente = contribuyentes?.find((c: any) => (c.Identidad || '').replace(/-/g, '').toUpperCase() === docNorm);
 
     const viewData = {
-      Contribuyente: myContribuyente?.Contribuyente || '',
+      Contribuyente: contribuyenteMaster?.nombre || misInmuebles[0]?.contribuyente || myContribuyente?.Contribuyente || localStorage.getItem('portal_user') || '',
       Identidad: portalDoc,
-      Telefono: myContribuyente?.Telefono || '',
-      Direccion: myContribuyente?.Direccion || ''
+      Telefono: contribuyenteMaster?.telefono || misInmuebles[0]?.telefono || myContribuyente?.Telefono || '',
+      Direccion: contribuyenteMaster?.direccion || misInmuebles[0]?.direccion || myContribuyente?.Direccion || ''
     };
 
     // === Generate one PDF per inmueble ===
@@ -769,11 +783,16 @@ export default function EstadoCuentaPage() {
                   const inmuDesc = matchedInm
                     ? cleanClasificacionActividad(matchedInm.actividad_principal || matchedInm.clasificacion || '')
                     : '';
+                  const esMulta = String(f.referencia || '').startsWith('MULTA-');
+                  const etiquetaPeriodo = esMulta
+                    ? `Multa Municipal (${f.inmueble || f.referencia.replace('MULTA-', '')})`
+                    : mesLabel(f.emision);
+
                   return (
                   <tr key={i} className="hover:bg-red-50/20 transition-colors">
                     <td className="px-4 py-3 font-mono text-slate-700 text-xs">{f.referencia}</td>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-sm">{mesLabel(f.emision)}</div>
+                      <div className="font-medium text-sm">{etiquetaPeriodo}</div>
                       {matchedInm && (
                         <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
                           {matchedInm.inmueble}{inmuDesc ? ` · ${inmuDesc}` : ''}

@@ -300,7 +300,8 @@ export default function DondePagarPage() {
         return r.referencia.split('-')[2] || '';
       }
       if (r.referencia?.startsWith('MULTA-')) {
-        return r.referencia.slice('MULTA-'.length);
+        const m = r.referencia.match(/^MULTA-(.+?)(?:-M\d+)?$/i);
+        return m ? m[1] : r.referencia.slice('MULTA-'.length);
       }
       if (r.referencia?.startsWith('CM-')) {
         const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
@@ -344,13 +345,18 @@ export default function DondePagarPage() {
           const bloqueadoCondo = !!inmMatch && !String(r.referencia || '').startsWith('MULTA-') &&
             reglasCobro[inmMatch.inmueble] === 'solo_multa';
 
+          const esMulta = String(r.referencia || '').startsWith('MULTA-');
+          const conceptoTexto = esMulta
+            ? `Multa Municipal del Inmueble (${inmId})`
+            : `${getMonthLabel(r.emision)} • Aseo Urbano y Recargo de Ley`;
+
           return {
             id: r.id || r.referencia,
             dbId: r.id,
             referencia: r.referencia,
-            concepto: `${r.referencia} • ${getMonthLabel(r.emision)}`,
+            concepto: conceptoTexto,
             inmId,
-            actividad: inmMatch?.actividad_principal || 'Aseo Urbano',
+            actividad: esMulta ? 'Sanción / Multa Municipal' : (inmMatch?.actividad_principal || 'Aseo Urbano'),
             tipoInm: inmMatch?.clasificacion || 'Residencial',
             monto: getReciboMonto(r),
             emision: r.emision,
