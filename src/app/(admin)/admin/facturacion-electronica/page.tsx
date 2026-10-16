@@ -449,7 +449,7 @@ export default function FacturacionElectronicaPage() {
     setEmitIdentidad(pago.identidad || '');
     setEmitReferencia(pago.referencia && pago.referencia !== 'N/A' ? pago.referencia : '');
     setEmitModulo(pago.modulo || (pago.condominio ? 'condominios' : 'caja'));
-    const esRet = !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion);
+    const esRet = !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion || (parseFloat(String(pago.montoRetencion || pago.detalles?.monto_retencion_iva || pago.detalles?.retencion_iva || 0)) > 0));
     setEmitEsRetencion(esRet);
     let montoRet = parseFloat(String(pago.montoRetencion || pago.detalles?.monto_retencion_iva || pago.detalles?.retencion_iva || 0)) || 0;
     
@@ -473,7 +473,9 @@ export default function FacturacionElectronicaPage() {
     const montoPagoNeto = Math.max(0, netoTransferido - saldoFavor);
     let ref = totalRef && totalRef > 0 ? totalRef : 0;
     if (!ref) {
-      if (esRet) {
+      if (pago.detalles?.monto_factura && parseFloat(String(pago.detalles.monto_factura)) > 0) {
+        ref = parseFloat(String(pago.detalles.monto_factura));
+      } else if (esRet) {
         const totalSel = parseFloat(String(pago.detalles?.total_seleccionado || 0));
         const deudaSis = parseFloat(String(pago.detalles?.deuda_total_sistema || 0));
         const montoNetoDet = parseFloat(String(pago.detalles?.monto_neto_factura || montoFacturaDet || 0));

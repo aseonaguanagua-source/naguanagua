@@ -1384,12 +1384,29 @@ function Caja() {
               {cobro.facturas?.length > 0 && (
                 <div className="border-t border-white/10 pt-3 space-y-1.5">
                   <div className="text-[11px] font-black uppercase tracking-wider text-white/60 flex items-center gap-2"><FileText className="w-4 h-4" /> Factura(s) digital(es): {cobro.facturas.length}</div>
-                  {cobro.facturas.slice(0, 8).map((f: any, i: number) => (
-                    <div key={i} className="flex justify-between gap-2 text-xs bg-white/5 rounded-lg px-2.5 py-1.5">
-                      <div className="min-w-0"><div className="font-bold truncate">{f.nombre}</div><div className="font-mono text-white/60">{f.identidad} · {f.lineas.length} renglón(es)</div></div>
-                      <b className="tabular-nums shrink-0">Bs {fmtBs(f.totalBs)}</b>
-                    </div>
-                  ))}
+                  {cobro.facturas.slice(0, 8).map((f: any, i: number) => {
+                    const totalFacturaFiscal = f.totalBrutoBs || (f.totalBs + (f.retencionBs || 0));
+                    const retencion = f.retencionBs || 0;
+                    return (
+                      <div key={i} className="flex justify-between gap-2 text-xs bg-white/5 rounded-lg px-2.5 py-1.5">
+                        <div className="min-w-0">
+                          <div className="font-bold truncate">{f.nombre}</div>
+                          <div className="font-mono text-white/60">{f.identidad} · {f.lineas.length} renglón(es)</div>
+                          {retencion > 0 && (
+                            <div className="text-[10px] text-emerald-300">
+                              Factura: Bs {fmtBs(totalFacturaFiscal)} · Ret. 75%: -Bs {fmtBs(retencion)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <b className="tabular-nums block">Bs {fmtBs(totalFacturaFiscal)}</b>
+                          {retencion > 0 && (
+                            <div className="text-[10px] text-sky-300">A pagar: Bs {fmtBs(f.totalBs)}</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                   {cobro.facturas.length > 8 && <div className="text-[11px] text-white/60">… y {cobro.facturas.length - 8} más.</div>}
                 </div>
               )}
@@ -1474,7 +1491,8 @@ function Caja() {
                       <div className="flex justify-between"><span>Aseo</span><span className="tabular-nums">{fmtBs(tt('baseBs'))}</span></div>
                       <div className="flex justify-between"><span>Multas</span><span className="tabular-nums">{fmtBs(tt('multaBs') + tt('multasAparteBs'))}</span></div>
                       {tt('ivaBs') > 0 && <div className="flex justify-between"><span>IVA 16%</span><span className="tabular-nums">{fmtBs(tt('ivaBs'))}</span></div>}
-                      {tt('retencionBs') > 0 && <div className="flex justify-between"><span>Retención IVA</span><span className="tabular-nums">− {fmtBs(tt('retencionBs'))}</span></div>}
+                      {tt('ivaBs') > 0 && <div className="flex justify-between font-bold text-slate-800 border-t border-slate-200 pt-0.5"><span>Total Factura Fiscal</span><span className="tabular-nums">Bs {fmtBs(tt('baseBs') + tt('multaBs') + tt('multasAparteBs') + tt('ivaBs'))}</span></div>}
+                      {tt('retencionBs') > 0 && <div className="flex justify-between text-emerald-700"><span>Retención IVA</span><span className="tabular-nums">− {fmtBs(tt('retencionBs'))}</span></div>}
                       <div className="flex justify-between font-black text-base border-t border-slate-300 pt-1"><span>Total</span><span className="tabular-nums">Bs {fmtBs(p.monto)}</span></div>
                     </div>
                   </div>

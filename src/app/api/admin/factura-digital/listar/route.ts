@@ -278,8 +278,15 @@ export async function GET(request: Request) {
         } catch(e) {}
       }
 
-      if (rcTotal > 0) {
-        montoFacturaReal = rcTotal;
+      if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
+        montoFacturaReal = parseFloat(det.monto_factura);
+      } else if (rcTotal > 0) {
+        const esNeto = tieneRetencion && montoRetNum > 0 && (
+          (det.monto_neto_factura && Math.abs(rcTotal - parseFloat(det.monto_neto_factura)) < 1) ||
+          (det.montoTotal && Math.abs(rcTotal - parseFloat(det.montoTotal)) < 1) ||
+          (det.total_seleccionado && parseFloat(det.total_seleccionado) > rcTotal + 1)
+        );
+        montoFacturaReal = esNeto ? Math.round((rcTotal + montoRetNum) * 100) / 100 : rcTotal;
       } else if (tieneRetencion) {
         // Para retención: El monto fiscal de la factura es el valor BRUTO con IVA (antes de deducir retención)
         const montoNetoDet = parseFloat(String(det.monto_neto_factura || 0));
@@ -296,8 +303,6 @@ export async function GET(request: Request) {
         }
       } else if (det.monto_neto_factura && parseFloat(det.monto_neto_factura) > 0) {
         montoFacturaReal = parseFloat(det.monto_neto_factura);
-      } else if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
-        montoFacturaReal = parseFloat(det.monto_factura);
       } else if (det.total_seleccionado && parseFloat(det.total_seleccionado) > 0) {
         montoFacturaReal = parseFloat(det.total_seleccionado);
       } else if (sFavorGuardado > 0 && montoFacturaReal > sFavorGuardado) {

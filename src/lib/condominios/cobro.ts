@@ -73,7 +73,17 @@ export interface LineaCobro {
   _multasDetalle?: any[];
 }
 
-export interface Factura { identidad: string; nombre: string; lineas: string[]; totalBs: number }
+export interface Factura {
+  identidad: string;
+  nombre: string;
+  lineas: string[];
+  totalBs: number;
+  totalBrutoBs?: number;
+  baseBs?: number;
+  multaBs?: number;
+  ivaBs?: number;
+  retencionBs?: number;
+}
 
 export interface Cobro {
   condo: any;
@@ -185,13 +195,49 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
 
   // Facturas: CONDOMINIO → una al condominio. CONTRIBUYENTE → una por dueño.
   const facturas: Factura[] = [];
-  if (modo === 'CONDOMINIO') facturas.push({ identidad: datos.condo.identidad, nombre: datos.condo.nombre, lineas: lineas.map(l => l.clave), totalBs: r2(lineas.reduce((a, l) => a + l.totalBs, 0)) });
-  else {
+  if (modo === 'CONDOMINIO') {
+    const totalBs = r2(lineas.reduce((a, l) => a + l.totalBs, 0));
+    const baseBs = r2(lineas.reduce((a, l) => a + l.baseBs, 0));
+    const multaBs = r2(lineas.reduce((a, l) => a + l.multaBs + l.multasAparteBs, 0));
+    const ivaBs = r2(lineas.reduce((a, l) => a + l.ivaBs, 0));
+    const retencionBs = r2(lineas.reduce((a, l) => a + l.retencionBs, 0));
+    const totalBrutoBs = r2(baseBs + multaBs + ivaBs);
+    facturas.push({
+      identidad: datos.condo.identidad,
+      nombre: datos.condo.nombre,
+      lineas: lineas.map(l => l.clave),
+      totalBs,
+      totalBrutoBs,
+      baseBs,
+      multaBs,
+      ivaBs,
+      retencionBs,
+    });
+  } else {
     const g = new Map<string, Factura>();
     for (const l of lineas) {
       const k = n(l.identidad) || `SIN-${l.clave}`;
-      if (!g.has(k)) g.set(k, { identidad: l.identidad || datos.condo.identidad, nombre: l.propietario || datos.condo.nombre, lineas: [], totalBs: 0 });
-      const f = g.get(k)!; f.lineas.push(l.clave); f.totalBs = r2(f.totalBs + l.totalBs);
+      if (!g.has(k)) {
+        g.set(k, {
+          identidad: l.identidad || datos.condo.identidad,
+          nombre: l.propietario || datos.condo.nombre,
+          lineas: [],
+          totalBs: 0,
+          totalBrutoBs: 0,
+          baseBs: 0,
+          multaBs: 0,
+          ivaBs: 0,
+          retencionBs: 0,
+        });
+      }
+      const f = g.get(k)!;
+      f.lineas.push(l.clave);
+      f.totalBs = r2(f.totalBs + l.totalBs);
+      f.baseBs = r2((f.baseBs || 0) + l.baseBs);
+      f.multaBs = r2((f.multaBs || 0) + l.multaBs + l.multasAparteBs);
+      f.ivaBs = r2((f.ivaBs || 0) + l.ivaBs);
+      f.retencionBs = r2((f.retencionBs || 0) + l.retencionBs);
+      f.totalBrutoBs = r2((f.totalBrutoBs || 0) + l.baseBs + l.multaBs + l.multasAparteBs + l.ivaBs);
     }
     facturas.push(...g.values());
   }
@@ -277,6 +323,28 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
 
     const periodosDesc = ls.flatMap(l => l.periodos);
     const periodoTexto = rango(periodosDesc) || 'Aseo Urbano';
+    const fBase = f.baseBs !== undefined ? f.baseBs : r2(ls.reduce((a, l) => a + l.baseBs, 0));
+    const fMulta = f.multaBs !== undefined ? f.multaBs : r2(ls.reduce((a, l) => a + l.multaBs + l.multasAparteBs, 0));
+    const fIva = f.ivaBs !== undefined ? f.ivaBs : r2(ls.reduce((a, l) => a + l.ivaBs, 0));
+    const fRet = f.retencionBs !== undefined ? f.retencionBs : ret;
+    const fSubtotal = r2(fBase + fMulta);
+    const fTotalBruto = f.totalBrutoBs !== undefined ? f.totalBrutoBs : r2(fSubtotal + fIva);
+
+    const conceptos = [];
+    if (fSubtotal > 0) {
+      conceptos.push({
+        descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${c.codigo}`,
+        precioUnit: fSubtotal,
+        total: fSubtotal,
+      });
+    } else {
+      conceptos.push({
+        descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${c.codigo}`,
+        precioUnit: f.totalBs,
+        total: f.totalBs,
+      });
+    }
+
     const reciboCajaItem = {
       reciboNo: refFinal.slice(-7).padStart(7, '0'),
       controlWeb: `WEB-${refFinal.slice(-7).padStart(7, '0')}`,
@@ -289,30 +357,40 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       rifCi: f.identidad,
       caja: pago.cajero || 'Caja',
       periodo: periodoTexto,
-      conceptos: [
-        {
-          descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${c.codigo}`,
-          precioUnit: f.totalBs,
-          total: f.totalBs
-        }
-      ],
-      subTotal: f.totalBs,
-      exento: f.totalBs,
-      iva: 0,
-      total: f.totalBs,
+      conceptos,
+      subTotal: fSubtotal,
+      exento: fIva > 0 ? 0 : fSubtotal,
+      baseImponible: fIva > 0 ? fSubtotal : 0,
+      iva: fIva,
+      retencion: fRet,
+      total: fTotalBruto,
+      montoNeto: f.totalBs,
+      montoCancelado: f.totalBs,
       formaPago: formaPagoCodigo(pago.metodo) === '03' ? 'TRANSFERENCIA' : pago.metodo.toUpperCase(),
       banco: pago.banco || 'Banco',
       referencia: refFinal,
-      tasaBcv: tasa
+      tasaBcv: tasa,
     };
 
     const detalles = {
       modulo: 'condominios', modo: cobro.modo, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
       condominio: { codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, modalidad: c.modalidad, tipo: c.tipo,
-        lineas: ls.map(l => ({ inmueble: l.inmueble, numero: l.numero, actividad: l.actividad, residencial: l.residencial, meses: l.meses, periodos: l.periodos, aseoBs: l.baseBs, ivaBs: l.ivaBs, multaBs: r2(l.multaBs + l.multasAparteBs), retencionBs: l.retencionBs, totalBs: l.totalBs })) },
+        lineas: ls.map(l => ({ inmueble: l.inmueble, numero: l.numero, actividad: l.actividad, residencial: l.residencial, meses: l.meses, periodos: l.periodos, aseoBs: l.baseBs, ivaBs: l.ivaBs, multaBs: r2(l.multaBs + l.multasAparteBs), retencionBs: l.retencionBs, totalBs: l.totalBs, totalBrutoBs: r2(l.baseBs + l.multaBs + l.multasAparteBs + l.ivaBs) })) },
       ...(grupo ? { grupo_pago: { id: grupo, referencia: refFinal, monto_total: cobro.totales.totalBs, partes: cobro.facturas.length, parte: i + 1 } } : {}),
-      recibos: [reciboRef], montos: { [reciboRef]: f.totalBs }, montoTotal: f.totalBs,
-      monto_retencion_iva: ret, contribuyente: f.nombre, identidad: f.identidad,
+      recibos: [reciboRef],
+      montos: { [reciboRef]: f.totalBs },
+      montoTotal: f.totalBs,
+      monto_factura: fTotalBruto,
+      monto_neto_factura: f.totalBs,
+      total_seleccionado: fTotalBruto,
+      base_imponible: fSubtotal,
+      iva_monto: fIva,
+      monto_retencion_iva: fRet,
+      es_retencion: fRet > 0,
+      conRetencion: fRet > 0,
+      agente_retencion: fRet > 0,
+      contribuyente: f.nombre,
+      identidad: f.identidad,
       factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
       formasPago,
       pagos_agregados: pago.pagosAgregados,
