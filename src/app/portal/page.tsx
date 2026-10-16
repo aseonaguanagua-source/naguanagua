@@ -80,13 +80,14 @@ export default function PortalLogin() {
     setError('');
     setIsLoading(true);
 
-    if (docNum.length < 5) {
+    const cleanNum = docNum.trim().replace(/^[VEJPGvejpg][-_]?/, '').replace(/[.\s]/g, '');
+    if (cleanNum.length < 4) {
       setError('Por favor ingrese un número de documento válido.');
       setIsLoading(false);
       return;
     }
 
-    const fullDoc = `${docType}${docNum}`;
+    const fullDoc = `${docType}${cleanNum}`;
 
     if (!clave) {
       // Si no ingresó contraseña, verificar si califica para primer ingreso

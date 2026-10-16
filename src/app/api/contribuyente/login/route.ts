@@ -20,17 +20,6 @@ export async function POST(request: Request) {
     const variantes = getIdentidadVariants(identidad);
     const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
 
-    // Verificar si el usuario pertenece a un condominio
-    const { data: condoUser, error: condoErr } = await supabase
-      .from('condominio_unidades')
-      .select('id')
-      .or(orFilter)
-      .limit(1);
-
-    if (!isMaster && condoUser && condoUser.length > 0) {
-      return NextResponse.json({ error: "Actualizando...", mantenimiento: true }, { status: 503 });
-    }
-
     // Buscar en inmuebles
     const { data: records, error } = await supabase
       .from("inmuebles")
@@ -52,14 +41,28 @@ export async function POST(request: Request) {
 
     const contribRec = contribRecs && contribRecs.length > 0 ? contribRecs[0] : null;
 
+    // Si no está en inmuebles ni en contribuyentes, buscar en condominio_unidades
+    let condoRec = null;
     if ((!records || records.length === 0) && !contribRec) {
+      const { data: cUnits } = await supabase
+        .from("condominio_unidades")
+        .select("id, propietario, identidad, inmueble, estado, correo, telefono")
+        .or(orFilter)
+        .neq("estado", "Eliminada")
+        .limit(1);
+      if (cUnits && cUnits.length > 0) {
+        condoRec = cUnits[0];
+      }
+    }
+
+    if ((!records || records.length === 0) && !contribRec && !condoRec) {
       return NextResponse.json(
         { error: "Usuario no registrado. Verifique el tipo y número de cédula o RIF ingresado." },
         { status: 404 }
       );
     }
 
-    const user = records && records.length > 0 ? records[0] : {
+    const user = (records && records.length > 0) ? records[0] : (contribRec ? {
       contribuyente: contribRec?.nombre,
       cod_cont: contribRec?.identidad,
       clave_portal: null,
@@ -67,7 +70,15 @@ export async function POST(request: Request) {
       correo_electronico: contribRec?.email,
       telefono: contribRec?.telefono,
       estado: 'Activo'
-    };
+    } : {
+      contribuyente: condoRec?.propietario,
+      cod_cont: condoRec?.inmueble || condoRec?.identidad,
+      clave_portal: null,
+      identidad: condoRec?.identidad,
+      correo_electronico: condoRec?.correo || '',
+      telefono: condoRec?.telefono || '',
+      estado: 'Activo'
+    });
 
     // Validar si el contribuyente está desactivado o eliminado
     const estadoNorm = (user.estado || 'Activo').trim().toLowerCase();

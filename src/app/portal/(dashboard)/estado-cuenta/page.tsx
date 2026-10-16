@@ -47,6 +47,18 @@ export default function EstadoCuentaPage() {
 
           // 1. Inmuebles, Facturas y Contribuyente en tiempo real
           const { data: inmsDB } = await supabase.from('inmuebles').select('*').or(orFilter);
+          // Consultar también unidades de condominios asociadas a esta identidad
+          const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').or(orFilter);
+          let allInms = [...(inmsDB || [])];
+          if (condoUnits && condoUnits.length > 0) {
+            const condoCodes = condoUnits.map(u => u.inmueble).filter(Boolean);
+            const missingCodes = condoCodes.filter(c => !allInms.some(i => i.inmueble === c));
+            if (missingCodes.length > 0) {
+              const { data: extraInms } = await supabase.from('inmuebles').select('*').in('inmueble', missingCodes);
+              if (extraInms) allInms.push(...extraInms);
+            }
+          }
+
           const { data: facturasDB } = await supabase
             .from('facturas')
             .select('*')
@@ -62,8 +74,8 @@ export default function EstadoCuentaPage() {
           if (cData) setContribuyenteMaster(cData);
 
           // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas pendientes y meses históricos
-          const rc = construirRecibosContribuyente({ inmuebles: inmsDB || [], facturas: facturasDB || [], identidad: fullDoc });
-          setMisInmueblesDb(rc.billables);
+          const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: facturasDB || [], identidad: fullDoc });
+          setMisInmueblesDb([...rc.billables, ...allInms.filter(i => (i.condominio_padre_id || i.es_condominio))]);
           setMisNaCodes(rc.naCodes);
           const combined: any[] = [
             ...(facturasDB || []).filter((f: any) => !ESTADOS_RECIBO_PENDIENTE.includes(f.estado)),

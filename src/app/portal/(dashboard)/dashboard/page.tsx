@@ -51,8 +51,19 @@ export default function DatosContribuyentePage() {
           ? (inmsData.find(i => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') || inmsData[0])
           : null;
 
-        const freshNombre = contribData?.nombre || rInm?.contribuyente || nombre;
-        const freshCodigo = rInm?.inmueble || codigo;
+        let condoData: any = null;
+        if (!inmsData || inmsData.length === 0) {
+          const { data: cUnit } = await supabase
+            .from('condominio_unidades')
+            .select('propietario, inmueble, actividad, telefono, correo')
+            .or(orFilter)
+            .limit(1)
+            .maybeSingle();
+          condoData = cUnit;
+        }
+
+        const freshNombre = contribData?.nombre || rInm?.contribuyente || condoData?.propietario || nombre;
+        const freshCodigo = rInm?.inmueble || condoData?.inmueble || codigo;
 
         if (freshNombre && freshNombre !== nombre) {
           localStorage.setItem('portal_user', freshNombre);
@@ -65,13 +76,13 @@ export default function DatosContribuyentePage() {
           ...prev,
           nombre: freshNombre,
           codigo: freshCodigo,
-          email: rInm?.correo_electronico || contribData?.email || prev.email,
-          telefonoMovil: rInm?.telefono || contribData?.telefono || prev.telefonoMovil,
+          email: rInm?.correo_electronico || contribData?.email || condoData?.correo || prev.email,
+          telefonoMovil: rInm?.telefono || contribData?.telefono || condoData?.telefono || prev.telefonoMovil,
           direccion: rInm?.direccion || contribData?.direccion || prev.direccion,
           nombreComercial: (rInm?.actividad_principal && rInm.actividad_principal.trim().toUpperCase() !== 'N/A') 
             ? rInm.actividad_principal 
-            : freshNombre,
-          esCondominio: !!(rInm?.actividad_principal?.toLowerCase().includes('condominio'))
+            : (condoData?.actividad || freshNombre),
+          esCondominio: !!(rInm?.actividad_principal?.toLowerCase().includes('condominio') || condoData)
         }));
       }
     };

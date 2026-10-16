@@ -62,6 +62,15 @@ export async function POST(request: Request) {
       })
       .or(orFilter);
 
+    // 3. Actualizar también en condominio_unidades si existe
+    await supabase
+      .from('condominio_unidades')
+      .update({
+        correo: cleanEmail,
+        telefono: cleanPhone
+      })
+      .or(orFilter);
+
     if (data && data.length > 0) {
       return NextResponse.json({ 
         status: 'success',
@@ -83,6 +92,22 @@ export async function POST(request: Request) {
           nombre: contribData[0].nombre,
           codigo: contribData[0].identidad,
           identidad: contribData[0].identidad
+        });
+      }
+
+      // O en condominio_unidades
+      const { data: condoData } = await supabase
+        .from('condominio_unidades')
+        .select('propietario, identidad, inmueble')
+        .or(orFilter)
+        .limit(1);
+
+      if (condoData && condoData.length > 0) {
+        return NextResponse.json({
+          status: 'success',
+          nombre: condoData[0].propietario,
+          codigo: condoData[0].inmueble || condoData[0].identidad,
+          identidad: condoData[0].identidad
         });
       }
 

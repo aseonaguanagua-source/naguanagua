@@ -131,6 +131,18 @@ export default function DondePagarPage() {
 
         // A. Inmuebles y facturas pendientes
         const { data: inmsDB } = await supabase.from('inmuebles').select('*').or(orFilter);
+        // Consultar también unidades de condominios asociadas a esta identidad
+        const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').or(orFilter);
+        let allInms = [...(inmsDB || [])];
+        if (condoUnits && condoUnits.length > 0) {
+          const condoCodes = condoUnits.map(u => u.inmueble).filter(Boolean);
+          const missingCodes = condoCodes.filter(c => !allInms.some(i => i.inmueble === c));
+          if (missingCodes.length > 0) {
+            const { data: extraInms } = await supabase.from('inmuebles').select('*').in('inmueble', missingCodes);
+            if (extraInms) allInms.push(...extraInms);
+          }
+        }
+
         const { data: dbFacturas } = await supabase
           .from('facturas')
           .select('*')
@@ -140,13 +152,12 @@ export default function DondePagarPage() {
 
         // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas y meses históricos.
         // Las unidades de condominio se cobran por Caja Condominios (igual que en Caja).
-        const rc = construirRecibosContribuyente({ inmuebles: inmsDB || [], facturas: dbFacturas || [], identidad: portalDoc });
-        const billableInms = rc.billables;
-        setUserInms(billableInms);
+        const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: dbFacturas || [], identidad: portalDoc });
+        setUserInms(allInms);
         const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
-        billableInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
+        allInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
         setReglasCobro(Object.fromEntries(reglaPorInm));
-        setBloqueadoPorCondominio(rc.soloCondominio);
+        setBloqueadoPorCondominio(rc.soloCondominio && rc.recibos.length === 0);
         setRawRecibos(rc.recibos);
 
         // Servicios especiales / extraordinarios pendientes del contribuyente
@@ -711,7 +722,7 @@ export default function DondePagarPage() {
     }
   };
 
-  if (bloqueadoPorCondominio && serviciosPend.length === 0) {
+  if (bloqueadoPorCondominio && rawRecibos.length === 0 && serviciosPend.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 mt-10 bg-white rounded-lg shadow-sm border border-red-200 max-w-2xl mx-auto text-center">
         <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
