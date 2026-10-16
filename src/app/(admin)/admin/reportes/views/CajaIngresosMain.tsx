@@ -147,14 +147,28 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   const [showReport, setShowReport] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [buscarEnTodoHistorial, setBuscarEnTodoHistorial] = useState(false);
-  const { CeldaMonto, modal: modalMonto } = useEditarMontoReporte(isAdmin, onPagoActualizado, (nuevaFecha) => {
+
+  const effectiveIsAdmin = useMemo(() => {
+    if (isAdmin) return true;
+    if (typeof window === 'undefined') return false;
+    try {
+      const u = JSON.parse(localStorage.getItem('admin_user_data') || '{}');
+      const uLower = (u.usuario || currentUser || '').toLowerCase();
+      if (uLower === 'patricia' || uLower === 'n-patricia' || (u.letra && u.letra.toUpperCase() === 'N' && uLower.includes('patricia')) || uLower === 'administrador' || uLower === 'dzara') return true;
+      if (u.rol === 'Administrador' || u.rol === 'SuperAdmin') return true;
+      if (u.permisos?.ver_todos_reportes_caja || (Array.isArray(u.permisos) && u.permisos.includes('ver_todos_reportes_caja'))) return true;
+    } catch {}
+    return false;
+  }, [isAdmin, currentUser]);
+
+  const { CeldaMonto, modal: modalMonto } = useEditarMontoReporte(effectiveIsAdmin, onPagoActualizado, (nuevaFecha) => {
     setFechaInicio(nuevaFecha + 'T00:00');
     setFechaFin(nuevaFecha + 'T23:59');
     setShowReport(true);
   });
   const today = new Date().toISOString().slice(0, 10);
   const [subTipo, setSubTipo] = useState<SubTipo>('General de Ingresos');
-  const [selectedCajas, setSelectedCajas] = useState<string[]>(isAdmin ? [] : [currentUser]);
+  const [selectedCajas, setSelectedCajas] = useState<string[]>(effectiveIsAdmin ? [] : [currentUser]);
   const [tipoFilter, setTipoFilter] = useState('Todos');
   const [bancFilter, setBancFilter] = useState('');
   const [showCajaDD, setShowCajaDD] = useState(false);
@@ -163,6 +177,12 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   const [showConfirmCierre, setShowConfirmCierre] = useState(false);
   const [tasaEuro, setTasaEuro] = useState(0);
   const [showDevModal, setShowDevModal] = useState(false);
+
+  useEffect(() => {
+    if (effectiveIsAdmin && selectedCajas.length === 1 && selectedCajas[0] === currentUser) {
+      setSelectedCajas([]);
+    }
+  }, [effectiveIsAdmin, currentUser]);
 
   // Cargar tasa Euro del BCV
   useEffect(() => {
@@ -192,7 +212,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
 
       // Para debitos: det.cajero. Para transferencias conciliadas: det.analista o det.cajero
       const cajero = det.cajero || det.analista || '';
-      if (!isAdmin) {
+      if (!effectiveIsAdmin) {
         const myName = currentUser.toLowerCase();
         const pCajLower = cajero.toLowerCase();
         const matches = pCajLower === myName ||
@@ -202,7 +222,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
                         (selectedCajas.length > 0 && selectedCajas.some(sc => sc.toLowerCase() === pCajLower));
         if (!matches) return false;
       }
-      if (isAdmin && selectedCajas.length > 0 && !selectedCajas.includes(cajero)) return false;
+      if (effectiveIsAdmin && selectedCajas.length > 0 && !selectedCajas.includes(cajero)) return false;
       if (subTipo === 'Ingresos por Banco' && bancFilter) {
         const bd = det.banco_destino || det.banco_receptor || '';
         if (bd !== bancFilter) return false;
@@ -220,7 +240,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   const pagosFiltrados = useMemo(() => {
     if (!showReport && !searchTerm.trim()) return [];
     return getFilteredPagos();
-  }, [showReport, pagos, fechaInicio, fechaFin, selectedCajas, tipoFilter, bancFilter, subTipo, isAdmin, currentUser, searchTerm, buscarEnTodoHistorial]);
+  }, [showReport, pagos, fechaInicio, fechaFin, selectedCajas, tipoFilter, bancFilter, subTipo, effectiveIsAdmin, currentUser, searchTerm, buscarEnTodoHistorial]);
 
   const handleDescargarPDF = () => {
     const items = getFilteredPagos();
@@ -240,7 +260,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalIngresos = totalDebito + totalCredito + totalTransf;
   const totalUSD = tcmmv > 0 ? totalIngresos / tcmmv : 0;
-  const cajeroLabel = !isAdmin ? currentUser : selectedCajas.length === 0 ? 'Todos' : selectedCajas.join(', ');
+  const cajeroLabel = !effectiveIsAdmin ? currentUser : selectedCajas.length === 0 ? 'Todos' : selectedCajas.join(', ');
   const totalPagos = pagos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const nowStr = new Date().toLocaleDateString('es-VE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -549,15 +569,15 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           {subTipo !== 'Ingresos por Banco' && subTipo !== 'Resumen Libro de Ventas' && (
             <div style={{ ...S.fw, position: 'relative' }}>
               <span style={S.fl}>Caja</span>
-              <div onClick={() => isAdmin && setShowCajaDD(!showCajaDD)}
-                style={{ ...S.fi, cursor: isAdmin ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 4, minWidth: 200, flexWrap: 'wrap', background: isAdmin ? '#fff' : '#f8fafc' }}>
-                {!isAdmin
+              <div onClick={() => effectiveIsAdmin && setShowCajaDD(!showCajaDD)}
+                style={{ ...S.fi, cursor: effectiveIsAdmin ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 4, minWidth: 200, flexWrap: 'wrap', background: effectiveIsAdmin ? '#fff' : '#f8fafc' }}>
+                {!effectiveIsAdmin
                   ? <span style={{ background: '#e3eaff', border: '1px solid #aac', borderRadius: 3, padding: '2px 8px', fontSize: 11, fontWeight: 700, color: '#1e3a8a' }}>{currentUser}</span>
                   : selectedCajas.length === 0 ? <span style={{ color: '#888', fontSize: 12 }}>Todos</span>
                   : selectedCajas.map(c => <span key={c} style={{ background: '#e3eaff', border: '1px solid #aac', borderRadius: 3, padding: '1px 7px', fontSize: 11, marginRight: 2 }}>x {c}</span>)}
-                {isAdmin && <ChevronDown size={12} style={{ marginLeft: 'auto', color: '#666' }} />}
+                {effectiveIsAdmin && <ChevronDown size={12} style={{ marginLeft: 'auto', color: '#666' }} />}
               </div>
-              {showCajaDD && isAdmin && (
+              {showCajaDD && effectiveIsAdmin && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: '#fff', border: '1px solid #ccc', borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,.15)', minWidth: 220, maxHeight: 240, overflowY: 'auto' }}>
                   <label style={{ display: 'flex', gap: 8, padding: '8px 12px', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
                     <input type="checkbox" checked={selectedCajas.length === 0} onChange={() => toggleCaja('__todos__')} />

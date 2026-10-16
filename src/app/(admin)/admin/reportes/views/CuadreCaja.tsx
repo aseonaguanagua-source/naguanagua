@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, Printer, ArrowLeft, Pencil, Search, X } from 'lucide-react';
 import { generarCuadreCajaPDF } from '../generators/CuadreCaja';
 
@@ -134,12 +134,32 @@ const FORMAS = ['Todas', 'Tarjetas (Débito y Crédito)', 'Debito', 'Credito (TM
 
 export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contribuyentes = [], onBack, onPagoActualizado }: Props) {
   const today = new Date().toISOString().slice(0, 10);
-  const [cajero, setCajero] = useState(isAdmin ? '' : currentUser);
+
+  const effectiveIsAdmin = useMemo(() => {
+    if (isAdmin) return true;
+    if (typeof window === 'undefined') return false;
+    try {
+      const u = JSON.parse(localStorage.getItem('admin_user_data') || '{}');
+      const uLower = (u.usuario || currentUser || '').toLowerCase();
+      if (uLower === 'patricia' || uLower === 'n-patricia' || (u.letra && u.letra.toUpperCase() === 'N' && uLower.includes('patricia')) || uLower === 'administrador' || uLower === 'dzara') return true;
+      if (u.rol === 'Administrador' || u.rol === 'SuperAdmin') return true;
+      if (u.permisos?.ver_todos_reportes_caja || (Array.isArray(u.permisos) && u.permisos.includes('ver_todos_reportes_caja'))) return true;
+    } catch {}
+    return false;
+  }, [isAdmin, currentUser]);
+
+  const [cajero, setCajero] = useState(effectiveIsAdmin ? '' : currentUser);
   const [forma, setForma] = useState('Todas');
   const [fecha, setFecha] = useState(today);
   const [showReport, setShowReport] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [buscarEnTodoHistorial, setBuscarEnTodoHistorial] = useState(false);
+
+  useEffect(() => {
+    if (effectiveIsAdmin && cajero === currentUser) {
+      setCajero('');
+    }
+  }, [effectiveIsAdmin, currentUser]);
 
   // ── Corrección de monto y fecha (cuadre de caja y reportes) ──
   const [editar, setEditar] = useState<null | { p: any; monto: string; fecha: string; motivo: string; guardando: boolean; error?: string }>(null);
@@ -171,7 +191,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       title={p.monto_corregido ? `Monto corregido en reportes. Registrado por el cajero: Bs ${fmtBs(parseFloat(p.monto_real) || 0)}` : undefined}>
       {p.monto_corregido && <span style={{ fontSize: 9, background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 3, padding: '0 4px', marginRight: 6 }}>CORREGIDO</span>}
       {fmtBs(valor)}
-      {isAdmin && (
+      {effectiveIsAdmin && (
         <button onClick={() => {
           const det = parseDet(p);
           const pFecha = det.fecha_transaccion || (p.created_at ? p.created_at.slice(0, 10) : today);
@@ -198,7 +218,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
 
       const pCajero = det.cajero || det.analista || '';
-      if (!isAdmin) {
+      if (!effectiveIsAdmin) {
         const myName = currentUser.toLowerCase();
         const pCajLower = pCajero.toLowerCase();
         const matches = pCajLower === myName ||
@@ -232,7 +252,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const pagosFiltrados = useMemo(() => {
     if (!showReport && !searchTerm.trim()) return [];
     return getFilteredPagos();
-  }, [showReport, pagos, fecha, cajero, forma, isAdmin, currentUser, searchTerm, buscarEnTodoHistorial]);
+  }, [showReport, pagos, fecha, cajero, forma, effectiveIsAdmin, currentUser, searchTerm, buscarEnTodoHistorial]);
 
   const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
   const creditos = pagosFiltrados.filter(p => isCreditoPago(p));
@@ -248,7 +268,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const totalSaldo = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCuadre = totalDebito + totalCredito + totalTransf + totalDeposito + totalSaldo;
-  const cajeroLabel = cajero ? cajero : (!isAdmin ? currentUser : 'Todos');
+  const cajeroLabel = cajero ? cajero : (!effectiveIsAdmin ? currentUser : 'Todos');
 
   const handleDescargarPDF = () => {
     const items = getFilteredPagos();
@@ -341,7 +361,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
 
           <div style={S.fw}>
             <span style={S.fl}>Cajero</span>
-            {isAdmin ? (
+            {effectiveIsAdmin ? (
               <select value={cajero} onChange={e => setCajero(e.target.value)} style={{ ...S.fi, minWidth: 220 }}>
                 <option value="">Todos</option>
                 {cajeros.map(c => <option key={c} value={c}>{c}</option>)}

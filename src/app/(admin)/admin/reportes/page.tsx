@@ -53,11 +53,26 @@ export default function ReportesPage() {
         const userData = JSON.parse(localStorage.getItem('admin_user_data') || '{}');
         if (userData.usuario) activeUser = userData.usuario;
         if (userData.letra) letra = userData.letra;
-        const permisos = Array.isArray(userData.permisos) ? userData.permisos : [];
-        if (userData.rol === 'Administrador' || userData.rol === 'SuperAdmin' || activeUser === 'Administrador' || activeUser === 'dzara') {
+
+        const hasPermiso = (k: string) => {
+          if (!userData?.permisos) return false;
+          if (Array.isArray(userData.permisos)) return userData.permisos.includes(k);
+          if (typeof userData.permisos === 'object') return Boolean(userData.permisos[k]);
+          return false;
+        };
+
+        const uLower = (activeUser || '').toLowerCase();
+        const esUsuarioTodasCajas = 
+          uLower === 'patricia' || 
+          uLower === 'n-patricia' || 
+          (letra && letra.toUpperCase() === 'N' && uLower.includes('patricia')) ||
+          uLower === 'administrador' || 
+          uLower === 'dzara';
+
+        if (userData.rol === 'Administrador' || userData.rol === 'SuperAdmin' || uLower === 'administrador' || uLower === 'dzara') {
           adminCheck = true;
         }
-        if (adminCheck || permisos.includes('ver_todos_reportes_caja')) {
+        if (adminCheck || hasPermiso('ver_todos_reportes_caja') || esUsuarioTodasCajas) {
           canViewAllReports = true;
         }
       } catch(e) {}
@@ -90,9 +105,24 @@ export default function ReportesPage() {
             try {
               const dets = typeof p.detalles === 'object' ? p.detalles : JSON.parse(p.detalles || '{}');
               if (dets.cajero) cajerosSet.add(dets.cajero);
+              if (dets.analista) cajerosSet.add(dets.analista);
             } catch(e) {}
           });
-          setCajeros(Array.from(cajerosSet).sort());
+          // Asegurar inclusión de todos los cajeros activos con letra registrados
+          try {
+            const { data: trabs } = await supabase
+              .from('trabajadores')
+              .select('usuario, letra')
+              .not('letra', 'is', null);
+            if (trabs) {
+              trabs.forEach((t: any) => {
+                const u = (t.usuario || '').trim();
+                const l = (t.letra || '').trim().toUpperCase();
+                if (l && u) cajerosSet.add(`${l}-${u}`);
+              });
+            }
+          } catch(e) {}
+          setCajeros(Array.from(cajerosSet).filter(Boolean).sort());
         } else {
           const myOptions = new Set<string>();
           if (cajeroIdentifier) myOptions.add(cajeroIdentifier);

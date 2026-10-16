@@ -3556,7 +3556,15 @@ export default function CajaPage() {
       let canViewAll = false;
       try {
         const udata = JSON.parse(localStorage.getItem('admin_user_data') || '{}');
-        if (udata.rol === 'Administrador' || udata.rol === 'SuperAdmin' || (Array.isArray(udata.permisos) && udata.permisos.includes('ver_todos_reportes_caja'))) {
+        const hasPerm = (k: string) => {
+          if (!udata?.permisos) return false;
+          if (Array.isArray(udata.permisos)) return udata.permisos.includes(k);
+          if (typeof udata.permisos === 'object') return Boolean(udata.permisos[k]);
+          return false;
+        };
+        const uLower = (udata.usuario || cajeroActual || '').toLowerCase();
+        const esPatricia = uLower === 'patricia' || uLower === 'n-patricia' || (udata.letra && udata.letra.toUpperCase() === 'N' && uLower.includes('patricia'));
+        if (udata.rol === 'Administrador' || udata.rol === 'SuperAdmin' || uLower === 'administrador' || uLower === 'dzara' || hasPerm('ver_todos_reportes_caja') || esPatricia) {
           canViewAll = true;
         }
       } catch {}
