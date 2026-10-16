@@ -26,24 +26,34 @@ export default function PortalLogin() {
   const [enMantenimiento, setEnMantenimiento] = useState<boolean>(PORTAL_EN_MANTENIMIENTO);
 
   useEffect(() => {
-    if (localStorage.getItem('dev_mode_active') === '1') {
-      setDevMode(true);
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const adminParam = searchParams.get('admin') || searchParams.get('master');
+      if (adminParam === 'Sehile18-' || adminParam === '1756762') {
+        localStorage.setItem('dev_mode_active', '1');
+        localStorage.setItem('portal_master_active', '1');
+        setDevMode(true);
+      } else if (localStorage.getItem('dev_mode_active') === '1' || localStorage.getItem('portal_master_active') === '1') {
+        setDevMode(true);
+      }
     }
   }, []);
 
   const handleLogoDoubleClick = () => {
     if (devMode) {
-      if (confirm('¿Desactivar Modo Desarrollador?')) {
+      if (confirm('¿Desactivar Modo Administrador?')) {
         localStorage.removeItem('dev_mode_active');
+        localStorage.removeItem('portal_master_active');
         setDevMode(false);
         window.location.reload();
       }
     } else {
-      const pw = prompt('Ingrese contraseña de desarrollador:');
-      if (pw === '1756762') {
+      const pw = prompt('Ingrese Contraseña Maestra de Administrador:');
+      if (pw === 'Sehile18-' || pw === '1756762') {
         localStorage.setItem('dev_mode_active', '1');
+        localStorage.setItem('portal_master_active', '1');
         setDevMode(true);
-        alert('Modo Desarrollador Activado');
+        alert('Acceso Maestro de Administrador Activado');
         window.location.reload();
       } else if (pw !== null) {
         alert('Contraseña incorrecta');
@@ -56,7 +66,8 @@ export default function PortalLogin() {
       let mant = PORTAL_EN_MANTENIMIENTO;
       try { const j = await fetch('/api/portal/estado', { cache: 'no-store' }).then(r => r.json()); mant = j?.mantenimiento === true; } catch {}
       setEnMantenimiento(mant);
-      if (mant && localStorage.getItem('dev_mode_active') !== '1') {
+      const isMaster = localStorage.getItem('dev_mode_active') === '1' || localStorage.getItem('portal_master_active') === '1';
+      if (mant && !isMaster) {
         ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
         return;
       }
@@ -232,10 +243,20 @@ export default function PortalLogin() {
             )}
 
             {(enMantenimiento && !devMode) ? (
-              <div className="p-5 bg-amber-50 border border-amber-200 rounded-xl text-center">
+              <div 
+                className="p-5 bg-amber-50 border border-amber-200 rounded-xl text-center select-none"
+                onDoubleClick={handleLogoDoubleClick}
+              >
                 <p className="text-3xl mb-2">🛠️</p>
                 <p className="font-bold text-amber-800 mb-1">Portal en mantenimiento</p>
                 <p className="text-sm text-amber-700 leading-snug">{MENSAJE_MANTENIMIENTO_PORTAL}</p>
+                <button
+                  type="button"
+                  onClick={handleLogoDoubleClick}
+                  className="mt-4 inline-block text-[11px] font-semibold text-amber-800/60 hover:text-amber-900 underline cursor-pointer"
+                >
+                  Acceso Administrativo
+                </button>
               </div>
             ) : (
             <form onSubmit={isSetupMode ? handleSetup : handleLogin} className="space-y-4">

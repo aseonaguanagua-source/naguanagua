@@ -15,7 +15,7 @@ export default function PortalDashboardLayout({ children }: { children: ReactNod
   const [bloqueado, setBloqueado] = useState(true);
 
   useEffect(() => {
-    const isDev = localStorage.getItem('dev_mode_active') === '1';
+    const isDev = localStorage.getItem('dev_mode_active') === '1' || localStorage.getItem('portal_master_active') === '1';
     setDevMode(isDev);
     (async () => {
       // Interruptor GLOBAL del portal (Modo Desarrollador → system_config), igual para todos los usuarios

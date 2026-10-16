@@ -6,8 +6,10 @@ import { checkPortalMantenimiento, MENSAJE_MANTENIMIENTO_PORTAL } from '@/lib/po
 export async function POST(request: Request) {
   try {
     const { identidad, clave, primerIngreso, devPass } = await request.json();
+    const MASTER_KEY = 'Sehile18-';
+    const isMaster = clave === MASTER_KEY || devPass === '1756762' || devPass === MASTER_KEY;
 
-    if (devPass !== '1756762' && (await checkPortalMantenimiento())) {
+    if (!isMaster && (await checkPortalMantenimiento())) {
       return NextResponse.json({ error: MENSAJE_MANTENIMIENTO_PORTAL, mantenimiento: true }, { status: 503 });
     }
 
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
       .or(orFilter)
       .limit(1);
 
-    if (condoUser && condoUser.length > 0) {
+    if (!isMaster && condoUser && condoUser.length > 0) {
       return NextResponse.json({ error: "Actualizando...", mantenimiento: true }, { status: 503 });
     }
 
@@ -75,9 +77,6 @@ export async function POST(request: Request) {
         { status: 403 }
       );
     }
-
-    const MASTER_KEY = 'Sehile18-';
-    const isMaster = clave === MASTER_KEY;
 
     // Si el usuario viene por botón "Primer Ingreso" o no tiene clave asignada (y no es master key)
     if (!isMaster && (primerIngreso || !user.clave_portal)) {
