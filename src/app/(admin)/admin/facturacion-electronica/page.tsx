@@ -39,8 +39,57 @@ export default function FacturacionElectronicaPage() {
   const [pagosList, setPagosList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterTab, setFilterTab] = useState<'todos' | 'pendientes' | 'emitidas'>('pendientes');
+  const [filterTab, setFilterTab] = useState<'todos' | 'pendientes' | 'emitidas' | 'retenciones'>('pendientes');
   const [moduloFiltro, setModuloFiltro] = useState<string>('Todos');
+
+  // Modal de Revisión de Comprobante de Retención
+  const [modalRetencion, setModalRetencion] = useState<any | null>(null);
+  const [motivoRechazoRet, setMotivoRechazoRet] = useState<string>('');
+  const [modoRechazo, setModoRechazo] = useState<boolean>(false);
+  const [procesandoRet, setProcesandoRet] = useState<boolean>(false);
+
+  const handleRevisarRetencion = async (accion: 'aprobar' | 'rechazar') => {
+    if (!modalRetencion) return;
+    if (accion === 'rechazar' && !motivoRechazoRet.trim()) {
+      alert('Por favor ingrese el motivo del rechazo para notificar al contribuyente.');
+      return;
+    }
+    const retId = modalRetencion.retencionId;
+    if (!retId) {
+      alert('No se encontró el identificador del comprobante de retención.');
+      return;
+    }
+    setProcesandoRet(true);
+    try {
+      const res = await fetch('/api/admin/retenciones/revisar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          retencionId: retId,
+          accion,
+          motivo: motivoRechazoRet,
+          usuario: adminUser?.usuario || 'Operador',
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.success) {
+        throw new Error(d.error || 'Error al procesar la revisión');
+      }
+      if (accion === 'aprobar') {
+        alert('¡Comprobante de retención APROBADO exitosamente!\n\nLa factura electrónica oficial completa ha sido enviada al correo del contribuyente.');
+      } else {
+        alert('Comprobante rechazado. Se ha notificado al contribuyente para que suba la corrección.');
+      }
+      setModalRetencion(null);
+      setMotivoRechazoRet('');
+      setModoRechazo(false);
+      loadPagos();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setProcesandoRet(false);
+    }
+  };
 
   // Día y tipo de documento (Facturas comerciales vs Recibos por correo)
   const [fecha, setFecha] = useState<string>(hoyCaracas());
@@ -311,10 +360,14 @@ export default function FacturacionElectronicaPage() {
   // Separación del día: facturas (todo lo comercial: servicio y multas) y recibos (solo residenciales)
   const facturasDia = pagosList.filter(p => p.documento === 'factura' && pasaModulo(p));
   const recibosDia = pagosList.filter(p => p.documento === 'recibo' && pasaModulo(p));
-  const delTipo = docTab === 'factura' ? facturasDia : recibosDia;
-  const visibles = delTipo.filter(p =>
-    filterTab === 'pendientes' ? !p.procesado : filterTab === 'emitidas' ? p.procesado : true
-  );
+  const retencionesDia = pagosList.filter(p => p.conRetencion && pasaModulo(p));
+  const retencionesPorRevisarCount = retencionesDia.filter(p => p.retencionEstado === 'planilla_recibida').length;
+  const delTipo = filterTab === 'retenciones' ? retencionesDia : (docTab === 'factura' ? facturasDia : recibosDia);
+  const visibles = filterTab === 'retenciones'
+    ? retencionesDia
+    : delTipo.filter(p =>
+        filterTab === 'pendientes' ? !p.procesado : filterTab === 'emitidas' ? p.procesado : true
+      );
   const totalPendientes = delTipo.filter(p => !p.procesado).length;
   const resumen = (lista: any[]) => ({
     total: lista.length,
@@ -948,6 +1001,22 @@ export default function FacturacionElectronicaPage() {
               {docTab === 'factura' ? 'Emitidas SENIAT' : 'Enviados por correo'}
             </button>
             <button
+              onClick={() => setFilterTab('retenciones')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                filterTab === 'retenciones' 
+                  ? 'bg-amber-600 text-white shadow-xs' 
+                  : 'text-amber-800 hover:text-amber-950 hover:bg-amber-100/60'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+              <span>Retenciones por revisar</span>
+              {retencionesPorRevisarCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-white text-amber-700 text-[10px] font-black rounded-full shadow-xs animate-pulse">
+                  {retencionesPorRevisarCount}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => setFilterTab('todos')}
               className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 filterTab === 'todos' 
@@ -1256,17 +1325,44 @@ export default function FacturacionElectronicaPage() {
                                 </a>
                               )}
                               {!pago.facturaAnulada && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedPagoForEmail(pago);
-                                    setCustomEmailDestino(pago.correo || fallbackEmail);
-                                  }}
-                                  className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer"
-                                  title="Reenviar copia de la factura por correo electrónico"
-                                >
-                                  <Mail className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>Reenviar</span>
-                                </button>
+                                (pago.conRetencion && pago.retencionEstado !== 'aprobada') ? (
+                                  <button
+                                    onClick={() => { setModalRetencion(pago); setModoRechazo(false); setMotivoRechazoRet(''); }}
+                                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border shadow-xs transition-colors cursor-pointer ${
+                                      pago.retencionPlanillaUrl || pago.retencionEstado === 'planilla_recibida'
+                                        ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-700 animate-pulse'
+                                        : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                    }`}
+                                    title="Revisar comprobante de retención montado por el contribuyente"
+                                  >
+                                    <ShieldAlert className="w-3.5 h-3.5" />
+                                    <span>{pago.retencionPlanillaUrl || pago.retencionEstado === 'planilla_recibida' ? 'Revisar Retención' : 'Esperando Planilla'}</span>
+                                  </button>
+                                ) : (
+                                  <>
+                                    {pago.conRetencion && (
+                                      <button
+                                        onClick={() => { setModalRetencion(pago); setModoRechazo(false); setMotivoRechazoRet(''); }}
+                                        className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer"
+                                        title="Ver comprobante de retención aprobado"
+                                      >
+                                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Retención Aprobada</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        setSelectedPagoForEmail(pago);
+                                        setCustomEmailDestino(pago.correo || fallbackEmail);
+                                      }}
+                                      className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer"
+                                      title="Reenviar copia de la factura por correo electrónico"
+                                    >
+                                      <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>Reenviar</span>
+                                    </button>
+                                  </>
+                                )
                               )}
                               {/* Botón Demo / Vista Previa Formato Factory HKA */}
                               <button
@@ -2644,6 +2740,201 @@ export default function FacturacionElectronicaPage() {
                   Eliminar pago y devolver deuda
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL DE REVISIÓN DE COMPROBANTE DE RETENCIÓN DE IVA ══ */}
+      {modalRetencion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            {/* Cabecera */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-orange-50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500 text-white shadow-sm">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-800">Revisión de Comprobante de Retención IVA</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Agente de Retención (75% IVA) · IAMEC Naguanagua</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalRetencion(null)}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenido */}
+            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Resumen del Contribuyente y Factura */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Contribuyente</span>
+                  <span className="font-extrabold text-slate-800 text-sm block mt-0.5">{modalRetencion.contribuyente}</span>
+                  <span className="font-mono text-slate-500 font-bold">{modalRetencion.identidad}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Factura Emitida</span>
+                  <span className="font-extrabold text-blue-800 text-sm block mt-0.5">
+                    {modalRetencion.numeroDocumento ? `Factura N° ${modalRetencion.numeroDocumento}` : 'Por Emitir'}
+                  </span>
+                  <span className="font-mono text-slate-500">Ctrl: {modalRetencion.numeroControl || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Monto Total Factura</span>
+                  <span className="font-mono font-black text-slate-900 text-sm">Bs {fmtBs(modalRetencion.monto)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-amber-700 uppercase block">Monto Retención IVA (75%)</span>
+                  <span className="font-mono font-black text-amber-700 text-sm">
+                    Bs {fmtBs(modalRetencion.retencionMontoPlanilla || modalRetencion.montoRetencion || 0)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Datos de la Planilla reportada */}
+              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-slate-800 text-xs flex items-center gap-1.5 uppercase tracking-wide">
+                    <FileText className="w-4 h-4 text-amber-600" />
+                    Comprobante Reportado por el Contribuyente
+                  </h4>
+                  <span className={`px-2 py-0.5 text-[10px] font-black rounded-md border ${
+                    modalRetencion.retencionEstado === 'aprobada'
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : modalRetencion.retencionEstado === 'rechazada'
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : modalRetencion.retencionPlanillaUrl || modalRetencion.retencionEstado === 'planilla_recibida'
+                      ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
+                      : 'bg-slate-100 text-slate-700 border-slate-300'
+                  }`}>
+                    {modalRetencion.retencionEstado === 'aprobada'
+                      ? 'Aprobado · Factura Enviada'
+                      : modalRetencion.retencionEstado === 'rechazada'
+                      ? 'Rechazado'
+                      : modalRetencion.retencionPlanillaUrl || modalRetencion.retencionEstado === 'planilla_recibida'
+                      ? 'Por Revisar (Planilla subida)'
+                      : 'Esperando Planilla del Contribuyente'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs pt-1">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">N° de Comprobante / Planilla:</span>
+                    <span className="font-mono font-black text-slate-800 text-sm">
+                      {modalRetencion.retencionNumeroPlanilla || modalRetencion.detalles?.numero_planilla || 'No registrado aún'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Fecha del Comprobante:</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      {modalRetencion.retencionFechaPlanilla || '—'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Archivo adjunto */}
+                <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">Archivo de Comprobante:</span>
+                  {modalRetencion.retencionPlanillaUrl ? (
+                    <a
+                      href={modalRetencion.retencionPlanillaUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-xs transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Ver / Descargar Comprobante</span>
+                    </a>
+                  ) : (
+                    <span className="text-xs font-medium text-slate-400 italic">No ha adjuntado archivo aún</span>
+                  )}
+                </div>
+
+                {modalRetencion.retencionMotivoRechazo && (
+                  <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800">
+                    <strong>Motivo de rechazo previo:</strong> {modalRetencion.retencionMotivoRechazo}
+                  </div>
+                )}
+              </div>
+
+              {/* Si está en modo rechazo */}
+              {modoRechazo && (
+                <div className="p-3.5 rounded-xl border border-red-300 bg-red-50/70 space-y-2">
+                  <label className="block text-xs font-black text-red-900" htmlFor="motivo-rechazo-ret">
+                    Indique el motivo del rechazo (será enviado por correo al contribuyente):
+                  </label>
+                  <textarea
+                    id="motivo-rechazo-ret"
+                    value={motivoRechazoRet}
+                    onChange={e => setMotivoRechazoRet(e.target.value)}
+                    rows={2}
+                    placeholder="Ej.: El monto retenido no coincide con el 75% del IVA, el número de control es incorrecto, etc."
+                    className="w-full text-xs p-2.5 rounded-lg border border-red-300 bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                  />
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      onClick={() => setModoRechazo(false)}
+                      className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-lg cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => handleRevisarRetencion('rechazar')}
+                      disabled={procesandoRet || !motivoRechazoRet.trim()}
+                      className="px-3 py-1.5 text-xs font-black text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {procesandoRet ? <RefreshCw className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                      Confirmar Rechazo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pie de acciones */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <button
+                onClick={() => setModalRetencion(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 cursor-pointer"
+              >
+                Cerrar
+              </button>
+
+              <div className="flex items-center gap-2">
+                {modalRetencion.retencionEstado !== 'aprobada' && !modoRechazo && (
+                  <>
+                    <button
+                      onClick={() => setModoRechazo(true)}
+                      disabled={procesandoRet}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Rechazar</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleRevisarRetencion('aprobar')}
+                      disabled={procesandoRet}
+                      className="px-4 py-2 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {procesandoRet ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-white" />}
+                      <span>Aprobar Retención y Enviar Factura</span>
+                    </button>
+                  </>
+                )}
+
+                {modalRetencion.retencionEstado === 'aprobada' && (
+                  <div className="flex items-center gap-1.5 text-xs font-black text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    <span>Retención aprobada y factura enviada por correo</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

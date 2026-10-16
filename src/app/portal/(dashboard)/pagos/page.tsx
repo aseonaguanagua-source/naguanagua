@@ -8,7 +8,7 @@ import {
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
-import { isResidencialInm, calcularMensualidad, isCondominioPagoIndividual } from '@/lib/calculos';
+import { isResidencialInm, isTerrenoInm, calcularMensualidad, isCondominioPagoIndividual } from '@/lib/calculos';
 import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist, reglaCobroInmueble, r2 } from '@/lib/deudaMensual';
 import DeudaCondominiosPortal from '@/components/DeudaCondominiosPortal';
 import { construirRecibosContribuyente, desgloseReciboCM } from '@/lib/recibosContribuyente';
@@ -153,9 +153,10 @@ export default function DondePagarPage() {
         // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas y meses históricos.
         // Las unidades de condominio se cobran por Caja Condominios (igual que en Caja).
         const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: dbFacturas || [], identidad: portalDoc });
-        setUserInms(allInms);
+        const validInms = allInms.filter(i => !isTerrenoInm(i) && (i.estado || 'Activo').toLowerCase() !== 'eliminado' && (i.estado || 'Activo').toLowerCase() !== 'inactivo');
+        setUserInms(validInms);
         const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
-        allInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
+        validInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
         setReglasCobro(Object.fromEntries(reglaPorInm));
         setBloqueadoPorCondominio(rc.soloCondominio && rc.recibos.length === 0);
         setRawRecibos(rc.recibos);

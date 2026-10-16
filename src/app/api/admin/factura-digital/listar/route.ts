@@ -94,6 +94,40 @@ export async function GET(request: Request) {
       return true;
     });
 
+    // 2) Obtener retenciones_iva vinculadas a los pagos
+    const retencionIds: string[] = [];
+    const controlesFacturas: string[] = [];
+    pagos.forEach(p => {
+      const d = parseDetalles(p.detalles);
+      const rId = d?.factura_digital?.retencion?.retencion_id;
+      if (rId) retencionIds.push(rId);
+      const ctrl = d?.factura_digital?.numero_control;
+      if (ctrl) controlesFacturas.push(ctrl);
+    });
+
+    const retencionesIvaMap = new Map<string, any>();
+    const retencionesPorControlMap = new Map<string, any>();
+
+    if (retencionIds.length > 0 || controlesFacturas.length > 0) {
+      try {
+        let q = supabase.from('retenciones_iva').select('*');
+        if (retencionIds.length > 0 && controlesFacturas.length > 0) {
+          q = q.or(`id.in.(${retencionIds.join(',')}),factura_control.in.(${controlesFacturas.map(c => `"${c}"`).join(',')})`);
+        } else if (retencionIds.length > 0) {
+          q = q.in('id', retencionIds);
+        } else {
+          q = q.in('factura_control', controlesFacturas);
+        }
+        const { data: rets } = await q;
+        (rets || []).forEach(r => {
+          retencionesIvaMap.set(r.id, r);
+          if (r.factura_control) retencionesPorControlMap.set(r.factura_control, r);
+        });
+      } catch (err) {
+        console.warn('Error cargando retenciones_iva en listar:', err);
+      }
+    }
+
     // Normalizador de identidades (sin guiones ni símbolos)
     const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
@@ -344,77 +378,89 @@ export async function GET(request: Request) {
       // Los pagos con retención comercial siempre corresponden a factura fiscal
       const docFinal = tieneRetencion ? 'factura' : clasif.documento;
 
+      // Agente de retención: la factura se envía solo al aprobar su comprobante
+      const retRow = (fd?.retencion?.retencion_id ? retencionesIvaMap.get(fd.retencion.retencion_id) : null) || (fd?.numero_control ? retencionesPorControlMap.get(fd.numero_control) : null);
+      const stRet = fd?.retencion?.estado || (retRow ? (retRow.estado === 'Pendiente' ? 'planilla_recibida' : String(retRow.estado).toLowerCase()) : null);
+
       return {
         id: pago.id,
         pagoId: pago.id,
-        identidad: pago.identidad,
-        contribuyente: nombreResuelto,
-        correo: correoFinal,
-        rawCorreo: rawEmail,
-        esCorreoComodin,
-        requiereActualizacionCorreo: esCorreoComodin,
-        monto: montoFacturaReal,
-        montoPagado: parseFloat(pago.monto || '0'),
-        saldoAFavor: sFavorGuardado,
-        saldoFavorUsado: sfUsado,
-        banco: pago.banco || 'N/A',
-        referencia: pago.referencia || 'N/A',
-        tipo: pago.tipo || 'Transferencia',
-        estado: pago.estado || 'Aprobado',
-        created_at: pago.created_at,
-        cajero: det.cajero || '',
-        recibos: det.recibos || [],
-        // Condominio: a quién va la factura (al condominio o a cada dueño) y si es parte de un pago repartido
-        condominio: infoCondo(pago, det),
-        // Clasificación del documento
-        documento: docFinal,
-        subtipo: clasif.subtipo,
-        mixto: clasif.mixto,
-        inmuebles: clasif.inmuebles,
-        mesesServicio: clasif.mesesServicio,
-        tieneMulta: clasif.tieneMulta,
-        // Factura fiscal
-        facturaEmitida: emitida,
-        facturaUrl: fd?.url || null,
-        numeroControl: fd?.numero_control || null,
-        numeroDocumento: fd?.numero_documento || null,
-        fechaEmision: fd?.fecha_emision || null,
-        error: det.factura_digital_error || null,
-        facturaAnulada: !!fd?.anulada,
-        notaCreditoUrl: fd?.nota_credito?.url || null,
-        notaCreditoControl: fd?.nota_credito?.numero_control || null,
-        // Agente de retención: la factura se envía solo al aprobar su comprobante
-        conRetencion: tieneRetencion,
-        esRetencion: tieneRetencion,
-        montoRetencion: montoRetNum,
-        referenciaRetencion: vincRet?.referencia || det.referencia_retencion || null,
-        pagoRetencionId: vincRet?.id || det.pago_retencion_id || null,
-        modulo: pago.modulo || (infoCondo(pago, det) ? 'condominios' : 'caja'),
-        detalles: det,
-        retencionEstado: fd?.retencion?.estado || null,
-        retencionDatosEnviados: fd?.retencion?.datos_enviados_at || null,
-        // Recibo por correo
-        reciboEnviado,
-        reciboEnviadoFecha: rd?.fecha || null,
-        reciboCorreo: rd?.correo || null,
-        reciboError: rd?.error || null,
-        // Recibo impreso en Caja (original guardado en el pago; si no, se reconstruye al descargar)
-        reciboCajaGuardado: Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0,
-        // Procesado = factura emitida (facturas) o recibo enviado (recibos)
-        procesado: docFinal === 'factura' ? emitida : reciboEnviado,
-      };
-    });
+          identidad: pago.identidad,
+          contribuyente: nombreResuelto,
+          correo: correoFinal,
+          rawCorreo: rawEmail,
+          esCorreoComodin,
+          requiereActualizacionCorreo: esCorreoComodin,
+          monto: montoFacturaReal,
+          montoPagado: parseFloat(pago.monto || '0'),
+          saldoAFavor: sFavorGuardado,
+          saldoFavorUsado: sfUsado,
+          banco: pago.banco || 'N/A',
+          referencia: pago.referencia || 'N/A',
+          tipo: pago.tipo || 'Transferencia',
+          estado: pago.estado || 'Aprobado',
+          created_at: pago.created_at,
+          cajero: det.cajero || '',
+          recibos: det.recibos || [],
+          // Condominio: a quién va la factura (al condominio o a cada dueño) y si es parte de un pago repartido
+          condominio: infoCondo(pago, det),
+          // Clasificación del documento
+          documento: docFinal,
+          subtipo: clasif.subtipo,
+          mixto: clasif.mixto,
+          inmuebles: clasif.inmuebles,
+          mesesServicio: clasif.mesesServicio,
+          tieneMulta: clasif.tieneMulta,
+          // Factura fiscal
+          facturaEmitida: emitida,
+          facturaUrl: fd?.url || null,
+          numeroControl: fd?.numero_control || null,
+          numeroDocumento: fd?.numero_documento || null,
+          fechaEmision: fd?.fecha_emision || null,
+          error: det.factura_digital_error || null,
+          facturaAnulada: !!fd?.anulada,
+          notaCreditoUrl: fd?.nota_credito?.url || null,
+          notaCreditoControl: fd?.nota_credito?.numero_control || null,
+          // Agente de retención: la factura se envía solo al aprobar su comprobante
+          conRetencion: tieneRetencion,
+          esRetencion: tieneRetencion,
+          montoRetencion: montoRetNum,
+          referenciaRetencion: vincRet?.referencia || det.referencia_retencion || null,
+          pagoRetencionId: vincRet?.id || det.pago_retencion_id || null,
+          modulo: pago.modulo || (infoCondo(pago, det) ? 'condominios' : 'caja'),
+          detalles: det,
+          retencionEstado: stRet,
+          retencionDatosEnviados: fd?.retencion?.datos_enviados_at || null,
+          retencionId: fd?.retencion?.retencion_id || retRow?.id || null,
+          retencionPlanillaUrl: retRow?.planilla_url || null,
+          retencionNumeroPlanilla: retRow?.numero_planilla || null,
+          retencionFechaPlanilla: retRow?.fecha_planilla || null,
+          retencionMontoPlanilla: retRow?.monto_retenido || fd?.retencion?.retenido || montoRetNum,
+          retencionMotivoRechazo: retRow?.motivo_rechazo || fd?.retencion?.motivo_rechazo || null,
+          // Recibo por correo
+          reciboEnviado,
+          reciboEnviadoFecha: rd?.fecha || null,
+          reciboCorreo: rd?.correo || null,
+          reciboError: rd?.error || null,
+          // Recibo impreso en Caja (original guardado en el pago; si no, se reconstruye al descargar)
+          reciboCajaGuardado: Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0,
+          // Procesado = factura emitida (facturas) o recibo enviado (recibos)
+          procesado: docFinal === 'factura' ? emitida : reciboEnviado,
+        };
+      });
 
-    // Aplicar filtros
-    let filtered = items;
-    if (documentoFiltro === 'factura' || documentoFiltro === 'recibo') {
-      filtered = filtered.filter(i => i.documento === documentoFiltro);
-    }
-    if (filter === 'pendientes') {
-      filtered = filtered.filter(i => !i.procesado);
-    } else if (filter === 'emitidas') {
-      filtered = filtered.filter(i => i.procesado);
-    }
+      // Aplicar filtros
+      let filtered = items;
+      if (documentoFiltro === 'factura' || documentoFiltro === 'recibo') {
+        filtered = filtered.filter(i => i.documento === documentoFiltro);
+      }
+      if (filter === 'pendientes') {
+        filtered = filtered.filter(i => !i.procesado);
+      } else if (filter === 'emitidas') {
+        filtered = filtered.filter(i => i.procesado);
+      } else if (filter === 'retenciones' || filter === 'retenciones_pendientes') {
+        filtered = filtered.filter(i => i.conRetencion && (i.retencionEstado === 'planilla_recibida' || i.retencionEstado === 'esperando_planilla' || (!i.facturaEmitida && i.conRetencion)));
+      }
     if (moduloFiltro === 'Contribuyentes') filtered = filtered.filter(i => !i.condominio);
     else if (moduloFiltro === 'Condominios') filtered = filtered.filter(i => !!i.condominio);
     else if (moduloFiltro === 'Condominios residenciales') filtered = filtered.filter(i => i.condominio?.residencial === true);

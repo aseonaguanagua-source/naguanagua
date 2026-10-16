@@ -12,7 +12,7 @@
  *    por inmueble: meses_deuda (o 1 si solo tiene deuda_mmv) menos sus recibos formales (CM-…).
  *  - Un inmueble sin deuda NO genera meses.
  */
-import { calcularMensualidad, isResidencialInm, isCondominioPagoIndividual, isMesExoneradoMulta } from './calculos';
+import { calcularMensualidad, isResidencialInm, isTerrenoInm, isCondominioPagoIndividual, isMesExoneradoMulta } from './calculos';
 import { codigosContenedoresNA, mesesTranscurridos, r2 } from './deudaMensual';
 
 const num = (v: any) => parseFloat(String(v ?? 0).replace(/[^\d.-]/g, '')) || 0;
@@ -38,13 +38,27 @@ export function construirRecibosContribuyente(params: {
 }): RecibosContribuyente {
   const hoy = params.hoy || new Date();
   const todos = params.inmuebles || [];
-  // Inmuebles directos (no condominios, no filiales)
-  const activos = todos.filter(i => i.estado !== 'Eliminado' && !i.condominio_padre_id && !i.es_condominio);
-  // Inmuebles pertenecientes a condominios
-  const condoInms = todos.filter(i => i.estado !== 'Eliminado' && (i.condominio_padre_id || i.es_condominio));
+  const naCodes = codigosContenedoresNA(todos);
+
+  // Inmuebles directos (no condominios, no filiales, activos y no terrenos)
+  const activos = todos.filter(i => {
+    const est = (i.estado || 'Activo').trim().toLowerCase();
+    if (est === 'eliminado' || est === 'inactivo') return false;
+    if (isTerrenoInm(i)) return false;
+    if (i.condominio_padre_id || i.es_condominio) return false;
+    return true;
+  });
+
+  // Inmuebles pertenecientes a condominios (activos y no terrenos)
+  const condoInms = todos.filter(i => {
+    const est = (i.estado || 'Activo').trim().toLowerCase();
+    if (est === 'eliminado' || est === 'inactivo') return false;
+    if (isTerrenoInm(i)) return false;
+    return (i.condominio_padre_id || i.es_condominio);
+  });
+
   const tieneCondominio = condoInms.length > 0;
   const soloCondominio = activos.length === 0 && tieneCondominio;
-  const naCodes = codigosContenedoresNA(activos);
   const billables = activos.filter(i => !naCodes.includes(i.inmueble));
 
   const recibos: any[] = (params.facturas || []).filter(f => ESTADOS_RECIBO_PENDIENTE.includes(f.estado));
@@ -53,8 +67,9 @@ export function construirRecibosContribuyente(params: {
   // (el aseo mensual lo gestiona y paga la oficina/administración del condominio).
   // Los usuarios de condominios SOLO pueden ver y cancelar las multas de ese inmueble.
   // Y si tiene varios meses de multa, DEBEN SALIR POR MES SEPARADAS, NO TODAS JUNTAS.
+  // Los contenedores N/A (padres de actividades) no cobran multa aquí.
   const condoConMulta: any[] = [];
-  condoInms.forEach(inm => {
+  condoInms.filter(i => !naCodes.includes(i.inmueble)).forEach(inm => {
     const multa = num(inm.multa_bs), congelada = num(inm.deuda_congelada_bs);
     const totalMulta = multa + congelada;
     if (totalMulta > 0) {

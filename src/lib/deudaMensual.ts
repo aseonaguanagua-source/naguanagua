@@ -190,13 +190,16 @@ export function esUltimoMesHist(ref: string, inm: any): boolean {
   return mNum > 0 ? mNum >= total : false;
 }
 
-/** Contenedores "N/A" que solo agrupan actividades (no se cobran ellos mismos). */
+/** Contenedores "N/A" que solo agrupan actividades (no se cobran ellos mismos; son padres y su total es la suma de los hijos). */
 export function codigosContenedoresNA(inms: any[]): string[] {
   return (inms || [])
-    .filter((i: any) =>
-      String(i.actividad_principal || '').trim().toUpperCase() === 'N/A' &&
-      (parseInt(String(i.cant_inmuebles || '0')) > 0 || inms.some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble))
-    )
+    .filter((i: any) => {
+      const act = String(i.actividad_principal || i.actividad || '').trim().toUpperCase();
+      const esNA = act === 'N/A' || act.startsWith('PADRE') || i.es_grupo === true;
+      const tieneHijos = (parseInt(String(i.cant_inmuebles || '0')) > 0) || 
+        (inms || []).some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble || c.padre_unidad_id === i.id);
+      return esNA || tieneHijos;
+    })
     .map((i: any) => i.inmueble);
 }
 

@@ -5,7 +5,7 @@ import { Download, FileText, Building, Handshake, AlertCircle, CheckCircle2, Wre
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
-import { getFAR, isResidencialInm, calcularMensualidad, cleanClasificacionActividad, isCondominioPagoIndividual } from '@/lib/calculos';
+import { getFAR, isResidencialInm, isTerrenoInm, calcularMensualidad, cleanClasificacionActividad, isCondominioPagoIndividual } from '@/lib/calculos';
 import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist, reglaCobroInmueble } from '@/lib/deudaMensual';
 import { construirRecibosContribuyente, desgloseReciboCM, ESTADOS_RECIBO_PENDIENTE } from '@/lib/recibosContribuyente';
 import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
@@ -75,7 +75,10 @@ export default function EstadoCuentaPage() {
 
           // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas pendientes y meses históricos
           const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: facturasDB || [], identidad: fullDoc });
-          setMisInmueblesDb([...rc.billables, ...allInms.filter(i => (i.condominio_padre_id || i.es_condominio))]);
+          setMisInmueblesDb([
+            ...rc.billables,
+            ...allInms.filter(i => (i.condominio_padre_id || i.es_condominio) && !isTerrenoInm(i) && !rc.naCodes.includes(i.inmueble) && (i.estado || 'Activo').toLowerCase() !== 'eliminado' && (i.estado || 'Activo').toLowerCase() !== 'inactivo')
+          ]);
           setMisNaCodes(rc.naCodes);
           const combined: any[] = [
             ...(facturasDB || []).filter((f: any) => !ESTADOS_RECIBO_PENDIENTE.includes(f.estado)),
