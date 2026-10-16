@@ -1031,14 +1031,22 @@ export async function POST(request: Request) {
               const montoRetFinal = conRetencion && montoRetNum > 0 ? Math.min(totalAPagar, montoRetNum) : 0;
               const montoSF = Math.min(r2(totalAPagar - montoRetFinal), saldoFavorUsado);
               const montoNetoCaja = r2(totalAPagar - montoRetFinal - montoSF);
+              const montoCompletoCaja = r2(montoNetoCaja + montoSF);
 
               const partes: string[] = [];
-              if (montoNetoCaja > 0) {
-                partes.push(`Caja: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''} por Bs. ${f2(montoNetoCaja)}`);
-              }
               if (montoSF > 0) {
-                partes.push(`Nota de Crédito (Saldo a Favor): Bs. ${f2(montoSF)}`);
+                if (montoNetoCaja > 0) {
+                  partes.push(`Monto Pagado en Caja: Bs. ${f2(montoCompletoCaja)} (Caja: Bs. ${f2(montoNetoCaja)} + Nota de Crédito: Bs. ${f2(montoSF)})`);
+                  if (tipoPago) {
+                    partes.push(`Forma: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''}`);
+                  }
+                } else {
+                  partes.push(`Monto Pagado en Caja: Bs. ${f2(montoSF)} (100% Nota de Crédito / Saldo a Favor)`);
+                }
+              } else if (montoNetoCaja > 0) {
+                partes.push(`Monto Pagado en Caja: Bs. ${f2(montoNetoCaja)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''})`);
               }
+
               if (montoRetFinal > 0) {
                 partes.push(`Retención 75% IVA: Bs. ${f2(montoRetFinal)}`);
               }

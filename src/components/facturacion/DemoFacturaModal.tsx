@@ -122,6 +122,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     ? 0 
     : Math.max(0, parseFloat((totalFactura - (esRetencion ? retencionIva : 0) - saldoFavorUsado).toFixed(2)));
   const montoNetoCobrado = esRetencion ? parseFloat((totalFactura - retencionIva).toFixed(2)) : totalFactura;
+  const montoCompletoCaja = parseFloat((montoCajaCancelado + saldoFavorUsado).toFixed(2));
 
   const fechaActual = new Date().toLocaleDateString('es-VE', {
     day: '2-digit', month: '2-digit', year: 'numeric'
@@ -412,19 +413,30 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   <div className="font-black text-[10px] sm:text-[10.5px] uppercase text-slate-900 mb-1">
                     NOTAS Y COMENTARIOS
                   </div>
-                  <div className="p-2 bg-slate-50 border border-slate-200 rounded text-[9.5px] space-y-1 text-slate-700 leading-snug">
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded text-[9.5px] space-y-1.5 text-slate-700 leading-snug">
                     <p className="font-bold text-slate-900">
                       Total Facturado y Cancelado: <span className="font-black text-emerald-800 font-mono text-[10.5px]">Bs. {formatBs(totalFactura)}</span>
                     </p>
-                    {montoCajaCancelado > 0 && (
-                      <p>
-                        • <strong>Pagado en Caja:</strong> Bs. {formatBs(montoCajaCancelado)} <span className="text-slate-500 font-mono">({tipoPago}{referencia && referencia !== 'N/A' ? ` Ref. ${referencia}` : ''}{banco && banco !== 'N/A' ? ` - ${banco}` : ''})</span>
-                      </p>
-                    )}
-                    {saldoFavorUsado > 0 && (
-                      <p className="text-emerald-800 font-semibold bg-emerald-50/80 px-1 py-0.5 rounded border border-emerald-300">
-                        • <strong>Nota de Crédito (Saldo a Favor Aplicado):</strong> Bs. {formatBs(saldoFavorUsado)}
-                      </p>
+                    {saldoFavorUsado > 0 ? (
+                      <div className="p-1.5 bg-emerald-50 border border-emerald-300 rounded space-y-0.5">
+                        <p className="font-black text-emerald-950 text-[10px]">
+                          • Monto Pagado Completo en Caja: <span className="font-mono text-emerald-800 font-black">Bs. {formatBs(montoCompletoCaja)}</span>
+                        </p>
+                        <p className="text-emerald-900 text-[9px] pl-2 font-medium">
+                          (Caja: Bs. {formatBs(montoCajaCancelado)} + Nota de Crédito: Bs. {formatBs(saldoFavorUsado)})
+                        </p>
+                        {tipoPago && (
+                          <p className="text-slate-600 text-[8.5px] pl-2 font-mono">
+                            Forma: {tipoPago}{referencia && referencia !== 'N/A' ? ` Ref. ${referencia}` : ''}{banco && banco !== 'N/A' ? ` - ${banco}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      montoCajaCancelado > 0 && (
+                        <p>
+                          • <strong>Monto Pagado en Caja:</strong> Bs. {formatBs(montoCajaCancelado)} <span className="text-slate-500 font-mono">({tipoPago}{referencia && referencia !== 'N/A' ? ` Ref. ${referencia}` : ''}{banco && banco !== 'N/A' ? ` - ${banco}` : ''})</span>
+                        </p>
+                      )
                     )}
                     {esRetencion && retencionIva > 0 && (
                       <p className="text-amber-800 font-medium">
@@ -448,6 +460,16 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                     Formas de Pago
                   </div>
                   <div className="p-2.5 text-[10px] space-y-1.5 text-slate-700 bg-white">
+                    {saldoFavorUsado > 0 && (
+                      <div className="bg-emerald-50/70 p-1.5 rounded border border-emerald-200">
+                        <div className="text-emerald-950 font-bold">
+                          Monto Completo Pagado en Caja: <span className="font-mono font-black text-emerald-800">Bs. {formatBs(montoCompletoCaja)}</span>
+                        </div>
+                        <div className="text-[9px] text-emerald-800">
+                          (Sumando Nota de Crédito / Saldo a Favor)
+                        </div>
+                      </div>
+                    )}
                     {montoCajaCancelado > 0 && (
                       <div>
                         <div><strong>Forma:</strong> {tipoPago}</div>
