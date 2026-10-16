@@ -527,33 +527,62 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
     let mesesMax = 0;
 
     unifiedInmuebles.forEach((group) => {
-      const { inm, isNAParent, isNA, mmvTotal, mesesDeuda } = group;
+      const { inm, isNAParent, isNA, mmvTotal, mesesDeuda, hijos } = group;
       const meses = Math.max(0, mesesDeuda);
       if (meses > mesesMax) mesesMax = meses;
       if (meses <= 0) return;
 
       const esRes = isResidencialInm(inm);
-      // Para un N/A matriz, su mensualidad base se computa sobre mmvTotal (sumatoria de sus hijos, cant=1)
-      const baseMes = isNAParent 
-        ? calcularMensualidad({ ...inm, mmv_mes: mmvTotal, cant_inmuebles: 1, isNAParent: true }, tasaEfectiva) 
-        : calcularMensualidad({ ...inm, cant_inmuebles: isNA ? 1 : inm.cant_inmuebles }, tasaEfectiva);
-      const baseInm = baseMes * meses;
-      const ivaInm = esRes ? 0 : baseInm * 0.16;
-
       const esExon = isExoneradoTotalMultas(inm.notas);
       const cantExon = getMesesExoneradosCount(inm.notas);
-      const multaMes = esExon ? 0 : baseMes * (esRes ? 0.10 : 0.12);
       const mesesConMulta = esExon ? 0 : Math.max(0, meses - 1 - cantExon);
-      const multaInm = multaMes * mesesConMulta;
+
+      let baseMes = 0;
+      let ivaMes = 0;
+      let multaMes = 0;
+
+      if (isNAParent && hijos && hijos.length > 0) {
+        // EXACTO COMO EN CAJA: Suma de las cuotas redondeadas individuales de cada actividad comercial
+        hijos.forEach((h: any) => {
+          const hRes = isResidencialInm(h);
+          const hBase = Math.round(calcularMensualidad(h, tasaEfectiva) * 100) / 100;
+          const hIva = hRes ? 0 : Math.round((hBase * 0.16) * 100) / 100;
+          const hMora = hRes ? 0.10 : 0.12;
+          const hMulta = esExon ? 0 : Math.round((hBase * hMora) * 100) / 100;
+          baseMes += hBase;
+          ivaMes += hIva;
+          multaMes += hMulta;
+        });
+      } else {
+        const rawBase = isNAParent 
+          ? calcularMensualidad({ ...inm, mmv_mes: mmvTotal, cant_inmuebles: 1, isNAParent: true }, tasaEfectiva) 
+          : calcularMensualidad({ ...inm, cant_inmuebles: isNA ? 1 : inm.cant_inmuebles }, tasaEfectiva);
+        baseMes = Math.round(rawBase * 100) / 100;
+        ivaMes = esRes ? 0 : Math.round((baseMes * 0.16) * 100) / 100;
+        const moraTasa = esRes ? 0.10 : 0.12;
+        multaMes = esExon ? 0 : Math.round((baseMes * moraTasa) * 100) / 100;
+      }
+
+      baseMes = Math.round(baseMes * 100) / 100;
+      ivaMes = Math.round(ivaMes * 100) / 100;
+      multaMes = Math.round(multaMes * 100) / 100;
+
+      const baseInm = Math.round((baseMes * meses) * 100) / 100;
+      const ivaInm = Math.round((ivaMes * meses) * 100) / 100;
+      const multaInm = Math.round((multaMes * mesesConMulta) * 100) / 100;
 
       totalBase += baseInm;
       totalIva += ivaInm;
       totalMultas += multaInm;
     });
 
-    const subtotal = totalBase + totalIva + totalMultas;
+    totalBase = Math.round(totalBase * 100) / 100;
+    totalIva = Math.round(totalIva * 100) / 100;
+    totalMultas = Math.round(totalMultas * 100) / 100;
+
+    const subtotal = Math.round((totalBase + totalIva + totalMultas) * 100) / 100;
     const retencion75 = esAgente ? Math.round(totalIva * 0.75 * 100) / 100 : 0;
-    const totalPagar = Math.max(0, subtotal - retencion75);
+    const totalPagar = Math.max(0, Math.round((subtotal - retencion75) * 100) / 100);
 
     return { totalBase, totalIva, totalMultas, subtotal, retencion75, totalPagar, mesesMax };
   }, [unifiedInmuebles, tasaEfectiva, esAgente]);
@@ -951,10 +980,26 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                   {unifiedInmuebles.map((group, idx) => {
                     const { inm, isNAParent, hijos, sumHijosMMV, mmvTotal, mesesDeuda } = group;
                     const meses = mesesDeuda;
-                    const baseMes = isNAParent 
-                      ? calcularMensualidad({ ...inm, mmv_mes: mmvTotal, cant_inmuebles: 1, isNAParent: true }, tasaEfectiva) 
-                      : calcularMensualidad({ ...inm, cant_inmuebles: inm.actividad_principal?.toUpperCase() === 'N/A' ? 1 : inm.cant_inmuebles }, tasaEfectiva);
                     const esRes = isResidencialInm(inm);
+                    let baseMes = 0;
+                    let ivaMes = 0;
+                    if (isNAParent && hijos && hijos.length > 0) {
+                      hijos.forEach((h: any) => {
+                        const hRes = isResidencialInm(h);
+                        const hBase = Math.round(calcularMensualidad(h, tasaEfectiva) * 100) / 100;
+                        const hIva = hRes ? 0 : Math.round((hBase * 0.16) * 100) / 100;
+                        baseMes += hBase;
+                        ivaMes += hIva;
+                      });
+                    } else {
+                      const rawBase = isNAParent 
+                        ? calcularMensualidad({ ...inm, mmv_mes: mmvTotal, cant_inmuebles: 1, isNAParent: true }, tasaEfectiva) 
+                        : calcularMensualidad({ ...inm, cant_inmuebles: inm.actividad_principal?.toUpperCase() === 'N/A' ? 1 : inm.cant_inmuebles }, tasaEfectiva);
+                      baseMes = Math.round(rawBase * 100) / 100;
+                      ivaMes = esRes ? 0 : Math.round((baseMes * 0.16) * 100) / 100;
+                    }
+                    baseMes = Math.round(baseMes * 100) / 100;
+                    ivaMes = Math.round(ivaMes * 100) / 100;
                     const isExpanded = !!expandedNAs[inm.inmueble];
                     const isSelected = selectedInmCode === inm.inmueble;
 
@@ -1000,7 +1045,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                   Tarifa Mensual Agrupada:
                                 </span>
                                 <span className="font-black text-indigo-950 text-sm">
-                                  Bs. {formatBs(baseMes * (esRes ? 1 : 1.16))}
+                                  Bs. {formatBs(baseMes + ivaMes)}
                                 </span>
                                 <span className="text-xs text-indigo-700 font-semibold bg-indigo-100/60 px-2 py-0.5 rounded">
                                   {mmvTotal.toFixed(2)} MMV
@@ -1071,8 +1116,10 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                     <tbody className="divide-y divide-slate-100">
                                       {hijos.map((hijo: any, hIdx: number) => {
                                         const hijoMMV = parseFloat(hijo.mmv_mes || 0);
-                                        const hijoBase = calcularMensualidad(hijo, tasaEfectiva);
-                                        const hijoBs = hijoBase * (isResidencialInm(hijo) ? 1 : 1.16);
+                                        const rawHijoBase = calcularMensualidad(hijo, tasaEfectiva);
+                                        const hijoBase = Math.round(rawHijoBase * 100) / 100;
+                                        const hijoIva = isResidencialInm(hijo) ? 0 : Math.round((hijoBase * 0.16) * 100) / 100;
+                                        const hijoBs = hijoBase + hijoIva;
                                         const pct = mmvTotal > 0 ? (hijoMMV / mmvTotal) * 100 : 0;
 
                                         return (
@@ -1169,7 +1216,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                           {sumHijosMMV.toFixed(2)} MMV
                                         </td>
                                         <td className="px-3 py-2 text-right text-indigo-900">
-                                          Bs. {formatBs(calcularMensualidad({ ...inm, mmv_mes: sumHijosMMV, cant_inmuebles: 1, isNAParent: true }, tasaEfectiva) * (esRes ? 1 : 1.16))}
+                                          Bs. {formatBs(baseMes + ivaMes)}
                                         </td>
                                         <td colSpan={2} className="px-3 py-2 text-center text-[10px] text-emerald-700 font-bold">
                                           ✓ Cuadratura exacta con Matriz {inm.inmueble}
@@ -1228,7 +1275,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                           <div>
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Tarifa Mensual</span>
                             <span className="font-black text-slate-900">
-                              Bs. {formatBs(baseMes * (esRes ? 1 : 1.16))}
+                              Bs. {formatBs(baseMes + ivaMes)}
                             </span>
                             <span className="text-[10px] text-slate-400 block">{inm.mmv_mes || 0.91} MMV</span>
                           </div>

@@ -775,7 +775,8 @@ export default function CajaPage() {
         // (y si es una matriz N/A, sus actividades hijas vinculadas). NUNCA traer otros inmuebles del RIF.
         orFilterInms = [
           `inmueble.eq.${specificCode}`,
-          `padre_id.eq.${specificCode}`
+          `padre_id.eq.${specificCode}`,
+          `condominio_padre_id.eq.${specificCode}`
         ].join(',');
       } else {
         // Búsqueda por Cédula o RIF: "si busco por cedula o rif que salga todo"
@@ -791,8 +792,30 @@ export default function CajaPage() {
         .from('inmuebles')
         .select('*')
         .or(orFilterInms);
+
+      // N/A = suma de sus actividades. Si la deuda (meses) está registrada en el contenedor N/A,
+      // sus actividades hijas heredan esos meses (misma lógica que Estado de Cuenta y Detalles Contribuyente).
+      const mesesEf = (x: any) => {
+        const m = parseInt(String(x?.meses_deuda || 0), 10) || 0;
+        return m > 0 ? m : ((parseFloat(String(x?.deuda_mmv || 0)) || 0) > 0 || (parseFloat(String(x?.deuda_congelada_bs || 0)) || 0) > 0 ? 1 : 0);
+      };
+      const naMesesMap = new Map<string, number>();
+      (inmFresh || []).forEach((i: any) => {
+        if ((i.actividad_principal || '').trim().toUpperCase() === 'N/A') {
+          const ef = mesesEf(i);
+          if (ef > 0) naMesesMap.set(i.inmueble, ef);
+        }
+      });
+      (inmFresh || []).forEach((i: any) => {
+        const p = i.padre_id || i.condominio_padre_id;
+        if (p) {
+          const mChild = mesesEf(i);
+          const currentP = naMesesMap.get(p) || 0;
+          if (mChild > currentP) naMesesMap.set(p, mChild);
+        }
+      });
       
-      // Filtrar los inmuebles eliminados/inactivos y restringir únicamente matrices de condominios en sí
+      // Filtrar los inmuebles eliminados/inactivos y sincronizar meses de deuda heredados
       const specificCode = (user.CodCont || user.cod_cont || '').toUpperCase();
       const activeInmFresh = (inmFresh || []).filter((i: any) => {
         if (i.estado === 'Eliminado') return false;
@@ -802,6 +825,16 @@ export default function CajaPage() {
         const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
         if (esEspecifico) return true;
         return String(i.estado || 'Activo').trim().toLowerCase() === 'activo';
+      }).map((i: any) => {
+        const p = i.padre_id || i.condominio_padre_id;
+        const mNa = p ? naMesesMap.get(p) : undefined;
+        if (mNa && mNa > mesesEf(i)) {
+          return { ...i, meses_deuda: mNa };
+        }
+        if (naMesesMap.has(i.inmueble) && naMesesMap.get(i.inmueble)! > mesesEf(i)) {
+          return { ...i, meses_deuda: naMesesMap.get(i.inmueble) };
+        }
+        return i;
       });
 
       if (activeInmFresh.length === 0 && (inmFresh || []).some((i:any) => i.es_condominio === true)) {
@@ -907,9 +940,10 @@ export default function CajaPage() {
           }
           if (meses > 0) {
             const esRes = isResidencialInm(i);
-            const baseMes = calcularMensualidad(i, currentBcvRate);
-            const ivaMes = esRes ? 0 : baseMes * 0.16;
-            const multaMes = baseMes * (esRes ? 0.10 : 0.12);
+            const baseMes = Math.round(calcularMensualidad(i, currentBcvRate) * 100) / 100;
+            const ivaMes = esRes ? 0 : Math.round((baseMes * 0.16) * 100) / 100;
+            const moraTasa = esRes ? 0.10 : 0.12;
+            const multaMes = Math.round((baseMes * moraTasa) * 100) / 100;
             const mesesConMulta = Math.max(0, meses - 1);
             return sum + ((baseMes + ivaMes) * meses) + (multaMes * mesesConMulta);
           }
@@ -1011,12 +1045,35 @@ export default function CajaPage() {
         const naParentCodes = misInmuebles
           .filter((i: any) => 
             (i.actividad_principal || '').trim().toUpperCase() === 'N/A' && 
-            (parseInt(i.cant_inmuebles || '0') > 0 || misInmuebles.some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble))
+            (parseInt(i.cant_inmuebles || '0') > 0 || misInmuebles.some((c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble)))
           )
           .map((i: any) => i.inmueble);
 
-        // Los inmuebles cobrables son las actividades reales (excluyendo contenedores N/A)
-        let billableInms = misInmuebles.filter((i: any) => !naParentCodes.includes(i.inmueble));
+        // N/A = suma de sus actividades. Si la deuda (meses) está registrada en el contenedor N/A,
+        // sus actividades hijas heredan esos meses (misma regla que Estado de Cuenta).
+        const naMeses = new Map<string, number>();
+        misInmuebles.forEach((i: any) => {
+          if ((i.actividad_principal || '').trim().toUpperCase() === 'N/A') {
+            const ef = mesesEf(i);
+            if (ef > 0) naMeses.set(i.inmueble, ef);
+          }
+        });
+
+        // Los inmuebles cobrables son las actividades reales (o el contenedor N/A si no tiene hijos registrados)
+        let billableInms = misInmuebles
+          .filter((i: any) => {
+            const isNA = (i.actividad_principal || '').trim().toUpperCase() === 'N/A';
+            const hasChildren = misInmuebles.some((c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble));
+            return !isNA || !hasChildren;
+          })
+          .map((i: any) => {
+            const p = i.padre_id || i.condominio_padre_id;
+            const mNa = p ? naMeses.get(p) : undefined;
+            if (mNa && mNa > mesesEf(i)) {
+              return { ...i, meses_deuda: mNa };
+            }
+            return i;
+          });
         // Búsqueda por CÓDIGO o RIF: mantener todos los inmuebles activos del RIF del contribuyente
         // (ya filtrados en activeInmFresh para no mezclar inmuebles inactivos ni condominios)
 
@@ -2708,12 +2765,12 @@ export default function CajaPage() {
             }
           }
 
-          // Si algún inmueble pertenecía a un contenedor padre N/A (ej: URB033481), limpiar también el contenedor padre si sus hijos ya no tienen deuda
-          const parentCodesToSync = Array.from(new Set(userInmsClean.map((i: any) => i.condominio_padre_id).filter(Boolean)));
+          // Si algún inmueble pertenecía a un contenedor padre N/A (ej: URB033481) o condominio, limpiar también el contenedor padre si sus hijos ya no tienen deuda
+          const parentCodesToSync = Array.from(new Set(userInmsClean.map((i: any) => i.condominio_padre_id || i.padre_id).filter(Boolean)));
           for (const pCode of parentCodesToSync) {
-            const parentInm = userInmsClean.find((i: any) => i.inmueble === pCode);
+            const parentInm = (freshInmuebles || []).find((i: any) => i.inmueble === pCode) || userInmsClean.find((i: any) => i.inmueble === pCode);
             if (parentInm) {
-              const children = userInmsClean.filter((i: any) => i.condominio_padre_id === pCode);
+              const children = userInmsClean.filter((i: any) => i.condominio_padre_id === pCode || i.padre_id === pCode);
               const maxChildMonths = Math.max(0, ...children.map((c: any) => parseInt(String(c.meses_deuda || 0))));
               if (maxChildMonths === 0 || selectedRecibos.includes('RECIB-DEUDA')) {
                 await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', parentInm.id);

@@ -321,6 +321,41 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
 
         if (errInm) throw errInm;
 
+        // Si es una matriz N/A o contenedor con locales hijos (padre_id), sincronizar meses_deuda en sus actividades hijas
+        const { data: hijosPadre } = await supabase
+          .from('inmuebles')
+          .select('id, inmueble, mmv_mes')
+          .eq('padre_id', inm.inmueble)
+          .neq('estado', 'Eliminado');
+
+        if (hijosPadre && hijosPadre.length > 0) {
+          for (const h of hijosPadre) {
+            await supabase.from('inmuebles').update({
+              meses_deuda: selectedCount,
+              notas: nuevaNota,
+              ...(selectedCount === 0 ? { multa_bs: 0, deuda_congelada_bs: 0, deuda_mmv: 0 } : {})
+            }).eq('id', h.id);
+          }
+        }
+
+        // Si pertenece a un padre N/A, sincronizar meses_deuda en el padre
+        if (inm.padre_id) {
+          const { data: hermanosNA } = await supabase
+            .from('inmuebles')
+            .select('deuda_mmv, meses_deuda')
+            .eq('padre_id', inm.padre_id)
+            .neq('estado', 'Eliminado');
+          if (hermanosNA && hermanosNA.length > 0) {
+            const maxMesesHermanos = hermanosNA.reduce((max, h) => Math.max(max, parseInt(String(h.meses_deuda || 0))), 0);
+            await supabase
+              .from('inmuebles')
+              .update({
+                meses_deuda: maxMesesHermanos
+              })
+              .eq('inmueble', inm.padre_id);
+          }
+        }
+
         // Si pertenece a un condominio padre, sincronizar padre
         if (inm.condominio_padre_id) {
           const { data: hermanos } = await supabase

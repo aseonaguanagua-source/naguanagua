@@ -1049,8 +1049,10 @@ function ContribuyentesPageContent() {
       let maxMesesCluster = 0;
 
       const clusterInmBreakdown = cluster.inmuebles.map((inm: any) => {
-        const bMes = calcularMensualidad(inm, tasaValida);
-        const iMes = esRes ? 0 : (bMes * 0.16);
+        // EXACTO COMO EN CAJA: Redondeo a 2 decimales en Base, luego IVA al 16% sobre la Base redondeada, y mora
+        const rawBMes = calcularMensualidad(inm, tasaValida);
+        const bMes = Math.round(rawBMes * 100) / 100;
+        const iMes = esRes ? 0 : Math.round((bMes * 0.16) * 100) / 100;
         // Misma regla que Caja / construirRecibosContribuyente: si meses_deuda = 0 pero tiene deuda_mmv
         // (o deuda congelada), cuenta como 1 mes pendiente.
         const mBase = parseInt(String(inm.meses_deuda || 0), 10) || 0;
@@ -1062,14 +1064,15 @@ function ContribuyentesPageContent() {
         const totalExoneradosInm = getMesesExoneradosCount(inm.notas);
         const esCasoSinMulta = (inm.inmueble === 'URB014954') || esExoneradoTotal;
 
-        const baseTotal = bMes * mDeuda;
-        const ivaTotal = iMes * mDeuda;
+        const baseTotal = Math.round((bMes * mDeuda) * 100) / 100;
+        const ivaTotal = Math.round((iMes * mDeuda) * 100) / 100;
         let multaTotal = 0;
 
         if (!esCasoSinMulta && mDeuda > 1) {
           const mesesConMultaInm = Math.max(0, mDeuda - 1 - totalExoneradosInm);
           const tasaMora = esRes ? 0.10 : 0.12;
-          multaTotal = (bMes * tasaMora) * mesesConMultaInm;
+          const multaMes = Math.round((bMes * tasaMora) * 100) / 100;
+          multaTotal = Math.round((multaMes * mesesConMultaInm) * 100) / 100;
         }
 
         subtotalBaseLocal += baseTotal;
@@ -1085,34 +1088,38 @@ function ContribuyentesPageContent() {
           baseTotal,
           ivaTotal,
           multaTotal,
-          total: baseTotal + ivaTotal + multaTotal,
+          total: Math.round((baseTotal + ivaTotal + multaTotal) * 100) / 100,
           esCasoSinMulta
         };
       });
 
       const numMesesTotal = clusterDeudas.length > 0 ? clusterDeudas.length : maxMesesCluster;
-      const baseMensualLocal = cluster.inmuebles.reduce((sum: number, inm: any) => sum + calcularMensualidad(inm, tasaValida), 0);
-      const ivaMensualLocal = esRes ? 0 : (baseMensualLocal * 0.16);
-      const totalMensualLocal = baseMensualLocal + ivaMensualLocal;
+      const baseMensualLocal = Math.round(clusterInmBreakdown.reduce((sum: number, b: any) => sum + b.bMes, 0) * 100) / 100;
+      const ivaMensualLocal = Math.round(clusterInmBreakdown.reduce((sum: number, b: any) => sum + b.iMes, 0) * 100) / 100;
+      const totalMensualLocal = Math.round((baseMensualLocal + ivaMensualLocal) * 100) / 100;
       const maxExoneradosCluster = cluster.inmuebles.reduce((max: number, inm: any) => Math.max(max, getMesesExoneradosCount(inm.notas)), 0);
       const esExonTotalCluster = cluster.inmuebles.some((inm: any) => isExoneradoTotalMultas(inm.notas) || inm.inmueble === 'URB014954');
       const mesesConMulta = esExonTotalCluster ? 0 : Math.max(0, numMesesTotal - 1 - maxExoneradosCluster);
       const moraTasa = esRes ? 0.10 : 0.12;
-      const multaMensualLocal = baseMensualLocal * moraTasa;
+      const multaMensualLocal = Math.round((baseMensualLocal * moraTasa) * 100) / 100;
 
       const serviciosPendientes = (clusterIdx === 0)
         ? viewServiciosEsp.filter((s: any) => s.estado !== 'Pagado')
         : [];
       const totalServiciosBs = serviciosPendientes.reduce((a: number, s: any) => a + (parseFloat(s.monto) || 0), 0);
 
-      const totalPagarLocal = subtotalBaseLocal + subtotalIvaLocal + subtotalMultasLocal + totalServiciosBs;
+      subtotalBaseLocal = Math.round(subtotalBaseLocal * 100) / 100;
+      subtotalIvaLocal = Math.round(subtotalIvaLocal * 100) / 100;
+      subtotalMultasLocal = Math.round(subtotalMultasLocal * 100) / 100;
+
+      const totalPagarLocal = Math.round((subtotalBaseLocal + subtotalIvaLocal + subtotalMultasLocal + totalServiciosBs) * 100) / 100;
       // Agente de retención: retiene el 75% del IVA de sus inmuebles comerciales y cancela el resto.
       const ivaRetenidoLocal = esRes ? 0 : Math.round(clusterInmBreakdown.reduce((s: number, b: any) => {
         const inmB = cluster.inmuebles.find((i: any) => i.inmueble === b.inmueble);
         return s + ((inmB?.agente_retencion === true || String(inmB?.agente_retencion) === 'true') ? b.ivaTotal * 0.75 : 0);
       }, 0) * 100) / 100;
       const esAgenteLocal = ivaRetenidoLocal > 0;
-      const totalCancelarLocal = totalPagarLocal - ivaRetenidoLocal;
+      const totalCancelarLocal = Math.round((totalPagarLocal - ivaRetenidoLocal) * 100) / 100;
 
       // Determinar fechas de período
       let periodoDesde = 'N/A';
@@ -1258,19 +1265,16 @@ function ContribuyentesPageContent() {
         doc.setTextColor(0, 0, 0);
         y += 2;
 
-        const actRows = cluster.inmuebles.map((inm: any) => {
-          const actName = stripNivel(inm.actividad_principal || 'Actividad Comercial');
-          const fo = inm.mmv_mes ? parseFloat(inm.mmv_mes) : getFO(actName, false);
-          const bMes = calcularMensualidad(inm, tasaValida);
-          const iMes = bMes * 0.16;
-          const tMes = bMes + iMes;
+        const actRows = clusterInmBreakdown.map((b: any) => {
+          const inmOriginal = cluster.inmuebles.find((i: any) => i.inmueble === b.inmueble);
+          const fo = inmOriginal?.mmv_mes ? parseFloat(inmOriginal.mmv_mes) : getFO(b.actividad, false);
           return [
-            inm.inmueble || '—',
-            actName,
+            b.inmueble || '—',
+            b.actividad,
             fo.toFixed(2),
-            `Bs. ${bMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            `Bs. ${iMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            `Bs. ${tMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            `Bs. ${b.bMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${b.iMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${(b.bMes + b.iMes).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
           ];
         });
 
