@@ -40,7 +40,7 @@ export default function InmueblesPage() {
 
         let { data: inmsDB } = await supabase
           .from('inmuebles')
-          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+          .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,padre_id')
           .or(orFilter);
 
         let inmsFinal = inmsDB ? [...inmsDB] : [];
@@ -52,7 +52,7 @@ export default function InmueblesPage() {
           if (condoCodes.length > 0) {
             const { data: hijos } = await supabase
               .from('inmuebles')
-              .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id')
+              .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,padre_id')
               .in('condominio_padre_id', condoCodes);
             if (hijos && hijos.length > 0) {
               const ids = new Set(inmsFinal.map(x => x.id));
@@ -63,11 +63,12 @@ export default function InmueblesPage() {
           }
         }
 
-        // Filtrar contenedores N/A que solo envuelven otras actividades (ej: URB033481)
+        // Filtrar contenedores N/A que solo envuelven otras actividades (ej: URB000066)
+        const childPadreIds = new Set(inmsFinal.map((c: any) => c.padre_id || c.condominio_padre_id).filter(Boolean));
         const naParentCodes = inmsFinal
           .filter((i: any) =>
             (i.actividad_principal || '').trim().toUpperCase() === 'N/A' &&
-            (parseInt(i.cant_inmuebles || '0') > 0 || inmsFinal.some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble))
+            (childPadreIds.has(i.inmueble) || parseInt(i.cant_inmuebles || '0') > 0)
           )
           .map((i: any) => i.inmueble);
 
