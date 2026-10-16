@@ -684,6 +684,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         (updatedDet as any).saldo_favor_bs = 0;
         (updatedDet as any).monto_saldo_favor = 0;
         (updatedDet as any).saldo_favor_acreditado = false;
+        (updatedDet as any).referencia_original = pago.referencia;
       }
 
       // Si la tasa cambió, actualizar montos de las recibos seleccionadas
@@ -699,13 +700,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       // Actualizar el pago (por el servidor; solo si sigue en su estado actual → no se aprueba dos veces)
       if (pago.estado === 'Aprobado' && estatus === 'Aprobado') throw new Error('Este pago ya está aprobado; aprobarlo otra vez descontaría la deuda dos veces.');
       updatedDet.fecha_conciliado = new Date().toISOString();
-      await actualizarPago(pago.id, {
+      const payloadAct: any = {
         estado: estatus,
         banco: bancoEmisor,
         tipo: pago.tipo,
         detalles: updatedDet
-        // NOTA: Se preserva created_at original para no sobreescribir la fecha real de la transacción
-      }, { soloSiEstado: pago.estado || 'Por Verificar' });
+      };
+      if (estatus === 'Rechazado' && pago.referencia && !pago.referencia.startsWith('RECH-')) {
+        payloadAct.referencia = `RECH-${pago.referencia}-${pago.id.slice(0, 6)}`;
+      }
+      await actualizarPago(pago.id, payloadAct, { soloSiEstado: pago.estado || 'Por Verificar' });
 
       // Auditoría: Registro de conciliación de pago
       await logAudit(

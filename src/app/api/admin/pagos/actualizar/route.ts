@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  *  - soloSiEstado: el cambio solo se aplica si el pago sigue en ese estado (evita aprobar dos veces).
  *  Responde { ok: true } o { error } con 409 si el pago ya fue procesado.
  */
-const PERMITIDOS = ['estado', 'banco', 'tipo', 'detalles', 'created_at'] as const;
+const PERMITIDOS = ['estado', 'banco', 'tipo', 'detalles', 'created_at', 'referencia'] as const;
 const ESTADOS = ['Aprobado', 'Rechazado', 'Por Verificar', 'Con Diferencia', 'Pendiente'];
 
 export async function POST(req: Request) {
@@ -32,6 +32,17 @@ export async function POST(req: Request) {
     for (const k of PERMITIDOS) if (k in cambios) upd[k] = cambios[k];
     if (!Object.keys(upd).length) return NextResponse.json({ error: 'Nada que actualizar.' }, { status: 400 });
     if ('estado' in upd && !ESTADOS.includes(upd.estado)) return NextResponse.json({ error: 'Estado inválido.' }, { status: 400 });
+
+    // Si se rechaza el pago, liberar la referencia bancaria para permitir reuso
+    if (upd.estado === 'Rechazado') {
+      const { data: actualP } = await sb.from('pagos_reportados').select('referencia, detalles').eq('id', pagoId).maybeSingle();
+      if (actualP?.referencia && !actualP.referencia.startsWith('RECH-')) {
+        upd.referencia = `RECH-${actualP.referencia}-${pagoId.slice(0, 6)}`;
+        let d = typeof upd.detalles === 'object' ? { ...upd.detalles } : (actualP.detalles || {});
+        d.referencia_original = actualP.referencia;
+        upd.detalles = d;
+      }
+    }
 
     let q = sb.from('pagos_reportados').update(upd).eq('id', pagoId);
     if (soloSiEstado) q = q.eq('estado', soloSiEstado);

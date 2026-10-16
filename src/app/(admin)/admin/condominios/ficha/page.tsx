@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard
 } from 'lucide-react';
 import EditorUnidad from './EditorUnidad';
 import ModalAjusteMeses from './ModalAjusteMeses';
@@ -395,6 +395,9 @@ function Ficha() {
               )}
               <Link id="btn-cobrar-desde-ficha" href={`/admin/condominios/caja?codigo=${c.codigo}`} className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-2">
                 <WalletIcon className="w-4 h-4" /> Cobrar
+              </Link>
+              <Link id="btn-notas-desde-ficha" href={`/admin/condominios/caja?codigo=${c.codigo}&tab=notas`} className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-2">
+                <CreditCard className="w-4 h-4" /> Notas de Crédito
               </Link>
               <button id="btn-estado-cuenta-condominio" onClick={exportar} title="Descargar Estado de Cuenta Consolidado del Condominio" className="px-4 py-2.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-2xs">
                 <FileText className="w-4 h-4" /> Estado de Cuenta Condominio

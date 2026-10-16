@@ -1176,24 +1176,49 @@ export default function CajaPage() {
       const { data: allPorVerificar } = await supabase
         .from('pagos_reportados')
         .select('*')
-        .eq('estado', 'Por Verificar');
+        .in('estado', ['Por Verificar', 'Pendiente'])
+        .order('created_at', { ascending: false })
+        .limit(2000);
 
-      const userInmCodes = (activeInmFresh || []).map((i: any) => String(i.inmueble || '').trim().toLowerCase()).filter(Boolean);
-      const cleanIdents = Array.from(new Set([
+      const rawIdentList = [
         ...userIdentVariants,
         user.Identidad,
         user.identidad,
         user.CodCont,
         user.cod_cont,
+        rawSearch,
+        inputClean,
         ...(activeInmFresh || []).map((i: any) => i.inmueble),
         ...(activeInmFresh || []).map((i: any) => i.identidad_propietario)
-      ].filter(Boolean))).map(id => String(id).replace(/[^a-zA-Z0-9]/g, '').toLowerCase());
+      ].filter(Boolean);
+
+      const cleanIdents = new Set(rawIdentList.map(id => String(id).replace(/[^a-zA-Z0-9]/g, '').toLowerCase()));
+      rawIdentList.forEach(id => {
+        const nums = String(id).replace(/\D/g, '');
+        if (nums.length >= 4) cleanIdents.add(nums);
+      });
+
+      const userInmCodes = Array.from(new Set([
+        ...((activeInmFresh || []).map((i: any) => String(i.inmueble || '').trim().toLowerCase())),
+        user.CodCont ? String(user.CodCont).trim().toLowerCase() : '',
+        user.cod_cont ? String(user.cod_cont).trim().toLowerCase() : '',
+        rawSearch ? String(rawSearch).trim().toLowerCase() : ''
+      ].filter(Boolean)));
+
+      const contribNombre = String(user.Contribuyente || user.contribuyente || '').trim().toLowerCase();
 
       const arrPagosPend = (allPorVerificar || []).filter((p: any) => {
         const pIdentClean = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        if (pIdentClean && cleanIdents.includes(pIdentClean)) return true;
-        const detStr = JSON.stringify(p.detalles || '').toLowerCase();
-        return userInmCodes.some(code => code && detStr.includes(code));
+        const pIdentNums = String(p.identidad || '').replace(/\D/g, '');
+        if (pIdentClean && cleanIdents.has(pIdentClean)) return true;
+        if (pIdentNums.length >= 4 && cleanIdents.has(pIdentNums)) return true;
+
+        const detStr = (typeof p.detalles === 'string' ? p.detalles : JSON.stringify(p.detalles || '')).toLowerCase();
+        if (userInmCodes.some(code => code && detStr.includes(code))) return true;
+
+        if (contribNombre && contribNombre.length > 5 && detStr.includes(contribNombre)) return true;
+
+        return false;
       });
 
       const totalPendConciliar = arrPagosPend.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
@@ -1635,16 +1660,23 @@ export default function CajaPage() {
       if (referencia.length !== 8) return alert("La referencia debe tener exactamente 8 caracteres.");
       if (!fechaTransaccion) return alert("La fecha de transacción es obligatoria.");
       
-      // Verificar referencia duplicada (excluyendo pagos rechazados)
+      // Verificar referencia duplicada (excluyendo pagos rechazados, anulados o reversados)
       const { data: dupCheck } = await supabase
         .from('pagos_reportados')
         .select('id')
         .eq('referencia', referencia)
-        .neq('estado', 'Rechazado')
+        .not('estado', 'in', '(Rechazado,Anulado,Reversado)')
         .limit(1);
       if (dupCheck && dupCheck.length > 0) {
         return alert(`⚠️ ADVERTENCIA: El número de referencia "${referencia}" ya fue registrado previamente en el sistema. Verifique antes de continuar.`);
       }
+
+      // Si existe algún pago previo rechazado con esta referencia, asegurar liberación previa
+      await supabase
+        .from('pagos_reportados')
+        .update({ referencia: `RECH-${referencia}-${Date.now().toString().slice(-4)}` })
+        .eq('referencia', referencia)
+        .in('estado', ['Rechazado', 'Anulado', 'Reversado']);
 
       const transferido = Math.round(parseLocalFloat(montoTransferido) * 100) / 100;
       if (isNaN(transferido) || transferido <= 0) return alert("Debe ingresar un monto transferido válido.");
@@ -3639,7 +3671,7 @@ export default function CajaPage() {
       {foundUser && (
         <div className="space-y-6">
           {/* Banner de Pagos / Abonos Por Conciliar */}
-          {montoPorConciliar > 0 && (
+          {(pagosPorConciliar.length > 0 || montoPorConciliar > 0) && (
             <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 p-4 rounded-xl flex items-start gap-3 shadow-sm">
               <div className="p-2 bg-amber-200/80 rounded-lg text-amber-900 text-xl font-bold shrink-0">⚠️</div>
               <div className="flex-1">
@@ -5509,7 +5541,7 @@ export default function CajaPage() {
                         setReferencia(val);
                         setDupRefWarning('');
                         if (val.length >= 4) {
-                          const { data } = await supabase.from('pagos_reportados').select('id').eq('referencia', val).neq('estado', 'Rechazado').limit(1);
+                          const { data } = await supabase.from('pagos_reportados').select('id').eq('referencia', val).not('estado', 'in', '(Rechazado,Anulado,Reversado)').limit(1);
                           if (data && data.length > 0) setDupRefWarning(`âš ï¸ Esta referencia "${val}" ya fue registrada antes.`);
                         }
                       }}

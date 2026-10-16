@@ -120,7 +120,10 @@ function Caja() {
   const sumaPagos = useMemo(() => pagosAgregados.reduce((a, p) => a + p.monto, 0), [pagosAgregados]);
   
   // Saldo a Favor & Notas Crédito
-  const [activeTab, setActiveTab] = useState<'Pagos' | 'NotasCredito'>('Pagos');
+  const [activeTab, setActiveTab] = useState<'Pagos' | 'NotasCredito'>(() => {
+    const t = sp?.get('tab');
+    return (t === 'notas' || t === 'NotasCredito') ? 'NotasCredito' : 'Pagos';
+  });
   const [saldoFavorActivo, setSaldoFavorActivo] = useState(0);
   const [useSaldoFavor, setUseSaldoFavor] = useState(true);
   const [isNotaModalOpen, setIsNotaModalOpen] = useState(false);
@@ -130,6 +133,7 @@ function Caja() {
   const [isLoadingNotas, setIsLoadingNotas] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [calcTrigger, setCalcTrigger] = useState(0);
+  const [pagosPorConciliar, setPagosPorConciliar] = useState<any[]>([]);
 
   // Computado de deuda tras aplicar Saldo a Favor
   const totalConImpuestos = cobro?.totales?.totalBs || 0;
@@ -141,6 +145,36 @@ function Caja() {
 
   // Se resetean los pagos si cambia la deuda
   useEffect(() => { setPagosAgregados([]); }, [cobro?.totales?.totalBs, descuentoSaldoFavor]);
+
+  useEffect(() => {
+    if (!cobro?.condo?.codigo && !codigo) {
+      setPagosPorConciliar([]);
+      return;
+    }
+    const cod = (cobro?.condo?.codigo || codigo || '').trim().toLowerCase();
+    const idents = [cobro?.condo?.identidad, cobro?.condo?.codigo, codigo].filter(Boolean).map(x => String(x).toLowerCase().replace(/[^a-z0-9]/g, ''));
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('pagos_reportados')
+          .select('*')
+          .in('estado', ['Por Verificar', 'Pendiente'])
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (data) {
+          const match = data.filter((p: any) => {
+            const pId = String(p.identidad || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (idents.some(id => id && (pId === id || pId.includes(id) || id.includes(pId)))) return true;
+            const detStr = (typeof p.detalles === 'string' ? p.detalles : JSON.stringify(p.detalles || '')).toLowerCase();
+            return detStr.includes(cod);
+          });
+          setPagosPorConciliar(match);
+        }
+      } catch (e) {
+        console.warn('Error fetching pagos por conciliar:', e);
+      }
+    })();
+  }, [cobro?.condo?.codigo, cobro?.condo?.identidad, codigo]);
 
   useEffect(() => {
     if (activeTab === 'NotasCredito') fetchNotasCredito();
@@ -526,7 +560,7 @@ function Caja() {
   const handleCrearNotaManual = async () => {
     const montoNota = parseLocalFloat(notaManualMonto);
     if (!montoNota || montoNota <= 0) return alert('Ingrese un monto válido');
-    if (!notaManualRef || notaManualRef.trim().length !== 8) return alert('La referencia debe tener exactamente 8 caracteres.');
+    if (!notaManualRef || notaManualRef.trim().length < 3) return alert('La referencia debe tener al menos 3 caracteres.');
     if (!cobro) return;
 
     let targetId = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : (cobro.condo.identidad || cobro.condo.codigo);
@@ -535,24 +569,24 @@ function Caja() {
     if (!targetId) return alert('No hay un identificador válido para acreditar el saldo.');
 
     try {
-      await supabase.from('documentos').insert([{
-        identidad: targetId,
-        contribuyente: targetName,
-        tipo: 'Nota de Credito',
-        estado: 'Vigente',
-        detalles: JSON.stringify({
-          monto: montoNota.toFixed(2),
-          origen_referencia: `Manual: ${notaManualRef}`,
-          fecha_emision: new Date().toISOString()
+      const res = await fetch('/api/admin/documentos/crear-nota-credito', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identidad: targetId,
+          contribuyente: targetName,
+          monto: montoNota,
+          motivo: 'Nota de crédito generada desde Caja de Condominios',
+          referencia: notaManualRef.trim(),
+          codigoCondominio: cobro.condo?.codigo,
+          usuario: 'Admin'
         })
-      }]);
-      const result = await acreditarSaldoFavor(targetId, montoNota, cobro.condo?.codigo);
-      if (!result.ok) {
-        console.error('Aviso acreditando saldo en nota manual:', result.error);
-      }
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Error al generar la nota de crédito');
       
       setSaldoFavorActivo(prev => prev + montoNota);
-      setSuccessMsg('Nota de crédito manual generada exitosamente.');
+      setSuccessMsg('Nota de crédito manual generada y saldo a favor acreditado exitosamente.');
       setTimeout(() => setSuccessMsg(''), 4000);
       setIsNotaModalOpen(false);
       setNotaManualMonto('');
@@ -745,6 +779,36 @@ function Caja() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {c && cobro && pagosPorConciliar.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 p-4 rounded-xl flex items-start gap-3 shadow-sm print:hidden">
+          <div className="p-2 bg-amber-200/80 rounded-lg text-amber-900 text-xl font-bold shrink-0">⚠️</div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-sm font-extrabold text-amber-950 uppercase tracking-wide">
+                Atención en Caja: Pagos / Abonos Por Conciliar en este Condominio
+              </h3>
+              <span className="text-xs font-bold bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300">
+                {pagosPorConciliar.length} {pagosPorConciliar.length === 1 ? 'operación pendiente' : 'operaciones pendientes'}
+              </span>
+            </div>
+            <p className="text-xs text-amber-900 mt-1">
+              Este condominio tiene un monto acumulado por conciliar de{' '}
+              <strong className="text-sm font-black text-amber-950">
+                Bs. {pagosPorConciliar.reduce((a: number, p: any) => a + (parseFloat(p.monto) || 0), 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </strong>
+              {' '}en el módulo de Conciliación bancaria.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {pagosPorConciliar.map((p: any, idx: number) => (
+                <span key={idx} className="text-[11px] bg-white border border-amber-300 text-amber-900 px-2 py-0.5 rounded-md font-mono font-semibold shadow-2xs">
+                  Ref: {p.referencia || 'S/R'} — Bs. {parseFloat(p.monto || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({p.tipo || 'Transferencia'})
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}

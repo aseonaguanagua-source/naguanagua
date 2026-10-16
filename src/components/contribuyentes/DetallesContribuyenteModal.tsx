@@ -6,7 +6,7 @@ import {
   Calendar, DollarSign, Download, Printer, Percent, Calculator,
   AlertCircle, CheckCircle, Clock, ShieldCheck, AlertTriangle,
   Receipt, Wallet, ExternalLink, ArrowRight, Copy, Check, Eye,
-  ChevronDown, ChevronUp, Layers, PieChart, Trash2
+  ChevronDown, ChevronUp, Layers, PieChart, Trash2, CreditCard, Plus
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatBs, getIdentidadVariantsExact } from '@/lib/formatters';
@@ -53,11 +53,20 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   onDeleteFactura,
   onRefresh
 }) => {
-  const [activeTab, setActiveTab] = useState<'perfil' | 'inmuebles' | 'deuda' | 'pagos' | 'servicios'>('perfil');
+  const [activeTab, setActiveTab] = useState<'perfil' | 'inmuebles' | 'deuda' | 'pagos' | 'servicios' | 'notas'>('perfil');
   const [copiedId, setCopiedId] = useState(false);
   const [loading, setLoading] = useState(false);
   const [eliminandoCode, setEliminandoCode] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Notas de crédito y saldo a favor
+  const [notasDb, setNotasDb] = useState<any[]>([]);
+  const [isAddNotaOpen, setIsAddNotaOpen] = useState(false);
+  const [notaMonto, setNotaMonto] = useState('');
+  const [notaMotivo, setNotaMotivo] = useState('');
+  const [notaRef, setNotaRef] = useState('');
+  const [guardandoNota, setGuardandoNota] = useState(false);
+  const [pagosConciliacionPendientes, setPagosConciliacionPendientes] = useState<any[]>([]);
 
   // Datos específicos del contribuyente cargados desde la base de datos
   const [inmueblesList, setInmueblesList] = useState<any[]>([]);
@@ -225,13 +234,116 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       }
     };
 
-    Promise.all([fetchInmuebles(), fetchFacturas(), fetchPagos(), fetchServicios()])
+    const fetchNotas = async () => {
+      try {
+        const res = await fetch(`/api/admin/documentos/listar-notas-credito?identidad=${encodeURIComponent(ident)}&codigo=${encodeURIComponent(codes[0] || '')}`);
+        const j = await res.json();
+        if (isMounted && j.ok && Array.isArray(j.notas)) setNotasDb(j.notas);
+      } catch (err) {
+        console.error('Error cargando notas de credito:', err);
+      }
+    };
+
+    const fetchPagosPendientes = async () => {
+      try {
+        const { data } = await supabase
+          .from('pagos_reportados')
+          .select('*')
+          .in('estado', ['Por Verificar', 'Pendiente'])
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (isMounted && data) {
+          const idClean = ident.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          const match = data.filter((p: any) => {
+            const pId = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            if (idClean && (pId === idClean || pId.includes(idClean) || idClean.includes(pId))) return true;
+            const detStr = (typeof p.detalles === 'string' ? p.detalles : JSON.stringify(p.detalles || '')).toLowerCase();
+            return codes.some(c => c && detStr.includes(c.toLowerCase()));
+          });
+          setPagosConciliacionPendientes(match);
+        }
+      } catch (err) {
+        console.error('Error cargando pagos pendientes:', err);
+      }
+    };
+
+    Promise.all([fetchInmuebles(), fetchFacturas(), fetchPagos(), fetchServicios(), fetchNotas(), fetchPagosPendientes()])
       .finally(() => {
         if (isMounted) setLoading(false);
       });
 
     return () => { isMounted = false; };
   }, [isOpen, viewData, refreshKey]);
+
+  const reloadNotas = async () => {
+    const ident = viewData?.Identidad || '';
+    const code = String(viewData?.CodCont || viewData?.cod_cont || '');
+    try {
+      const res = await fetch(`/api/admin/documentos/listar-notas-credito?identidad=${encodeURIComponent(ident)}&codigo=${encodeURIComponent(code)}`);
+      const j = await res.json();
+      if (j.ok && Array.isArray(j.notas)) setNotasDb(j.notas);
+    } catch (e) {}
+  };
+
+  const handleCrearNota = async () => {
+    const montoParsed = parseFloat(notaMonto.replace(/\./g, '').replace(',', '.'));
+    if (!montoParsed || montoParsed <= 0) return alert('Ingrese un monto válido para la Nota de Crédito.');
+    setGuardandoNota(true);
+    try {
+      const res = await fetch('/api/admin/documentos/crear-nota-credito', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identidad: viewData.Identidad,
+          contribuyente: viewData.Contribuyente,
+          monto: montoParsed,
+          motivo: notaMotivo.trim() || 'Nota de Crédito generada administrativamente',
+          referencia: notaRef.trim(),
+          codigoCondominio: viewData.CodCont || viewData.cod_cont,
+          usuario: 'Admin'
+        })
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Error al crear la Nota de Crédito');
+      alert(`✅ Nota de crédito de Bs. ${montoParsed.toLocaleString('es-VE', { minimumFractionDigits: 2 })} generada y saldo a favor acreditado con éxito.`);
+      setIsAddNotaOpen(false);
+      setNotaMonto('');
+      setNotaMotivo('');
+      setNotaRef('');
+      await reloadNotas();
+      setRefreshKey(prev => prev + 1);
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setGuardandoNota(false);
+    }
+  };
+
+  const handleEliminarNota = async (docId: string, monto: number) => {
+    if (!confirm(`¿Está seguro de quitar y eliminar esta Nota de Crédito por Bs. ${formatBs(monto)}?\n\nEsto revertirá automáticamente el saldo a favor del contribuyente.`)) {
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/documentos/eliminar-nota-credito', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: docId,
+          motivo: 'Eliminación manual desde Ficha de Contribuyente',
+          usuario: 'Admin'
+        })
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Error al eliminar nota');
+      alert('✅ Nota de crédito eliminada y saldo a favor revertido con éxito.');
+      await reloadNotas();
+      setRefreshKey(prev => prev + 1);
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+  };
 
   const copyIdentidad = () => {
     if (viewData?.Identidad) {
@@ -592,6 +704,37 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           </div>
         </div>
 
+        {/* ══ BANNER DE CONCILIACIÓN PENDIENTE EN MODAL ══ */}
+        {pagosConciliacionPendientes.length > 0 && (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b-2 border-amber-400 p-4 flex items-start gap-3">
+            <div className="p-1.5 bg-amber-200/80 rounded-lg text-amber-900 text-lg font-bold shrink-0">⚠️</div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h4 className="text-xs font-black uppercase text-amber-950 tracking-wide">
+                  Atención: Pagos / Conciliación Pendiente de Verificación
+                </h4>
+                <span className="text-[11px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300">
+                  {pagosConciliacionPendientes.length} {pagosConciliacionPendientes.length === 1 ? 'operación pendiente' : 'operaciones pendientes'}
+                </span>
+              </div>
+              <p className="text-xs text-amber-900 mt-1">
+                Este contribuyente tiene un monto acumulado por conciliar de{' '}
+                <strong className="text-sm font-black text-amber-950">
+                  Bs. {pagosConciliacionPendientes.reduce((a, p) => a + (parseFloat(p.monto) || 0), 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </strong>
+                {' '}en el módulo de Conciliación bancaria.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {pagosConciliacionPendientes.map((p, idx) => (
+                  <span key={idx} className="text-[11px] bg-white border border-amber-300 text-amber-900 px-2 py-0.5 rounded font-mono font-semibold shadow-2xs">
+                    Ref: {p.referencia || 'S/R'} — Bs. {parseFloat(p.monto || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({p.tipo || 'Transferencia'})
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ══ BARRA DE PESTAÑAS (TABS NAVEGABLES) ══ */}
         <div className="bg-slate-100/80 border-b border-slate-200 px-4 sm:px-6 flex gap-1 overflow-x-auto shrink-0 select-none">
           {[
@@ -600,6 +743,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             { id: 'deuda', label: `Estado de Cuenta (${facturasDb.length} recibos)`, icon: DollarSign },
             { id: 'pagos', label: `Historial de Pagos (${pagosDb.length})`, icon: Receipt },
             { id: 'servicios', label: `Servicios y Convenios (${serviciosEspDb.length})`, icon: FileText },
+            { id: 'notas', label: `Notas de Crédito (${notasDb.length})`, icon: CreditCard },
           ].map(tab => {
             const Icon = tab.icon;
             const isAct = activeTab === tab.id;
@@ -1523,7 +1667,166 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               </div>
             </div>
           )}
+
+          {/* ══════════════════════════════════════════════════════
+              TAB 6: NOTAS DE CRÉDITO Y SALDO A FAVOR
+             ══════════════════════════════════════════════════════ */}
+          {activeTab === 'notas' && (
+            <div className="space-y-5 animate-in fade-in duration-150">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200">
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm">Control de Notas de Crédito y Saldos a Favor</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Saldo a Favor actual: <strong className="text-emerald-700 font-black">Bs. {formatBs(viewData.SaldoFavor || 0)}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddNotaOpen(true)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Agregar Nota de Crédito</span>
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-black tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-4 py-3">Fecha</th>
+                        <th className="px-4 py-3">Referencia / Comprobante</th>
+                        <th className="px-4 py-3">Motivo / Concepto</th>
+                        <th className="px-4 py-3 text-right">Monto (Bs)</th>
+                        <th className="px-4 py-3 text-center">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {notasDb.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-400">
+                            No hay notas de crédito registradas para este contribuyente.
+                          </td>
+                        </tr>
+                      ) : (
+                        notasDb.map((n: any, idx: number) => {
+                          const det = typeof n.detalles === 'string' ? JSON.parse(n.detalles || '{}') : (n.detalles || {});
+                          const monto = parseFloat(det.monto || det.monto_bs || 0) || 0;
+                          const fecha = det.fecha_emision || n.created_at || '';
+                          const ref = det.origen_referencia || n.referencia || 'N/A';
+                          const motivo = det.motivo || 'Nota de Crédito';
+
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-4 py-3 font-medium text-slate-600">
+                                {fecha ? String(fecha).slice(0, 10) : '-'}
+                              </td>
+                              <td className="px-4 py-3 font-mono font-bold text-slate-800">
+                                {ref}
+                              </td>
+                              <td className="px-4 py-3 text-slate-700 max-w-xs truncate" title={motivo}>
+                                {motivo}
+                              </td>
+                              <td className="px-4 py-3 text-right font-black text-emerald-700 tabular-nums">
+                                Bs. {formatBs(monto)}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEliminarNota(n.id, monto)}
+                                  className="px-2.5 py-1 text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 mx-auto"
+                                  title="Eliminar esta Nota de Crédito y revertir el saldo a favor"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Quitar</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Modal para Agregar Nota de Crédito Manual */}
+        {isAddNotaOpen && (
+          <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-emerald-600" />
+                  Agregar Nota de Crédito (Saldo a Favor)
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsAddNotaOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="font-bold text-slate-700 block mb-1">Monto de la Nota de Crédito (Bs.) *</span>
+                  <input
+                    type="text"
+                    placeholder="Ej: 500,00"
+                    value={notaMonto}
+                    onChange={e => setNotaMonto(e.target.value.replace(/[^0-9,.]/g, ''))}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <span className="font-bold text-slate-700 block mb-1">Referencia u Origen (opcional)</span>
+                  <input
+                    type="text"
+                    placeholder="Ej: NC-001 o Ref bancaria"
+                    value={notaRef}
+                    onChange={e => setNotaRef(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <span className="font-bold text-slate-700 block mb-1">Motivo o Justificación</span>
+                  <textarea
+                    rows={3}
+                    placeholder="Ej: Ajuste por pago anterior o nota de crédito acordada"
+                    value={notaMotivo}
+                    onChange={e => setNotaMotivo(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddNotaOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCrearNota}
+                  disabled={guardandoNota}
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {guardandoNota ? 'Guardando...' : 'Crear y Acreditar Saldo'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ══ PIE DEL MODAL (FOOTER LIMPIO) ══ */}
         <div className="bg-white border-t border-slate-200 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 shrink-0">

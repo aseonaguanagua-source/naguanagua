@@ -243,8 +243,10 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   const esMetodoSinRefUnica = pago.metodo === 'Efectivo' || pago.metodo === 'Saldo a Favor' || ref.toLowerCase().includes('saldo favor') || ref.toLowerCase().includes('efectivo');
   if (!esMetodoSinRefUnica) {
     if (ref.length < 4) throw new Error('Escriba la referencia del pago.');
-    const { data: rep } = await sb.from('pagos_reportados').select('id,identidad,monto').eq('referencia', ref).neq('estado', 'Rechazado').limit(1);
+    const { data: rep } = await sb.from('pagos_reportados').select('id,identidad,monto').eq('referencia', ref).not('estado', 'in', '(Rechazado,Anulado,Reversado)').limit(1);
     if (rep?.length) throw new Error(`La referencia ${ref} ya fue usada en otro pago (${rep[0].identidad}, Bs ${rep[0].monto}).`);
+    // Asegurar que si existe un registro previo rechazado con esta referencia, esté liberado
+    await sb.from('pagos_reportados').update({ referencia: `RECH-${ref}-${Date.now().toString().slice(-4)}` }).eq('referencia', ref).in('estado', ['Rechazado', 'Anulado', 'Reversado']);
   }
 
   const c = cobro.condo, tasa = cobro.estado.tasa, hoy = new Date();
