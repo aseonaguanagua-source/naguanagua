@@ -5602,7 +5602,7 @@ export default function CajaPage() {
                 </div>
               )}
 
-              {ivaPercent > 0 && (
+              {ivaPercent > 0 && sumIVA > 0 && (
                 <div className="mt-3 bg-slate-100 p-3 rounded border border-slate-200">
                   {sumIVARetencionable > 0 ? (
                     <>
