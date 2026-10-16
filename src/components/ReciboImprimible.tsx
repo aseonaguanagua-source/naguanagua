@@ -39,6 +39,7 @@ interface ReciboProps {
     monto: number;
     fecha: string;
   }[];
+  pageBreakBefore?: boolean;
 }
 
 function normalizarFormaPago(fp: string): 'PUNTO_VENTA' | 'TMD' | 'TVD' | 'TRANSFERENCIA' | 'EFECTIVO' | 'OTRO' {
@@ -116,6 +117,10 @@ export function ReciboImprimible({ data }: { data: ReciboProps }) {
           .recibo-preview-wrapper {
             display: none !important;
           }
+          .recibo-print-page-break {
+            break-before: page !important;
+            page-break-before: always !important;
+          }
         }
 
         /* Vista previa en pantalla */
@@ -173,7 +178,7 @@ export function ReciboImprimible({ data }: { data: ReciboProps }) {
       </div>
 
       {/* Área de impresión real */}
-      <div className="recibo-print-area">
+      <div className={`recibo-print-area ${data.pageBreakBefore ? 'recibo-print-page-break' : ''}`}>
         <ReciboContenido data={data} fpNorm={fpNorm} totalPagado={totalPagado} />
       </div>
     </>

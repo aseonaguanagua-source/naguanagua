@@ -444,8 +444,11 @@ export default function FacturacionElectronicaPage() {
 
     let conceptoPeriodo = `Servicio de Aseo Urbano Comercial - ${getMesActual()}`;
     const fPago = pago.detalles?.fecha_pago || pago.detalles?.fecha_transaccion || pago.created_at;
-    if (pago.detalles?.mes_aseo) {
-      conceptoPeriodo = `Servicio de Aseo Urbano Comercial - ${pago.detalles.mes_aseo}`;
+    if (pago.detalles?.concepto || pago.detalles?.detalle || pago.concepto) {
+      conceptoPeriodo = String(pago.detalles?.concepto || pago.detalles?.detalle || pago.concepto).trim();
+    } else if (pago.detalles?.mes_aseo) {
+      const ma = String(pago.detalles.mes_aseo).trim();
+      conceptoPeriodo = ma.toLowerCase().includes('servicio') ? ma : `Servicio de Aseo Urbano Comercial - ${ma}`;
     } else if (fPago) {
       const d = new Date(fPago);
       if (!isNaN(d.getTime())) {

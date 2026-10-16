@@ -1791,43 +1791,8 @@ export default function CajaPage() {
       const bancoLabel = ['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod) ? paymentMethod : (banco || paymentMethod || 'Caja');
 
       const resolverInmuebleDeRef = (ref: string) => {
-        if (ref.startsWith('RECIB-HIST-')) {
-          const parts = ref.split('-');
-          const cod = parts[2] ? parts[2].trim().toUpperCase() : '';
-          if (cod) {
-            const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
-            if (match) return match;
-            return {
-              inmueble: cod,
-              cod_cont: cod,
-              contribuyente: foundUser.Contribuyente || '',
-              direccion: foundUser.Direccion || 'NAGUANAGUA, CARABOBO',
-              tipo: foundUser.Tipo || 'RESIDENCIAL'
-            };
-          }
-        }
-        if (ref.startsWith('MULTA-')) {
-          const cod = ref.replace(/^MULTA-/i, '').split('-')[0].trim().toUpperCase();
-          if (cod) {
-            const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
-            if (match) return match;
-            return {
-              inmueble: cod,
-              cod_cont: cod,
-              contribuyente: foundUser.Contribuyente || '',
-              direccion: foundUser.Direccion || 'NAGUANAGUA, CARABOBO',
-              tipo: foundUser.Tipo || 'RESIDENCIAL'
-            };
-          }
-        }
-        if (ref.startsWith('CM-')) {
-          const parts = ref.split('-');
-          if (parts.length >= 2) {
-            const cod = parts[1].trim().toUpperCase();
-            const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
-            if (match) return match;
-          }
-        }
+        if (!ref) return primerInm;
+        // 1. Coincidencia directa por objeto en lista de recibos
         const f = recibos.find((r: any) => r.referencia === ref);
         if (f?.inmueble) {
           const cod = String(f.inmueble).trim().toUpperCase();
@@ -1841,12 +1806,45 @@ export default function CajaPage() {
             tipo: f.clasificacion || foundUser.Tipo || 'RESIDENCIAL'
           };
         }
+        // 2. Extraer código con regex para RECIB-HIST- (admite guiones en el código)
+        const mHist = ref.match(/^RECIB-HIST-(.+)-M\d+$/i);
+        if (mHist) {
+          const cod = mHist[1].trim().toUpperCase();
+          const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
+          if (match) return match;
+          return {
+            inmueble: cod,
+            cod_cont: cod,
+            contribuyente: foundUser.Contribuyente || '',
+            direccion: foundUser.Direccion || 'NAGUANAGUA, CARABOBO',
+            tipo: foundUser.Tipo || 'RESIDENCIAL'
+          };
+        }
+        // 3. Extraer código con regex para MULTA-
+        const mMulta = ref.match(/^MULTA-(.+?)(?:-M\d+)?$/i);
+        if (mMulta) {
+          const cod = mMulta[1].trim().toUpperCase();
+          const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
+          if (match) return match;
+          return {
+            inmueble: cod,
+            cod_cont: cod,
+            contribuyente: foundUser.Contribuyente || '',
+            direccion: foundUser.Direccion || 'NAGUANAGUA, CARABOBO',
+            tipo: foundUser.Tipo || 'RESIDENCIAL'
+          };
+        }
+        // 4. CM-
+        if (ref.startsWith('CM-')) {
+          const matchSub = userInmsRec.find((i: any) => i.inmueble && ref.toUpperCase().includes(String(i.inmueble).toUpperCase()));
+          if (matchSub) return matchSub;
+        }
         if (f?._inmId && f._inmId !== 'Facturación General' && f._inmId !== 'Acumulados') {
           const cod = String(f._inmId).trim().toUpperCase();
           const match = userInmsRec.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === cod);
           if (match) return match;
         }
-        // Subcadena de algún código de inmueble en la referencia
+        // 5. Subcadena de algún código de inmueble en la referencia
         const matchSub = userInmsRec.find((i: any) => i.inmueble && ref.toUpperCase().includes(String(i.inmueble).toUpperCase()));
         if (matchSub) return matchSub;
         return primerInm;
@@ -1912,6 +1910,7 @@ export default function CajaPage() {
               esAbono: !!esAbono,
               montoCancelado: esAbono ? porcion : undefined,
               montoPendiente: esAbono ? (montoPendiente ? Math.round((montoPendiente / activeUserInms.length) * 100) / 100 : undefined) : undefined,
+              pageBreakBefore: idx > 0,
             };
           });
         }
@@ -1945,28 +1944,41 @@ export default function CajaPage() {
           esAbono: !!esAbono,
           montoCancelado: esAbono ? montoReal : undefined,
           montoPendiente: esAbono ? montoPendiente : undefined,
+          pageBreakBefore: false,
         }];
       }
 
       const recibosGenerados = grupos.map((grupo, idx) => {
         const inmGrupo = grupo.inm || primerInm;
+        const esResInm = isResidencialInm(inmGrupo);
         const conceptosGrupo: any[] = [];
+        let sumaBase = 0;
+        let sumaIva = 0;
+        let sumaMulta = 0;
+
         grupo.refs.forEach((ref: string) => {
           if (ref.startsWith('RECIB-HIST-')) {
             const pDet = pagosPendientes.find((p: any) => p.facturas && p.facturas[0]?.referencia === ref);
             if (pDet && pDet.facturas && pDet.facturas[0]) {
               const f = pDet.facturas[0];
-              conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Base Imponible`, precioUnit: parseFloat(f.base), total: parseFloat(f.base) });
-              if (parseFloat(f.iva) > 0) {
-                conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - IVA (16%)`, precioUnit: parseFloat(f.iva), total: parseFloat(f.iva) });
+              const b = parseFloat(f.base) || 0;
+              const v = parseFloat(f.iva) || 0;
+              const m = parseFloat(f.multa) || 0;
+              sumaBase += b;
+              sumaIva += v;
+              sumaMulta += m;
+              conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Base Imponible`, precioUnit: b, total: b });
+              if (v > 0) {
+                conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - IVA (16%)`, precioUnit: v, total: v });
               }
-              const porcentajeMulta = f.clasificacion.toLowerCase().includes('residencial') ? '10%' : '12%';
-              if (parseFloat(f.multa) > 0) {
-                conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Multa (${porcentajeMulta})`, precioUnit: parseFloat(f.multa), total: parseFloat(f.multa) });
+              const porcentajeMulta = f.clasificacion?.toLowerCase().includes('residencial') ? '10%' : '12%';
+              if (m > 0) {
+                conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${f.mesNum}`} - Multa (${porcentajeMulta})`, precioUnit: m, total: m });
               }
             } else {
-              const parts = ref.split('-');
-              const inmId = parts[2];
+              const mMatch = ref.match(/^RECIB-HIST-(.+)-M(\d+)$/i);
+              const inmId = mMatch ? mMatch[1] : (ref.split('-')[2] || '');
+              const mesNum = mMatch ? parseInt(mMatch[2]) : 1;
               const inm = userInmsRec.find((i: any) => i.inmueble === inmId) || inmuebles.find((i: any) => i.inmueble === inmId) || inmGrupo;
               const esRes = isResidencialInm(inm);
               const bm = parseFloat(calcularMensualidad(inm, currentBcvRate).toFixed(2));
@@ -1974,12 +1986,14 @@ export default function CajaPage() {
               const emision = f?.emision ? new Date(f.emision) : new Date();
               const today = new Date();
               const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-              const mesNum = parseInt(parts[3]?.replace('M', '') || '1');
               const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
               const isUltimoMes = mesNum >= totalMeses || monthsDiff <= 1;
               const esMesExon = isMesExoneradoMulta(inm?.notas, emision);
               const multa = (!isUltimoMes && monthsDiff > 1 && !esMesExon) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
               const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
+              sumaBase += bm;
+              sumaIva += iva;
+              sumaMulta += multa;
               conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - Base Imponible`, precioUnit: bm, total: bm });
               if (iva > 0) {
                 conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - IVA (16%)`, precioUnit: iva, total: iva });
@@ -1988,18 +2002,39 @@ export default function CajaPage() {
                 conceptosGrupo.push({ descripcion: `Aseo Urbano ${etiquetaMes(ref) || `M${mesNum}`} - Multa (${esRes ? '10%' : '12%'})`, precioUnit: multa, total: multa });
               }
             }
+          } else if (ref.startsWith('MULTA-')) {
+            const f = recibos.find((r: any) => r.referencia === ref);
+            const montoF = f ? parseFloat(getReciboMonto(f) || '0') : 0;
+            sumaMulta += montoF;
+            conceptosGrupo.push({
+              descripcion: f?.descripcion || `Multa Municipal por Mora - Inmueble ${inmGrupo?.inmueble || ''}`,
+              precioUnit: montoF,
+              total: montoF
+            });
           } else {
             const f = recibos.find((r: any) => r.referencia === ref);
             const montoF = f ? parseFloat(getReciboMonto(f) || '0') : 0;
+            if (esResInm) {
+              sumaBase += montoF;
+            } else {
+              const b = parseFloat((montoF / 1.16).toFixed(2));
+              const v = parseFloat((montoF - b).toFixed(2));
+              sumaBase += b;
+              sumaIva += v;
+            }
             conceptosGrupo.push({
-              descripcion: `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${getMesRec(f?.emision || '')}`,
+              descripcion: f?.descripcion || `Servicio Aseo Residencial/Comercial. Correspondiente al mes de: ${getMesRec(f?.emision || '')}`,
               precioUnit: montoF,
               total: montoF
             });
           }
         });
 
-        let totalGrupo = conceptosGrupo.reduce((s: number, c: any) => s + c.total, 0);
+        let totalGrupo = parseFloat((sumaBase + sumaIva + sumaMulta).toFixed(2));
+        if (totalGrupo <= 0) {
+          totalGrupo = conceptosGrupo.reduce((s: number, c: any) => s + c.total, 0);
+        }
+
         if (esAbono && grupos.length === 1 && montoReal > 0) {
           totalGrupo = montoReal;
           conceptosGrupo.length = 0;
@@ -2029,7 +2064,9 @@ export default function CajaPage() {
         }
 
         const refNum = grupos.length > 1 ? `${refNumBase}-${idx + 1}` : refNumBase;
-        const esResInm = isResidencialInm(inmGrupo);
+        const subTotalCalculado = esResInm ? totalGrupo : (sumaBase > 0 ? parseFloat((sumaBase + sumaMulta).toFixed(2)) : parseFloat((totalGrupo / 1.16).toFixed(2)));
+        const ivaCalculado = esResInm ? 0 : (sumaIva > 0 ? sumaIva : parseFloat((totalGrupo - subTotalCalculado).toFixed(2)));
+        const exentoCalculado = esResInm ? totalGrupo : (sumaMulta > 0 ? sumaMulta : 0);
 
         return {
           reciboNo: refNum,
@@ -2045,9 +2082,9 @@ export default function CajaPage() {
             precioUnit: totalGrupo || montoReal,
             total: totalGrupo || montoReal
           }],
-          subTotal: totalGrupo || montoReal,
-          exento: esResInm ? (totalGrupo || montoReal) : 0,
-          iva: esResInm ? 0 : parseFloat(((totalGrupo || montoReal) - ((totalGrupo || montoReal) / 1.16)).toFixed(2)),
+          subTotal: subTotalCalculado,
+          exento: exentoCalculado,
+          iva: ivaCalculado,
           total: totalGrupo || montoReal,
           formaPago: formaPagoLabel,
           banco: bancoLabel,
@@ -2058,6 +2095,7 @@ export default function CajaPage() {
           esAbono: !!esAbono,
           montoCancelado: esAbono ? (totalGrupo || montoReal) : undefined,
           montoPendiente: esAbono ? montoPendiente : undefined,
+          pageBreakBefore: idx > 0,
         };
       });
 
@@ -2277,7 +2315,6 @@ export default function CajaPage() {
             fecha_transaccion: fechaTransaccion,
             tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
             nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
-            monto_retencion_iva: realMontoRetencionIVA,
             iva_percent: ivaPercent,
             es_condominio: isCondominio,
             condominio_modo: condominioModo,
@@ -2288,9 +2325,9 @@ export default function CajaPage() {
             saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
             monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
             monto_factura: totalConImpuestos, // Monto total de la factura fiscal
-            monto_neto_factura: finalTotal,   // Monto neto de la factura sin la retención
-            es_retencion: realMontoRetencionIVA > 0,
-            agente_retencion: realMontoRetencionIVA > 0
+            monto_retencion_iva: esAbonoDebito ? 0 : realMontoRetencionIVA,
+            es_retencion: esAbonoDebito ? false : (realMontoRetencionIVA > 0),
+            agente_retencion: esAbonoDebito ? false : (realMontoRetencionIVA > 0)
           })
         });
         if (insertErr) {
@@ -2343,11 +2380,13 @@ export default function CajaPage() {
             if (typeof currentDetalles === 'string') {
               try { currentDetalles = JSON.parse(currentDetalles); } catch(e) { currentDetalles = {}; }
             }
-            currentDetalles.factura_digital = currentDetalles.factura_digital || {
-              emitida: false,
-              pendiente: true,
-              preparada_at: new Date().toISOString()
-            };
+            if (!esAbonoDebito) {
+              currentDetalles.factura_digital = currentDetalles.factura_digital || {
+                emitida: false,
+                pendiente: true,
+                preparada_at: new Date().toISOString()
+              };
+            }
             currentDetalles.recibos = digitalRecibos;
             currentDetalles.montos = digitalMontos;
             currentDetalles.contribuyente = foundUser.Contribuyente;
@@ -2359,9 +2398,9 @@ export default function CajaPage() {
             currentDetalles.monto_sobrante = saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined;
             currentDetalles.monto_factura = totalConImpuestos;
             currentDetalles.monto_neto_factura = finalTotal;
-            currentDetalles.monto_retencion_iva = realMontoRetencionIVA;
-            currentDetalles.es_retencion = realMontoRetencionIVA > 0;
-            currentDetalles.agente_retencion = realMontoRetencionIVA > 0;
+            currentDetalles.monto_retencion_iva = esAbonoDebito ? 0 : realMontoRetencionIVA;
+            currentDetalles.es_retencion = esAbonoDebito ? false : (realMontoRetencionIVA > 0);
+            currentDetalles.agente_retencion = esAbonoDebito ? false : (realMontoRetencionIVA > 0);
             currentDetalles.isCondominio = isCondominio;
             currentDetalles.formasPago = [
               {
@@ -2884,9 +2923,9 @@ export default function CajaPage() {
             monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
             monto_factura: totalConImpuestos,
             monto_neto_factura: finalTotal,
-            monto_retencion_iva: realMontoRetencionIVA,
-            es_retencion: realMontoRetencionIVA > 0,
-            agente_retencion: realMontoRetencionIVA > 0,
+            monto_retencion_iva: esAbono ? 0 : realMontoRetencionIVA,
+            es_retencion: esAbono ? false : (realMontoRetencionIVA > 0),
+            agente_retencion: esAbono ? false : (realMontoRetencionIVA > 0),
             iva_percent: ivaPercent,
             es_abono: esAbono,
             monto_abonado: esAbono ? montoReal : undefined,
@@ -4863,13 +4902,22 @@ export default function CajaPage() {
                         let tipo = '';
                         let act = '';
                         let dir = '';
-                        if (r.referencia?.startsWith('RECIB-HIST-')) {
-                          const parts = r.referencia.split('-');
-                          if (parts.length > 2) {
-                            const match = userInms.find((i: any) => i.inmueble === parts[2]);
-                            if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
-                            else inmId = parts[2];
-                          }
+                        if (r.inmueble) {
+                          const match = userInms.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === String(r.inmueble).trim().toUpperCase());
+                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
+                          else inmId = String(r.inmueble);
+                        } else if (r.referencia?.startsWith('RECIB-HIST-')) {
+                          const mHist = r.referencia.match(/^RECIB-HIST-(.+)-M\d+$/i);
+                          const cod = mHist ? mHist[1] : r.referencia.split('-')[2];
+                          const match = userInms.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === String(cod || '').trim().toUpperCase());
+                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
+                          else inmId = cod || 'Facturación General';
+                        } else if (r.referencia?.startsWith('MULTA-')) {
+                          const mMulta = r.referencia.match(/^MULTA-(.+?)(?:-M\d+)?$/i);
+                          const cod = mMulta ? mMulta[1] : '';
+                          const match = userInms.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === String(cod || '').trim().toUpperCase());
+                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
+                          else inmId = cod || 'Multas';
                         } else if (r.referencia?.startsWith('CM-')) {
                           const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
                           if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }

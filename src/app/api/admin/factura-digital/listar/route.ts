@@ -52,8 +52,14 @@ export async function GET(request: Request) {
       if (p.tipo === 'Retencion de IVA') return false;
       if (['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(p?.estado || ''))) return false;
       const d = parseDetalles(p.detalles);
-      // REGLA: Los abonos que no han completado el pago total del mes no deben salir en factura electrónica
-      if (d?.es_abono === true || p.tipo === 'Abono' || d?.pago_parcial === true) {
+      // REGLA: Los abonos o pagos parciales que no han completado el pago total del mes no deben salir en factura electrónica
+      if (
+        d?.es_abono === true ||
+        d?.abono === true ||
+        p.tipo === 'Abono' ||
+        d?.pago_parcial === true ||
+        (d?.monto_pendiente !== undefined && parseFloat(String(d.monto_pendiente)) > 0.05)
+      ) {
         return false;
       }
       return true;

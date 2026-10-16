@@ -117,12 +117,21 @@ export async function POST(request: Request) {
     let lineasCondo: any[] | null = null;
     let condoDet: any = null;
     {
-      const { data: pm } = await supabase.from('pagos_reportados').select('modulo, detalles, estado').eq('id', pagoId).maybeSingle();
+      const { data: pm }: any = await supabase.from('pagos_reportados').select('modulo, detalles, estado, tipo').eq('id', pagoId).maybeSingle();
       if (pm && ['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(pm.estado || ''))) {
         return NextResponse.json({ error: `No se puede emitir factura para un pago con estado ${pm.estado}.` }, { status: 400 });
       }
       let dm: any = pm?.detalles || {};
       if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
+      if (
+        dm?.es_abono === true ||
+        dm?.abono === true ||
+        pm?.tipo === 'Abono' ||
+        dm?.pago_parcial === true ||
+        (dm?.monto_pendiente !== undefined && parseFloat(String(dm.monto_pendiente)) > 0.05)
+      ) {
+        return NextResponse.json({ error: 'No se puede emitir factura electrónica para un abono o pago parcial. La factura solo se emite cuando se completa el pago total del mes.' }, { status: 400 });
+      }
       if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
         lineasCondo = dm.condominio.lineas; condoDet = dm.condominio;
       }

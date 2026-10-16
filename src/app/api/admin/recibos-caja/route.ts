@@ -128,11 +128,47 @@ export async function GET(request: Request) {
     const refNum = String(pago.referencia || pago.id).replace(/\D/g, '').slice(-7).padStart(7, '0');
     const esAbono = !!det.es_abono;
 
+    if (codigos.length > 1) {
+      const recibosSeparados = codigos.map((cod, idx) => {
+        const inm = inmMap.get(cod);
+        const esRes = isResidencialInm(inm);
+        const conceptosInm = conceptos.filter(c => c.descripcion.includes(`(${cod})`));
+        const subMonto = r2(conceptosInm.reduce((s, c) => s + c.total, 0)) || r2(monto / codigos.length);
+        const lineasInm = conceptosInm.length > 0 ? conceptosInm : [{ descripcion: `Servicio de Aseo Urbano (${cod})`, precioUnit: subMonto, total: subMonto }];
+        const subTot = esRes ? subMonto : r2(subMonto / 1.16);
+        const ivaTot = esRes ? 0 : r2(subMonto - subTot);
+        return {
+          reciboNo: `${refNum}-${idx + 1}`,
+          controlWeb: `WEB-${refNum}-${idx + 1}`,
+          fechaEmision: String(det.fecha_transaccion || pago.created_at || '').slice(0, 10),
+          codContribuyente: cod,
+          razonSocial: inm?.contribuyente || det.contribuyente || cont?.nombre || '',
+          domicilioFiscal: String(inm?.direccion || cont?.direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
+          rifCi: pago.identidad,
+          caja: det.cajero || '',
+          periodo: periodo,
+          conceptos: lineasInm,
+          subTotal: subTot,
+          exento: esRes ? subMonto : 0,
+          iva: ivaTot,
+          total: subMonto,
+          formaPago: formaPagoTexto(pago.tipo),
+          banco: pago.banco || pago.tipo || '',
+          referencia: pago.referencia || 'N/A',
+          tasaBcv: parseFloat(String(det.tasa_bcv_aplicada || det.tasa_bcv || 0)) || undefined,
+          tipoContribuyente: esRes ? 'Residencial' : 'Comercial',
+          ...(esAbono ? { esAbono: true, montoCancelado: subMonto } : {}),
+          pageBreakBefore: idx > 0,
+        };
+      });
+      return NextResponse.json({ success: true, original: false, recibos: recibosSeparados });
+    }
+
     const recibo = {
       reciboNo: refNum,
       controlWeb: `WEB-${refNum}`,
       fechaEmision: String(det.fecha_transaccion || pago.created_at || '').slice(0, 10),
-      codContribuyente: pago.identidad,
+      codContribuyente: codigos[0] || pago.identidad,
       razonSocial: det.contribuyente || cont?.nombre || inmPrincipal?.contribuyente || '',
       domicilioFiscal: String(inmPrincipal?.direccion || cont?.direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
       rifCi: pago.identidad,
@@ -151,6 +187,7 @@ export async function GET(request: Request) {
       tasaBcv: parseFloat(String(det.tasa_bcv_aplicada || det.tasa_bcv || 0)) || undefined,
       tipoContribuyente: esComercial ? 'Comercial' : 'Residencial',
       ...(esAbono ? { esAbono: true, montoCancelado: monto } : {}),
+      pageBreakBefore: false,
     };
 
     return NextResponse.json({ success: true, original: false, recibos: [recibo] });
