@@ -15,6 +15,8 @@ interface InmuebleRow {
   actividad_principal?: string;
   deuda_mmv?: string | number;
   meses_deuda?: string | number;
+  multa_bs?: string | number;
+  deuda_congelada_bs?: string | number;
   es_condominio?: boolean;
   condominio_padre_id?: string;
 }
@@ -213,7 +215,18 @@ export default function InmueblesPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {tieneDeuda ? (
+                        {inm.condominio_padre_id ? (
+                          (parseFloat(String(inm.multa_bs || '0')) > 0 || parseFloat(String(inm.deuda_congelada_bs || '0')) > 0) ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              <AlertCircle className="w-3 h-3" />
+                              Multa Pendiente
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60" title="Aseo administrado directamente por la oficina del condominio">
+                              Condominio (Oficina)
+                            </span>
+                          )
+                        ) : tieneDeuda ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
                             <AlertCircle className="w-3 h-3" />
                             {meses > 0 ? `${meses} meses pendientes` : 'Con Deuda'}

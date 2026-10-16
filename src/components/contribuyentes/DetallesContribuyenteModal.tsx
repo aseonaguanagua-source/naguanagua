@@ -528,9 +528,23 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
     unifiedInmuebles.forEach((group) => {
       const { inm, isNAParent, isNA, mmvTotal, mesesDeuda, hijos } = group;
+
+      // Regla de Condominios: ninguna información de los condominios sale por sistema,
+      // solo la multa de los usuarios. Todo lo demás lo hace condominio por oficina.
+      const isCondo = (inm.condominio_padre_id || inm.es_condominio) && !isNAParent;
+      if (isCondo) {
+        const m = (parseFloat(inm.multa_bs || '0') || 0) + (parseFloat(inm.deuda_congelada_bs || '0') || 0);
+        totalMultas += m;
+        return;
+      }
+
       const meses = Math.max(0, mesesDeuda);
       if (meses > mesesMax) mesesMax = meses;
-      if (meses <= 0) return;
+      if (meses <= 0) {
+        const m = (parseFloat(inm.multa_bs || '0') || 0) + (parseFloat(inm.deuda_congelada_bs || '0') || 0);
+        totalMultas += m;
+        return;
+      }
 
       const esRes = isResidencialInm(inm);
       const esExon = isExoneradoTotalMultas(inm.notas);
@@ -981,6 +995,8 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                     const { inm, isNAParent, hijos, sumHijosMMV, mmvTotal, mesesDeuda } = group;
                     const meses = mesesDeuda;
                     const esRes = isResidencialInm(inm);
+                    const isCondoInm = (inm.condominio_padre_id || inm.es_condominio) && !isNAParent;
+                    const multaInmTotal = (parseFloat(inm.multa_bs || '0') || 0) + (parseFloat(inm.deuda_congelada_bs || '0') || 0);
                     let baseMes = 0;
                     let ivaMes = 0;
                     if (isNAParent && hijos && hijos.length > 0) {
@@ -1245,11 +1261,23 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                             </span>
                           </div>
 
-                          <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
-                            meses > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                          }`}>
-                            {meses > 0 ? `${meses} meses de deuda` : 'Al día'}
-                          </span>
+                          {isCondoInm ? (
+                            multaInmTotal > 0 ? (
+                              <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                Multa Bs. {formatBs(multaInmTotal)}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60" title="Aseo administrado directamente por la oficina del condominio">
+                                Condominio (Oficina)
+                              </span>
+                            )
+                          ) : (
+                            <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
+                              meses > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {meses > 0 ? `${meses} meses de deuda` : 'Al día'}
+                            </span>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 text-xs">

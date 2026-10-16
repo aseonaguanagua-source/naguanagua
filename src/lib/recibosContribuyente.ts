@@ -38,20 +38,56 @@ export function construirRecibosContribuyente(params: {
 }): RecibosContribuyente {
   const hoy = params.hoy || new Date();
   const todos = params.inmuebles || [];
+  // Inmuebles directos (no condominios, no filiales)
   const activos = todos.filter(i => i.estado !== 'Eliminado' && !i.condominio_padre_id && !i.es_condominio);
-  const tieneCondominio = todos.some(i => i.condominio_padre_id || i.es_condominio);
+  // Inmuebles pertenecientes a condominios
+  const condoInms = todos.filter(i => i.estado !== 'Eliminado' && (i.condominio_padre_id || i.es_condominio));
+  const tieneCondominio = condoInms.length > 0;
   const soloCondominio = activos.length === 0 && tieneCondominio;
   const naCodes = codigosContenedoresNA(activos);
   const billables = activos.filter(i => !naCodes.includes(i.inmueble));
 
   const recibos: any[] = (params.facturas || []).filter(f => ESTADOS_RECIBO_PENDIENTE.includes(f.estado));
+
+  // 1. REGLA DE CONDOMINIOS: Ninguna información de meses de condominios sale por sistema
+  // (todo lo demás lo hace condominio por oficina). SOLO la multa de los usuarios sale por sistema.
+  condoInms.forEach(inm => {
+    const multa = num(inm.multa_bs), congelada = num(inm.deuda_congelada_bs);
+    if (multa > 0 || congelada > 0) {
+      const f = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1, 12, 0, 0).toISOString();
+      recibos.push({
+        id: `multa-${inm.inmueble}`,
+        referencia: `MULTA-${inm.inmueble}`,
+        inmueble: inm.inmueble,
+        identidad: params.identidad,
+        contribuyente: params.contribuyente || inm.contribuyente || '',
+        emision: f,
+        vencimiento: f,
+        estado: 'Pendiente',
+        monto: (multa + congelada).toFixed(2),
+        descripcion: `Multa Municipal (${inm.inmueble})`
+      });
+    }
+  });
+
+  // 2. INMUEBLES DIRECTOS (No condominio): Multas + Meses de Aseo
   if (billables.some(tieneDeudaInm)) {
     billables.forEach(inm => {
       const multa = num(inm.multa_bs), congelada = num(inm.deuda_congelada_bs);
-      if (isCondominioPagoIndividual(inm) && (multa > 0 || congelada > 0)) {
+      if (multa > 0 || congelada > 0) {
         const f = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1, 12, 0, 0).toISOString();
-        recibos.push({ id: `multa-${inm.inmueble}`, referencia: `MULTA-${inm.inmueble}`, identidad: params.identidad,
-          contribuyente: params.contribuyente || inm.contribuyente || '', emision: f, vencimiento: f, estado: 'Pendiente', monto: (multa + congelada).toFixed(2) });
+        recibos.push({
+          id: `multa-${inm.inmueble}`,
+          referencia: `MULTA-${inm.inmueble}`,
+          inmueble: inm.inmueble,
+          identidad: params.identidad,
+          contribuyente: params.contribuyente || inm.contribuyente || '',
+          emision: f,
+          vencimiento: f,
+          estado: 'Pendiente',
+          monto: (multa + congelada).toFixed(2),
+          descripcion: `Multa Municipal (${inm.inmueble})`
+        });
       }
       const meses = parseInt(String(inm.meses_deuda || 0)) || 0;
       const formales = recibos.filter(r => String(r.referencia || '').includes(inm.inmueble) &&
@@ -59,8 +95,17 @@ export function construirRecibosContribuyente(params: {
       const n = Math.max(0, (meses > 0 ? meses : (num(inm.deuda_mmv) > 0 ? 1 : 0)) - formales);
       for (let i = 1; i <= n; i++) {
         const d = new Date(hoy.getFullYear(), hoy.getMonth() - n + i - 1, 1, 12, 0, 0).toISOString();
-        recibos.push({ id: `dummy-hist-${inm.inmueble}-${i}`, referencia: `RECIB-HIST-${inm.inmueble}-M${i}`, identidad: params.identidad,
-          contribuyente: params.contribuyente || inm.contribuyente || '', emision: d, vencimiento: d, estado: 'Pendiente', monto: '0' });
+        recibos.push({
+          id: `dummy-hist-${inm.inmueble}-${i}`,
+          referencia: `RECIB-HIST-${inm.inmueble}-M${i}`,
+          inmueble: inm.inmueble,
+          identidad: params.identidad,
+          contribuyente: params.contribuyente || inm.contribuyente || '',
+          emision: d,
+          vencimiento: d,
+          estado: 'Pendiente',
+          monto: '0'
+        });
       }
     });
   }

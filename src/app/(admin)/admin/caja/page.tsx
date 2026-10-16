@@ -915,12 +915,29 @@ export default function CajaPage() {
         }, 0
       );
       
+      // Identificar contenedores N/A propios para no tratarlos como condominios externos
+      const naParentCodesFresh = activeInmFresh
+        .filter((i: any) =>
+          (i.actividad_principal || '').trim().toUpperCase() === 'N/A' &&
+          (parseInt(i.cant_inmuebles || '0') > 0 || activeInmFresh.some((c: any) => c.inmueble !== i.inmueble && (c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble)))
+        )
+        .map((i: any) => i.inmueble);
+
       // Calcular deuda total fresca (excluyendo contenedores N/A para evitar duplicar montos con sus actividades hijas)
       const billableActiveInms = activeInmFresh.filter(
         (i: any) => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A'
       );
       const deudaTotalFresh = billableActiveInms.reduce(
         (sum: number, i: any) => {
+          // Si el inmueble es de condominio: ninguna información de condominios sale por sistema,
+          // solo la multa del usuario si la tiene (todo lo demás lo hace condominio por oficina).
+          const isCondoInm = (i.condominio_padre_id || i.es_condominio) && !naParentCodesFresh.includes(i.condominio_padre_id);
+          if (isCondoInm) {
+            const multa = parseFloat(i.multa_bs || '0') || 0;
+            const congelada = parseFloat(i.deuda_congelada_bs || '0') || 0;
+            return sum + multa + congelada;
+          }
+
           const currentBcvRate = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : tcmmv;
           const meses = Math.max(0, parseInt(i.meses_deuda || '0'));
           let jNotas: any = null;
@@ -1087,17 +1104,14 @@ export default function CajaPage() {
 
             const isParentContainerNA = inm.condominio_padre_id && naParentCodes.includes(inm.condominio_padre_id);
 
-            // Si el inmueble es hijo/filial de un condominio comercial ORDINARIO (cuyo padre no es un contenedor N/A interno):
-            // El aseo lo paga el condominio padre de forma centralizada en la Caja de Condominios.
-            // En Caja general solo se le cobran multas individuales si las tuviera.
-            // EXCEPCIÓN: Si el padre es contenedor N/A propio del contribuyente o si está en CONDOMINIOS_PAGO_INDIVIDUAL.
-            if (inm.condominio_padre_id && !isResidencialInm(inm) && !esCondoPagoInd && !isParentContainerNA) {
+            // Si el inmueble pertenece a un condominio (o es filial de condominio):
+            // Ninguna información de los condominios sale por sistema, solo la multa de los usuarios.
+            // Todo lo demás lo hace condominio por oficina.
+            if ((inm.condominio_padre_id || inm.es_condominio) && !isParentContainerNA) {
               const multa = parseFloat(inm.multa_bs || '0');
               const congelada = parseFloat(inm.deuda_congelada_bs || '0');
               if (multa > 0 || congelada > 0) {
                 const totalMulta = (multa + congelada).toFixed(2);
-                // Las multas solo aplican a períodos vencidos (hasta agosto).
-                // Septiembre se paga en octubre sin multa, y octubre aún no vence.
                 const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
                 combined.push({
                   id: `multa-${inm.inmueble}`,
@@ -1109,18 +1123,18 @@ export default function CajaPage() {
                   vencimiento: fechaMora.toISOString(),
                   estado: 'Pendiente',
                   monto: totalMulta,
-                  descripcion: `Multa Municipal - Local/Oficina (${inm.inmueble})`,
+                  descripcion: `Multa Municipal - ${isResidencialInm(inm) ? 'Residencial' : 'Comercial'} (${inm.inmueble})`,
                   descripcion_periodo: `MULTA POR MORA (HASTA ${formatMonthYear(fechaMora.toISOString())})`
                 });
               }
-              return;
+              return; // NO genera meses de aseo para condominios
             }
 
-            // Para condominios de pago individual o inmuebles directos:
-            // 1. Si tienen multa acumulada, generar recibo de multa separado para que puedan pagarlo aparte
+            // Para inmuebles directos (no condominios):
+            // 1. Si tienen multa acumulada, generar recibo de multa separado
             const multa = parseFloat(inm.multa_bs || '0');
             const congelada = parseFloat(inm.deuda_congelada_bs || '0');
-            if (esCondoPagoInd && (multa > 0 || congelada > 0)) {
+            if (multa > 0 || congelada > 0) {
               const totalMulta = (multa + congelada).toFixed(2);
               const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
               combined.push({
@@ -1133,7 +1147,7 @@ export default function CajaPage() {
                 vencimiento: fechaMora.toISOString(),
                 estado: 'Pendiente',
                 monto: totalMulta,
-                descripcion: `Multa Municipal - Local/Oficina (${inm.inmueble})`,
+                descripcion: `Multa Municipal (${inm.inmueble})`,
                 descripcion_periodo: `MULTA POR MORA (HASTA ${formatMonthYear(fechaMora.toISOString())})`
               });
             }

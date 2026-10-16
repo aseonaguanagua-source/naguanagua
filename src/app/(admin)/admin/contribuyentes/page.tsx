@@ -37,6 +37,14 @@ import { valorUCD } from '@/lib/tasaHistorica';
 // Helper para cálculo canónico de deuda idéntico a Caja
 function calcRowDeudaCanonical(r: any, rate: number): number {
   if (r.estado === 'Eliminado' || r.Estado === 'Eliminado') return 0;
+  // Regla de Condominios: ninguna información de condominios sale por sistema,
+  // solo la multa de los usuarios. Todo lo demás lo hace condominio por oficina.
+  if (r.condominio_padre_id || r.es_condominio) {
+    const congelada = parseFloat(String(r.deuda_congelada_bs || 0)) || 0;
+    const multaBs = parseFloat(String(r.multa_bs || 0)) || 0;
+    return Math.round(Math.max(0, congelada + multaBs) * 100) / 100;
+  }
+
   const esRes = isResidencialInm(r);
   const bMes = calcularMensualidad(r, rate);
   const m = parseInt(String(r.meses_deuda || 0), 10) || 0;
@@ -1757,7 +1765,7 @@ function ContribuyentesPageContent() {
             DeudaMMV: parseFloat(row.deuda_mmv || 0),
             DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
             DeudaBs: calcRowDeudaCanonical(row, tcmmv),
-            MesesDeuda: parseInt(row.meses_deuda || '0'),
+            MesesDeuda: (row.condominio_padre_id || row.es_condominio) ? 0 : parseInt(row.meses_deuda || '0'),
             Estado: rowEstado,
             FechaRegistro: row.created_at || null
           });
@@ -1777,7 +1785,9 @@ function ContribuyentesPageContent() {
           if (rowEstado === 'Activo') {
             existing.Estado = 'Activo';
           }
-          existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
+          if (!row.condominio_padre_id && !row.es_condominio) {
+            existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
+          }
           if (!isCodeFormat && cod && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
           }
@@ -3404,9 +3414,9 @@ function ContribuyentesPageContent() {
             ) : (
               <span className="text-[10px] text-slate-500">No asignado</span>
             )}
-            {isChild && row.isCommercialChild && (
+            {isChild && (
               <div className="text-[9px] text-slate-500 mt-0.5">
-                Aseo: <span className="text-blue-600 font-medium">Por Condominio</span>
+                Aseo: <span className="text-blue-600 font-medium">Por Condominio (Oficina)</span>
                 {row.MultaBs > 0 && <span className="text-amber-700 font-bold ml-1">• Multa: Bs. {row.MultaBs.toFixed(2)}</span>}
               </div>
             )}
