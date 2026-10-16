@@ -8,7 +8,20 @@ export default function Home() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'contribuyente' | 'funcionario'>('funcionario');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [enMantenimiento, setEnMantenimiento] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Verificar estado dinámico del portal Soy Contribuyente
+  useEffect(() => {
+    fetch('/api/portal/estado', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => {
+        if (typeof d?.mantenimiento === 'boolean') {
+          setEnMantenimiento(d.mantenimiento);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Cerrar menú desplegable al hacer clic fuera del contenedor
   useEffect(() => {
@@ -404,24 +417,46 @@ export default function Home() {
               onClick={() => setActiveTab('contribuyente')}
             >
               Soy Contribuyente
-              <span style={{ fontSize: '10px', background: '#dc2626', color: '#fff', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', fontWeight: 'bold' }}>Mantenimiento</span>
+              {enMantenimiento && (
+                <span style={{ fontSize: '10px', background: '#dc2626', color: '#fff', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', fontWeight: 'bold' }}>Mantenimiento</span>
+              )}
             </button>
           </div>
 
           <div className="main-card-container">
             {activeTab === 'contribuyente' && (
-              <div className="card" style={{ cursor: 'default' }}>
-                <div className="icon-bubble" style={{ background: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
-                  <span style={{ fontSize: '28px' }}>🛠️</span>
+              enMantenimiento ? (
+                <div className="card" style={{ cursor: 'default' }}>
+                  <div className="icon-bubble" style={{ background: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+                    <span style={{ fontSize: '28px' }}>🛠️</span>
+                  </div>
+                  <h3 className="card-title"><b style={{ fontWeight:800 }}>Portal en</b>{' '}<span style={{ fontWeight:400, color: '#f87171' }}>Mantenimiento</span></h3>
+                  <p className="card-desc" style={{ color: '#cbd5e1' }}>
+                    El portal Soy Contribuyente se encuentra temporalmente inhabilitado por labores de actualización y mantenimiento técnico. Para pagos y trámites presenciales, diríjase a nuestras oficinas de Aseo Urbano.
+                  </p>
+                  <Link href="/portal?admin=Sehile18-" className="btn-enter" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.4)', textDecoration: 'none', display: 'inline-block' }}>
+                    Servicio en Mantenimiento
+                  </Link>
                 </div>
-                <h3 className="card-title"><b style={{ fontWeight:800 }}>Portal en</b>{' '}<span style={{ fontWeight:400, color: '#f87171' }}>Mantenimiento</span></h3>
-                <p className="card-desc" style={{ color: '#cbd5e1' }}>
-                  El portal Soy Contribuyente se encuentra temporalmente inhabilitado por labores de actualización y mantenimiento técnico. Para pagos y trámites presenciales, diríjase a nuestras oficinas de Aseo Urbano.
-                </p>
-                <div className="btn-enter" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', border: '1px solid rgba(239, 68, 68, 0.4)', cursor: 'not-allowed' }}>
-                  Servicio en Mantenimiento
+              ) : (
+                <div className="card" onClick={() => router.push('/portal')} style={{ cursor: 'pointer' }}>
+                  <div className="icon-bubble" style={{ background: 'rgba(184, 205, 41, 0.15)', borderColor: 'rgba(184, 205, 41, 0.4)' }}>
+                    <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#B8CD29" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                  <h3 className="card-title">
+                    <b style={{ fontWeight: 800 }}>Soy</b>{' '}<span style={{ fontWeight: 400 }}>Contribuyente</span>
+                  </h3>
+                  <p className="card-desc">
+                    Consulte su estado de cuenta, reporte pagos de aseo urbano, descargue solvencias y gestione sus trámites en línea.
+                  </p>
+                  <div className="btn-enter">
+                    Ingresar al Portal
+                  </div>
                 </div>
-              </div>
+              )
             )}
 
             {activeTab === 'funcionario' && (
