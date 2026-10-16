@@ -1081,13 +1081,20 @@ function Caja() {
                     </div>
 
                     {abonoLocales && (
-                      <div className="text-xs text-emerald-950 font-medium flex flex-wrap items-center justify-between gap-2 bg-emerald-100/70 px-3 py-1.5 rounded-lg border border-emerald-200">
+                      <div className="text-xs text-emerald-950 font-medium flex flex-wrap items-center justify-between gap-2 bg-emerald-100/70 px-3 py-2 rounded-lg border border-emerald-200">
                         <span>
                           💡 <b>Abono al Condominio:</b> Marque los locales que van a pagar. La factura digital saldrá <b>a nombre del condominio ({c?.identidad})</b> sumando exactamente los locales seleccionados.
                         </span>
-                        <span className="font-bold text-emerald-900 shrink-0">
-                          {claves.length} de {conDeuda.length} locales ({claves.length === 0 ? 'Ninguno seleccionado' : `Bs ${fmtBs(cobro?.totales?.totalBs || 0)}`})
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          <span className="font-bold text-emerald-900">
+                            {claves.length} de {conDeuda.length} locales ({claves.length === 0 ? 'Ninguno seleccionado' : `Abono: Bs ${fmtBs(cobro?.totales?.totalBs || 0)}`})
+                          </span>
+                          {claves.length > 0 && (
+                            <span className="bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded font-black text-xs">
+                              🔴 FALTA POR PAGAR: Bs {fmtBs(Math.max(0, (base?.totales?.totalBs || 0) - (cobro?.totales?.totalBs || 0)))}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1222,6 +1229,26 @@ function Caja() {
                 {calculando && <RefreshCw className="w-4 h-4 animate-spin text-white/60" />}
               </div>
               <div className="text-4xl font-black tabular-nums">Bs {formatBs(totalConImpuestos)}</div>
+
+              {/* Si es abono de locales, mostrar claramente Deuda Total y Lo Que Falta */}
+              {abonoLocales && (base?.totales?.totalBs || 0) > totalConImpuestos + 0.05 && (
+                <div className="bg-white/10 rounded-xl p-3 border border-amber-400/40 mt-2 space-y-1.5">
+                  <div className="flex justify-between text-xs text-white/80">
+                    <span>Deuda Total Condominio:</span>
+                    <span className="font-mono font-bold text-white">Bs {formatBs(base?.totales?.totalBs || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-emerald-300">
+                    <span>Monto Abonado Hoy:</span>
+                    <span className="font-mono font-bold">Bs {formatBs(totalConImpuestos)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-black text-amber-300 pt-1.5 border-t border-white/10">
+                    <span>🔴 FALTA POR PAGAR:</span>
+                    <span className="font-mono text-sm font-black text-amber-200">
+                      Bs {formatBs(Math.max(0, (base?.totales?.totalBs || 0) - totalConImpuestos))}
+                    </span>
+                  </div>
+                </div>
+              )}
               
               {saldoFavorActivo > 0 && (
                 <div className="bg-emerald-500/20 border border-emerald-400/50 p-2 rounded-lg flex justify-between items-center mt-2">
@@ -1287,6 +1314,13 @@ function Caja() {
                   </div>
                 )}
                 
+                {faltaPagar > 0.05 && pagosAgregados.length > 0 && (
+                  <div className="bg-amber-500/20 border border-amber-400/50 rounded-xl p-3 text-center mb-2">
+                    <p className="text-amber-200 text-xs font-bold uppercase tracking-wide">🔴 Falta por pagar para completar este cobro</p>
+                    <p className="text-amber-300 text-base font-black">Bs {fmtBs(faltaPagar)}</p>
+                  </div>
+                )}
+
                 {faltaPagar > 0.05 && (
                   <div className="bg-white/5 rounded-xl p-3 border border-white/10 space-y-2 mt-2">
                     <div className="flex gap-2">

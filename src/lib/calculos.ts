@@ -3,6 +3,20 @@ import { ordenanzaData } from '@/data/ordenanza';
 const todasLasActividades = [...ordenanzaData.actividadesComerciales, ...(ordenanzaData.actividadesIndustriales || [])];
 
 /**
+ * Determina si un inmueble o actividad corresponde a TERRENOS.
+ * Según la Ordenanza Municipal de Naguanagua (Tabla "B", Actividad 1696),
+ * "TERRENOS, CONSTRUCCIONES E INMUEBLES A ESTRENAR" o "TERRENOS"
+ * tiene factores [0, 0, 0], por lo que su tarifa mensual y F.O. es estrictamente CERO (0).
+ */
+export const isTerrenoInm = (itemOrAct: any): boolean => {
+  if (!itemOrAct) return false;
+  const str = typeof itemOrAct === 'string'
+    ? itemOrAct
+    : String(itemOrAct.actividad_principal || itemOrAct.actividad || itemOrAct['Actividad Principal'] || itemOrAct.Actividad || itemOrAct.label || '');
+  return str.toUpperCase().includes('TERRENO');
+};
+
+/**
  * Determina si un inmueble o registro es de uso RESIDENCIAL.
  * Evalúa tipo, actividad_principal y clasificacion.
  * En la BD Supabase / SIGYR:
@@ -171,15 +185,18 @@ const FACTORES_ORDENANZA = new Set<number>(
 
 /**
  * F.O. comercial REAL de un inmueble (Tabla "B" de la Ordenanza):
- *  1. Si la actividad está en la ordenanza → factor del nivel (si es 0, p.ej. terrenos → 1.98).
- *  2. Si no está, pero la tarifa guardada es un F.O. válido de la ordenanza → la guardada.
- *  3. Si no → 1.98 (tarifa mínima).
+ *  1. Si la actividad es TERRENO → 0 (factores [0, 0, 0] en Ordenanza Art. 61).
+ *  2. Si la actividad está en la ordenanza → factor del nivel.
+ *  3. Si no está, pero la tarifa guardada es un F.O. válido de la ordenanza → la guardada.
+ *  4. Si no → 1.98 (tarifa mínima).
  */
 export const resolverFOComercial = (actividadFull: string, mmvGuardado?: number | null): number => {
+  if (isTerrenoInm(actividadFull)) return 0;
   const found = buscarActividadOrdenanza(actividadFull);
   if (found && found.factores) {
+    if (found.label?.toUpperCase().includes('TERRENO')) return 0;
     const f = found.factores[nivelActividad(actividadFull)];
-    return f && f > 0 ? f : 1.98;
+    return f && f > 0 ? f : (found.label?.toUpperCase().includes('TERRENO') ? 0 : 1.98);
   }
   const m = Number(mmvGuardado) || 0;
   if (m >= 1.54 && [...FACTORES_ORDENANZA].some(f => Math.abs(f - m) < 0.0005)) return m;
@@ -187,6 +204,7 @@ export const resolverFOComercial = (actividadFull: string, mmvGuardado?: number 
 };
 
 export const getFO = (actividadFull: string, esResidencial: boolean) => {
+  if (isTerrenoInm(actividadFull)) return 0;
   const act = (actividadFull || "").toLowerCase().trim();
   
   if (esResidencial) {
@@ -203,7 +221,6 @@ export const getFO = (actividadFull: string, esResidencial: boolean) => {
   }
 
   // Comercial: F.O. de la ordenanza según actividad y nivel (ALTA/MEDIA/BAJA)
-  // Terrenos y Servicios con factor 0 en el array causan En Verificacion → 1.98
   return resolverFOComercial(actividadFull);
 };
 
@@ -250,6 +267,10 @@ export const calcularMensualidad = (
   mmv_mes?: number,
   tipo?: string
 ) => {
+  if (isTerrenoInm(clasificacionOrInm) || (typeof actividadFull === 'string' && isTerrenoInm(actividadFull))) {
+    return 0;
+  }
+
   let clasificacion = '';
   let actividad = '';
   let cantidad = 1;
@@ -263,7 +284,7 @@ export const calcularMensualidad = (
     actividad = inm.actividad_principal || inm.actividad || '';
     cantidad = parseInt(String(inm.cant_inmuebles || inm['Cant Inmuebles'] || 1));
     tasa = typeof actividadFull === 'number' ? actividadFull : (tasaBCV || 0);
-    mmv = inm.mmv_mes ? parseFloat(String(inm.mmv_mes)) : undefined;
+    mmv = inm.mmv_mes !== undefined && inm.mmv_mes !== null ? parseFloat(String(inm.mmv_mes)) : undefined;
     esRes = isResidencialInm(inm);
   } else {
     clasificacion = String(clasificacionOrInm || '');
@@ -273,6 +294,8 @@ export const calcularMensualidad = (
     mmv = mmv_mes;
     esRes = isResidencialInm({ tipo, clasificacion, actividad_principal: actividad });
   }
+
+  if (isTerrenoInm(actividad)) return 0;
 
   let fo = 1.98;
   if (esRes) {
@@ -321,9 +344,18 @@ export const calcularMensualidad = (
   const esNA = (actividad.trim().toUpperCase() === 'N/A' || /^(N\/?A|NA|NINGUNA|SIN ACTIVIDAD|-)$/i.test(actividad.trim())) &&
     !(typeof clasificacionOrInm === 'object' && clasificacionOrInm?.es_condominio === true);
   const esMatrizNAParent = typeof clasificacionOrInm === 'object' && (clasificacionOrInm?.isNAParent || esNA);
-  const cantidadFinal = esMatrizNAParent ? 1 : Math.max(1, cantidad);
 
-  // Multiplicamos por la cantidad de inmuebles
+  // REGLA CRÍTICA INMUEBLES INDIVIDUALES:
+  // Solo los CONDOMINIOS matrices (es_condominio === true) multiplican la tarifa mensual por la cantidad
+  // de unidades que agrupan. Cualquier inmueble individual (local comercial, oficina, casa, etc.) representa
+  // 1 sola unidad física; su mensualidad SIEMPRE debe ser 1x la tarifa base calculada.
+  const esCondominio = typeof clasificacionOrInm === 'object' 
+    ? clasificacionOrInm?.es_condominio === true
+    : (clasificacion.toLowerCase().includes('condominio') || String(tipo || '').toLowerCase().includes('condominio'));
+
+  const cantidadFinal = esMatrizNAParent ? 1 : (esCondominio ? Math.max(1, cantidad) : 1);
+
+  // Multiplicamos por la cantidad de inmuebles (1 para individuales / NA, cant_inmuebles para condominios)
   return baseCalculada * cantidadFinal;
 };
 

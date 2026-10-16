@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calculator, X, AlertCircle, Calendar, CheckSquare, Square, Building, Check, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
-import { calcularMensualidad, isResidencialInm, getFO, resolverFOComercial } from '@/lib/calculos';
+import { calcularMensualidad, isResidencialInm, isTerrenoInm, getFO, resolverFOComercial } from '@/lib/calculos';
 import { logAudit } from '@/lib/audit';
 import { getIdentidadVariantsExact as getIdentidadVariants } from '@/lib/formatters';
 
@@ -289,15 +289,19 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       }));
 
       for (const inm of targetInms) {
-        let mmvMes = parseFloat(inm.mmv_mes || '0');
+        const esTerreno = isTerrenoInm(inm);
+        let mmvMes = esTerreno ? 0 : parseFloat(inm.mmv_mes || '0');
         let fijarTarifa = false;
-        if (!(mmvMes > 0)) {
+        if (esTerreno) {
+          mmvMes = 0;
+          fijarTarifa = true;
+        } else if (!(mmvMes > 0)) {
           // Inmueble sin tarifa guardada (registro nuevo): F.O. oficial de la ordenanza según su actividad
           const esResInm = isResidencialInm(inm);
           mmvMes = esResInm ? getFO(inm.actividad_principal || '', true) : resolverFOComercial(inm.actividad_principal || '', null);
           fijarTarifa = mmvMes > 0;
         }
-        const nuevaDeudaMmv = parseFloat((selectedCount * mmvMes).toFixed(5));
+        const nuevaDeudaMmv = esTerreno ? 0 : parseFloat((selectedCount * mmvMes).toFixed(5));
 
         const notaPrev = (inm.notas || '').trim();
         const nuevaNota = notaPrev ? `${notaPrev}\n---\n${registroNota}` : registroNota;

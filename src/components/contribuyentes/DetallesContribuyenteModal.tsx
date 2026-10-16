@@ -556,7 +556,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       } else {
         const rawBase = isNAParent 
           ? calcularMensualidad({ ...inm, mmv_mes: mmvTotal, cant_inmuebles: 1, isNAParent: true }, tasaEfectiva) 
-          : calcularMensualidad({ ...inm, cant_inmuebles: isNA ? 1 : inm.cant_inmuebles }, tasaEfectiva);
+          : calcularMensualidad({ ...inm, cant_inmuebles: inm.es_condominio ? (isNA ? 1 : inm.cant_inmuebles) : 1 }, tasaEfectiva);
         baseMes = Math.round(rawBase * 100) / 100;
         ivaMes = esRes ? 0 : Math.round((baseMes * 0.16) * 100) / 100;
         const moraTasa = esRes ? 0.10 : 0.12;
@@ -994,7 +994,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                     } else {
                       const rawBase = isNAParent 
                         ? calcularMensualidad({ ...inm, mmv_mes: mmvTotal, cant_inmuebles: 1, isNAParent: true }, tasaEfectiva) 
-                        : calcularMensualidad({ ...inm, cant_inmuebles: inm.actividad_principal?.toUpperCase() === 'N/A' ? 1 : inm.cant_inmuebles }, tasaEfectiva);
+                        : calcularMensualidad({ ...inm, cant_inmuebles: inm.es_condominio ? (inm.actividad_principal?.toUpperCase() === 'N/A' ? 1 : inm.cant_inmuebles) : 1 }, tasaEfectiva);
                       baseMes = Math.round(rawBase * 100) / 100;
                       ivaMes = esRes ? 0 : Math.round((baseMes * 0.16) * 100) / 100;
                     }

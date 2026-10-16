@@ -11,7 +11,7 @@ import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { ModalComprobante } from '@/components/caja/ModalComprobante';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm, isCondominioPagoIndividual, isMesExoneradoMulta } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isCondominioPagoIndividual, isMesExoneradoMulta } from '@/lib/calculos';
 import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, getShortAddress } from '@/lib/cajaHelpers';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
@@ -549,13 +549,12 @@ export default function CajaPage() {
       };
       
       // Si buscaron exactamente por un CÓDIGO (AURI / URB) y resulta ser una matriz de condominio,
-      // ofrecerle ir a Caja de Condominios o continuar en Caja si desea cobrar la matriz directamente.
+      // redirigir directamente a la Caja de Condominios (los condominios no se cobran en Caja general).
       if (user.isSearchByCode && user.es_condominio === true) {
-        if (confirm(`El código "${user.CodCont}" pertenece al Condominio matriz "${user.Contribuyente}".\n\n¿Desea ir a la Caja de Condominios para cobrar por locales o ver el desglose?\n(Pulse Cancelar si desea cobrar la matriz aquí en Caja general)`)) {
-          window.location.href = `/admin/condominios/caja?codigo=${user.CodCont}`;
-          setIsSearching(false);
-          return;
-        }
+        alert(`El código "${user.CodCont}" pertenece al Condominio "${user.Contribuyente}".\n\nLos condominios se gestionan y cobran en la Caja de Condominios.\n\nRedirigiendo a Caja de Condominios...`);
+        window.location.href = `/admin/condominios/caja?codigo=${user.CodCont}`;
+        setIsSearching(false);
+        return;
       }
     }
 
@@ -589,11 +588,10 @@ export default function CajaPage() {
         };
         
         if (user.isSearchByCode && user.es_condominio === true) {
-          if (confirm(`El código "${user.CodCont}" pertenece al Condominio matriz "${user.Contribuyente}".\n\n¿Desea ir a la Caja de Condominios para cobrar por locales o ver el desglose?\n(Pulse Cancelar si desea cobrar la matriz aquí en Caja general)`)) {
-            window.location.href = `/admin/condominios/caja?codigo=${user.CodCont}`;
-            setIsSearching(false);
-            return;
-          }
+          alert(`El código "${user.CodCont}" pertenece al Condominio "${user.Contribuyente}".\n\nLos condominios se gestionan y cobran en la Caja de Condominios.\n\nRedirigiendo a Caja de Condominios...`);
+          window.location.href = `/admin/condominios/caja?codigo=${user.CodCont}`;
+          setIsSearching(false);
+          return;
         }
       }
     }
@@ -883,7 +881,16 @@ export default function CajaPage() {
       }
       
       // Detectar y resolver si el usuario o alguno de sus inmuebles pertenece a un condominio
-      const condoPadreId = user.condominio_padre_id || activeInmFresh.find((i: any) => i.condominio_padre_id)?.condominio_padre_id;
+      // NOTA: Si el usuario tiene múltiples inmuebles independientes (ej. Granja a Color con 4 sedes),
+      // NO se estampa el condominio a nivel global del contribuyente a menos que la búsqueda haya sido
+      // específicamente por el código de ese local filial o todos sus inmuebles pertenezcan al mismo condominio.
+      const condoPadreId = user.isSearchByCode
+        ? (user.condominio_padre_id || activeInmFresh.find((i: any) => i.inmueble === user.CodCont)?.condominio_padre_id)
+        : (activeInmFresh.length === 1
+            ? activeInmFresh[0].condominio_padre_id
+            : (activeInmFresh.length > 0 && activeInmFresh.every((i: any) => i.condominio_padre_id && i.condominio_padre_id === activeInmFresh[0].condominio_padre_id)
+                ? activeInmFresh[0].condominio_padre_id
+                : undefined));
       if (condoPadreId) {
         user.condominio_padre_id = condoPadreId;
         const parentInMem = (inmuebles || []).find((i: any) => i.inmueble === condoPadreId || i.id === condoPadreId);
@@ -1084,14 +1091,12 @@ export default function CajaPage() {
             const esCondoPagoInd = isCondominioPagoIndividual(inm);
 
             const isParentContainerNA = inm.condominio_padre_id && naParentCodes.includes(inm.condominio_padre_id);
-            const isSameContribChild = inm.condominio_padre_id && (
-              (inm.identidad || '').replace(/^[VEJPG]-?/i, '').trim().toUpperCase() === (user.Identidad || '').replace(/^[VEJPG]-?/i, '').trim().toUpperCase()
-            );
 
-            // Si el inmueble es hijo/filial de un condominio comercial ORDINARIO con locales de distintos propietarios:
-            // El aseo lo paga el condominio padre, pero las multas se pagan por la oficina individual.
-            // EXCEPCIÓN: Si el padre es contenedor N/A o si los locales son del mismo contribuyente (múltiples actividades), debe generar su facturación.
-            if (inm.condominio_padre_id && !isResidencialInm(inm) && !esCondoPagoInd && !isParentContainerNA && !isSameContribChild) {
+            // Si el inmueble es hijo/filial de un condominio comercial ORDINARIO (cuyo padre no es un contenedor N/A interno):
+            // El aseo lo paga el condominio padre de forma centralizada en la Caja de Condominios.
+            // En Caja general solo se le cobran multas individuales si las tuviera.
+            // EXCEPCIÓN: Si el padre es contenedor N/A propio del contribuyente o si está en CONDOMINIOS_PAGO_INDIVIDUAL.
+            if (inm.condominio_padre_id && !isResidencialInm(inm) && !esCondoPagoInd && !isParentContainerNA) {
               const multa = parseFloat(inm.multa_bs || '0');
               const congelada = parseFloat(inm.deuda_congelada_bs || '0');
               if (multa > 0 || congelada > 0) {
@@ -1139,8 +1144,9 @@ export default function CajaPage() {
             }
 
             // 2. Generar sus meses de aseo (RECIB-HIST-)
-            const deudaMMV = parseFloat(inm.deuda_mmv || '0');
-            const meses = parseInt(inm.meses_deuda || 0);
+            const isTerreno = isTerrenoInm(inm);
+            const deudaMMV = isTerreno ? 0 : parseFloat(inm.deuda_mmv || '0');
+            const meses = isTerreno ? 0 : parseInt(inm.meses_deuda || 0);
             
             const recibosFormales = combined.filter((r: any) => 
               (r.referencia || '').includes(inm.inmueble) && 
@@ -1148,7 +1154,7 @@ export default function CajaPage() {
               !r.referencia?.startsWith('MULTA-')
             ).length;
             
-            const numMeses = Math.max(0, (meses > 0 ? meses : (deudaMMV > 0 ? 1 : 0)) - recibosFormales);
+            const numMeses = isTerreno ? 0 : Math.max(0, (meses > 0 ? meses : (deudaMMV > 0 ? 1 : 0)) - recibosFormales);
 
             if (numMeses > 0) {
               // Generar un recibo dummy por cada mes de mora con fecha uniforme de calendario
@@ -1311,7 +1317,7 @@ export default function CajaPage() {
                             nombreContrib.includes('torre') ||
                             nombreContrib.includes('residencia');
       const isCondoByClasif = (user.Clasificacion || user.clasificacion || '').toLowerCase().includes('condominio');
-      const isCondoByFlag = activeInmFresh.some((i: any) => i.es_condominio === true || parseInt(i.cant_inmuebles || '0') > 1);
+      const isCondoByFlag = activeInmFresh.some((i: any) => i.es_condominio === true);
       const isResidencialUser = isResidencialInm(user) || (user.Tipo || '').toUpperCase().includes('RESIDENCIAL') || activeInmFresh.some((i: any) => isResidencialInm(i));
 
       // Un contribuyente comercial ordinario (ej. AGROAPA C A) NO es un condominio aunque sus inmuebles tengan código padre
@@ -1784,6 +1790,8 @@ export default function CajaPage() {
         const diffDeb = Math.round((montoReal - finalTotal) * 100) / 100;
         if (diffDeb > 0.02) {
           saldoAFavorNuevo = diffDeb;
+        } else if (diffDeb < -0.02) {
+          esAbono = true;
         }
       }
     } else if (paymentMethod === 'Saldo a Favor') {
@@ -4091,24 +4099,16 @@ export default function CajaPage() {
                         )}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDocNumber(foundUser.condominio_padre_id);
-                        setDocType('J');
-                        setTimeout(() => {
-                          const btn = document.querySelector('button[data-testid="search-btn"]') as HTMLButtonElement;
-                          if (btn) btn.click();
-                        }, 50);
-                      }}
-                      className={`font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 transition-colors shadow-xs text-white cursor-pointer ${
+                    <a
+                      href={`/admin/condominios/caja?codigo=${foundUser.condominio_padre_id}`}
+                      className={`inline-flex items-center gap-1 font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 transition-colors shadow-xs text-white cursor-pointer ${
                         isCondominioPagoIndividual(foundUser.condominio_padre_id)
                           ? 'bg-emerald-700 hover:bg-emerald-800'
                           : 'bg-indigo-600 hover:bg-indigo-700'
                       }`}
                     >
-                      Ver Condominio Padre ({foundUser.condominio_padre_id}) →
-                    </button>
+                      Ir a Caja de Condominios ({foundUser.condominio_padre_id}) →
+                    </a>
                   </div>
                 </div>
               ) : null}
@@ -4200,15 +4200,18 @@ export default function CajaPage() {
                         let selectedActivitiesCount = 0;
 
                         const activitiesCalc = cluster.inms.map((inm: any) => {
+                          const esTerreno = isTerrenoInm(inm);
                           const esRes = isResidencialInm(inm);
                           const mmvRaw = parseFloat(inm.mmv_mes || '0');
                           const foOficial = getFO(inm.actividad_principal || '', esRes);
-                          const mmv = esRes
-                            ? (mmvRaw >= 0.22 && mmvRaw <= 1.50 ? mmvRaw : foOficial)
-                            : (foOficial && foOficial > 1.00 ? foOficial : (mmvRaw > 1.00 ? mmvRaw : 1.98));
-                          const cant = parseInt(inm.cant_inmuebles || 1);
+                          const mmv = esTerreno
+                            ? 0
+                            : (esRes
+                              ? (mmvRaw >= 0.22 && mmvRaw <= 1.50 ? mmvRaw : foOficial)
+                              : (foOficial && foOficial > 1.00 ? foOficial : (mmvRaw > 1.00 ? mmvRaw : 1.98)));
+                          const cant = inm.es_condominio === true ? parseInt(inm.cant_inmuebles || 1) : 1;
                           const far = getFAR(inm.actividad_principal || '');
-                          const formulaUCD = (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
+                          const formulaUCD = esTerreno ? 0 : (esRes ? (mmv * 57 * far) : (mmv * 57 * 0.1280));
                           const totalUCD = cant * formulaUCD;
                           const bsMensual = totalUCD * currentBcvRate;
 
@@ -4360,9 +4363,15 @@ export default function CajaPage() {
                                           Unificada
                                         </span>
                                       </label>
-                                      <span className="text-[10px] font-medium text-slate-600 font-mono shrink-0 ml-2">
-                                        FO: {mmv.toFixed(4)} {isResCluster ? `| FAR: ${far.toFixed(4)} ` : ''}| {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = <strong className="text-slate-900">{formatBs(bsMensual)} Bs/mes</strong> {isResCluster ? '(Exento)' : <span className="text-blue-700 font-bold ml-1">(con IVA: Bs. {formatBs(bsMensual * 1.16)})</span>}
-                                      </span>
+                                      {isTerrenoInm(inm) ? (
+                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono shrink-0 ml-2">
+                                          Tarifa: 0.00 Bs/mes (Terreno)
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-medium text-slate-600 font-mono shrink-0 ml-2">
+                                          FO: {mmv.toFixed(4)} {isResCluster ? `| FAR: ${far.toFixed(4)} ` : ''}| {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = <strong className="text-slate-900">{formatBs(bsMensual)} Bs/mes</strong> {isResCluster ? '(Exento)' : <span className="text-blue-700 font-bold ml-1">(con IVA: Bs. {formatBs(bsMensual * 1.16)})</span>}
+                                        </span>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -4413,7 +4422,11 @@ export default function CajaPage() {
                           <div key={cIdx} className="border-b border-slate-200 pb-2 last:border-0 last:pb-0">
                             <div className="flex items-center justify-between mb-1">
                               <span className="font-semibold text-[10px] text-slate-700 flex items-center gap-2">
-                                Inmueble {inm.inmueble || 'General'} ({cant} und) - <span className={esRes ? "text-emerald-700 font-bold" : "text-blue-700 font-bold"}>{esRes ? "RESIDENCIAL (Exento 0% IVA)" : "COMERCIAL (16% IVA)"}</span>:
+                                Inmueble {inm.inmueble || 'General'} ({cant} und) - {isTerrenoInm(inm) ? (
+                                  <span className="text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.5 rounded text-[9px]">TERRENO (Tarifa 0)</span>
+                                ) : (
+                                  <span className={esRes ? "text-emerald-700 font-bold" : "text-blue-700 font-bold"}>{esRes ? "RESIDENCIAL (Exento 0% IVA)" : "COMERCIAL (16% IVA)"}</span>
+                                )}:
                                 {clustersList.length > 1 && <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Inmueble Independiente</span>}
                               </span>
                               {(inmRecibos.length > 0 || esRes) && (
@@ -4442,7 +4455,11 @@ export default function CajaPage() {
                                 </label>
                               )}
                             </div>
-                            <span className="text-[10px] text-slate-600">FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : '0.1280'} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {formatBs(bsMensual)} Bs/mes {esRes ? '(Exento)' : `+ IVA = Bs. ${formatBs(bsMensual * 1.16)}`}.</span>
+                            {isTerrenoInm(inm) ? (
+                              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Tarifa: CERO (0.00 UCD / 0.00 Bs - Terreno)</span>
+                            ) : (
+                              <span className="text-[10px] text-slate-600">FO: {mmv.toFixed(4)} | Factor: {esRes ? far.toFixed(4) : '0.1280'} | {totalUCD.toFixed(2)} UCD × {currentBcvRate.toFixed(2)} Bs = {formatBs(bsMensual)} Bs/mes {esRes ? '(Exento)' : `+ IVA = Bs. ${formatBs(bsMensual * 1.16)}`}.</span>
+                            )}
                           </div>
                         );
                       })}
@@ -5653,6 +5670,46 @@ export default function CajaPage() {
                 <span className="text-slate-800 font-bold text-base">Total Neto a Pagar:</span>
                 <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(totalNetoAPagar)}</span>
               </div>
+
+              {/* Si se está realizando un Abono (monto ingresado menor al total o abono de condominio) */}
+              {(() => {
+                const montoIngresado = ['Transferencia', 'Deposito'].includes(paymentMethod)
+                  ? parseLocalFloat(montoTransferido)
+                  : parseLocalFloat(montoDebito);
+                
+                const isAbonoActivo = (montoIngresado > 0 && montoIngresado < totalNetoAPagar - 0.02) || 
+                                     (isCondominio && condominioModo === 'Abono');
+                
+                if (!isAbonoActivo) return null;
+
+                const montoAbonando = isCondominio && condominioModo === 'Abono' 
+                  ? (parseLocalFloat(montoAbonoCondo) || 0)
+                  : montoIngresado;
+                
+                const baseTotal = isCondominio && condominioModo === 'Abono'
+                  ? totalDeudaCondominio
+                  : totalNetoAPagar;
+
+                const faltaPorPagar = Math.max(0, baseTotal - montoAbonando);
+
+                return (
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-orange-300 rounded-xl p-3 shadow-xs space-y-1.5 mt-2">
+                    <div className="flex justify-between items-center text-xs text-amber-900 font-bold">
+                      <span className="flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                        Modo Abono Parcial
+                      </span>
+                      <span className="bg-orange-200 text-orange-950 px-2 py-0.5 rounded text-[11px] font-black">
+                        Abona: Bs. {formatBs(montoAbonando)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-black text-rose-700 pt-1.5 border-t border-orange-200">
+                      <span className="uppercase tracking-wide">🔴 FALTA POR PAGAR:</span>
+                      <span className="text-base font-black text-rose-600">Bs. {formatBs(faltaPorPagar)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="space-y-4 mb-6">
@@ -5693,18 +5750,61 @@ export default function CajaPage() {
 
                   {['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod) && (
                     <div className="mt-4 space-y-3">
-                      {isPagoMultiple && (
-                        <label className="block mt-2">
-                          <span className="text-xs font-semibold text-slate-600 mb-1 block">
-                            {paymentMethod === 'TMD' ? 'Monto Tarjeta Master (Bs)' : paymentMethod === 'TVD' ? 'Monto Tarjeta Visa (Bs)' : paymentMethod === 'Credito' ? 'Monto Tarjeta de Crédito (Bs)' : 'Monto a Pagar por Punto (Bs)'}
+                      <label className="block mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-slate-600 block">
+                            {paymentMethod === 'TMD' ? 'Monto Tarjeta Master (Bs)' : paymentMethod === 'TVD' ? 'Monto Tarjeta Visa (Bs)' : paymentMethod === 'Credito' ? 'Monto Tarjeta de Crédito (Bs)' : 'Monto a Cobrar por Punto (Bs)'}
                           </span>
-                          <input type="text" value={montoDebito} onChange={e => {
-                            setMontoDebito(formatLocalNumberInput(e.target.value));
-                          }} 
+                          {totalNetoAPagar > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setMontoDebito(totalNetoAPagar.toFixed(2).replace('.', ','))}
+                              className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                            >
+                              Cobrar Total (Bs. {formatBs(totalNetoAPagar)})
+                            </button>
+                          )}
+                        </div>
+                        <input 
+                          type="text" 
+                          value={montoDebito} 
+                          onChange={e => setMontoDebito(formatLocalNumberInput(e.target.value))} 
                           onBlur={e => { const p = parseLocalFloat(e.target.value); if (p > 0) setMontoDebito(formatLocalNumberInput(p.toFixed(2).replace('.', ','))); }}
-                          placeholder="Ej. 1.500,00" className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-                        </label>
-                      )}
+                          placeholder={`Bs. ${formatBs(totalNetoAPagar)}`} 
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-medium" 
+                        />
+                        {(() => {
+                          const dVal = parseLocalFloat(montoDebito);
+                          if (!dVal || dVal <= 0) return null;
+                          const diff = Math.round((dVal - totalNetoAPagar) * 100) / 100;
+                          if (diff < -0.02) {
+                            return (
+                              <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5 mt-2">
+                                <div className="flex justify-between items-center text-xs font-bold text-amber-900">
+                                  <span>⚠️ Abono por Punto de Venta:</span>
+                                  <span>Bs. {formatBs(dVal)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs font-black text-rose-700 mt-1 pt-1 border-t border-amber-200">
+                                  <span>🔴 FALTA POR PAGAR:</span>
+                                  <span>Bs. {formatBs(Math.abs(diff))}</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          if (diff > 0.02) {
+                            return (
+                              <p className="text-[10px] text-emerald-600 mt-1 font-bold">
+                                * Se generará un saldo a favor de Bs. {formatBs(diff)}
+                              </p>
+                            );
+                          }
+                          return (
+                            <p className="text-[10px] text-emerald-700 mt-1 font-bold">
+                              ✓ Pago exacto del Total Neto a Pagar (Bs. {formatBs(totalNetoAPagar)}).
+                            </p>
+                          );
+                        })()}
+                      </label>
                       <label className="block">
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Fecha de Transacción <span className="text-red-500">*</span></span>
                         <input
@@ -5855,9 +5955,16 @@ export default function CajaPage() {
                       }
                       if (diff < -0.02) {
                         return (
-                          <p className="text-[10px] text-orange-600 mt-1 font-bold">
-                            * Es un ABONO. Quedará un saldo pendiente de Bs. {formatBs(Math.abs(diff))}
-                          </p>
+                          <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5 mt-2">
+                            <div className="flex justify-between items-center text-xs font-bold text-amber-900">
+                              <span>⚠️ Abono por Transferencia:</span>
+                              <span>Bs. {formatBs(tVal)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs font-black text-rose-700 mt-1 pt-1 border-t border-amber-200">
+                              <span>🔴 FALTA POR PAGAR:</span>
+                              <span>Bs. {formatBs(Math.abs(diff))}</span>
+                            </div>
+                          </div>
                         );
                       }
                       return (
@@ -6094,11 +6201,33 @@ export default function CajaPage() {
                 </div>
               )}
 
-              {confirmPayload.esAbono && (
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-700 font-semibold">
-                  ⚠️ Pago parcial (abono). Quedará saldo pendiente de Bs. {formatBs(Math.max(0, confirmPayload.finalTotal - confirmPayload.montoReal))}
+              {confirmPayload.esAbono ? (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-orange-300 rounded-xl p-3.5 space-y-2 shadow-xs">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                    <span className="flex items-center gap-1.5 uppercase tracking-wide">
+                      <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                      Pago Parcial (Abono a Cuenta)
+                    </span>
+                    <span className="bg-orange-200 text-orange-900 px-2 py-0.5 rounded text-[10px] font-black uppercase">
+                      Abono
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-orange-200 text-xs">
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase block">Total Liquidado</span>
+                      <span className="font-bold text-slate-800 text-sm">Bs. {formatBs(confirmPayload.finalTotal)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-emerald-700 uppercase block">Monto que Abona</span>
+                      <span className="font-bold text-emerald-700 text-sm">Bs. {formatBs(confirmPayload.montoReal)}</span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-orange-300 flex justify-between items-center bg-white/80 -mx-3.5 -mb-3.5 p-3 rounded-b-xl">
+                    <span className="font-black text-xs text-rose-800 uppercase tracking-wide">🔴 FALTA POR PAGAR:</span>
+                    <span className="font-black text-base text-rose-700">Bs. {formatBs(Math.max(0, confirmPayload.finalTotal - confirmPayload.montoReal))}</span>
+                  </div>
                 </div>
-              )}
+              ) : null}
 
               {confirmPayload.saldoAFavorNuevo > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700 font-semibold">
@@ -6108,7 +6237,9 @@ export default function CajaPage() {
 
               {/* Total */}
               <div className="bg-emerald-600 rounded-xl p-4 flex justify-between items-center shadow-sm">
-                <span className="text-white font-bold text-sm tracking-wide">TOTAL A PAGAR</span>
+                <span className="text-white font-bold text-sm tracking-wide">
+                  {confirmPayload.esAbono ? 'TOTAL A COBRAR HOY (ABONO)' : 'TOTAL A PAGAR'}
+                </span>
                 <span className="text-white font-black text-2xl">Bs. {formatBs(confirmPayload.montoReal)}</span>
               </div>
             </div>

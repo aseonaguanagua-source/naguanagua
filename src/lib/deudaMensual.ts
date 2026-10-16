@@ -1,4 +1,4 @@
-import { calcularMensualidad, isResidencialInm, isMesExoneradoMulta, isCondominioPagoIndividual } from './calculos';
+import { calcularMensualidad, isResidencialInm, isTerrenoInm, isMesExoneradoMulta, isCondominioPagoIndividual } from './calculos';
 
 /**
  * CÁLCULO ÚNICO DE DEUDA MENSUAL (referencia: Caja).
@@ -63,6 +63,28 @@ export interface DeudaInmueble {
 }
 
 export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[], hoy: Date = new Date()): DeudaInmueble {
+  if (isTerrenoInm(inm)) {
+    return {
+      esResidencial: false,
+      mensualidad: 0,
+      base: 0,
+      iva: 0,
+      multa: 0,
+      total: 0,
+      mesesConMora: 0,
+      ivaRetenible: 0,
+      porMes: meses.map(m => ({
+        base: 0,
+        iva: 0,
+        multa: 0,
+        total: 0,
+        periodo: typeof m.emision === 'string' ? m.emision.slice(0, 7) : '',
+        tieneMora: false,
+        esUltimo: m.esUltimo
+      }))
+    };
+  }
+
   const esRes = isResidencialInm(inm);
   let jNotas: any = null;
   try { if (inm?.notas) jNotas = typeof inm.notas === 'string' ? JSON.parse(inm.notas) : inm.notas; } catch {}

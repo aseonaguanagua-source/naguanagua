@@ -12,7 +12,7 @@
  *  - Multa por mora: 10% residencial / 12% comercial, sobre todos los meses menos el último.
  *  - IVA 16% solo comercial; retención del 75% del IVA solo para agentes de retención.
  */
-import { calcularMensualidad, isResidencialInm } from '@/lib/calculos';
+import { calcularMensualidad, isResidencialInm, isTerrenoInm } from '@/lib/calculos';
 
 export type Modalidad = 'CENTRALIZADO' | 'MIXTO_COMERCIAL' | 'INDIVIDUAL' | 'TARIFA_FIJA';
 export type TipoCondominio = 'RESIDENCIAL' | 'COMERCIAL' | 'MIXTO';
@@ -65,8 +65,8 @@ export function unidadResidencial(c: Pick<Condominio, 'tipo'>, u?: Unidad | null
   return isResidencialInm({ tipo: u.tipo || '', actividad_principal: u.actividad || '' });
 }
 
-/** ¿Esta unidad no cobra por sí misma? (contenedor de actividades, o comercial sin actividad; la desocupada paga 1,98 MMV) */
-export const unidadNoCobra = (c: Condominio, u: Unidad) => !!u.es_grupo || (u.estado !== 'Desocupada' && !unidadResidencial(c, u) && esSinActividad(u.actividad) && !(Number(u.tarifa_mmv) > 0));
+/** ¿Esta unidad no cobra por sí misma? (contenedor de actividades, terreno, o comercial sin actividad; la desocupada paga 1,98 MMV) */
+export const unidadNoCobra = (c: Condominio, u: Unidad) => !!u.es_grupo || isTerrenoInm(u.actividad) || (u.estado !== 'Desocupada' && !unidadResidencial(c, u) && esSinActividad(u.actividad) && !(Number(u.tarifa_mmv) > 0));
 
 export const FO_DESOCUPADO = 1.98;
 export const FAC_COMERCIAL = 0.128;

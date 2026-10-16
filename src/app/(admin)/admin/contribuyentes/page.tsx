@@ -29,7 +29,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad, actividadYNivelDeInmueble } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad, actividadYNivelDeInmueble } from '@/lib/calculos';
 import { isSameLocal, getShortAddress } from '@/lib/cajaHelpers';
 import { valorUCD } from '@/lib/tasaHistorica';
 
@@ -398,9 +398,12 @@ function ContribuyentesPageContent() {
           const esRes = isResidencialInm(inm);
           if (!esRes) esResidencialTotal = false;
 
-          const localFactor = (inm.mmv_mes && parseFloat(inm.mmv_mes) > 0)
-            ? parseFloat(inm.mmv_mes)
-            : getFO(inm.actividad_principal || '', esRes);
+          const esTerreno = isTerrenoInm(inm);
+          const localFactor = esTerreno
+            ? 0
+            : ((inm.mmv_mes && parseFloat(inm.mmv_mes) > 0)
+              ? parseFloat(inm.mmv_mes)
+              : getFO(inm.actividad_principal || '', esRes));
           const cant = parseInt(inm.cant_inmuebles) || 1;
           const far = esRes ? getFAR(inm.actividad_principal || '') : 0.1280;
           farAplicado = far;
