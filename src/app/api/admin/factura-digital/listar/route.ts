@@ -13,18 +13,40 @@ export async function GET(request: Request) {
     const moduloFiltro = searchParams.get('modulo') || 'Todos'; // Todos | Contribuyentes | Condominios | Condominios residenciales | Condominios comerciales
     const fecha = (searchParams.get('fecha') || '').trim(); // YYYY-MM-DD (hora Venezuela)
 
-    // Obtener los pagos reportados (de un día concreto, o los más recientes)
+    // Si hay un término de búsqueda (cédula, referencia, código de inmueble, etc.),
+    // buscamos directamente en la base de datos sin restringir por fecha del día.
+    let queryInmIdents: string[] = [];
+    if (query) {
+      const { data: matchedInms } = await supabase
+        .from('inmuebles')
+        .select('identidad')
+        .ilike('inmueble', `%${query}%`)
+        .limit(10);
+      if (matchedInms) {
+        queryInmIdents = matchedInms.map(i => i.identidad).filter(Boolean);
+      }
+    }
+
+    // Obtener los pagos reportados (de un día concreto, por búsqueda de término, o los más recientes)
     // No listar pagos Rechazados, Anulados, Reversados o Condonados
     let pagosQuery = supabase
       .from('pagos_reportados')
       .select('*')
       .not('estado', 'in', '(Rechazado,Anulado,Reversado,Condonado)')
       .order('created_at', { ascending: false });
-    if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+
+    if (query) {
+      const orParts = [
+        `identidad.ilike.%${query}%`,
+        `referencia.ilike.%${query}%`
+      ];
+      queryInmIdents.forEach(id => orParts.push(`identidad.eq.${id}`));
+      pagosQuery = pagosQuery.or(orParts.join(',')).limit(500);
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
       const { desde, hasta } = rangoDiaCaracas(fecha);
       pagosQuery = pagosQuery.gte('created_at', desde).lt('created_at', hasta).limit(2000);
     } else {
-      pagosQuery = pagosQuery.limit(300);
+      pagosQuery = pagosQuery.limit(500);
     }
     const { data: rawPagos, error: pagosErr } = await pagosQuery;
 
@@ -52,7 +74,14 @@ export async function GET(request: Request) {
       if (p.tipo === 'Retencion de IVA') return false;
       if (['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(p?.estado || ''))) return false;
       const d = parseDetalles(p.detalles);
-      // REGLA: Los abonos o pagos parciales que no han completado el pago total del mes no deben salir en factura electrónica
+
+      // Si ya tiene factura digital emitida, SIEMPRE debe mostrarse en facturación electrónica
+      const yaEmitida = Boolean(d?.factura_digital?.emitida || d?.factura_digital?.numero_documento || d?.factura_digital?.url);
+      if (yaEmitida) {
+        return true;
+      }
+
+      // REGLA: Los abonos o pagos parciales que no han completado el pago total del mes no deben salir en factura electrónica para emisión
       if (
         d?.es_abono === true ||
         d?.abono === true ||
@@ -397,6 +426,8 @@ export async function GET(request: Request) {
         i.contribuyente.toLowerCase().includes(query) ||
         i.referencia.toLowerCase().includes(query) ||
         (i.numeroControl && i.numeroControl.toLowerCase().includes(query)) ||
+        (i.numeroDocumento && String(i.numeroDocumento).toLowerCase().includes(query)) ||
+        (i.inmuebles && i.inmuebles.some((inm: string) => inm.toLowerCase().includes(query))) ||
         (i.recibos && i.recibos.some((r: string) => r.toLowerCase().includes(query)))
       );
     }
