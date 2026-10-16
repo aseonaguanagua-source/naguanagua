@@ -1420,6 +1420,17 @@ export default function CajaPage() {
     const allInms = [...(inmuebles || []), ...(freshInmuebles || [])];
     const inmueblesMap = new Map<string, any>(allInms.map((i: any) => [i.inmueble, i]));
 
+    let tasaActualUse = (tcmmv || 0);
+    if (customBcvRate && !isNaN(parseFloat(customBcvRate))) {
+      const parsed = parseFloat(customBcvRate);
+      if (tcmmv > 0 && Math.abs(parsed - tcmmv) < 0.05) {
+        tasaActualUse = tcmmv;
+      } else {
+        tasaActualUse = parsed;
+      }
+    }
+    let sb4 = 0, siva4 = 0, smulta4 = 0, sivaRetencionable4 = 0, extraSb = 0;
+
     let total = 0;
     
     selectedRecibos.forEach(ref => {
@@ -1454,16 +1465,6 @@ export default function CajaPage() {
         total += baseMonto;
       }
     });
-    let sb4 = 0, siva4 = 0, smulta4 = 0, sivaRetencionable4 = 0, extraSb = 0;
-    let tasaActualUse = (tcmmv || 0);
-    if (customBcvRate && !isNaN(parseFloat(customBcvRate))) {
-      const parsed = parseFloat(customBcvRate);
-      if (tcmmv > 0 && Math.abs(parsed - tcmmv) < 0.05) {
-        tasaActualUse = tcmmv;
-      } else {
-        tasaActualUse = parsed;
-      }
-    }
 
     if (isCondominio && selectedRecibos.length === 0) {
       if (condominioModo === 'Abono') {
