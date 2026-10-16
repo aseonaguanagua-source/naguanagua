@@ -7,31 +7,230 @@ import { parseDet, pagoDeRetencion, correoContribuyente, htmlRechazo, portalRete
 export const dynamic = 'force-dynamic';
 
 /**
- * Hacienda revisa el comprobante de retención:
- *  - aprobar  → se envía la FACTURA por correo al contribuyente (con copia de archivo)
- *  - rechazar → se le avisa el motivo para que suba uno nuevo
+ * Hacienda revisa el comprobante de retención o el operador gestiona la retención:
+ *  - aprobar (con o sin planilla) → se envía la FACTURA por correo al contribuyente
+ *  - subir_planilla               → el operador adjunta la planilla recibida en taquilla / correo
+ *  - guardar_y_aprobar            → el operador adjunta la planilla y la aprueba de inmediato enviando la factura
+ *  - rechazar                     → se avisa el motivo para que el contribuyente suba uno nuevo
  */
 export async function POST(request: Request) {
   try {
-    const { retencionId, accion, motivo, usuario } = await request.json().catch(() => ({}));
-    if (!retencionId || !['aprobar', 'rechazar'].includes(accion)) return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 });
-    if (accion === 'rechazar' && !String(motivo || '').trim()) return NextResponse.json({ error: 'Indique el motivo del rechazo.' }, { status: 400 });
+    const {
+      retencionId,
+      pagoId,
+      accion,
+      motivo,
+      usuario,
+      sinPlanilla,
+      planillaUrl,
+      numeroComprobante,
+      fechaComprobante,
+    } = await request.json().catch(() => ({}));
 
-    const { data: ret, error: eR } = await supabase.from('retenciones_iva').select('*').eq('id', retencionId).maybeSingle();
-    if (eR) throw eR;
-    if (!ret) return NextResponse.json({ error: 'Comprobante no encontrado.' }, { status: 404 });
-    if (ret.estado !== 'Pendiente') return NextResponse.json({ error: `Este comprobante ya fue ${String(ret.estado).toLowerCase()}.` }, { status: 409 });
+    const validActions = ['aprobar', 'rechazar', 'subir_planilla', 'guardar_y_aprobar'];
+    if (!validActions.includes(accion)) {
+      return NextResponse.json({ error: 'Acción no válida.' }, { status: 400 });
+    }
 
-    const pago = await pagoDeRetencion(retencionId);
+    if (accion === 'rechazar' && !String(motivo || '').trim()) {
+      return NextResponse.json({ error: 'Indique el motivo del rechazo.' }, { status: 400 });
+    }
+
+    // 1. Resolver el pago
+    let pago: any = null;
+    if (pagoId) {
+      const { data: pData } = await supabase
+        .from('pagos_reportados')
+        .select('id, identidad, monto, detalles')
+        .eq('id', pagoId)
+        .maybeSingle();
+      pago = pData;
+    }
+
+    if (!pago && retencionId) {
+      pago = await pagoDeRetencion(retencionId);
+    }
+
     const det = pago ? parseDet(pago.detalles) : {};
     const fd = det.factura_digital || {};
+    const retObj = fd.retencion || {};
     const ahora = new Date().toISOString();
-    const quien = usuario || 'Administración';
+    const quien = usuario || 'Operador';
     const correo = pago ? await correoContribuyente(pago.identidad, det) : null;
     const origin = new URL(request.url).origin;
 
+    // 2. Resolver la fila en retenciones_iva si existe
+    let ret: any = null;
+    let actualRetId = retencionId || retObj.retencion_id || null;
+
+    if (actualRetId) {
+      const { data: rData } = await supabase
+        .from('retenciones_iva')
+        .select('*')
+        .eq('id', actualRetId)
+        .maybeSingle();
+      ret = rData;
+    }
+
+    if (!ret && fd.numero_control) {
+      const { data: rData } = await supabase
+        .from('retenciones_iva')
+        .select('*')
+        .eq('factura_control', fd.numero_control)
+        .maybeSingle();
+      if (rData) {
+        ret = rData;
+        actualRetId = rData.id;
+      }
+    }
+
+    const fechaEmi = fd.fecha_emision ? new Date(fd.fecha_emision) : new Date();
+    const periodo = `${String(fechaEmi.getMonth() + 1).padStart(2, '0')}/${fechaEmi.getFullYear()}`;
+
+    // ── ACCIÓN: SUBIR PLANILLA POR EL OPERADOR ──
+    if (accion === 'subir_planilla' || accion === 'guardar_y_aprobar') {
+      if (!String(planillaUrl || '').trim() && !String(numeroComprobante || '').trim()) {
+        return NextResponse.json({ error: 'Debe ingresar el número de comprobante o adjuntar el archivo de la planilla.' }, { status: 400 });
+      }
+
+      const numComp = String(numeroComprobante || '').trim() || (ret?.numero_planilla || 'COMP-OPERADOR');
+      const fComp = fechaComprobante || ret?.fecha_planilla || ahora.split('T')[0];
+      const pUrl = String(planillaUrl || '').trim() || ret?.planilla_url || null;
+      const estadoFinal = accion === 'guardar_y_aprobar' ? 'Aprobado' : 'Pendiente';
+
+      if (ret) {
+        // Actualizar existente
+        const { error: eUp } = await supabase
+          .from('retenciones_iva')
+          .update({
+            numero_planilla: numComp,
+            fecha_planilla: fComp,
+            planilla_url: pUrl,
+            estado: estadoFinal,
+            motivo_rechazo: null,
+            aprobado_at: estadoFinal === 'Aprobado' ? ahora : null,
+            aprobado_por: estadoFinal === 'Aprobado' ? quien : null,
+            factura_control: fd.numero_control || ret.factura_control,
+            factura_emitida: true,
+          })
+          .eq('id', ret.id);
+        if (eUp) throw eUp;
+      } else {
+        // Crear nuevo registro en retenciones_iva
+        const { data: inmLink } = await supabase
+          .from('inmuebles')
+          .select('inmueble, contribuyente')
+          .eq('identidad', pago?.identidad || '')
+          .limit(1)
+          .maybeSingle();
+
+        const { data: ins, error: eIns } = await supabase
+          .from('retenciones_iva')
+          .insert({
+            identidad: pago?.identidad || 'N/A',
+            contribuyente: det.contribuyente || inmLink?.contribuyente || pago?.identidad || 'N/A',
+            codigo_inmueble: inmLink?.inmueble || null,
+            numero_planilla: numComp,
+            periodo,
+            fecha_planilla: fComp,
+            monto_base: retObj.base || 0,
+            monto_iva: retObj.iva || 0,
+            monto_retenido: retObj.retenido || 0,
+            codigo_retencion: `FAC-${fd.numero_documento || ''}`,
+            planilla_url: pUrl,
+            estado: estadoFinal,
+            aprobado_at: estadoFinal === 'Aprobado' ? ahora : null,
+            aprobado_por: estadoFinal === 'Aprobado' ? quien : null,
+            factura_control: fd.numero_control || null,
+            factura_emitida: true,
+          })
+          .select('id')
+          .single();
+
+        if (eIns) throw eIns;
+        actualRetId = ins.id;
+      }
+
+      if (pago) {
+        fd.retencion = {
+          ...retObj,
+          estado: estadoFinal === 'Aprobado' ? 'aprobada' : 'planilla_recibida',
+          retencion_id: actualRetId,
+          planilla_recibida_at: ahora,
+          revisado_at: estadoFinal === 'Aprobado' ? ahora : undefined,
+          revisado_por: estadoFinal === 'Aprobado' ? quien : undefined,
+          motivo_rechazo: undefined,
+          cargado_por_operador: true,
+        };
+        det.factura_digital = fd;
+        await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);
+      }
+
+      if (accion === 'guardar_y_aprobar') {
+        // Enviar factura por correo
+        let envio: any = null;
+        let errorEnvio: string | undefined;
+        if (fd.emitida && fd.url) {
+          try {
+            envio = await enviarFacturaConCopiaInterna({
+              contribuyente: ret?.contribuyente || det.contribuyente || pago?.identidad,
+              identidad: pago?.identidad,
+              numeroControl: fd.numero_control,
+              numeroDocumento: fd.numero_documento,
+              monto: parseFloat(String(fd.retencion?.total || pago?.monto || 0)),
+              fecha: fd.fecha_emision,
+              urlPdf: fd.url,
+              correoContribuyente: correo || undefined,
+              esCorreoComodin: !correo,
+            });
+          } catch (e: any) { errorEnvio = e.message; }
+        }
+
+        if (pago) {
+          fd.envio_correo = envio || fd.envio_correo;
+          fd.retencion.factura_enviada_at = correo && !errorEnvio ? ahora : undefined;
+          fd.retencion.factura_enviada_a = correo || undefined;
+          det.factura_digital = fd;
+          await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);
+        }
+
+        await supabase.from('auditoria').insert({
+          usuario: quien,
+          accion: 'Comprobante de retención montado y aprobado por operador - factura enviada',
+          categoria: 'FACTURACION',
+          modulo: '/admin/facturacion-electronica',
+          detalles: { retencion_id: actualRetId, pago_id: pago?.id, factura: fd.numero_documento, correo, error_envio: errorEnvio }
+        });
+
+        return NextResponse.json({
+          success: true,
+          estado: 'Aprobado',
+          retencionId: actualRetId,
+          facturaEnviada: !!correo && !errorEnvio,
+          correo,
+          error: !correo ? 'El contribuyente no tiene correo registrado: la factura quedó en el archivo interno.' : errorEnvio
+        });
+      }
+
+      await supabase.from('auditoria').insert({
+        usuario: quien,
+        accion: 'Comprobante de retención montado por operador',
+        categoria: 'FACTURACION',
+        modulo: '/admin/facturacion-electronica',
+        detalles: { retencion_id: actualRetId, pago_id: pago?.id, comprobante: numComp, archivo: pUrl }
+      });
+
+      return NextResponse.json({ success: true, estado: 'planilla_recibida', retencionId: actualRetId });
+    }
+
+    // ── ACCIÓN: RECHAZAR COMPROBANTE ──
     if (accion === 'rechazar') {
-      await supabase.from('retenciones_iva').update({ estado: 'Rechazado', motivo_rechazo: motivo, aprobado_at: ahora, aprobado_por: quien }).eq('id', retencionId);
+      if (ret) {
+        await supabase
+          .from('retenciones_iva')
+          .update({ estado: 'Rechazado', motivo_rechazo: motivo, aprobado_at: ahora, aprobado_por: quien })
+          .eq('id', ret.id);
+      }
       if (pago) {
         fd.retencion = { ...(fd.retencion || {}), estado: 'rechazada', motivo_rechazo: motivo, revisado_at: ahora, revisado_por: quien };
         det.factura_digital = fd;
@@ -41,25 +240,86 @@ export async function POST(request: Request) {
       if (correo) {
         try {
           const r: any = await getResendClient().emails.send({
-            from: DEFAULT_RESEND_FROM, to: [correo],
+            from: DEFAULT_RESEND_FROM,
+            to: [correo],
             subject: `Comprobante de retención rechazado - Factura N° ${fd.numero_documento || ''} - IAMEC Naguanagua`,
-            html: htmlRechazo({ contribuyente: ret.contribuyente, numeroDocumento: fd.numero_documento || '', motivo, portalUrl: portalRetencionesUrl(origin) }),
+            html: htmlRechazo({ contribuyente: ret?.contribuyente || det.contribuyente || pago?.identidad, numeroDocumento: fd.numero_documento || '', motivo, portalUrl: portalRetencionesUrl(origin) }),
           });
           avisado = !r?.error;
         } catch { /* aviso best-effort */ }
       }
-      await supabase.from('auditoria').insert({ usuario: quien, accion: 'Comprobante de retención rechazado', categoria: 'FACTURACION', modulo: '/admin/caja/conciliacion', detalles: { retencion_id: retencionId, pago_id: pago?.id, motivo, avisado } });
+      await supabase.from('auditoria').insert({
+        usuario: quien,
+        accion: 'Comprobante de retención rechazado',
+        categoria: 'FACTURACION',
+        modulo: '/admin/facturacion-electronica',
+        detalles: { retencion_id: ret?.id, pago_id: pago?.id, motivo, avisado }
+      });
       return NextResponse.json({ success: true, estado: 'Rechazado', avisado, correo });
     }
 
-    // ── APROBAR: enviar la factura ──
+    // ── ACCIÓN: APROBAR (CON O SIN PLANILLA) Y ENVIAR FACTURA ──
     if (!pago || !fd.emitida || !fd.url) {
       return NextResponse.json({ error: 'No se encontró la factura emitida de este comprobante. Emítala primero en Facturación Electrónica.' }, { status: 409 });
     }
-    let envio: any = null; let errorEnvio: string | undefined;
+
+    // Si no existía registro en retenciones_iva (ej. aprobado sin planilla antes de que el usuario la subiera)
+    if (!ret) {
+      const { data: inmLink } = await supabase
+        .from('inmuebles')
+        .select('inmueble, contribuyente')
+        .eq('identidad', pago.identidad)
+        .limit(1)
+        .maybeSingle();
+
+      const { data: ins, error: eIns } = await supabase
+        .from('retenciones_iva')
+        .insert({
+          identidad: pago.identidad,
+          contribuyente: det.contribuyente || inmLink?.contribuyente || pago.identidad,
+          codigo_inmueble: inmLink?.inmueble || null,
+          numero_planilla: sinPlanilla ? 'S/P (Aprobado de Oficio)' : 'APROBADO',
+          periodo,
+          fecha_planilla: ahora.split('T')[0],
+          monto_base: retObj.base || 0,
+          monto_iva: retObj.iva || 0,
+          monto_retenido: retObj.retenido || 0,
+          codigo_retencion: `FAC-${fd.numero_documento || ''}`,
+          planilla_url: null,
+          estado: 'Aprobado',
+          aprobado_at: ahora,
+          aprobado_por: quien,
+          factura_url: fd.url,
+          factura_control: fd.numero_control,
+          factura_emitida: true,
+        })
+        .select('id')
+        .single();
+
+      if (!eIns && ins) {
+        ret = ins;
+        actualRetId = ins.id;
+      }
+    } else {
+      await supabase
+        .from('retenciones_iva')
+        .update({
+          estado: 'Aprobado',
+          motivo_rechazo: null,
+          aprobado_at: ahora,
+          aprobado_por: quien,
+          factura_url: fd.url,
+          factura_control: fd.numero_control,
+          factura_emitida: true
+        })
+        .eq('id', ret.id);
+    }
+
+    let envio: any = null;
+    let errorEnvio: string | undefined;
     try {
       envio = await enviarFacturaConCopiaInterna({
-        contribuyente: ret.contribuyente || det.contribuyente || pago.identidad,
+        contribuyente: ret?.contribuyente || det.contribuyente || pago.identidad,
         identidad: pago.identidad,
         numeroControl: fd.numero_control,
         numeroDocumento: fd.numero_documento,
@@ -69,18 +329,47 @@ export async function POST(request: Request) {
         correoContribuyente: correo || undefined,
         esCorreoComodin: !correo,
       });
-    } catch (e: any) { errorEnvio = e.message; }
+    } catch (e: any) {
+      errorEnvio = e.message;
+    }
 
-    await supabase.from('retenciones_iva').update({ estado: 'Aprobado', motivo_rechazo: null, aprobado_at: ahora, aprobado_por: quien, factura_url: fd.url, factura_control: fd.numero_control, factura_emitida: true }).eq('id', retencionId);
-    fd.retencion = { ...(fd.retencion || {}), estado: 'aprobada', revisado_at: ahora, revisado_por: quien, motivo_rechazo: undefined, factura_enviada_at: correo && !errorEnvio ? ahora : undefined, factura_enviada_a: correo || undefined };
+    fd.retencion = {
+      ...(fd.retencion || {}),
+      estado: 'aprobada',
+      revisado_at: ahora,
+      revisado_por: quien,
+      retencion_id: actualRetId || fd.retencion?.retencion_id,
+      motivo_rechazo: undefined,
+      aprobado_sin_planilla: !!sinPlanilla,
+      factura_enviada_at: correo && !errorEnvio ? ahora : undefined,
+      factura_enviada_a: correo || undefined,
+    };
     fd.envio_correo = envio || fd.envio_correo;
     det.factura_digital = fd;
     await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);
 
-    await supabase.from('auditoria').insert({ usuario: quien, accion: 'Comprobante de retención aprobado - factura enviada', categoria: 'FACTURACION', modulo: '/admin/caja/conciliacion', detalles: { retencion_id: retencionId, pago_id: pago.id, factura: fd.numero_documento, correo, error_envio: errorEnvio } });
+    const descAuditoria = sinPlanilla
+      ? 'Comprobante de retención aprobado sin planilla por operador - factura enviada'
+      : 'Comprobante de retención aprobado - factura enviada';
 
-    return NextResponse.json({ success: true, estado: 'Aprobado', facturaEnviada: !!correo && !errorEnvio, correo, error: !correo ? 'El contribuyente no tiene correo registrado: la factura quedó en el archivo interno.' : errorEnvio });
+    await supabase.from('auditoria').insert({
+      usuario: quien,
+      accion: descAuditoria,
+      categoria: 'FACTURACION',
+      modulo: '/admin/facturacion-electronica',
+      detalles: { retencion_id: actualRetId, pago_id: pago.id, factura: fd.numero_documento, sinPlanilla: !!sinPlanilla, correo, error_envio: errorEnvio }
+    });
+
+    return NextResponse.json({
+      success: true,
+      estado: 'Aprobado',
+      facturaEnviada: !!correo && !errorEnvio,
+      correo,
+      error: !correo ? 'El contribuyente no tiene correo registrado: la factura quedó en el archivo fiscal interno.' : errorEnvio
+    });
+
   } catch (e: any) {
+    console.error('Error en revisar retención:', e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

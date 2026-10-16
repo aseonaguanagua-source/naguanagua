@@ -7,7 +7,7 @@ import {
   Sliders, ArrowUpRight, Check, X, Building, CheckCircle2,
   AlertCircle, Key, Layers, ArrowRight, ShieldAlert, Sparkles,
   Info, Printer, Download, Trash2,
-  CheckSquare, Edit3,
+  CheckSquare, Edit3, Upload,
 } from 'lucide-react';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { DemoFacturaModal } from '@/components/facturacion/DemoFacturaModal';
@@ -48,16 +48,31 @@ export default function FacturacionElectronicaPage() {
   const [modoRechazo, setModoRechazo] = useState<boolean>(false);
   const [procesandoRet, setProcesandoRet] = useState<boolean>(false);
 
-  const handleRevisarRetencion = async (accion: 'aprobar' | 'rechazar') => {
+  // Estados para montar planilla por el operador
+  const [modoSubirPlanilla, setModoSubirPlanilla] = useState<boolean>(false);
+  const [archivoPlanilla, setArchivoPlanilla] = useState<File | null>(null);
+  const [numComprobanteOp, setNumComprobanteOp] = useState<string>('');
+  const [fechaComprobanteOp, setFechaComprobanteOp] = useState<string>(hoyCaracas());
+
+  const abrirModalRetencion = (pago: any) => {
+    setModalRetencion(pago);
+    setModoRechazo(false);
+    setMotivoRechazoRet('');
+    setModoSubirPlanilla(false);
+    setArchivoPlanilla(null);
+    setNumComprobanteOp(pago.retencionNumeroPlanilla || pago.detalles?.numero_planilla || '');
+    setFechaComprobanteOp(pago.retencionFechaPlanilla || hoyCaracas());
+  };
+
+  const handleRevisarRetencion = async (accion: 'aprobar' | 'rechazar', sinPlanilla = false) => {
     if (!modalRetencion) return;
     if (accion === 'rechazar' && !motivoRechazoRet.trim()) {
       alert('Por favor ingrese el motivo del rechazo para notificar al contribuyente.');
       return;
     }
-    const retId = modalRetencion.retencionId;
-    if (!retId) {
-      alert('No se encontró el identificador del comprobante de retención.');
-      return;
+    if (accion === 'aprobar' && sinPlanilla) {
+      const ok = confirm(`¿Aprobar esta factura con retención SIN comprobante y enviar la factura fiscal inmediatamente al contribuyente (${modalRetencion.contribuyente})?`);
+      if (!ok) return;
     }
     setProcesandoRet(true);
     try {
@@ -65,8 +80,10 @@ export default function FacturacionElectronicaPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          retencionId: retId,
+          pagoId: modalRetencion.pagoId || modalRetencion.id,
+          retencionId: modalRetencion.retencionId,
           accion,
+          sinPlanilla,
           motivo: motivoRechazoRet,
           usuario: adminUser?.usuario || 'Operador',
         }),
@@ -76,13 +93,66 @@ export default function FacturacionElectronicaPage() {
         throw new Error(d.error || 'Error al procesar la revisión');
       }
       if (accion === 'aprobar') {
-        alert('¡Comprobante de retención APROBADO exitosamente!\n\nLa factura electrónica oficial completa ha sido enviada al correo del contribuyente.');
+        alert(`¡Comprobante de retención APROBADO exitosamente!${d.facturaEnviada ? '\n\nLa factura electrónica oficial completa ha sido enviada al correo del contribuyente.' : '\n\n' + (d.error || '')}`);
       } else {
         alert('Comprobante rechazado. Se ha notificado al contribuyente para que suba la corrección.');
       }
       setModalRetencion(null);
       setMotivoRechazoRet('');
       setModoRechazo(false);
+      setModoSubirPlanilla(false);
+      loadPagos();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setProcesandoRet(false);
+    }
+  };
+
+  const handleGuardarPlanillaOperador = async (aprobarDirecto = false) => {
+    if (!modalRetencion) return;
+    if (!numComprobanteOp.trim() && !archivoPlanilla) {
+      alert('Por favor ingrese al menos el número del comprobante o adjunte el archivo.');
+      return;
+    }
+    setProcesandoRet(true);
+    try {
+      let uploadedUrl = modalRetencion.retencionPlanillaUrl || '';
+      if (archivoPlanilla) {
+        const ext = archivoPlanilla.name.split('.').pop() || 'pdf';
+        const up = new FormData();
+        up.append('file', archivoPlanilla);
+        up.append('bucket', 'documentos');
+        up.append('path', `retenciones/${modalRetencion.identidad.replace(/[^a-zA-Z0-9-]/g, '')}/OPERADOR_FAC-${modalRetencion.numeroDocumento || modalRetencion.id?.slice(0, 8)}_${Date.now()}.${ext}`);
+        const r1 = await fetch('/api/upload', { method: 'POST', body: up });
+        const j1 = await r1.json();
+        if (!r1.ok || !j1.success) throw new Error('Error al subir el archivo: ' + (j1.error || 'Desconocido'));
+        uploadedUrl = j1.publicUrl || '';
+      }
+
+      const res = await fetch('/api/admin/retenciones/revisar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagoId: modalRetencion.pagoId || modalRetencion.id,
+          retencionId: modalRetencion.retencionId,
+          accion: aprobarDirecto ? 'guardar_y_aprobar' : 'subir_planilla',
+          planillaUrl: uploadedUrl,
+          numeroComprobante: numComprobanteOp.trim(),
+          fechaComprobante: fechaComprobanteOp || null,
+          usuario: adminUser?.usuario || 'Operador',
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.success) throw new Error(d.error || 'Error al guardar la planilla');
+      
+      if (aprobarDirecto) {
+        alert(`¡Planilla guardada y factura APROBADA exitosamente!${d.facturaEnviada ? '\n\nLa factura electrónica oficial ha sido enviada al correo del contribuyente.' : '\n\n' + (d.error || '')}`);
+        setModalRetencion(null);
+      } else {
+        alert('Comprobante de retención montado con éxito. Ahora se encuentra listo para revisión.');
+        setModoSubirPlanilla(false);
+      }
       loadPagos();
     } catch (err: any) {
       alert('Error: ' + err.message);
@@ -1327,7 +1397,7 @@ export default function FacturacionElectronicaPage() {
                               {!pago.facturaAnulada && (
                                 (pago.conRetencion && pago.retencionEstado !== 'aprobada') ? (
                                   <button
-                                    onClick={() => { setModalRetencion(pago); setModoRechazo(false); setMotivoRechazoRet(''); }}
+                                    onClick={() => abrirModalRetencion(pago)}
                                     className={`text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border shadow-xs transition-colors cursor-pointer ${
                                       pago.retencionPlanillaUrl || pago.retencionEstado === 'planilla_recibida'
                                         ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-700 animate-pulse'
@@ -1342,7 +1412,7 @@ export default function FacturacionElectronicaPage() {
                                   <>
                                     {pago.conRetencion && (
                                       <button
-                                        onClick={() => { setModalRetencion(pago); setModoRechazo(false); setMotivoRechazoRet(''); }}
+                                        onClick={() => abrirModalRetencion(pago)}
                                         className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer"
                                         title="Ver comprobante de retención aprobado"
                                       >
@@ -2801,7 +2871,7 @@ export default function FacturacionElectronicaPage() {
                 <div className="flex items-center justify-between">
                   <h4 className="font-black text-slate-800 text-xs flex items-center gap-1.5 uppercase tracking-wide">
                     <FileText className="w-4 h-4 text-amber-600" />
-                    Comprobante Reportado por el Contribuyente
+                    Comprobante de Retención de IVA
                   </h4>
                   <span className={`px-2 py-0.5 text-[10px] font-black rounded-md border ${
                     modalRetencion.retencionEstado === 'aprobada'
@@ -2838,21 +2908,34 @@ export default function FacturacionElectronicaPage() {
                 </div>
 
                 {/* Archivo adjunto */}
-                <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between">
+                <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-bold text-slate-700">Archivo de Comprobante:</span>
-                  {modalRetencion.retencionPlanillaUrl ? (
-                    <a
-                      href={modalRetencion.retencionPlanillaUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-xs transition-colors"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Ver / Descargar Comprobante</span>
-                    </a>
-                  ) : (
-                    <span className="text-xs font-medium text-slate-400 italic">No ha adjuntado archivo aún</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {modalRetencion.retencionPlanillaUrl ? (
+                      <a
+                        href={modalRetencion.retencionPlanillaUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-xs transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Ver / Descargar Comprobante</span>
+                      </a>
+                    ) : (
+                      <span className="text-xs font-medium text-slate-400 italic">No ha adjuntado archivo aún</span>
+                    )}
+
+                    {modalRetencion.retencionEstado !== 'aprobada' && !modoSubirPlanilla && (
+                      <button
+                        type="button"
+                        onClick={() => setModoSubirPlanilla(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs transition-colors cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-amber-700" />
+                        <span>{modalRetencion.retencionPlanillaUrl ? 'Modificar Planilla' : 'Montar Planilla'}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {modalRetencion.retencionMotivoRechazo && (
@@ -2861,6 +2944,110 @@ export default function FacturacionElectronicaPage() {
                   </div>
                 )}
               </div>
+
+              {/* Si no tiene planilla y no está en modo subir planilla */}
+              {!modalRetencion.retencionPlanillaUrl && !modoSubirPlanilla && modalRetencion.retencionEstado !== 'aprobada' && (
+                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span>Opciones del Operador:</span>
+                  </div>
+                  <p className="text-[11px] text-blue-800 leading-relaxed">
+                    Puede <strong>aprobar la retención sin planilla</strong> para enviar la factura electrónica al correo del cliente inmediatamente, o hacer clic en <strong>Montar Planilla</strong> si el cliente entregó el comprobante en físico o por correo.
+                  </p>
+                </div>
+              )}
+
+              {/* Formulario para que el Operador monte la planilla */}
+              {modoSubirPlanilla && (
+                <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/80 space-y-3 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between pb-2 border-b border-amber-200">
+                    <h5 className="font-black text-xs text-amber-950 flex items-center gap-1.5 uppercase">
+                      <Upload className="w-4 h-4 text-amber-700" />
+                      Montar Comprobante de Retención (Operador)
+                    </h5>
+                    <button
+                      type="button"
+                      onClick={() => setModoSubirPlanilla(false)}
+                      className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        N° de Comprobante / Planilla
+                      </label>
+                      <input
+                        type="text"
+                        value={numComprobanteOp}
+                        onChange={e => setNumComprobanteOp(e.target.value)}
+                        placeholder="Ej.: 20261000000123"
+                        className="w-full border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold bg-white focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Fecha del Comprobante
+                      </label>
+                      <input
+                        type="date"
+                        value={fechaComprobanteOp}
+                        onChange={e => setFechaComprobanteOp(e.target.value)}
+                        className="w-full border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono bg-white focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Adjuntar Archivo de Comprobante (PDF o Imagen)
+                    </label>
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={e => setArchivoPlanilla(e.target.files?.[0] || null)}
+                      className="w-full text-xs text-slate-600 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer bg-white border border-amber-300 rounded-lg p-1"
+                    />
+                    {archivoPlanilla && (
+                      <p className="text-[10px] text-emerald-700 font-bold mt-1">
+                        ✓ Archivo seleccionado: {archivoPlanilla.name} ({Math.round(archivoPlanilla.size / 1024)} KB)
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-amber-200">
+                    <button
+                      type="button"
+                      onClick={() => setModoSubirPlanilla(false)}
+                      disabled={procesandoRet}
+                      className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-amber-100 rounded-lg cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleGuardarPlanillaOperador(false)}
+                      disabled={procesandoRet}
+                      className="px-3.5 py-1.5 text-xs font-bold text-amber-900 bg-amber-200 hover:bg-amber-300 border border-amber-400 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {procesandoRet ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                      <span>Solo Guardar Planilla</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleGuardarPlanillaOperador(true)}
+                      disabled={procesandoRet}
+                      className="px-3.5 py-1.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {procesandoRet ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                      <span>Guardar y Aprobar (Enviar Factura)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Si está en modo rechazo */}
               {modoRechazo && (
@@ -2897,7 +3084,7 @@ export default function FacturacionElectronicaPage() {
             </div>
 
             {/* Pie de acciones */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
               <button
                 onClick={() => setModalRetencion(null)}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 cursor-pointer"
@@ -2905,25 +3092,38 @@ export default function FacturacionElectronicaPage() {
                 Cerrar
               </button>
 
-              <div className="flex items-center gap-2">
-                {modalRetencion.retencionEstado !== 'aprobada' && !modoRechazo && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {modalRetencion.retencionEstado !== 'aprobada' && !modoRechazo && !modoSubirPlanilla && (
                   <>
                     <button
                       onClick={() => setModoRechazo(true)}
                       disabled={procesandoRet}
-                      className="px-3.5 py-2 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
                     >
                       <X className="w-3.5 h-3.5" />
                       <span>Rechazar</span>
                     </button>
 
+                    {/* Opción 1: Aprobar SIN planilla y enviar factura */}
                     <button
-                      onClick={() => handleRevisarRetencion('aprobar')}
+                      onClick={() => handleRevisarRetencion('aprobar', true)}
+                      disabled={procesandoRet}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      title="Aprobar de oficio sin esperar comprobante y enviar la factura oficial al correo del contribuyente"
+                    >
+                      <Send className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Aprobar sin Planilla</span>
+                    </button>
+
+                    {/* Opción 2: Aprobar normal y enviar factura */}
+                    <button
+                      onClick={() => handleRevisarRetencion('aprobar', false)}
                       disabled={procesandoRet}
                       className="px-4 py-2 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      title="Aprobar el comprobante de retención y enviar la factura fiscal oficial"
                     >
                       {procesandoRet ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-white" />}
-                      <span>Aprobar Retención y Enviar Factura</span>
+                      <span>Aprobar y Enviar Factura</span>
                     </button>
                   </>
                 )}
