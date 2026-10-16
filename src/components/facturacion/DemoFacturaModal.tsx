@@ -8,7 +8,7 @@ interface DemoFacturaProps {
   isOpen: boolean;
   onClose: () => void;
   pago: any;
-  onProcederEmitir?: (pago: any) => void;
+  onProcederEmitir?: (pago: any, totalOverride?: number, totalRef?: number) => void;
 }
 
 export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: DemoFacturaProps) {
@@ -27,6 +27,9 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   );
 
   const montoPagado = parseFloat(String(pago?.monto || det.montoTotal || 0));
+  const sFavor = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
+  let retGuardada = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || pago?.montoRetencion || 0)) || 0;
+  const sFavorReal = (esRetencion && Math.abs(sFavor - retGuardada) < 0.05) ? 0 : sFavor;
 
   let totalFactura = 0;
   let baseImponible = 0;
@@ -36,37 +39,40 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
 
   if (pago?.totalManual && parseFloat(String(pago.totalManual)) > 0) {
     totalFactura = parseFloat(String(pago.totalManual));
-    if (esRetencion) {
-      baseImponible = parseFloat(((totalFactura - exento) / 1.16).toFixed(2));
-      iva = parseFloat((totalFactura - exento - baseImponible).toFixed(2));
-      retencionIva = parseFloat((iva * 0.75).toFixed(2));
+  } else if (esRetencion) {
+    // Para pagos con retención de IVA:
+    // El total fiscal de la factura es el monto BRUTO con IVA (antes de deducir la retención)
+    const totalSel = parseFloat(String(det.total_seleccionado || 0));
+    const deudaSis = parseFloat(String(det.deuda_total_sistema || 0));
+    const montoFacturaNeto = parseFloat(String(det.monto_neto_factura || det.monto_factura || 0));
+
+    if (totalSel > 0) {
+      totalFactura = totalSel;
+    } else if (deudaSis > 0) {
+      totalFactura = deudaSis;
+    } else if (montoFacturaNeto > 0 && retGuardada > 0) {
+      totalFactura = parseFloat((montoFacturaNeto + retGuardada).toFixed(2));
+    } else if (retGuardada > 0) {
+      const netoCobradoDeuda = Math.max(0, montoPagado - sFavorReal);
+      totalFactura = parseFloat((netoCobradoDeuda + retGuardada).toFixed(2));
     } else {
-      baseImponible = parseFloat(((totalFactura - exento) / 1.16).toFixed(2));
-      iva = parseFloat((totalFactura - exento - baseImponible).toFixed(2));
-      retencionIva = 0;
+      const netoCobradoDeuda = Math.max(0, montoPagado - sFavorReal);
+      const baseEst = (netoCobradoDeuda - exento) / 1.04;
+      totalFactura = parseFloat((baseEst * 1.16 + exento).toFixed(2));
     }
   } else if (det.monto_factura && parseFloat(String(det.monto_factura)) > 0) {
     totalFactura = parseFloat(String(det.monto_factura));
-    retencionIva = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0));
-    baseImponible = parseFloat(((totalFactura - exento) / 1.16).toFixed(2));
-    iva = parseFloat((totalFactura - exento - baseImponible).toFixed(2));
-  } else if (esRetencion) {
-    if (det.monto_retencion_iva && parseFloat(String(det.monto_retencion_iva)) > 0) {
-      retencionIva = parseFloat(String(det.monto_retencion_iva));
-      totalFactura = parseFloat((montoPagado + retencionIva).toFixed(2));
-      baseImponible = parseFloat(((totalFactura - exento) / 1.16).toFixed(2));
-      iva = parseFloat((totalFactura - exento - baseImponible).toFixed(2));
-    } else {
-      // 75% retención sobre IVA 16%: montoPagado = base + 0.25 * 0.16 * base = 1.04 * base
-      baseImponible = parseFloat(((montoPagado - exento) / 1.04).toFixed(2));
-      iva = parseFloat((baseImponible * 0.16).toFixed(2));
-      retencionIva = parseFloat((iva * 0.75).toFixed(2));
-      totalFactura = parseFloat((baseImponible + exento + iva).toFixed(2));
-    }
   } else {
-    totalFactura = montoPagado;
-    baseImponible = parseFloat(((totalFactura - exento) / 1.16).toFixed(2));
-    iva = parseFloat((totalFactura - exento - baseImponible).toFixed(2));
+    totalFactura = Math.max(0, montoPagado - sFavorReal);
+  }
+
+  // Desglose fiscal sobre el Total de la Factura:
+  baseImponible = parseFloat(((totalFactura - exento) / 1.16).toFixed(2));
+  iva = parseFloat((totalFactura - exento - baseImponible).toFixed(2));
+
+  if (esRetencion) {
+    retencionIva = retGuardada > 0 ? retGuardada : parseFloat((iva * 0.75).toFixed(2));
+  } else {
     retencionIva = 0;
   }
 
@@ -537,7 +543,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
               <button
                 onClick={() => {
                   onClose();
-                  onProcederEmitir(pago);
+                  onProcederEmitir(pago, totalFactura, totalFactura);
                 }}
                 className="px-5 py-2.5 bg-[#0d2a4a] hover:bg-[#153e6b] text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md transition-colors cursor-pointer"
               >

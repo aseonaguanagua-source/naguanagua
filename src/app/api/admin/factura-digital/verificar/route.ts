@@ -88,12 +88,24 @@ export async function POST(request: Request) {
       const ret = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)) || 0;
       const sf = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
       const sfReal = (ret > 0 && Math.abs(sf - ret) < 0.05) ? 0 : sf;
-      if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
+      const esRet = ret > 0 || det.es_retencion || det.agente_retencion;
+      if (esRet) {
+        const totalSel = parseFloat(String(det.total_seleccionado || 0));
+        const deudaSis = parseFloat(String(det.deuda_total_sistema || 0));
+        const montoNeto = parseFloat(String(det.monto_neto_factura || det.monto_factura || 0));
+        if (totalSel > 0) {
+          montoTotal = totalSel;
+        } else if (deudaSis > 0) {
+          montoTotal = deudaSis;
+        } else if (montoNeto > 0 && ret > 0) {
+          montoTotal = montoNeto + ret;
+        } else if (ret > 0) {
+          montoTotal = Math.max(0, parseFloat(pagoData.monto || 0) - sfReal) + ret;
+        }
+      } else if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
         montoTotal = parseFloat(det.monto_factura);
       } else if (det.total_seleccionado && parseFloat(det.total_seleccionado) > 0) {
         montoTotal = parseFloat(det.total_seleccionado);
-      } else if (ret > 0 || det.es_retencion || det.agente_retencion) {
-        montoTotal = (parseFloat(pagoData.monto || 0)) + ret - sfReal;
       } else if (sfReal > 0 && parseFloat(pagoData.monto || 0) > sfReal) {
         montoTotal = (parseFloat(pagoData.monto || 0)) - sfReal;
       } else {

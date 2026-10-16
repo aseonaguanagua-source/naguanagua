@@ -1758,6 +1758,7 @@ export default function CajaPage() {
     if (!confirmPayload) return;
     const { montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion } = confirmPayload;
     const totalConImpuestos = confirmPayload.totalConImpuestos ?? Math.round((finalTotal + (realMontoRetencionIVA || 0) + (descuentoSaldoFavor || 0)) * 100) / 100;
+    const totalFacturaBruto = Math.round((totalConImpuestos + (realMontoRetencionIVA || 0)) * 100) / 100;
     const isAutoAprobado = ['Debito', 'Credito', 'Saldo a Favor', 'TMD', 'TVD'].includes(paymentMethod);
     setIsConfirmModalOpen(false);
     setIsProcessing(true);
@@ -2506,12 +2507,11 @@ export default function CajaPage() {
             currentDetalles.montos = digitalMontos;
             currentDetalles.contribuyente = foundUser.Contribuyente;
             currentDetalles.identidad = foundUser.Identidad;
-            // Para la factura digital, el montoTotal es el total del servicio/factura (sin sumar el pago por encima):
-            currentDetalles.montoTotal = totalConImpuestos;
+            currentDetalles.montoTotal = totalFacturaBruto;
             currentDetalles.saldo_favor = saldoAFavorNuevo;
             currentDetalles.saldo_a_favor_nuevo = saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined;
             currentDetalles.monto_sobrante = saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined;
-            currentDetalles.monto_factura = totalConImpuestos;
+            currentDetalles.monto_factura = totalFacturaBruto;
             currentDetalles.monto_neto_factura = finalTotal;
             currentDetalles.monto_retencion_iva = esAbonoDebito ? 0 : realMontoRetencionIVA;
             currentDetalles.es_retencion = esAbonoDebito ? false : (realMontoRetencionIVA > 0);
@@ -3063,7 +3063,7 @@ export default function CajaPage() {
             saldo_favor: saldoAFavorNuevo,
             saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
             monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
-            monto_factura: totalConImpuestos,
+            monto_factura: totalFacturaBruto,
             monto_neto_factura: finalTotal,
             monto_retencion_iva: esAbono ? 0 : realMontoRetencionIVA,
             es_retencion: esAbono ? false : (realMontoRetencionIVA > 0),

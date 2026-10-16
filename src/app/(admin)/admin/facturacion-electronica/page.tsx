@@ -425,16 +425,25 @@ export default function FacturacionElectronicaPage() {
     const montoPagoNeto = Math.max(0, netoTransferido - saldoFavor);
     let ref = totalRef && totalRef > 0 ? totalRef : 0;
     if (!ref) {
-      if (montoFacturaDet > 0) {
+      if (esRet) {
+        const totalSel = parseFloat(String(pago.detalles?.total_seleccionado || 0));
+        const deudaSis = parseFloat(String(pago.detalles?.deuda_total_sistema || 0));
+        const montoNetoDet = parseFloat(String(pago.detalles?.monto_neto_factura || montoFacturaDet || 0));
+        if (totalSel > 0) {
+          ref = totalSel;
+        } else if (deudaSis > 0) {
+          ref = deudaSis;
+        } else if (montoNetoDet > 0 && montoRet > 0) {
+          ref = montoNetoDet + montoRet;
+        } else if (montoRet > 0) {
+          ref = montoPagoNeto + montoRet;
+        } else if (montoPagoNeto > 0) {
+          ref = Math.round((montoPagoNeto * (1.16 / 1.04)) * 100) / 100;
+        }
+      } else if (montoFacturaDet > 0) {
         ref = montoFacturaDet;
       } else if (pago.monto && parseFloat(pago.monto) > 0) {
-        ref = parseFloat(pago.monto);
-      } else {
-        if (esRet && montoRet <= 0 && montoPagoNeto > 0) {
-          ref = Math.round((montoPagoNeto * (1.16 / 1.04)) * 100) / 100;
-        } else {
-          ref = montoPagoNeto + (esRet ? montoRet : 0);
-        }
+        ref = Math.max(0, parseFloat(pago.monto) - saldoFavor);
       }
     }
     ref = Math.round(ref * 100) / 100;

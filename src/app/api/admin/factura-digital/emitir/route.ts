@@ -608,7 +608,20 @@ export async function POST(request: Request) {
 
     const sfReal = (conRetencion && Math.abs(saldoFavorGenerado - montoRetencionGuardada) < 0.05) ? 0 : saldoFavorGenerado;
     let montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + montoRetencionGuardada - sfReal;
-    if (montoFacturaGuardado > 0) {
+    if (conRetencion) {
+      const totalSel = parseFloat(String(detPago.total_seleccionado || 0));
+      const deudaSis = parseFloat(String(detPago.deuda_total_sistema || 0));
+      const montoNeto = parseFloat(String(detPago.monto_neto_factura || montoFacturaGuardado || 0));
+      if (totalSel > 0) {
+        montoCobrado = totalSel;
+      } else if (deudaSis > 0) {
+        montoCobrado = deudaSis;
+      } else if (montoNeto > 0 && montoRetencionGuardada > 0) {
+        montoCobrado = montoNeto + montoRetencionGuardada;
+      } else if (montoRetencionGuardada > 0) {
+        montoCobrado = Math.max(0, (parseFloat(String(pagoRow?.monto || 0)) || 0) - sfReal) + montoRetencionGuardada;
+      }
+    } else if (montoFacturaGuardado > 0) {
       montoCobrado = montoFacturaGuardado;
     } else if (detPago.total_seleccionado && parseFloat(detPago.total_seleccionado) > 0) {
       montoCobrado = parseFloat(detPago.total_seleccionado);

@@ -235,13 +235,24 @@ export async function GET(request: Request) {
 
       // Monto de la factura fiscal/recibo: debe ser el valor REAL del servicio (sin contar saldo a favor)
       let montoFacturaReal = parseFloat(pago.monto || '0');
-      if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
+      if (tieneRetencion) {
+        // Para retención: El monto fiscal de la factura es el valor BRUTO con IVA (antes de deducir retención)
+        const totalSel = parseFloat(String(det.total_seleccionado || 0));
+        const deudaSis = parseFloat(String(det.deuda_total_sistema || 0));
+        const montoNetoDet = parseFloat(String(det.monto_neto_factura || det.monto_factura || 0));
+        if (totalSel > 0) {
+          montoFacturaReal = totalSel;
+        } else if (deudaSis > 0) {
+          montoFacturaReal = deudaSis;
+        } else if (montoNetoDet > 0 && montoRetNum > 0) {
+          montoFacturaReal = montoNetoDet + montoRetNum;
+        } else if (montoRetNum > 0) {
+          montoFacturaReal = Math.max(0, parseFloat(pago.monto || '0') - (sFavorGuardado > 0 ? sFavorGuardado : 0)) + montoRetNum;
+        }
+      } else if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
         montoFacturaReal = parseFloat(det.monto_factura);
       } else if (det.total_seleccionado && parseFloat(det.total_seleccionado) > 0) {
         montoFacturaReal = parseFloat(det.total_seleccionado);
-      } else if (tieneRetencion && montoRetNum > 0) {
-        // En retención: Factura Real = Neto Transferido + Retención IVA - Saldo a Favor por sobrepago
-        montoFacturaReal = montoFacturaReal + montoRetNum - (sFavorGuardado > 0 ? sFavorGuardado : 0);
       } else if (sFavorGuardado > 0 && montoFacturaReal > sFavorGuardado) {
         montoFacturaReal = montoFacturaReal - sFavorGuardado;
       }
