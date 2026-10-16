@@ -588,20 +588,103 @@ export async function POST(request: Request) {
       }
     }
 
-    const detallesItems = [...itemsFacturas, ...itemsHist, ...itemsMulta, ...itemsCondo, ...itemsCondoMod, ...itemsGeneral];
+    const todosItems = [...itemsFacturas, ...itemsHist, ...itemsMulta, ...itemsCondo, ...itemsCondoMod, ...itemsGeneral];
 
     // Si no hay items, no emitir (nada que facturar)
-    if (detallesItems.length === 0) {
+    if (todosItems.length === 0) {
       return NextResponse.json({ success: true, skipped: true, message: excluidosResidenciales > 0 ? 'Emisión omitida: los conceptos pagados son residenciales.' : 'Sin items para facturar.' });
+    }
+
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
+    // Desglose exacto de recibos emitidos en caja si existen
+    let rcSubTotal = 0, rcIva = 0, rcTotal = 0, periodoRecibo = '';
+    if (detPago.recibo_caja) {
+      try {
+        const rc = typeof detPago.recibo_caja === 'string' ? JSON.parse(detPago.recibo_caja) : detPago.recibo_caja;
+        if (Array.isArray(rc) && rc.length > 0) {
+          rcSubTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.subTotal || 0)) || 0), 0));
+          rcIva = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.iva || 0)) || 0), 0));
+          rcTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0));
+          periodoRecibo = rc[0]?.periodo || '';
+        }
+      } catch (e) {}
+    }
+
+    // Unificación de actividades en una sola línea global de Aseo Urbano (no detallar actividades individuales)
+    const itemsGravados = todosItems.filter((it: any) => it.CodigoImpuesto === 'G');
+    const itemsExentos = todosItems.filter((it: any) => it.CodigoImpuesto !== 'G');
+
+    let periodoGlobal = periodoRecibo || '';
+    if (!periodoGlobal) {
+      const matchPeriodo = todosItems[0]?.Descripcion?.match(/Per[íi]odo\s+([A-Z0-9\s]+)/i);
+      if (matchPeriodo) periodoGlobal = matchPeriodo[1]?.trim();
+    }
+
+    const detallesItems: any[] = [];
+    let numLinea = 1;
+
+    if (itemsGravados.length > 0) {
+      const baseGravada = rcSubTotal > 0 ? rcSubTotal : r2(itemsGravados.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
+      const ivaGravado = rcIva > 0 ? rcIva : r2(itemsGravados.reduce((s: number, it: any) => s + (parseFloat(it.ValorIVA) || 0), 0));
+      totalGravado = baseGravada;
+      totalIVA = ivaGravado;
+      detallesItems.push({
+        NumeroLinea:             String(numLinea++),
+        CodigoCIIU:              "0198",
+        CodigoPLU:               "ASEO001",
+        IndicadorBienoServicio:  "2",
+        Descripcion:             `Servicio de Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`.slice(0, 250),
+        Cantidad:                "1",
+        UnidadMedida:            "NIU",
+        PrecioUnitario:          baseGravada.toFixed(2),
+        PrecioUnitarioDescuento: null,
+        MontoBonificacion:       null,
+        DescripcionBonificacion: null,
+        DescuentoMonto:          "0.00",
+        RecargoMonto:            "0",
+        PrecioItem:              baseGravada.toFixed(2),
+        PrecioAntesDescuento:    baseGravada.toFixed(2),
+        CodigoImpuesto:          "G",
+        TasaIVA:                 "16",
+        ValorIVA:                ivaGravado.toFixed(2),
+        ValorTotalItem:          (baseGravada + ivaGravado).toFixed(2),
+        InfoAdicionalItem:       [],
+        ListaItemOTI:            null,
+      });
+    }
+
+    if (itemsExentos.length > 0) {
+      const baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
+      totalExento = baseExenta;
+      detallesItems.push({
+        NumeroLinea:             String(numLinea++),
+        CodigoCIIU:              "0198",
+        CodigoPLU:               "MULT001",
+        IndicadorBienoServicio:  "2",
+        Descripcion:             `Multa por Mora - Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`.slice(0, 250),
+        Cantidad:                "1",
+        UnidadMedida:            "NIU",
+        PrecioUnitario:          baseExenta.toFixed(2),
+        PrecioUnitarioDescuento: null,
+        MontoBonificacion:       null,
+        DescripcionBonificacion: null,
+        DescuentoMonto:          "0.00",
+        RecargoMonto:            "0",
+        PrecioItem:              baseExenta.toFixed(2),
+        PrecioAntesDescuento:    baseExenta.toFixed(2),
+        CodigoImpuesto:          "E",
+        TasaIVA:                 "0",
+        ValorIVA:                "0.00",
+        ValorTotalItem:          baseExenta.toFixed(2),
+        InfoAdicionalItem:       [],
+        ListaItemOTI:            null,
+      });
     }
 
     // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
     const conRetencion = esRetencion !== undefined ? !!esRetencion : pagoTieneRetencion(detPago);
 
-    // CUADRE: la factura debe totalizar el servicio facturado.
-    // REGLA: Lo que esté por encima al pago NO se debe trasladar a la factura electrónica,
-    // solo sumarse a la nota de crédito.
-    const r2 = (n: number) => Math.round(n * 100) / 100;
     const saldoFavorGenerado = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
     const montoFacturaGuardado = parseFloat(String(detPago.monto_factura || 0)) || 0;
     const montoRetencionGuardada = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
@@ -645,18 +728,22 @@ export async function POST(request: Request) {
 
     const sfReal = (conRetencion && Math.abs(saldoFavorGenerado - montoRetencionGuardada) < 0.05) ? 0 : saldoFavorGenerado;
     let montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + montoRetencionGuardada + saldoFavorUsado - sfReal;
-    if (conRetencion) {
-      const totalSel = parseFloat(String(detPago.total_seleccionado || 0));
-      const deudaSis = parseFloat(String(detPago.deuda_total_sistema || 0));
-      const montoNeto = parseFloat(String(detPago.monto_neto_factura || montoFacturaGuardado || 0));
-      if (totalSel > 0) {
-        montoCobrado = totalSel;
-      } else if (deudaSis > 0) {
-        montoCobrado = deudaSis;
-      } else if (montoNeto > 0 && montoRetencionGuardada > 0) {
-        montoCobrado = montoNeto + montoRetencionGuardada;
-      } else if (montoRetencionGuardada > 0) {
-        montoCobrado = Math.max(0, (parseFloat(String(pagoRow?.monto || 0)) || 0) - sfReal) + montoRetencionGuardada + saldoFavorUsado;
+    if (rcTotal > 0) {
+      montoCobrado = rcTotal;
+    } else if (conRetencion) {
+      const montoNeto = parseFloat(String(detPago.monto_neto_factura || 0));
+      if (montoNeto > 0 && montoRetencionGuardada > 0) {
+        montoCobrado = r2(montoNeto + montoRetencionGuardada);
+      } else {
+        const totalSel = parseFloat(String(detPago.total_seleccionado || 0));
+        const deudaSis = parseFloat(String(detPago.deuda_total_sistema || 0));
+        if (totalSel > 0) {
+          montoCobrado = totalSel;
+        } else if (deudaSis > 0) {
+          montoCobrado = deudaSis;
+        } else if (montoRetencionGuardada > 0) {
+          montoCobrado = r2(Math.max(0, (parseFloat(String(pagoRow?.monto || 0)) || 0) - sfReal) + montoRetencionGuardada + saldoFavorUsado);
+        }
       }
     } else if (montoFacturaGuardado > 0) {
       montoCobrado = montoFacturaGuardado;
@@ -1033,24 +1120,27 @@ export async function POST(request: Request) {
               const montoNetoCaja = r2(totalAPagar - montoRetFinal - montoSF);
               const montoCompletoCaja = r2(montoNetoCaja + montoSF);
 
+              // Monto registrado en la conciliación del pago
+              const montoConciliado = parseFloat(String(detPago.monto_conciliado || pagoRow?.monto || 0)) || 0;
+              const saldoFavorGen = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || 0)) || 0;
+
               const partes: string[] = [];
-              if (montoSF > 0) {
-                if (montoNetoCaja > 0) {
-                  partes.push(`Monto Pagado en Caja: Bs. ${f2(montoCompletoCaja)} (Caja: Bs. ${f2(montoNetoCaja)} + Nota de Crédito: Bs. ${f2(montoSF)})`);
-                  if (tipoPago) {
-                    partes.push(`Forma: ${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''}`);
-                  }
-                } else {
-                  partes.push(`Monto Pagado en Caja: Bs. ${f2(montoSF)} (100% Nota de Crédito / Saldo a Favor)`);
-                }
+              if (montoConciliado > 0) {
+                partes.push(`Monto Conciliado: Bs. ${f2(montoConciliado)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''})`);
               } else if (montoNetoCaja > 0) {
                 partes.push(`Monto Pagado en Caja: Bs. ${f2(montoNetoCaja)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''})`);
               }
 
+              if (montoSF > 0) {
+                partes.push(`Nota de Crédito Aplicada: Bs. ${f2(montoSF)}`);
+              }
+              if (saldoFavorGen > 0) {
+                partes.push(`Nota de Crédito (Saldo a Favor Generado): Bs. ${f2(saldoFavorGen)}`);
+              }
               if (montoRetFinal > 0) {
                 partes.push(`Retención 75% IVA: Bs. ${f2(montoRetFinal)}`);
               }
-              partes.push(`Total Cancelado: Bs. ${f2(totalAPagar)}`);
+              partes.push(`Total Factura: Bs. ${f2(totalAPagar)}`);
               partes.push(`Pago ${String(pagoId).slice(0, 8).toUpperCase()}`);
               return partes.join(' | ').slice(0, 255);
             })()

@@ -113,19 +113,33 @@ export async function POST(request: Request) {
         return Math.round(u * 100) / 100;
       })();
 
-      if (esRet) {
+      let rcTotal = 0;
+      if (det.recibo_caja) {
+        try {
+          const rc = typeof det.recibo_caja === 'string' ? JSON.parse(det.recibo_caja) : det.recibo_caja;
+          if (Array.isArray(rc) && rc.length > 0) {
+            rcTotal = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0);
+          }
+        } catch(e) {}
+      }
+
+      if (rcTotal > 0) {
+        montoTotal = Math.round(rcTotal * 100) / 100;
+      } else if (esRet) {
+        const montoNeto = parseFloat(String(det.monto_neto_factura || 0));
         const totalSel = parseFloat(String(det.total_seleccionado || 0));
         const deudaSis = parseFloat(String(det.deuda_total_sistema || 0));
-        const montoNeto = parseFloat(String(det.monto_neto_factura || det.monto_factura || 0));
-        if (totalSel > 0) {
+        if (montoNeto > 0 && ret > 0) {
+          montoTotal = Math.round((montoNeto + ret) * 100) / 100;
+        } else if (totalSel > 0) {
           montoTotal = totalSel;
         } else if (deudaSis > 0) {
           montoTotal = deudaSis;
-        } else if (montoNeto > 0 && ret > 0) {
-          montoTotal = montoNeto + ret;
         } else if (ret > 0) {
           montoTotal = Math.max(0, parseFloat(pagoData.monto || 0) - sfReal) + ret + sfUsado;
         }
+      } else if (det.monto_neto_factura && parseFloat(det.monto_neto_factura) > 0) {
+        montoTotal = parseFloat(det.monto_neto_factura);
       } else if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
         montoTotal = parseFloat(det.monto_factura);
       } else if (det.total_seleccionado && parseFloat(det.total_seleccionado) > 0) {
