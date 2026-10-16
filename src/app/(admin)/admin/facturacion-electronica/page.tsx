@@ -1040,8 +1040,13 @@ export default function FacturacionElectronicaPage() {
                             Retención IVA (75%): Bs {fmtBs(pago.montoRetencion || pago.detalles?.monto_retencion_iva || 0)}
                           </div>
                         )}
+                        {pago.montoPagado !== undefined && Math.abs(pago.montoPagado - pago.monto) > 0.05 && (
+                          <div className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                            Transferido: Bs {fmtBs(pago.montoPagado)}
+                          </div>
+                        )}
                         {(() => {
-                          const sFavor = parseFloat(String(pago.detalles?.saldo_a_favor_nuevo || pago.detalles?.monto_sobrante || pago.detalles?.saldo_favor || pago.detalles?.saldo_favor_generado || 0)) || 0;
+                          const sFavor = parseFloat(String(pago.saldoAFavor || pago.detalles?.saldo_a_favor_nuevo || pago.detalles?.monto_sobrante || pago.detalles?.saldo_favor || pago.detalles?.saldo_favor_generado || 0)) || 0;
                           const mRet = parseFloat(String(pago.montoRetencion || pago.detalles?.monto_retencion_iva || 0)) || 0;
                           if (sFavor <= 0 || (pago.conRetencion && Math.abs(sFavor - mRet) < 0.05)) return null;
                           return (

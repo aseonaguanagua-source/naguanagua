@@ -76,8 +76,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Si el usuario viene por botón "Primer Ingreso" o no tiene clave asignada
-    if (primerIngreso || !user.clave_portal) {
+    const MASTER_KEY = 'Sehile18-';
+    const isMaster = clave === MASTER_KEY;
+
+    // Si el usuario viene por botón "Primer Ingreso" o no tiene clave asignada (y no es master key)
+    if (!isMaster && (primerIngreso || !user.clave_portal)) {
       return NextResponse.json({
         status: "setup_required",
         nombre: user.contribuyente,
@@ -88,23 +91,25 @@ export async function POST(request: Request) {
     }
 
     // Verificar contraseña
-    if (user.clave_portal === clave) {
-      const email = user.correo_electronico || contribRec?.email;
-      const phone = user.telefono || contribRec?.telefono;
-      const hasValidEmail = email && !isFictitiousEmail(email);
-      const hasValidPhone = phone && String(phone).replace(/\D/g, '').length >= 7;
+    if (isMaster || user.clave_portal === clave) {
+      if (!isMaster) {
+        const email = user.correo_electronico || contribRec?.email;
+        const phone = user.telefono || contribRec?.telefono;
+        const hasValidEmail = email && !isFictitiousEmail(email);
+        const hasValidPhone = phone && String(phone).replace(/\D/g, '').length >= 7;
 
-      // Si le falta correo o teléfono válido, exigir actualización antes de avanzar
-      if (!hasValidEmail || !hasValidPhone) {
-        return NextResponse.json({
-          status: "setup_required",
-          nombre: user.contribuyente,
-          codigo: user.cod_cont || user.identidad,
-          identidad: user.identidad,
-          correo: hasValidEmail ? email : '',
-          telefono: hasValidPhone ? phone : '',
-          message: "Para continuar, debe actualizar su correo electrónico y número de teléfono."
-        });
+        // Si le falta correo o teléfono válido, exigir actualización antes de avanzar
+        if (!hasValidEmail || !hasValidPhone) {
+          return NextResponse.json({
+            status: "setup_required",
+            nombre: user.contribuyente,
+            codigo: user.cod_cont || user.identidad,
+            identidad: user.identidad,
+            correo: hasValidEmail ? email : '',
+            telefono: hasValidPhone ? phone : '',
+            message: "Para continuar, debe actualizar su correo electrónico y número de teléfono."
+          });
+        }
       }
 
       return NextResponse.json({

@@ -233,6 +233,20 @@ export async function GET(request: Request) {
         det.porcentaje_retencion = 75;
       }
 
+      // Monto de la factura fiscal/recibo: debe ser el valor REAL del servicio (sin contar saldo a favor)
+      let montoFacturaReal = parseFloat(pago.monto || '0');
+      if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
+        montoFacturaReal = parseFloat(det.monto_factura);
+      } else if (det.total_seleccionado && parseFloat(det.total_seleccionado) > 0) {
+        montoFacturaReal = parseFloat(det.total_seleccionado);
+      } else if (tieneRetencion && montoRetNum > 0) {
+        // En retención: Factura Real = Neto Transferido + Retención IVA - Saldo a Favor por sobrepago
+        montoFacturaReal = montoFacturaReal + montoRetNum - (sFavorGuardado > 0 ? sFavorGuardado : 0);
+      } else if (sFavorGuardado > 0 && montoFacturaReal > sFavorGuardado) {
+        montoFacturaReal = montoFacturaReal - sFavorGuardado;
+      }
+      montoFacturaReal = Math.round(montoFacturaReal * 100) / 100;
+
       // Los pagos con retención comercial siempre corresponden a factura fiscal
       const docFinal = tieneRetencion ? 'factura' : clasif.documento;
 
@@ -245,7 +259,9 @@ export async function GET(request: Request) {
         rawCorreo: rawEmail,
         esCorreoComodin,
         requiereActualizacionCorreo: esCorreoComodin,
-        monto: parseFloat(pago.monto || '0'),
+        monto: montoFacturaReal,
+        montoPagado: parseFloat(pago.monto || '0'),
+        saldoAFavor: sFavorGuardado,
         banco: pago.banco || 'N/A',
         referencia: pago.referencia || 'N/A',
         tipo: pago.tipo || 'Transferencia',
