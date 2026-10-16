@@ -14,6 +14,7 @@ import { desglosarPago } from '@/lib/desglosePago';
 import { FILTROS_MODULO, FiltroModulo, OR_CONDOMINIOS, infoCondominioPago, pasaFiltroModulo, rifsCondominios, useCondominiosLigero } from '@/lib/condominios/pagosCondominio';
 import { actualizarPago } from '@/lib/actualizarPago';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
+import { parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
 
 /** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios. */
 const fechaTransaccionDe = (det: any): string => {
@@ -519,11 +520,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   // Normalizar monto reportado (quitar formato venezolano)
   const montoReportadoNum = typeof pago.monto === 'number'
     ? pago.monto
-    : parseFloat(
-        String(pago.monto || '0').includes(',')
-          ? String(pago.monto).replace(/\./g, '').replace(',', '.')
-          : String(pago.monto || '0')
-      ) || 0;
+    : parseLocalFloat(pago.monto);
 
   const [estatus, setEstatus] = useState<string>(
     ['Aprobado','Rechazado','Con Diferencia'].includes(pago.estado || '')
@@ -658,7 +655,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const recibos: string[] = det.recibos || [];
   const periodos = det.periodos || (recibos.length > 0 ? recibos.join(' | ') : '---');
   // Vars usadas tanto en handleConciliar como en el render
-  const montoConciliadoNum = parseFloat(montoConciliado) || 0;
+  const montoConciliadoNum = parseLocalFloat(montoConciliado);
   const deudaTotalContrib = contribInfo?._deudaTotal ? parseFloat(String(contribInfo._deudaTotal).replace(/[^0-9.]/g,'')) : 0;
 
   const handleConciliar = async () => {
@@ -1334,12 +1331,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 </label>
                 <input
                   value={montoConciliado}
-                  onChange={e => setMontoConciliado(e.target.value)}
+                  onChange={e => setMontoConciliado(formatLocalNumberInput(e.target.value))}
+                  onBlur={e => {
+                    const p = parseLocalFloat(e.target.value);
+                    if (p > 0) setMontoConciliado(formatLocalNumberInput(p.toFixed(2).replace('.', ',')));
+                  }}
                   readOnly={estatus === 'Aprobado'}
                   className={`${estatus === 'Aprobado' ? icRO + ' font-bold text-green-800' : ic} ${estatus === 'Con Diferencia' ? 'border-amber-400 bg-amber-50' : ''}`}
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                 />
               </div>
             </div>

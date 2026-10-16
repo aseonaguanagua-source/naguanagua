@@ -16,19 +16,7 @@ import { acreditarSaldoFavor } from '@/lib/saldoFavor';
 import { obtenerTasaEuroFecha, fechaDMY, valorUCD } from '@/lib/tasaHistorica';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-// Formato venezolano: punto = miles, coma = decimales
-const parseLocalFloat = (val: string) => {
-  if (!val) return 0;
-  return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
-};
-const formatLocalNumberInput = (val: string) => {
-  if (!val) return '';
-  const clean = val.replace(/[^0-9,]/g, '');
-  const parts = clean.split(',');
-  const intPart = (parts[0].replace(/^0+(?=\d)/, '')).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  if (parts.length > 1) return intPart + ',' + parts[1].substring(0, 2);
-  return intPart;
-};
+import { parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const fmtPeriodo = (p: string) => { const [y, m] = String(p).split('-'); return `${MESES[parseInt(m) - 1]} ${y}`; };
 const rango = (ps: string[]) => !ps?.length ? '' : ps.length === 1 ? fmtPeriodo(ps[0]) : `${fmtPeriodo(ps[0])} – ${fmtPeriodo(ps[ps.length - 1])}`;
@@ -1542,8 +1530,18 @@ function Caja() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Monto (Bs)</label>
-                <input type="number" step="0.01" value={notaManualMonto} onChange={e => setNotaManualMonto(e.target.value)}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Ej. 1000.00" />
+                <input 
+                  type="text" 
+                  inputMode="decimal"
+                  value={notaManualMonto} 
+                  onChange={e => setNotaManualMonto(formatLocalNumberInput(e.target.value))}
+                  onBlur={e => {
+                    const p = parseLocalFloat(e.target.value);
+                    if (p > 0) setNotaManualMonto(formatLocalNumberInput(p.toFixed(2).replace('.', ',')));
+                  }}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-slate-800" 
+                  placeholder="Ej. 1.000,00" 
+                />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Motivo / Referencia Origen (8 caracteres)</label>

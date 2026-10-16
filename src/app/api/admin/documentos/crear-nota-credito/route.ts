@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { acreditarSaldoFavor } from '@/lib/saldoFavor';
+import { parseLocalFloat } from '@/lib/formatters';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Falta la cédula / RIF o código de identidad.' }, { status: 400 });
     }
 
-    const montoNum = Math.round((parseFloat(String(monto).replace(/\./g, '').replace(',', '.')) || parseFloat(String(monto)) || 0) * 100) / 100;
+    const montoNum = Math.round(parseLocalFloat(monto) * 100) / 100;
     if (isNaN(montoNum) || montoNum <= 0) {
       return NextResponse.json({ error: 'El monto de la nota de crédito debe ser mayor a 0.' }, { status: 400 });
     }

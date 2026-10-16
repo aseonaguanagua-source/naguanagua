@@ -11,12 +11,113 @@ export function parseLocalFloat(val: any): number {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
   if (!val && val !== 0) return 0;
   let str = String(val).trim();
-  if (str.includes(',')) {
-    // Si contiene coma, los puntos son separadores de miles y la coma es decimal
-    str = str.replace(/\./g, '').replace(',', '.');
+  if (!str) return 0;
+
+  // Si tiene tanto punto como coma:
+  // Ej: "1.500,50" -> punto es miles, coma es decimal
+  // Ej: "1,500.50" -> coma es miles, punto es decimal
+  if (str.includes('.') && str.includes(',')) {
+    const lastDot = str.lastIndexOf('.');
+    const lastComma = str.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      str = str.replace(/\./g, '').replace(',', '.');
+    } else {
+      str = str.replace(/,/g, '');
+    }
+    const n = parseFloat(str);
+    return isNaN(n) ? 0 : n;
   }
+
+  // Si solo tiene coma:
+  if (str.includes(',')) {
+    const commaCount = (str.match(/,/g) || []).length;
+    if (commaCount > 1) {
+      str = str.replace(/,/g, '');
+    } else {
+      str = str.replace(',', '.');
+    }
+    const n = parseFloat(str);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // Si solo tiene punto:
+  if (str.includes('.')) {
+    const dotCount = (str.match(/\./g) || []).length;
+    if (dotCount > 1) {
+      str = str.replace(/\./g, '');
+      const n = parseFloat(str);
+      return isNaN(n) ? 0 : n;
+    }
+
+    const parts = str.split('.');
+    if (parts.length === 2) {
+      const dec = parts[1];
+      if (dec.length !== 3) {
+        const n = parseFloat(str);
+        return isNaN(n) ? 0 : n;
+      }
+      if (parts[0] === '0') {
+        const n = parseFloat(str);
+        return isNaN(n) ? 0 : n;
+      }
+      str = str.replace(/\./g, '');
+      const n = parseFloat(str);
+      return isNaN(n) ? 0 : n;
+    }
+  }
+
   const n = parseFloat(str);
   return isNaN(n) ? 0 : n;
+}
+
+/**
+ * Formatea en tiempo real lo que el usuario tipea en un input de montos.
+ * Agrupa los miles con puntos y los decimales con coma.
+ * Admite que el usuario presione tanto '.' como ',' para indicar decimales.
+ */
+export function formatLocalNumberInput(val: string): string {
+  if (!val && val !== '0') return '';
+  let s = String(val).trim();
+  if (!s) return '';
+
+  let decimalPart: string | null = null;
+  let integerPart = '';
+
+  if (s.includes(',')) {
+    const parts = s.split(',');
+    integerPart = parts[0].replace(/[^0-9]/g, '');
+    decimalPart = parts.slice(1).join('').replace(/[^0-9]/g, '').substring(0, 2);
+  } else if (s.includes('.')) {
+    const dotCount = (s.match(/\./g) || []).length;
+    if (dotCount === 1) {
+      const parts = s.split('.');
+      if (s.endsWith('.')) {
+        integerPart = parts[0].replace(/[^0-9]/g, '');
+        decimalPart = '';
+      } else if (parts[1].length <= 2) {
+        integerPart = parts[0].replace(/[^0-9]/g, '');
+        decimalPart = parts[1].replace(/[^0-9]/g, '').substring(0, 2);
+      } else {
+        integerPart = s.replace(/[^0-9]/g, '');
+      }
+    } else {
+      integerPart = s.replace(/[^0-9]/g, '');
+    }
+  } else {
+    integerPart = s.replace(/[^0-9]/g, '');
+  }
+
+  if (integerPart.length > 1 && integerPart.startsWith('0')) {
+    integerPart = integerPart.replace(/^0+/, '') || '0';
+  }
+
+  const formattedInt = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  if (decimalPart !== null) {
+    return formattedInt ? `${formattedInt},${decimalPart}` : `0,${decimalPart}`;
+  }
+
+  return formattedInt;
 }
 
 /**

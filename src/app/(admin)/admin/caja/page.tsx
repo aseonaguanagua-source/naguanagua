@@ -6,7 +6,7 @@ import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText,
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { actualizarPago } from '@/lib/actualizarPago';
-import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants } from '@/lib/formatCurrency';
+import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants, parseLocalFloat, formatLocalNumberInput } from '@/lib/formatCurrency';
 import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { ModalComprobante } from '@/components/caja/ModalComprobante';
@@ -58,22 +58,7 @@ const snapshotDeudaPrevia = async (identidad: string, hijosIds: string[] = []) =
   }
 };
 
-const parseLocalFloat = (val: string) => {
-  if (!val) return 0;
-  return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
-};
 
-const formatLocalNumberInput = (val: string) => {
-  if (!val) return '';
-  let clean = val.replace(/[^0-9,]/g, '');
-  const parts = clean.split(',');
-  let intPart = parts[0];
-  intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  if (parts.length > 1) {
-    return intPart + ',' + parts[1].substring(0, 2);
-  }
-  return intPart;
-};
 
 export default function CajaPage() {
   const { inmuebles, convenios, contribuyentes, documentos, tcmmv, refreshData, refreshUserData } = useAppContext();
@@ -5959,15 +5944,15 @@ export default function CajaPage() {
                     </div>
                     <input 
                       type="text" 
+                      inputMode="decimal"
                       placeholder="Ej: 500,00"
                       value={montoTransferido}
                       onChange={(e) => {
-                        let v = e.target.value.replace(/[^0-9,.]/g, '');
-                        setMontoTransferido(v);
+                        setMontoTransferido(formatLocalNumberInput(e.target.value));
                       }}
                       onBlur={(e) => {
-                         let p = parseFloat(e.target.value.replace(',', '.'));
-                         if(!isNaN(p)) setMontoTransferido(p.toFixed(2).replace('.', ','));
+                         const p = parseLocalFloat(e.target.value);
+                         if (p > 0) setMontoTransferido(formatLocalNumberInput(p.toFixed(2).replace('.', ',')));
                       }}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
@@ -6494,10 +6479,16 @@ export default function CajaPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">Monto de la Nota (Bs)</label>
                     <input 
-                      type="number" step="0.01" 
-                      value={notaManualMonto} onChange={e => setNotaManualMonto(e.target.value)}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                      placeholder="Ej. 1000.00"
+                      type="text" 
+                      inputMode="decimal"
+                      value={notaManualMonto} 
+                      onChange={e => setNotaManualMonto(formatLocalNumberInput(e.target.value))}
+                      onBlur={e => {
+                        const p = parseLocalFloat(e.target.value);
+                        if (p > 0) setNotaManualMonto(formatLocalNumberInput(p.toFixed(2).replace('.', ',')));
+                      }}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-slate-800"
+                      placeholder="Ej. 1.000,00"
                     />
                   </div>
                   <div>

@@ -9,7 +9,7 @@ import {
   ChevronDown, ChevronUp, Layers, PieChart, Trash2, CreditCard, Plus
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { formatBs, getIdentidadVariantsExact } from '@/lib/formatters';
+import { formatBs, getIdentidadVariantsExact, parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
 import {
   calcularMensualidad, isResidencialInm, isExoneradoTotalMultas,
   isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad,
@@ -286,7 +286,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   };
 
   const handleCrearNota = async () => {
-    const montoParsed = parseFloat(notaMonto.replace(/\./g, '').replace(',', '.'));
+    const montoParsed = parseLocalFloat(notaMonto);
     if (!montoParsed || montoParsed <= 0) return alert('Ingrese un monto válido para la Nota de Crédito.');
     setGuardandoNota(true);
     try {
@@ -1824,9 +1824,10 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                   <span className="font-bold text-slate-700 block mb-1">Monto de la Nota de Crédito (Bs.) *</span>
                   <input
                     type="text"
+                    inputMode="decimal"
                     placeholder="Ej: 500,00"
                     value={notaMonto}
-                    onChange={e => setNotaMonto(e.target.value.replace(/[^0-9,.]/g, ''))}
+                    onChange={e => setNotaMonto(formatLocalNumberInput(e.target.value))}
                     className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>

@@ -6,6 +6,7 @@ import { ordenanzaData } from '@/data/ordenanza';
 import { actividadConNivel, nivelActividad, quitarNivelActividad, resolverFOComercial } from '@/lib/calculos';
 import { mesesPendientes } from '@/lib/condominios/motor';
 import ModalAjusteMeses from './ModalAjusteMeses';
+import { parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES_NOMBRES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -70,7 +71,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const agregarMultaPeriodo = async () => {
     if (!unidad?.id) return;
     if (multaMotivo.trim().length < 5) { alert('Escriba el motivo (mínimo 5 caracteres).'); return; }
-    const bs = parseFloat(String(multaMontoBs).replace(/\./g, '').replace(',', '.'));
+    const bs = parseLocalFloat(multaMontoBs);
     if (!bs || bs <= 0) { alert('Indique un monto válido en Bs.'); return; }
     setGuardandoMulta(true);
     try {
@@ -523,10 +524,15 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                         <div className="flex items-center gap-2 mt-1">
                           <input
                             type="text"
+                            inputMode="decimal"
                             value={multaMontoBs}
-                            onChange={e => setMultaMontoBs(e.target.value)}
+                            onChange={e => setMultaMontoBs(formatLocalNumberInput(e.target.value))}
+                            onBlur={e => {
+                              const p = parseLocalFloat(e.target.value);
+                              if (p > 0) setMultaMontoBs(formatLocalNumberInput(p.toFixed(2).replace('.', ',')));
+                            }}
                             className={inp + " mt-0 font-bold"}
-                            placeholder="Ej. 1250,50"
+                            placeholder="Ej. 1.250,50"
                           />
                           {multaPorMesBs > 0 && (
                             <button
