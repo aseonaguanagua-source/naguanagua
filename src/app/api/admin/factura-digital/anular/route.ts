@@ -868,7 +868,7 @@ export async function POST(request: Request) {
             TipoTransaccion:              null,
             NumeroPlanillaImportacion:    null,
             NumeroExpedienteImportacion:  null,
-            SerieFacturaAfectada:         null,
+            SerieFacturaAfectada:         String(dm.factura_digital?.serie ?? dm.factura_digital?.serie_factura ?? ""),
             NumeroFacturaAfectada:        String(facturaAfectada),
             FechaFacturaAfectada:         (dm.factura_digital?.fecha_emision || dm.factura_digital?.fecha) ? formatearFecha((dm.factura_digital.fecha_emision || dm.factura_digital.fecha).split('T')[0]) : formatearFecha(fechaActual.toISOString()),
             MontoFacturaAfectada:         (parseFloat(String(dm.factura_digital?.montoTotal || dm.monto_factura || totalAPagar)) || totalAPagar).toFixed(2),
