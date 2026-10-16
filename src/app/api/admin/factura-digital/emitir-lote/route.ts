@@ -68,7 +68,27 @@ export async function POST(request: Request) {
       try {
         const montoRet = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)) || 0;
         const esRet = !!(det.es_retencion || det.conRetencion || det.agente_retencion || montoRet > 0);
-        const montoFactura = parseFloat(String(det.monto_factura || 0)) || (parseFloat(pago.monto || '0') + (esRet ? montoRet : 0));
+        let rcTotal = 0;
+        if (det.recibo_caja) {
+          try {
+            const rc = typeof det.recibo_caja === 'string' ? JSON.parse(det.recibo_caja) : det.recibo_caja;
+            if (Array.isArray(rc) && rc.length > 0) {
+              rcTotal = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0);
+            }
+          } catch(e) {}
+        }
+
+        const montoNeto = parseFloat(String(det.monto_neto_factura || 0));
+        let montoFactura = 0;
+        if (rcTotal > 0) {
+          montoFactura = Math.round(rcTotal * 100) / 100;
+        } else if (montoNeto > 0 && montoRet > 0) {
+          montoFactura = Math.round((montoNeto + montoRet) * 100) / 100;
+        } else if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
+          montoFactura = parseFloat(det.monto_factura);
+        } else {
+          montoFactura = (parseFloat(pago.monto || '0') + (esRet ? montoRet : 0));
+        }
 
         // Ejecutar emisión individual llamando al endpoint interno de emisión
         const emitRes = await fetch(`${reqOrigin}/api/admin/factura-digital/emitir`, {
