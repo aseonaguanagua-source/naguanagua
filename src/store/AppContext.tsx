@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
 
 import { ordenanzaData } from '@/data/ordenanza';
-import { isResidencialInm, calcularMensualidad, actividadConNivel, quitarNivelActividad } from '@/lib/calculos';
+import { isResidencialInm, isTerrenoInm, calcularMensualidad, actividadConNivel, quitarNivelActividad } from '@/lib/calculos';
 import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
 import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants } from '@/lib/formatters';
 import { logAudit, AuditCategoria, AuditCriticidad } from '@/lib/audit';
@@ -413,15 +413,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Regla Condominios Comerciales:
         // Aseo urbano se paga separado por condominio (centralizado en el padre).
         // Las multas se pagan por la oficina individual.
-        // Inmuebles "Eliminado" no suman deuda (misma regla que Caja y Solvencias).
+        // Inmuebles "Eliminado" o con actividad TERRENO no suman deuda ni multas (ellos no pagan).
         const esEliminado = row.estado === 'Eliminado';
-        const rowDeudaMMV = (isCommercialChild || esEliminado) ? 0 : parseFloat(row.deuda_mmv || 0);
-        const rowMultaBs = (isParentCondo || esEliminado) ? 0 : parseFloat(row.multa_bs || 0);
-        const rowCongelada = esEliminado ? 0 : parseFloat(row.deuda_congelada_bs || 0);
+        const esTerreno = isTerrenoInm(row);
+        const rowDeudaMMV = (isCommercialChild || esEliminado || esTerreno) ? 0 : parseFloat(row.deuda_mmv || 0);
+        const rowMultaBs = (isParentCondo || esEliminado || esTerreno) ? 0 : parseFloat(row.multa_bs || 0);
+        const rowCongelada = (esEliminado || esTerreno) ? 0 : parseFloat(row.deuda_congelada_bs || 0);
         
         // Cálculo canónico idéntico a Caja (Base + IVA + Multa - Retención 75% - Saldo a favor)
         let rowDeudaBs = 0;
-        if (!esEliminado) {
+        if (!esEliminado && !esTerreno) {
           if (isCommercialChild) {
             rowDeudaBs = rowMultaBs + rowCongelada;
           } else {
@@ -778,12 +779,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setInmuebles(prev => prev.map(inm => (inm.id === updated.id || inm.inmueble === updated.inmueble) ? { ...inm, ...updated } : inm));
           setContribuyentes(prev => prev.map(c => {
             if ((c.Identidad && c.Identidad === updated.identidad) || (c.CodCont && c.CodCont.includes(updated.inmueble))) {
-              const deudaMMV = parseFloat(updated.deuda_mmv || 0);
-              const multaBs = parseFloat(updated.multa_bs || 0);
-              const congelada = parseFloat(updated.deuda_congelada_bs || 0);
               const esElim = updated.estado === 'Eliminado';
+              const esTerreno = isTerrenoInm(updated);
+              const deudaMMV = (esElim || esTerreno) ? 0 : parseFloat(updated.deuda_mmv || 0);
+              const multaBs = (esElim || esTerreno) ? 0 : parseFloat(updated.multa_bs || 0);
+              const congelada = (esElim || esTerreno) ? 0 : parseFloat(updated.deuda_congelada_bs || 0);
               let updatedDeudaBs = 0;
-              if (!esElim) {
+              if (!esElim && !esTerreno) {
                 const esRes = isResidencialInm(updated);
                 const bMes = calcularMensualidad(updated, tcmmvRef.current || 1);
                 const m = parseInt(String(updated.meses_deuda || 0), 10) || 0;

@@ -389,9 +389,15 @@ export const isCondominioPagoIndividual = (itemOrCode: any): boolean => {
 /**
  * Determina si las multas están totalmente exoneradas para un inmueble.
  */
-export const isExoneradoTotalMultas = (notas?: string | null): boolean => {
-  if (!notas) return false;
-  const upper = notas.toUpperCase();
+export const isExoneradoTotalMultas = (notasOrInm?: any): boolean => {
+  if (!notasOrInm) return false;
+  if (typeof notasOrInm === 'object' && notasOrInm !== null) {
+    if (isTerrenoInm(notasOrInm)) return true;
+    notasOrInm = notasOrInm.notas;
+  }
+  if (!notasOrInm || typeof notasOrInm !== 'string') return false;
+  const upper = notasOrInm.toUpperCase();
+  if (upper.includes('TERRENO')) return true;
   return (
     upper.includes('CASO ESPECIAL: EXONERADO') ||
     upper.includes('EXONERADO SEGUN GACETA') ||
@@ -406,9 +412,13 @@ export const isExoneradoTotalMultas = (notas?: string | null): boolean => {
 /**
  * Determina si la multa de un mes específico (YYYY-MM o Date) está exonerada.
  */
-export const isMesExoneradoMulta = (notas?: string | null, dateOrMonthKey?: string | Date | null): boolean => {
-  if (!notas) return false;
-  if (isExoneradoTotalMultas(notas)) return true;
+export const isMesExoneradoMulta = (notasOrInm?: any, dateOrMonthKey?: string | Date | null): boolean => {
+  if (!notasOrInm) return false;
+  if (typeof notasOrInm === 'object' && notasOrInm !== null) {
+    if (isTerrenoInm(notasOrInm)) return true;
+    notasOrInm = notasOrInm.notas;
+  }
+  if (isExoneradoTotalMultas(notasOrInm)) return true;
   if (!dateOrMonthKey) return false;
 
   let key = '';
@@ -433,7 +443,7 @@ export const isMesExoneradoMulta = (notas?: string | null, dateOrMonthKey?: stri
   }
 
   if (!key) return false;
-  return (notas.toUpperCase()).includes(`[EXONERADO:${key}]`);
+  return (String(notasOrInm).toUpperCase()).includes(`[EXONERADO:${key}]`);
 };
 
 /**

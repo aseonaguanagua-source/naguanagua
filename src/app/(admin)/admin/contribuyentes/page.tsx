@@ -1060,6 +1060,21 @@ function ContribuyentesPageContent() {
       let maxMesesCluster = 0;
 
       const clusterInmBreakdown = cluster.inmuebles.map((inm: any) => {
+        if (isTerrenoInm(inm)) {
+          return {
+            inmueble: inm.inmueble,
+            actividad: stripNivel(inm.actividad_principal || 'Terreno'),
+            meses: 0,
+            bMes: 0,
+            iMes: 0,
+            baseTotal: 0,
+            ivaTotal: 0,
+            multaTotal: 0,
+            total: 0,
+            esCasoSinMulta: true
+          };
+        }
+
         // EXACTO COMO EN CAJA: Redondeo a 2 decimales en Base, luego IVA al 16% sobre la Base redondeada, y mora
         const rawBMes = calcularMensualidad(inm, tasaValida);
         const bMes = Math.round(rawBMes * 100) / 100;

@@ -27,6 +27,7 @@ export const mesesTranscurridos = (emision: string | Date, hoy: Date = new Date(
 
 /** ¿El mes genera multa por mora? (misma regla de Caja) */
 export const tieneMoraMes = (inm: any, emision: string | Date, esUltimoMes: boolean, hoy: Date = new Date()): boolean => {
+  if (isTerrenoInm(inm)) return false;
   if (esUltimoMes) return false;
   if (mesesTranscurridos(emision, hoy) <= 1) return false;
   const e = emision instanceof Date ? emision : new Date(emision);
@@ -230,6 +231,7 @@ export function deudaTotalContribuyente(inms: any[], tasa: number, identidad: st
   const na = codigosContenedoresNA(inms);
   let base = 0, iva = 0, multa = 0, retencion = 0;
   for (const inm of inms.filter(i => !na.includes(i.inmueble))) {
+    if (isTerrenoInm(inm)) continue;
     const mesesDeuda = parseInt(String(inm.meses_deuda || 0)) || 0;
     const multaFija = (parseFloat(String(inm.multa_bs || 0)) || 0) + (parseFloat(String(inm.deuda_congelada_bs || 0)) || 0);
     const regla = reglaCobroInmueble(inm, na, identidad);

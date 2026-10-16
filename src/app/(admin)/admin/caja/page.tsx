@@ -303,10 +303,10 @@ export default function CajaPage() {
     const mesesTotales = Math.max(0, parseInt(hijo?.meses_deuda ?? '0'));
     const mesesAPagar = customMeses !== undefined ? customMeses : (hijosMesesAPagar[hijo?.id] ?? mesesTotales);
 
-    if (mesesAPagar <= 0 || mesesTotales <= 0) {
+    if (isTerrenoInm(hijo) || mesesAPagar <= 0 || mesesTotales <= 0) {
       return {
-        baseMensual,
-        ivaMensual,
+        baseMensual: 0,
+        ivaMensual: 0,
         base: 0,
         iva: 0,
         mesesTotales: 0,
@@ -925,7 +925,7 @@ export default function CajaPage() {
 
       // Calcular deuda total fresca (excluyendo contenedores N/A para evitar duplicar montos con sus actividades hijas)
       const billableActiveInms = activeInmFresh.filter(
-        (i: any) => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A'
+        (i: any) => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A' && !isTerrenoInm(i)
       );
       const deudaTotalFresh = billableActiveInms.reduce(
         (sum: number, i: any) => {
@@ -1100,6 +1100,7 @@ export default function CajaPage() {
         if (hasDeuda && !isCondominio) {
           const now = new Date();
           billableInms.forEach((inm: any) => {
+            if (isTerrenoInm(inm)) return; // Terrenos no pagan ni generan multas
             const esCondoPagoInd = isCondominioPagoIndividual(inm);
 
             const isParentContainerNA = inm.condominio_padre_id && naParentCodes.includes(inm.condominio_padre_id);

@@ -11,7 +11,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { formatBs, getIdentidadVariantsExact, parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
 import {
-  calcularMensualidad, isResidencialInm, isExoneradoTotalMultas,
+  calcularMensualidad, isResidencialInm, isTerrenoInm, isExoneradoTotalMultas,
   isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad,
   extractNivelZona
 } from '@/lib/calculos';
@@ -528,6 +528,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
     unifiedInmuebles.forEach((group) => {
       const { inm, isNAParent, isNA, mmvTotal, mesesDeuda, hijos } = group;
+      if (isTerrenoInm(inm)) return; // Terrenos no pagan ni generan multas
 
       // Regla de Condominios: ninguna información de los condominios sale por sistema,
       // solo la multa de los usuarios. Todo lo demás lo hace condominio por oficina.
