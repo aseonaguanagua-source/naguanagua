@@ -266,7 +266,24 @@ export default function FacturacionElectronicaPage() {
       const res = await fetch(`/api/admin/factura-digital/listar?filter=todos&fecha=${fecha}&q=${encodeURIComponent(searchTerm)}`);
       const data = await res.json();
       if (data.success) {
-        setPagosList(data.items || []);
+        const items = data.items || [];
+        setPagosList(items);
+
+        if (typeof window !== 'undefined') {
+          const sp = new URLSearchParams(window.location.search);
+          const demoTarget = sp.get('demo') || sp.get('demoId') || sp.get('pagoId');
+          if (demoTarget) {
+            const found = items.find((p: any) => 
+              p.id === demoTarget || 
+              p.referencia === demoTarget || 
+              (p.identidad && p.identidad.toLowerCase().includes(demoTarget.toLowerCase())) ||
+              (p.contribuyente && p.contribuyente.toLowerCase().includes(demoTarget.toLowerCase()))
+            );
+            if (found) {
+              setSelectedPagoForDemo(found);
+            }
+          }
+        }
       }
     } catch (e: any) {
       console.error('Error cargando pagos para facturación digital:', e);
@@ -1249,6 +1266,15 @@ export default function FacturacionElectronicaPage() {
                                   <span>Reenviar</span>
                                 </button>
                               )}
+                              {/* Botón Demo / Vista Previa Formato Factory HKA */}
+                              <button
+                                onClick={() => setSelectedPagoForDemo(pago)}
+                                className="text-[11px] bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-sky-300 transition-colors cursor-pointer"
+                                title="Ver Demo y Plantilla Oficial The Factory HKA"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-sky-600" />
+                                <span>Demo Factory</span>
+                              </button>
                               {/* Botón Reemitir disponible para facturas emitidas o anuladas */}
                               <button
                                 onClick={() => handleOpenEmitModal(pago)}
