@@ -421,11 +421,14 @@ export default function FacturacionElectronicaPage() {
     }
 
     // Si pagaron por encima, el monto de la factura NO debe incluir el saldo a favor / sobrante
-    const montoPagoNeto = Math.max(0, (parseFloat(pago.monto) || 0) - saldoFavor);
+    const netoTransferido = parseFloat(String(pago.montoPagado || pago.monto || 0)) || 0;
+    const montoPagoNeto = Math.max(0, netoTransferido - saldoFavor);
     let ref = totalRef && totalRef > 0 ? totalRef : 0;
     if (!ref) {
-      if (montoFacturaDet > 0 && montoFacturaDet >= montoPagoNeto) {
+      if (montoFacturaDet > 0) {
         ref = montoFacturaDet;
+      } else if (pago.monto && parseFloat(pago.monto) > 0) {
+        ref = parseFloat(pago.monto);
       } else {
         if (esRet && montoRet <= 0 && montoPagoNeto > 0) {
           ref = Math.round((montoPagoNeto * (1.16 / 1.04)) * 100) / 100;
@@ -434,6 +437,7 @@ export default function FacturacionElectronicaPage() {
         }
       }
     }
+    ref = Math.round(ref * 100) / 100;
     setTotalReferencia(ref);
     const montoTotal = totalOverride && totalOverride > 0 ? totalOverride : ref;
     const baseEstimada = (montoTotal / 1.16).toFixed(2);

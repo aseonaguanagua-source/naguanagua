@@ -610,6 +610,8 @@ export async function POST(request: Request) {
     let montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + montoRetencionGuardada - sfReal;
     if (montoFacturaGuardado > 0) {
       montoCobrado = montoFacturaGuardado;
+    } else if (detPago.total_seleccionado && parseFloat(detPago.total_seleccionado) > 0) {
+      montoCobrado = parseFloat(detPago.total_seleccionado);
     }
 
     const totalCalculado = totalGravado + totalExento + totalIVA;
