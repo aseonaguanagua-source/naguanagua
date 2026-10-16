@@ -14,7 +14,8 @@ import { calcularMensualidad, isResidencialInm, isMesExoneradoMulta, isCondomini
  *  - Agentes de retención: se retiene el 75% del IVA (solo comerciales con agente_retencion).
  */
 
-export const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+export const r2 = (n: number) => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
+export const r4 = (n: number) => Math.round(((Number(n) || 0) + Number.EPSILON) * 10000) / 10000;
 
 export const PORCENTAJE_RETENCION_AGENTE = 0.75;
 
@@ -42,6 +43,9 @@ export interface DesgloseMes {
   iva: number;
   multa: number;
   total: number;
+  base4?: number;
+  iva4?: number;
+  multa4?: number;
 }
 
 export interface DeudaInmueble {
@@ -52,7 +56,7 @@ export interface DeudaInmueble {
   multa: number;
   total: number;
   mesesConMora: number;
-  /** IVA sujeto a retención (comercial con agente_retencion) */
+  /** IVA sujeto a retención (comercial con agente_retencion, precisión 4 decimales) */
   ivaRetenible: number;
   /** Desglose por mes; la suma cuadra exactamente con los totales (el redondeo se ajusta en el último mes) */
   porMes: DesgloseMes[];
@@ -76,54 +80,62 @@ export function calcularDeudaInmueble(inm: any, tasa: number, meses: MesDeuda[],
     const custom = jNotas?.periodos_custom?.[perStr];
     if (custom) {
       const mmv = custom.tarifa_mmv !== null && custom.tarifa_mmv !== undefined ? Number(custom.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
-      bMes = r2(mmv * 57 * tasa * (esRes ? 1 : 0.128));
+      bMes = mmv * 57 * tasa * (esRes ? 1 : 0.128);
       if (custom.lleva_multa === false) {
         tieneMoraMesActual = false;
       }
     } else if (jNotas?.desocupada_desde) {
       const esDesoc = perStr >= jNotas.desocupada_desde && (!jNotas.desocupada_hasta || perStr <= jNotas.desocupada_hasta);
       if (esDesoc) {
-        bMes = r2((jNotas.tarifa_desocupada_mmv || 1.98) * 57 * tasa * 0.128);
+        bMes = (jNotas.tarifa_desocupada_mmv || 1.98) * 57 * tasa * 0.128;
       } else if (jNotas.tarifa_activa_mmv) {
-        bMes = r2(jNotas.tarifa_activa_mmv * 57 * tasa * 0.128);
+        bMes = jNotas.tarifa_activa_mmv * 57 * tasa * 0.128;
       }
     }
-    const base = r2(bMes);
-    const iva = esRes ? 0 : r2(bMes * 0.16);
-    const multa = tieneMoraMesActual ? r2(bMes * tasaMora) : 0;
+    const base4 = r4(bMes);
+    const iva4 = esRes ? 0 : r4(bMes * 0.16);
+    const multa4 = tieneMoraMesActual ? r4(bMes * tasaMora) : 0;
     return {
-      base,
-      iva,
-      multa,
-      total: r2(base + iva + multa),
+      base: r2(base4),
+      iva: r2(iva4),
+      multa: r2(multa4),
+      total: r2(base4 + iva4 + multa4),
+      base4,
+      iva4,
+      multa4,
     };
   });
 
-  const base = r2(porMes.reduce((s, p) => s + p.base, 0));
-  const iva = r2(porMes.reduce((s, p) => s + p.iva, 0));
-  const multa = r2(porMes.reduce((s, p) => s + p.multa, 0));
+  const base4Total = porMes.reduce((s, p) => s + (p.base4 ?? p.base), 0);
+  const iva4Total = porMes.reduce((s, p) => s + (p.iva4 ?? p.iva), 0);
+  const multa4Total = porMes.reduce((s, p) => s + (p.multa4 ?? p.multa), 0);
+
+  const base = r2(base4Total);
+  const iva = r2(iva4Total);
+  const multa = r2(multa4Total);
 
   return {
     esResidencial: esRes,
-    mensualidad: n > 0 ? r2(base / n) : bMesDefault,
+    mensualidad: n > 0 ? r2(base / n) : r2(bMesDefault),
     base,
     iva,
     multa,
     total: r2(base + iva + multa),
     mesesConMora: nMora,
-    ivaRetenible: !esRes && inm?.agente_retencion === true ? iva : 0,
+    ivaRetenible: !esRes && inm?.agente_retencion === true ? r4(iva4Total) : 0,
     porMes,
   };
 }
 
 /**
  * Desglose por mes con la retención de IVA del agente de retención (75%) ya descontada.
- * La retención total = round2(IVA × 75%) igual que Caja; el redondeo se ajusta en el último mes.
+ * La retención total = round2(IVA_4_decimales × 75%) igual que Caja; el redondeo se ajusta en el último mes.
  */
 export function porMesConRetencion(d: DeudaInmueble): (DesgloseMes & { retencion: number; ivaNeto: number; totalNeto: number })[] {
   const totalRet = d.ivaRetenible > 0 ? r2(d.ivaRetenible * PORCENTAJE_RETENCION_AGENTE) : 0;
   const out = d.porMes.map(p => {
-    const retencion = totalRet > 0 ? r2(p.iva * PORCENTAJE_RETENCION_AGENTE) : 0;
+    const pIva = (p as any).iva4 ?? p.iva;
+    const retencion = totalRet > 0 ? r2(pIva * PORCENTAJE_RETENCION_AGENTE) : 0;
     return { ...p, retencion, ivaNeto: 0, totalNeto: 0 };
   });
   if (out.length > 0 && totalRet > 0) {

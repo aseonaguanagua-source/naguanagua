@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
-import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X, Building2, Store, Receipt, CheckSquare, Square, Filter, ChevronRight, DollarSign, Sparkles, AlertCircle, Coins, Zap, Trash2 } from 'lucide-react';
+import { TreePine, Search, CreditCard, Landmark, CheckCircle, XCircle, FileText, Handshake, Calendar as CalendarIcon, Wrench, ShieldCheck, ClipboardCheck, FlaskConical, Printer, X, Building2, Store, Receipt, CheckSquare, Square, Filter, ChevronRight, DollarSign, Sparkles, AlertCircle, Coins, Zap, Trash2, Eye } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { actualizarPago } from '@/lib/actualizarPago';
 import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants } from '@/lib/formatCurrency';
 import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
+import { ModalComprobante } from '@/components/caja/ModalComprobante';
 import { logAudit } from '@/lib/audit';
 import { calcularMensualidad, getFO, getFAR, isResidencialInm, isCondominioPagoIndividual, isMesExoneradoMulta } from '@/lib/calculos';
 import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, getShortAddress } from '@/lib/cajaHelpers';
@@ -106,6 +107,8 @@ export default function CajaPage() {
   const [ivaPercent, setIvaPercent] = useState<number>(0); // 0 o 0.16
   const [retencionIVA, setRetencionIVA] = useState<number>(0); // 0, 75 o 100
   const [comprobanteRetencion, setComprobanteRetencion] = useState<string>('');
+  const [comprobanteRetencionFile, setComprobanteRetencionFile] = useState<File | null>(null);
+  const [modalPagoComp, setModalPagoComp] = useState<any | null>(null);
   const [esAgenteRetencion, setEsAgenteRetencion] = useState<boolean>(false);
 
   // Debt State
@@ -433,6 +436,20 @@ export default function CajaPage() {
     (ref: string) => pendingRefsSet.has(ref),
     [pendingRefsSet]
   );
+
+  // Mapa de recibos pendientes a su objeto pago_reportado correspondiente
+  const pendingPagoMap = useMemo(() => {
+    const map = new Map<string, any>();
+    pagosPendientes.forEach((p: any) => {
+      let det: any = {};
+      try {
+        det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {});
+      } catch (_) {}
+      const refs: string[] = det.recibos || [];
+      refs.forEach(ref => map.set(ref, p));
+    });
+    return map;
+  }, [pagosPendientes]);
 
   // bancosVenezuela movido a BANCOS_VENEZUELA (constante de módulo, fix A-4)
 
@@ -1365,7 +1382,7 @@ export default function CajaPage() {
         total += baseMonto;
       }
     });
-    let sb = 0, siva = 0, smulta = 0, sivaRetencionable = 0;
+    let sb4 = 0, siva4 = 0, smulta4 = 0, sivaRetencionable4 = 0, extraSb = 0;
     let tasaActualUse = (tcmmv || 0);
     if (customBcvRate && !isNaN(parseFloat(customBcvRate))) {
       const parsed = parseFloat(customBcvRate);
@@ -1380,7 +1397,7 @@ export default function CajaPage() {
       if (condominioModo === 'Abono') {
         const abonoVal = parseLocalFloat(montoAbonoCondo) || 0;
         total += abonoVal;
-        sb += abonoVal;
+        sb4 += abonoVal;
       } else {
         const hijosToSum = condominioModo === 'Local'
           ? condominioHijos.filter(h => selectedHijos.includes(h.id))
@@ -1389,11 +1406,11 @@ export default function CajaPage() {
         hijosToSum.forEach(h => {
           const debtInfo = getHijoDebt(h, condominioModo === 'Total' ? Math.max(0, parseInt(h.meses_deuda ?? '0')) : undefined);
           total += debtInfo.total;
-          sb += debtInfo.base;
-          siva += debtInfo.iva;
-          smulta += debtInfo.multa;
+          sb4 += debtInfo.base;
+          siva4 += debtInfo.iva;
+          smulta4 += debtInfo.multa;
           if (h.agente_retencion === true) {
-            sivaRetencionable += debtInfo.iva;
+            sivaRetencionable4 += debtInfo.iva;
           }
         });
       }
@@ -1458,44 +1475,42 @@ export default function CajaPage() {
         });
       } else {
         const f = recibosMap.get(ref);
-        if (f) sb += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
+        if (f) extraSb += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
       }
     });
 
-    // Calcular exactamente igual a la fórmula oficial del Estado de Cuenta:
+    // Calcular con precisión de 4 decimales para que las retenciones sean exactas (ej: CECOM)
     inmSelectedMap.forEach(({ inm, totalMeses, mesesConMora }) => {
       const esRes = isResidencialInm(inm);
       const bMes = calcularMensualidad(inm, tasaActualUse);
       const tasaMora = esRes ? 0.10 : 0.12;
 
-      // Base total exactamente igual al Estado de Cuenta: bMes * meses
-      const baseInm = Math.round((bMes * totalMeses) * 100) / 100;
-      sb += baseInm;
+      // Base acumulada con 4 decimales
+      const baseInm = Math.round((bMes * totalMeses) * 10000) / 10000;
+      sb4 += baseInm;
 
-      // IVA: 0% residencial, 16% comercial
-      const ivaInm = esRes ? 0 : Math.round(((bMes * 0.16) * totalMeses) * 100) / 100;
-      siva += ivaInm;
+      // IVA: 0% residencial, 16% comercial con 4 decimales
+      const ivaInm = esRes ? 0 : Math.round((baseInm * 0.16) * 10000) / 10000;
+      siva4 += ivaInm;
 
       if (!esRes && inm.agente_retencion === true) {
-        sivaRetencionable += ivaInm;
+        sivaRetencionable4 += ivaInm;
       }
 
-      // Multa total exactamente igual al Estado de Cuenta: (bMes * tasaMora) * mesesConMora
-      const multaInm = Math.round(((bMes * tasaMora) * mesesConMora) * 100) / 100;
-      smulta += multaInm;
+      // Multa acumulada con 4 decimales
+      const multaInm = Math.round(((bMes * tasaMora) * mesesConMora) * 10000) / 10000;
+      smulta4 += multaInm;
     });
 
     selectedCuotas.forEach(sc => {
       const c = cuotasMap.get(`${sc.convId}:${sc.cuotaId}`);
-      if (c) sb += parseFloat(c.monto || '0');
+      if (c) extraSb += parseFloat(c.monto || '0');
     });
     const isCondominioPayer = foundUser?.es_condominio || 
       foundUser?.Clasificacion?.toLowerCase().includes('condo') ||
       (freshInmuebles || []).some((i: any) => i.es_condominio === true && (i.identidad === foundUser?.Identidad || i.inmueble === foundUser?.CodCont || i.inmueble === foundUser?.cod_cont));
 
     const isAgenteGlobal = foundUser?.agente_retencion || foundUser?.esAgenteRetencion || (freshInmuebles || []).some((i: any) => {
-      // Si el usuario es un condominio, la retención de los servicios a nombre del condominio
-      // depende únicamente del estatus del condominio en sí (no de si un local/apartamento es agente)
       if (isCondominioPayer) {
         return i.es_condominio === true && i.agente_retencion === true;
       }
@@ -1509,7 +1524,7 @@ export default function CajaPage() {
         const fac = Number(s.factor || 1);
         const nve = Number(s.nve || 1);
         const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
-        sb += baseMonto;
+        extraSb += baseMonto;
       }
     });
     selectedTalaPoda.forEach(ref => {
@@ -1519,9 +1534,15 @@ export default function CajaPage() {
         const fac = Number(s.factor || 1);
         const nve = Number(s.nve || 1);
         const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
-        sb += baseMonto;
+        extraSb += baseMonto;
       }
     });
+
+    const sb = Math.round((sb4 + extraSb) * 100) / 100;
+    const siva = Math.round(siva4 * 100) / 100;
+    const smulta = Math.round(smulta4 * 100) / 100;
+    const sivaRetencionable = Math.round(sivaRetencionable4 * 10000) / 10000;
+
     setSumBase(sb);
     setSumIVA(siva);
     setSumMulta(smulta);
@@ -2323,6 +2344,61 @@ export default function CajaPage() {
         const fechaUTC = fechaCorteCaja === hoyStr 
           ? new Date().toISOString() 
           : new Date(`${fechaCorteCaja}T12:00:00-04:00`).toISOString();
+
+        // Subir comprobante de pago si fue adjuntado
+        let comprobanteUrl = '';
+        let comprobanteB64 = '';
+        if (comprobante) {
+          try {
+            const ext = comprobante.name.split('.').pop() || 'jpg';
+            const filePath = `comprobantes/${(foundUser.Identidad || 'x').replace(/[^a-zA-Z0-9]/g,'_')}_${Date.now()}.${ext}`;
+            const uploadData = new FormData();
+            uploadData.append('file', comprobante);
+            uploadData.append('bucket', 'comprobantes');
+            uploadData.append('path', filePath);
+            const res = await fetch('/api/upload', { method: 'POST', body: uploadData });
+            const resData = await res.json();
+            if (res.ok && resData.success) comprobanteUrl = resData.publicUrl || '';
+          } catch(e) {}
+          if (!comprobanteUrl && comprobante.size < 5 * 1024 * 1024) {
+            try {
+              comprobanteB64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(comprobante);
+              });
+            } catch(e) {}
+          }
+        }
+
+        // Subir comprobante de retención si fue adjuntado
+        let compRetUrl = '';
+        let compRetB64 = '';
+        if (comprobanteRetencionFile) {
+          try {
+            const ext = comprobanteRetencionFile.name.split('.').pop() || 'pdf';
+            const filePath = `retenciones/${(foundUser.Identidad || 'x').replace(/[^a-zA-Z0-9]/g,'_')}_${Date.now()}.${ext}`;
+            const uploadData = new FormData();
+            uploadData.append('file', comprobanteRetencionFile);
+            uploadData.append('bucket', 'retenciones');
+            uploadData.append('path', filePath);
+            const res = await fetch('/api/upload', { method: 'POST', body: uploadData });
+            const resData = await res.json();
+            if (res.ok && resData.success) compRetUrl = resData.publicUrl || '';
+          } catch(e) {}
+          if (!compRetUrl && comprobanteRetencionFile.size < 5 * 1024 * 1024) {
+            try {
+              compRetB64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(comprobanteRetencionFile);
+              });
+            } catch(e) {}
+          }
+        }
+
         const { error: insertErr } = await supabase.from('pagos_reportados').insert({
           id: pagoId,
           identidad: foundUser.Identidad,
@@ -2352,6 +2428,13 @@ export default function CajaPage() {
             condominio_modo: condominioModo,
             condominio_hijos_pagados: condominioModo === 'Local' ? selectedHijos : (condominioModo === 'Total' ? condominioHijos.map(h => h.id) : []),
             deuda_previa: deudaPrevia,
+            // Comprobantes
+            comprobante_url: comprobanteUrl || undefined,
+            comprobante_b64: comprobanteB64 || undefined,
+            comprobante_nombre: comprobante?.name || undefined,
+            comprobante_retencion_url: compRetUrl || undefined,
+            comprobante_retencion_b64: compRetB64 || undefined,
+            comprobante_retencion_nombre: comprobanteRetencionFile?.name || undefined,
             // Desglose del pago por encima para la factura electrónica:
             saldo_favor: saldoAFavorNuevo,
             saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
@@ -2926,6 +3009,33 @@ export default function CajaPage() {
           }
         }
 
+        // Subir comprobante de retención si fue adjuntado
+        let compRetUrlT = '';
+        let compRetB64T = '';
+        if (comprobanteRetencionFile) {
+          try {
+            const ext = comprobanteRetencionFile.name.split('.').pop() || 'pdf';
+            const filePath = `retenciones/${(foundUser.Identidad || 'x').replace(/[^a-zA-Z0-9]/g,'_')}_${Date.now()}.${ext}`;
+            const uploadData = new FormData();
+            uploadData.append('file', comprobanteRetencionFile);
+            uploadData.append('bucket', 'retenciones');
+            uploadData.append('path', filePath);
+            const res = await fetch('/api/upload', { method: 'POST', body: uploadData });
+            const resData = await res.json();
+            if (res.ok && resData.success) compRetUrlT = resData.publicUrl || '';
+          } catch(e) {}
+          if (!compRetUrlT && comprobanteRetencionFile.size < 5 * 1024 * 1024) {
+            try {
+              compRetB64T = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(comprobanteRetencionFile);
+              });
+            } catch(e) {}
+          }
+        }
+
         const deudaPreviaT = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
         const pagoIdT = crypto.randomUUID();
         const hoyStr = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
@@ -2969,6 +3079,9 @@ export default function CajaPage() {
             comprobante_nombre: comprobante?.name || '',
             comprobante_url: comprobanteUrl,
             comprobante_b64: comprobanteB64 || undefined,
+            comprobante_retencion_nombre: comprobanteRetencionFile?.name || undefined,
+            comprobante_retencion_url: compRetUrlT || undefined,
+            comprobante_retencion_b64: compRetB64T || undefined,
             fecha_transaccion: fechaTransaccion,
             tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
             nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined
@@ -3692,9 +3805,19 @@ export default function CajaPage() {
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {pagosPorConciliar.map((p: any, idx: number) => (
-                    <span key={idx} className="text-[11px] bg-white border border-amber-300 text-amber-900 px-2 py-0.5 rounded-md font-mono font-semibold shadow-2xs">
-                      Ref: {p.referencia || 'S/R'} — Bs. {parseFloat(p.monto || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({p.tipo || 'Transferencia'})
-                    </span>
+                    <div key={idx} className="inline-flex items-center gap-1.5 text-[11px] bg-white border border-amber-300 text-amber-900 px-2 py-0.5 rounded-md font-mono font-semibold shadow-2xs">
+                      <span>Ref: {p.referencia || 'S/R'} — Bs. {parseFloat(p.monto || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({p.tipo || 'Transferencia'})</span>
+                      {(p.comprobante_url || p.comprobante_b64 || p.comprobante_retencion_url || p.comprobante_retencion_b64 || (p.detalles && (p.detalles.comprobante_url || p.detalles.comprobante_b64 || p.detalles.comprobante_retencion_url || p.detalles.comprobante_retencion_b64))) && (
+                        <button
+                          type="button"
+                          onClick={() => setModalPagoComp(p)}
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-400 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                          title="Ver comprobante adjunto"
+                        >
+                          <Eye className="w-3 h-3 inline" /> Ver Comprobante
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -5130,10 +5253,30 @@ export default function CajaPage() {
                                       </p>
                                     </div>
                                   </div>
-                                  <div className="text-right">
-                                    <span className="font-bold text-emerald-700 text-xs">
-                                      {isItemPending(r.referencia) ? 'En Verificación' : `Bs. ${formatBs(parseFloat(getReciboMonto(r) || '0'))}`}
-                                    </span>
+                                  <div className="text-right flex items-center gap-2">
+                                    {isItemPending(r.referencia) ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-bold text-amber-600 text-xs">En Verificación</span>
+                                        {pendingPagoMap.get(r.referencia) && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              setModalPagoComp(pendingPagoMap.get(r.referencia));
+                                            }}
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                                            title="Ver comprobante del pago en verificación"
+                                          >
+                                            <Eye className="w-3 h-3" /> Ver Comprobante
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="font-bold text-emerald-700 text-xs">
+                                        Bs. {formatBs(parseFloat(getReciboMonto(r) || '0'))}
+                                      </span>
+                                    )}
                                   </div>
                                 </label>
                               ))
@@ -5358,14 +5501,53 @@ export default function CajaPage() {
                         </div>
                       )}
                       {retencionIVA > 0 && (
-                        <div className="mt-2">
+                        <div className="mt-2 space-y-2">
                           <input 
                             type="text" 
-                            placeholder="N° Comprobante de Retención IVA (opcional)" 
+                            placeholder="N° Comprobante de Retención IVA (ej. 20261000001)" 
                             value={comprobanteRetencion}
                             onChange={e => setComprobanteRetencion(e.target.value)}
-                            className="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-emerald-500 font-mono"
+                            className="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-emerald-500 font-mono bg-white"
                           />
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-700 mb-1 block">
+                              Adjuntar Comprobante Retención SENIAT (PDF o Imagen):
+                            </label>
+                            <div className="border border-dashed border-slate-300 bg-white rounded p-2 flex items-center justify-between text-xs relative hover:bg-slate-50 transition-colors">
+                              <input 
+                                type="file" 
+                                accept="image/*,.pdf"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) {
+                                    setComprobanteRetencionFile(e.target.files[0]);
+                                  }
+                                }}
+                              />
+                              {comprobanteRetencionFile ? (
+                                <span className="font-semibold text-emerald-700 truncate max-w-[220px]">
+                                  📎 {comprobanteRetencionFile.name}
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 text-[11px]">
+                                  📁 Clic para adjuntar comprobante SENIAT (.pdf, .jpg, .png)
+                                </span>
+                              )}
+                              {comprobanteRetencionFile && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setComprobanteRetencionFile(null);
+                                  }}
+                                  className="text-[10px] text-red-600 hover:text-red-800 font-bold ml-2 relative z-10"
+                                >
+                                  Quitar
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       )}
                     </>
@@ -5477,6 +5659,45 @@ export default function CajaPage() {
                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all font-medium text-slate-700"
                         />
                         <span className="text-[10px] text-slate-400">{referenciaDebito.length}/8 dígitos</span>
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-semibold text-slate-600 mb-1 block">
+                          Voucher / Soporte del Punto de Venta (Opcional)
+                        </span>
+                        <div className="border border-dashed border-slate-300 bg-white rounded-lg p-2.5 flex items-center justify-between text-xs relative hover:bg-slate-50 transition-colors">
+                          <input 
+                            type="file" 
+                            accept="image/*,.pdf"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                setComprobante(e.target.files[0]);
+                              }
+                            }}
+                          />
+                          {comprobante ? (
+                            <span className="font-semibold text-emerald-700 truncate max-w-[220px]">
+                              📎 {comprobante.name}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 text-[11px]">
+                              📁 Clic para adjuntar voucher / comprobante (.jpg, .png, .pdf)
+                            </span>
+                          )}
+                          {comprobante && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setComprobante(null);
+                              }}
+                              className="text-[10px] text-red-600 hover:text-red-800 font-bold ml-2 relative z-10"
+                            >
+                              Quitar
+                            </button>
+                          )}
+                        </div>
                       </label>
                     </div>
                   )}
@@ -6216,6 +6437,14 @@ export default function CajaPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── MODAL VISOR DE COMPROBANTE ── */}
+      {modalPagoComp && (
+        <ModalComprobante
+          pago={modalPagoComp}
+          onClose={() => setModalPagoComp(null)}
+        />
       )}
     </div>
   );

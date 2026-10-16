@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
 
 import { ordenanzaData } from '@/data/ordenanza';
-import { isResidencialInm, actividadConNivel, quitarNivelActividad } from '@/lib/calculos';
+import { isResidencialInm, calcularMensualidad, actividadConNivel, quitarNivelActividad } from '@/lib/calculos';
 import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
 import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants } from '@/lib/formatters';
 import { logAudit, AuditCategoria, AuditCriticidad } from '@/lib/audit';
@@ -418,7 +418,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const rowDeudaMMV = (isCommercialChild || esEliminado) ? 0 : parseFloat(row.deuda_mmv || 0);
         const rowMultaBs = (isParentCondo || esEliminado) ? 0 : parseFloat(row.multa_bs || 0);
         const rowCongelada = esEliminado ? 0 : parseFloat(row.deuda_congelada_bs || 0);
-        const rowDeudaBs = rowCongelada + rowMultaBs + (rowDeudaMMV * 57 * currentTcmmv);
+        
+        // Cálculo canónico idéntico a Caja (Base + IVA + Multa - Retención 75% - Saldo a favor)
+        let rowDeudaBs = 0;
+        if (!esEliminado) {
+          if (isCommercialChild) {
+            rowDeudaBs = rowMultaBs + rowCongelada;
+          } else {
+            const esRes = isResidencialInm(row);
+            const bMes = calcularMensualidad(row, currentTcmmv);
+            const m = parseInt(String(row.meses_deuda || 0), 10) || 0;
+            const deudaMMV = parseFloat(String(row.deuda_mmv || 0)) || 0;
+            const totalMeses = Math.max(0, m > 0 ? m : (deudaMMV > 0 ? 1 : 0));
+            const mesesConMora = Math.max(0, totalMeses - 1);
+            const tasaMora = esRes ? 0.10 : 0.12;
+
+            const base4 = Math.round((bMes * totalMeses) * 10000) / 10000;
+            const iva4 = esRes ? 0 : Math.round((base4 * 0.16) * 10000) / 10000;
+            const multa4 = Math.round((bMes * tasaMora * mesesConMora) * 10000) / 10000;
+            const ret4 = (!esRes && row.agente_retencion === true) ? Math.round((iva4 * 0.75) * 10000) / 10000 : 0;
+            const saldoFavor = parseFloat(String(row.saldo_favor_bs || 0)) || 0;
+
+            rowDeudaBs = Math.round(Math.max(0, base4 + iva4 + multa4 + rowCongelada + rowMultaBs - ret4 - saldoFavor) * 100) / 100;
+          }
+        }
 
         // Agrupación jerárquica:
         // Se unifican los contenedores N/A con sus actividades hijas vinculadas por padre_id.
@@ -758,12 +781,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
               const deudaMMV = parseFloat(updated.deuda_mmv || 0);
               const multaBs = parseFloat(updated.multa_bs || 0);
               const congelada = parseFloat(updated.deuda_congelada_bs || 0);
+              const esElim = updated.estado === 'Eliminado';
+              let updatedDeudaBs = 0;
+              if (!esElim) {
+                const esRes = isResidencialInm(updated);
+                const bMes = calcularMensualidad(updated, tcmmvRef.current || 1);
+                const m = parseInt(String(updated.meses_deuda || 0), 10) || 0;
+                const totalMeses = Math.max(0, m > 0 ? m : (deudaMMV > 0 ? 1 : 0));
+                const mesesConMora = Math.max(0, totalMeses - 1);
+                const tasaMora = esRes ? 0.10 : 0.12;
+
+                const base4 = Math.round((bMes * totalMeses) * 10000) / 10000;
+                const iva4 = esRes ? 0 : Math.round((base4 * 0.16) * 10000) / 10000;
+                const multa4 = Math.round((bMes * tasaMora * mesesConMora) * 10000) / 10000;
+                const ret4 = (!esRes && updated.agente_retencion === true) ? Math.round((iva4 * 0.75) * 10000) / 10000 : 0;
+                const saldoFavor = parseFloat(String(updated.saldo_favor_bs || 0)) || 0;
+                updatedDeudaBs = Math.round(Math.max(0, base4 + iva4 + multa4 + congelada + multaBs - ret4 - saldoFavor) * 100) / 100;
+              }
               return {
                 ...c,
                 DeudaMMV: deudaMMV,
                 MultaBs: multaBs,
                 DeudaCongelada: congelada,
-                DeudaBs: congelada + multaBs + (deudaMMV * 57 * (tcmmvRef.current || 1)),
+                DeudaBs: updatedDeudaBs,
                 Estado: updated.estado || c.Estado
               };
             }

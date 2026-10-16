@@ -34,6 +34,28 @@ import { isSameLocal, getShortAddress } from '@/lib/cajaHelpers';
 import { valorUCD } from '@/lib/tasaHistorica';
 
 
+// Helper para cálculo canónico de deuda idéntico a Caja
+function calcRowDeudaCanonical(r: any, rate: number): number {
+  if (r.estado === 'Eliminado' || r.Estado === 'Eliminado') return 0;
+  const esRes = isResidencialInm(r);
+  const bMes = calcularMensualidad(r, rate);
+  const m = parseInt(String(r.meses_deuda || 0), 10) || 0;
+  const deudaMMV = parseFloat(String(r.deuda_mmv || 0)) || 0;
+  const totalMeses = Math.max(0, m > 0 ? m : (deudaMMV > 0 ? 1 : 0));
+  const mesesConMora = Math.max(0, totalMeses - 1);
+  const tasaMora = esRes ? 0.10 : 0.12;
+
+  const base4 = Math.round((bMes * totalMeses) * 10000) / 10000;
+  const iva4 = esRes ? 0 : Math.round((base4 * 0.16) * 10000) / 10000;
+  const multa4 = Math.round((bMes * tasaMora * mesesConMora) * 10000) / 10000;
+  const ret4 = (!esRes && r.agente_retencion === true) ? Math.round((iva4 * 0.75) * 10000) / 10000 : 0;
+  const congelada = parseFloat(String(r.deuda_congelada_bs || 0)) || 0;
+  const multaBs = parseFloat(String(r.multa_bs || 0)) || 0;
+  const saldoFavor = parseFloat(String(r.saldo_favor_bs || 0)) || 0;
+
+  return Math.round(Math.max(0, base4 + iva4 + multa4 + congelada + multaBs - ret4 - saldoFavor) * 100) / 100;
+}
+
 function ContribuyentesPageContent() {
   const { inmuebles, contribuyentes, recibos, setFacturas, convenios, updateContribuyente, addContribuyente, addAuditLog, tcmmv, addCertificado, auditLogs, refreshData, refreshUserData } = useAppContext();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1727,7 +1749,7 @@ function ContribuyentesPageContent() {
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
             DeudaMMV: parseFloat(row.deuda_mmv || 0),
             DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
-            DeudaBs: (parseFloat(row.deuda_congelada_bs || 0) + (parseFloat(row.deuda_mmv || 0) * 57 * tcmmv)),
+            DeudaBs: calcRowDeudaCanonical(row, tcmmv),
             MesesDeuda: parseInt(row.meses_deuda || '0'),
             Estado: rowEstado,
             FechaRegistro: row.created_at || null
@@ -1743,7 +1765,7 @@ function ContribuyentesPageContent() {
             existing.DeudaMMV = Math.max(existing.DeudaMMV || 0, parseFloat(row.deuda_mmv || 0));
           }
           existing.DeudaCongelada += parseFloat(row.deuda_congelada_bs || 0);
-          existing.DeudaBs = (existing.DeudaCongelada + (existing.DeudaMMV * 57 * tcmmv));
+          existing.DeudaBs = Math.round((existing.DeudaBs + calcRowDeudaCanonical(row, tcmmv)) * 100) / 100;
           const rowEstado = row.estado || 'Activo';
           if (rowEstado === 'Activo') {
             existing.Estado = 'Activo';
