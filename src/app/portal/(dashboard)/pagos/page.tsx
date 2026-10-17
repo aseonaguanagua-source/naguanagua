@@ -144,6 +144,16 @@ export default function DondePagarPage() {
           }
         }
 
+        // Consultar también hijos asociados vía padre_id (ej: clusters/locales con múltiples actividades)
+        const parentCodes = allInms.map(i => i.inmueble).filter(Boolean);
+        if (parentCodes.length > 0) {
+          const { data: childInms } = await supabase.from('inmuebles').select('*').in('padre_id', parentCodes);
+          if (childInms && childInms.length > 0) {
+            const missingChildren = childInms.filter(c => !allInms.some(i => i.inmueble === c.inmueble));
+            allInms.push(...missingChildren);
+          }
+        }
+
         const isActivoInm = (i: any) => {
           const est = (i.estado || 'Activo').trim().toLowerCase();
           return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';

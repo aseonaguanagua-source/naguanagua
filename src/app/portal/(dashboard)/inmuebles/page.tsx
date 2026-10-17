@@ -57,6 +57,21 @@ export default function InmueblesPage() {
           }
         }
 
+        // Si hay locales contenedores o inmuebles padre, traer sus actividades hijas vinculadas por padre_id
+        const parentCodes = inmsFinal.map(i => i.inmueble).filter(Boolean);
+        if (parentCodes.length > 0) {
+          const { data: hijosPadre } = await supabase
+            .from('inmuebles')
+            .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,padre_id,estado')
+            .in('padre_id', parentCodes);
+          if (hijosPadre && hijosPadre.length > 0) {
+            const ids = new Set(inmsFinal.map(x => x.id));
+            hijosPadre.filter(isActivo).forEach(h => {
+              if (!ids.has(h.id)) inmsFinal.push(h);
+            });
+          }
+        }
+
         // Cargar nombres oficiales de los condominios asociados
         const condoPadres = Array.from(new Set(
           inmsFinal.map(i => (i as any).condominio_padre_id).filter(Boolean)

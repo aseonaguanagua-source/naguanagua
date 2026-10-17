@@ -1,7 +1,7 @@
 'use client';
 import DeudaCondominiosPortal from '@/components/DeudaCondominiosPortal';
-import { useState, useEffect, useMemo } from 'react';
-import { Download, FileText, Building, Building2, MapPin, Store, Layers, Filter, Handshake, AlertCircle, CheckCircle2, Wrench, ClipboardCheck, ShieldCheck, FlaskConical } from 'lucide-react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
+import { Download, FileText, Building, Building2, MapPin, Store, Layers, Filter, Handshake, AlertCircle, CheckCircle2, Wrench, ClipboardCheck, ShieldCheck, FlaskConical, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
@@ -35,6 +35,25 @@ export default function EstadoCuentaPage() {
   const [contribuyenteMaster, setContribuyenteMaster] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLocal, setSelectedLocal] = useState<string>('TODOS');
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const formatFechaClean = (val?: string) => {
+    if (!val) return 'N/A';
+    if (val.includes('T')) {
+      const [d] = val.split('T');
+      const parts = d.split('-');
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const parts = val.split('-');
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return val;
+  };
 
   useEffect(() => {
     const fullDoc = localStorage.getItem('portal_doc') || '';
@@ -58,6 +77,16 @@ export default function EstadoCuentaPage() {
             if (missingCodes.length > 0) {
               const { data: extraInms } = await supabase.from('inmuebles').select('*').in('inmueble', missingCodes);
               if (extraInms) allInms.push(...extraInms);
+            }
+          }
+
+          // Consultar también hijos asociados vía padre_id (ej: clusters/locales con múltiples actividades)
+          const parentCodes = allInms.map(i => i.inmueble).filter(Boolean);
+          if (parentCodes.length > 0) {
+            const { data: childInms } = await supabase.from('inmuebles').select('*').in('padre_id', parentCodes);
+            if (childInms && childInms.length > 0) {
+              const missingChildren = childInms.filter(c => !allInms.some(i => i.inmueble === c.inmueble));
+              allInms.push(...missingChildren);
             }
           }
 
@@ -967,6 +996,85 @@ export default function EstadoCuentaPage() {
         const ivaTot = targetPendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
         const retTot = targetPendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
 
+        // Agrupar los recibos pendientes por Local (Cluster / N/A) y por Período/Mes
+        const groupsMap = new Map<string, {
+          key: string;
+          localId: string;
+          cluster?: InmuebleClusterGroup;
+          periodo: string;
+          emisionDate: string;
+          vencimiento: string;
+          isMulta: boolean;
+          totalBs: number;
+          isEnVerificacion: boolean;
+          items: Array<{
+            recibo: any;
+            inmueble: any;
+            monto: number;
+            inmuDesc: string;
+            referencia: string;
+            vencimiento: string;
+          }>;
+        }>();
+
+        const sortedPendientes = [...targetPendientes].sort((a: any, b: any) => 
+          new Date(a.emision || 0).getTime() - new Date(b.emision || 0).getTime()
+        );
+
+        for (const f of sortedPendientes) {
+          const matchedInm = misInmuebles.find((inm: any) => inm.inmueble && f.referencia?.includes(inm.inmueble));
+          const parentCluster = clusters.find(c =>
+            c.localId === f.inmueble ||
+            c.inms.some(inm => inm.inmueble && f.referencia?.includes(inm.inmueble)) ||
+            (f.referencia && f.referencia.includes(c.localId))
+          );
+
+          const localId = parentCluster?.localId || matchedInm?.inmueble || f.inmueble || 'LOCAL';
+          const esMulta = String(f.referencia || '').startsWith('MULTA-');
+          const periodoKey = esMulta ? 'MULTA' : (f.emision ? f.emision.substring(0, 7) : 'MES');
+          const groupKey = `${localId}__${periodoKey}`;
+
+          const montoNum = parseFloat(getReciboMonto(f)) || 0;
+          const inmuDesc = matchedInm
+            ? cleanClasificacionActividad(matchedInm.actividad_principal || matchedInm.clasificacion || '')
+            : '';
+
+          if (!groupsMap.has(groupKey)) {
+            const etiquetaPeriodo = esMulta
+              ? `Multa Municipal (${localId})`
+              : mesLabel(f.emision);
+
+            groupsMap.set(groupKey, {
+              key: groupKey,
+              localId,
+              cluster: parentCluster,
+              periodo: etiquetaPeriodo,
+              emisionDate: f.emision || '',
+              vencimiento: f.vencimiento || 'N/A',
+              isMulta: esMulta,
+              totalBs: 0,
+              isEnVerificacion: true,
+              items: [],
+            });
+          }
+
+          const group = groupsMap.get(groupKey)!;
+          group.totalBs += montoNum;
+          if (montoNum > 0 || f.estado === 'Abonado' || f.estado === 'Pagado') {
+            group.isEnVerificacion = false;
+          }
+          group.items.push({
+            recibo: f,
+            inmueble: matchedInm,
+            monto: montoNum,
+            inmuDesc,
+            referencia: f.referencia,
+            vencimiento: f.vencimiento,
+          });
+        }
+
+        const recibosGrupos = Array.from(groupsMap.values());
+
         return (
           <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
             <div className="bg-red-50 px-4 py-3 border-b border-red-200 flex items-center gap-2">
@@ -987,63 +1095,128 @@ export default function EstadoCuentaPage() {
               <table className="w-full text-left text-sm text-slate-600">
                 <thead className="bg-red-50/50 border-b border-red-100 text-xs uppercase text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">Referencia</th>
-                    <th className="px-4 py-3">Mes / Inmueble</th>
+                    <th className="px-4 py-3">Referencia / Local</th>
+                    <th className="px-4 py-3">Mes / Local</th>
                     <th className="px-4 py-3 text-center">Vencimiento</th>
                     <th className="px-4 py-3 text-right">Monto (Bs)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {targetPendientes.length === 0 ? (
+                  {recibosGrupos.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-4 py-6 text-center text-slate-400 text-sm">
                         No hay recibos pendientes registrados para este local.
                       </td>
                     </tr>
                   ) : (
-                    targetPendientes.sort((a: any, b: any) => new Date(a.emision).getTime() - new Date(b.emision).getTime()).map((f: any, i: number) => {
-                      const matchedInm = misInmuebles.find((inm: any) => inm.inmueble && f.referencia.includes(inm.inmueble));
-                      const inmuDesc = matchedInm
-                        ? cleanClasificacionActividad(matchedInm.actividad_principal || matchedInm.clasificacion || '')
-                        : '';
-                      const esMulta = String(f.referencia || '').startsWith('MULTA-');
-                      const etiquetaPeriodo = esMulta
-                        ? `Multa Municipal (${f.inmueble || f.referencia.replace('MULTA-', '')})`
-                        : mesLabel(f.emision);
-
-                      const parentCluster = clusters.find(c =>
-                        c.localId === f.inmueble ||
-                        c.inms.some(inm => inm.inmueble && f.referencia.includes(inm.inmueble)) ||
-                        f.referencia.includes(c.localId)
-                      );
+                    recibosGrupos.map((g) => {
+                      const isMulti = g.items.length > 1;
+                      const isExpanded = !!expandedGroups[g.key];
+                      const primaryItem = g.items[0];
 
                       return (
-                      <tr key={i} className="hover:bg-red-50/20 transition-colors">
-                        <td className="px-4 py-3 font-mono text-slate-700 text-xs">
-                          {f.referencia}
-                          {parentCluster && clusters.length > 1 && (
-                            <span className="block text-[10px] text-slate-400 font-mono mt-0.5">
-                              Local: {parentCluster.localId}
-                            </span>
+                        <Fragment key={g.key}>
+                          <tr
+                            className={`hover:bg-red-50/20 transition-colors ${isMulti ? 'cursor-pointer' : ''}`}
+                            onClick={() => isMulti && toggleGroup(g.key)}
+                          >
+                            <td className="px-4 py-3 font-mono text-slate-700 text-xs">
+                              {isMulti ? (
+                                <div>
+                                  <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                    <span>Local: {g.localId}</span>
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                                      N/A ({g.items.length} act.)
+                                    </span>
+                                  </div>
+                                  <span className="block text-[10px] text-slate-400 font-sans mt-0.5 line-clamp-1">
+                                    {g.cluster?.direccion && g.cluster.direccion !== '0 0' ? g.cluster.direccion : 'Múltiples actividades comerciales'}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <span className="font-semibold text-slate-800">{primaryItem.referencia}</span>
+                                  {g.cluster && clusters.length > 1 && (
+                                    <span className="block text-[10px] text-slate-400 font-mono mt-0.5">
+                                      Local: {g.localId}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <div className="font-semibold text-sm text-slate-900">{g.periodo}</div>
+                                  {isMulti ? (
+                                    <div className="text-[11px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
+                                      <span>Local {g.localId} · {g.items.length} Actividades Comerciales</span>
+                                    </div>
+                                  ) : (
+                                    primaryItem.inmueble && (
+                                      <div className="text-[11px] text-emerald-600 font-semibold mt-0.5">
+                                        {primaryItem.inmueble.inmueble}{primaryItem.inmuDesc ? ` · ${primaryItem.inmuDesc}` : ''}
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                                {isMulti && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); toggleGroup(g.key); }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors whitespace-nowrap"
+                                  >
+                                    <span>{isExpanded ? 'Ocultar' : 'Ver actividades'}</span>
+                                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center text-red-600 text-xs font-semibold whitespace-nowrap">
+                              {formatFechaClean(g.vencimiento)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-red-700 whitespace-nowrap">
+                              {g.isEnVerificacion ? (
+                                <span className="text-emerald-600 text-xs font-bold">En Verificación</span>
+                              ) : (
+                                `Bs. ${g.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              )}
+                            </td>
+                          </tr>
+                          {isMulti && isExpanded && (
+                            <tr className="bg-slate-50/70 border-b border-slate-200">
+                              <td colSpan={4} className="px-6 py-3">
+                                <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-inner">
+                                  <div className="text-[11px] font-bold uppercase text-slate-500 tracking-wider mb-2 flex items-center gap-1.5">
+                                    <Store className="w-3.5 h-3.5 text-blue-500" />
+                                    <span>Desglose de Actividades Comerciales del Local {g.localId}:</span>
+                                  </div>
+                                  <div className="divide-y divide-slate-100 text-xs">
+                                    {g.items.map((item, idx) => (
+                                      <div key={idx} className="py-1.5 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-mono font-bold text-slate-700">
+                                            {item.inmueble?.inmueble || item.referencia}
+                                          </span>
+                                          <span className="text-slate-300">|</span>
+                                          <span className="text-slate-600 font-medium">
+                                            {item.inmuDesc || 'Actividad Comercial'}
+                                          </span>
+                                          <span className="text-[10px] text-slate-400 font-mono">
+                                            ({item.referencia})
+                                          </span>
+                                        </div>
+                                        <div className="font-bold text-slate-800 whitespace-nowrap">
+                                          Bs. {item.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-sm">{etiquetaPeriodo}</div>
-                          {matchedInm && (
-                            <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                              {matchedInm.inmueble}{inmuDesc ? ` · ${inmuDesc}` : ''}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center text-red-600 text-xs">{f.vencimiento || 'N/A'}</td>
-                        <td className="px-4 py-3 text-right font-bold text-red-700">
-                          {parseFloat(getReciboMonto(f)) <= 0 && f.estado !== 'Abonado' && f.estado !== 'Pagado' ? (
-                            <span className="text-emerald-600">En Verificación</span>
-                          ) : (
-                            `Bs. ${parseFloat(getReciboMonto(f)).toLocaleString('es-VE', {minimumFractionDigits:2,maximumFractionDigits:2})}`
-                          )}
-                        </td>
-                      </tr>
+                        </Fragment>
                       );
                     })
                   )}
