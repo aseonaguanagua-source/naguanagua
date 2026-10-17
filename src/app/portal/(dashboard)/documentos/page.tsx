@@ -70,12 +70,45 @@ export default function DocumentosPage() {
           });
         });
 
-        (pagos || []).forEach(p => {
+        const pagosList = pagos || [];
+        const pagosMap = new Map<string, any>();
+        pagosList.forEach(p => pagosMap.set(p.id, p));
+
+        pagosList.forEach(p => {
           let det: any = {};
           try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
           
           const reciboNum = det.recibo_digital?.numero || det.factura_digital?.numero_factura || p.referencia;
           const fechaTx = det.fecha_transaccion || p.created_at?.split('T')[0] || 'N/A';
+
+          // Extraer período
+          let periodo = det.recibo_caja?.[0]?.periodo || det.periodos_pagados || det.periodo || '';
+          if (!periodo && det.pago_vinculado && pagosMap.has(det.pago_vinculado)) {
+            const pv = pagosMap.get(det.pago_vinculado);
+            let pvd: any = {};
+            try { pvd = typeof pv.detalles === 'string' ? JSON.parse(pv.detalles) : (pv.detalles || {}); } catch {}
+            periodo = pvd.recibo_caja?.[0]?.periodo || pvd.periodos_pagados || pvd.periodo || '';
+          }
+
+          // Si es un recibo con referencia tipo CONDO o RECIB-HIST o CM
+          if (!periodo && Array.isArray(det.recibos) && det.recibos.length > 0) {
+            const firstR = String(det.recibos[0]);
+            const matchM = firstR.match(/-(0[1-9]|1[0-2])-(\d{4})$/);
+            if (matchM) {
+              const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+              const mesIdx = parseInt(matchM[1], 10) - 1;
+              periodo = `${meses[mesIdx] || matchM[1]} ${matchM[2]}`;
+            }
+          }
+
+          const esRet = String(p.referencia || '').startsWith('RET-') || det.es_retencion || p.banco === 'N/A';
+          let conceptoTxt = '';
+          if (esRet) {
+            conceptoTxt = periodo ? `Retención de IVA (75%) · Período: ${periodo}` : `Comprobante de Retención de IVA`;
+          } else {
+            const metodoTxt = p.banco && p.banco !== 'N/A' ? p.banco : 'Pago en Taquilla / Transferencia';
+            conceptoTxt = periodo ? `Recibo de Pago Aprobado · Período: ${periodo} • ${metodoTxt}` : `Recibo de Pago Aprobado • ${metodoTxt}`;
+          }
 
           items.push({
             id: `pago_${p.id}`,
@@ -83,7 +116,7 @@ export default function DocumentosPage() {
             referencia: reciboNum,
             fecha: fechaTx,
             monto: parseFloat(String(p.monto || '0').replace(/[^\d.]/g, '')) || 0,
-            concepto: `Recibo de Pago Aprobado • ${p.banco || 'Transferencia'}`,
+            concepto: conceptoTxt,
             estado: 'Aprobado',
             banco: p.banco,
             comprobanteUrl: det.comprobante_url || undefined,

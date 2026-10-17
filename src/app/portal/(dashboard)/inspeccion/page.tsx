@@ -69,8 +69,8 @@ export default function InspeccionPage() {
           tipo: 'inspeccion',
           identidad: doc,
           contribuyente: nombre,
-          descripcion: `Inspección Técnica: ${motivo} — ${direccion}`,
-          monto: costoTotalBs,
+          descripcion: `Inspección Técnica: ${motivo} — ${direccion} (Pendiente de Asignación)`,
+          monto: 0,
           fecha: new Date().toISOString().split('T')[0],
           notas: observaciones,
           estado: 'Pendiente',
@@ -129,10 +129,10 @@ export default function InspeccionPage() {
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <span className="font-bold text-slate-800 text-sm">
-                    Bs. {Number(s.monto || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}
+                    {Number(s.monto) > 0 ? `Bs. ${Number(s.monto || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}` : 'Por asignar'}
                   </span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${estadoColor(s.estado)}`}>{s.estado}</span>
-                  {s.estado === 'Pendiente' && (
+                  {s.estado === 'Pendiente' && Number(s.monto) > 0 && (
                     <Link href="/portal/pagos" className="text-[10px] text-emerald-600 hover:underline font-semibold">→ Ir a Pagar</Link>
                   )}
                 </div>
@@ -147,10 +147,9 @@ export default function InspeccionPage() {
         <div className="bg-white rounded-lg border border-blue-200 p-10 text-center shadow-sm">
           <CheckCircle2 className="w-16 h-16 text-blue-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-slate-800 mb-2">¡Inspección Solicitada!</h2>
-          <p className="text-slate-600 mb-2">Su solicitud de inspección técnica fue registrada.</p>
+          <p className="text-slate-600 mb-2">Su solicitud de inspección técnica fue registrada con éxito.</p>
           <p className="text-sm text-slate-500 bg-slate-50 p-4 rounded-lg inline-block border border-slate-100 mb-6">
-            El cargo administrativo de <strong>Bs. {costoTotalBs.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong> aparecerá en su estado de cuenta.
-            Diríjase a <strong>PAGAR</strong> para cancelarlo.
+            El departamento técnico revisará la solicitud y le asignará la cotización administrativa oficial correspondiente, la cual aparecerá reflejada en este portal para su cancelación.
           </p>
           <div>
             <button onClick={() => { setIsSuccess(false); setMotivo(''); setDireccion(''); setObservaciones(''); }}
@@ -168,18 +167,14 @@ export default function InspeccionPage() {
             </h2>
           </div>
 
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {[
-                { label: 'Tarifa', value: `${TARIFA_TCMV} TCMV` },
-                { label: 'Tasa BCV', value: `Bs. ${tasaBcv.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}` },
-                { label: 'Total a Pagar', value: `Bs. ${costoTotalBs.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}`, highlight: true }
-              ].map((item, i) => (
-                <div key={i} className={`rounded-lg p-3 text-center ${item.highlight ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-700'}`}>
-                  <p className={`text-xs mb-1 ${item.highlight ? 'text-blue-100' : 'text-slate-500'}`}>{item.label}</p>
-                  <p className="font-black text-lg">{item.value}</p>
-                </div>
-              ))}
+          <div className="p-6 border-b border-slate-100 bg-blue-50/50">
+            <div className="text-xs text-blue-900 space-y-1">
+              <p className="font-bold text-sm flex items-center gap-1.5">
+                <span>🔍 Evaluación de Inspección Técnica</span>
+              </p>
+              <p>
+                Complete el formulario con los datos del inmueble y el motivo de la inspección. El cuerpo de inspectores evaluará los requerimientos in situ o en sistema y le asignará la cotización administrativa oficial correspondiente.
+              </p>
             </div>
           </div>
 

@@ -71,7 +71,7 @@ export default function TalaYPodaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (tarifaTCMV === 0) return;
+    if (!direccion.trim()) return;
     setIsSubmitting(true);
 
     const doc = localStorage.getItem('portal_doc') || '';
@@ -80,9 +80,10 @@ export default function TalaYPodaPage() {
     let desc = '';
     if (tipoPermiso === 'tala_poda') {
       const altStr = altura === 'hasta_3' ? 'Hasta 3m' : (altura === '4_a_5' ? '4m a 5m' : 'Mayor a 5m');
-      desc = `Tala y Poda - Altura: ${altStr} - Unidades: ${cantidad} - Dir: ${direccion}`;
+      desc = `Tala y Poda - Altura: ${altStr} - Unidades: ${cantidad} - Dir: ${direccion} (Pendiente de Cotización)`;
     } else {
-      desc = `Permiso: ${tipoPermiso} - Dir: ${direccion}`;
+      const nomP = tipoPermiso === 'limpieza' ? 'Limpieza de Terrenos' : tipoPermiso === 'variables' ? 'Variables Urbanas (Ambiental)' : 'Constancias y Renovaciones';
+      desc = `Permiso: ${nomP} - Dir: ${direccion} (Pendiente de Cotización)`;
     }
 
     try {
@@ -94,7 +95,7 @@ export default function TalaYPodaPage() {
           identidad: doc,
           contribuyente: nombre,
           descripcion: desc,
-          monto: costoTotalBs,
+          monto: 0,
           fecha: new Date().toISOString().split('T')[0],
           notas: detalles,
           estado: 'Pendiente',
@@ -274,18 +275,19 @@ export default function TalaYPodaPage() {
             </div>
 
             <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-6">
-              <div>
-                <p className="text-sm font-bold text-slate-500 uppercase mb-1">Costo Estimado del Permiso</p>
-                <p className="text-3xl font-black text-slate-900">{formatBs(costoTotalBs)}</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Base cálculo: {tarifaTCMV} U.M.M.V. × Tasa BCV ({tasaBcv.toFixed(2)})
+              <div className="text-xs text-slate-600 space-y-1">
+                <p className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                  <span>📋 Solicitud de Evaluación y Permiso</span>
+                </p>
+                <p>
+                  Su solicitud será evaluada por los técnicos del departamento de Ambiente y Ecosocialismo. Una vez verificado el tipo de trabajo, se emitirá la cotización y orden de cobro correspondiente.
                 </p>
               </div>
 
               <button 
                 type="submit" 
-                disabled={isSubmitting || tarifaTCMV === 0}
-                className="w-full sm:w-auto px-8 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                disabled={isSubmitting || !direccion.trim()}
+                className="w-full sm:w-auto px-8 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-bold flex items-center justify-center gap-2 disabled:opacity-50 shrink-0 shadow-sm"
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-2"><RefreshCw className="w-5 h-5 animate-spin" /> Procesando...</span>

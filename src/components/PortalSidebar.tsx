@@ -38,9 +38,10 @@ const menuSections = [
     ]
   },
   {
-    title: 'FISCAL',
+    title: 'FISCAL Y FACTURACIÓN',
     items: [
-      { name: 'Retenciones IVA', icon: Receipt, href: '/portal/retenciones', agenteOnly: true },
+      { name: 'Facturación', icon: FileText, href: '/portal/facturacion' },
+      { name: 'Retención', icon: Receipt, href: '/portal/retenciones' },
     ]
   },
   {

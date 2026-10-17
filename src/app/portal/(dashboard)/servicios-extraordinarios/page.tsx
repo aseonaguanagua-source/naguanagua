@@ -50,46 +50,38 @@ export default function ServiciosExtraordinariosPage() {
     cargar();
   }, []);
 
-  // Cálculo oficial
   const viajes = Math.max(1, parseInt(nve || '1') || 1);
-  let calc: { label: string; nivel: string; ucd: number; factor: number } | null = null;
-  if (cat === 'especial' && vehiculo && nivel) {
-    const t = TARIFAS_ESPECIAL.find(x => x.vehiculo === vehiculo);
-    if (t) calc = { label: t.label, nivel, ucd: t[nivel], factor: 1 };
-  }
-  if (cat === 'extraordinario' && vehiculo) {
-    const t = TARIFAS_EXTRAORDINARIO.find(x => x.vehiculo === vehiculo);
-    if (t) calc = { label: t.label, nivel: t.nivel, ucd: t.ucd, factor: t.factor };
-  }
-  const res = calc && tasa > 0 ? calcularServicio(calc.ucd, viajes, calc.factor, tasa) : null;
-
-  const cambiarCat = (c: Cat) => { setCat(c); setVehiculo(''); setNivel(''); setMsg(null); };
+  const cambiarCat = (c: Cat) => { setCat(c); setVehiculo(''); setMsg(null); };
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!doc) { setMsg({ ok: false, t: 'Inicie sesión de nuevo para solicitar el servicio.' }); return; }
-    if (!calc || !res) { setMsg({ ok: false, t: 'Seleccione el tipo de unidad' + (cat === 'especial' ? ' y el nivel' : '') + '.' }); return; }
+    if (!vehiculo) { setMsg({ ok: false, t: 'Seleccione el tipo de unidad.' }); return; }
     if (!lugar.trim()) { setMsg({ ok: false, t: cat === 'especial' ? 'Indique el lugar del evento.' : 'Indique la dirección del servicio.' }); return; }
     setEnviando(true); setMsg(null);
     try {
+      const tLabel = cat === 'especial'
+        ? (TARIFAS_ESPECIAL.find(x => x.vehiculo === vehiculo)?.label || vehiculo)
+        : (TARIFAS_EXTRAORDINARIO.find(x => x.vehiculo === vehiculo)?.label || vehiculo);
+
       const r = await fetch('/api/admin/servicios-especiales', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipo: cat, identidad: doc, contribuyente: nombre,
-          descripcion: `${cat === 'especial' ? 'Servicio Especial' : 'Servicio Extraordinario'} — ${calc.label} (${calc.nivel}) × ${viajes} viaje(s)`,
-          monto: res.montoBs, fecha: new Date().toISOString().split('T')[0],
+          descripcion: `${cat === 'especial' ? 'Servicio Especial' : 'Servicio Extraordinario'} — ${tLabel} × ${viajes} viaje(s) (Pendiente de Asignación)`,
+          monto: 0, fecha: new Date().toISOString().split('T')[0],
           notas: `${detalles}${contacto ? ` [CONTACTO:${contacto}]` : ''}`.trim(),
           estado: 'Pendiente', referencia: `SRV-${cat === 'especial' ? 'ESP' : 'EXT'}-${Date.now()}`, origen: 'contribuyente',
-          categoria: cat === 'especial' ? 'ESPECIAL' : 'EXTRAORDINARIO', vehiculo, nivel: calc.nivel,
-          valor_ucd: calc.ucd, nve: viajes, factor: calc.factor, tasa_euro: tasa,
+          categoria: cat === 'especial' ? 'ESPECIAL' : 'EXTRAORDINARIO', vehiculo,
+          nve: viajes, tasa_euro: tasa > 0 ? tasa : null,
           nombre_evento: cat === 'especial' ? (nombreEvento || null) : null, fecha_evento: fechaEvento || null,
           hora_evento: horario || null, direccion_evento: lugar || null, aforo: aforo ? parseInt(aforo) : null, telefono: telefono || null,
         }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'No se pudo registrar la solicitud');
-      setMsg({ ok: true, t: 'Solicitud registrada. El IAMEC la revisará y podrá pagarla en "Pagos" o en taquilla.' });
-      setVehiculo(''); setNivel(''); setNve('1'); setDetalles('');
+      setMsg({ ok: true, t: 'Solicitud registrada con éxito. El administrador del IAMEC evaluará el requerimiento, asignará el nivel de servicio y le generará la cotización.' });
+      setVehiculo(''); setNve('1'); setDetalles(''); setLugar(''); setNombreEvento(''); setFechaEvento(''); setHorario(''); setAforo('');
       cargar();
     } catch (err: any) { setMsg({ ok: false, t: err.message }); }
     setEnviando(false);
@@ -139,30 +131,16 @@ export default function ServiciosExtraordinariosPage() {
           <>
             <div>
               <label className={lbl}>Tipo de unidad *</label>
-              <select value={vehiculo} onChange={e => setVehiculo(e.target.value)} className={inp}>
+              <select value={vehiculo} onChange={e => setVehiculo(e.target.value)} className={inp} required>
                 <option value="">Seleccione…</option>
                 {TARIFAS_ESPECIAL.map(t => <option key={t.vehiculo} value={t.vehiculo}>{t.label}</option>)}
               </select>
-            </div>
-            <div>
-              <label className={lbl}>Nivel del servicio *</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['BAJA', 'MEDIA', 'ALTA'] as const).map(n => {
-                  const t = TARIFAS_ESPECIAL.find(x => x.vehiculo === vehiculo);
-                  return (
-                    <button key={n} type="button" disabled={!t} onClick={() => setNivel(n)}
-                      className={`rounded-xl border px-3 py-2 text-sm font-bold disabled:opacity-40 ${nivel === n ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-400'}`}>
-                      {n}{t ? <span className="block text-[11px] font-medium opacity-80">{t[n]} UCD</span> : null}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><label className={lbl}>Nombre del evento</label><input value={nombreEvento} onChange={e => setNombreEvento(e.target.value)} className={inp} /></div>
               <div><label className={lbl}>Fecha del evento</label><input type="date" value={fechaEvento} onChange={e => setFechaEvento(e.target.value)} className={inp} /></div>
               <div><label className={lbl}>Horario</label><input value={horario} onChange={e => setHorario(e.target.value)} placeholder="Ej: 8:00 am a 6:00 pm" className={inp} /></div>
-              <div><label className={lbl}>Aforo (personas)</label><input type="number" min="0" value={aforo} onChange={e => setAforo(e.target.value)} className={inp} /></div>
+              <div><label className={lbl}>Aforo estimado (personas)</label><input type="number" min="0" value={aforo} onChange={e => setAforo(e.target.value)} className={inp} /></div>
             </div>
           </>
         ) : (
@@ -171,9 +149,9 @@ export default function ServiciosExtraordinariosPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {TARIFAS_EXTRAORDINARIO.map(t => (
                 <button key={t.vehiculo} type="button" onClick={() => setVehiculo(t.vehiculo)}
-                  className={`text-left rounded-xl border px-3 py-2.5 ${vehiculo === t.vehiculo ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-300 hover:border-emerald-400'}`}>
+                  className={`text-left rounded-xl border px-3 py-2.5 transition-all ${vehiculo === t.vehiculo ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-300 hover:border-emerald-400'}`}>
                   <span className="block text-sm font-bold">{t.label}</span>
-                  <span className="block text-[11px] opacity-80">{t.capacidad} m³ · C.E.V {t.ucd} UCD · factor de llenado {t.factor}</span>
+                  <span className="block text-[11px] opacity-80">{t.capacidad} m³ (desechos fuera de ruta)</span>
                 </button>
               ))}
             </div>
@@ -181,23 +159,20 @@ export default function ServiciosExtraordinariosPage() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div><label className={lbl}>N° de viajes *</label><input type="number" min="1" value={nve} onChange={e => setNve(e.target.value)} className={inp} /></div>
-          <div><label className={lbl}>Persona de contacto</label><input value={contacto} onChange={e => setContacto(e.target.value)} className={inp} /></div>
-          <div><label className={lbl}>Teléfono</label><input value={telefono} onChange={e => setTelefono(e.target.value)} className={inp} /></div>
+          <div><label className={lbl}>N° estimado de viajes *</label><input type="number" min="1" value={nve} onChange={e => setNve(e.target.value)} className={inp} required /></div>
+          <div><label className={lbl}>Persona de contacto *</label><input value={contacto} onChange={e => setContacto(e.target.value)} className={inp} required /></div>
+          <div><label className={lbl}>Teléfono de contacto *</label><input value={telefono} onChange={e => setTelefono(e.target.value)} className={inp} required /></div>
         </div>
-        <div><label className={lbl}>{cat === 'especial' ? 'Lugar del evento *' : 'Dirección del servicio *'}</label><input value={lugar} onChange={e => setLugar(e.target.value)} className={inp} /></div>
-        <div><label className={lbl}>Detalles adicionales</label><textarea value={detalles} onChange={e => setDetalles(e.target.value)} rows={2} className={inp} /></div>
+        <div><label className={lbl}>{cat === 'especial' ? 'Lugar del evento *' : 'Dirección del servicio *'}</label><input value={lugar} onChange={e => setLugar(e.target.value)} className={inp} required /></div>
+        <div><label className={lbl}>Detalles adicionales</label><textarea value={detalles} onChange={e => setDetalles(e.target.value)} rows={2} placeholder="Describa el requerimiento, tipo de residuos, accesos, etc." className={inp} /></div>
 
-        <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm">
-          {calc && res ? (
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div className="text-slate-600 space-y-0.5">
-                <p><b>{calc.ucd} UCD</b> × {viajes} viaje(s) × {calc.factor} = <b>{fmt(res.total)} UCD</b></p>
-                <p className="text-xs">× Tasa Euro BCV Bs. {fmt(tasa)}</p>
-              </div>
-              <div className="text-right"><p className="text-xs text-slate-500">Monto a pagar</p><p className="text-2xl font-black text-emerald-700">Bs. {fmt(res.montoBs)}</p></div>
-            </div>
-          ) : <p className="text-slate-500">Seleccione la unidad{cat === 'especial' ? ' y el nivel' : ''} para ver el monto oficial.</p>}
+        <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 text-xs text-blue-800 space-y-1">
+          <p className="font-bold flex items-center gap-1.5">
+            <span>ℹ️ Información de Asignación y Cotización:</span>
+          </p>
+          <p>
+            Al enviar su solicitud, los inspectores y administradores del IAMEC evaluarán los requerimientos técnicos y le asignarán el nivel de servicio y cotización oficial. Una vez evaluado, podrá ver el monto y pagarlo desde el portal o en taquilla.
+          </p>
         </div>
 
         {msg && (
@@ -206,7 +181,7 @@ export default function ServiciosExtraordinariosPage() {
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          <button type="submit" disabled={enviando || !res} className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl">
+          <button type="submit" disabled={enviando || !vehiculo} className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl transition-all shadow-sm">
             <Send className="w-4 h-4" /> {enviando ? 'Enviando…' : 'Solicitar servicio'}
           </button>
           <button type="button" onClick={() => generarPlanillaServicio({ categoria: cat })} className="inline-flex items-center gap-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl">

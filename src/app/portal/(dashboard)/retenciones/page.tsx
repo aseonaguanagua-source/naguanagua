@@ -119,19 +119,28 @@ export default function RetencionesDashboard() {
   const checkAgente = async (id: string) => {
     if (!id) { setIsAgente(false); setLoading(false); return; }
     const orFilter = variantesDe(id).map(v => `identidad.eq.${v}`).join(',');
-    const [{ data: inms }, { data: facs }, bcv] = await Promise.all([
+    const [{ data: inms }, { data: facs }, { data: pagosConRet }, bcv] = await Promise.all([
       supabase.from('inmuebles').select('*').or(orFilter),
       supabase.from('facturas').select('*').or(orFilter).in('estado', ['Pendiente', 'Por Verificar', 'Abonado']),
+      supabase.from('pagos_reportados').select('id, detalles').or(orFilter).limit(20),
       fetch('/api/bcv').then(r => r.json()).catch(() => ({})),
     ]);
     const todos = inms || [];
     const rc = construirRecibosContribuyente({ inmuebles: todos, facturas: facs || [], identidad: id });
-    const agentesInd = rc.billables.filter((i: any) => i.agente_retencion === true && !isResidencialInm(i));
-    const condoAg = todos.some((i: any) => i.es_condominio === true && i.agente_retencion === true);
+    const agentesInd = rc.billables.filter((i: any) => (i.agente_retencion === true || String(i.agente_retencion) === 'true') && !isResidencialInm(i));
+    const condoAg = todos.some((i: any) => i.es_condominio === true && (i.agente_retencion === true || String(i.agente_retencion) === 'true'));
+    
+    // Verificar también si tiene pagos con retención en pagos_reportados
+    const tienePagosRet = (pagosConRet || []).some((p: any) => {
+      let d = p.detalles;
+      if (typeof d === 'string') { try { d = JSON.parse(d); } catch {} }
+      return d?.es_retencion || d?.agente_retencion || (parseFloat(String(d?.monto_retencion_iva || 0)) > 0);
+    });
+
     setEsCondoAgente(condoAg);
     setSoloLocalEnCondominio(!agentesInd.length && !condoAg && todos.some((i: any) => i.agente_retencion === true && i.condominio_padre_id));
 
-    if (agentesInd.length || condoAg) {
+    if (agentesInd.length || condoAg || tienePagosRet) {
       setIsAgente(true);
       // Datos de la factura de su deuda ACTUAL (para preparar el comprobante antes de pagar)
       const tasa = Number(bcv?.tcmmv) || 0;
