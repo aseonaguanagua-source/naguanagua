@@ -20,11 +20,14 @@ export async function POST(request: Request) {
     const variantes = getIdentidadVariants(identidad);
     const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
 
-    // Buscar en inmuebles
-    const { data: records, error } = await supabase
+    // Buscar en inmuebles activos primero
+    let { data: records, error } = await supabase
       .from("inmuebles")
       .select("contribuyente, cod_cont, clave_portal, identidad, correo_electronico, telefono, estado")
       .or(orFilter)
+      .not("estado", "ilike", "eliminado%")
+      .not("estado", "ilike", "inactivo%")
+      .not("estado", "ilike", "desactivado%")
       .limit(1);
 
     if (error) {
@@ -35,11 +38,23 @@ export async function POST(request: Request) {
     // También buscar en contribuyentes
     const { data: contribRecs } = await supabase
       .from("contribuyentes")
-      .select("nombre, identidad, email, telefono")
+      .select("nombre, identidad, email, telefono, clave_portal")
       .or(orFilter)
       .limit(1);
 
     const contribRec = contribRecs && contribRecs.length > 0 ? contribRecs[0] : null;
+
+    // Si no encontró activos en inmuebles, pero tampoco en contribuyentes, buscar cualquier inmueble para verificar si está totalmente inactivo o suspendido
+    if ((!records || records.length === 0) && !contribRec) {
+      const { data: anyRecords } = await supabase
+        .from("inmuebles")
+        .select("contribuyente, cod_cont, clave_portal, identidad, correo_electronico, telefono, estado")
+        .or(orFilter)
+        .limit(1);
+      if (anyRecords && anyRecords.length > 0) {
+        records = anyRecords;
+      }
+    }
 
     // Si no está en inmuebles ni en contribuyentes, buscar en condominio_unidades
     let condoRec = null;
@@ -62,10 +77,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = (records && records.length > 0) ? records[0] : (contribRec ? {
+    const user = (records && records.length > 0) ? {
+      ...records[0],
+      clave_portal: records[0].clave_portal || contribRec?.clave_portal || null,
+      correo_electronico: records[0].correo_electronico || contribRec?.email || '',
+      telefono: records[0].telefono || contribRec?.telefono || ''
+    } : (contribRec ? {
       contribuyente: contribRec?.nombre,
       cod_cont: contribRec?.identidad,
-      clave_portal: null,
+      clave_portal: contribRec?.clave_portal || null,
       identidad: contribRec?.identidad,
       correo_electronico: contribRec?.email,
       telefono: contribRec?.telefono,

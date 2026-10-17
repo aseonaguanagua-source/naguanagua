@@ -58,7 +58,8 @@ export async function POST(request: Request) {
       .from('contribuyentes')
       .update({
         email: cleanEmail,
-        telefono: cleanPhone
+        telefono: cleanPhone,
+        clave_portal: clave
       })
       .or(orFilter);
 

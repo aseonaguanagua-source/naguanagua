@@ -112,7 +112,10 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           query = query.or(idVariants.map(v => `identidad.eq.${v}`).join(','));
         }
         const { data } = await query.order('inmueble', { ascending: true });
-        let allInms = [...(data || [])];
+        let allInms = [...(data || [])].filter((i: any) => {
+          const st = String(i.estado || '').trim().toLowerCase();
+          return st !== 'eliminado' && st !== 'inactivo' && st !== 'desactivado';
+        });
 
         // 1.1 Si encontramos inmuebles, buscar si alguno tiene locales hijos asociados por padre_id
         const foundCodes = allInms.map((i: any) => i.inmueble).filter(Boolean);
@@ -508,7 +511,10 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   const tasaEfectiva = tcmmv > 0 ? tcmmv : (bcvRate > 0 ? bcvRate : 1);
   // Inmuebles sin eliminar ni inactivos
   const userInms = useMemo(() => {
-    return inmueblesList.filter(i => i.estado !== 'Eliminado' && i.estado !== 'Inactivo');
+    return inmueblesList.filter(i => {
+      const st = String(i.estado || '').trim().toLowerCase();
+      return st !== 'eliminado' && st !== 'inactivo' && st !== 'desactivado';
+    });
   }, [inmueblesList]);
 
   // Unificación jerárquica: Inmuebles N/A con sus locales e hijos

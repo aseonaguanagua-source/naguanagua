@@ -41,11 +41,16 @@ export default function DatosContribuyentePage() {
           .maybeSingle();
 
         // 2. Obtener inmuebles asociados para actividad y código
-        const { data: inmsData } = await supabase
+        const { data: inmsDataRaw } = await supabase
           .from('inmuebles')
-          .select('id, inmueble, contribuyente, correo_electronico, telefono, direccion, actividad_principal')
+          .select('id, inmueble, contribuyente, correo_electronico, telefono, direccion, actividad_principal, estado')
           .or(orFilter)
           .order('id', { ascending: true });
+
+        const inmsData = (inmsDataRaw || []).filter((i: any) => {
+          const est = (i.estado || 'Activo').trim().toLowerCase();
+          return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+        });
 
         const rInm = inmsData && inmsData.length > 0
           ? (inmsData.find(i => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A') || inmsData[0])

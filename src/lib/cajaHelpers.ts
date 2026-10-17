@@ -67,7 +67,13 @@ export const getUserInmuebles = (
   const specificCode = (foundUser as any).CodCont || (foundUser as any).cod_cont;
   const sCode = specificCode ? String(specificCode).toUpperCase() : '';
 
+  const isActivo = (i: any) => {
+    const est = (i.estado || 'Activo').trim().toLowerCase();
+    return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+  };
+
   return source.filter((i) => {
+    if (!isActivo(i)) return false;
     if (isTrueCondo) return true;
     const itemFid = (i.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
     // Coincidencia por RIF / Cédula del contribuyente
@@ -145,19 +151,31 @@ export interface LocalClusterInfo {
  */
 export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, LocalClusterInfo> {
   const result = new Map<string, LocalClusterInfo>();
+  const isActivo = (i: any) => {
+    const est = (i.estado || 'Activo').trim().toLowerCase();
+    return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+  };
+  const activeInms = (userInms || []).filter(isActivo);
   const clusters: Array<{ localId: string; label: string; direccion: string; inms: InmuebleBasic[] }> = [];
 
-  for (const inm of userInms) {
+  for (const inm of activeInms) {
     const rawDir = (inm.direccion || '').trim();
-    const padreId = (inm as any).condominio_padre_id || (inm as any).padre_id;
+    // El contenedor local de actividades (N/A) SIEMPRE es padre_id (NO condominio_padre_id)
+    const localPadreId = (inm as any).padre_id;
+    const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A';
 
-    // Buscar si ya pertenece a un cluster existente por padre jerárquico explícito (N/A o condominio)
-    // O si este inmueble es el padre de algún inmueble que ya está en el cluster
     const matchedCluster = clusters.find((c) => {
-      if (padreId && c.inms.some((i: any) => i.condominio_padre_id === padreId || i.padre_id === padreId || i.inmueble === padreId)) {
+      // 1. Si este inm tiene un contenedor padre (padre_id), asociar al cluster que tenga a ese padre o a sus hermanos
+      if (localPadreId && c.inms.some((i: any) => i.inmueble === localPadreId || i.padre_id === localPadreId)) {
         return true;
       }
-      if (inm.inmueble && c.inms.some((i: any) => i.condominio_padre_id === inm.inmueble || i.padre_id === inm.inmueble)) {
+      // 2. Si este inm es el contenedor padre N/A de alguno que ya está en el cluster
+      if (inm.inmueble && c.inms.some((i: any) => i.padre_id === inm.inmueble)) {
+        return true;
+      }
+      // 3. Coincidencia por dirección física SOLO si NINGUNO pertenece a un contenedor padre N/A
+      const cHasPadre = c.inms.some((i: any) => i.padre_id || (i.actividad_principal || '').toUpperCase() === 'N/A');
+      if (!localPadreId && !isNA && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
         return true;
       }
       return false;
@@ -165,8 +183,7 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
 
     if (matchedCluster) {
       matchedCluster.inms.push(inm);
-      // Si este inmueble es el padre (N/A o condominio), promover su código como localId canónico
-      if (inm.inmueble && matchedCluster.inms.some((i: any) => i.padre_id === inm.inmueble || i.condominio_padre_id === inm.inmueble)) {
+      if (isNA && inm.inmueble) {
         matchedCluster.localId = inm.inmueble;
       }
       if ((!matchedCluster.direccion || matchedCluster.direccion === '0 0') && rawDir && rawDir !== '0 0') {
@@ -174,7 +191,7 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
         matchedCluster.label = getShortAddress(rawDir);
       }
     } else {
-      const canonicalId = padreId || inm.inmueble || `LOCAL-${clusters.length + 1}`;
+      const canonicalId = localPadreId || inm.inmueble || `LOCAL-${clusters.length + 1}`;
       const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (canonicalId || 'Local');
       clusters.push({
         localId: canonicalId,
@@ -234,19 +251,22 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
 
   for (const inm of activeInms) {
     const rawDir = (inm.direccion || '').trim();
-    const padreId = (inm as any).condominio_padre_id || (inm as any).padre_id;
+    // El contenedor local de actividades (N/A) SIEMPRE es padre_id (NO condominio_padre_id)
+    const localPadreId = (inm as any).padre_id;
+    const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A';
 
     const matchedCluster = clusters.find((c) => {
-      // 1. Coincidencia por padre_id explícito (N/A o condominio)
-      if (padreId && c.inms.some((i: any) => i.condominio_padre_id === padreId || i.padre_id === padreId || i.inmueble === padreId)) {
+      // 1. Si este inm tiene un contenedor padre (padre_id), asociar al cluster que tenga a ese padre o a sus hermanos
+      if (localPadreId && c.inms.some((i: any) => i.inmueble === localPadreId || i.padre_id === localPadreId)) {
         return true;
       }
-      if (inm.inmueble && c.inms.some((i: any) => i.condominio_padre_id === inm.inmueble || i.padre_id === inm.inmueble)) {
+      // 2. Si este inm es el contenedor padre N/A de alguno que ya está en el cluster
+      if (inm.inmueble && c.inms.some((i: any) => i.padre_id === inm.inmueble)) {
         return true;
       }
-      // 2. Coincidencia por dirección física SOLO si NINGUNO de los dos pertenece a un contenedor padre N/A o condominio
-      const cHasPadre = c.inms.some((i: any) => i.condominio_padre_id || i.padre_id || (i.actividad_principal || '').toUpperCase() === 'N/A');
-      if (!padreId && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
+      // 3. Coincidencia por dirección física SOLO si NINGUNO pertenece a un contenedor padre N/A
+      const cHasPadre = c.inms.some((i: any) => i.padre_id || (i.actividad_principal || '').toUpperCase() === 'N/A');
+      if (!localPadreId && !isNA && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
         return true;
       }
       return false;
@@ -254,7 +274,7 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
 
     if (matchedCluster) {
       matchedCluster.inms.push(inm);
-      if (inm.inmueble && matchedCluster.inms.some((i: any) => i.padre_id === inm.inmueble || i.condominio_padre_id === inm.inmueble)) {
+      if (isNA && inm.inmueble) {
         matchedCluster.localId = inm.inmueble;
       }
       if ((!matchedCluster.direccion || matchedCluster.direccion === '0 0') && rawDir && rawDir !== '0 0') {
@@ -262,7 +282,7 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
         matchedCluster.label = getShortAddress(rawDir);
       }
     } else {
-      const canonicalId = padreId || inm.inmueble || `LOCAL-${clusters.length + 1}`;
+      const canonicalId = localPadreId || inm.inmueble || `LOCAL-${clusters.length + 1}`;
       const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (canonicalId || 'Local');
       clusters.push({
         localId: canonicalId,

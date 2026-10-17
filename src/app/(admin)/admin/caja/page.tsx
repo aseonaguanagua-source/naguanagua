@@ -871,7 +871,7 @@ export default function CajaPage() {
         }
       });
       (inmFresh || []).forEach((i: any) => {
-        const p = i.padre_id || i.condominio_padre_id;
+        const p = i.padre_id;
         if (p) {
           const mChild = mesesEf(i);
           const currentP = naMesesMap.get(p) || 0;
@@ -882,15 +882,16 @@ export default function CajaPage() {
       // Filtrar los inmuebles eliminados/inactivos y sincronizar meses de deuda heredados
       const specificCode = (user.CodCont || user.cod_cont || '').toUpperCase();
       const activeInmFresh = (inmFresh || []).filter((i: any) => {
-        if (i.estado === 'Eliminado') return false;
+        const st = String(i.estado || '').trim().toLowerCase();
+        if (st === 'eliminado' || st === 'inactivo' || st === 'desactivado') return false;
         if (i.es_condominio === true) return false;
         // Si es el código específico buscado se permite (por si vinieron a pagar para reactivarlo),
         // pero todos los demás inmuebles del RIF deben ser estrictamente Activos para no mezclar inactivos
         const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
         if (esEspecifico) return true;
-        return String(i.estado || 'Activo').trim().toLowerCase() === 'activo';
+        return st === 'activo';
       }).map((i: any) => {
-        const p = i.padre_id || i.condominio_padre_id;
+        const p = i.padre_id;
         const mNa = p ? naMesesMap.get(p) : undefined;
         if (mNa && mNa > mesesEf(i)) {
           return { ...i, meses_deuda: mNa };

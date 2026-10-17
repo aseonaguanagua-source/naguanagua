@@ -27,6 +27,11 @@ export async function POST(request: Request) {
       .update({ clave_portal: clave })
       .eq('identidad', identidad);
 
+    await supabase
+      .from('contribuyentes')
+      .update({ clave_portal: clave })
+      .eq('identidad', identidad);
+
     if (error) {
       console.error("Supabase Error:", error);
       return NextResponse.json({ error: 'Error al actualizar base de datos' }, { status: 500 });

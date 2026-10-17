@@ -197,7 +197,7 @@ export function codigosContenedoresNA(inms: any[]): string[] {
     .filter((i: any) => {
       const act = String(i.actividad_principal || i.actividad || '').trim().toUpperCase();
       const esNA = act === 'N/A' || act.startsWith('PADRE') || i.es_grupo === true;
-      const tieneHijos = (parseInt(String(i.cant_inmuebles || '0')) > 0) || 
+      const tieneHijos = (parseInt(String(i.cant_inmuebles || '0')) > 1) || 
         (inms || []).some((c: any) => c.condominio_padre_id === i.inmueble || c.padre_id === i.inmueble || c.padre_unidad_id === i.id);
       return esNA || tieneHijos;
     })
@@ -218,6 +218,7 @@ export function reglaCobroInmueble(inm: any, naParentCodes: string[], identidadU
   if (!inm?.condominio_padre_id) return 'completo';
   if (isResidencialInm(inm)) return 'completo';
   if (isCondominioPagoIndividual(inm)) return 'completo';
+  if (inm.padre_id && naParentCodes.includes(inm.padre_id)) return 'completo';
   if (naParentCodes.includes(inm.condominio_padre_id)) return 'completo';
   if (sinPrefijo(inm.identidad) && sinPrefijo(inm.identidad) === sinPrefijo(identidadUsuario)) return 'completo';
   return 'solo_multa';

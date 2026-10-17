@@ -511,10 +511,17 @@ function ContribuyentesPageContent() {
 
   useEffect(() => {
     if (isViewModalOpen && viewData) {
+      const isActivo = (i: any) => {
+        const est = (i.estado || 'Activo').trim().toLowerCase();
+        return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+      };
       const idClean = (viewData.Identidad || '').replace(/-/g, '').toUpperCase();
       const idsBuscar = Array.from(new Set([viewData.Identidad, idClean, viewData.CodCont, viewData.cod_cont].filter(Boolean)));
-      supabase.from('inmuebles').select('*').or(`identidad.in.(${idsBuscar.join(',')}),inmueble.in.(${idsBuscar.join(',')})`).then(({ data }) => {
-        if (data && data.length > 0) setViewInmuebles(data);
+      supabase.from('inmuebles').select('*')
+        .neq('estado', 'Eliminado').neq('estado', 'Inactivo').neq('estado', 'Desactivado')
+        .or(`identidad.in.(${idsBuscar.join(',')}),inmueble.in.(${idsBuscar.join(',')})`).then(({ data }) => {
+        if (data && data.length > 0) setViewInmuebles(data.filter(isActivo));
+        else setViewInmuebles([]);
       });
       calculateFactorForRow(viewData).then(detalle => {
         if (detalle) setViewCalculo(detalle);
@@ -549,10 +556,12 @@ function ContribuyentesPageContent() {
             const combined = [...baseFacturas];
             // Inmuebles FRESCOS de la BD: la copia en memoria puede tener deuda ya pagada en Caja
             const idsBuscar = Array.from(new Set([viewData.Identidad, identidadClean].filter(Boolean)));
-            const { data: inmsBD } = await supabase.from('inmuebles').select('*').in('identidad', idsBuscar);
+            const { data: inmsBD } = await supabase.from('inmuebles').select('*')
+              .neq('estado', 'Eliminado').neq('estado', 'Inactivo').neq('estado', 'Desactivado')
+              .in('identidad', idsBuscar);
             const misInmuebles = (inmsBD && inmsBD.length > 0)
-              ? inmsBD
-              : inmuebles.filter((i: any) => (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase());
+              ? inmsBD.filter(isActivo)
+              : inmuebles.filter((i: any) => isActivo(i) && (i.identidad || '').replace(/-/g,'').toUpperCase() === (viewData?.Identidad || '').replace(/-/g,'').toUpperCase());
             if (combined.length === 0 && misInmuebles.length > 0) {
               const hasDeuda = misInmuebles.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
               if (hasDeuda) {
@@ -906,20 +915,23 @@ function ContribuyentesPageContent() {
         }
 
         const rawDir = (inm.direccion || '').trim();
-        const padreId = inm.condominio_padre_id || inm.padre_id;
+        const localPadreId = inm.padre_id;
+        const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A';
 
         const matched = clusters.find(c => {
           if (c.tipo === 'RESIDENCIAL') return false;
-          if (padreId && c.inmuebles.some((ci: any) => (ci.condominio_padre_id || ci.padre_id) === padreId || ci.inmueble === padreId)) {
+          // 1. Si coincide por padre_id explícito
+          if (localPadreId && c.inmuebles.some((ci: any) => ci.padre_id === localPadreId || ci.inmueble === localPadreId)) {
             return true;
           }
-          const cHasPadre = c.inmuebles.some((ci: any) => ci.condominio_padre_id || ci.padre_id || (ci.actividad_principal || '').toUpperCase() === 'N/A');
-          if (!padreId && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
+          if (inm.inmueble && c.inmuebles.some((ci: any) => ci.padre_id === inm.inmueble)) {
+            return true;
+          }
+          // 2. Coincidencia por dirección solo si ninguno pertenece a un contenedor padre N/A
+          const cHasPadre = c.inmuebles.some((ci: any) => ci.padre_id || (ci.actividad_principal || '').toUpperCase() === 'N/A');
+          if (!localPadreId && !isNA && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
             if (rawDir.toLowerCase() === c.direccion.toLowerCase()) return true;
             return isSameLocal(rawDir, c.direccion, 0.65);
-          }
-          if (!padreId && !cHasPadre && (!rawDir || rawDir === '0 0') && (!c.direccion || c.direccion === '0 0')) {
-            return true;
           }
           return false;
         });
@@ -927,14 +939,16 @@ function ContribuyentesPageContent() {
         if (matched) {
           matched.inmuebles.push(inm);
           matched.isMultiActivity = true;
+          if (isNA && inm.inmueble) matched.clusterId = inm.inmueble;
           if ((!matched.direccion || matched.direccion === '0 0') && rawDir && rawDir !== '0 0') {
             matched.direccion = rawDir;
             matched.label = getShortAddress(rawDir);
           }
         } else {
-          const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Inmueble');
+          const canonicalId = localPadreId || inm.inmueble || `COM-${clusters.length + 1}`;
+          const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (canonicalId || 'Inmueble');
           clusters.push({
-            clusterId: inm.inmueble || `COM-${clusters.length + 1}`,
+            clusterId: canonicalId,
             tipo: (inm.tipo || 'COMERCIAL').toUpperCase().includes('IND') ? 'INDUSTRIAL' : 'COMERCIAL',
             label,
             direccion: rawDir || viewData.Direccion || 'Naguanagua, Edo. Carabobo',
@@ -951,30 +965,27 @@ function ContribuyentesPageContent() {
       });
     } else {
       // MODO POR DEFECTO: UN ESTADO DE CUENTA POR CADA LOCAL FÍSICO.
-      // Si el contribuyente tiene varias actividades en el MISMO local (mismo padre propio o misma
-      // dirección exacta), se consolidan en un solo estado de cuenta (no uno por actividad).
-      const ownCodes = new Set(userInms.map((i: any) => i.inmueble));
+      // Si el contribuyente tiene varias actividades en el MISMO local (mismo contenedor N/A padre_id
+      // o misma dirección exacta), se consolidan en un solo estado de cuenta (no uno por actividad).
       const normDir = (d: string) => (d || '').trim().toUpperCase().replace(/\s+/g, ' ');
       for (const inm of candidates) {
         const esRes = isResidencialInm(inm);
         const rawDir = (inm.direccion || '').trim();
         const tipoCluster = esRes ? 'RESIDENCIAL' : ((inm.tipo || 'COMERCIAL').toUpperCase().includes('IND') ? 'INDUSTRIAL' : 'COMERCIAL');
-        // Padre propio: condominio o contenedor N/A (padre_id). Las actividades de un mismo N/A
-        // salen en UN solo estado de cuenta (la tarifa del N/A es la suma de sus actividades).
-        const padreDe = (x: any) => {
-          const p = x.condominio_padre_id || x.padre_id;
-          return p && ownCodes.has(p) ? p : null;
-        };
-        const padreId = padreDe(inm);
+        // El contenedor local de actividades (N/A) SIEMPRE es padre_id (NO condominio_padre_id)
+        const localPadreId = inm.padre_id;
+        const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A';
         const dirKey = rawDir && rawDir !== '0 0' ? normDir(rawDir) : '';
 
         const matched = esRes ? undefined : clusters.find(c => {
           if (c.tipo === 'RESIDENCIAL') return false;
           return c.inmuebles.some((ci: any) => {
-            const ciPadre = padreDe(ci);
-            if (padreId && ciPadre === padreId) return true;
-            // Solo agrupar por misma dirección física si NINGUNO de los dos pertenece a un contenedor padre (N/A o condominio)
-            if (!padreId && !ciPadre && dirKey && ci.direccion && ci.direccion !== '0 0') {
+            // 1. Si coincide por padre_id explícito
+            if (localPadreId && (ci.inmueble === localPadreId || ci.padre_id === localPadreId)) return true;
+            if (inm.inmueble && ci.padre_id === inm.inmueble) return true;
+            // 2. Solo agrupar por misma dirección física si NINGUNO de los dos pertenece a un contenedor padre N/A
+            const ciIsNA = (ci.actividad_principal || '').trim().toUpperCase() === 'N/A';
+            if (!localPadreId && !ci.padre_id && !isNA && !ciIsNA && dirKey && ci.direccion && ci.direccion !== '0 0') {
               const ciDir = normDir(ci.direccion);
               return ciDir === dirKey;
             }
@@ -992,7 +1003,7 @@ function ContribuyentesPageContent() {
         const label = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || (rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Inmueble'));
 
         clusters.push({
-          clusterId: padreId || inm.inmueble || `INM-${clusters.length + 1}`,
+          clusterId: localPadreId || inm.inmueble || `INM-${clusters.length + 1}`,
           tipo: tipoCluster,
           label,
           direccion: rawDir && rawDir !== '0 0' ? rawDir : (viewData.Direccion || 'Naguanagua, Edo. Carabobo'),
@@ -1729,12 +1740,18 @@ function ContribuyentesPageContent() {
         (inmsList || []).forEach((i: any) => { if (i.identidad) identsSet.add(i.identidad); });
         (contsData || []).forEach((c: any) => { if (c.identidad) identsSet.add(c.identidad); });
 
-        allFoundInmuebles = inmsList || [];
+        allFoundInmuebles = (inmsList || []).filter((i: any) => {
+          const st = String(i.estado || '').trim().toLowerCase();
+          return st !== 'eliminado' && st !== 'inactivo' && st !== 'desactivado';
+        });
         if (identsSet.size > 0 && identsSet.size <= 25) {
           const { data: siblings } = await supabase
             .from('inmuebles')
             .select('*')
-            .in('identidad', Array.from(identsSet));
+            .in('identidad', Array.from(identsSet))
+            .not('estado', 'ilike', 'eliminado%')
+            .not('estado', 'ilike', 'inactivo%')
+            .not('estado', 'ilike', 'desactivado%');
           if (siblings && siblings.length > 0) {
             allFoundInmuebles = siblings;
           }
@@ -1759,8 +1776,8 @@ function ContribuyentesPageContent() {
       const identidadesConInmueble = new Set((allFoundInmuebles || []).map((i: any) => i.identidad).filter(Boolean));
 
       const sortedInms = [...(allFoundInmuebles || [])].sort((a: any, b: any) => {
-        const aIsChild = Boolean(a.padre_id || a.condominio_padre_id);
-        const bIsChild = Boolean(b.padre_id || b.condominio_padre_id);
+        const aIsChild = Boolean(a.padre_id);
+        const bIsChild = Boolean(b.padre_id);
         if (aIsChild !== bIsChild) return aIsChild ? 1 : -1;
         return 0;
       });
@@ -1771,7 +1788,8 @@ function ContribuyentesPageContent() {
         const cod = row.inmueble || row.cod_cont;
         // Si el usuario buscó por un código que es un local hijo, no subsumirlo bajo el padre
         const isSearchedChild = isCodeFormat && term.toUpperCase() === String(cod).toUpperCase();
-        const parentKey = isSearchedChild ? null : (row.padre_id ? row.padre_id : (row.condominio_padre_id ? row.condominio_padre_id : null));
+        // El contenedor local de actividades siempre es padre_id (NO condominio_padre_id)
+        const parentKey = isSearchedChild ? null : (row.padre_id || null);
         const groupKey = isCodeFormat ? (isSearchedChild ? cod : (parentKey || cod)) : (parentKey || cod || row.id || row.identidad);
 
         if (groupKey && !mapResults.has(groupKey)) {

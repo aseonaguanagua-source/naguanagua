@@ -143,6 +143,12 @@ export default function DondePagarPage() {
           }
         }
 
+        const isActivoInm = (i: any) => {
+          const est = (i.estado || 'Activo').trim().toLowerCase();
+          return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+        };
+        allInms = allInms.filter(isActivoInm);
+
         const { data: dbFacturas } = await supabase
           .from('facturas')
           .select('*')

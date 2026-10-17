@@ -390,8 +390,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const identidadesConInmueble = new Set((allInmuebles || []).map((i: any) => i.identidad).filter(Boolean));
 
       const sortedInmuebles = [...allInmuebles].sort((a: any, b: any) => {
-        const aIsChild = Boolean(a.padre_id || a.condominio_padre_id);
-        const bIsChild = Boolean(b.padre_id || b.condominio_padre_id);
+        const aElim = ['eliminado', 'inactivo', 'desactivado'].includes(String(a.estado || '').trim().toLowerCase());
+        const bElim = ['eliminado', 'inactivo', 'desactivado'].includes(String(b.estado || '').trim().toLowerCase());
+        if (aElim !== bElim) return aElim ? 1 : -1;
+        const aIsChild = Boolean(a.padre_id);
+        const bIsChild = Boolean(b.padre_id);
         if (aIsChild !== bIsChild) return aIsChild ? 1 : -1;
         return 0;
       });
@@ -413,8 +416,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Regla Condominios Comerciales:
         // Aseo urbano se paga separado por condominio (centralizado en el padre).
         // Las multas se pagan por la oficina individual.
-        // Inmuebles "Eliminado" o con actividad TERRENO no suman deuda ni multas (ellos no pagan).
-        const esEliminado = row.estado === 'Eliminado';
+        // Inmuebles "Eliminado", "Inactivo" o con actividad TERRENO no suman deuda ni multas (ellos no pagan).
+        const esEliminado = ['eliminado', 'inactivo', 'desactivado'].includes(String(row.estado || '').trim().toLowerCase());
         const esTerreno = isTerrenoInm(row);
         const rowDeudaMMV = (isCommercialChild || esEliminado || esTerreno) ? 0 : parseFloat(row.deuda_mmv || 0);
         const rowMultaBs = (isParentCondo || esEliminado || esTerreno) ? 0 : parseFloat(row.multa_bs || 0);
@@ -446,11 +449,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         // Agrupación jerárquica:
         // Se unifican los contenedores N/A con sus actividades hijas vinculadas por padre_id.
-        // Los locales comerciales de condominios se agrupan en su condominio_padre_id.
+        // Los locales de condominios se agrupan en su contenedor local padre_id (NO en el condominio matriz).
         // Los inmuebles independientes NUNCA se unifican entre sí por cédula/RIF.
         const parentKey = row.padre_id && parentInfoMap.has(row.padre_id)
           ? row.padre_id
-          : (isCommercialChild && row.condominio_padre_id ? row.condominio_padre_id : null);
+          : null;
         const groupKey = parentKey || cod || row.id || row.identidad;
 
         if (groupKey && !map.has(groupKey)) {
