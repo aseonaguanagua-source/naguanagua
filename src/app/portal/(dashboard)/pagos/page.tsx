@@ -359,9 +359,7 @@ export default function DondePagarPage() {
         const singleItems: ReciboItem[] = c.receipts.map((r) => {
           const inmId = getReceiptInmId(r);
           const inmMatch = c.inms.find((i) => i.inmueble === inmId) || userInms[0];
-          // Bloqueado solo el aseo de locales comerciales de condominios ordinarios (sus MULTA- sí se pagan)
-          const bloqueadoCondo = !!inmMatch && !String(r.referencia || '').startsWith('MULTA-') &&
-            reglasCobro[inmMatch.inmueble] === 'solo_multa';
+          const bloqueadoCondo = false;
 
           const esMulta = String(r.referencia || '').startsWith('MULTA-');
           const conceptoTexto = esMulta

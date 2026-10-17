@@ -54,16 +54,11 @@ export async function GET(request: Request) {
     }
 
     if (inmsDB && inmsDB.length > 0) {
-      // Misma regla que Caja: sin eliminados, sin unidades de condominio ni condominios
-      const activeInms = inmsDB.filter((i: any) => i.estado !== 'Eliminado' && !i.condominio_padre_id && !i.es_condominio);
-      if (activeInms.length === 0 && inmsDB.some((i: any) => i.condominio_padre_id || i.es_condominio)) {
-        return NextResponse.json({ error: 'Sus propiedades pertenecen a Condominios. El cobro móvil solo está habilitado para inmuebles regulares.' }, { status: 400 });
-      }
-      if (activeInms.length === 0) inmsDB = [];
-      else {
-        // Traer también las actividades vinculadas por padre_id (para detectar contenedores N/A igual que Caja)
-        inmsDB = inmsDB.filter((i: any) => i.estado !== 'Eliminado');
-      }
+      const isActivo = (i: any) => {
+        const est = (i.estado || 'Activo').trim().toLowerCase();
+        return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+      };
+      inmsDB = inmsDB.filter(isActivo);
     }
 
     if (!inmsDB || inmsDB.length === 0) {
