@@ -877,7 +877,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         
         // ── LIMPIAR O REDUCIR DEUDA DEL INMUEBLE (RECIB-HIST-* o RECIB-DEUDA) ──
         const histRefsConcil = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
-        const esAbonoParcialConcil = !!det.es_abono || (montoConciliadoNum > 0 && det.total_seleccionado && montoConciliadoNum < parseFloat(det.total_seleccionado) - 1.00);
+        const retencionIvaPago = parseFloat(String(det.monto_retencion_iva || det.retencion_monto || det.retencion || 0)) || 0;
+        const saldoUsadoPago = parseFloat(String(det.saldo_usado || det.descuentoSaldoFavor || 0)) || 0;
+        const dineroTotalCubierto = montoConciliadoNum + retencionIvaPago + saldoUsadoPago;
+        const esAbonoParcialConcil = !!det.es_abono || (montoConciliadoNum > 0 && det.total_seleccionado && dineroTotalCubierto < parseFloat(det.total_seleccionado) - 1.00);
         if (recibos.includes('RECIB-DEUDA') || histRefsConcil.length > 0) {
           const { data: inmList2 } = await supabase
             .from('inmuebles')
@@ -979,6 +982,35 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                     })
                   }]);
                 }
+              }
+            }
+
+            // Sincronizar contenedores padre N/A (ej: URB007364) si sus hijos ya no tienen deuda
+            const parentCodesToSync = Array.from(new Set(inmList2.map((i: any) => i.condominio_padre_id || i.padre_id).filter(Boolean)));
+            for (const pCode of parentCodesToSync) {
+              const { data: parentInm } = await supabase.from('inmuebles').select('id, inmueble').eq('inmueble', pCode).maybeSingle();
+              if (parentInm) {
+                const { data: currentChildren } = await supabase
+                  .from('inmuebles')
+                  .select('meses_deuda, deuda_mmv')
+                  .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`)
+                  .neq('estado', 'Eliminado');
+                const maxChildMonths = Math.max(0, ...(currentChildren || []).map((c: any) => parseInt(String(c.meses_deuda || 0))));
+                const sumDeudaMmv = Math.round((currentChildren || []).reduce((s: number, c: any) => s + parseFloat(String(c.deuda_mmv || 0)), 0) * 10000) / 10000;
+                if (maxChildMonths === 0 || recibos.includes('RECIB-DEUDA')) {
+                  await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', parentInm.id);
+                } else {
+                  await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths, deuda_mmv: sumDeudaMmv }).eq('id', parentInm.id);
+                }
+              }
+            }
+
+            // Si el contribuyente ya no tiene meses pendientes en ningún inmueble, marcar cualquier factura pendiente como Pagado
+            if (recibos.some((r: string) => r.startsWith('RECIB-HIST-') || r === 'RECIB-DEUDA')) {
+              const { data: allUserInms } = await supabase.from('inmuebles').select('meses_deuda, deuda_mmv').eq('identidad', pago.identidad).neq('estado', 'Eliminado');
+              const hasRemainingDebt = (allUserInms || []).some((i: any) => parseInt(String(i.meses_deuda || 0)) > 0 || parseFloat(String(i.deuda_mmv || 0)) > 0.01);
+              if (!hasRemainingDebt) {
+                await supabase.from('facturas').update({ estado: 'Pagado', fecha_pago: new Date().toISOString().split('T')[0] }).eq('identidad', pago.identidad).in('estado', ['Pendiente', 'Por Verificar']);
               }
             }
           }

@@ -817,12 +817,30 @@ export default function CajaPage() {
       let orFilterInms = '';
       if (isCodeFormat && (user.CodCont || user.cod_cont)) {
         const specificCode = String(user.CodCont || user.cod_cont).trim().toUpperCase();
-        // REQUISITO: Cuando se busca por código, SOLO debe salir la información de ese código
-        // (y si es una matriz N/A, sus actividades hijas vinculadas). NUNCA traer otros inmuebles del RIF.
+        // REQUISITO: Cuando se busca por código, debe salir la información de ese código y de su local/unidad.
+        // Si el código buscado pertenece a un local unificado (tiene padre_id o es una matriz N/A),
+        // traer tanto la matriz como todas sus actividades hijas unificadas para no romper la tarifa del local.
+        let parentToInclude = (user.padre_id || user.condominio_padre_id);
+        if (!parentToInclude) {
+          const mInmLocal = (inmuebles || []).find((i: any) => String(i.inmueble || '').toUpperCase() === specificCode);
+          if (mInmLocal?.padre_id || mInmLocal?.condominio_padre_id) {
+            parentToInclude = mInmLocal.padre_id || mInmLocal.condominio_padre_id;
+          }
+        }
+        if (!parentToInclude) {
+          const { data: codeInmDb } = await supabase.from('inmuebles').select('padre_id, condominio_padre_id').eq('inmueble', specificCode).maybeSingle();
+          if (codeInmDb?.padre_id || codeInmDb?.condominio_padre_id) {
+            parentToInclude = codeInmDb.padre_id || codeInmDb.condominio_padre_id;
+          }
+        }
+
+        const codesArray = [specificCode];
+        if (parentToInclude) codesArray.push(parentToInclude);
+
         orFilterInms = [
-          `inmueble.eq.${specificCode}`,
-          `padre_id.eq.${specificCode}`,
-          `condominio_padre_id.eq.${specificCode}`
+          ...codesArray.map(c => `inmueble.eq.${c}`),
+          ...codesArray.map(c => `padre_id.eq.${c}`),
+          ...codesArray.map(c => `condominio_padre_id.eq.${c}`)
         ].join(',');
       } else {
         // Búsqueda por Cédula o RIF: "si busco por cedula o rif que salga todo"
@@ -1046,9 +1064,12 @@ export default function CajaPage() {
       
       // Consulta directa a Supabase: siempre fresca, incluye todas las CM- mensuales
       const facturasOrFilter = isCodeFormat
-        ? (activeInmFresh.length > 0 
-            ? activeInmFresh.map((i: any) => `referencia.ilike.%${i.inmueble}%`).join(',')
-            : `referencia.ilike.%${specificCode}%`)
+        ? [
+            ...userIdentVariants.map(v => `identidad.eq.${v}`),
+            ...(activeInmFresh.length > 0 
+                ? activeInmFresh.map((i: any) => `referencia.ilike.%${i.inmueble}%`)
+                : [`referencia.ilike.%${specificCode}%`])
+          ].filter(Boolean).join(',')
         : userIdentVariants.map(v => `identidad.eq.${v}`).join(',');
       const { data: allUserFacturas } = await supabase
         .from('facturas')
@@ -4091,7 +4112,30 @@ export default function CajaPage() {
               <div className="flex items-center gap-2 text-sm text-slate-500 flex-wrap mt-0.5">
                 <span className="font-semibold text-slate-700">{foundUser.Identidad}</span>
                 <span>•</span>
-                <span>Cód: {foundUser.cod_cont}</span>
+                {(() => {
+                  const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
+                  const activeInms = userInms.filter((i: any) => i.estado !== 'Eliminado');
+                  const distinctCodes = Array.from(new Set(activeInms.map((i: any) => i.inmueble).filter(Boolean)));
+                  
+                  if (foundUser.isSearchByCode && (foundUser.CodCont || foundUser.cod_cont)) {
+                    return (
+                      <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-mono font-semibold text-xs border border-slate-200">
+                        Cód: {foundUser.CodCont || foundUser.cod_cont}
+                      </span>
+                    );
+                  }
+
+                  if (distinctCodes.length <= 1) {
+                    return <span>Cód: {distinctCodes[0] || foundUser.cod_cont || 'N/A'}</span>;
+                  }
+
+                  // Múltiples inmuebles registrados
+                  return (
+                    <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-md font-semibold text-xs" title={distinctCodes.join(', ')}>
+                      🏢 {distinctCodes.length} Inmuebles ({distinctCodes.slice(0, 3).join(', ')}{distinctCodes.length > 3 ? '...' : ''})
+                    </span>
+                  );
+                })()}
                 {foundUser.Telefono && formatPhoneNumber(foundUser.Telefono) && (
                   <>
                     <span>•</span>
