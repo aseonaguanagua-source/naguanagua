@@ -52,17 +52,17 @@ export function parseLocalFloat(val: any): number {
     const parts = str.split('.');
     if (parts.length === 2) {
       const dec = parts[1];
-      if (dec.length !== 3) {
+      // Si tiene 1 o 2 dígitos después del punto (ej. 15.5 o 15.50), es decimal
+      if (dec.length <= 2) {
         const n = parseFloat(str);
         return isNaN(n) ? 0 : n;
       }
-      if (parts[0] === '0') {
+      // Si tiene 3 dígitos (ej. 1.000), en montos enteros de miles sin coma:
+      if (parts[0] !== '0' && dec.length === 3) {
+        str = str.replace(/\./g, '');
         const n = parseFloat(str);
         return isNaN(n) ? 0 : n;
       }
-      str = str.replace(/\./g, '');
-      const n = parseFloat(str);
-      return isNaN(n) ? 0 : n;
     }
   }
 
@@ -83,7 +83,19 @@ export function formatLocalNumberInput(val: string): string {
   let decimalPart: string | null = null;
   let integerPart = '';
 
-  if (s.includes(',')) {
+  if (s.includes('.') && s.includes(',')) {
+    const lastDot = s.lastIndexOf('.');
+    const lastComma = s.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      // 1.500,50 -> la coma es decimal
+      integerPart = s.substring(0, lastComma).replace(/[^0-9]/g, '');
+      decimalPart = s.substring(lastComma + 1).replace(/[^0-9]/g, '').substring(0, 2);
+    } else {
+      // 1,500.50 -> el punto es decimal
+      integerPart = s.substring(0, lastDot).replace(/[^0-9]/g, '');
+      decimalPart = s.substring(lastDot + 1).replace(/[^0-9]/g, '').substring(0, 2);
+    }
+  } else if (s.includes(',')) {
     const parts = s.split(',');
     integerPart = parts[0].replace(/[^0-9]/g, '');
     decimalPart = parts.slice(1).join('').replace(/[^0-9]/g, '').substring(0, 2);

@@ -117,8 +117,14 @@ function Caja() {
   const [isNotaModalOpen, setIsNotaModalOpen] = useState(false);
   const [notaManualMonto, setNotaManualMonto] = useState('');
   const [notaManualRef, setNotaManualRef] = useState('');
+  const [notaManualMotivo, setNotaManualMotivo] = useState('');
   const [notasCredito, setNotasCredito] = useState<any[]>([]);
   const [isLoadingNotas, setIsLoadingNotas] = useState(false);
+  const [notaEditando, setNotaEditando] = useState<any | null>(null);
+  const [notaEditMonto, setNotaEditMonto] = useState('');
+  const [notaEditRef, setNotaEditRef] = useState('');
+  const [notaEditMotivo, setNotaEditMotivo] = useState('');
+  const [guardandoEditNota, setGuardandoEditNota] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [calcTrigger, setCalcTrigger] = useState(0);
   const [pagosPorConciliar, setPagosPorConciliar] = useState<any[]>([]);
@@ -185,8 +191,9 @@ function Caja() {
     }
   };
 
-  const handleEliminarNota = async (docId: string, monto: number) => {
-    if (!confirm(`¿Está seguro de quitar y eliminar esta Nota de Crédito por Bs. ${formatBs(monto)}?\n\nEsto revertirá automáticamente el saldo a favor o abono del condominio.`)) {
+  const handleEliminarNota = async (docId: string, monto: any) => {
+    const montoNum = parseLocalFloat(monto);
+    if (!confirm(`¿Está seguro de quitar y eliminar esta Nota de Crédito por Bs. ${formatBs(montoNum)}?\n\nEsto revertirá automáticamente el saldo a favor o abono del condominio.`)) {
       return;
     }
     try {
@@ -196,19 +203,67 @@ function Caja() {
         body: JSON.stringify({
           id: docId,
           motivo: 'Eliminación manual desde Caja de Condominios',
-          usuario: 'Admin'
+          usuario: usuario()?.usuario || 'Admin'
         })
       });
       const resJson = await res.json();
       if (!res.ok || !resJson.ok) {
         throw new Error(resJson.error || 'Error al eliminar la nota de crédito');
       }
+      setSaldoFavorActivo(prev => Math.max(0, prev - montoNum));
       setSuccessMsg('Nota de crédito eliminada y saldo a favor revertido.');
       setTimeout(() => setSuccessMsg(''), 4000);
       await fetchNotasCredito();
       setCalcTrigger(prev => prev + 1);
     } catch (err: any) {
       alert('Error eliminando nota de crédito: ' + err.message);
+    }
+  };
+
+  const handleAbrirEditarNota = (nota: any) => {
+    let details: any = {};
+    try {
+      details = typeof nota.detalles === 'string' ? JSON.parse(nota.detalles) : (nota.detalles || {});
+    } catch(e){}
+    const rawMonto = parseLocalFloat(details.monto_bs ?? details.monto ?? 0);
+    setNotaEditando(nota);
+    setNotaEditMonto(formatLocalNumberInput(rawMonto.toFixed(2).replace('.', ',')));
+    setNotaEditRef(details.origen_referencia || '');
+    setNotaEditMotivo(details.motivo || '');
+  };
+
+  const handleGuardarEditarNota = async () => {
+    if (!notaEditando) return;
+    const montoParsed = parseLocalFloat(notaEditMonto);
+    if (!montoParsed || montoParsed <= 0) return alert('Ingrese un monto válido mayor a 0');
+    setGuardandoEditNota(true);
+    try {
+      const res = await fetch('/api/admin/documentos/editar-nota-credito', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: notaEditando.id,
+          nuevoMonto: montoParsed,
+          nuevaReferencia: notaEditRef.trim(),
+          nuevoMotivo: notaEditMotivo.trim(),
+          usuario: usuario()?.usuario || 'Admin'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Error al editar nota de crédito');
+
+      if (data.diferencia) {
+        setSaldoFavorActivo(prev => Math.max(0, prev + data.diferencia));
+      }
+      setSuccessMsg(data.mensaje || 'Nota de crédito actualizada correctamente');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      setNotaEditando(null);
+      await fetchNotasCredito();
+      setCalcTrigger(prev => prev + 1);
+    } catch (err: any) {
+      alert('Error editando nota de crédito: ' + (err.message || err));
+    } finally {
+      setGuardandoEditNota(false);
     }
   };
 
@@ -751,13 +806,24 @@ function Caja() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         {esVigente ? (
-                          <button
-                            onClick={() => handleEliminarNota(n.id, rawMonto)}
-                            className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded transition-colors cursor-pointer"
-                            title="Quitar / Eliminar Nota de Crédito y revertir saldo a favor"
-                          >
-                            🗑️ Quitar
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleAbrirEditarNota(n)}
+                              className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors cursor-pointer flex items-center gap-1"
+                              title="Editar monto y concepto de esta Nota de Crédito"
+                            >
+                              <span>✏️</span>
+                              <span>Editar</span>
+                            </button>
+                            <button
+                              onClick={() => handleEliminarNota(n.id, rawMonto)}
+                              className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1"
+                              title="Quitar / Eliminar Nota de Crédito y revertir saldo a favor"
+                            >
+                              <span>🗑️</span>
+                              <span>Quitar</span>
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-xs text-slate-400">---</span>
                         )}
@@ -1552,6 +1618,83 @@ function Caja() {
             <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-end gap-3">
               <button onClick={() => setIsNotaModalOpen(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded">Cancelar</button>
               <button onClick={handleCrearNotaManual} className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded shadow-sm">Generar Nota</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL EDITAR NOTA DE CRÉDITO ══ */}
+      {notaEditando && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+              <div className="flex items-center gap-2">
+                <span className="text-base">✏️</span>
+                <h3 className="font-bold text-slate-800 text-sm">Editar Nota de Crédito Manual</h3>
+              </div>
+              <button 
+                onClick={() => setNotaEditando(null)} 
+                disabled={guardandoEditNota}
+                className="text-slate-400 hover:text-slate-700 font-bold text-lg"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900">
+                Al modificar el monto, el <strong>saldo a favor / abono</strong> del condominio se ajustará automáticamente por la diferencia.
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Monto de la Nota (Bs)</label>
+                <input 
+                  type="text" 
+                  inputMode="decimal"
+                  value={notaEditMonto} 
+                  onChange={e => setNotaEditMonto(formatLocalNumberInput(e.target.value))}
+                  onBlur={e => {
+                    const p = parseLocalFloat(e.target.value);
+                    if (p > 0) setNotaEditMonto(formatLocalNumberInput(p.toFixed(2).replace('.', ',')));
+                  }}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-800" 
+                  placeholder="Ej. 1.000,00" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Referencia / Comprobante Origen</label>
+                <input 
+                  type="text" 
+                  value={notaEditRef} 
+                  onChange={e => setNotaEditRef(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none uppercase font-mono" 
+                  placeholder="Ej. REF-12345678" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Motivo / Concepto</label>
+                <input 
+                  type="text" 
+                  value={notaEditMotivo} 
+                  onChange={e => setNotaEditMotivo(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                  placeholder="Ej. Ajuste de saldo por pago excedente" 
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-end gap-3">
+              <button 
+                onClick={() => setNotaEditando(null)} 
+                disabled={guardandoEditNota}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleGuardarEditarNota} 
+                disabled={guardandoEditNota}
+                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+              >
+                {guardandoEditNota ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
             </div>
           </div>
         </div>

@@ -27,16 +27,17 @@ interface SaldoUpdateResult {
  * Obtiene el saldo total a favor de un contribuyente sumando todos sus inmuebles.
  * También retorna el inmueble "principal" donde se consolida el saldo.
  */
-export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: string): Promise<{
+export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: string, dbClient?: any): Promise<{
   total: number;
   inmueblePrincipalId: string | null;
 }> {
+  const client = dbClient || supabase;
   const id = String(identidad || '').trim().toUpperCase();
   const sinGuion = id.replace(/-/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
   const variantes = [...new Set([id, sinGuion, conGuion].filter(Boolean))];
 
-  let query = supabase.from('inmuebles').select('id, saldo_favor_bs, estado, inmueble');
+  let query = client.from('inmuebles').select('id, saldo_favor_bs, estado, inmueble');
   if (codigoInmueble) {
     query = query.or(`identidad.in.(${variantes.join(',')}),inmueble.eq.${codigoInmueble.toUpperCase()}`);
   } else if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
@@ -52,13 +53,13 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
   }
 
   const total = data.reduce(
-    (sum, i) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0),
+    (sum: number, i: any) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0),
     0
   );
 
   // Consolidar en el inmueble que ya tenga saldo, si no en el primer inmueble no eliminado (o el más antiguo)
-  const conSaldo = data.find(i => (parseFloat(i.saldo_favor_bs || '0') || 0) > 0.009);
-  const vivo = data.find(i => i.estado !== 'Eliminado');
+  const conSaldo = data.find((i: any) => (parseFloat(i.saldo_favor_bs || '0') || 0) > 0.009);
+  const vivo = data.find((i: any) => i.estado !== 'Eliminado');
   return { total, inmueblePrincipalId: (conSaldo || vivo || data[0]).id };
 }
 
@@ -68,13 +69,15 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
 export async function acreditarSaldoFavor(
   identidad: string,
   monto: number,
-  codigoCondominio?: string
+  codigoCondominio?: string,
+  dbClient?: any
 ): Promise<SaldoUpdateResult> {
-  const { inmueblePrincipalId } = await getSaldoFavorTotal(identidad, codigoCondominio);
+  const client = dbClient || supabase;
+  const { inmueblePrincipalId } = await getSaldoFavorTotal(identidad, codigoCondominio, client);
   
   // Si es un condominio y tiene registro en tabla condominios, actualizar abono_bs
   if (codigoCondominio) {
-    const { data: condoRow } = await supabase
+    const { data: condoRow } = await client
       .from('condominios')
       .select('id, abono_bs')
       .eq('codigo', codigoCondominio.toUpperCase())
@@ -82,7 +85,7 @@ export async function acreditarSaldoFavor(
 
     if (condoRow) {
       const nuevoAbono = (parseFloat(condoRow.abono_bs || '0') || 0) + monto;
-      await supabase.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', condoRow.id);
+      await client.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', condoRow.id);
     }
   }
 
@@ -92,7 +95,7 @@ export async function acreditarSaldoFavor(
   }
 
   // Leer saldo actual del inmueble principal
-  const { data: inm } = await supabase
+  const { data: inm } = await client
     .from('inmuebles')
     .select('saldo_favor_bs')
     .eq('id', inmueblePrincipalId)
@@ -101,7 +104,7 @@ export async function acreditarSaldoFavor(
   const currentSaldo = parseFloat(inm?.saldo_favor_bs || '0') || 0;
   const nuevoSaldo = currentSaldo + monto;
 
-  const { error } = await supabase
+  const { error } = await client
     .from('inmuebles')
     .update({ saldo_favor_bs: nuevoSaldo })
     .eq('id', inmueblePrincipalId);
@@ -117,13 +120,15 @@ export async function acreditarSaldoFavor(
 export async function descontarSaldoFavor(
   identidad: string,
   monto: number,
-  codigoCondominio?: string
+  codigoCondominio?: string,
+  dbClient?: any
 ): Promise<SaldoUpdateResult> {
+  const client = dbClient || supabase;
   let pendiente = Math.round((Number(monto) || 0) * 100) / 100;
 
   // Si hay abono en condominios, descontar primero de allí
   if (codigoCondominio) {
-    const { data: cRow } = await supabase
+    const { data: cRow } = await client
       .from('condominios')
       .select('id, abono_bs')
       .eq('codigo', codigoCondominio.toUpperCase())
@@ -132,7 +137,7 @@ export async function descontarSaldoFavor(
     if (cRow && (parseFloat(cRow.abono_bs || '0') || 0) > 0) {
       const abonoAct = parseFloat(cRow.abono_bs || '0') || 0;
       const desc = Math.min(abonoAct, pendiente);
-      await supabase.from('condominios').update({ abono_bs: Math.round((abonoAct - desc) * 100) / 100 }).eq('id', cRow.id);
+      await client.from('condominios').update({ abono_bs: Math.round((abonoAct - desc) * 100) / 100 }).eq('id', cRow.id);
       pendiente = Math.round((pendiente - desc) * 100) / 100;
     }
   }
@@ -144,7 +149,7 @@ export async function descontarSaldoFavor(
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
   const variantes = [...new Set([id, sinGuion, conGuion].filter(Boolean))];
 
-  let q = supabase.from('inmuebles').select('id, saldo_favor_bs');
+  let q = client.from('inmuebles').select('id, saldo_favor_bs');
   if (codigoCondominio) {
     q = q.or(`identidad.in.(${variantes.join(',')}),inmueble.eq.${codigoCondominio.toUpperCase()}`);
   } else if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
@@ -167,7 +172,7 @@ export async function descontarSaldoFavor(
     total += s;
     if (pendiente <= 0.009 || s <= 0.009) continue;
     const usa = Math.min(s, pendiente);
-    const { error } = await supabase.from('inmuebles').update({ saldo_favor_bs: Math.round((s - usa) * 100) / 100 }).eq('id', inm.id);
+    const { error } = await client.from('inmuebles').update({ saldo_favor_bs: Math.round((s - usa) * 100) / 100 }).eq('id', inm.id);
     if (error) return { ok: false, error: error.message };
     pendiente = Math.round((pendiente - usa) * 100) / 100;
   }

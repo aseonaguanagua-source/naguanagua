@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
+import { descontarSaldoFavor } from '@/lib/saldoFavor';
+import { parseLocalFloat } from '@/lib/formatters';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,94 +27,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'El documento seleccionado no es una Nota de Crédito' }, { status: 400 });
     }
 
-    // 2. Extraer monto
+    // 2. Extraer monto de forma robusta con parseLocalFloat
     let details: any = {};
     try {
       details = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {});
     } catch (e) {}
 
-    let raw = details.monto ?? details.monto_bs ?? 0;
-    let montoNum = 0;
-    if (typeof raw === 'number') {
-      montoNum = raw;
-    } else if (typeof raw === 'string') {
-      const clean = raw.trim();
-      if (clean.includes(',') && clean.includes('.')) {
-        montoNum = parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
-      } else if (clean.includes(',')) {
-        montoNum = parseFloat(clean.replace(',', '.')) || 0;
-      } else {
-        montoNum = parseFloat(clean) || 0;
-      }
-    }
+    const raw = details.monto_bs ?? details.monto ?? 0;
+    const montoNum = Math.round(parseLocalFloat(raw) * 100) / 100;
 
     const identidad = String(doc.identidad || '').trim().toUpperCase();
     const codigoCondo = details.codigo_condominio || details.condominio || (/^CM-/i.test(identidad) ? identidad : undefined);
 
     // 3. Revertir saldo a favor generado si aún existe
-    let saldoRevertido = 0;
+    let resDescontar: any = null;
     if (montoNum > 0 && identidad) {
-      // Si es condominio, revisar y descontar de condominios.abono_bs
-      if (codigoCondo) {
-        const { data: cRow } = await supabase
-          .from('condominios')
-          .select('id, abono_bs')
-          .eq('codigo', codigoCondo.toUpperCase())
-          .maybeSingle();
-        if (cRow && (parseFloat(cRow.abono_bs || '0') || 0) > 0) {
-          const actualAbono = parseFloat(cRow.abono_bs || '0') || 0;
-          const desc = Math.min(actualAbono, montoNum);
-          const nuevoAbono = Math.max(0, Math.round((actualAbono - desc) * 100) / 100);
-          await supabase.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', cRow.id);
-          saldoRevertido += desc;
-        }
-      }
-
-      // También revisar condominios por identidad
-      const { data: cById } = await supabase
-        .from('condominios')
-        .select('id, abono_bs')
-        .or(`identidad.eq.${identidad},codigo.eq.${identidad}`)
-        .maybeSingle();
-      if (cById && (parseFloat(cById.abono_bs || '0') || 0) > 0 && (!codigoCondo || cById.id !== codigoCondo)) {
-        const actualAbono = parseFloat(cById.abono_bs || '0') || 0;
-        const pendiente = Math.max(0, montoNum - saldoRevertido);
-        if (pendiente > 0) {
-          const desc = Math.min(actualAbono, pendiente);
-          const nuevoAbono = Math.max(0, Math.round((actualAbono - desc) * 100) / 100);
-          await supabase.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', cById.id);
-          saldoRevertido += desc;
-        }
-      }
-
-      // Descontar de inmuebles vinculados al contribuyente
-      const sinGuion = identidad.replace(/-/g, '');
-      const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : identidad;
-      const variantes = [...new Set([identidad, sinGuion, conGuion].filter(Boolean))];
-
-      let q = supabase.from('inmuebles').select('id, saldo_favor_bs, inmueble');
-      if (codigoCondo) {
-        q = q.or(`identidad.in.(${variantes.join(',')}),inmueble.eq.${codigoCondo.toUpperCase()}`);
-      } else if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(identidad)) {
-        q = q.or(`inmueble.eq.${identidad},identidad.in.(${variantes.join(',')})`);
-      } else {
-        q = q.in('identidad', variantes);
-      }
-
-      const { data: inms } = await q;
-      if (inms && inms.length > 0) {
-        let porDescontar = Math.max(0, montoNum - saldoRevertido);
-        for (const inm of inms) {
-          if (porDescontar <= 0) break;
-          const s = parseFloat(inm.saldo_favor_bs || '0') || 0;
-          if (s > 0) {
-            const desc = Math.min(s, porDescontar);
-            const nuevoS = Math.round((s - desc) * 100) / 100;
-            await supabase.from('inmuebles').update({ saldo_favor_bs: nuevoS }).eq('id', inm.id);
-            porDescontar = Math.round((porDescontar - desc) * 100) / 100;
-          }
-        }
-      }
+      resDescontar = await descontarSaldoFavor(identidad, montoNum, codigoCondo, supabase);
     }
 
     // 4. Eliminar el registro del documento

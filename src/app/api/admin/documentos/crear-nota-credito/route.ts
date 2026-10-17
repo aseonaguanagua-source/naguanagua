@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     }
 
     // 2. Acreditar saldo a favor en inmuebles o en condominios
-    const resAcreditar = await acreditarSaldoFavor(targetId, montoNum, condoCode);
+    const resAcreditar = await acreditarSaldoFavor(targetId, montoNum, condoCode, supabase);
     if (!resAcreditar.ok) {
       console.warn('Aviso acreditando saldo a favor:', resAcreditar.error);
     }
