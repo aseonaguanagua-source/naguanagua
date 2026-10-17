@@ -333,122 +333,205 @@ function Ficha() {
 
       {c && e && (
         <>
-          {/* ══ ENCABEZADO ══ */}
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="text-[11px] font-mono text-slate-500">{c.codigo} · {c.identidad}</div>
-              <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2"><Building2 className="w-7 h-7 text-emerald-600" /> {c.nombre}</h1>
-              <div className="flex flex-wrap gap-2 text-[11px] font-bold">
-                <span className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700">{c.tipo === 'RESIDENCIAL' ? 'Residencial' : c.tipo === 'COMERCIAL' ? 'Comercial' : 'Mixto'}</span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800">{MODALIDAD[c.modalidad] || c.modalidad}</span>
-                {c.agente_retencion && <span className="px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-800">Agente de retención (75% IVA)</span>}
-                {c.cobro_tarifa_por_unidad && <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800">Cada local paga según su actividad</span>}
-                {c.permite_pago_por_unidad && <span className="px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-800">Puede pagar por unidad</span>}
-                {c.permite_abonos !== false && <span className="px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-slate-600">Acepta abonos</span>}
-              </div>
-              {c.actividad && <div className="text-xs text-slate-500">Actividad: <b className="text-slate-700">{c.actividad}</b>{c.tarifa_mmv ? <> · Tarifa {Number(c.tarifa_mmv)} MMV por unidad</> : null}</div>}
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                {(c.correo || c.telefono) && <span>{c.correo} {c.telefono ? `· ${c.telefono}` : ''}</span>}
-                <span className="inline-flex items-center gap-1 font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  🔑 Clave Web: {c.clave_portal ? <b>{c.clave_portal}</b> : <span className="text-amber-700 font-sans font-normal">Sin clave asignada</span>}
-                </span>
-              </div>
-              {c.notas ? (
-                <div className="mt-2 p-3 bg-amber-50/90 border border-amber-300 rounded-xl text-amber-950 flex items-start justify-between gap-3 shadow-2xs max-w-2xl">
-                  <div className="flex items-start gap-2">
-                    <StickyNote className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block mb-0.5">Notas del Condominio</span>
-                      <p className="text-xs font-semibold whitespace-pre-wrap text-slate-800 leading-relaxed">{c.notas}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => { setNotaCondominio(c.notas || ''); setModalNotas(true); }}
-                    className="px-2.5 py-1 text-xs font-bold bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg shrink-0 cursor-pointer shadow-2xs"
-                  >
-                    ✏️ Editar Nota
-                  </button>
+          {/* ══ ENCABEZADO Y BARRA DE ACCIONES ══ */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
+            {/* Fila Principal: Datos del Condominio y Acciones Clave */}
+            <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
+              <div className="space-y-2 flex-1 min-w-0">
+                <div className="text-xs font-mono font-bold text-slate-500 tracking-wide">{c.codigo} · {c.identidad}</div>
+                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2.5 flex-wrap">
+                  <Building2 className="w-8 h-8 text-emerald-600 shrink-0" />
+                  <span>{c.nombre}</span>
+                </h1>
+                
+                {/* Badges de Información */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-bold">
+                  <span className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 shadow-2xs">
+                    {c.tipo === 'RESIDENCIAL' ? 'Residencial' : c.tipo === 'COMERCIAL' ? 'Comercial' : 'Mixto'}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 shadow-2xs">
+                    {MODALIDAD[c.modalidad] || c.modalidad}
+                  </span>
+                  {c.agente_retencion && (
+                    <span className="px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-800 shadow-2xs">
+                      Agente de retención (75% IVA)
+                    </span>
+                  )}
+                  {c.cobro_tarifa_por_unidad && (
+                    <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 shadow-2xs">
+                      Cada local paga según su actividad
+                    </span>
+                  )}
+                  {c.permite_pago_por_unidad && (
+                    <span className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 shadow-2xs">
+                      Puede pagar por unidad
+                    </span>
+                  )}
+                  {c.permite_abonos !== false && (
+                    <span className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 shadow-2xs">
+                      Acepta abonos
+                    </span>
+                  )}
                 </div>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button 
-                id="btn-notas-condominio"
-                onClick={() => { setNotaCondominio(c.notas || ''); setModalNotas(true); }}
-                className={`px-4 py-2.5 rounded-xl border font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors ${
-                  c.notas 
-                    ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900' 
-                    : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <StickyNote className="w-4 h-4 text-amber-600" /> {c.notas ? 'Editar Notas' : 'Agregar Notas'}
-              </button>
-              {admin && (
-                <button id="btn-agregar-unidad" onClick={() => setEditorU(null)} className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
-                  <Plus className="w-4 h-4" /> Agregar unidad
-                </button>
-              )}
-              {admin && (
-                <button id="btn-editar-condominio" onClick={abrirEdicion} className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-2 cursor-pointer">
-                  <Settings className="w-4 h-4" /> Opciones
-                </button>
-              )}
-              <Link id="btn-cobrar-desde-ficha" href={`/admin/condominios/caja?codigo=${c.codigo}`} className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-2">
-                <WalletIcon className="w-4 h-4" /> Cobrar
-              </Link>
-              <Link id="btn-notas-desde-ficha" href={`/admin/condominios/caja?codigo=${c.codigo}&tab=notas`} className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-2">
-                <CreditCard className="w-4 h-4" /> Notas de Crédito
-              </Link>
-              <button id="btn-estado-cuenta-condominio" onClick={exportar} title="Descargar Estado de Cuenta Consolidado del Condominio" className="px-4 py-2.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-2xs">
-                <FileText className="w-4 h-4" /> Estado de Cuenta Condominio
-              </button>
-              <button
-                id="btn-solvencia-condominio"
-                onClick={async () => {
-                  const { emitirSolvenciaCondominio } = await import('@/lib/condominios/pdfSolvenciaCondominio');
-                  await emitirSolvenciaCondominio(c, e.totales.totalBs);
-                }}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors ${
-                  e.totales.totalBs <= 0.01
-                    ? 'border border-emerald-400 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                    : 'border border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
-                }`}
-                title={e.totales.totalBs <= 0.01 ? "Descargar Certificado de Solvencia Municipal" : `Condominio con deuda pendiente (Bs ${fmtBs(e.totales.totalBs)})`}
-              >
-                <Award className="w-4 h-4" /> Solvencia Condominio
-              </button>
-              <button onClick={async () => {
-                const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
-                exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador');
-              }} className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
-                <FileText className="w-4 h-4" /> Excel
-              </button>
-              {admin && (
-                <button id="btn-excel-ucd-condominio" onClick={async () => {
-                  const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
-                  exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador', 'UCD');
-                }} className="px-4 py-2.5 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center gap-2 cursor-pointer" title="Estado de cuenta expresado en UCD (Euro × 57) — sólo administradores">
-                  <FileText className="w-4 h-4" /> Excel UCD
-                </button>
-              )}
-              <button onClick={exportarMultas} className="px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center gap-2 cursor-pointer">
-                <FileText className="w-4 h-4" /> Reporte de Multas
-              </button>
-              {admin && (
-                <button
-                  id="btn-eliminar-condominio-completo"
-                  onClick={handleEliminarCondominioCompleto}
-                  disabled={eliminandoCondo}
-                  className="px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 font-extrabold text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
-                  title="Eliminar este condominio y todas sus unidades asociadas de una sola vez"
+
+                {/* Detalles secundarios */}
+                <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-600 pt-1">
+                  {c.actividad && (
+                    <div>Actividad: <b className="text-slate-800">{c.actividad}</b>{c.tarifa_mmv ? <> · Tarifa {Number(c.tarifa_mmv)} MMV por unidad</> : null}</div>
+                  )}
+                  {(c.correo || c.telefono) && (
+                    <div className="text-slate-500">{c.correo} {c.telefono ? `· ${c.telefono}` : ''}</div>
+                  )}
+                  <span className="inline-flex items-center gap-1 font-mono text-emerald-800 bg-emerald-50/80 px-2 py-0.5 rounded-md border border-emerald-200 text-[11px]">
+                    🔑 Clave Web: {c.clave_portal ? <b>{c.clave_portal}</b> : <span className="text-amber-700 font-sans font-normal">Sin clave asignada</span>}
+                  </span>
+                </div>
+              </div>
+
+              {/* Botones de Acción Primaria */}
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start">
+                <Link 
+                  id="btn-cobrar-desde-ficha" 
+                  href={`/admin/condominios/caja?codigo=${c.codigo}`} 
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-2 shadow-sm transition-all hover:scale-[1.02]"
                 >
-                  <Trash2 className="w-4 h-4 text-rose-700" />
-                  <span>{eliminandoCondo ? 'Eliminando...' : 'Eliminar Condominio'}</span>
+                  <WalletIcon className="w-4 h-4" /> Cobrar en Caja
+                </Link>
+                {admin && (
+                  <button 
+                    id="btn-agregar-unidad" 
+                    onClick={() => setEditorU(null)} 
+                    className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Plus className="w-4 h-4" /> Agregar unidad
+                  </button>
+                )}
+                {admin && (
+                  <button 
+                    id="btn-editar-condominio" 
+                    onClick={abrirEdicion} 
+                    className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Settings className="w-4 h-4" /> Opciones
+                  </button>
+                )}
+                <button 
+                  onClick={cargar} 
+                  className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer transition-colors shadow-2xs" 
+                  title="Recargar datos"
+                >
+                  <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
                 </button>
-              )}
-              <button onClick={cargar} className="p-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer" title="Recargar">
-                <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
-              </button>
+              </div>
+            </div>
+
+            {/* Notas del Condominio si existen */}
+            {c.notas && (
+              <div className="p-3.5 bg-amber-50/90 border border-amber-300/80 rounded-xl text-amber-950 flex flex-col sm:flex-row items-start justify-between gap-3 shadow-2xs">
+                <div className="flex items-start gap-2.5">
+                  <StickyNote className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block mb-0.5">Notas del Condominio</span>
+                    <p className="text-xs font-semibold whitespace-pre-wrap text-slate-800 leading-relaxed">{c.notas}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => { setNotaCondominio(c.notas || ''); setModalNotas(true); }}
+                  className="px-3 py-1 text-xs font-bold bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg shrink-0 cursor-pointer shadow-2xs transition-colors self-end sm:self-center"
+                >
+                  ✏️ Editar Nota
+                </button>
+              </div>
+            )}
+
+            {/* Barra de Herramientas Secundaria (Documentos, Reportes y Operaciones) */}
+            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <button 
+                  id="btn-notas-condominio"
+                  onClick={() => { setNotaCondominio(c.notas || ''); setModalNotas(true); }}
+                  className={`px-3.5 py-2 rounded-xl border font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs ${
+                    c.notas 
+                      ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900' 
+                      : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <StickyNote className="w-3.5 h-3.5 text-amber-600" /> {c.notas ? 'Editar Notas' : 'Agregar Notas'}
+                </button>
+                <Link 
+                  id="btn-notas-desde-ficha" 
+                  href={`/admin/condominios/caja?codigo=${c.codigo}&tab=notas`} 
+                  className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
+                >
+                  <CreditCard className="w-3.5 h-3.5" /> Notas de Crédito
+                </Link>
+                <button 
+                  id="btn-estado-cuenta-condominio" 
+                  onClick={exportar} 
+                  title="Descargar Estado de Cuenta Consolidado del Condominio" 
+                  className="px-3.5 py-2 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Estado de Cuenta
+                </button>
+                <button
+                  id="btn-solvencia-condominio"
+                  onClick={async () => {
+                    const { emitirSolvenciaCondominio } = await import('@/lib/condominios/pdfSolvenciaCondominio');
+                    await emitirSolvenciaCondominio(c, e.totales.totalBs);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs ${
+                    e.totales.totalBs <= 0.01
+                      ? 'border border-emerald-400 bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'border border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
+                  }`}
+                  title={e.totales.totalBs <= 0.01 ? "Descargar Certificado de Solvencia Municipal" : `Condominio con deuda pendiente (Bs ${fmtBs(e.totales.totalBs)})`}
+                >
+                  <Award className="w-3.5 h-3.5" /> Solvencia
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button 
+                  onClick={async () => {
+                    const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
+                    exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador');
+                  }} 
+                  className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Excel
+                </button>
+                {admin && (
+                  <button 
+                    id="btn-excel-ucd-condominio" 
+                    onClick={async () => {
+                      const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
+                      exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador', 'UCD');
+                    }} 
+                    className="px-3.5 py-2 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs" 
+                    title="Estado de cuenta expresado en UCD (Euro × 57) — sólo administradores"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Excel UCD
+                  </button>
+                )}
+                <button 
+                  onClick={exportarMultas} 
+                  className="px-3.5 py-2 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Multas
+                </button>
+                {admin && (
+                  <button
+                    id="btn-eliminar-condominio-completo"
+                    onClick={handleEliminarCondominioCompleto}
+                    disabled={eliminandoCondo}
+                    className="px-3.5 py-2 rounded-xl border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
+                    title="Eliminar este condominio y todas sus unidades asociadas de una sola vez"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-700" />
+                    <span>{eliminandoCondo ? 'Eliminando...' : 'Eliminar'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
