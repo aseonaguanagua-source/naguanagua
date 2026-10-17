@@ -39,7 +39,7 @@ export default function FacturacionElectronicaPage() {
   const [pagosList, setPagosList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterTab, setFilterTab] = useState<'todos' | 'pendientes' | 'emitidas' | 'retenciones'>('pendientes');
+  const [filterTab, setFilterTab] = useState<'todos' | 'pendientes' | 'emitidas' | 'retenciones' | 'anuladas'>('pendientes');
   const [moduloFiltro, setModuloFiltro] = useState<string>('Todos');
 
   // Modal de Revisión de Comprobante de Retención
@@ -432,13 +432,29 @@ export default function FacturacionElectronicaPage() {
   const recibosDia = pagosList.filter(p => p.documento === 'recibo' && pasaModulo(p));
   const retencionesDia = pagosList.filter(p => p.conRetencion && pasaModulo(p));
   const retencionesPorRevisarCount = retencionesDia.filter(p => p.retencionEstado === 'planilla_recibida').length;
-  const delTipo = filterTab === 'retenciones' ? retencionesDia : (docTab === 'factura' ? facturasDia : recibosDia);
+  
+  const anuladasDia = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => p.facturaAnulada || p.notaCredito || p.estado === 'Anulado');
+  const totalAnuladas = anuladasDia.length;
+
+  const delTipo = filterTab === 'retenciones' 
+    ? retencionesDia 
+    : filterTab === 'anuladas'
+    ? anuladasDia
+    : (docTab === 'factura' ? facturasDia : recibosDia);
+
   const visibles = filterTab === 'retenciones'
     ? retencionesDia
-    : delTipo.filter(p =>
-        filterTab === 'pendientes' ? !p.procesado : filterTab === 'emitidas' ? p.procesado : true
-      );
-  const totalPendientes = delTipo.filter(p => !p.procesado).length;
+    : filterTab === 'anuladas'
+    ? anuladasDia
+    : delTipo.filter(p => {
+        const esAnulada = p.facturaAnulada || p.notaCredito || p.estado === 'Anulado';
+        if (filterTab === 'pendientes') return !p.procesado && !esAnulada;
+        if (filterTab === 'emitidas') return p.procesado && !esAnulada;
+        return true;
+      });
+
+  const totalPendientes = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => !p.procesado && !p.facturaAnulada && p.estado !== 'Anulado').length;
+  const totalEmitidas = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => p.procesado && !p.facturaAnulada && p.estado !== 'Anulado').length;
   const resumen = (lista: any[]) => ({
     total: lista.length,
     pendientes: lista.filter(p => !p.procesado).length,
@@ -1068,7 +1084,23 @@ export default function FacturacionElectronicaPage() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {docTab === 'factura' ? 'Emitidas SENIAT' : 'Enviados por correo'}
+              {docTab === 'factura' ? `Emitidas SENIAT (${totalEmitidas})` : `Enviados por correo (${totalEmitidas})`}
+            </button>
+            <button
+              onClick={() => setFilterTab('anuladas')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                filterTab === 'anuladas' 
+                  ? 'bg-rose-600 text-white shadow-xs' 
+                  : 'text-rose-800 hover:text-rose-950 hover:bg-rose-100/60'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+              <span>Anuladas (NC)</span>
+              {totalAnuladas > 0 && (
+                <span className={`px-1.5 py-0.2 text-[10px] font-black rounded-full shadow-xs ${filterTab === 'anuladas' ? 'bg-white text-rose-700' : 'bg-rose-100 text-rose-800'}`}>
+                  {totalAnuladas}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setFilterTab('retenciones')}
@@ -1284,7 +1316,7 @@ export default function FacturacionElectronicaPage() {
                               {pago.reciboError && <span className="block text-[10px] text-red-600 max-w-[180px]">{pago.reciboError}</span>}
                             </div>
                           )
-                        ) : pago.facturaEmitida ? (
+                        ) : (pago.facturaEmitida || pago.facturaAnulada) ? (
                           <div className="space-y-1">
                             {pago.facturaAnulada ? (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800 border border-rose-300">
@@ -1300,6 +1332,11 @@ export default function FacturacionElectronicaPage() {
                             {pago.numeroControl && (
                               <span className="block font-mono text-[10px] text-slate-500">
                                 Ctrl: {pago.numeroControl}
+                              </span>
+                            )}
+                            {pago.notaCreditoControl && (
+                              <span className="block font-mono text-[10px] text-rose-600 font-bold">
+                                NC: {pago.notaCreditoControl}
                               </span>
                             )}
                           </div>

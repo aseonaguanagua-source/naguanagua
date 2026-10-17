@@ -28,11 +28,11 @@ export async function GET(request: Request) {
     }
 
     // Obtener los pagos reportados (de un día concreto, por búsqueda de término, o los más recientes)
-    // No listar pagos Rechazados, Anulados, Reversados o Condonados
+    // Se excluyen Rechazado, Reversado o Condonado (a menos que tengan factura emitida o anulada)
     let pagosQuery = supabase
       .from('pagos_reportados')
       .select('*')
-      .not('estado', 'in', '(Rechazado,Anulado,Reversado,Condonado)')
+      .not('estado', 'in', '(Rechazado,Reversado,Condonado)')
       .order('created_at', { ascending: false });
 
     if (query) {
@@ -72,16 +72,33 @@ export async function GET(request: Request) {
 
     const pagos = (rawPagos || []).filter(p => {
       if (p.tipo === 'Retencion de IVA') return false;
-      if (['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(p?.estado || ''))) return false;
       const d = parseDetalles(p.detalles);
 
-      // Si ya tiene factura digital emitida, SIEMPRE debe mostrarse en facturación electrónica
-      const yaEmitida = Boolean(d?.factura_digital?.emitida || d?.factura_digital?.numero_documento || d?.factura_digital?.url);
-      if (yaEmitida) {
+      const esAnulada = p.estado === 'Anulado' || Boolean(d?.factura_digital?.anulada || d?.factura_digital?.nota_credito);
+      if (['Rechazado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')) && !esAnulada) return false;
+
+      // Si ya tiene factura digital emitida o anulada, SIEMPRE debe mostrarse en facturación electrónica
+      const yaEmitidaOAnulada = Boolean(
+        d?.factura_digital?.emitida ||
+        d?.factura_digital?.numero_documento ||
+        d?.factura_digital?.url ||
+        esAnulada
+      );
+      if (yaEmitidaOAnulada) {
         return true;
       }
 
-      // REGLA: Los abonos o pagos parciales que no han completado el pago total del mes no deben salir en factura electrónica para emisión
+      // Si hay un término de búsqueda específico, mostrarlo para permitir auditar o emitir
+      if (query) {
+        return true;
+      }
+
+      // Si es un pago con retención de agente, debe salir para gestión de retención
+      if (d?.es_retencion === true || d?.conRetencion === true || Boolean(d?.pago_retencion_id)) {
+        return true;
+      }
+
+      // REGLA: Los abonos o pagos parciales ordinarios que no han completado el pago total del mes no deben salir para emisión
       if (
         d?.es_abono === true ||
         d?.abono === true ||
@@ -418,9 +435,10 @@ export async function GET(request: Request) {
           numeroDocumento: fd?.numero_documento || null,
           fechaEmision: fd?.fecha_emision || null,
           error: det.factura_digital_error || null,
-          facturaAnulada: !!fd?.anulada,
+          facturaAnulada: Boolean(fd?.anulada || pago.estado === 'Anulado' || fd?.nota_credito),
+          notaCredito: fd?.nota_credito || null,
           notaCreditoUrl: fd?.nota_credito?.url || null,
-          notaCreditoControl: fd?.nota_credito?.numero_control || null,
+          notaCreditoControl: fd?.nota_credito?.numero_control || fd?.nota_credito?.numero_documento || (fd?.anulada ? 'ANULADA' : null),
           // Agente de retención: la factura se envía solo al aprobar su comprobante
           conRetencion: tieneRetencion,
           esRetencion: tieneRetencion,
@@ -445,7 +463,7 @@ export async function GET(request: Request) {
           // Recibo impreso en Caja (original guardado en el pago; si no, se reconstruye al descargar)
           reciboCajaGuardado: Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0,
           // Procesado = factura emitida (facturas) o recibo enviado (recibos)
-          procesado: docFinal === 'factura' ? emitida : reciboEnviado,
+          procesado: docFinal === 'factura' ? (emitida || Boolean(fd?.anulada)) : reciboEnviado,
         };
       });
 
@@ -455,9 +473,11 @@ export async function GET(request: Request) {
         filtered = filtered.filter(i => i.documento === documentoFiltro);
       }
       if (filter === 'pendientes') {
-        filtered = filtered.filter(i => !i.procesado);
+        filtered = filtered.filter(i => !i.procesado && !i.facturaAnulada && i.estado !== 'Anulado');
       } else if (filter === 'emitidas') {
-        filtered = filtered.filter(i => i.procesado);
+        filtered = filtered.filter(i => i.procesado && !i.facturaAnulada && i.estado !== 'Anulado');
+      } else if (filter === 'anuladas') {
+        filtered = filtered.filter(i => i.facturaAnulada || i.notaCredito || i.estado === 'Anulado');
       } else if (filter === 'retenciones' || filter === 'retenciones_pendientes') {
         filtered = filtered.filter(i => i.conRetencion && (i.retencionEstado === 'planilla_recibida' || i.retencionEstado === 'esperando_planilla' || (!i.facturaEmitida && i.conRetencion)));
       }
