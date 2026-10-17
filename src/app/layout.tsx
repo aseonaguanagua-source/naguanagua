@@ -29,6 +29,7 @@ export const metadata: Metadata = {
 
 import TextosEditables from '@/components/TextosEditables';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import TestModeBanner from '@/components/TestModeBanner';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${poppins.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#f8fafc]" style={{ fontFamily: 'var(--font-poppins), Poppins, sans-serif' }}>
+        <TestModeBanner />
         {children}
         <TextosEditables />
         <PWAInstallPrompt />

@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { AppProvider } from '@/store/AppContext';
+import TestModeBanner from '@/components/TestModeBanner';
 import type { Metadata, Viewport } from 'next';
 
 export const metadata: Metadata = {
@@ -18,7 +19,8 @@ export const viewport: Viewport = {
 export default function PortalLayout({ children }: { children: ReactNode }) {
   return (
     <AppProvider>
-      <div className="min-h-screen bg-slate-50 flex">
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <TestModeBanner />
         <main className="flex-1">
           {children}
         </main>

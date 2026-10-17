@@ -14,15 +14,45 @@ export interface TFHKAConfig {
 }
 
 export class TheFactoryHKA {
+  public static isDemoMode(): boolean {
+    if (process.env.TFHKA_FORCE_DEMO === 'true') return true;
+    if (process.env.NEXT_PUBLIC_APP_ENV === 'test' || process.env.NEXT_PUBLIC_APP_ENV === 'demo') return true;
+    if (process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development') return true;
+    
+    // Check Vercel URL
+    const vUrl = process.env.VERCEL_URL || '';
+    if (vUrl && !vUrl.includes('globalgreenrec.com') && (vUrl.includes('vercel.app') || vUrl.includes('preview'))) {
+      return true;
+    }
+
+    if (typeof window !== 'undefined') {
+      const h = window.location.hostname;
+      if (h.includes('vercel.app') || h.includes('localhost') || h.includes('127.0.0.1')) {
+        if (!h.includes('naguanagua.globalgreenrec.com')) return true;
+      }
+    }
+
+    return false;
+  }
+
   public static getBaseUrl(): string {
+    if (this.isDemoMode()) {
+      return 'https://demoemisionv2.thefactoryhka.com.ve';
+    }
     return process.env.TFHKA_URL?.trim() || 'https://emision.thefactoryhka.com.ve';
   }
 
   public static getUser(): string {
+    if (this.isDemoMode()) {
+      return process.env.TFHKA_DEMO_USER?.trim() || 'sqovrqunrqjv_tfhka';
+    }
     return process.env.TFHKA_USER?.trim() || '';
   }
 
   public static getPassword(): string {
+    if (this.isDemoMode()) {
+      return process.env.TFHKA_DEMO_PASSWORD?.trim() || 'UB!yb7U/r*/?';
+    }
     return process.env.TFHKA_PASSWORD?.trim() || '';
   }
 

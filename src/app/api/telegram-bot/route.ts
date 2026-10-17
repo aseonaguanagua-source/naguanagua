@@ -8,7 +8,8 @@ import {
   isResidencialInm,
   isTerrenoInm,
   isExoneradoTotalMultas,
-  cleanClasificacionActividad
+  cleanClasificacionActividad,
+  isCondominioPagoIndividual
 } from '@/lib/calculos';
 
 export const dynamic = 'force-dynamic';
@@ -183,18 +184,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // 2. Procesar documento (Cédula o RIF)
-    const variantes = getIdentidadVariants(rawText);
+    // 2. Procesar documento (Cédula, RIF o Código de Inmueble)
+    let queryDoc = rawText.trim();
+    const cleanInput = queryDoc.toUpperCase().replace(/\s+/g, '');
+
+    // Si el usuario ingresó un código de inmueble (ej: URB015454, AURI001234)
+    if (/^[A-Z]{3,4}\d+$/i.test(cleanInput)) {
+      const { data: matchedInm } = await supabase
+        .from('inmuebles')
+        .select('identidad, inmueble, padre_id')
+        .eq('inmueble', cleanInput)
+        .maybeSingle();
+
+      if (matchedInm?.identidad) {
+        queryDoc = matchedInm.identidad;
+      }
+    }
+
+    const variantes = getIdentidadVariants(queryDoc);
     const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
 
-    // ── VERIFICAR SI ESTE RIF PERTENECE A UN CONDOMINIO ──
+    // ── VERIFICAR SI ESTE RIF PERTENECE A UN CONDOMINIO CENTRALIZADO ──
     const { data: condoMatches } = await supabase
       .from('condominios')
-      .select('id, codigo, nombre, identidad')
+      .select('id, codigo, nombre, identidad, modalidad')
       .or(variantes.map(v => `identidad.eq.${v}`).join(','))
       .limit(1);
 
-    if (condoMatches && condoMatches.length > 0) {
+    if (condoMatches && condoMatches.length > 0 && condoMatches[0].modalidad !== 'INDIVIDUAL') {
       const condo = condoMatches[0];
       const msgCondoRedir =
         `🏛️ <b>INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA (IAMEC) ♻️</b>\n` +
@@ -227,7 +244,7 @@ export async function POST(request: Request) {
     } catch (_) {}
 
     // Consultar inmuebles activos
-    const { data: inmsDB, error: errInm } = await supabase
+    const { data: rawInmsDB, error: errInm } = await supabase
       .from('inmuebles')
       .select('*')
       .or(orFilter)
@@ -235,6 +252,26 @@ export async function POST(request: Request) {
       .not('estado', 'ilike', 'inactivo%')
       .not('estado', 'ilike', 'desactivado%')
       .order('inmueble', { ascending: true });
+
+    let inmsDB = rawInmsDB || [];
+
+    // Consultar también hijos asociados vía padre_id (ej: clusters/locales con múltiples actividades comerciales)
+    const parentCodes = inmsDB.map(i => i.inmueble).filter(Boolean);
+    if (parentCodes.length > 0) {
+      const { data: childInms } = await supabase
+        .from('inmuebles')
+        .select('*')
+        .in('padre_id', parentCodes)
+        .not('estado', 'ilike', 'eliminado%')
+        .not('estado', 'ilike', 'inactivo%')
+        .not('estado', 'ilike', 'desactivado%');
+      if (childInms && childInms.length > 0) {
+        const existingIds = new Set(inmsDB.map(i => i.id));
+        childInms.forEach(c => {
+          if (!existingIds.has(c.id)) inmsDB.push(c);
+        });
+      }
+    }
 
     // Consultar contribuyente
     const { data: contsDB } = await supabase
@@ -328,11 +365,24 @@ export async function POST(request: Request) {
       const isRes = cluster.tipo === 'RESIDENCIAL';
       const esExon = cluster.inms.some(i => isExoneradoTotalMultas(i));
 
-      // Determinar si este cluster pertenece a un condominio
+      // Determinar si este cluster pertenece a un condominio centralizado (no individual)
+      const isIndiv = cluster.inms.some((i: any) =>
+        isCondominioPagoIndividual(i) ||
+        (i.condominio_padre_id && isCondominioPagoIndividual(i.condominio_padre_id)) ||
+        (condoUnidadesMap.has(i.inmueble) && isCondominioPagoIndividual(condoUnidadesMap.get(i.inmueble)?.condominios?.codigo))
+      );
+
       const perteneceACondo =
-        cluster.esCondominio ||
-        cluster.inms.some((i: any) =>
-          Boolean(i.condominio_padre_id || condoUnidadesMap.has(i.inmueble) || (i.padre_id && i.padre_id.startsWith('CONDO-')))
+        !isIndiv &&
+        (
+          cluster.esCondominio ||
+          cluster.inms.some((i: any) =>
+            Boolean(
+              i.condominio_padre_id ||
+              condoUnidadesMap.has(i.inmueble) ||
+              (i.padre_id && i.padre_id.startsWith('CONDO-'))
+            )
+          )
         );
 
       if (perteneceACondo) {
@@ -427,11 +477,16 @@ export async function POST(request: Request) {
         (totalMultasBs > 0 ? `• <b>Multas:</b> ${fmtBs(totalMultasBs)}\n` : '') +
         (totalSaldoFavorBs > 0 ? `• <b>Saldo a favor:</b> -${fmtBs(totalSaldoFavorBs)}\n` : '');
 
-      const acts = cluster.inms
-        .map(i => cleanClasificacionActividad(i.actividad_principal))
-        .filter(Boolean)
-        .slice(0, 3);
-      const actStr = acts.length > 0 ? acts.join(', ') : (cluster.label || 'Inmueble');
+      const actsUnicos = Array.from(new Set(
+        cluster.inms
+          .map(i => cleanClasificacionActividad(i.actividad_principal))
+          .filter(Boolean)
+      ));
+      let actStr = actsUnicos.slice(0, 3).join(', ');
+      if (cluster.inms.length > 1) {
+        actStr += ` (${cluster.inms.length} actividades)`;
+      }
+      if (!actStr) actStr = cluster.label || 'Inmueble';
 
       const localCard =
         `📍 <b>LOCAL ${localIndex}: ${cluster.label || cluster.localId}</b>\n` +
