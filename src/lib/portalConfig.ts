@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
  * Valor por defecto para el interruptor del portal "Soy Contribuyente".
  * Si la tabla system_config existe, se usará el valor de ahí en lugar de este.
  */
-export const PORTAL_EN_MANTENIMIENTO = true;
+export const PORTAL_EN_MANTENIMIENTO = false;
 
 export const MENSAJE_MANTENIMIENTO_PORTAL =
   'El portal Soy Contribuyente se encuentra en mantenimiento. Por favor intente más tarde o diríjase a nuestras oficinas de Aseo Urbano.';
