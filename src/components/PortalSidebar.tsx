@@ -108,16 +108,12 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
   const SidebarContent = () => (
     <>
       {/* Brand IAMEC */}
-      <div className="px-5 pt-6 pb-4 border-b border-slate-800 flex items-center gap-3">
+      <div className="px-5 pt-6 pb-4 border-b border-slate-800 hidden md:flex items-center justify-center">
         <img
           src="/logos/IAMEC.png"
           alt="IAMEC"
-          className="h-10 w-auto object-contain"
+          className="h-12 w-auto object-contain"
         />
-        <div className="min-w-0">
-          <span className="text-white font-black text-xs tracking-wider block">IAMEC</span>
-          <span className="text-[10px] text-emerald-400 font-bold tracking-tight block truncate">Aseo Urbano Naguanagua</span>
-        </div>
       </div>
 
       {/* Profile */}
@@ -168,7 +164,7 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
       </nav>
 
       {/* Footer */}
-      <div className="p-5 border-t border-slate-700/50 space-y-4">
+      <div className="p-5 border-t border-slate-700/50">
         <button
           onClick={handleLogout}
           className="flex items-center text-sm text-slate-400 hover:text-red-400 transition-colors w-full gap-3"
@@ -176,12 +172,6 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
           <LogOut className="w-4 h-4" />
           Cerrar Sesión
         </button>
-        <div className="flex items-center gap-2.5 opacity-90 pt-2 border-t border-slate-800">
-          <img src="/logos/IAMEC.png" alt="IAMEC" className="h-6 w-auto object-contain" />
-          <span className="text-white font-bold tracking-wider text-xs">
-            IAMEC NAGUANAGUA
-          </span>
-        </div>
       </div>
     </>
   );
@@ -204,9 +194,8 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
         (isOpen || showMobileMenu) ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center">
             <img src="/logos/IAMEC.png" alt="IAMEC" className="h-8 w-auto object-contain" />
-            <span className="text-white font-bold text-sm tracking-wide">IAMEC</span>
           </div>
           <button onClick={() => { setIsOpen && setIsOpen(false); setShowMobileMenu(false); }}>
             <X className="w-5 h-5 text-slate-400" />
