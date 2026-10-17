@@ -182,10 +182,16 @@ export default function DondePagarPage() {
         const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
         validInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
         setReglasCobro(Object.fromEntries(reglaPorInm));
+        const allCondoCodes = new Set([
+          ...(rc.condoInmCodes || []).map((c: string) => String(c).toUpperCase()),
+          ...validInms.filter((i: any) => i.es_condominio || i.condominio_padre_id || (i.actividad_principal || '').toLowerCase().includes('condominio') || (i.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')).map((i: any) => String(i.inmueble || '').toUpperCase())
+        ]);
         const isCondoRef = (ref: string): boolean => {
           const r = String(ref || '').toUpperCase();
-          if (r.includes('URB033698') || r.includes('URB015126') || r.includes('URB015127') || r.includes('URB015128') || r.includes('URB015129')) return true;
-          return rc.condoInmCodes?.some(c => r.includes(c)) ?? false;
+          for (const code of allCondoCodes) {
+            if (code && r.includes(code)) return true;
+          }
+          return false;
         };
         const safeRecibos = rc.recibos.filter((r: any) => !isCondoRef(r.referencia));
         setBloqueadoPorCondominio(rc.soloCondominio && safeRecibos.length === 0);

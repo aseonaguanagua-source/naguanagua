@@ -244,12 +244,14 @@ export default function EstadoCuentaPage() {
   const isCondoReceipt = (f: any): boolean => {
     const ref = String(f?.referencia || '').toUpperCase();
     const inmId = String(f?.inmueble || '').toUpperCase();
-    // Excluir cualquier recibo de URB033698 o sus unidades hijas
-    if (ref.includes('URB033698') || ref.includes('URB015126') || ref.includes('URB015127') || ref.includes('URB015128') || ref.includes('URB015129')) return true;
-    if (['URB033698', 'URB015126', 'URB015127', 'URB015128', 'URB015129'].includes(inmId)) return true;
     // Excluir cualquier inmueble que pertenezca a condominio
-    const matched = misInmuebles.find((i: any) => i.inmueble && (ref.includes(i.inmueble) || inmId === i.inmueble));
-    if (matched && (matched.condominio_padre_id || matched.es_condominio || String(matched.actividad_principal || '').toLowerCase().includes('condominio') || String(matched.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb'))) {
+    const matched = misInmuebles.find((i: any) => i.inmueble && (ref.includes(String(i.inmueble).toUpperCase()) || inmId === String(i.inmueble).toUpperCase()));
+    if (matched && (
+      matched.condominio_padre_id || 
+      matched.es_condominio || 
+      String(matched.actividad_principal || '').toLowerCase().includes('condominio') || 
+      String(matched.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
+    )) {
       return true;
     }
     return false;
