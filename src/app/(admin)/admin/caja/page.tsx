@@ -1653,8 +1653,9 @@ export default function CajaPage() {
       const baseInm = Math.round((bMes * totalMeses) * 100) / 100;
       sb4 += baseInm;
 
-      // IVA: 0% residencial, 16% comercial exacto sobre la base
-      const ivaInm = esRes ? 0 : Math.round((baseInm * 0.16) * 100) / 100;
+      // IVA mensual y acumulado exacto coincidente con recibos y facturación
+      const ivaMes = esRes ? 0 : Math.round((bMes * 0.16) * 100) / 100;
+      const ivaInm = ivaMes * totalMeses;
       siva4 += ivaInm;
 
       const esAgente = inm.agente_retencion === true || isAgenteGlobal;
@@ -1662,8 +1663,9 @@ export default function CajaPage() {
         sivaRetencionable4 += ivaInm;
       }
 
-      // Multa acumulada
-      const multaInm = Math.round(((bMes * tasaMora) * mesesConMora) * 100) / 100;
+      // Multa acumulada idéntica a la suma de cuotas mensuales de mora
+      const multaMes = Math.round((bMes * tasaMora) * 100) / 100;
+      const multaInm = Math.round((multaMes * mesesConMora) * 100) / 100;
       smulta4 += multaInm;
     });
 
@@ -2249,6 +2251,19 @@ export default function CajaPage() {
           totalGrupo = conceptosGrupo.reduce((s: number, c: any) => s + c.total, 0);
         }
 
+        // Si no es abono y hay un solo grupo, garantizar que totalGrupo coincida exactamente con montoReal
+        if (!esAbono && grupos.length === 1 && montoReal > 0) {
+          if (Math.abs(totalGrupo - montoReal) <= 0.05) {
+            if (totalGrupo !== montoReal && conceptosGrupo.length > 0) {
+              const diffCent = Math.round((montoReal - totalGrupo) * 100) / 100;
+              const lastC = conceptosGrupo[conceptosGrupo.length - 1];
+              lastC.total = Math.round((lastC.total + diffCent) * 100) / 100;
+              lastC.precioUnit = lastC.total;
+            }
+            totalGrupo = montoReal;
+          }
+        }
+
         if (esAbono && grupos.length === 1 && montoReal > 0) {
           totalGrupo = montoReal;
           conceptosGrupo.length = 0;
@@ -2603,7 +2618,9 @@ export default function CajaPage() {
             saldo_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
             descuento_saldo_favor: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
             saldo_favor_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
-            monto_factura: totalConImpuestos, // Monto total de la factura fiscal
+            monto_factura: (realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos, // Monto total bruto de la factura fiscal
+            monto_neto_factura: finalTotal,
+            total_seleccionado: totalBs,
             monto_retencion_iva: esAbonoDebito ? 0 : realMontoRetencionIVA,
             es_retencion: esAbonoDebito ? false : (realMontoRetencionIVA > 0),
             agente_retencion: esAbonoDebito ? false : (realMontoRetencionIVA > 0)

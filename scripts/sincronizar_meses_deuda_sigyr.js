@@ -44,17 +44,38 @@ async function main() {
   console.log(`✅ Inmuebles en Supabase: ${allInms.length.toLocaleString()}`);
 
   // 3. Proteger pagos en el nuevo sistema
-  console.log('📂 Cargando pagos aprobados del nuevo sistema para protección...');
-  const { data: pagos } = await supabase.from('pagos_reportados').select('identidad, detalles, estado').eq('estado', 'Aprobado');
+  console.log('📂 Cargando pagos aprobados del nuevo sistema para protección con paginación...');
+  let allPagos = [];
+  let pagePagos = 0;
+  while (true) {
+    const { data, error } = await supabase.from('pagos_reportados')
+      .select('identidad, detalles, estado')
+      .eq('estado', 'Aprobado')
+      .range(pagePagos * 1000, (pagePagos + 1) * 1000 - 1);
+    if (error || !data || data.length === 0) break;
+    allPagos.push(...data);
+    if (data.length < 1000) break;
+    pagePagos++;
+  }
+
+  function cleanRif(r) {
+    if (!r) return '';
+    return r.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
   const paidInmCodes = new Set();
   const paidIdents = new Set();
-  (pagos || []).forEach(p => {
-    if (p.identidad) paidIdents.add(p.identidad.trim().toUpperCase());
+  allPagos.forEach(p => {
+    if (p.identidad) {
+      paidIdents.add(p.identidad.trim().toUpperCase());
+      const c = cleanRif(p.identidad);
+      if (c) paidIdents.add(c);
+    }
     const det = JSON.stringify(p.detalles || '');
     const matches = det.match(/(URB|AURI)\d+/gi) || [];
     matches.forEach(m => paidInmCodes.add(m.toUpperCase()));
   });
-  console.log(`🛡️ Inmuebles y contribuyentes con pagos en nuevo sistema protegidos: ${paidInmCodes.size} inmuebles, ${paidIdents.size} identidades`);
+  console.log(`🛡️ Inmuebles y contribuyentes con pagos en nuevo sistema protegidos: ${paidInmCodes.size} inmuebles, ${paidIdents.size} identidades (de ${allPagos.length} pagos)`);
 
   // 4. Preparar plan de ajuste
   const plan = [];
@@ -86,7 +107,7 @@ async function main() {
     if (!sigyr) continue;
 
     const idClean = (inm.identidad || '').trim().toUpperCase();
-    const hasPaid = paidInmCodes.has(code) || (idClean && paidIdents.has(idClean));
+    const hasPaid = paidInmCodes.has(code) || (idClean && (paidIdents.has(idClean) || paidIdents.has(cleanRif(idClean))));
     if (hasPaid) {
       countProtegidos++;
       continue;

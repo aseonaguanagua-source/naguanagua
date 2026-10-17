@@ -74,6 +74,10 @@ export async function GET(request: Request) {
       if (p.tipo === 'Retencion de IVA') return false;
       const d = parseDetalles(p.detalles);
 
+      // Si es un pago adicional / secundario vinculado a un pago principal (múltiples transferencias para una misma factura),
+      // la factura electrónica SOLO se emite desde el pago principal y no debe salir duplicada.
+      if (d?.es_pago_adicional === true || Boolean(d?.pago_principal_id)) return false;
+
       const esAnulada = p.estado === 'Anulado' || Boolean(d?.factura_digital?.anulada || d?.factura_digital?.nota_credito);
       if (['Rechazado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')) && !esAnulada) return false;
 

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
 import HuerfanosPanel from '@/components/HuerfanosPanel';
 import { useAppContext } from '@/store/AppContext';
-import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent, Printer } from 'lucide-react';
+import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent, Printer, ShieldAlert } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import { inmuebleTieneDeuda } from '@/lib/solvencia';
 import { ordenanzaData } from '@/data/ordenanza';
@@ -22,6 +22,7 @@ const todasLasActividades = [...ordenanzaData.actividadesComerciales, ...ordenan
 const MapPicker = dynamic(() => import('@/components/MapPicker'), { ssr: false });
 import { DebtAdjustmentModal } from '@/components/DebtAdjustmentModal';
 import { EliminarMultaModal } from '@/components/EliminarMultaModal';
+import { AsignarMultaModal } from '@/components/AsignarMultaModal';
 import { DetallesContribuyenteModal } from '@/components/contribuyentes/DetallesContribuyenteModal';
 
 import { logos } from '@/lib/logosBase64';
@@ -87,6 +88,8 @@ function ContribuyentesPageContent() {
   const [selectedDebtRow, setSelectedDebtRow] = useState<any>(null);
   const [exonerarModalOpen, setExonerarModalOpen] = useState(false);
   const [selectedExonerarRow, setSelectedExonerarRow] = useState<any>(null);
+  const [asignarMultaModalOpen, setAsignarMultaModalOpen] = useState(false);
+  const [selectedMultaRow, setSelectedMultaRow] = useState<any>(null);
   
   // Calculadora state
   const [bcvRate, setBcvRate] = useState<string | null>(null);
@@ -3561,6 +3564,13 @@ function ContribuyentesPageContent() {
               <Calculator className="w-4 h-4" />
             </button>
             <button 
+              onClick={() => { setSelectedMultaRow(row); setAsignarMultaModalOpen(true); }}
+              className="bg-red-50 text-red-600 hover:bg-red-100 p-1.5 rounded transition-colors"
+              title="Asignar Multa a Período Específico"
+            >
+              <ShieldAlert className="w-4 h-4" />
+            </button>
+            <button 
               onClick={() => { setSelectedExonerarRow(row); setExonerarModalOpen(true); }}
               className="bg-rose-50 text-rose-600 hover:bg-rose-100 p-1.5 rounded transition-colors"
               title="Eliminar / Exonerar Multas por Mes (Requiere clave dzara)"
@@ -3867,6 +3877,7 @@ function ContribuyentesPageContent() {
         onEdit={handleEdit}
         onAjustarDeuda={(row) => { setSelectedDebtRow(row); setDebtModalOpen(true); }}
         onExonerarMultas={(row) => { setSelectedExonerarRow(row); setExonerarModalOpen(true); }}
+        onAsignarMulta={(row) => { setSelectedMultaRow(row); setAsignarMultaModalOpen(true); }}
         onDeleteFactura={handleDeleteFactura}
         onRefresh={async () => {
           if (viewData?.Identidad) {
@@ -3898,6 +3909,24 @@ function ContribuyentesPageContent() {
           onClose={() => setExonerarModalOpen(false)}
           onSuccess={async () => {
             const rawId = selectedExonerarRow?.Identidad || selectedExonerarRow?.identidad;
+            if (rawId && refreshUserData) {
+              await refreshUserData(rawId);
+            }
+            await refreshData(true);
+            setViewData((prev: any) => prev ? ({ ...prev, _ts: Date.now() }) : null);
+          }}
+        />
+      )}
+
+      {/* Modal Asignar Multa por Período */}
+      {asignarMultaModalOpen && selectedMultaRow && (
+        <AsignarMultaModal
+          row={selectedMultaRow}
+          inmuebles={inmuebles}
+          tcmmv={tcmmv || viewCalculo?.tasaBcv || 1}
+          onClose={() => setAsignarMultaModalOpen(false)}
+          onSuccess={async () => {
+            const rawId = selectedMultaRow?.Identidad || selectedMultaRow?.identidad;
             if (rawId && refreshUserData) {
               await refreshUserData(rawId);
             }

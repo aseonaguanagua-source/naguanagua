@@ -55,6 +55,7 @@ export default function PortalHeader({ onMenuClick }: PortalHeaderProps) {
         >
           <Menu className="w-6 h-6" />
         </button>
+        <img src="/logos/IAMEC.png" alt="IAMEC" className="h-7 w-auto object-contain hidden sm:block" />
         <Icon className="w-5 h-5 text-slate-500 hidden sm:block" />
         <h1 className="font-semibold text-xs sm:text-sm tracking-wide uppercase truncate max-w-[200px] sm:max-w-none">{title}</h1>
       </div>

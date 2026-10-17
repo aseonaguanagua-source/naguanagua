@@ -31,9 +31,77 @@ interface DetallesContribuyenteModalProps {
   onEdit: (row: any) => void;
   onAjustarDeuda: (row: any) => void;
   onExonerarMultas: (row: any) => void;
+  onAsignarMulta?: (row: any) => void;
   onDeleteFactura?: (factura: any) => void;
   onRefresh?: () => void;
 }
+
+function formatPeriodosPagados(det: any, p?: any): string {
+  if (!det && !p) return '—';
+
+  // 1. Si viene explícito en periodos_pagados
+  if (det?.periodos_pagados && typeof det.periodos_pagados === 'string' && det.periodos_pagados.trim()) {
+    return det.periodos_pagados.trim();
+  }
+
+  // 2. Si viene en recibo_caja (array de strings u objetos)
+  if (Array.isArray(det?.recibo_caja) && det.recibo_caja.length > 0) {
+    const rawList: string[] = det.recibo_caja
+      .map((r: any) => (typeof r === 'object' ? r?.periodo : r))
+      .filter((r: any): r is string => Boolean(r && typeof r === 'string' && r.trim()));
+    const unique = [...new Set(rawList)];
+    if (unique.length === 1) return unique[0];
+    if (unique.length > 1) {
+      return `${unique[0]} a ${unique[unique.length - 1]}`;
+    }
+  } else if (typeof det?.recibo_caja === 'string' && det.recibo_caja.trim()) {
+    return det.recibo_caja.trim();
+  }
+
+  // 3. Si viene en det.periodos (ej: ['2026-01', '2026-02', '2026-03'])
+  if (Array.isArray(det?.periodos) && det.periodos.length > 0) {
+    const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const fmt = (k: string) => {
+      const [y, m] = String(k).split('-');
+      const idx = parseInt(m, 10) - 1;
+      return idx >= 0 && idx < 12 ? `${MESES[idx]} ${y}` : k;
+    };
+    const sorted = [...det.periodos].sort();
+    if (sorted.length === 1) return fmt(sorted[0]);
+    const firstParts = String(sorted[0]).split('-');
+    const lastParts = String(sorted[sorted.length - 1]).split('-');
+    const m1 = parseInt(firstParts[1], 10) - 1;
+    const m2 = parseInt(lastParts[1], 10) - 1;
+    if (firstParts[0] === lastParts[0] && m1 >= 0 && m2 >= 0) {
+      return `${MESES[m1]} a ${MESES[m2]} ${firstParts[0]}`;
+    }
+    return `${fmt(sorted[0])} a ${fmt(sorted[sorted.length - 1])}`;
+  }
+
+  // 4. Si viene en det.periodo
+  if (det?.periodo && typeof det.periodo === 'string' && det.periodo.trim()) {
+    const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const [y, m] = det.periodo.split('-');
+    if (y && m) {
+      const idx = parseInt(m, 10) - 1;
+      if (idx >= 0 && idx < 12) return `${MESES[idx]} ${y}`;
+    }
+    return det.periodo;
+  }
+
+  // 5. Si es comprobante de retención
+  if (det?.es_retencion || p?.tipo === 'RETENCION_75' || /^RET-/i.test(p?.referencia || '')) {
+    return 'Retención IVA 75%';
+  }
+
+  // 6. Si son multas sueltas
+  if (Array.isArray(det?.recibos) && det.recibos.some((r: string) => /^MULTA-/i.test(r))) {
+    return 'Multa Administrativa';
+  }
+
+  return '—';
+}
+
 
 export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProps> = ({
   isOpen,
@@ -50,6 +118,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   onEdit,
   onAjustarDeuda,
   onExonerarMultas,
+  onAsignarMulta,
   onDeleteFactura,
   onRefresh
 }) => {
@@ -1454,6 +1523,17 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                     <span>Exonerar Multas</span>
                   </button>
 
+                  {onAsignarMulta && (
+                    <button
+                      onClick={() => onAsignarMulta(viewData)}
+                      className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      title="Asignar multa a un período específico"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Asignar Multa</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => onAjustarDeuda(viewData)}
                     className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -1632,6 +1712,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                           <th className="px-4 py-2.5">Fecha</th>
                           <th className="px-4 py-2.5">Referencia</th>
                           <th className="px-4 py-2.5">Método / Banco</th>
+                          <th className="px-4 py-2.5">Período(s) Pagado(s)</th>
                           <th className="px-4 py-2.5 text-right">Monto (Bs)</th>
                           <th className="px-4 py-2.5 text-center">Estado</th>
                           <th className="px-4 py-2.5 text-center">Comprobante Fiscal</th>
@@ -1642,10 +1723,11 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                           let det: any = {};
                           try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
                           const facturaDigital = det.factura_digital;
+                          const periodoTexto = formatPeriodosPagados(det, p);
 
                           return (
                             <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="px-4 py-2.5 text-slate-600 font-medium">
+                              <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">
                                 {p.created_at ? new Date(p.created_at).toLocaleDateString('es-VE') : '---'}
                               </td>
                               <td className="px-4 py-2.5 font-mono font-bold text-slate-800">
@@ -1655,7 +1737,19 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                 <span className="font-semibold">{p.metodo || p.tipo || 'Pago'}</span>
                                 {p.banco && <span className="text-slate-400 block text-[10px]">{p.banco}</span>}
                               </td>
-                              <td className="px-4 py-2.5 text-right font-black text-emerald-700">
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${
+                                  periodoTexto.includes('Retención')
+                                    ? 'bg-purple-50 text-purple-800 border-purple-200/80'
+                                    : periodoTexto.includes('Multa')
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+                                    : 'bg-sky-50 text-sky-800 border-sky-200/80'
+                                }`}>
+                                  <Calendar className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                                  <span>{periodoTexto}</span>
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-black text-emerald-700 whitespace-nowrap">
                                 Bs. {formatBs(p.monto)}
                               </td>
                               <td className="px-4 py-2.5 text-center">

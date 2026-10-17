@@ -142,7 +142,7 @@ export default function RegistroPublico() {
               <span className="text-emerald-500">GLOBAL</span> GREEN
             </h2>
             <p className="relative z-10 text-slate-400 mt-1 text-xs uppercase tracking-widest font-semibold">
-              Alcaldía del Municipio Naguanagua
+              IAMEC · Aseo Urbano Naguanagua
             </p>
           </div>
 

@@ -55,6 +55,11 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
   const montos: Record<string, any> = det.montos && typeof det.montos === 'object' ? det.montos : {};
   const tasa = parseFloat(String(det.tasa_bcv_aplicada || det.tasa_bcv || 0)) || 0;
   const monto = r2(parseFloat(String(pago.monto || 0)));
+  const montoNeto = (det.monto_neto_factura && Number(det.monto_neto_factura) > 0)
+    ? r2(Number(det.monto_neto_factura))
+    : (det.total_seleccionado && Number(det.total_seleccionado) > 0)
+      ? r2(Number(det.total_seleccionado))
+      : monto;
   const hoy = fechaPagoVE(pago, det);
   const esAbono = !!det.es_abono;
 
@@ -121,13 +126,14 @@ export function desglosarPago(pago: any, inmMap: Map<string, any>): DesglosePago
   }
 
   const totalCalculado = r2(lineas.reduce((s, l) => s + l.total, 0));
+  const montoObjetivo = montoNeto > 0 ? montoNeto : monto;
   // Tolerancia: diferencias de redondeo/tasa (≤ 1% o Bs 1)
-  const tol = Math.max(1, monto * 0.01);
-  const cuadra = !esAbono && lineas.length > 0 && Math.abs(totalCalculado - monto) <= tol;
-  if (cuadra && totalCalculado !== monto) {
+  const tol = Math.max(1, montoObjetivo * 0.01);
+  const cuadra = !esAbono && lineas.length > 0 && Math.abs(totalCalculado - montoObjetivo) <= tol;
+  if (cuadra && totalCalculado !== montoObjetivo) {
     // Ajustar el redondeo en la última línea para que el recibo sume exactamente lo pagado
     const last = lineas[lineas.length - 1];
-    const diff = r2(monto - totalCalculado);
+    const diff = r2(montoObjetivo - totalCalculado);
     last.base = r2(last.base + diff);
     last.total = r2(last.total + diff);
   }

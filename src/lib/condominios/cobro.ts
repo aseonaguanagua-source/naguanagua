@@ -457,7 +457,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             comprobante_url: paExtra.comprobante_url,
             comprobante_nombre: paExtra.comprobante_nombre,
             pago_principal_id: id,
-            es_pago_adicional: true
+            es_pago_adicional: true,
+            factura_digital: { emitida: false, pendiente: false, es_pago_adicional: true }
           }
         });
       }
@@ -481,7 +482,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
           cajero: pago.cajero,
           es_retencion: true,
           pago_vinculado: id,
-          nota: 'Comprobante de retención de IVA 75% deducido en Caja.'
+          nota: 'Comprobante de retención de IVA 75% deducido en Caja.',
+          factura_digital: { emitida: false, pendiente: false, es_retencion: true }
         }
       });
     }

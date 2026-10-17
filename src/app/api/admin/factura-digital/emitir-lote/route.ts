@@ -35,6 +35,7 @@ export async function POST(request: Request) {
         try { det = JSON.parse(det); } catch { det = {}; }
       }
       det = det || {};
+      if (det.es_pago_adicional === true || Boolean(det.pago_principal_id)) return false;
       const fd = det.factura_digital;
       return !(fd && (fd.emitida || fd.numero_control || fd.url));
     });

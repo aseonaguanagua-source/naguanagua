@@ -512,23 +512,96 @@ export default function DondePagarPage() {
     return Array.from(new Set([ref, ...refs]));
   };
 
-  // Manejo de selecciones
+  // Manejo de selecciones con VALIDACIÓN ESTRICTA: NO PERMITIR ADELANTAR MESES
   const toggleSingleReceipt = (ref: string) => {
     if (isItemPending(ref)) return;
     const grupo = refsConHermanosNA(ref);
-    setSelectedReceiptRefs(prev =>
-      prev.includes(ref) ? prev.filter(r => !grupo.includes(r)) : Array.from(new Set([...prev, ...grupo]))
+
+    // Encontrar el grupo/inmueble al que pertenece este recibo
+    const targetGroup = localGroups.find(g =>
+      g.singleItems.some(it => it.referencia === ref || grupo.includes(it.referencia))
     );
+
+    const isCurrentlySelected = selectedReceiptRefs.includes(ref);
+
+    if (!isCurrentlySelected) {
+      // ── INTENTO DE SELECCIONAR: Validar que no se salten deudas más antiguas
+      if (targetGroup && targetGroup.singleItems) {
+        const itemIdx = targetGroup.singleItems.findIndex(it => it.referencia === ref || grupo.includes(it.referencia));
+        if (itemIdx > 0) {
+          const previousUnselected = targetGroup.singleItems
+            .slice(0, itemIdx)
+            .some(it => !isItemPending(it.referencia) && !it.bloqueadoCondominio && !selectedReceiptRefs.includes(it.referencia));
+
+          if (previousUnselected) {
+            alert('¡No se puede adelantar meses! Debe seleccionar y pagar las deudas más antiguas primero.');
+            return;
+          }
+        }
+      }
+
+      setSelectedReceiptRefs(prev => Array.from(new Set([...prev, ...grupo])));
+    } else {
+      // ── INTENTO DE DESELECCIONAR: Deseleccionar también cualquier mes posterior de este inmueble
+      const refsToRemove = new Set(grupo);
+      if (targetGroup && targetGroup.singleItems) {
+        const itemIdx = targetGroup.singleItems.findIndex(it => it.referencia === ref || grupo.includes(it.referencia));
+        if (itemIdx !== -1) {
+          targetGroup.singleItems.slice(itemIdx).forEach(it => {
+            refsToRemove.add(it.referencia);
+            refsConHermanosNA(it.referencia).forEach(h => refsToRemove.add(h));
+          });
+        }
+      }
+
+      setSelectedReceiptRefs(prev => prev.filter(r => !refsToRemove.has(r)));
+    }
   };
 
   const toggleMonthGroup = (refs: string[]) => {
     const selectableRefs = refs.filter(r => !isItemPending(r));
     if (selectableRefs.length === 0) return;
+
+    // Encontrar el grupo unificado al que pertenece este mes
+    const targetGroup = localGroups.find(g =>
+      g.monthlyGroups.some(m => m.receiptRefs.some(r => refs.includes(r)))
+    );
+
     const allSelected = selectableRefs.every(r => selectedReceiptRefs.includes(r));
-    if (allSelected) {
-      setSelectedReceiptRefs(prev => prev.filter(r => !selectableRefs.includes(r)));
-    } else {
+
+    if (!allSelected) {
+      // ── INTENTO DE SELECCIONAR: Validar que los meses anteriores estén seleccionados
+      if (targetGroup && targetGroup.monthlyGroups) {
+        const mIdx = targetGroup.monthlyGroups.findIndex(m => m.receiptRefs.some(r => refs.includes(r)));
+        if (mIdx > 0) {
+          const previousUnselected = targetGroup.monthlyGroups
+            .slice(0, mIdx)
+            .some(m => {
+              const prevSelectable = m.receiptRefs.filter(r => !isItemPending(r));
+              return prevSelectable.length > 0 && !prevSelectable.every(r => selectedReceiptRefs.includes(r));
+            });
+
+          if (previousUnselected) {
+            alert('¡No se puede adelantar meses! Debe seleccionar y pagar los meses más antiguos primero.');
+            return;
+          }
+        }
+      }
+
       setSelectedReceiptRefs(prev => Array.from(new Set([...prev, ...selectableRefs])));
+    } else {
+      // ── INTENTO DE DESELECCIONAR: Deseleccionar también los meses posteriores de este local
+      const refsToRemove = new Set(selectableRefs);
+      if (targetGroup && targetGroup.monthlyGroups) {
+        const mIdx = targetGroup.monthlyGroups.findIndex(m => m.receiptRefs.some(r => refs.includes(r)));
+        if (mIdx !== -1) {
+          targetGroup.monthlyGroups.slice(mIdx).forEach(m => {
+            m.receiptRefs.forEach(r => refsToRemove.add(r));
+          });
+        }
+      }
+
+      setSelectedReceiptRefs(prev => prev.filter(r => !refsToRemove.has(r)));
     }
   };
 
@@ -626,6 +699,37 @@ export default function DondePagarPage() {
     e.preventDefault();
     if (montoTotal === 0) { alert('Debe seleccionar al menos una deuda.'); return; }
     if (!metodo) { alert('Debe seleccionar el método de pago.'); return; }
+
+    // Validar orden cronológico estricto: no permitir adelantar meses
+    for (const group of localGroups) {
+      if (group.isUnified) {
+        let encounteredUnselected = false;
+        for (const m of group.monthlyGroups) {
+          const selectableRefs = m.receiptRefs.filter(r => !isItemPending(r));
+          if (selectableRefs.length === 0) continue;
+          const isSelected = selectableRefs.every(r => selectedReceiptRefs.includes(r));
+          if (!isSelected) {
+            encounteredUnselected = true;
+          } else if (encounteredUnselected) {
+            alert('¡No se puede adelantar meses! Debe cancelar los períodos más antiguos primero.');
+            return;
+          }
+        }
+      } else {
+        let encounteredUnselected = false;
+        for (const it of group.singleItems) {
+          if (isItemPending(it.referencia) || it.bloqueadoCondominio) continue;
+          const isSelected = selectedReceiptRefs.includes(it.referencia);
+          if (!isSelected) {
+            encounteredUnselected = true;
+          } else if (encounteredUnselected) {
+            alert('¡No se puede adelantar meses! Debe cancelar las deudas más antiguas primero.');
+            return;
+          }
+        }
+      }
+    }
+
     if (metodo === 'transferencia') {
       if (!formData.bancoOrigen) { alert('Seleccione el banco origen.'); return; }
       if (!formData.referencia) { alert('Ingrese el número de referencia.'); return; }
@@ -777,7 +881,7 @@ export default function DondePagarPage() {
             <div className="bg-gradient-to-r from-blue-700 to-indigo-800 px-4 py-3 flex items-center justify-between text-white">
               <h2 className="font-bold uppercase flex items-center gap-2 text-xs tracking-wide">
                 <Building className="w-4 h-4 text-blue-200" />
-                Cuentas Recaudadoras Oficiales (Alcaldía / IAMEC)
+                Cuentas Recaudadoras Oficiales (IAMEC)
               </h2>
               <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded">
                 Bancamiga & Banesco

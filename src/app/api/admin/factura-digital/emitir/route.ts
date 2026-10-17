@@ -198,6 +198,12 @@ export async function POST(request: Request) {
     let detPago: any = pagoRow?.detalles || {};
     if (typeof detPago === 'string') { try { detPago = JSON.parse(detPago); } catch { detPago = {}; } }
 
+    if (detPago?.es_pago_adicional === true || Boolean(detPago?.pago_principal_id)) {
+      return NextResponse.json({
+        error: 'Este registro es un pago adicional de una transacción múltiple. La factura fiscal se emite desde el pago principal.',
+      }, { status: 400 });
+    }
+
     const { data: facturasBD } = lineasCondo ? { data: [] as any[] } : await supabase.from('facturas').select('*').in('referencia', recibos);
 
     const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];

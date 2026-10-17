@@ -652,7 +652,7 @@ export default function SolvenciaPage() {
                     <span className="font-serif italic text-xs text-slate-400 select-none">Firma Autorizada</span>
                   </div>
                   <p className="text-[10px] font-black text-slate-800 uppercase">Coordinación de Recaudación</p>
-                  <p className="text-[9px] text-slate-500 uppercase tracking-tight">Alcaldía Bolivariana de Naguanagua</p>
+                  <p className="text-[9px] text-slate-500 uppercase tracking-tight">Instituto Autónomo Municipal de Ecosocialismo (IAMEC)</p>
                 </div>
 
               </div>
@@ -660,7 +660,7 @@ export default function SolvenciaPage() {
               {/* NOTA AL PIE LEGAL */}
               <div className="mt-8 pt-3 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center text-[9px] text-slate-400 gap-2">
                 <span>Emitido el: {fechaLarga}</span>
-                <span>Sistema de Recaudación Tributaria Municipal · Alcaldía de Naguanagua</span>
+                <span>Sistema de Recaudación Tributaria Municipal · IAMEC Naguanagua</span>
               </div>
 
             </div>

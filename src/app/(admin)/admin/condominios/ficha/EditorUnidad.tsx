@@ -10,11 +10,27 @@ import { parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES_NOMBRES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const MESES_COMPLETOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 function fmtPeriodo(p: string) {
   if (!p || !p.includes('-')) return p;
   const [y, m] = p.split('-');
   const n = parseInt(m, 10);
-  return `${MESES_NOMBRES[(n - 1) % 12]} ${y}`;
+  return `${MESES_COMPLETOS[(n - 1) % 12] || MESES_NOMBRES[(n - 1) % 12]} ${y}`;
+}
+
+function generarMesesCondo(): { key: string; label: string }[] {
+  const lista: { key: string; label: string }[] = [];
+  const now = new Date();
+  const cursor = new Date(now.getFullYear(), now.getMonth(), 1);
+  for (let i = 0; i < 36; i++) {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+    const label = `${MESES_COMPLETOS[m]} ${y}`;
+    lista.push({ key, label });
+    cursor.setMonth(cursor.getMonth() - 1);
+  }
+  return lista;
 }
 const NIVELES = ['Baja', 'Media', 'Alta'];
 const RESIDENCIALES = ordenanzaData.tiposResidenciales.map(t => ({ label: t.label.toUpperCase(), factor: t.factor }));
@@ -67,6 +83,8 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const [multaMontoBs, setMultaMontoBs] = useState('');
   const [multaMotivo, setMultaMotivo] = useState('');
   const [guardandoMulta, setGuardandoMulta] = useState(false);
+  const [modoMesCustom, setModoMesCustom] = useState(false);
+  const listaMesesCondo = useMemo(() => generarMesesCondo(), []);
 
   const agregarMultaPeriodo = async () => {
     if (!unidad?.id) return;
@@ -489,11 +507,16 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
             {!nueva && (
               <div className="pt-2 border-t border-amber-200/60">
                 {!mostrarAgregarMulta ? (
-                  <button
+                    <button
                     type="button"
                     onClick={() => {
                       setMostrarAgregarMulta(true);
                       if (multaPorMesBs > 0) setMultaMontoBs(fmtBs(multaPorMesBs));
+                      if (!multaPeriodo && listaMesesCondo.length > 0) {
+                        const def = listaMesesCondo[1]?.key || listaMesesCondo[0]?.key || '';
+                        setMultaPeriodo(def);
+                        setMultaConcepto(`Multa por mora ${fmtPeriodo(def)}`);
+                      }
                     }}
                     className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
@@ -506,19 +529,48 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                       <button type="button" onClick={() => setMostrarAgregarMulta(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <label className="block">
-                        <span className={lbl}>Período de la multa (Mes / Año)</span>
-                        <input
-                          type="month"
-                          value={multaPeriodo}
-                          onChange={e => {
-                            setMultaPeriodo(e.target.value);
-                            if (!multaConcepto) setMultaConcepto(`Multa por mora ${fmtPeriodo(e.target.value)}`);
-                          }}
-                          className={inp}
-                          placeholder="YYYY-MM (ej: 2026-03)"
-                        />
-                      </label>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={lbl + " mb-0"}>Mes de la multa</span>
+                          <button
+                            type="button"
+                            onClick={() => setModoMesCustom(!modoMesCustom)}
+                            className="text-[10px] text-amber-800 font-bold hover:underline"
+                          >
+                            {modoMesCustom ? '← Lista de meses' : 'Otro mes / manual'}
+                          </button>
+                        </div>
+                        {!modoMesCustom ? (
+                          <select
+                            value={multaPeriodo}
+                            onChange={e => {
+                              const v = e.target.value;
+                              setMultaPeriodo(v);
+                              if (v) setMultaConcepto(`Multa por mora ${fmtPeriodo(v)}`);
+                            }}
+                            className={inp + " font-bold text-slate-800 mt-0"}
+                          >
+                            <option value="">-- Seleccionar Mes --</option>
+                            {listaMesesCondo.map(m => (
+                              <option key={m.key} value={m.key}>
+                                {m.label} ({m.key})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="month"
+                            value={multaPeriodo}
+                            onChange={e => {
+                              const v = e.target.value;
+                              setMultaPeriodo(v);
+                              if (v) setMultaConcepto(`Multa por mora ${fmtPeriodo(v)}`);
+                            }}
+                            className={inp + " mt-0"}
+                            placeholder="YYYY-MM (ej: 2026-03)"
+                          />
+                        )}
+                      </div>
                       <label className="block">
                         <span className={lbl}>Monto de la multa (Bs)</span>
                         <div className="flex items-center gap-2 mt-1">

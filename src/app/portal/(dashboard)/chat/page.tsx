@@ -14,7 +14,7 @@ export default function ChatPage() {
             <div>
               <h1 className="text-xl font-black">Centro de Atención al Contribuyente</h1>
               <p className="text-xs text-emerald-200 mt-1">
-                Alcaldía Bolivariana de Naguanagua • Instituto Autónomo Municipal de Ecosocialismo (IAMEC)
+                Instituto Autónomo Municipal de Ecosocialismo (IAMEC)
               </p>
             </div>
           </div>

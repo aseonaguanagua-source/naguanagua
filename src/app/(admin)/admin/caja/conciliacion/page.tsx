@@ -14,7 +14,7 @@ import { desglosarPago } from '@/lib/desglosePago';
 import { FILTROS_MODULO, FiltroModulo, OR_CONDOMINIOS, infoCondominioPago, pasaFiltroModulo, rifsCondominios, useCondominiosLigero } from '@/lib/condominios/pagosCondominio';
 import { actualizarPago } from '@/lib/actualizarPago';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
-import { parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
+import { parseLocalFloat, formatLocalNumberInput, formatBs } from '@/lib/formatters';
 
 /** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios. */
 const fechaTransaccionDe = (det: any): string => {
@@ -68,8 +68,7 @@ const ESTATUS_LIST = ['Todos', 'Pendiente', 'Por Verificar', 'Aprobado', 'Rechaz
 const ESTATUS_CONCILIAR = ['Aprobado', 'Rechazado', 'Con Diferencia'];
 
 function fmt(val: string | number | undefined) {
-  const n = parseFloat(String(val || '0').replace(/[^0-9.]/g, ''));
-  return isNaN(n) ? '0,00' : n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatBs(val);
 }
 
 function fmtFecha(iso: string | undefined) {
@@ -338,7 +337,11 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
 
   const pendientes = recibos.filter(f => f.estado === 'Pendiente');
   const pagadas = recibos.filter(f => f.estado === 'Pagado');
-  const totalDoc = parseFloat(String(pago.monto || '0').replace(/[^0-9.]/g, '').replace(',','.')) || 0;
+  const totalDoc = (det.monto_neto_factura && Number(det.monto_neto_factura) > 0)
+    ? Number(det.monto_neto_factura)
+    : (det.total_seleccionado && Number(det.total_seleccionado) > 0)
+      ? Number(det.total_seleccionado)
+      : parseLocalFloat(pago.monto);
   const totalPendiente = pendientes.reduce((a, f) => a + (parseFloat(String(f.monto||'0').replace(/[^0-9.]/g,''))||0), 0);
   const totalPagado = pagadas.reduce((a, f) => a + (parseFloat(String(f.monto||'0').replace(/[^0-9.]/g,''))||0), 0);
 
@@ -674,7 +677,42 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const periodos = det.periodos || (recibos.length > 0 ? recibos.join(' | ') : '---');
   // Vars usadas tanto en handleConciliar como en el render
   const montoConciliadoNum = parseLocalFloat(montoConciliado);
-  const deudaTotalContrib = contribInfo?._deudaTotal ? parseFloat(String(contribInfo._deudaTotal).replace(/[^0-9.]/g,'')) : 0;
+
+  const montoRetencionDoc = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || dRet || 0)) || 0;
+  const tieneRetencion = Boolean(det.es_retencion || det.agente_retencion || det.es_agente_retencion || montoRetencionDoc > 0);
+
+  // Total Documento (monto bruto de la deuda/factura seleccionada en Caja)
+  const totalDocumentoCalc = (() => {
+    if (det.monto_factura && Number(det.monto_factura) > 0) return Number(det.monto_factura);
+    if (det.total_seleccionado && Number(det.total_seleccionado) > 0) return Number(det.total_seleccionado);
+    if (tieneRetencion && montoRetencionDoc > 0) return Math.round((montoReportadoNum + montoRetencionDoc) * 100) / 100;
+    return montoReportadoNum;
+  })();
+
+  // IVA Total de la operación
+  const ivaTotalDoc = (() => {
+    if (det.recibo_caja?.[0]?.iva !== undefined && Number(det.recibo_caja[0].iva) > 0) return Number(det.recibo_caja[0].iva);
+    if (det.iva_total && Number(det.iva_total) > 0) return Number(det.iva_total);
+    if (montoRetencionDoc > 0) return Math.round((montoRetencionDoc / 0.75) * 100) / 100;
+    return 0;
+  })();
+
+  // Total a Pagar / Cobrado en Caja: exactamente igual a lo cobrado en Caja
+  const totalAPagarCalc = (() => {
+    if (det.es_abono) return montoReportadoNum;
+    if (det.monto_neto_factura && Number(det.monto_neto_factura) > 0) return Number(det.monto_neto_factura);
+    if (det.total_seleccionado && Number(det.total_seleccionado) > 0) {
+      return Math.max(0, Math.round((Number(det.total_seleccionado) - montoRetencionDoc) * 100) / 100);
+    }
+    return montoReportadoNum;
+  })();
+
+  const deudaTotalContrib = (() => {
+    const dContrib = contribInfo?._deudaTotal ? parseLocalFloat(contribInfo._deudaTotal) : 0;
+    if (dContrib > 0) return dContrib;
+    if (det.deuda_total_sistema) return parseLocalFloat(det.deuda_total_sistema);
+    return totalAPagarCalc;
+  })();
 
   const handleConciliar = async () => {
     setIsProcessing(true);
@@ -952,7 +990,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   const isUltimo = (m >= numMesesInm);
                   const multaMes = isUltimo ? 0 : Math.round((bMes * tasaMora) * 100) / 100;
                   const costoMes = Math.round((bMes + ivaMes - retMes) * 100) / 100 + multaMes;
-                  if (dineroLocal >= costoMes - 0.01) {
+                  if (dineroLocal >= costoMes - 0.05) {
                     dineroLocal = Math.max(0, dineroLocal - costoMes);
                     cubiertos++;
                   } else {
@@ -1380,7 +1418,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   {estatus === 'Con Diferencia' ? 'Monto de Diferencia (→ Saldo a Favor)' : 'Monto Conciliado'}
                 </label>
                 <input
-                  value={montoConciliado}
+                  value={estatus === 'Aprobado' ? fmt(montoConciliadoNum) : montoConciliado}
                   onChange={e => setMontoConciliado(formatLocalNumberInput(e.target.value))}
                   onBlur={e => {
                     const p = parseLocalFloat(e.target.value);
@@ -1432,17 +1470,17 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-blue-600 font-semibold">Total Documento</span>
-                <span className="text-blue-600 font-bold">{fmt(montoReportadoNum + parseFloat(String(det.retencion_iva || det.monto_retencion_iva || dRet || 0)))}</span>
+                <span className="text-blue-600 font-bold">{fmt(totalDocumentoCalc)}</span>
               </div>
-              {(det.es_agente_retencion || parseFloat(String(det.monto_retencion_iva || dRet || 0)) > 0) ? (
+              {tieneRetencion ? (
                 <>
                   <div className="flex justify-between text-xs text-slate-500 ml-4">
                     <span>IVA Total (16%)</span>
-                    <span>{fmt(parseFloat(String(det.iva_total || (parseFloat(String(det.monto_retencion_iva || dRet || 0)) / 0.75) || 0)))}</span>
+                    <span>{fmt(ivaTotalDoc)}</span>
                   </div>
                   <div className="flex justify-between text-sm ml-4">
                     <span className="text-amber-600 font-semibold">Retención IVA (75%)</span>
-                    <span className="text-amber-600 font-bold">- {fmt(parseFloat(String(det.retencion_iva || det.monto_retencion_iva || dRet || 0)))}</span>
+                    <span className="text-amber-600 font-bold">- {fmt(montoRetencionDoc)}</span>
                   </div>
                 </>
               ) : (
@@ -1453,27 +1491,27 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               )}
               <div className="flex justify-between text-sm border-t pt-1 mt-1">
                 <span className="font-bold text-slate-800">Total a Pagar</span>
-                <span className="font-bold text-slate-800">{fmt(montoReportadoNum)}</span>
+                <span className="font-bold text-slate-800">{fmt(totalAPagarCalc)}</span>
               </div>
               {/* Diferencia pendiente cuando monto conciliado < deuda total */}
-              {estatus === 'Aprobado' && montoConciliadoNum > 0 && montoReportadoNum < deudaTotalContrib - 0.01 && (
+              {estatus === 'Aprobado' && montoConciliadoNum > 0 && montoReportadoNum < deudaTotalContrib - 0.05 && (
                 <div className="border-t pt-2 mt-1">
                   <div className="flex justify-between text-sm">
-                    <span className="text-amber-700 font-bold">? Deuda Restante (Pendiente de Pago)</span>
+                    <span className="text-amber-700 font-bold">⚠️ Deuda Restante (Pendiente de Pago)</span>
                     <span className="text-amber-700 font-bold">- {fmt(deudaTotalContrib - montoReportadoNum)}</span>
                   </div>
                   {det.nota_cambio_tasa && (
                     <p className="text-xs text-amber-700 mt-1 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                      ? Ajuste por cambio de tasa BCV: {det.nota_cambio_tasa}. Tasa aplicada: {det.tasa_bcv_aplicada || det.tasa_bcv} Bs/�.
+                      ⚠️ Ajuste por cambio de tasa BCV: {det.nota_cambio_tasa}. Tasa aplicada: {det.tasa_bcv_aplicada || det.tasa_bcv} Bs/$.
                     </p>
                   )}
                   <p className="text-xs text-slate-500 mt-1">El contribuyente tiene recibos adicionales o inmuebles pendientes no incluidos en este pago.</p>
                 </div>
               )}
-              {estatus === 'Con Diferencia' && parseFloat(montoConciliado) > 0 && (
+              {estatus === 'Con Diferencia' && parseLocalFloat(montoConciliado) > 0 && (
                 <div className="flex justify-between text-sm border-t pt-1 mt-1 text-amber-700 font-bold">
                   <span>Saldo a Favor a Acreditar</span>
-                  <span>+ {fmt(parseFloat(montoConciliado))}</span>
+                  <span>+ {fmt(parseLocalFloat(montoConciliado))}</span>
                 </div>
               )}
             </div>
