@@ -182,8 +182,14 @@ export default function DondePagarPage() {
         const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
         validInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
         setReglasCobro(Object.fromEntries(reglaPorInm));
-        setBloqueadoPorCondominio(rc.soloCondominio && rc.recibos.length === 0);
-        setRawRecibos(rc.recibos);
+        const isCondoRef = (ref: string): boolean => {
+          const r = String(ref || '').toUpperCase();
+          if (r.includes('URB033698') || r.includes('URB015126') || r.includes('URB015127') || r.includes('URB015128') || r.includes('URB015129')) return true;
+          return rc.condoInmCodes?.some(c => r.includes(c)) ?? false;
+        };
+        const safeRecibos = rc.recibos.filter((r: any) => !isCondoRef(r.referencia));
+        setBloqueadoPorCondominio(rc.soloCondominio && safeRecibos.length === 0);
+        setRawRecibos(safeRecibos);
 
         // Servicios especiales / extraordinarios pendientes del contribuyente
         try {

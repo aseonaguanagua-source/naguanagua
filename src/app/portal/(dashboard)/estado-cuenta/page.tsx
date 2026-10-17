@@ -241,22 +241,43 @@ export default function EstadoCuentaPage() {
   };
 
   // Filtrar recibos del usuario (priorizando DB)
-  const misFact = useMemo(() => {
-    if (misFactDb.length > 0) return misFactDb;
-    const docNorm = portalDoc.replace(/-/g, '').toUpperCase();
-    const soloNum = portalDoc.replace(/\D/g, '');
-    return recibos.filter((f: any) => {
-      const ident = (f.identidad || '').replace(/-/g, '').toUpperCase();
-      const cont = (f.contribuyente || '').replace(/-/g, '').toUpperCase();
-      return portalDoc && (
-        ident === docNorm || ident.includes(soloNum) || 
-        cont === docNorm || cont.includes(soloNum)
-      );
-    });
-  }, [misFactDb, recibos, portalDoc]);
+  const isCondoReceipt = (f: any): boolean => {
+    const ref = String(f?.referencia || '').toUpperCase();
+    const inmId = String(f?.inmueble || '').toUpperCase();
+    // Excluir cualquier recibo de URB033698 o sus unidades hijas
+    if (ref.includes('URB033698') || ref.includes('URB015126') || ref.includes('URB015127') || ref.includes('URB015128') || ref.includes('URB015129')) return true;
+    if (['URB033698', 'URB015126', 'URB015127', 'URB015128', 'URB015129'].includes(inmId)) return true;
+    // Excluir cualquier inmueble que pertenezca a condominio
+    const matched = misInmuebles.find((i: any) => i.inmueble && (ref.includes(i.inmueble) || inmId === i.inmueble));
+    if (matched && (matched.condominio_padre_id || matched.es_condominio || String(matched.actividad_principal || '').toLowerCase().includes('condominio') || String(matched.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb'))) {
+      return true;
+    }
+    return false;
+  };
 
-  const pendientes = misFact.filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Abonado' || f.estado === 'Por Verificar').sort((a,b) => (a.emision || '').localeCompare(b.emision || ''));
-  const pagadas = misFact.filter((f: any) => f.estado === 'Pagada' || f.estado === 'Pagado').sort((a,b) => (b.emision || '').localeCompare(a.emision || '')).slice(0, 10);
+  const misFact = useMemo(() => {
+    const source = misFactDb.length > 0 ? misFactDb : (() => {
+      const docNorm = portalDoc.replace(/-/g, '').toUpperCase();
+      const soloNum = portalDoc.replace(/\D/g, '');
+      return recibos.filter((f: any) => {
+        const ident = (f.identidad || '').replace(/-/g, '').toUpperCase();
+        const cont = (f.contribuyente || '').replace(/-/g, '').toUpperCase();
+        return portalDoc && (
+          ident === docNorm || ident.includes(soloNum) || 
+          cont === docNorm || cont.includes(soloNum)
+        );
+      });
+    })();
+    return source.filter((f: any) => !isCondoReceipt(f));
+  }, [misFactDb, recibos, portalDoc, misInmuebles]);
+
+  const pendientes = misFact
+    .filter((f: any) => (f.estado === 'Pendiente' || f.estado === 'Abonado' || f.estado === 'Por Verificar') && !isCondoReceipt(f))
+    .sort((a,b) => (a.emision || '').localeCompare(b.emision || ''));
+  const pagadas = misFact
+    .filter((f: any) => f.estado === 'Pagada' || f.estado === 'Pagado')
+    .sort((a,b) => (b.emision || '').localeCompare(a.emision || ''))
+    .slice(0, 10);
 
   // Calculos
   const totalMensual = misInmuebles.reduce((acc: number, inm: any) => {
