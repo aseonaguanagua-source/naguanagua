@@ -67,6 +67,27 @@ async function evaluarSolvenciaLocal(identidad: string, inmuebleSpec: string = '
     
     if (!principal) return { solvente: false, mensaje: `El inmueble ${especifico} no fue encontrado.`, inmueblesConDeuda: [] };
     if (principal.estado === 'Eliminado') return { solvente: false, mensaje: `El inmueble ${especifico} está ELIMINADO. Reactívelo antes de emitir la solvencia.`, inmueblesConDeuda: [] };
+    if (principal.estado === 'Inactivo' && (!hijos || hijos.length === 0)) return { solvente: false, mensaje: `El inmueble ${especifico} está INACTIVO. Reactívelo antes de emitir la solvencia.`, inmueblesConDeuda: [] };
+
+    // Facturas pendientes del inmueble y sus actividades
+    const codigosAlcance = alcance.map((i: any) => i.inmueble).filter(Boolean);
+    const { data: factsInm } = await supabase
+      .from('facturas')
+      .select('id, referencia, inmueble, estado')
+      .in('identidad', variantes.length ? variantes : [identidad])
+      .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
+
+    const facturasPendientesInm = (factsInm || []).filter((f: any) =>
+      codigosAlcance.some((c: string) => (f.referencia || '').includes(c) || f.inmueble === c)
+    );
+
+    if (facturasPendientesInm.length > 0) {
+      return {
+        solvente: false,
+        inmueblesConDeuda: [especifico],
+        mensaje: `EMISIÓN DENEGADA: ${especifico} registra ${facturasPendientesInm.length} factura(s) pendiente(s).`
+      };
+    }
   }
 
   const conDeuda = alcance.filter(inmuebleTieneDeuda);

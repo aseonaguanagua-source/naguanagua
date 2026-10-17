@@ -42,10 +42,57 @@ export default function SolvenciaPage() {
         .in('identidad', variants);
 
       if (inms && inms.length > 0) {
-        setInmueblesList(inms);
-        setSelectedInmId(inms[0].inmueble || inms[0].id);
-        if (!currentName && inms[0].contribuyente) {
-          setContribuyenteNombre(inms[0].contribuyente);
+        // Excluir inmuebles eliminados
+        const noEliminados = inms.filter((i: any) => i.estado !== 'Eliminado');
+
+        // Mapear hijos asociados por padre_id
+        const hijosPorPadre = new Map<string, any[]>();
+        const codigosHijos = new Set<string>();
+
+        noEliminados.forEach((i: any) => {
+          if (i.padre_id && i.estado !== 'Eliminado') {
+            const list = hijosPorPadre.get(i.padre_id) || [];
+            list.push(i);
+            hijosPorPadre.set(i.padre_id, list);
+            codigosHijos.add(i.inmueble);
+          }
+        });
+
+        // Construir inmuebles procesados: agrupar los N/A con sus actividades hijas
+        const procesados = noEliminados
+          .filter((i: any) => !codigosHijos.has(i.inmueble))
+          .map((padre: any) => {
+            const actividadesHijas = hijosPorPadre.get(padre.inmueble) || [];
+            if (actividadesHijas.length === 0) return padre;
+
+            // Regla oficial N/A: su pago y deuda es la sumatoria de sus actividades
+            const sumMMV = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.mmv_mes) || 0), 0) * 100) / 100;
+            const maxMeses = actividadesHijas.reduce((acc: number, c: any) => {
+              const m = parseInt(c.meses_deuda || 0);
+              const d = parseFloat(c.deuda_mmv || 0);
+              return Math.max(acc, m > 0 ? m : (d > 0 ? 1 : 0));
+            }, parseInt(padre.meses_deuda || 0));
+            const sumDeudaMMV = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.deuda_mmv) || 0), parseFloat(padre.deuda_mmv || 0)) * 10000) / 10000;
+            const sumCongelada = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.deuda_congelada_bs) || 0), parseFloat(padre.deuda_congelada_bs || 0)) * 100) / 100;
+            const sumMulta = Math.round(actividadesHijas.reduce((acc: number, c: any) => acc + (parseFloat(c.multa_bs) || 0), parseFloat(padre.multa_bs || 0)) * 100) / 100;
+
+            return {
+              ...padre,
+              mmv_mes: sumMMV > 0 ? sumMMV : padre.mmv_mes,
+              meses_deuda: maxMeses,
+              deuda_mmv: sumDeudaMMV,
+              deuda_congelada_bs: sumCongelada,
+              multa_bs: sumMulta,
+              cant_inmuebles: actividadesHijas.length,
+              actividadesHijas,
+              esGrupoNA: true
+            };
+          });
+
+        setInmueblesList(procesados);
+        setSelectedInmId(procesados[0]?.inmueble || procesados[0]?.id || '');
+        if (!currentName && procesados[0]?.contribuyente) {
+          setContribuyenteNombre(procesados[0].contribuyente);
         }
       }
 
@@ -74,25 +121,33 @@ export default function SolvenciaPage() {
   const esPagoIndividual = activeInm && ((activeInm.actividad_principal || '').includes('PAGOS INDIVIDUALES') || isCondominioPagoIndividual(activeInm));
   const isBlockedByCondo = isCondoUnit && !esPagoIndividual;
 
-  // Facturas y deudas del inmueble seleccionado
+  // Facturas y deudas del inmueble seleccionado y todas sus actividades agrupadas
   const facturasInm = useMemo(() => {
     if (!activeInm) return [];
-    const cod = activeInm.inmueble;
+    const codigos = [
+      activeInm.inmueble,
+      ...(activeInm.actividadesHijas || []).map((h: any) => h.inmueble)
+    ].filter(Boolean);
+
     return facturasList.filter((f: any) => {
-      if (!cod) return true;
-      return f.referencia?.includes(cod) || f.inmueble === cod;
+      if (!codigos.length) return true;
+      return codigos.some(cod => f.referencia?.includes(cod) || f.inmueble === cod);
     });
   }, [facturasList, activeInm]);
 
-  const facturasPendientes = facturasInm.filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Abonado');
+  const facturasPendientes = facturasInm.filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Abonado' || f.estado === 'Por Verificar');
   
   // Reglas estrictas de solvencia municipal:
   // Requiere: 
-  // 1. Inmueble existente y cargado
-  // 2. 0 facturas pendientes
-  // 3. 0 meses de deuda en inmuebles.meses_deuda
+  // 1. Inmueble existente y activo
+  // 2. 0 facturas pendientes del inmueble y de sus actividades
+  // 3. 0 meses de deuda en inmueble y en todas sus actividades
   // 4. deuda_mmv <= 0
   // 5. deuda_congelada_bs <= 0
+  const tieneDeudaHijos = Boolean(
+    activeInm && (activeInm.actividadesHijas || []).some(inmuebleTieneDeuda)
+  );
+
   const mesesDeudaNum = activeInm ? parseInt(String(activeInm.meses_deuda || '0'), 10) : 999;
   const deudaMMVNum = activeInm ? parseFloat(String(activeInm.deuda_mmv || '0')) : 999;
   const deudaCongeladaNum = activeInm ? parseFloat(String(activeInm.deuda_congelada_bs || '0')) : 0;
@@ -119,16 +174,18 @@ export default function SolvenciaPage() {
       })
       .catch(() => {
         if (!cancel) {
-          setServerSolvencia({ checked: true, solvente: !inmuebleTieneDeuda(activeInm) && facturasPendientes.length === 0, mensaje: '' });
+          setServerSolvencia({ checked: true, solvente: !inmuebleTieneDeuda(activeInm) && !tieneDeudaHijos && facturasPendientes.length === 0, mensaje: '' });
         }
       });
     return () => { cancel = true; };
   }, [activeInm?.inmueble, portalDoc]);
 
-  // Regla oficial de solvencia: única por inmueble y requiere 0 deuda, 0 facturas pendientes y validación de padrón
+  // Regla oficial de solvencia: única por inmueble y requiere 0 deuda (propia y de sus actividades), 0 facturas pendientes y validación de padrón
   const isSolvente = Boolean(
     activeInm && 
+    activeInm.estado === 'Activo' &&
     !inmuebleTieneDeuda(activeInm) && 
+    !tieneDeudaHijos &&
     facturasPendientes.length === 0 &&
     !isBlockedByCondo &&
     (!serverSolvencia.checked || serverSolvencia.solvente)
@@ -136,14 +193,14 @@ export default function SolvenciaPage() {
 
   const handleDescargarPDF = async () => {
     if (!activeInm || !isSolvente) {
-      alert(`Trámite denegado: El inmueble ${activeInm?.inmueble || ''} registra obligaciones tributarias pendientes y no se encuentra solvente.`);
+      alert(`Trámite denegado: El inmueble ${activeInm?.inmueble || ''} registra obligaciones tributarias pendientes en sus actividades y no se encuentra solvente.`);
       return;
     }
     setDownloading(true);
     try {
       await generarSolvenciaPDF({
         Identidad: portalDoc,
-        Contribuyente: contribuyenteNombre || activeInm.contribuyente || 'Contribuyente',
+        Contribuyente: activeInm.contribuyente || contribuyenteNombre || 'Contribuyente',
         Telefono: activeInm.telefono || '+58 412-9030238',
         Direccion: activeInm.direccion || 'Municipio Naguanagua',
         CodCont: activeInm.inmueble,
@@ -209,7 +266,8 @@ export default function SolvenciaPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {inmueblesList.map((inm: any) => {
               const isSelected = (inm.inmueble || inm.id) === selectedInmId;
-              const inmSolv = !inmuebleTieneDeuda(inm);
+              const tieneHijosDeuda = (inm.actividadesHijas || []).some(inmuebleTieneDeuda);
+              const inmSolv = inm.estado === 'Activo' && !inmuebleTieneDeuda(inm) && !tieneHijosDeuda;
               const isCondo = !!inm.condominio_padre_id || (inm.actividad_principal || '').includes('HIJO_DE:');
 
               return (
@@ -235,7 +293,11 @@ export default function SolvenciaPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] font-medium text-slate-600 truncate">{inm.actividad_principal || inm.tipo || 'Inmueble'}</p>
+                  <p className="text-[11px] font-medium text-slate-600 truncate">
+                    {inm.actividadesHijas?.length 
+                      ? `N/A · ${inm.actividadesHijas.length} actividades agrupadas (${parseFloat(inm.mmv_mes || 0).toFixed(2)} MMV)` 
+                      : (inm.actividad_principal || inm.tipo || 'Inmueble')}
+                  </p>
                   <p className="text-[10px] text-slate-400 truncate mt-0.5">{inm.direccion || 'Naguanagua'}</p>
                 </button>
               );
@@ -269,7 +331,7 @@ export default function SolvenciaPage() {
                   <div>
                     <h3 className="text-base font-black text-rose-900">INMUEBLE NO SOLVENTE · TRÁMITE DENEGADO</h3>
                     <p className="text-xs text-rose-700 mt-1 max-w-xl leading-relaxed">
-                      El inmueble <strong>{activeInm?.inmueble}</strong> presenta <strong>{mesesDeudaNum} mes(es) de deuda acumulada</strong> ({deudaMMVNum.toFixed(2)} MMV). 
+                      El inmueble <strong>{activeInm?.inmueble}</strong> presenta <strong>{mesesDeudaNum} mes(es) de deuda acumulada</strong> ({deudaMMVNum.toFixed(2)} MMV){activeInm?.actividadesHijas?.length ? ` en sus ${activeInm.actividadesHijas.length} actividades económicas asociadas` : ''}. 
                       De conformidad con el Artículo 48 de la Ordenanza Municipal de Aseo Urbano, no se puede emitir el Certificado de Solvencia hasta la liquidación total de la deuda.
                     </p>
                   </div>
@@ -290,7 +352,7 @@ export default function SolvenciaPage() {
                   <div>
                     <h3 className="text-base font-black text-emerald-900">¡INMUEBLE SOLVENTE!</h3>
                     <p className="text-xs text-emerald-700 mt-0.5">
-                      El inmueble <strong>{activeInm?.inmueble}</strong> no registra adeudos ni meses pendientes. Puede imprimir o descargar su Certificado Oficial de Solvencia.
+                      El inmueble <strong>{activeInm?.inmueble}</strong> no registra adeudos ni meses pendientes{activeInm?.actividadesHijas?.length ? ` en ninguna de sus ${activeInm.actividadesHijas.length} actividades económicas` : ''}. Puede imprimir o descargar su Certificado Oficial de Solvencia.
                     </p>
                   </div>
                 </div>
@@ -327,7 +389,7 @@ export default function SolvenciaPage() {
                   Certificado de Solvencia No Disponible
                 </h3>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  El inmueble <strong className="font-mono text-slate-900 font-bold">{activeInm?.inmueble}</strong> registra obligaciones tributarias pendientes por concepto de aseo urbano ({mesesDeudaNum > 0 ? `${mesesDeudaNum} mes(es) en mora` : 'pagos pendientes'}).
+                  El inmueble <strong className="font-mono text-slate-900 font-bold">{activeInm?.inmueble}</strong> registra obligaciones tributarias pendientes por concepto de aseo urbano ({mesesDeudaNum > 0 ? `${mesesDeudaNum} mes(es) en mora` : 'pagos pendientes'}{activeInm?.actividadesHijas?.length ? ` en sus ${activeInm.actividadesHijas.length} actividades económicas asociadas` : ''}).
                 </p>
                 <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-semibold text-left space-y-1.5">
                   <div className="font-bold flex items-center gap-1.5 text-rose-950">
@@ -421,7 +483,7 @@ export default function SolvenciaPage() {
                     <div className="flex justify-between">
                       <span className="text-slate-500 font-medium">Razón Social / Nombre:</span>
                       <strong className="text-slate-900 font-black text-right max-w-[200px] truncate">
-                        {contribuyenteNombre || activeInm?.contribuyente || 'DAVID ZARA'}
+                        {activeInm?.contribuyente || contribuyenteNombre || 'Contribuyente'}
                       </strong>
                     </div>
                     <div className="flex justify-between">
@@ -436,7 +498,7 @@ export default function SolvenciaPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500 font-medium">Correo Electrónico:</span>
-                      <span className="text-slate-700 font-mono text-[11px]">{activeInm?.correo_electronico || 'davidzara66@gmail.com'}</span>
+                      <span className="text-slate-700 font-mono text-[11px]">{activeInm?.correo_electronico || activeInm?.correo || activeInm?.email || (typeof window !== 'undefined' ? localStorage.getItem('portal_email') : '') || 'No registrado'}</span>
                     </div>
                   </div>
                 </div>
@@ -458,13 +520,37 @@ export default function SolvenciaPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500 font-medium">Actividad Principal:</span>
-                      <span className="text-slate-800 font-medium text-right max-w-[190px] truncate">{activeInm?.actividad_principal || 'Comercial General'}</span>
+                      <span className="text-slate-800 font-medium text-right max-w-[200px] truncate" title={activeInm?.actividadesHijas?.length ? activeInm.actividadesHijas.map((h: any) => h.actividad_principal).join(', ') : activeInm?.actividad_principal}>
+                        {activeInm?.actividadesHijas?.length 
+                          ? `N/A (${activeInm.actividadesHijas.length} Actividades agrupadas)` 
+                          : (activeInm?.actividad_principal || 'Comercial General')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Tarifa Mensual:</span>
+                      <strong className="text-slate-900 font-mono text-right">{parseFloat(activeInm?.mmv_mes || 0).toFixed(2)} MMV/mes</strong>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500 font-medium">Ubicación:</span>
                       <span className="text-slate-800 text-right max-w-[200px] truncate font-medium">{activeInm?.direccion || 'Municipio Naguanagua, Estado Carabobo'}</span>
                     </div>
                   </div>
+
+                  {activeInm?.actividadesHijas && activeInm.actividadesHijas.length > 0 && (
+                    <div className="mt-3 pt-2.5 border-t border-slate-100">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                        Actividades Económicas Agrupadas ({activeInm.actividadesHijas.length}):
+                      </span>
+                      <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                        {activeInm.actividadesHijas.map((h: any) => (
+                          <div key={h.inmueble || h.id} className="flex items-center justify-between text-[11px] bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                            <span className="font-mono font-bold text-slate-700">{h.inmueble}: <span className="font-sans font-normal text-slate-600">{h.actividad_principal || 'Actividad'}</span></span>
+                            <span className="font-semibold text-slate-600">{parseFloat(h.mmv_mes || 0).toFixed(2)} MMV</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>

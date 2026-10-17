@@ -100,10 +100,37 @@ export async function POST(req: Request) {
       const hijos = [...(h1.data || []), ...(h2.data || [])].filter((h, i, arr) => arr.findIndex(x => x.id === h.id) === i);
       const alcance = [principal, ...hijos];
       const conDeuda = sinContenedoresNA(alcance, alcance).filter(inmuebleTieneDeuda);
+      
+      // Regla N/A y general: si el principal tiene deuda o sus actividades tienen deuda, NO es solvente
+      if (inmuebleTieneDeuda(principal) && !conDeuda.some((x: any) => x.inmueble === principal.inmueble)) {
+        conDeuda.push(principal);
+      }
+
       if (conDeuda.length) {
         return NextResponse.json({ solvente: false, inmueblesConDeuda: conDeuda.map((i: any) => i.inmueble),
           mensaje: `EMISIÓN DENEGADA: ${especifico} tiene deuda pendiente en: ${conDeuda.map((i: any) => `${i.inmueble} (${i.meses_deuda || 0} meses)`).join(', ')}.` });
       }
+
+      // Validar facturas pendientes del inmueble y sus actividades agrupadas
+      const codigosAlcance = alcance.map((i: any) => i.inmueble).filter(Boolean);
+      const { data: factsInm } = await sb
+        .from('facturas')
+        .select('id, referencia, inmueble, estado')
+        .in('identidad', variantes.length ? variantes : [identidad])
+        .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
+
+      const facturasPendientesInm = (factsInm || []).filter((f: any) =>
+        codigosAlcance.some((c: string) => (f.referencia || '').includes(c) || f.inmueble === c)
+      );
+
+      if (facturasPendientesInm.length > 0) {
+        return NextResponse.json({
+          solvente: false,
+          inmueblesConDeuda: [especifico],
+          mensaje: `EMISIÓN DENEGADA: ${especifico} registra ${facturasPendientesInm.length} factura(s) pendiente(s).`
+        });
+      }
+
       return NextResponse.json({ solvente: true, mensaje: 'Solvente', inmueblesConDeuda: [] });
     }
 
