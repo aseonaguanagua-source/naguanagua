@@ -379,15 +379,31 @@ export function getIdentidadVariantsExact(identidad: string): string[] {
 }
 
 /**
- * Limpia sufijos de categoría tarifaria (ALTA, MEDIA, BAJA) y etiquetas internas del nombre de actividad.
- * Ej: "CAFETERIAS (ALTA)" -> "CAFETERIAS"
+ * Limpia sufijos de categoría tarifaria (zona o nivel) y etiquetas internas del nombre de actividad.
+ * - Zonas: (ZONA A), (ZONA B), (ZONA C), (ZONA D), (A), (B), ZONA A, etc.
+ * - Niveles: (ALTA), (MEDIA), (BAJA), (ESPECIAL), - ALTA, etc.
+ * - Sufijos residenciales: QUINTA A -> QUINTA, CASA B -> CASA, etc.
+ * - Etiquetas internas: [hijo_de:...], [condominio], [hijo], Padre en SIGYR, etc.
+ *
+ * Ej: "QUINTA (ZONA A)" -> "QUINTA"
+ *     "CAFETERIAS (ALTA)" -> "CAFETERIAS"
  *     "RESTAURANTES (MEDIA)" -> "RESTAURANTES"
+ *     "APARTAMENTO (ZONA B)" -> "APARTAMENTO"
  */
 export function formatActividad(act?: string | null): string {
   if (!act) return '';
   return String(act)
-    .replace(/\s*\((ALTA|MEDIA|BAJA)\)/gi, '')
-    .replace(/\s*\[(hijo_de:[^\]]+|hijo|condominio)\]/gi, '')
+    .replace(/\[[^\]]+\]/g, '')
+    .replace(/Padre en SIGYR:\s*[A-Z0-9_-]+/gi, '')
+    .replace(/\s*\((ZONA\s+[A-Z0-9]+|[A-D])\)/gi, '')
+    .replace(/\s*\((ALTA|MEDIA|BAJA|ESPECIAL|RESIDENCIAL|COMERCIAL)\)/gi, '')
+    .replace(/\s*-\s*(ALTA|MEDIA|BAJA|ESPECIAL)\b/gi, '')
+    .replace(/\b(ALTA|MEDIA|BAJA)\b/gi, '')
+    .replace(/\bZONA\s+[A-D]\b/gi, '')
+    .replace(/\b(CASA|QUINTA|APARTAMENTO|TOWNHOUSE)\s+([A-D])\b/gi, '$1')
+    .replace(/\s+-\s+[A-D]\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[-\s,./]+|[-\s,./]+$/g, '')
     .trim();
 }
 

@@ -3,7 +3,7 @@ import { Save, Lock, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { getIdentidadVariants } from '@/lib/formatters';
+import { getIdentidadVariants, formatActividad } from '@/lib/formatters';
 
 export default function DatosContribuyentePage() {
   const [userData, setUserData] = useState({
@@ -85,8 +85,8 @@ export default function DatosContribuyentePage() {
           telefonoMovil: rInm?.telefono || contribData?.telefono || condoData?.telefono || prev.telefonoMovil,
           direccion: rInm?.direccion || contribData?.direccion || prev.direccion,
           nombreComercial: (rInm?.actividad_principal && rInm.actividad_principal.trim().toUpperCase() !== 'N/A') 
-            ? rInm.actividad_principal 
-            : (condoData?.actividad || freshNombre),
+            ? formatActividad(rInm.actividad_principal) 
+            : (condoData?.actividad ? formatActividad(condoData.actividad) : freshNombre),
           esCondominio: !!(rInm?.actividad_principal?.toLowerCase().includes('condominio') || condoData)
         }));
       }

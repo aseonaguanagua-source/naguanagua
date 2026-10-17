@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Award, Printer, AlertTriangle, CheckCircle2, RefreshCw, Building2, ShieldAlert, ShieldCheck, ArrowRight, ExternalLink, Download, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { getIdentidadVariants } from '@/lib/formatters';
+import { getIdentidadVariants, formatActividad } from '@/lib/formatters';
 import { isCondominioPagoIndividual } from '@/lib/calculos';
 import { inmuebleTieneDeuda } from '@/lib/solvencia';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
@@ -301,7 +301,7 @@ export default function SolvenciaPage() {
                   <p className="text-[11px] font-medium text-slate-600 truncate">
                     {inm.actividadesHijas?.length 
                       ? `N/A · ${inm.actividadesHijas.length} actividades agrupadas (${parseFloat(inm.mmv_mes || 0).toFixed(2)} MMV)` 
-                      : (inm.actividad_principal || inm.tipo || 'Inmueble')}
+                      : (formatActividad(inm.actividad_principal) || inm.tipo || 'Inmueble')}
                   </p>
                   <p className="text-[10px] text-slate-400 truncate mt-0.5">{inm.direccion || 'Naguanagua'}</p>
                 </button>
@@ -546,10 +546,10 @@ export default function SolvenciaPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500 font-medium">Actividad Principal:</span>
-                      <span className="text-slate-800 font-medium text-right max-w-[200px] truncate" title={activeInm?.actividadesHijas?.length ? activeInm.actividadesHijas.map((h: any) => h.actividad_principal).join(', ') : activeInm?.actividad_principal}>
+                      <span className="text-slate-800 font-medium text-right max-w-[200px] truncate" title={activeInm?.actividadesHijas?.length ? activeInm.actividadesHijas.map((h: any) => formatActividad(h.actividad_principal)).join(', ') : formatActividad(activeInm?.actividad_principal)}>
                         {activeInm?.actividadesHijas?.length 
                           ? `N/A (${activeInm.actividadesHijas.length} Actividades agrupadas)` 
-                          : (activeInm?.actividad_principal || 'Comercial General')}
+                          : (formatActividad(activeInm?.actividad_principal) || 'Comercial General')}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -570,7 +570,7 @@ export default function SolvenciaPage() {
                       <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
                         {activeInm.actividadesHijas.map((h: any) => (
                           <div key={h.inmueble || h.id} className="flex items-center justify-between text-[11px] bg-slate-50 px-2 py-1 rounded border border-slate-200">
-                            <span className="font-mono font-bold text-slate-700">{h.inmueble}: <span className="font-sans font-normal text-slate-600">{h.actividad_principal || 'Actividad'}</span></span>
+                            <span className="font-mono font-bold text-slate-700">{h.inmueble}: <span className="font-sans font-normal text-slate-600">{formatActividad(h.actividad_principal) || 'Actividad'}</span></span>
                             <span className="font-semibold text-slate-600">{parseFloat(h.mmv_mes || 0).toFixed(2)} MMV</span>
                           </div>
                         ))}
