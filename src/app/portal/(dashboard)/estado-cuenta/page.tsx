@@ -302,11 +302,28 @@ export default function EstadoCuentaPage() {
   const deudaTotalEstimada = totalPendBs + totalCuotas + totalServiciosBs;
 
   const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-  const mesLabel = (d?: string) => {
-    if (!d) return '';
-    const p = d.split('-');
-    if (p.length >= 2) return MESES[parseInt(p[1]) - 1] + ' ' + p[0];
-    return d;
+  const mesLabel = (d?: string | Date | null) => {
+    if (!d) return '—';
+    if (d instanceof Date) {
+      if (isNaN(d.getTime())) return '—';
+      return `${MESES[d.getMonth()]} ${d.getFullYear()}`;
+    }
+    const str = String(d).trim();
+    if (!str) return '—';
+    if (str.startsWith('MULTA-')) return 'MULTA MUNICIPAL';
+    const match = str.match(/^(\d{4})-(\d{1,2})/);
+    if (match) {
+      const mIdx = parseInt(match[2], 10) - 1;
+      if (mIdx >= 0 && mIdx < 12) return `${MESES[mIdx]} ${match[1]}`;
+    }
+    const matchRev = str.match(/^(\d{1,2})[-/](\d{4})/);
+    if (matchRev) {
+      const mIdx = parseInt(matchRev[1], 10) - 1;
+      if (mIdx >= 0 && mIdx < 12) return `${MESES[mIdx]} ${matchRev[2]}`;
+    }
+    const dt = new Date(str);
+    if (!isNaN(dt.getTime())) return `${MESES[dt.getMonth()]} ${dt.getFullYear()}`;
+    return str;
   };
 
 
@@ -518,7 +535,8 @@ export default function EstadoCuentaPage() {
         const mInm: any = miembroDe(f) || cluster.inms[0];
         const actClean = cleanClasificacionActividad(mInm?.actividad_principal || mInm?.clasificacion || '');
         const det = actClean ? `Aseo ${actClean}` : (cluster.count > 1 ? `Aseo ${cluster.localId}` : 'Servicio de Aseo Urbano');
-        const periodoDate = f.emision ? f.emision.replace(/-/g, '-') : '—';
+        const esMulta = String(f.referencia || '').startsWith('MULTA-');
+        const periodoDate = esMulta ? 'MULTA MUNICIPAL' : (mesLabel(f.emision) || '—');
         return [
           periodoDate,
           det,
@@ -534,7 +552,7 @@ export default function EstadoCuentaPage() {
         serviciosPendientes.forEach(s => {
           const montoServicio = parseFloat(s.monto) || 0;
           detalleRows.push([
-            s.fecha ? s.fecha.replace(/-/g, '-') : '—',
+            mesLabel(s.fecha) || '—',
             (TIPO_LABEL[s.tipo] || 'Serv. Especial') + ': ' + (s.descripcion || ''),
             montoServicio.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
             '0,00', '0,00', '0,00',
@@ -552,8 +570,8 @@ export default function EstadoCuentaPage() {
           headStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold', lineColor: [0,0,0], lineWidth: 0.3, halign: 'center' },
           styles: { fontSize: 8, cellPadding: 2 },
           columnStyles: {
-            0: { cellWidth: 25 },
-            1: { cellWidth: 45 },
+            0: { cellWidth: 32, halign: 'center' },
+            1: { cellWidth: 38 },
             2: { halign: 'right' },
             3: { halign: 'right' },
             4: { halign: 'right' },
