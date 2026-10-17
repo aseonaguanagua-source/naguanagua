@@ -3,17 +3,26 @@ import { ordenanzaData } from '@/data/ordenanza';
 const todasLasActividades = [...ordenanzaData.actividadesComerciales, ...(ordenanzaData.actividadesIndustriales || [])];
 
 /**
- * Determina si un inmueble o actividad corresponde a TERRENOS.
- * Según la Ordenanza Municipal de Naguanagua (Tabla "B", Actividad 1696),
- * "TERRENOS, CONSTRUCCIONES E INMUEBLES A ESTRENAR" o "TERRENOS"
- * tiene factores [0, 0, 0], por lo que su tarifa mensual y F.O. es estrictamente CERO (0).
+ * Determina si un inmueble o actividad corresponde a TERRENOS o SERVICIOS EXTRAORDINARIOS.
+ * Según la Ordenanza Municipal de Naguanagua, estas actividades tienen tarifa cero (0):
+ * - TERRENOS: Factores [0, 0, 0] según Art. 61.
+ * - SERVICIOS EXTRAORDINARIOS: No tienen tarifa recurrente mensual (se liquidan por evento/volteo).
  */
 export const isTerrenoInm = (itemOrAct: any): boolean => {
   if (!itemOrAct) return false;
   const str = typeof itemOrAct === 'string'
     ? itemOrAct
     : String(itemOrAct.actividad_principal || itemOrAct.actividad || itemOrAct['Actividad Principal'] || itemOrAct.Actividad || itemOrAct.label || '');
-  return str.toUpperCase().includes('TERRENO');
+  const u = str.toUpperCase();
+  return u.includes('TERRENO') || u.includes('EXTRAORDINARIO');
+};
+
+export const isServicioExtraordinarioInm = (itemOrAct: any): boolean => {
+  if (!itemOrAct) return false;
+  const str = typeof itemOrAct === 'string'
+    ? itemOrAct
+    : String(itemOrAct.actividad_principal || itemOrAct.actividad || itemOrAct['Actividad Principal'] || itemOrAct.Actividad || itemOrAct.label || '');
+  return str.toUpperCase().includes('EXTRAORDINARIO');
 };
 
 /**

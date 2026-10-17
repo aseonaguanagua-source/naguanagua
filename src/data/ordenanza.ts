@@ -1697,6 +1697,18 @@ export const ordenanzaData = {
         "factores": [0, 0, 0]
     },
     {
+        "label": "TERRENOS",
+        "factores": [0, 0, 0]
+    },
+    {
+        "label": "SERVICIO EXTRAORDINARIO",
+        "factores": [0, 0, 0]
+    },
+    {
+        "label": "SERVICIOS EXTRAORDINARIOS",
+        "factores": [0, 0, 0]
+    },
+    {
         "label": "ESTACIONAMIENTOS",
         "factores": [2.83, 7.18, 11.31]
     },
