@@ -8,6 +8,7 @@ import { groupInmueblesByLocal, InmuebleClusterGroup, InmuebleBasic } from '@/li
 
 export default function InmueblesPage() {
   const [inmuebles, setInmuebles] = useState<InmuebleBasic[]>([]);
+  const [condoNames, setCondoNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterUso, setFilterUso] = useState('Todos');
@@ -53,6 +54,22 @@ export default function InmueblesPage() {
                 if (!ids.has(h.id)) inmsFinal.push(h);
               });
             }
+          }
+        }
+
+        // Cargar nombres oficiales de los condominios asociados
+        const condoPadres = Array.from(new Set(
+          inmsFinal.map(i => (i as any).condominio_padre_id).filter(Boolean)
+        ));
+        if (condoPadres.length > 0) {
+          const { data: condoRows } = await supabase
+            .from('condominios')
+            .select('codigo, nombre')
+            .in('codigo', condoPadres);
+          if (condoRows) {
+            const map: Record<string, string> = {};
+            condoRows.forEach(c => { if (c.codigo && c.nombre) map[c.codigo] = c.nombre; });
+            setCondoNames(map);
           }
         }
 
@@ -179,7 +196,12 @@ export default function InmueblesPage() {
                     <span className="text-xs text-slate-500 font-medium">
                       Tarifa Local: <b>{cluster.totalMmv.toFixed(2)} MMV</b>
                     </span>
-                    {cluster.tieneDeuda ? (
+                    {cluster.esCondominio ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                        <Building2 className="w-3.5 h-3.5" />
+                        Cancela por Condominio
+                      </span>
+                    ) : cluster.tieneDeuda ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
                         <AlertCircle className="w-3.5 h-3.5" />
                         {cluster.mesesDeudaMax > 0 ? `${cluster.mesesDeudaMax} mes(es) pendientes` : 'Con Deuda'}
@@ -192,6 +214,18 @@ export default function InmueblesPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Banner de Condominio Informativo */}
+                {cluster.esCondominio && (
+                  <div className="px-4 py-2.5 bg-purple-50/90 border-b border-purple-200 text-xs text-purple-900 flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-purple-600 shrink-0" />
+                    <div>
+                      <strong>Régimen de Condominio:</strong> Este inmueble pertenece a{' '}
+                      <span className="font-bold underline">{condoNames[cluster.condominioPadreId || ''] || cluster.condominioPadreId || 'su Condominio'}</span>.
+                      El pago del servicio de aseo urbano es cancelado a través de la administración del condominio y no genera cobranza individual en este portal.
+                    </div>
+                  </div>
+                )}
 
                 {/* Dirección del Inmueble */}
                 <div className="px-4 py-2 bg-slate-50/40 border-b border-slate-100 text-xs text-slate-600 flex items-start gap-1.5">
@@ -231,9 +265,15 @@ export default function InmueblesPage() {
                               {cant}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                Activo
-                              </span>
+                              {cluster.esCondominio ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                  Cancela por Condominio
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                  Activo
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );

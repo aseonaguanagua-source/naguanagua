@@ -141,6 +141,8 @@ export interface LocalClusterInfo {
   label: string;
   direccion: string;
   count: number;
+  isCondominio?: boolean;
+  condominioPadreId?: string | null;
 }
 
 /**
@@ -206,6 +208,19 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
     const billableCount = cluster.inms.filter(
       (i) => (i.actividad_principal || '').toUpperCase() !== 'N/A'
     ).length;
+    const isCondoInm = (i: any) =>
+      Boolean(
+        i?.es_condominio ||
+        i?.condominio_padre_id ||
+        (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
+        (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
+      );
+    const esCondominio = cluster.inms.some(isCondoInm);
+    const condoPadreInm = cluster.inms.find(isCondoInm);
+    const condominioPadreId = (condoPadreInm as any)?.condominio_padre_id ||
+      ((condoPadreInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||
+      ((condoPadreInm as any)?.es_condominio ? condoPadreInm?.inmueble : null);
+
     for (const inm of cluster.inms) {
       if (inm.inmueble) {
         result.set(inm.inmueble, {
@@ -213,6 +228,8 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
           label: cluster.label,
           direccion: cluster.direccion,
           count: billableCount,
+          isCondominio: esCondominio,
+          condominioPadreId
         });
       }
     }
@@ -232,6 +249,7 @@ export interface InmuebleClusterGroup {
   mesesDeudaMax: number;
   tieneDeuda: boolean;
   esCondominio: boolean;
+  condominioPadreId?: string | null;
   inms: InmuebleBasic[];
   parentInm?: InmuebleBasic;
 }
@@ -303,9 +321,23 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
       const cant = parseInt(String(i.cant_inmuebles || 1), 10) || 1;
       return sum + (mmv * cant);
     }, 0);
+
+    const isCondoInm = (i: any) =>
+      Boolean(
+        i?.es_condominio ||
+        i?.condominio_padre_id ||
+        (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
+        (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
+      );
+    const esCondominio = c.inms.some(isCondoInm);
+    const condoPadreInm = c.inms.find(isCondoInm);
+    const condominioPadreId = (condoPadreInm as any)?.condominio_padre_id ||
+      ((condoPadreInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||
+      ((condoPadreInm as any)?.es_condominio ? condoPadreInm?.inmueble : null);
+
     const mesesDeudaMax = Math.max(0, ...displayInms.map(i => parseInt(String(i.meses_deuda || 0), 10) || 0));
-    const tieneDeuda = mesesDeudaMax > 0 || displayInms.some(i => parseFloat(String(i.deuda_mmv || 0)) > 0 || parseFloat(String(i.multa_bs || 0)) > 0);
-    const esCondominio = displayInms.some(i => (i as any).condominio_padre_id || (i as any).es_condominio);
+    // Los inmuebles en condominio cancelan a través de la administración del condominio, no generan deudas individuales
+    const tieneDeuda = !esCondominio && (mesesDeudaMax > 0 || displayInms.some(i => parseFloat(String(i.deuda_mmv || 0)) > 0 || parseFloat(String(i.multa_bs || 0)) > 0));
 
     return {
       localId: c.localId,
@@ -315,9 +347,10 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
       clasificacion: displayInms[0]?.clasificacion || (esRes ? 'Residencial' : 'Comercial'),
       count: displayInms.length,
       totalMmv: Math.round(totalMmv * 100) / 100,
-      mesesDeudaMax,
+      mesesDeudaMax: esCondominio ? 0 : mesesDeudaMax,
       tieneDeuda,
       esCondominio,
+      condominioPadreId,
       inms: displayInms,
       parentInm
     };

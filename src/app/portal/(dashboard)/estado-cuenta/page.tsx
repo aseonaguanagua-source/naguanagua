@@ -766,11 +766,18 @@ export default function EstadoCuentaPage() {
                   </div>
 
                   <div className="flex items-center gap-3 self-end md:self-auto">
-                    <div className="text-right">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Cuota Local</div>
-                      <div className="text-sm font-black text-emerald-700">Bs. {formatBs(cuotaClusterBs)}</div>
-                      <div className="text-[10px] text-slate-400">{cluster.totalMmv.toFixed(2)} MMV</div>
-                    </div>
+                    {cluster.esCondominio ? (
+                      <span className="text-[11px] font-bold text-purple-700 bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 whitespace-nowrap flex items-center gap-1">
+                        <Building className="w-3.5 h-3.5 text-purple-600" />
+                        Cancela por Condominio
+                      </span>
+                    ) : (
+                      <div className="text-right">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Cuota Local</div>
+                        <div className="text-sm font-black text-emerald-700">Bs. {formatBs(cuotaClusterBs)}</div>
+                        <div className="text-[10px] text-slate-400">{cluster.totalMmv.toFixed(2)} MMV</div>
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleDownloadPDF(cluster.localId)}
@@ -782,6 +789,16 @@ export default function EstadoCuentaPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Banner de Condominio Informativo */}
+                {cluster.esCondominio && (
+                  <div className="px-4 py-2.5 bg-purple-50/90 border-b border-purple-200 text-xs text-purple-900 flex items-center gap-2">
+                    <Building className="w-4 h-4 text-purple-600 shrink-0" />
+                    <div>
+                      <strong>Régimen de Condominio:</strong> Este inmueble cancela el servicio de aseo urbano a través de la administración del condominio. No genera cobranza individual en este portal.
+                    </div>
+                  </div>
+                )}
 
                 {/* Tabla de Actividades / Unidades pertenecientes a este Inmueble */}
                 <div className="overflow-x-auto">

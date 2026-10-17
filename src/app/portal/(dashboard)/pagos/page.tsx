@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   CreditCard, FileText, Upload, Send, Building, CheckSquare, 
   AlertCircle, CheckCircle2, MapPin, ArrowRightLeft, Store, 
-  ChevronDown, ChevronUp, CheckSquare2, Square, Sparkles, ShieldCheck
+  ChevronDown, ChevronUp, CheckSquare2, Square, Sparkles, ShieldCheck, Lock
 } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
@@ -74,6 +74,7 @@ export default function DondePagarPage() {
 
   // Datos reales sincronizados
   const [userInms, setUserInms] = useState<any[]>([]);
+  const [condoNames, setCondoNames] = useState<Record<string, string>>({});
   const [portalDoc, setPortalDoc] = useState('');
   useEffect(() => { setPortalDoc(localStorage.getItem('portal_doc') || ''); }, []);
   const [rawRecibos, setRawRecibos] = useState<any[]>([]);
@@ -161,6 +162,23 @@ export default function DondePagarPage() {
         const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: dbFacturas || [], identidad: portalDoc });
         const validInms = allInms.filter(i => !isTerrenoInm(i) && (i.estado || 'Activo').toLowerCase() !== 'eliminado' && (i.estado || 'Activo').toLowerCase() !== 'inactivo');
         setUserInms(validInms);
+
+        // Cargar nombres oficiales de los condominios asociados
+        const condoPadreCodes = Array.from(new Set(
+          allInms.map((i: any) => i.condominio_padre_id).filter(Boolean)
+        ));
+        if (condoPadreCodes.length > 0) {
+          const { data: condoRows } = await supabase
+            .from('condominios')
+            .select('codigo, nombre')
+            .in('codigo', condoPadreCodes);
+          if (condoRows) {
+            const map: Record<string, string> = {};
+            condoRows.forEach((c: any) => { if (c.codigo && c.nombre) map[c.codigo] = c.nombre; });
+            setCondoNames(map);
+          }
+        }
+
         const reglaPorInm = new Map<string, 'completo' | 'solo_multa'>();
         validInms.forEach((inm: any) => reglaPorInm.set(inm.inmueble, reglaCobroInmueble(inm, rc.naCodes, portalDoc)));
         setReglasCobro(Object.fromEntries(reglaPorInm));
@@ -350,6 +368,39 @@ export default function DondePagarPage() {
 
     return clusterOrder.map((clusterId) => {
       const c = clusterMapData[clusterId];
+      const isCondoInm = (i: any) =>
+        Boolean(
+          i?.es_condominio ||
+          i?.condominio_padre_id ||
+          (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
+          (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
+        );
+      const isCondo = c.inms.some(isCondoInm);
+      const condoPadreInm = c.inms.find(isCondoInm);
+      const condoPadreId = (condoPadreInm as any)?.condominio_padre_id ||
+        ((condoPadreInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||
+        ((condoPadreInm as any)?.es_condominio ? condoPadreInm?.inmueble : null);
+      const condoNombre = condoPadreId ? (condoNames[condoPadreId] || condoPadreId) : null;
+
+      // Si pertenece a un régimen de condominio, no genera recibos individuales en Soy Contribuyente
+      if (isCondo) {
+        return {
+          localId: c.localId,
+          isUnified: c.inms.length > 1,
+          label: c.label,
+          direccion: c.direccion,
+          tipo: c.tipo,
+          inms: c.inms,
+          allReceiptRefs: [],
+          totalBs: 0,
+          monthlyGroups: [],
+          singleItems: [],
+          isCondo: true,
+          condoPadreId,
+          condoNombre
+        };
+      }
+
       const isUnified = c.inms.length > 1;
       const allReceiptRefs = c.receipts.map((r) => r.referencia);
       const totalBs = c.receipts.reduce((s, r) => s + getReciboMonto(r), 0);
@@ -478,8 +529,8 @@ export default function DondePagarPage() {
         monthlyGroups,
         singleItems: []
       };
-    }).filter((g) => g.allReceiptRefs.length > 0);
-  }, [userInms, rawRecibos, localClustersMap, pagosPorVerificar, effectiveTcmmv, reglasCobro]);
+    }).filter((g) => g.allReceiptRefs.length > 0 || (g as any).isCondo);
+  }, [userInms, rawRecibos, localClustersMap, pagosPorVerificar, effectiveTcmmv, reglasCobro, condoNames]);
 
   // Por defecto expandir el primer local
   useEffect(() => {
@@ -832,14 +883,40 @@ export default function DondePagarPage() {
   };
 
   if (bloqueadoPorCondominio && rawRecibos.length === 0 && serviciosPend.length === 0) {
+    const isCondoInm = (i: any) =>
+      Boolean(
+        i?.es_condominio ||
+        i?.condominio_padre_id ||
+        (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
+        (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
+      );
+    const condoInm = userInms.find(isCondoInm);
+    const condoPadre = (condoInm as any)?.condominio_padre_id ||
+      ((condoInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||
+      ((condoInm as any)?.es_condominio ? condoInm?.inmueble : null);
+    const nombreCondo = (condoPadre && condoNames[condoPadre]) || condoPadre || 'su Condominio';
+
     return (
-      <div className="flex flex-col items-center justify-center p-8 mt-10 bg-white rounded-lg shadow-sm border border-red-200 max-w-2xl mx-auto text-center">
-        <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold text-red-700 mb-2">Pago Gestionado por Condominio</h2>
-        <p className="text-slate-600 text-lg">
-          Su inmueble pertenece a un condominio registrado con esquema de <strong>pagos centralizados (Completos o por Abono)</strong>.
+      <div className="flex flex-col items-center justify-center p-8 mt-10 bg-white rounded-2xl shadow-sm border border-purple-200 max-w-2xl mx-auto text-center">
+        <div className="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 mb-4 border border-purple-200">
+          <Building className="w-8 h-8" />
+        </div>
+        <span className="text-xs font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200 mb-2">
+          Régimen de Condominio
+        </span>
+        <h2 className="text-2xl font-black text-slate-800 mb-2">Pago Gestionado por Condominio</h2>
+        <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-4 my-3 text-left w-full">
+          <p className="text-xs text-purple-900">
+            <strong>Inmueble(s):</strong> {userInms.map(i => i.inmueble).join(', ') || portalDoc}
+          </p>
+          <p className="text-xs text-purple-900 mt-1">
+            <strong>Condominio Adscrito:</strong> {nombreCondo} {condoPadre ? `(${condoPadre})` : ''}
+          </p>
+        </div>
+        <p className="text-slate-600 text-sm leading-relaxed max-w-lg">
+          Su inmueble pertenece al régimen de condominio. El servicio de aseo urbano se factura y cancela de forma centralizada a través de la administración del condominio.
           <br /><br />
-          Por favor, contacte al administrador del condominio para gestionar su solvencia y reportar pagos. Solo el administrador tiene habilitada esta función en la plataforma.
+          <strong>Este portal no emite deudas individuales ni admite pagos directos para este inmueble.</strong> Para consultar el estado de solvencia o realizar pagos de aseo urbano, por favor contacte directamente a la administración de su condominio.
         </p>
         <div className="w-full mt-6 text-left"><DeudaCondominiosPortal identidad={portalDoc} /></div>
       </div>
@@ -1032,7 +1109,12 @@ export default function DondePagarPage() {
                               <span className="font-black text-slate-800 text-xs tracking-wide">
                                 {group.localId}
                               </span>
-                              {group.isUnified ? (
+                              {(group as any).isCondo ? (
+                                <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-2 py-0.5 rounded flex items-center gap-1 border border-purple-200">
+                                  <Building className="w-3 h-3 text-purple-600" />
+                                  Régimen de Condominio
+                                </span>
+                              ) : group.isUnified ? (
                                 <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-2 py-0.5 rounded flex items-center gap-1 border border-purple-200">
                                   <Store className="w-3 h-3 text-purple-600" />
                                   {group.inms.length} Actividades Consolidadas
@@ -1059,27 +1141,77 @@ export default function DondePagarPage() {
                         </div>
 
                         {/* Monto del Grupo y Botón Seleccionar Inmueble */}
-                        <div className="flex items-center gap-2 self-end sm:self-center">
-                          <span className="text-xs font-black text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
-                            Bs. {formatBs(group.totalBs)}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => toggleLocalAll(group.allReceiptRefs)}
-                            className={`text-[11px] font-bold px-2.5 py-1 rounded transition-colors whitespace-nowrap border ${
-                              allGroupSelected 
-                                ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700' 
-                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                            }`}
-                          >
-                            {allGroupSelected ? 'Deseleccionar' : 'Elegir Todo'}
-                          </button>
-                        </div>
+                        {(group as any).isCondo ? (
+                          <div className="flex items-center gap-2 self-end sm:self-center">
+                            <span className="text-[11px] font-bold text-purple-700 bg-purple-100/80 px-2.5 py-1 rounded-lg border border-purple-200 whitespace-nowrap flex items-center gap-1">
+                              <Lock className="w-3 h-3 text-purple-600" />
+                              Cancela por Condominio
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 self-end sm:self-center">
+                            <span className="text-xs font-black text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
+                              Bs. {formatBs(group.totalBs)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleLocalAll(group.allReceiptRefs)}
+                              className={`text-[11px] font-bold px-2.5 py-1 rounded transition-colors whitespace-nowrap border ${
+                                allGroupSelected 
+                                  ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700' 
+                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              {allGroupSelected ? 'Deseleccionar' : 'Elegir Todo'}
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Contenido Desplegable */}
                       {isExpanded && (
-                        <div className="p-2.5 space-y-2 bg-slate-50/40">
+                        (group as any).isCondo ? (
+                          <div className="p-4 bg-purple-50/40 space-y-3">
+                            <div className="p-3.5 bg-purple-100/70 border border-purple-200 rounded-xl text-xs text-purple-900 flex items-start gap-2.5">
+                              <Building className="w-5 h-5 text-purple-700 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-bold text-purple-950 text-sm">
+                                  Inmueble en Régimen de Condominio
+                                </p>
+                                <p className="mt-1 text-purple-800 leading-relaxed">
+                                  Este inmueble pertenece al condominio:{' '}
+                                  <strong>{(group as any).condoNombre || (group as any).condoPadreId}</strong>{' '}
+                                  {(group as any).condoPadreId ? `(${(group as any).condoPadreId})` : ''}.
+                                  El pago del servicio de aseo urbano se liquida y cancela de forma centralizada por la administración de dicho condominio.
+                                </p>
+                                <p className="mt-1 font-semibold text-purple-900">
+                                  🔒 Inmueble bloqueado para pagos individuales en este módulo. No genera cobranza ni requiere realizar pagos individuales por acá.
+                                </p>
+                              </div>
+                            </div>
+                            {/* Lista informativa de actividades */}
+                            <div className="bg-white rounded-xl border border-purple-100 overflow-hidden shadow-xs">
+                              <div className="px-3.5 py-2 bg-purple-50 border-b border-purple-100 text-[10px] font-bold uppercase tracking-wider text-purple-800 flex items-center justify-between">
+                                <span>Unidades / Actividades Asociadas ({group.inms.length})</span>
+                                <span>Estatus</span>
+                              </div>
+                              <div className="divide-y divide-slate-100 text-xs">
+                                {group.inms.map((inm: any) => (
+                                  <div key={inm.inmueble} className="px-3.5 py-2.5 flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors">
+                                    <div>
+                                      <span className="font-mono font-bold text-slate-800">{inm.inmueble}</span>
+                                      <span className="text-slate-500 ml-2">{formatActividad(inm.actividad_principal)}</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full border border-purple-200">
+                                      Cancela por Condominio
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-2.5 space-y-2 bg-slate-50/40">
                           {/* CASO 1: Local Unificado (Múltiples Actividades en el mismo local agrupadas por MES) */}
                           {group.isUnified ? (
                             group.monthlyGroups.map((month) => {
@@ -1205,7 +1337,8 @@ export default function DondePagarPage() {
                             })
                           )}
                         </div>
-                      )}
+                      )
+                    )}
                     </div>
                   );
                 })

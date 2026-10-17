@@ -74,7 +74,7 @@ export const TASA_MULTA_RES = 0.10;
 export const TASA_MULTA_COM = 0.12;
 export const IVA = 0.16;
 export const RETENCION_IVA = 0.75;
-export const CONDOMINIOS_PAGO_INDIVIDUAL = ['URB014903', 'URB030783', 'URB029866', 'URB015503'];
+export const CONDOMINIOS_PAGO_INDIVIDUAL = ['URB030783', 'URB029866', 'URB015503'];
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 

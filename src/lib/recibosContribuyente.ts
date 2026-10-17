@@ -31,6 +31,27 @@ export interface RecibosContribuyente {
   soloCondominio: boolean;
   /** Tiene además inmuebles en condominios (se cobran aparte) */
   tieneCondominio: boolean;
+  /** Códigos de inmuebles que pertenecen a condominio */
+  condoInmCodes: string[];
+}
+
+/**
+ * Determina si un inmueble pertenece al régimen de condominio (individual o filial).
+ */
+export function isCondominioInm(inm: any, allInms: any[] = []): boolean {
+  if (!inm) return false;
+  if (inm.condominio_padre_id && String(inm.condominio_padre_id).trim() !== '') return true;
+  if (inm.es_condominio === true) return true;
+  const act = String(inm.actividad_principal || '').toLowerCase();
+  if (act.includes('condominio')) return true;
+  if (inm.padre_id) {
+    if (String(inm.padre_id).startsWith('CONDO-')) return true;
+    const parent = allInms.find(p => p.inmueble === inm.padre_id);
+    if (parent && (parent.condominio_padre_id || parent.es_condominio || String(parent.actividad_principal || '').toLowerCase().includes('condominio'))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function construirRecibosContribuyente(params: {
@@ -48,9 +69,14 @@ export function construirRecibosContribuyente(params: {
   // Inmuebles directos y filiales (activos y no terrenos)
   const activos = todos.filter(i => isActivo(i) && !isTerrenoInm(i));
 
-  const tieneCondominio = activos.some(i => i.condominio_padre_id || i.es_condominio);
-  const soloCondominio = false;
-  const billables = activos.filter(i => !naCodes.includes(i.inmueble));
+  // Inmuebles de condominio: cancelan por condominio, se excluyen de la pasarela individual
+  const esCondo = (i: any) => isCondominioInm(i, activos);
+  const condoInms = activos.filter(esCondo);
+  const tieneCondominio = condoInms.length > 0;
+  const soloCondominio = activos.length > 0 && activos.every(esCondo);
+
+  // Inmuebles cobrables aquí (excluye contenedores N/A y unidades de condominio)
+  const billables = activos.filter(i => !naCodes.includes(i.inmueble) && !esCondo(i));
 
   const recibos: any[] = (params.facturas || []).filter(f => ESTADOS_RECIBO_PENDIENTE.includes(f.estado));
 
@@ -109,8 +135,9 @@ export function construirRecibosContribuyente(params: {
     billables, 
     naCodes, 
     recibos, 
-    soloCondominio: false, 
-    tieneCondominio 
+    soloCondominio, 
+    tieneCondominio,
+    condoInmCodes: condoInms.map(i => i.inmueble)
   };
 }
 
