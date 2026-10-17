@@ -498,14 +498,19 @@ export default function EstadoCuentaPage() {
       let totalInm = inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0);
       if (idx === 0) totalInm += totalServiciosBs;
 
-      const mesesArr = [...new Set(inmRecibos.map((f: any) => mesLabel(f.emision).toUpperCase()))];
-      const periodosLabel = mesesArr.join(', ') || '—';
+      const mesesArr = [...new Set(inmRecibos.map((f: any) => mesLabel(f.emision).toUpperCase()).filter(Boolean))];
+      let periodosLabel = 'Solvente / Al Día';
+      if (mesesArr.length === 1) {
+        periodosLabel = mesesArr[0];
+      } else if (mesesArr.length > 1) {
+        periodosLabel = `${mesesArr[0]} a ${mesesArr[mesesArr.length - 1]} (${mesesArr.length} meses)`;
+      }
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
 
       const resumenRows = [
-        [`Períodos Calculados (${inmRecibos.length}):`, periodosLabel],
+        [`Períodos Calculados:`, periodosLabel],
         ['Monto Recolección Aseo Urbano Bs.', `Bs. ${sumBaseInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
       ];
       if (sumMultaInm > 0) {
@@ -535,8 +540,9 @@ export default function EstadoCuentaPage() {
         doc.setFont('helvetica', 'normal');
         doc.text(label, 14, y);
         doc.setFont('helvetica', 'bold');
-        doc.text(value, 196, y, { align: 'right' });
-        y += 6;
+        const valLines = doc.splitTextToSize(value, 110);
+        doc.text(valLines, 196, y, { align: 'right' });
+        y += Math.max(5, valLines.length * 4.5);
       });
 
       // ── LINE ──
