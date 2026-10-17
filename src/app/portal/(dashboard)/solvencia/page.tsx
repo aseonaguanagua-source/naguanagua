@@ -152,7 +152,7 @@ export default function SolvenciaPage() {
   const deudaMMVNum = activeInm ? parseFloat(String(activeInm.deuda_mmv || '0')) : 999;
   const deudaCongeladaNum = activeInm ? parseFloat(String(activeInm.deuda_congelada_bs || '0')) : 0;
   
-  const [serverSolvencia, setServerSolvencia] = useState<{ checked: boolean; solvente: boolean; mensaje: string }>({ checked: false, solvente: false, mensaje: '' });
+  const [serverSolvencia, setServerSolvencia] = useState<{ checked: boolean; solvente: boolean; mensaje: string; bloqueadoRetencion?: boolean }>({ checked: false, solvente: false, mensaje: '', bloqueadoRetencion: false });
 
   useEffect(() => {
     if (!activeInm || !portalDoc) return;
@@ -168,13 +168,14 @@ export default function SolvenciaPage() {
           setServerSolvencia({
             checked: true,
             solvente: data.solvente,
-            mensaje: data.mensaje || ''
+            mensaje: data.mensaje || '',
+            bloqueadoRetencion: !!data.bloqueadoRetencion
           });
         }
       })
       .catch(() => {
         if (!cancel) {
-          setServerSolvencia({ checked: true, solvente: !inmuebleTieneDeuda(activeInm) && !tieneDeudaHijos && facturasPendientes.length === 0, mensaje: '' });
+          setServerSolvencia({ checked: true, solvente: !inmuebleTieneDeuda(activeInm) && !tieneDeudaHijos && facturasPendientes.length === 0, mensaje: '', bloqueadoRetencion: false });
         }
       });
     return () => { cancel = true; };
@@ -193,6 +194,10 @@ export default function SolvenciaPage() {
 
   const handleDescargarPDF = async () => {
     if (!activeInm || !isSolvente) {
+      if (serverSolvencia.bloqueadoRetencion) {
+        alert(`Trámite denegado: El contribuyente registra pagos con retención de IVA (75%) sin comprobante consignado o aprobado ante Hacienda Municipal. Ingrese a "Retención" y cargue su planilla para desbloquear la solvencia.`);
+        return;
+      }
       alert(`Trámite denegado: El inmueble ${activeInm?.inmueble || ''} registra obligaciones tributarias pendientes en sus actividades y no se encuentra solvente.`);
       return;
     }
@@ -329,19 +334,40 @@ export default function SolvenciaPage() {
                     <ShieldAlert className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-rose-900">INMUEBLE NO SOLVENTE · TRÁMITE DENEGADO</h3>
+                    <h3 className="text-base font-black text-rose-900">
+                      {serverSolvencia.bloqueadoRetencion 
+                        ? 'RETENCIÓN DE IVA PENDIENTE · SOLVENCIA BLOQUEADA' 
+                        : 'INMUEBLE NO SOLVENTE · TRÁMITE DENEGADO'}
+                    </h3>
                     <p className="text-xs text-rose-700 mt-1 max-w-xl leading-relaxed">
-                      El inmueble <strong>{activeInm?.inmueble}</strong> presenta <strong>{mesesDeudaNum} mes(es) de deuda acumulada</strong> ({deudaMMVNum.toFixed(2)} MMV){activeInm?.actividadesHijas?.length ? ` en sus ${activeInm.actividadesHijas.length} actividades económicas asociadas` : ''}. 
-                      De conformidad con el Artículo 48 de la Ordenanza Municipal de Aseo Urbano, no se puede emitir el Certificado de Solvencia hasta la liquidación total de la deuda.
+                      {serverSolvencia.bloqueadoRetencion ? (
+                        <>
+                          Como <strong>Agente de Retención de IVA</strong>, el inmueble <strong>{activeInm?.inmueble}</strong> registra facturas o pagos con retención del 75% cuyo comprobante fiscal aún no ha sido consignado o validado por Hacienda Municipal. Debe ingresar a la sección <strong>Retención</strong> y adjuntar su comprobante oficial emitido ante el SENIAT para desbloquear su Certificado de Solvencia.
+                        </>
+                      ) : (
+                        <>
+                          El inmueble <strong>{activeInm?.inmueble}</strong> presenta <strong>{mesesDeudaNum} mes(es) de deuda acumulada</strong> ({deudaMMVNum.toFixed(2)} MMV){activeInm?.actividadesHijas?.length ? ` en sus ${activeInm.actividadesHijas.length} actividades económicas asociadas` : ''}. 
+                          De conformidad con el Artículo 48 de la Ordenanza Municipal de Aseo Urbano, no se puede emitir el Certificado de Solvencia hasta la liquidación total de la deuda.
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
-                <Link 
-                  href="/portal/pagos" 
-                  className="shrink-0 bg-rose-600 hover:bg-rose-700 text-white font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow transition-colors"
-                >
-                  Pagar Recibos en Línea <ArrowRight className="w-4 h-4" />
-                </Link>
+                {serverSolvencia.bloqueadoRetencion ? (
+                  <Link 
+                    href="/portal/retenciones" 
+                    className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow transition-colors"
+                  >
+                    Subir Comprobante de Retención <ArrowRight className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <Link 
+                    href="/portal/pagos" 
+                    className="shrink-0 bg-rose-600 hover:bg-rose-700 text-white font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow transition-colors"
+                  >
+                    Pagar Recibos en Línea <ArrowRight className="w-4 h-4" />
+                  </Link>
+                )}
               </div>
             ) : (
               <div className="bg-emerald-50 border-2 border-emerald-400 p-5 rounded-2xl flex items-center justify-between gap-4 shadow-sm">
