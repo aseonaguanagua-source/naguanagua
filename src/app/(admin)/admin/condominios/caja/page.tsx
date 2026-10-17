@@ -45,6 +45,7 @@ function Caja() {
   const [error, setError] = useState('');
   const [claves, setClaves] = useState<string[]>(sp.get('unidad') ? [sp.get('unidad') as string] : []);
   const [meses, setMeses] = useState<number | ''>('');
+  const [mesesPorUnidad, setMesesPorUnidad] = useState<Record<string, number>>({});
   const [filtroU, setFiltroU] = useState('');
   const [estadoBase, setEstadoBase] = useState<any>(null);
   // modo de pago: lo escoge el cajero
@@ -323,7 +324,9 @@ function Caja() {
           accion: 'calcular', codigo, modo,
           claves: clavesPayload,
           identidad: modo === 'CONTRIBUYENTE' ? identidad.trim() || null : null,
-          meses: meses || null, soloMultas,
+          meses: meses || null,
+          mesesPorUnidad: Object.keys(mesesPorUnidad).length > 0 ? mesesPorUnidad : undefined,
+          soloMultas,
           incluirMultas,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
           fechaOverride: fechaOverrideStr || undefined,
@@ -354,7 +357,7 @@ function Caja() {
       } catch (e: any) { setError(e.message); setCobro(null); setSaldoFavorActivo(0); } finally { setCalculando(false); }
     }, 300);
     return () => clearTimeout(h);
-  }, [codigo, modo, claves, abonoLocales, identidad, meses, soloMultas, incluirMultas, tasaOverrideStr, fechaOverrideStr, calcTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [codigo, modo, claves, abonoLocales, identidad, meses, mesesPorUnidad, soloMultas, incluirMultas, tasaOverrideStr, fechaOverrideStr, calcTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = cobro?.condo;
   const base = cobro?.estado;
@@ -546,7 +549,9 @@ function Caja() {
           accion: 'cobrar', codigo, modo,
           claves: clavesPayload,
           identidad: porContrib ? identidad.trim() || null : null,
-          meses: meses || null, soloMultas,
+          meses: meses || null,
+          mesesPorUnidad: Object.keys(mesesPorUnidad).length > 0 ? mesesPorUnidad : undefined,
+          soloMultas,
           incluirMultas,
           usuario: u.usuario,
           tasaOverride: tasaParsed > 0 ? tasaParsed : (cobro?.estado?.tasa ? Number(cobro.estado.tasa) : undefined),
@@ -986,11 +991,11 @@ function Caja() {
                       </label>
                     )}
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <label className="text-xs font-bold text-slate-600">
-                        {soloMultas ? 'Multas a pagar:' : 'Meses a pagar:'}
+                        {soloMultas ? 'Multas a pagar (global):' : 'Meses a pagar (global):'}
                       </label>
-                      <select id="meses-a-pagar" value={meses} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1.5 px-2 rounded-lg border border-slate-300 text-sm bg-white font-medium">
+                      <select id="meses-a-pagar" value={meses} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1.5 px-2 rounded-lg border border-slate-300 text-sm bg-white font-medium cursor-pointer">
                         <option value="">{soloMultas ? 'Todas las multas acumuladas' : 'Todos (ponerse al día)'}</option>
                         {Array.from({ length: maxOpciones }, (_, i) => i + 1).map(n => (
                           <option key={n} value={n}>
@@ -1000,6 +1005,16 @@ function Caja() {
                           </option>
                         ))}
                       </select>
+                      {Object.keys(mesesPorUnidad).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setMesesPorUnidad({})}
+                          className="text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-md border border-amber-300 transition-colors cursor-pointer shadow-xs"
+                          title="Restablecer todos los locales al valor global de meses"
+                        >
+                          ↺ Restablecer meses por local ({Object.keys(mesesPorUnidad).length} personalizados)
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1181,7 +1196,7 @@ function Caja() {
                           )}
                         </th>
                         <th className="text-left py-2 px-3">Local / unidad</th>
-                        <th className="text-center px-2">Meses</th>
+                        <th className="text-center px-2">Meses a cobrar</th>
                         <th className="text-left px-2">Desde</th>
                         <th className="text-right px-2">Multas</th>
                         <th className="text-right px-4">Deuda</th>
@@ -1192,7 +1207,13 @@ function Caja() {
                         const va = enCobro.has(r.clave);
                         const lc = mapLineas.get(r.clave) as any;
                         const mismoDueno = porContrib && identidad && normId(r.identidad) === normId(identidad);
-                        const dMeses = lc ? lc.meses : r.deuda.meses;
+                        const maxMesesFila = soloMultas
+                          ? (lc?.mesesDeuda ?? (r.multaMeses || r.deuda?.meses || 0))
+                          : (lc?.mesesDeuda ?? (r.deuda?.meses || 0));
+                        const mesActualFila = typeof mesesPorUnidad[r.clave] === 'number'
+                          ? mesesPorUnidad[r.clave]
+                          : (meses !== '' ? Math.min(Number(meses), maxMesesFila) : maxMesesFila);
+                        const dMeses = lc ? lc.meses : mesActualFila;
                         const dMultas = lc ? (lc.multaBs + lc.multasAparteBs) : multasDe(r);
                         const dTotal = lc ? lc.totalBs : r.totalBs;
                         const seleccionada = porContrib
@@ -1256,7 +1277,56 @@ function Caja() {
                               {r.actividad && <div className="text-[10px] text-violet-700 font-bold truncate max-w-[340px]">{r.actividad}</div>}
                               {r.multasManuales?.map((m: any) => <div key={m.id} className="text-[10px] text-red-700">• Multa: {m.concepto} (Bs {fmtBs(m.montoBs)})</div>)}
                             </td>
-                            <td className="text-center px-2">{dMeses > 0 ? <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black">{dMeses} {soloMultas ? 'multa(s)' : ''}</span> : '—'}</td>
+                            <td className="text-center px-2 py-1.5" onClick={e => e.stopPropagation()}>
+                              {maxMesesFila > 0 ? (
+                                <div className="inline-flex items-center justify-center gap-1">
+                                  <select
+                                    value={mesActualFila}
+                                    onChange={e => {
+                                      e.stopPropagation();
+                                      const nuevo = Number(e.target.value);
+                                      setMesesPorUnidad(prev => ({ ...prev, [r.clave]: nuevo }));
+                                      if (abonoLocales && !claves.includes(r.clave)) {
+                                        setClaves(prev => [...prev, r.clave]);
+                                      } else if (porContrib && !claves.includes(r.clave)) {
+                                        setClaves(prev => [...prev, r.clave]);
+                                      }
+                                    }}
+                                    className={`text-xs font-bold py-1 px-1.5 rounded-md border cursor-pointer transition-colors ${
+                                      typeof mesesPorUnidad[r.clave] === 'number'
+                                        ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-1 ring-amber-400'
+                                        : 'bg-amber-50 text-amber-900 border-amber-300 hover:border-amber-400'
+                                    }`}
+                                    title={`Escoja cuántos meses cancelar para este hijo/unidad (total deuda: ${maxMesesFila} meses)`}
+                                  >
+                                    {Array.from({ length: maxMesesFila }, (_, idx) => idx + 1).map(n => (
+                                      <option key={n} value={n} className="bg-white text-slate-800 font-medium">
+                                        {n === maxMesesFila ? `${n} (Todos)` : `${n} ${n === 1 ? 'mes' : 'meses'}`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {typeof mesesPorUnidad[r.clave] === 'number' && (
+                                    <button
+                                      type="button"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setMesesPorUnidad(prev => {
+                                          const next = { ...prev };
+                                          delete next[r.clave];
+                                          return next;
+                                        });
+                                      }}
+                                      className="text-xs text-slate-400 hover:text-red-600 font-bold px-1"
+                                      title="Restablecer al valor global de meses"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-xs">—</span>
+                              )}
+                            </td>
                             <td className="px-2 text-xs text-slate-600">
                               {lc && lc.periodos?.length > 0 ? (
                                 soloMultas ? lc.periodos.map(fmtPeriodo).join(', ') : fmtPeriodo(lc.periodos[0])

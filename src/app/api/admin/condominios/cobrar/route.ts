@@ -21,6 +21,7 @@ export async function POST(req: Request) {
       claves: Array.isArray(b.claves) ? b.claves : [],
       identidad: b.identidad ? String(b.identidad).trim().toUpperCase() : null,
       meses: b.meses ? Number(b.meses) : null,
+      mesesPorUnidad: (b.mesesPorUnidad && typeof b.mesesPorUnidad === 'object') ? b.mesesPorUnidad : undefined,
       soloMultas: !!b.soloMultas,
       incluirMultas: !!b.incluirMultas,
       tasaOverride: b.tasaOverride ? Number(b.tasaOverride) : undefined,

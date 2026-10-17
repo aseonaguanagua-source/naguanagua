@@ -115,10 +115,13 @@ ${fila('Monto pagado', `Bs ${fmtBs(p.ret.pagado)}`)}
 </table>
 <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:14px 16px;font-size:13px;color:#065f46;line-height:1.6;">
 <strong>Siguiente paso:</strong> ingrese a <strong>Soy Contribuyente</strong> &rarr; <strong>Retenciones</strong>, seleccione esta factura y suba su comprobante de retención (PDF).<br>
-Una vez verificado por la Dirección de Hacienda, le enviaremos la <strong>factura fiscal</strong> a este correo.
+Una vez verificado y aprobado por la Dirección de Hacienda, le enviaremos la <strong>factura fiscal digital</strong> a este correo.
 ${p.portalUrl ? `<div style="text-align:center;margin-top:12px;"><a href="${esc(p.portalUrl)}" style="display:inline-block;background:#166534;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:6px;font-weight:bold;">Subir comprobante de retención</a></div>` : ''}
 </div>
-<p style="margin:18px 0 0;font-size:11px;color:#94a3b8;text-align:center;">Este correo NO es la factura fiscal. La factura se enviará cuando se apruebe su comprobante de retención.</p>`;
+<div style="margin:16px 0 0;padding:12px;background:#fef3c7;border:1px dashed #f59e0b;border-radius:8px;font-size:12px;color:#92400e;text-align:center;line-height:1.4;">
+<strong>AVISO FISCAL:</strong> Este correo NO contiene la factura fiscal ni ningún archivo adjunto. Su factura fiscal definitiva le será enviada automáticamente una vez que la Dirección de Hacienda verifique y apruebe su comprobante de retención.
+</div>
+<p style="margin:16px 0 0;font-size:11px;color:#94a3b8;text-align:center;">Instituto Autónomo Municipal de Ecosocialismo Naguanagua (IAMEC)</p>`;
   return marco('DATOS PARA SU COMPROBANTE DE RETENCIÓN', 'AGENTE DE RETENCIÓN DE IVA (75%)', cuerpo);
 }
 

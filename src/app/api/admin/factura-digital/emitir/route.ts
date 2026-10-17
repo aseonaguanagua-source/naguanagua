@@ -142,7 +142,7 @@ export async function POST(request: Request) {
     const idVariants = [identidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];
     const { data: userProps, error: propsErr } = await supabase
       .from('inmuebles')
-      .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes')
+      .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion')
       .in('identidad', idVariants);
 
     if (propsErr) {
@@ -683,7 +683,7 @@ export async function POST(request: Request) {
     }
 
     // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
-    const conRetencion = esRetencion !== undefined ? !!esRetencion : pagoTieneRetencion(detPago);
+    const conRetencion = esRetencion !== undefined ? !!esRetencion : (pagoTieneRetencion(detPago) || !!(propRef as any)?.agente_retencion);
 
     const saldoFavorGenerado = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
     const montoFacturaGuardado = parseFloat(String(detPago.monto_factura || 0)) || 0;
@@ -937,7 +937,7 @@ export async function POST(request: Request) {
             Direccion:            String(propRef?.direccion || "NAGUANAGUA").trim().slice(0, 100),
             Ubigeo:               null,
             Pais:                 "VE",
-            Notificar:            null,
+            Notificar:            conRetencion ? "0" : null,
             Telefono:             [],
             Correo:               (() => {
               const fallback = TheFactoryHKA.getFallbackEmail();

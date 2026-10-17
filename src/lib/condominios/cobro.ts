@@ -40,6 +40,8 @@ export interface SolicitudCobro {
   identidad?: string | null;
   /** Meses a pagar por renglón, empezando por el más viejo. Vacío = todos. */
   meses?: number | null;
+  /** Meses independientes a pagar por unidad (clave -> cantidad de meses). */
+  mesesPorUnidad?: Record<string, number>;
   /** Solo multas (modo CONTRIBUYENTE) */
   soloMultas?: boolean;
   /** Si es false o no está marcado, no se agrega multa al cobro de aseo */
@@ -156,7 +158,11 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
       }
       
       // ¿Cuántas multas se van a pagar?
-      const nMultas = sol.meses && sol.meses > 0 ? Math.min(itemsMulta.length, Math.floor(sol.meses)) : itemsMulta.length;
+      const mEsp = sol.mesesPorUnidad?.[r.clave];
+      const nMultasMax = itemsMulta.length;
+      const nMultas = (typeof mEsp === 'number' && mEsp > 0)
+        ? Math.min(nMultasMax, Math.floor(mEsp))
+        : (sol.meses && sol.meses > 0 ? Math.min(nMultasMax, Math.floor(sol.meses)) : nMultasMax);
       const multasAPagar = itemsMulta.slice(0, nMultas);
       const multasBs = r2(multasAPagar.reduce((sum, item) => sum + item.montoBs, 0));
       const multasManualesIds = multasAPagar.filter(item => item.id).map(item => item.id!);
@@ -171,7 +177,11 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
       };
     }
 
-    const nMeses = Math.min(r.deuda.meses, sol.meses && sol.meses > 0 ? Math.floor(sol.meses) : r.deuda.meses);
+    const mEsp = sol.mesesPorUnidad?.[r.clave];
+    const nMesesMax = r.deuda.meses;
+    const nMeses = (typeof mEsp === 'number' && mEsp > 0)
+      ? Math.min(nMesesMax, Math.floor(mEsp))
+      : (sol.meses && sol.meses > 0 ? Math.min(nMesesMax, Math.floor(sol.meses)) : nMesesMax);
     const meses = r.deuda.porMes.slice(0, nMeses);
     const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs') => r2(meses.reduce((a, m) => a + m[k], 0));
     // ¿Las multas van en este cobro? Solo si el usuario lo tilda (o en soloMultas)
