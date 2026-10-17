@@ -937,7 +937,7 @@ export async function POST(request: Request) {
             Direccion:            String(propRef?.direccion || "NAGUANAGUA").trim().slice(0, 100),
             Ubigeo:               null,
             Pais:                 "VE",
-            Notificar:            conRetencion ? "0" : null,
+            Notificar:            null,
             Telefono:             [],
             Correo:               (() => {
               const fallback = TheFactoryHKA.getFallbackEmail();
