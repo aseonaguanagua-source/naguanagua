@@ -40,10 +40,14 @@ export function construirRecibosContribuyente(params: {
   const todos = params.inmuebles || [];
   const naCodes = codigosContenedoresNA(todos);
 
+  const isActivo = (i: any) => {
+    const est = (i.estado || 'Activo').trim().toLowerCase();
+    return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+  };
+
   // Inmuebles directos (no condominios, no filiales, activos y no terrenos)
   const activos = todos.filter(i => {
-    const est = (i.estado || 'Activo').trim().toLowerCase();
-    if (est === 'eliminado' || est === 'inactivo') return false;
+    if (!isActivo(i)) return false;
     if (isTerrenoInm(i)) return false;
     if (i.condominio_padre_id || i.es_condominio) return false;
     return true;
@@ -51,8 +55,7 @@ export function construirRecibosContribuyente(params: {
 
   // Inmuebles pertenecientes a condominios (activos y no terrenos)
   const condoInms = todos.filter(i => {
-    const est = (i.estado || 'Activo').trim().toLowerCase();
-    if (est === 'eliminado' || est === 'inactivo') return false;
+    if (!isActivo(i)) return false;
     if (isTerrenoInm(i)) return false;
     return (i.condominio_padre_id || i.es_condominio);
   });

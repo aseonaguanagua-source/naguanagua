@@ -225,20 +225,28 @@ export interface InmuebleClusterGroup {
  * las consolida en un solo inmueble con sus actividades adentro.
  */
 export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleClusterGroup[] {
+  const isActivo = (i: any) => {
+    const est = (i.estado || 'Activo').trim().toLowerCase();
+    return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+  };
+  const activeInms = (userInms || []).filter(isActivo);
   const clusters: Array<{ localId: string; label: string; direccion: string; inms: InmuebleBasic[] }> = [];
 
-  for (const inm of userInms) {
+  for (const inm of activeInms) {
     const rawDir = (inm.direccion || '').trim();
     const padreId = (inm as any).condominio_padre_id || (inm as any).padre_id;
 
     const matchedCluster = clusters.find((c) => {
+      // 1. Coincidencia por padre_id explícito (N/A o condominio)
       if (padreId && c.inms.some((i: any) => i.condominio_padre_id === padreId || i.padre_id === padreId || i.inmueble === padreId)) {
         return true;
       }
       if (inm.inmueble && c.inms.some((i: any) => i.condominio_padre_id === inm.inmueble || i.padre_id === inm.inmueble)) {
         return true;
       }
-      if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
+      // 2. Coincidencia por dirección física SOLO si NINGUNO de los dos pertenece a un contenedor padre N/A o condominio
+      const cHasPadre = c.inms.some((i: any) => i.condominio_padre_id || i.padre_id || (i.actividad_principal || '').toUpperCase() === 'N/A');
+      if (!padreId && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
         return true;
       }
       return false;
@@ -267,8 +275,8 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
 
   return clusters.map(c => {
     const parentInm = c.inms.find(i => (i.actividad_principal || '').toUpperCase() === 'N/A' || i.inmueble === c.localId);
-    const billables = c.inms.filter(i => (i.actividad_principal || '').toUpperCase() !== 'N/A');
-    const displayInms = billables.length > 0 ? billables : c.inms;
+    const billables = c.inms.filter(i => (i.actividad_principal || '').toUpperCase() !== 'N/A' && isActivo(i));
+    const displayInms = billables.length > 0 ? billables : c.inms.filter(isActivo);
     const esRes = displayInms.every(i => isResidencialInm(i));
     const totalMmv = displayInms.reduce((sum, i) => {
       const mmv = parseFloat(String(i.mmv_mes || 0)) || 0;

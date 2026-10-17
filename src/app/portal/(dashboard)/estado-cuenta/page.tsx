@@ -61,6 +61,12 @@ export default function EstadoCuentaPage() {
             }
           }
 
+          const isActivoInm = (i: any) => {
+            const est = (i.estado || 'Activo').trim().toLowerCase();
+            return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+          };
+          allInms = allInms.filter(isActivoInm);
+
           const { data: facturasDB } = await supabase
             .from('facturas')
             .select('*')
@@ -79,7 +85,7 @@ export default function EstadoCuentaPage() {
           const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: facturasDB || [], identidad: fullDoc });
           setMisInmueblesDb([
             ...rc.billables,
-            ...allInms.filter(i => (i.condominio_padre_id || i.es_condominio) && !isTerrenoInm(i) && !rc.naCodes.includes(i.inmueble) && (i.estado || 'Activo').toLowerCase() !== 'eliminado' && (i.estado || 'Activo').toLowerCase() !== 'inactivo')
+            ...allInms.filter(i => (i.condominio_padre_id || i.es_condominio) && !isTerrenoInm(i) && !rc.naCodes.includes(i.inmueble))
           ]);
           setMisNaCodes(rc.naCodes);
           const combined: any[] = [
@@ -140,6 +146,8 @@ export default function EstadoCuentaPage() {
     const docFmt = docNorm ? docNorm.charAt(0) + '-' + docNorm.slice(1) : '';
     const soloNum = portalDoc.replace(/\D/g, '');
     return inmuebles.filter((inm: any) => {
+      const est = (inm.estado || 'Activo').trim().toLowerCase();
+      if (est === 'eliminado' || est === 'inactivo' || est === 'desactivado') return false;
       const id = (inm.identidad || '').replace(/-/g, '').toUpperCase();
       const idFmt2 = id.charAt(0) + '-' + id.slice(1);
       return portalDoc && (id === docNorm || idFmt2 === docFmt || id === portalDoc.toUpperCase() || id === soloNum);

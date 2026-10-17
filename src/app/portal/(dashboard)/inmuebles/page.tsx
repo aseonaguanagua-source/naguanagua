@@ -31,7 +31,12 @@ export default function InmueblesPage() {
           .or(orFilter)
           .neq('estado', 'Eliminado');
 
-        let inmsFinal: InmuebleBasic[] = inmsDB ? [...inmsDB] : [];
+        const isActivo = (i: any) => {
+          const est = (i.estado || 'Activo').trim().toLowerCase();
+          return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+        };
+
+        let inmsFinal: InmuebleBasic[] = inmsDB ? inmsDB.filter(isActivo) : [];
 
         // Si es condominio, traer las unidades filiales asociadas
         const isCondo = inmsFinal.some(i => i.es_condominio === true || (i.actividad_principal || '').toLowerCase().includes('condominio'));
@@ -41,11 +46,10 @@ export default function InmueblesPage() {
             const { data: hijos } = await supabase
               .from('inmuebles')
               .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,padre_id,estado')
-              .in('condominio_padre_id', condoCodes)
-              .neq('estado', 'Eliminado');
+              .in('condominio_padre_id', condoCodes);
             if (hijos && hijos.length > 0) {
               const ids = new Set(inmsFinal.map(x => x.id));
-              hijos.forEach(h => {
+              hijos.filter(isActivo).forEach(h => {
                 if (!ids.has(h.id)) inmsFinal.push(h);
               });
             }

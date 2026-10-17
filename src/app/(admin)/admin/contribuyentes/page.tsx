@@ -789,9 +789,14 @@ function ContribuyentesPageContent() {
       }
     }
 
-    // 2. Inmuebles del contribuyente
+    const isActivoInm = (i: any) => {
+      const est = (i.estado || 'Activo').trim().toLowerCase();
+      return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+    };
+
+    // 2. Inmuebles del contribuyente (solo activos)
     let inmueblesContribuyente: any[] = (inmuebles || []).filter((i: any) => {
-      if (i.estado === 'Eliminado') return false; // misma regla que Caja
+      if (!isActivoInm(i)) return false; // misma regla que Caja
       const iid = (i.identidad || '').replace(/-/g, '').toUpperCase();
       return iid === idLimpio || iid === viewData.Identidad;
     });
@@ -800,12 +805,12 @@ function ContribuyentesPageContent() {
       const vars = getIdentidadVariantsExact(viewData.Identidad || '');
       if (vars.length) {
         const { data: frescos } = await supabase.from('inmuebles').select('*').or(vars.map(v => `identidad.eq.${v}`).join(','));
-        let lista = (frescos || []).filter((i: any) => i.estado !== 'Eliminado');
+        let lista = (frescos || []).filter((i: any) => isActivoInm(i));
         const naCodes = lista.filter((i: any) => (i.actividad_principal || '').trim().toUpperCase() === 'N/A').map((i: any) => i.inmueble).filter(Boolean);
         if (naCodes.length) {
           const { data: hijos } = await supabase.from('inmuebles').select('*').in('padre_id', naCodes);
           const ya = new Set(lista.map((i: any) => i.inmueble));
-          lista = lista.concat((hijos || []).filter((h: any) => h.estado !== 'Eliminado' && !ya.has(h.inmueble)));
+          lista = lista.concat((hijos || []).filter((h: any) => isActivoInm(h) && !ya.has(h.inmueble)));
         }
         if (lista.length) inmueblesContribuyente = lista;
       }
@@ -867,17 +872,18 @@ function ContribuyentesPageContent() {
     }
 
     const billable = userInms.filter((i: any) => {
+      if (!isActivoInm(i)) return false;
       const act = (i.actividad_principal || '').trim().toUpperCase();
       return act !== 'N/A' && act !== '';
     });
-    let candidates = billable.length > 0 ? billable : userInms;
+    let candidates = billable.length > 0 ? billable : userInms.filter(isActivoInm);
 
     if (targetInmueble && targetInmueble !== 'todos' && targetInmueble !== 'unificado') {
       // Si el objetivo es una actividad de un N/A propio, el estado de cuenta es el del N/A completo
       const objInm: any = userInms.find((i: any) => i.inmueble === targetInmueble);
       const naObj = objInm?.padre_id && userInms.some((i: any) => i.inmueble === objInm.padre_id) ? objInm.padre_id : targetInmueble;
       const hijosNA = billable.filter((i: any) => i.padre_id === naObj);
-      const filtered = hijosNA.length > 0 ? hijosNA : userInms.filter((i: any) => i.inmueble === targetInmueble);
+      const filtered = hijosNA.length > 0 ? hijosNA : userInms.filter((i: any) => i.inmueble === targetInmueble && isActivoInm(i));
       if (filtered.length > 0) candidates = filtered;
     }
 
@@ -907,11 +913,12 @@ function ContribuyentesPageContent() {
           if (padreId && c.inmuebles.some((ci: any) => (ci.condominio_padre_id || ci.padre_id) === padreId || ci.inmueble === padreId)) {
             return true;
           }
-          if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
+          const cHasPadre = c.inmuebles.some((ci: any) => ci.condominio_padre_id || ci.padre_id || (ci.actividad_principal || '').toUpperCase() === 'N/A');
+          if (!padreId && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0') {
             if (rawDir.toLowerCase() === c.direccion.toLowerCase()) return true;
             return isSameLocal(rawDir, c.direccion, 0.65);
           }
-          if ((!rawDir || rawDir === '0 0') && (!c.direccion || c.direccion === '0 0')) {
+          if (!padreId && !cHasPadre && (!rawDir || rawDir === '0 0') && (!c.direccion || c.direccion === '0 0')) {
             return true;
           }
           return false;
@@ -966,8 +973,12 @@ function ContribuyentesPageContent() {
           return c.inmuebles.some((ci: any) => {
             const ciPadre = padreDe(ci);
             if (padreId && ciPadre === padreId) return true;
-            const ciDir = ci.direccion && ci.direccion !== '0 0' ? normDir(ci.direccion) : '';
-            return !!dirKey && ciDir === dirKey;
+            // Solo agrupar por misma dirección física si NINGUNO de los dos pertenece a un contenedor padre (N/A o condominio)
+            if (!padreId && !ciPadre && dirKey && ci.direccion && ci.direccion !== '0 0') {
+              const ciDir = normDir(ci.direccion);
+              return ciDir === dirKey;
+            }
+            return false;
           });
         });
 

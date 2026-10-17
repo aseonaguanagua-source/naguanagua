@@ -228,9 +228,13 @@ export function reglaCobroInmueble(inm: any, naParentCodes: string[], identidadU
  * meses históricos con la fórmula única, regla de condominios y retención 75% para agentes.
  */
 export function deudaTotalContribuyente(inms: any[], tasa: number, identidad: string, hoy: Date = new Date()) {
+  const isActivo = (i: any) => {
+    const est = (i.estado || 'Activo').trim().toLowerCase();
+    return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+  };
   const na = codigosContenedoresNA(inms);
   let base = 0, iva = 0, multa = 0, retencion = 0;
-  for (const inm of inms.filter(i => !na.includes(i.inmueble))) {
+  for (const inm of inms.filter(i => !na.includes(i.inmueble) && isActivo(i))) {
     if (isTerrenoInm(inm)) continue;
     const mesesDeuda = parseInt(String(inm.meses_deuda || 0)) || 0;
     const multaFija = (parseFloat(String(inm.multa_bs || 0)) || 0) + (parseFloat(String(inm.deuda_congelada_bs || 0)) || 0);
