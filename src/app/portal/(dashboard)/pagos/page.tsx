@@ -396,13 +396,18 @@ export default function DondePagarPage() {
 
       // Si pertenece a un régimen de condominio, no genera recibos individuales en Soy Contribuyente
       if (isCondo) {
+        const hasChildren = c.inms.some((i: any) => i.padre_id === clusterId || (condoPadreInm && i.inmueble !== condoPadreInm.inmueble));
+        const displayInms = (hasChildren && condoPadreInm)
+          ? c.inms.filter((i: any) => i.inmueble !== condoPadreInm.inmueble)
+          : c.inms;
+
         return {
           localId: c.localId,
-          isUnified: c.inms.length > 1,
+          isUnified: displayInms.length > 1,
           label: c.label,
           direccion: c.direccion,
           tipo: c.tipo,
-          inms: c.inms,
+          inms: displayInms,
           allReceiptRefs: [],
           totalBs: 0,
           monthlyGroups: [],

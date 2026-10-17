@@ -1084,7 +1084,12 @@ function ContribuyentesPageContent() {
       let subtotalMultasLocal = 0;
       let maxMesesCluster = 0;
 
-      const clusterInmBreakdown = cluster.inmuebles.map((inm: any) => {
+      const hasChildInms = cluster.inmuebles.some((i: any) => i.padre_id === cluster.clusterId || cluster.inmuebles.some((p: any) => p.inmueble !== i.inmueble && i.padre_id === p.inmueble));
+      const effectiveInms = hasChildInms
+        ? cluster.inmuebles.filter((i: any) => i.inmueble !== cluster.clusterId && !cluster.inmuebles.some((h: any) => h.padre_id === i.inmueble))
+        : cluster.inmuebles;
+
+      const clusterInmBreakdown = (effectiveInms.length > 0 ? effectiveInms : cluster.inmuebles).map((inm: any) => {
         if (isTerrenoInm(inm)) {
           return {
             inmueble: inm.inmueble,

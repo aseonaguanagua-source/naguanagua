@@ -473,6 +473,8 @@ export const cleanClasificacionActividad = (str?: string | null): string => {
   let cleaned = str
     // Quitar tags entre corchetes tipo [hijo_de:...] o [condominio] o [hijo]
     .replace(/\[[^\]]+\]/g, '')
+    // Quitar etiquetas de Padre en SIGYR
+    .replace(/Padre en SIGYR:\s*[A-Z0-9_-]+/gi, '')
     // Quitar zonas entre paréntesis: (ZONA A), (ZONA B), (ZONA C), (ZONA D), (ZONA 1), (A), (B), (C), (D)
     .replace(/\s*\((ZONA\s+[A-Z0-9]+|[A-D])\)/gi, '')
     // Quitar niveles entre paréntesis: (ALTA), (MEDIA), (BAJA), (RESIDENCIAL), (COMERCIAL)

@@ -205,9 +205,17 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
   }
 
   for (const cluster of clusters) {
-    const billableCount = cluster.inms.filter(
-      (i) => (i.actividad_principal || '').toUpperCase() !== 'N/A'
-    ).length;
+    const parentInm = cluster.inms.find(i => 
+      (i.actividad_principal || '').toUpperCase() === 'N/A' || 
+      (i.actividad_principal || '').toLowerCase().includes('padre en sigyr') ||
+      i.inmueble === cluster.localId ||
+      cluster.inms.some(other => other.padre_id === i.inmueble)
+    );
+    const hasChildren = cluster.inms.some(i => i.padre_id === cluster.localId || (parentInm && i.inmueble !== parentInm.inmueble));
+    const effectiveInms = (hasChildren && parentInm)
+      ? cluster.inms.filter(i => i.inmueble !== parentInm.inmueble && isActivo(i))
+      : cluster.inms.filter(isActivo);
+    const billableCount = effectiveInms.length;
     const isCondoInm = (i: any) =>
       Boolean(
         i?.es_condominio ||
@@ -271,7 +279,8 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
     const rawDir = (inm.direccion || '').trim();
     // El contenedor local de actividades (N/A) SIEMPRE es padre_id (NO condominio_padre_id)
     const localPadreId = (inm as any).padre_id;
-    const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A';
+    const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A' ||
+                 (inm.actividad_principal || '').toLowerCase().includes('padre en sigyr');
 
     const matchedCluster = clusters.find((c) => {
       // 1. Si este inm tiene un contenedor padre (padre_id), asociar al cluster que tenga a ese padre o a sus hermanos
@@ -283,7 +292,7 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
         return true;
       }
       // 3. Coincidencia por dirección física SOLO si NINGUNO pertenece a un contenedor padre N/A
-      const cHasPadre = c.inms.some((i: any) => i.padre_id || (i.actividad_principal || '').toUpperCase() === 'N/A');
+      const cHasPadre = c.inms.some((i: any) => i.padre_id || (i.actividad_principal || '').toUpperCase() === 'N/A' || (i.actividad_principal || '').toLowerCase().includes('padre en sigyr'));
       if (!localPadreId && !isNA && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
         return true;
       }
@@ -312,9 +321,24 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
   }
 
   return clusters.map(c => {
-    const parentInm = c.inms.find(i => (i.actividad_principal || '').toUpperCase() === 'N/A' || i.inmueble === c.localId);
-    const billables = c.inms.filter(i => (i.actividad_principal || '').toUpperCase() !== 'N/A' && isActivo(i));
-    const displayInms = billables.length > 0 ? billables : c.inms.filter(isActivo);
+    const parentInm = c.inms.find(i => 
+      (i.actividad_principal || '').toUpperCase() === 'N/A' || 
+      (i.actividad_principal || '').toLowerCase().includes('padre en sigyr') ||
+      i.inmueble === c.localId ||
+      c.inms.some(other => other.padre_id === i.inmueble)
+    );
+
+    const hasChildren = c.inms.some(i => i.padre_id === c.localId || (parentInm && i.inmueble !== parentInm.inmueble));
+    let displayInms: InmuebleBasic[];
+
+    if (hasChildren && parentInm) {
+      // NUNCA incluir el inmueble padre contenedor adentro de la lista de actividades hijas
+      displayInms = c.inms.filter(i => i.inmueble !== parentInm.inmueble && isActivo(i));
+      if (displayInms.length === 0) displayInms = [parentInm];
+    } else {
+      displayInms = c.inms.filter(isActivo);
+    }
+
     const esRes = displayInms.every(i => isResidencialInm(i));
     const totalMmv = displayInms.reduce((sum, i) => {
       const mmv = parseFloat(String(i.mmv_mes || 0)) || 0;
