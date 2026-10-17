@@ -4,12 +4,15 @@
  * Eliminan lógica duplicada que aparecía 4-5 veces en caja/page.tsx.
  */
 
+import { isResidencialInm } from './calculos';
+
 // ─── Tipos mínimos para evitar `any` en los helpers ───────────────────────────
 
 export interface InmuebleBasic {
   id?: string;
   identidad?: string;
   inmueble?: string;
+  contribuyente?: string;
   clasificacion?: string;
   actividad_principal?: string;
   mmv_mes?: string | number;
@@ -22,6 +25,12 @@ export interface InmuebleBasic {
   multa_bs?: string | number;
   direccion?: string;
   estado?: string;
+  area?: string | number;
+  es_condominio?: boolean;
+  condominio_padre_id?: string;
+  padre_id?: string;
+  cod_cont?: string;
+  [key: string]: any;
 }
 
 export interface ContribuyenteBasic {
@@ -193,6 +202,98 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
   }
 
   return result;
+}
+
+export interface InmuebleClusterGroup {
+  localId: string;
+  label: string;
+  direccion: string;
+  tipo: string;
+  clasificacion: string;
+  count: number;
+  totalMmv: number;
+  mesesDeudaMax: number;
+  tieneDeuda: boolean;
+  esCondominio: boolean;
+  inms: InmuebleBasic[];
+  parentInm?: InmuebleBasic;
+}
+
+/**
+ * Agrupa los inmuebles y actividades de un contribuyente por inmueble / local físico (idéntico a Caja).
+ * Si un local posee múltiples actividades (ej: N/A o actividades bajo la misma dirección/código),
+ * las consolida en un solo inmueble con sus actividades adentro.
+ */
+export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleClusterGroup[] {
+  const clusters: Array<{ localId: string; label: string; direccion: string; inms: InmuebleBasic[] }> = [];
+
+  for (const inm of userInms) {
+    const rawDir = (inm.direccion || '').trim();
+    const padreId = (inm as any).condominio_padre_id || (inm as any).padre_id;
+
+    const matchedCluster = clusters.find((c) => {
+      if (padreId && c.inms.some((i: any) => i.condominio_padre_id === padreId || i.padre_id === padreId || i.inmueble === padreId)) {
+        return true;
+      }
+      if (inm.inmueble && c.inms.some((i: any) => i.condominio_padre_id === inm.inmueble || i.padre_id === inm.inmueble)) {
+        return true;
+      }
+      if (rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
+        return true;
+      }
+      return false;
+    });
+
+    if (matchedCluster) {
+      matchedCluster.inms.push(inm);
+      if (inm.inmueble && matchedCluster.inms.some((i: any) => i.padre_id === inm.inmueble || i.condominio_padre_id === inm.inmueble)) {
+        matchedCluster.localId = inm.inmueble;
+      }
+      if ((!matchedCluster.direccion || matchedCluster.direccion === '0 0') && rawDir && rawDir !== '0 0') {
+        matchedCluster.direccion = rawDir;
+        matchedCluster.label = getShortAddress(rawDir);
+      }
+    } else {
+      const canonicalId = padreId || inm.inmueble || `LOCAL-${clusters.length + 1}`;
+      const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (canonicalId || 'Local');
+      clusters.push({
+        localId: canonicalId,
+        label,
+        direccion: rawDir,
+        inms: [inm],
+      });
+    }
+  }
+
+  return clusters.map(c => {
+    const parentInm = c.inms.find(i => (i.actividad_principal || '').toUpperCase() === 'N/A' || i.inmueble === c.localId);
+    const billables = c.inms.filter(i => (i.actividad_principal || '').toUpperCase() !== 'N/A');
+    const displayInms = billables.length > 0 ? billables : c.inms;
+    const esRes = displayInms.every(i => isResidencialInm(i));
+    const totalMmv = displayInms.reduce((sum, i) => {
+      const mmv = parseFloat(String(i.mmv_mes || 0)) || 0;
+      const cant = parseInt(String(i.cant_inmuebles || 1), 10) || 1;
+      return sum + (mmv * cant);
+    }, 0);
+    const mesesDeudaMax = Math.max(0, ...displayInms.map(i => parseInt(String(i.meses_deuda || 0), 10) || 0));
+    const tieneDeuda = mesesDeudaMax > 0 || displayInms.some(i => parseFloat(String(i.deuda_mmv || 0)) > 0 || parseFloat(String(i.multa_bs || 0)) > 0);
+    const esCondominio = displayInms.some(i => (i as any).condominio_padre_id || (i as any).es_condominio);
+
+    return {
+      localId: c.localId,
+      label: c.label,
+      direccion: c.direccion || parentInm?.direccion || displayInms[0]?.direccion || 'Sin dirección registrada',
+      tipo: esRes ? 'RESIDENCIAL' : 'COMERCIAL',
+      clasificacion: displayInms[0]?.clasificacion || (esRes ? 'Residencial' : 'Comercial'),
+      count: displayInms.length,
+      totalMmv: Math.round(totalMmv * 100) / 100,
+      mesesDeudaMax,
+      tieneDeuda,
+      esCondominio,
+      inms: displayInms,
+      parentInm
+    };
+  });
 }
 
 export { formatPhoneNumber, isFictitiousEmail, formatMonthYear, formatActividad } from './formatters';

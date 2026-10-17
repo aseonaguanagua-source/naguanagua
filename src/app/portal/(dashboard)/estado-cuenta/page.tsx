@@ -1,7 +1,7 @@
 'use client';
 import DeudaCondominiosPortal from '@/components/DeudaCondominiosPortal';
 import { useState, useEffect, useMemo } from 'react';
-import { Download, FileText, Building, Handshake, AlertCircle, CheckCircle2, Wrench, ClipboardCheck, ShieldCheck, FlaskConical } from 'lucide-react';
+import { Download, FileText, Building, Building2, MapPin, Store, Layers, Filter, Handshake, AlertCircle, CheckCircle2, Wrench, ClipboardCheck, ShieldCheck, FlaskConical } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
@@ -9,6 +9,7 @@ import { getFAR, isResidencialInm, isTerrenoInm, calcularMensualidad, cleanClasi
 import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist, reglaCobroInmueble } from '@/lib/deudaMensual';
 import { construirRecibosContribuyente, desgloseReciboCM, ESTADOS_RECIBO_PENDIENTE } from '@/lib/recibosContribuyente';
 import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
+import { groupInmueblesByLocal, InmuebleClusterGroup } from '@/lib/cajaHelpers';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
@@ -33,6 +34,7 @@ export default function EstadoCuentaPage() {
   const [pagosPorVerificar, setPagosPorVerificar] = useState<any[]>([]);
   const [contribuyenteMaster, setContribuyenteMaster] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedLocal, setSelectedLocal] = useState<string>('TODOS');
 
   useEffect(() => {
     const fullDoc = localStorage.getItem('portal_doc') || '';
@@ -143,6 +145,11 @@ export default function EstadoCuentaPage() {
       return portalDoc && (id === docNorm || idFmt2 === docFmt || id === portalDoc.toUpperCase() || id === soloNum);
     });
   }, [misInmueblesDb, inmuebles, portalDoc]);
+
+  // Agrupar por Inmueble / Local Físico (idéntico a Caja y a Inmuebles)
+  const clusters: InmuebleClusterGroup[] = useMemo(() => {
+    return groupInmueblesByLocal(misInmuebles);
+  }, [misInmuebles]);
 
   // Mes RECIB-HIST con la fórmula única de Caja (incluye retención 75% solo para agentes de retención)
   const histMes = (r: any) => {
@@ -272,7 +279,7 @@ export default function EstadoCuentaPage() {
   };
 
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = (targetLocalId?: string) => {
     if (!portalDoc) return;
     const docNorm = portalDoc.replace(/-/g, '').toUpperCase();
     const myContribuyente = contribuyentes?.find((c: any) => (c.Identidad || '').replace(/-/g, '').toUpperCase() === docNorm);
@@ -284,23 +291,18 @@ export default function EstadoCuentaPage() {
       Direccion: contribuyenteMaster?.direccion || misInmuebles[0]?.direccion || myContribuyente?.Direccion || ''
     };
 
-    // === Generate one PDF per inmueble ===
-    // Las actividades de un mismo N/A salen en UN SOLO estado de cuenta (la tarifa del N/A es la suma
-    // de sus actividades). Las demás, uno por inmueble.
-    const baseInms = misInmuebles.length > 0 ? misInmuebles : [{ inmueble: 'Principal', tipo: 'Inmueble', cant_inmuebles: 1 }];
-    const grupos = new Map<string, any[]>();
-    baseInms.forEach((i: any) => {
-      const k = i.padre_id && misNaCodes.includes(i.padre_id) ? i.padre_id : (i.inmueble || 'Principal');
-      grupos.set(k, [...(grupos.get(k) || []), i]);
-    });
-    const inmsToProcess = [...grupos.entries()].map(([k, ms]) => ms.length === 1 && ms[0].inmueble === k
-      ? { ...ms[0], _miembros: ms }
-      : { ...ms[0], inmueble: k, actividad_principal: `N/A (${ms.length} actividades)`, _esNA: true, _miembros: ms });
+    // Determinar qué locales procesar: si se especifica uno (o selectedLocal !== 'TODOS'), solo ese local
+    const target = targetLocalId || selectedLocal;
+    const clustersToProcess = (target && target !== 'TODOS')
+      ? clusters.filter(c => c.localId === target)
+      : clusters;
+
+    if (clustersToProcess.length === 0) return;
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     let pageAdded = false;
 
-    inmsToProcess.forEach((inm: any, idx: number) => {
+    clustersToProcess.forEach((cluster, idx) => {
       if (pageAdded) doc.addPage();
       pageAdded = true;
       const today = new Date();
@@ -335,9 +337,11 @@ export default function EstadoCuentaPage() {
       doc.line(14, 41, 196, 41);
 
       // ── INMUEBLE INFO ROW ──
-      const uso = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano';
-      const area = inm.area ? `${inm.area} Mt2` : '—';
-      const codInm = inm.inmueble || 'Principal';
+      const uso = cluster.count > 1
+        ? `${cluster.count} Actividades Consolidadas (${cluster.tipo})`
+        : (cleanClasificacionActividad(cluster.inms[0]?.actividad_principal || cluster.inms[0]?.clasificacion || '') || 'Servicio de Aseo Urbano');
+      const codInm = cluster.localId;
+      const area = (cluster.parentInm?.area || cluster.inms[0]?.area) ? `${cluster.parentInm?.area || cluster.inms[0]?.area} Mt2` : '—';
 
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
@@ -365,7 +369,7 @@ export default function EstadoCuentaPage() {
 
       // ── DIRECCIÓN INMUEBLE ──
       doc.setFont('helvetica', 'normal');
-      const dirInm = inm.direccion || viewData.Direccion || '';
+      const dirInm = cluster.direccion || viewData.Direccion || '';
       const splitDir = doc.splitTextToSize(`Dirección Inmueble: ${dirInm}`, 182);
       doc.text(splitDir, 14, 60);
 
@@ -383,23 +387,27 @@ export default function EstadoCuentaPage() {
       doc.line(14, y, 196, y);
       y += 6;
 
-      // Get recibos for this specific inmueble
-      const miembros: any[] = (inm as any)._miembros || [inm];
-      const miembroDe = (f: any) => miembros.find((m: any) => m.inmueble && String(f.referencia || '').includes(m.inmueble));
+      // Identificar códigos del cluster para recibos
+      const clusterCodes = new Set([
+        cluster.localId,
+        ...cluster.inms.map(i => i.inmueble).filter(Boolean),
+        ...cluster.inms.map((i: any) => i.cod_cont).filter(Boolean)
+      ]);
+
+      const miembroDe = (f: any) => cluster.inms.find((m: any) => m.inmueble && String(f.referencia || '').includes(m.inmueble));
       const inmRecibos = pendientes.filter((f: any) => {
         if (!f.referencia) return true;
         if (f.referencia.startsWith('RECIB-HIST-')) {
           const parts = f.referencia.split('-');
-          return miembros.some((m: any) => parts[2] === m.inmueble || parts[2] === m.cod_cont || parts[2] === m.Inmueble);
+          return clusterCodes.has(parts[2]);
         }
         if (f.referencia.startsWith('CM-')) {
-          const match = f.referencia.match(/(I-\d+|C-\d+)/);
-          if (match) {
-            const refId = match[0];
-            return inm.inmueble === refId || inm.cod_cont === refId || (inm as any).Inmueble === refId;
-          }
+          return Array.from(clusterCodes).some(code => f.referencia.includes(code));
         }
-        return true;
+        if (f.inmueble) {
+          return clusterCodes.has(f.inmueble);
+        }
+        return clustersToProcess.length === 1;
       });
 
       const calcMonto = (f: any): number => {
@@ -429,7 +437,7 @@ export default function EstadoCuentaPage() {
       if (idx === 0 && totalServiciosBs > 0) {
         resumenRows.push(['Monto Servicios Especiales Bs.', `Bs. ${totalServiciosBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
       }
-      const esRes = isResidencialInm(inm);
+      const esRes = cluster.tipo === 'RESIDENCIAL';
       if (esRes) {
         resumenRows.push(['Total Exento Bs.', `Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
       } else {
@@ -476,9 +484,9 @@ export default function EstadoCuentaPage() {
       const detalleRows = inmRecibos.map((f: any) => {
         const b = getReciboBreakdown(f);
         const monto = calcMonto(f);
-        const mInm: any = miembroDe(f) || inm;
-        const actClean = cleanClasificacionActividad(mInm.actividad_principal || mInm.clasificacion || '');
-        const det = actClean ? `Aseo ${actClean}` : 'Servicio de Aseo Urbano';
+        const mInm: any = miembroDe(f) || cluster.inms[0];
+        const actClean = cleanClasificacionActividad(mInm?.actividad_principal || mInm?.clasificacion || '');
+        const det = actClean ? `Aseo ${actClean}` : (cluster.count > 1 ? `Aseo ${cluster.localId}` : 'Servicio de Aseo Urbano');
         const periodoDate = f.emision ? f.emision.replace(/-/g, '-') : '—';
         return [
           periodoDate,
@@ -540,53 +548,92 @@ export default function EstadoCuentaPage() {
       y += 5.5;
       doc.setFont('helvetica', 'italic');
       doc.text('Transferencias oficiales a nombre de: Instituto Autónomo Municipal de Ecosocialismo (IAMEC)', 14, y);
-
-      // ── LOGOS GUBERNAMENTALES AL PIE (Lacava, Elizabeth, Naguanagua Te Quiero) ──
-      const totalPages = (doc.internal as any).getNumberOfPages();
-      for (let p = 1; p <= totalPages; p++) {
-        doc.setPage(p);
-        const yFoot = 282;
-        try {
-          if ((logos as any).lacava) {
-            doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.5, undefined, 'FAST');
-          }
-        } catch {}
-        try {
-          if ((logos as any).elizabeth) {
-            doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot, 40, 7.5, undefined, 'FAST');
-          }
-        } catch {}
-        try {
-          if ((logos as any).naguanaguaTeQuiero) {
-            doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 162, yFoot - 2, 34, 12, undefined, 'FAST');
-          }
-        } catch {}
-      }
-
-      const fileName = `Estado_Cuenta_${viewData.Identidad}_${codInm}_${Date.now()}.pdf`;
-      doc.save(fileName);
     });
+
+    // ── LOGOS GUBERNAMENTALES AL PIE (Lacava, Elizabeth, Naguanagua Te Quiero) ──
+    const totalPages = (doc.internal as any).getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      const yFoot = 282;
+      try {
+        if ((logos as any).lacava) {
+          doc.addImage((logos as any).lacava, 'PNG', 14, yFoot, 34, 8.5, undefined, 'FAST');
+        }
+      } catch {}
+      try {
+        if ((logos as any).elizabeth) {
+          doc.addImage((logos as any).elizabeth, 'PNG', 85, yFoot, 40, 7.5, undefined, 'FAST');
+        }
+      } catch {}
+      try {
+        if ((logos as any).naguanaguaTeQuiero) {
+          doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', 162, yFoot - 2, 34, 12, undefined, 'FAST');
+        }
+      } catch {}
+    }
+
+    const fileSuffix = clustersToProcess.length === 1 ? clustersToProcess[0].localId : 'Consolidado';
+    const fileName = `Estado_Cuenta_${viewData.Identidad}_${fileSuffix}_${Date.now()}.pdf`;
+    doc.save(fileName);
   };
 
   if (isLoading) return <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Cargando estado de cuenta...</div>;
 
+  const displayedClusters = selectedLocal === 'TODOS'
+    ? clusters
+    : clusters.filter(c => c.localId === selectedLocal);
+
   return (
     <div className="space-y-5 max-w-4xl mx-auto pb-16">
       
-      
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+      {/* Cabecera Principal con Selector de Local y Botón de Descarga */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-2xl font-black text-slate-800">Mi Estado de Cuenta</h1>
-          <p className="text-slate-500 text-sm">Visualice su deuda actual y descargue su comprobante</p>
+          <p className="text-slate-500 text-sm">Visualice su deuda actual y descargue su comprobante por local o consolidado</p>
         </div>
-        <button 
-          onClick={handleDownloadPDF}
-          className="flex items-center gap-2 bg-red-600 animate-pulse hover:animate-none text-white px-6 py-3 rounded-xl text-base font-black hover:bg-red-700 transition-all shadow-lg hover:shadow-red-500/30"
-        >
-          <Download className="w-5 h-5" />
-          DESCARGAR ESTADO DE CUENTA
-        </button>
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {clusters.length > 1 && (
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700">
+              <span className="text-slate-400 font-bold">Local:</span>
+              <select
+                value={selectedLocal}
+                onChange={(e) => setSelectedLocal(e.target.value)}
+                className="bg-transparent border-none text-slate-800 font-bold focus:outline-none cursor-pointer max-w-[200px] truncate"
+              >
+                <option value="TODOS">Todos los locales ({clusters.length})</option>
+                {clusters.map((c) => (
+                  <option key={c.localId} value={c.localId}>
+                    {c.localId} - {c.direccion ? (c.direccion.length > 28 ? c.direccion.slice(0, 28) + '...' : c.direccion) : c.tipo}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button 
+            onClick={() => handleDownloadPDF(selectedLocal)}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-sm font-black transition-all shadow-md hover:shadow-red-500/30 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            {selectedLocal === 'TODOS' ? 'DESCARGAR CONSOLIDADO (PDF)' : `DESCARGAR ${selectedLocal} (PDF)`}
+          </button>
+        </div>
       </div>
+
+      {selectedLocal !== 'TODOS' && (
+        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2.5 rounded-xl text-xs font-medium">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-emerald-600" />
+            <span>Mostrando vista filtrada para el local <strong>{selectedLocal}</strong></span>
+          </div>
+          <button
+            onClick={() => setSelectedLocal('TODOS')}
+            className="text-emerald-700 font-bold underline hover:text-emerald-900 cursor-pointer"
+          >
+            Ver todos los locales ({clusters.length})
+          </button>
+        </div>
+      )}
 
       {/* Resumen Financiero */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -634,81 +681,143 @@ export default function EstadoCuentaPage() {
       {/* Deuda en condominios: solo informativa (se paga por la Caja de Condominios) */}
       <DeudaCondominiosPortal identidad={portalDoc} />
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+      {/* Mis Inmuebles agrupados por Inmueble / Local Físico (como en Caja) */}
+      <div className="space-y-4">
+        <div className="bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Building className="w-4 h-4 text-slate-500" />
-            <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">Mis Inmuebles Registrados</h2>
+            <Building2 className="w-4 h-4 text-emerald-600" />
+            <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">
+              Mis Inmuebles Registrados ({clusters.length} {clusters.length === 1 ? 'Inmueble / Local' : 'Inmuebles / Locales'})
+            </h2>
           </div>
-          <button 
-            onClick={() => {
-              const rows: any[] = [];
-              misInmuebles.forEach((inm: any) => {
-                  const factor = parseFloat(inm.mmv_mes) || 0;
-                  const cuotaBs = factor * tasaBcv;
-                  const cant = parseInt(inm.cant_inmuebles) || 1;
-                  const actClean = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano';
-                  if (cant > 1 && factor > 0) {
-                      for (let j = 1; j <= cant; j++) {
-                          rows.push({
-                              'Código': `${inm.inmueble || inm.cod_cont || '-'} - Unidad ${j}`,
-                              'Actividad / Inmueble': actClean,
-                              'Dirección': inm.direccion || 'Sin dirección',
-                              'Factor': factor.toFixed(2),
-                              'Cuota Mensual (Bs)': formatBs(cuotaBs)
-                          });
-                      }
-                  } else {
-                      rows.push({
-                          'Código': inm.inmueble || inm.cod_cont || '-',
-                          'Actividad / Inmueble': actClean,
-                          'Dirección': inm.direccion || 'Sin dirección',
-                          'Factor': factor.toFixed(2),
-                          'Cuota Mensual (Bs)': formatBs(cuotaBs)
-                      });
-                  }
-              });
-              exportToExcelWithLogos(rows, `Desglose_Inmuebles_${portalDoc}.xlsx`, 'Desglose Inmuebles');
-            }}
-            className="flex items-center gap-2 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95"
-          >
-            <Download className="w-3.5 h-3.5" /> Descargar Desglose
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => {
+                const rows: any[] = [];
+                clusters.forEach((cluster) => {
+                  cluster.inms.forEach((inm) => {
+                    const factor = parseFloat(String(inm.mmv_mes || 0)) || 0;
+                    const cant = parseInt(String(inm.cant_inmuebles || 1), 10) || 1;
+                    const cuotaBs = factor * cant * tasaBcv;
+                    const actClean = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano';
+                    rows.push({
+                      'Local / Inmueble': cluster.localId,
+                      'Código Actividad': inm.inmueble || (inm as any).cod_cont || '-',
+                      'Tipo': cluster.tipo,
+                      'Actividad / Uso': actClean,
+                      'Dirección': cluster.direccion || 'Sin dirección',
+                      'Factor (MMV)': factor.toFixed(2),
+                      'Cant': cant,
+                      'Cuota Mensual (Bs)': formatBs(cuotaBs)
+                    });
+                  });
+                });
+                exportToExcelWithLogos(rows, `Desglose_Inmuebles_${portalDoc}.xlsx`, 'Desglose Inmuebles');
+              }}
+              className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" /> Descargar Desglose Excel
+            </button>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Código</th>
-                <th className="px-4 py-3">Actividad / Inmueble</th>
-                <th className="px-4 py-3">Dirección</th>
-                <th className="px-4 py-3 text-center">Factor</th>
-                <th className="px-4 py-3 text-right">Cuota Mensual</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {misInmuebles.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-sm">No se encontraron inmuebles asociados a su cuenta.</td></tr>
-              ) : (
-                misInmuebles.map((inm: any, i: number) => {
-                  const factor = parseFloat(inm.mmv_mes) || 0;
-                  const cant = parseInt(inm.cant_inmuebles) || 1;
-                  const cuotaBs = factor * cant * tasaBcv;
-                  
-                  return (
-                    <tr key={i} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 font-mono font-bold text-slate-700">{inm.inmueble || inm.cod_cont || '-'} {cant > 1 ? `(${cant} Unds)` : ''}</td>
-                      <td className="px-4 py-3 font-medium text-slate-700">{cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano'}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500 max-w-[200px]">{inm.direccion || 'Sin dirección'}</td>
-                      <td className="px-4 py-3 text-center">{factor.toFixed(2)} {cant > 1 ? `x ${cant}` : ''}</td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-700">Bs. {formatBs(cuotaBs)}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+
+        {displayedClusters.length === 0 ? (
+          <div className="bg-white p-8 text-center text-slate-400 text-sm rounded-xl border border-slate-200 shadow-sm">
+            No se encontraron inmuebles asociados a su cuenta.
+          </div>
+        ) : (
+          displayedClusters.map((cluster) => {
+            const cuotaClusterBs = cluster.totalMmv * tasaBcv;
+            const hasMultiple = cluster.count > 1;
+
+            return (
+              <div key={cluster.localId} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:border-slate-300 transition-all">
+                {/* Cabecera del Inmueble / Local */}
+                <div className="bg-slate-50/80 px-4 py-3.5 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-start sm:items-center gap-2.5 flex-wrap">
+                    <span className="font-mono font-bold text-emerald-900 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-md text-xs">
+                      {cluster.localId}
+                    </span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                      cluster.tipo === 'RESIDENCIAL'
+                        ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                    }`}>
+                      {cluster.tipo === 'RESIDENCIAL' ? '🏠 Residencial' : '🏪 Comercial'}
+                    </span>
+                    {hasMultiple && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                        <Layers className="w-3 h-3" />
+                        {cluster.count} Actividades Consolidadas
+                      </span>
+                    )}
+                    <span className="text-xs text-slate-500 flex items-center gap-1 max-w-md truncate" title={cluster.direccion}>
+                      <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                      {cluster.direccion || 'Sin dirección registrada'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 self-end md:self-auto">
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Cuota Local</div>
+                      <div className="text-sm font-black text-emerald-700">Bs. {formatBs(cuotaClusterBs)}</div>
+                      <div className="text-[10px] text-slate-400">{cluster.totalMmv.toFixed(2)} MMV</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPDF(cluster.localId)}
+                      className="flex items-center gap-1.5 text-xs bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer"
+                      title={`Descargar Estado de Cuenta para ${cluster.localId}`}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Descargar</span> PDF Local
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tabla de Actividades / Unidades pertenecientes a este Inmueble */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-600">
+                    <thead className="bg-slate-50/50 border-b border-slate-100 text-[11px] uppercase text-slate-400 font-semibold">
+                      <tr>
+                        <th className="px-4 py-2.5">Código Actividad</th>
+                        <th className="px-4 py-2.5">Actividad / Uso</th>
+                        <th className="px-4 py-2.5 text-center">Factor</th>
+                        <th className="px-4 py-2.5 text-right">Cuota Mensual</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {cluster.inms.map((inm: any, idx: number) => {
+                        const factor = parseFloat(String(inm.mmv_mes || 0)) || 0;
+                        const cant = parseInt(String(inm.cant_inmuebles || 1), 10) || 1;
+                        const cuotaBs = factor * cant * tasaBcv;
+                        const actClean = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano';
+
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-4 py-2.5 font-mono text-xs font-bold text-slate-700">
+                              {inm.inmueble || inm.cod_cont || '-'}
+                              {cant > 1 && <span className="text-[10px] text-slate-400 font-normal ml-1">({cant} Unds)</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs font-medium text-slate-700">
+                              {actClean}
+                            </td>
+                            <td className="px-4 py-2.5 text-center text-xs text-slate-500">
+                              {factor.toFixed(2)} MMV {cant > 1 ? `x ${cant}` : ''}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-xs font-bold text-emerald-700">
+                              Bs. {formatBs(cuotaBs)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Servicios Especiales Pendientes */}
@@ -763,73 +872,121 @@ export default function EstadoCuentaPage() {
       )}
 
       {/* Recibos Pendientes */}
-      {pendientes.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
-          <div className="bg-red-50 px-4 py-3 border-b border-red-200 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-500" />
-            <h3 className="font-bold text-red-700 uppercase text-sm tracking-wide">Recibos Pendientes</h3>
-            <span className="ml-auto text-xs font-bold text-red-600">Total: Bs. {formatBs(totalPendBs)}</span>
-          </div>
-          {(() => {
-            const ivaTot = pendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
-            const retTot = pendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
-            if (retTot <= 0) return null;
-            return (
+      {pendientes.length > 0 && (() => {
+        const targetPendientes = selectedLocal === 'TODOS'
+          ? pendientes
+          : (() => {
+              const currentCluster = clusters.find(c => c.localId === selectedLocal);
+              if (!currentCluster) return pendientes;
+              const clusterCodes = new Set([
+                currentCluster.localId,
+                ...currentCluster.inms.map(i => i.inmueble).filter(Boolean),
+                ...currentCluster.inms.map((i: any) => i.cod_cont).filter(Boolean)
+              ]);
+              return pendientes.filter((f: any) => {
+                if (!f.referencia) return true;
+                if (f.referencia.startsWith('RECIB-HIST-')) {
+                  const parts = f.referencia.split('-');
+                  return clusterCodes.has(parts[2]);
+                }
+                if (f.referencia.startsWith('CM-')) {
+                  return Array.from(clusterCodes).some(code => f.referencia.includes(code));
+                }
+                if (f.inmueble) return clusterCodes.has(f.inmueble);
+                return false;
+              });
+            })();
+
+        const currentPendBs = targetPendientes.reduce((acc: number, f: any) => acc + (parseFloat(getReciboMonto(f)) || 0), 0);
+        const ivaTot = targetPendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
+        const retTot = targetPendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
+
+        return (
+          <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
+            <div className="bg-red-50 px-4 py-3 border-b border-red-200 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-500" />
+              <h3 className="font-bold text-red-700 uppercase text-sm tracking-wide">
+                Recibos Pendientes {selectedLocal !== 'TODOS' ? `(${selectedLocal})` : ''}
+              </h3>
+              <span className="ml-auto text-xs font-bold text-red-600">Total: Bs. {formatBs(currentPendBs)}</span>
+            </div>
+            {retTot > 0 && (
               <div className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-red-100 text-xs">
                 <div className="bg-blue-50 border border-blue-100 rounded px-2 py-1.5"><span className="block text-blue-700 font-semibold">IVA completo (16%)</span><span className="font-black text-blue-900">Bs. {formatBs(ivaTot)}</span></div>
                 <div className="bg-amber-50 border border-amber-100 rounded px-2 py-1.5"><span className="block text-amber-700 font-semibold">IVA retenido 75% (Agente de Retención)</span><span className="font-black text-amber-900">- Bs. {formatBs(retTot)}</span></div>
-                <div className="bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5"><span className="block text-emerald-700 font-semibold">Total a cancelar</span><span className="font-black text-emerald-900">Bs. {formatBs(totalPendBs)}</span></div>
+                <div className="bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5"><span className="block text-emerald-700 font-semibold">Total a cancelar</span><span className="font-black text-emerald-900">Bs. {formatBs(currentPendBs)}</span></div>
               </div>
-            );
-          })()}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-red-50/50 border-b border-red-100 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Referencia</th>
-                  <th className="px-4 py-3">Mes</th>
-                  <th className="px-4 py-3 text-center">Vencimiento</th>
-                  <th className="px-4 py-3 text-right">Monto (Bs)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pendientes.sort((a: any, b: any) => new Date(a.emision).getTime() - new Date(b.emision).getTime()).map((f: any, i: number) => {
-                  const matchedInm = misInmuebles.find((inm: any) => inm.inmueble && f.referencia.includes(inm.inmueble));
-                  const inmuDesc = matchedInm
-                    ? cleanClasificacionActividad(matchedInm.actividad_principal || matchedInm.clasificacion || '')
-                    : '';
-                  const esMulta = String(f.referencia || '').startsWith('MULTA-');
-                  const etiquetaPeriodo = esMulta
-                    ? `Multa Municipal (${f.inmueble || f.referencia.replace('MULTA-', '')})`
-                    : mesLabel(f.emision);
-
-                  return (
-                  <tr key={i} className="hover:bg-red-50/20 transition-colors">
-                    <td className="px-4 py-3 font-mono text-slate-700 text-xs">{f.referencia}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-sm">{etiquetaPeriodo}</div>
-                      {matchedInm && (
-                        <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                          {matchedInm.inmueble}{inmuDesc ? ` · ${inmuDesc}` : ''}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center text-red-600 text-xs">{f.vencimiento || 'N/A'}</td>
-                    <td className="px-4 py-3 text-right font-bold text-red-700">
-                      {parseFloat(getReciboMonto(f)) <= 0 && f.estado !== 'Abonado' && f.estado !== 'Pagado' ? (
-                        <span className="text-emerald-600">En Verificación</span>
-                      ) : (
-                        `Bs. ${parseFloat(getReciboMonto(f)).toLocaleString('es-VE', {minimumFractionDigits:2,maximumFractionDigits:2})}`
-                      )}
-                    </td>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-600">
+                <thead className="bg-red-50/50 border-b border-red-100 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Referencia</th>
+                    <th className="px-4 py-3">Mes / Inmueble</th>
+                    <th className="px-4 py-3 text-center">Vencimiento</th>
+                    <th className="px-4 py-3 text-right">Monto (Bs)</th>
                   </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {targetPendientes.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-6 text-center text-slate-400 text-sm">
+                        No hay recibos pendientes registrados para este local.
+                      </td>
+                    </tr>
+                  ) : (
+                    targetPendientes.sort((a: any, b: any) => new Date(a.emision).getTime() - new Date(b.emision).getTime()).map((f: any, i: number) => {
+                      const matchedInm = misInmuebles.find((inm: any) => inm.inmueble && f.referencia.includes(inm.inmueble));
+                      const inmuDesc = matchedInm
+                        ? cleanClasificacionActividad(matchedInm.actividad_principal || matchedInm.clasificacion || '')
+                        : '';
+                      const esMulta = String(f.referencia || '').startsWith('MULTA-');
+                      const etiquetaPeriodo = esMulta
+                        ? `Multa Municipal (${f.inmueble || f.referencia.replace('MULTA-', '')})`
+                        : mesLabel(f.emision);
+
+                      const parentCluster = clusters.find(c =>
+                        c.localId === f.inmueble ||
+                        c.inms.some(inm => inm.inmueble && f.referencia.includes(inm.inmueble)) ||
+                        f.referencia.includes(c.localId)
+                      );
+
+                      return (
+                      <tr key={i} className="hover:bg-red-50/20 transition-colors">
+                        <td className="px-4 py-3 font-mono text-slate-700 text-xs">
+                          {f.referencia}
+                          {parentCluster && clusters.length > 1 && (
+                            <span className="block text-[10px] text-slate-400 font-mono mt-0.5">
+                              Local: {parentCluster.localId}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-sm">{etiquetaPeriodo}</div>
+                          {matchedInm && (
+                            <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                              {matchedInm.inmueble}{inmuDesc ? ` · ${inmuDesc}` : ''}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center text-red-600 text-xs">{f.vencimiento || 'N/A'}</td>
+                        <td className="px-4 py-3 text-right font-bold text-red-700">
+                          {parseFloat(getReciboMonto(f)) <= 0 && f.estado !== 'Abonado' && f.estado !== 'Pagado' ? (
+                            <span className="text-emerald-600">En Verificación</span>
+                          ) : (
+                            `Bs. ${parseFloat(getReciboMonto(f)).toLocaleString('es-VE', {minimumFractionDigits:2,maximumFractionDigits:2})}`
+                          )}
+                        </td>
+                      </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Cuotas de Convenio */}
       {cuotasData.length > 0 && (
