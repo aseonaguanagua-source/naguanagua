@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { getIdentidadVariants, isFictitiousEmail, formatPhoneNumber } from '@/lib/formatters';
+import { getIdentidadVariantsExact, isFictitiousEmail, formatPhoneNumber } from '@/lib/formatters';
 import { checkPortalMantenimiento, MENSAJE_MANTENIMIENTO_PORTAL } from '@/lib/portalConfig';
 
 export async function POST(request: Request) {
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres.' }, { status: 400 });
     }
 
-    const userVariants = getIdentidadVariants(identidad);
+    const userVariants = getIdentidadVariantsExact(identidad);
     const orFilter = userVariants.map(v => `identidad.eq.${v}`).join(',');
 
     // 1. Actualizar todos los inmuebles de este contribuyente

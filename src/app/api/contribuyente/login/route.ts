@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { getIdentidadVariants, isFictitiousEmail } from "@/lib/formatters";
+import { getIdentidadVariantsExact, isFictitiousEmail } from "@/lib/formatters";
 import { checkPortalMantenimiento, MENSAJE_MANTENIMIENTO_PORTAL } from '@/lib/portalConfig';
 
 export async function POST(request: Request) {
@@ -17,7 +17,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Identidad requerida" }, { status: 400 });
     }
 
-    const variantes = getIdentidadVariants(identidad);
+    // Coincidencia exacta de prefijo (V con V, J con J, G con G) para evitar mezclas
+    const variantes = getIdentidadVariantsExact(identidad);
     const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
 
     // Buscar en inmuebles activos primero

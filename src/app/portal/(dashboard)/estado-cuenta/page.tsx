@@ -62,8 +62,8 @@ export default function EstadoCuentaPage() {
     const fetchAll = async () => {
       try {
         if (fullDoc) {
-          // Misma búsqueda que Caja: variantes EXACTAS de la cédula (no mezcla V/J/E con el mismo número)
-          const variants = /^[VEJPG][-_\s]?\d+$/i.test(fullDoc.trim()) ? getIdentidadVariantsExact(fullDoc) : getIdentidadVariants(fullDoc);
+          // Coincidencia exacta de prefijo (V con V, J con J, G con G)
+          const variants = getIdentidadVariantsExact(fullDoc);
           const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
           // 1. Inmuebles, Facturas y Contribuyente en tiempo real
@@ -273,9 +273,9 @@ export default function EstadoCuentaPage() {
   const isCondoReceipt = (f: any): boolean => {
     const ref = String(f?.referencia || '').toUpperCase();
     const inmId = String(f?.inmueble || '').toUpperCase();
-    // Excluir cualquier inmueble que pertenezca a condominio
+    // Excluir cualquier inmueble que pertenezca a condominio centralizado (no individual)
     const matched = misInmuebles.find((i: any) => i.inmueble && (ref.includes(String(i.inmueble).toUpperCase()) || inmId === String(i.inmueble).toUpperCase()));
-    if (matched && (
+    if (matched && !isCondominioPagoIndividual(matched) && !isCondominioPagoIndividual(matched.condominio_padre_id) && (
       matched.condominio_padre_id || 
       matched.es_condominio || 
       String(matched.actividad_principal || '').toLowerCase().includes('condominio') || 
@@ -376,7 +376,7 @@ export default function EstadoCuentaPage() {
 
     if (clustersToProcess.length === 0) return;
 
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
     let pageAdded = false;
 
     clustersToProcess.forEach((cluster, idx) => {
@@ -387,7 +387,7 @@ export default function EstadoCuentaPage() {
       const docNro = Math.floor(10000 + Math.random() * 90000);
 
       // ── LOGOS ──
-      try { doc.addImage(logos.iamec, 'PNG', 14, 10, 38, 20); } catch(e) {}
+      try { doc.addImage(logos.iamec, 'PNG', 14, 10, 38, 20, undefined, 'FAST'); } catch(e) {}
 
       // ── TITLE ──
       doc.setFontSize(20);

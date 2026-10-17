@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Building2, Search, MapPin, Store, AlertCircle, CheckCircle2, ChevronRight, Layers } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { getIdentidadVariants } from '@/lib/formatters';
+import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 import { groupInmueblesByLocal, InmuebleClusterGroup, InmuebleBasic } from '@/lib/cajaHelpers';
 
@@ -23,7 +23,8 @@ export default function InmueblesPage() {
           return;
         }
 
-        const variants = getIdentidadVariants(portalDoc);
+        // Búsqueda por coincidencia exacta de prefijo (V, J, G, etc.)
+        const variants = getIdentidadVariantsExact(portalDoc);
         const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
         let { data: inmsDB } = await supabase

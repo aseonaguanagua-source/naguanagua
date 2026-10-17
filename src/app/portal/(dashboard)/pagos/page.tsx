@@ -126,8 +126,8 @@ export default function DondePagarPage() {
           return;
         }
 
-        // Misma búsqueda que Caja: variantes EXACTAS de la cédula (no mezcla V/J/E con el mismo número)
-        const variants = /^[VEJPG][-_\s]?\d+$/i.test(portalDoc.trim()) ? getIdentidadVariantsExact(portalDoc) : getIdentidadVariants(portalDoc);
+        // Coincidencia exacta de prefijo (V con V, J con J, G con G)
+        const variants = getIdentidadVariantsExact(portalDoc);
         const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
         // A. Inmuebles y facturas pendientes
@@ -397,14 +397,15 @@ export default function DondePagarPage() {
           (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
           (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
         );
-      const isCondo = c.inms.some(isCondoInm);
+      // Solo se bloquea como régimen de condominio centralizado si no es de pago individual
+      const isCondo = c.inms.some(isCondoInm) && !c.inms.some(i => isCondominioPagoIndividual(i) || ((i as any).condominio_padre_id && isCondominioPagoIndividual((i as any).condominio_padre_id)));
       const condoPadreInm = c.inms.find(isCondoInm);
       const condoPadreId = (condoPadreInm as any)?.condominio_padre_id ||
         ((condoPadreInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||
         ((condoPadreInm as any)?.es_condominio ? condoPadreInm?.inmueble : null);
       const condoNombre = condoPadreId ? (condoNames[condoPadreId] || condoPadreId) : null;
 
-      // Si pertenece a un régimen de condominio, no genera recibos individuales en Soy Contribuyente
+      // Si pertenece a un régimen de condominio centralizado, no genera recibos individuales en Soy Contribuyente
       if (isCondo) {
         const hasChildren = c.inms.some((i: any) => i.padre_id === clusterId || (condoPadreInm && i.inmueble !== condoPadreInm.inmueble));
         const displayInms = (hasChildren && condoPadreInm)
@@ -825,10 +826,25 @@ export default function DondePagarPage() {
         return;
       }
       try {
+        if (formData.comprobante.size > 4.5 * 1024 * 1024) {
+          throw new Error('El comprobante seleccionado supera el límite permitido de 4.5 MB. Por favor comprima el archivo o capture una foto.');
+        }
         const upFd = new FormData();
         upFd.append('file', formData.comprobante);
         upFd.append('bucket', 'documentos');
         const upRes = await fetch('/api/upload', { method: 'POST', body: upFd });
+        if (!upRes.ok) {
+          const textErr = await upRes.text();
+          if (upRes.status === 413 || textErr.includes('Request Entity') || textErr.includes('FUNCTION_PAYLOAD_TOO_LARGE')) {
+            throw new Error('El comprobante supera el tamaño máximo permitido de 4.5 MB. Por favor tome una foto o comprima el archivo.');
+          }
+          try {
+            const parsedErr = JSON.parse(textErr);
+            throw new Error(parsedErr.error || `Error del servidor HTTP ${upRes.status}`);
+          } catch {
+            throw new Error(textErr.slice(0, 120) || `Error HTTP ${upRes.status}`);
+          }
+        }
         const upJson = await upRes.json();
         if (!upJson.success || !upJson.publicUrl) {
           throw new Error(upJson.error || 'No se pudo subir el comprobante');

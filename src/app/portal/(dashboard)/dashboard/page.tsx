@@ -3,7 +3,7 @@ import { Save, Lock, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { getIdentidadVariants, formatActividad } from '@/lib/formatters';
+import { getIdentidadVariantsExact, formatActividad } from '@/lib/formatters';
 
 export default function DatosContribuyentePage() {
   const [userData, setUserData] = useState({
@@ -29,7 +29,8 @@ export default function DatosContribuyentePage() {
       const fullDoc = localStorage.getItem('portal_doc') || '';
       setUserData(prev => ({ ...prev, nombre, codigo, docType: fullDoc ? fullDoc.charAt(0) : 'V', docNum: fullDoc ? fullDoc.substring(1) : '' }));
       if (fullDoc) {
-        const variants = getIdentidadVariants(fullDoc);
+        // Coincidencia exacta de prefijo (V con V, J con J, etc.)
+        const variants = getIdentidadVariantsExact(fullDoc);
         const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
 
         // 1. Obtener datos maestros del contribuyente (para sincronizar cambios de nombre/razón social)
@@ -99,7 +100,7 @@ export default function DatosContribuyentePage() {
     if (!fullDoc) return;
     setIsSaving(true); setMessage('');
     try {
-      const variants = getIdentidadVariants(fullDoc);
+      const variants = getIdentidadVariantsExact(fullDoc);
       const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
       const { error } = await supabase.from('inmuebles').update({ correo_electronico: userData.email, telefono: userData.telefonoMovil, direccion: userData.direccion })
         .or(orFilter);
@@ -119,7 +120,7 @@ export default function DatosContribuyentePage() {
     setIsSavingClave(true);
     try {
       const fullDoc = localStorage.getItem('portal_doc') || '';
-      const variants = getIdentidadVariants(fullDoc);
+      const variants = getIdentidadVariantsExact(fullDoc);
       const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
       // Verificar clave actual
       const { data: check } = await supabase.from('inmuebles').select('clave_portal')
@@ -176,13 +177,9 @@ export default function DatosContribuyentePage() {
           {message && <span className={'text-xs font-semibold ' + (message.includes('Error') ? 'text-red-500' : 'text-emerald-600')}>{message}</span>}
         </div>
         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Código</label>
-            <input type="text" value={userData.codigo} disabled className={inputDisCls} />
-          </div>
-          <div>
+          <div className="sm:col-span-2">
             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tipo / Nro. Identidad</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 max-w-sm">
               <input type="text" value={userData.docType} disabled className="w-14 text-sm border border-slate-200 rounded px-2 py-2 bg-slate-50 text-slate-700 font-bold text-center cursor-default" />
               <input type="text" value={userData.docNum} disabled className={inputDisCls} />
             </div>

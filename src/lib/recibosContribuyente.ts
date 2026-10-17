@@ -80,8 +80,34 @@ export function construirRecibosContribuyente(params: {
   const tieneCondominio = condoInms.length > 0;
   const soloCondominio = activos.length > 0 && activos.every(esCondo);
 
-  // Inmuebles cobrables aquí (excluye contenedores N/A y unidades de condominio)
-  const billables = activos.filter(i => !naCodes.includes(i.inmueble) && !esCondo(i));
+  // N/A = suma de sus actividades. Si la deuda (meses) está registrada en el contenedor N/A,
+  // sus actividades hijas heredan esos meses (misma regla exacta que Caja).
+  const naMeses = new Map<string, number>();
+  activos.forEach((i: any) => {
+    if ((i.actividad_principal || '').trim().toUpperCase() === 'N/A' || naCodes.includes(i.inmueble)) {
+      const m = parseInt(String(i.meses_deuda || 0), 10) || 0;
+      const ef = m > 0 ? m : ((num(i.deuda_mmv) > 0 || num(i.deuda_congelada_bs) > 0) ? 1 : 0);
+      if (ef > 0 && i.inmueble) naMeses.set(i.inmueble, ef);
+    }
+  });
+
+  // Inmuebles cobrables aquí (excluye contenedores N/A que tengan hijos registrados y unidades de condominio)
+  const billables = activos
+    .filter(i => {
+      const isNA = naCodes.includes(i.inmueble);
+      const hasChildren = activos.some(c => c.inmueble !== i.inmueble && (c.padre_id === i.inmueble || c.condominio_padre_id === i.inmueble));
+      if (isNA && hasChildren) return false;
+      return !esCondo(i);
+    })
+    .map(i => {
+      const p = i.padre_id || i.condominio_padre_id;
+      const mNa = p ? naMeses.get(p) : undefined;
+      const mCur = parseInt(String(i.meses_deuda || 0), 10) || 0;
+      if (mNa && mNa > mCur) {
+        return { ...i, meses_deuda: mNa };
+      }
+      return i;
+    });
 
   const recibos: any[] = (params.facturas || []).filter(f => ESTADOS_RECIBO_PENDIENTE.includes(f.estado));
 

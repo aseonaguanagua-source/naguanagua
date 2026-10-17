@@ -4,7 +4,7 @@
  * Eliminan lógica duplicada que aparecía 4-5 veces en caja/page.tsx.
  */
 
-import { isResidencialInm } from './calculos';
+import { isResidencialInm, isCondominioPagoIndividual } from './calculos';
 
 // ─── Tipos mínimos para evitar `any` en los helpers ───────────────────────────
 
@@ -208,10 +208,12 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
     const parentInm = cluster.inms.find(i => 
       (i.actividad_principal || '').toUpperCase() === 'N/A' || 
       (i.actividad_principal || '').toLowerCase().includes('padre en sigyr') ||
-      i.inmueble === cluster.localId ||
-      cluster.inms.some(other => other.padre_id === i.inmueble)
+      cluster.inms.some(other => (other as any).padre_id === i.inmueble)
     );
-    const hasChildren = cluster.inms.some(i => i.padre_id === cluster.localId || (parentInm && i.inmueble !== parentInm.inmueble));
+    if (parentInm?.inmueble) {
+      cluster.localId = parentInm.inmueble;
+    }
+    const hasChildren = cluster.inms.some(i => (i as any).padre_id === cluster.localId || (parentInm && i.inmueble !== parentInm.inmueble));
     const effectiveInms = (hasChildren && parentInm)
       ? cluster.inms.filter(i => i.inmueble !== parentInm.inmueble && isActivo(i))
       : cluster.inms.filter(isActivo);
@@ -223,7 +225,8 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
         (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
         (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
       );
-    const esCondominio = cluster.inms.some(isCondoInm);
+    // Solo se bloquea como condominio si no es de pago individual
+    const esCondominio = cluster.inms.some(isCondoInm) && !cluster.inms.some(i => isCondominioPagoIndividual(i) || ((i as any).condominio_padre_id && isCondominioPagoIndividual((i as any).condominio_padre_id)));
     const condoPadreInm = cluster.inms.find(isCondoInm);
     const condominioPadreId = (condoPadreInm as any)?.condominio_padre_id ||
       ((condoPadreInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||
@@ -324,11 +327,13 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
     const parentInm = c.inms.find(i => 
       (i.actividad_principal || '').toUpperCase() === 'N/A' || 
       (i.actividad_principal || '').toLowerCase().includes('padre en sigyr') ||
-      i.inmueble === c.localId ||
-      c.inms.some(other => other.padre_id === i.inmueble)
+      c.inms.some(other => (other as any).padre_id === i.inmueble)
     );
+    if (parentInm?.inmueble) {
+      c.localId = parentInm.inmueble;
+    }
 
-    const hasChildren = c.inms.some(i => i.padre_id === c.localId || (parentInm && i.inmueble !== parentInm.inmueble));
+    const hasChildren = c.inms.some(i => (i as any).padre_id === c.localId || (parentInm && i.inmueble !== parentInm.inmueble));
     let displayInms: InmuebleBasic[];
 
     if (hasChildren && parentInm) {
@@ -338,6 +343,26 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
     } else {
       displayInms = c.inms.filter(isActivo);
     }
+
+    // Heredar meses de deuda del contenedor N/A a sus actividades hijas (idéntico a Caja)
+    const naMeses = new Map<string, number>();
+    c.inms.forEach((i: any) => {
+      if ((i.actividad_principal || '').trim().toUpperCase() === 'N/A' || (i.actividad_principal || '').toLowerCase().includes('padre en sigyr')) {
+        const m = parseInt(String(i.meses_deuda || 0), 10) || 0;
+        const ef = m > 0 ? m : ((parseFloat(String(i.deuda_mmv || 0)) || 0) > 0 ? 1 : 0);
+        if (ef > 0 && i.inmueble) naMeses.set(i.inmueble, ef);
+      }
+    });
+
+    displayInms = displayInms.map(i => {
+      const p = (i as any).padre_id;
+      const mNa = p ? naMeses.get(p) : undefined;
+      const mCur = parseInt(String(i.meses_deuda || 0), 10) || 0;
+      if (mNa && mNa > mCur) {
+        return { ...i, meses_deuda: mNa };
+      }
+      return i;
+    });
 
     const esRes = displayInms.every(i => isResidencialInm(i));
     const totalMmv = displayInms.reduce((sum, i) => {
@@ -353,14 +378,15 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
         (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
         (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
       );
-    const esCondominio = c.inms.some(isCondoInm);
+    // Solo se bloquea como condominio si no es de pago individual
+    const esCondominio = c.inms.some(isCondoInm) && !c.inms.some(i => isCondominioPagoIndividual(i) || ((i as any).condominio_padre_id && isCondominioPagoIndividual((i as any).condominio_padre_id)));
     const condoPadreInm = c.inms.find(isCondoInm);
     const condominioPadreId = (condoPadreInm as any)?.condominio_padre_id ||
       ((condoPadreInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||
       ((condoPadreInm as any)?.es_condominio ? condoPadreInm?.inmueble : null);
 
     const mesesDeudaMax = Math.max(0, ...displayInms.map(i => parseInt(String(i.meses_deuda || 0), 10) || 0));
-    // Los inmuebles en condominio cancelan a través de la administración del condominio, no generan deudas individuales
+    // Los inmuebles en condominio centralizado cancelan a través de la administración, los individuales pagan directamente
     const tieneDeuda = !esCondominio && (mesesDeudaMax > 0 || displayInms.some(i => parseFloat(String(i.deuda_mmv || 0)) > 0 || parseFloat(String(i.multa_bs || 0)) > 0));
 
     return {
