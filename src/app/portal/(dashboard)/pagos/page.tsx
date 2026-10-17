@@ -13,7 +13,7 @@ import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist, reglaCobroI
 import DeudaCondominiosPortal from '@/components/DeudaCondominiosPortal';
 import { construirRecibosContribuyente, desgloseReciboCM } from '@/lib/recibosContribuyente';
 import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
-import { clusterInmueblesByLocal } from '@/lib/cajaHelpers';
+import { clusterInmueblesByLocal, formatActividad } from '@/lib/cajaHelpers';
 import { LISTA_BANCOS } from '@/lib/bancos';
 
 type Metodo = 'transferencia' | '';
@@ -368,7 +368,7 @@ export default function DondePagarPage() {
             referencia: r.referencia,
             concepto: conceptoTexto,
             inmId,
-            actividad: esMulta ? 'Sanción / Multa Municipal' : (inmMatch?.actividad_principal || 'Aseo Urbano'),
+            actividad: esMulta ? 'Sanción / Multa Municipal' : (formatActividad(inmMatch?.actividad_principal) || 'Aseo Urbano'),
             tipoInm: inmMatch?.clasificacion || 'Residencial',
             monto: getReciboMonto(r),
             emision: r.emision,
@@ -444,7 +444,7 @@ export default function DondePagarPage() {
           referencia: r.referencia,
           concepto: r.referencia,
           inmId,
-          actividad: inmMatch?.actividad_principal || 'Actividad Comercial',
+          actividad: formatActividad(inmMatch?.actividad_principal) || 'Actividad Comercial',
           tipoInm: 'Comercial',
           monto,
           emision: r.emision,
@@ -474,7 +474,7 @@ export default function DondePagarPage() {
         monthlyGroups,
         singleItems: []
       };
-    });
+    }).filter((g) => g.allReceiptRefs.length > 0);
   }, [userInms, rawRecibos, localClustersMap, pagosPorVerificar, effectiveTcmmv, reglasCobro]);
 
   // Por defecto expandir el primer local
@@ -840,7 +840,7 @@ export default function DondePagarPage() {
                 </div>
                 <div className="mt-3 pt-2.5 border-t border-emerald-200/60 text-[11px] text-slate-600 leading-tight">
                   <span className="text-slate-400 block text-[10px]">Beneficiario / R.I.F.:</span>
-                  <strong className="text-slate-800">Inst. Socialista Municipal para el Ambiente</strong>
+                  <strong className="text-slate-800">IAMEC</strong>
                   <span className="text-slate-500 block font-mono text-[10px] mt-0.5">R.I.F.: G-200086149</span>
                 </div>
               </div>

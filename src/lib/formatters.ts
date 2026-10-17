@@ -378,3 +378,16 @@ export function getIdentidadVariantsExact(identidad: string): string[] {
   return Array.from(out);
 }
 
+/**
+ * Limpia sufijos de categoría tarifaria (ALTA, MEDIA, BAJA) y etiquetas internas del nombre de actividad.
+ * Ej: "CAFETERIAS (ALTA)" -> "CAFETERIAS"
+ *     "RESTAURANTES (MEDIA)" -> "RESTAURANTES"
+ */
+export function formatActividad(act?: string | null): string {
+  if (!act) return '';
+  return String(act)
+    .replace(/\s*\((ALTA|MEDIA|BAJA)\)/gi, '')
+    .replace(/\s*\[(hijo_de:[^\]]+|hijo|condominio)\]/gi, '')
+    .trim();
+}
+

@@ -63,7 +63,7 @@ const BANCOS_DESTINO = [
   'BANCO PROVINCIAL - 0108',
 ];
 
-const FORMAS_PAGO = ['Todos', 'Transferencia', 'Punto de Venta', 'Debito', 'TMD (Master)', 'TVD (Visa)', 'Efectivo'];
+const FORMAS_PAGO = ['Todos', 'Transferencia', 'Punto de Venta', 'Debito', 'TMD (Master)', 'TVD (Visa)', 'Efectivo', 'Retencion de IVA'];
 const ESTATUS_LIST = ['Todos', 'Pendiente', 'Por Verificar', 'Aprobado', 'Rechazado'];
 const ESTATUS_CONCILIAR = ['Aprobado', 'Rechazado', 'Con Diferencia'];
 
@@ -111,6 +111,7 @@ export function extraerArchivosComprobante(pago: any): { name: string; url: stri
   // 2. Retenciones de IVA (Comprobante SENIAT)
   if (det.comprobante_retencion_url) add(det.comprobante_retencion_nombre || 'Comprobante Retención IVA (SENIAT)', det.comprobante_retencion_url, 'Retención');
   if (det.comprobante_retencion_b64) add(det.comprobante_retencion_nombre || 'Comprobante Retención IVA (SENIAT)', det.comprobante_retencion_b64, 'Retención');
+  if (det.planilla_url) add(det.comprobante_nombre || 'Planilla de Retención (SENIAT)', det.planilla_url, 'Retención');
 
   // 3. Raíz del objeto pago
   if (pago.comprobante_url) add('Comprobante de Pago', pago.comprobante_url, 'Pago');
@@ -161,6 +162,23 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
                 if (!urls.some(existing => existing.url === u.url)) urls.push(u);
               });
             }
+          }
+        } catch { /* ignorar */ }
+      }
+
+      // Si es una retención vinculada a un pago principal, traer el comprobante del pago vinculado
+      if (urls.length === 0 && det.pago_vinculado) {
+        try {
+          const { data: vPago } = await supabase
+            .from('pagos_reportados')
+            .select('detalles')
+            .eq('id', det.pago_vinculado)
+            .maybeSingle();
+          if (vPago) {
+            const vUrls = extraerArchivosComprobante(vPago);
+            vUrls.forEach(u => {
+              if (!urls.some(existing => existing.url === u.url)) urls.push(u);
+            });
           }
         } catch { /* ignorar */ }
       }
@@ -1495,7 +1513,7 @@ export default function ConciliacionPage() {
       return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(d);
     })(),
     hasta: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()),
-    estatus: 'Por Verificar', bancoDestino: 'Todos', formaPago: 'Todos', referencia: '', monto: '', modulo: 'Todos',
+    estatus: 'Todos', bancoDestino: 'Todos', formaPago: 'Todos', referencia: '', monto: '', modulo: 'Todos',
   });
   const [pagoSel, setPagoSel] = useState<Pago | null>(null);
   const [mode, setMode] = useState<'conciliar'|'comprobante'|'edoCuenta'|null>(null);
@@ -1503,16 +1521,16 @@ export default function ConciliacionPage() {
   const fetchPagos = useCallback(async () => {
     setLoading(true);
     try {
-      // Cuando se buscan pagos Por Verificar, NO aplicar filtro de fecha (mostrar todos)
-      // El filtro de fecha solo se aplica si el estatus es 'Todos', 'Aprobado', etc.
+      const tieneTermino = Boolean(filtros.referencia && filtros.referencia.trim());
       const soloVerificacion = filtros.estatus === 'Por Verificar';
       const armar = () => {
         let q = supabase.from('pagos_reportados').select('*').order('created_at', { ascending: false }).limit(500);
-        if (!soloVerificacion && filtros.desde) q = q.gte('created_at', filtros.desde + 'T04:00:00.000Z');
-        if (!soloVerificacion && filtros.hasta) { const d = new Date(filtros.hasta + 'T04:00:00Z'); d.setDate(d.getDate()+1); q = q.lte('created_at', d.toISOString()); }
-        if (filtros.estatus !== 'Todos') q = q.eq('estado', filtros.estatus);
+        // Si hay búsqueda por término o se busca 'Por Verificar', no limitar por fecha
+        if (!tieneTermino && !soloVerificacion && filtros.desde) q = q.gte('created_at', filtros.desde + 'T04:00:00.000Z');
+        if (!tieneTermino && !soloVerificacion && filtros.hasta) { const d = new Date(filtros.hasta + 'T04:00:00Z'); d.setDate(d.getDate()+1); q = q.lte('created_at', d.toISOString()); }
+        if (!tieneTermino && filtros.estatus !== 'Todos') q = q.eq('estado', filtros.estatus);
         if (filtros.formaPago !== 'Todos') q = q.eq('tipo', filtros.formaPago);
-        if (filtros.referencia && filtros.referencia.trim()) {
+        if (tieneTermino) {
           const term = filtros.referencia.trim();
           const rifsMatching = Array.from(condos.values())
             .filter((c: any) => (c.nombre || '').toLowerCase().includes(term.toLowerCase()) || 
@@ -1553,6 +1571,61 @@ export default function ConciliacionPage() {
         result = data || [];
       }
       result = result.filter((p: any) => pasaFiltroModulo(p, filtros.modulo, condos));
+
+      // Cargar también retenciones de la tabla retenciones_iva para que salgan en la lista principal
+      if (filtros.modulo === 'Todos' || filtros.modulo === 'Contribuyentes') {
+        try {
+          let rq = supabase.from('retenciones_iva').select('*').order('created_at', { ascending: false }).limit(200);
+          if (!tieneTermino && !soloVerificacion && filtros.desde) rq = rq.gte('created_at', filtros.desde + 'T04:00:00.000Z');
+          if (!tieneTermino && filtros.estatus !== 'Todos') {
+            const stMap: Record<string, string> = { 'Por Verificar': 'Pendiente', 'Aprobado': 'Aprobado', 'Rechazado': 'Rechazado', 'Pendiente': 'Pendiente' };
+            if (stMap[filtros.estatus]) rq = rq.eq('estado', stMap[filtros.estatus]);
+          }
+          if (tieneTermino) {
+            const term = filtros.referencia.trim();
+            rq = rq.or(`identidad.ilike.%${term}%,contribuyente.ilike.%${term}%,codigo_retencion.ilike.%${term}%,numero_planilla.ilike.%${term}%`);
+          }
+          const { data: rData } = await rq;
+          if (rData && rData.length > 0) {
+            const idsExistentes = new Set(result.map((p: any) => p.id));
+            const refsExistentes = new Set(result.map((p: any) => (p.referencia || '').toUpperCase()));
+            rData.forEach((r: any) => {
+              const refPlanilla = r.codigo_retencion || r.numero_planilla || 'RET';
+              if (!idsExistentes.has(r.id) && !refsExistentes.has(refPlanilla.toUpperCase())) {
+                result.push({
+                  id: r.id,
+                  created_at: r.created_at,
+                  identidad: r.identidad,
+                  contribuyente: r.contribuyente,
+                  monto: r.monto_retenido,
+                  banco: 'Retención SENIAT (75%)',
+                  referencia: refPlanilla,
+                  tipo: 'Retencion de IVA',
+                  estado: r.estado === 'Pendiente' ? 'Por Verificar' : r.estado,
+                  modulo: 'contribuyentes',
+                  grupo_pago: null,
+                  detalles: {
+                    montoTotal: r.monto_retenido,
+                    monto_factura: r.monto_base,
+                    monto_retencion_iva: r.monto_retenido,
+                    comprobante_url: r.planilla_url,
+                    comprobante_nombre: r.numero_planilla,
+                    es_retencion: true,
+                    contribuyente: r.contribuyente,
+                    retencion_db_id: r.id,
+                    isRetencionPlanilla: true,
+                    periodo: r.periodo
+                  }
+                });
+              }
+            });
+            result.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
+          }
+        } catch (e) {
+          console.error('Error cargando retenciones_iva en conciliacion:', e);
+        }
+      }
+
       if (filtros.referencia && filtros.referencia.trim()) {
         const t = filtros.referencia.trim().toLowerCase();
         result = result.filter((p: any) => {
@@ -1631,9 +1704,15 @@ export default function ConciliacionPage() {
         </td>
         <td className="px-3 py-2 text-xs font-mono text-slate-600">{pago.referencia || '---'}</td>
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtFecha(pago.created_at)}</td>
-        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{det.fecha_transaccion || (pago.fecha_transaccion||'').split('T')[0] || '---'}</td>
-        <td className="px-3 py-2 text-xs text-slate-600">{pago.tipo || '---'}</td>
-        <td className="px-3 py-2 text-xs text-slate-600">{pago.banco || '---'}</td>
+        <td className="px-3 py-2 text-xs text-slate-600">
+          {pago.tipo === 'Retencion de IVA' ? (
+            <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-2 py-0.5 rounded border border-purple-200 inline-block">
+              Retención IVA
+            </span>
+          ) : (
+            pago.tipo || '---'
+          )}
+        </td>
         <td className="px-3 py-2 text-xs text-slate-600">{pago.banco_destino || det.banco_destino || 'BANESCO - 0134 - 8636'}</td>
         <td className={'px-3 py-2 text-xs '+estatusCls(pago.estado||'')}>{pago.estado || '---'}</td>
         <td className="px-3 py-2 text-sm font-bold text-right text-slate-800">

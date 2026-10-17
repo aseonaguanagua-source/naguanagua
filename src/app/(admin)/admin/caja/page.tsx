@@ -11,7 +11,7 @@ import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { ModalComprobante } from '@/components/caja/ModalComprobante';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isCondominioPagoIndividual, isMesExoneradoMulta } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isCondominioPagoIndividual, isMesExoneradoMulta, cleanClasificacionActividad } from '@/lib/calculos';
 import { getUserInmuebles, getCajeroId, isSameLocal, clusterInmueblesByLocal, getShortAddress } from '@/lib/cajaHelpers';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
 import { useCajaCalculations } from './hooks/useCajaCalculations';
@@ -2875,10 +2875,19 @@ export default function CajaPage() {
               const children = userInmsClean.filter((i: any) => i.condominio_padre_id === pCode || i.padre_id === pCode);
               const maxChildMonths = Math.max(0, ...children.map((c: any) => parseInt(String(c.meses_deuda || 0))));
               if (maxChildMonths === 0 || selectedRecibos.includes('RECIB-DEUDA')) {
-                await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', parentInm.id);
+                await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0, saldo_favor_bs: 0 }).eq('id', parentInm.id);
               } else {
                 await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths }).eq('id', parentInm.id);
               }
+            }
+          }
+
+          // Si todos los inmuebles del contribuyente quedaron solventes, actualizar facturas pendientes históricas
+          if (foundUser?.Identidad) {
+            const { data: currentInms } = await supabase.from('inmuebles').select('meses_deuda, deuda_mmv').eq('identidad', foundUser.Identidad).neq('estado', 'Eliminado');
+            const todoSolvente = (currentInms || []).every((i: any) => parseInt(String(i.meses_deuda || 0)) === 0 && parseFloat(String(i.deuda_mmv || 0)) <= 0.0001);
+            if (todoSolvente) {
+              await supabase.from('facturas').update({ estado: 'Pagado', fecha_pago: new Date().toISOString().split('T')[0] }).eq('identidad', foundUser.Identidad).in('estado', ['Pendiente', 'Por Verificar']);
             }
           }
         }
@@ -4501,7 +4510,7 @@ export default function CajaPage() {
                                           className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
                                         />
                                         <span className="font-bold text-slate-700">
-                                          {isResCluster ? `Unidad ${actIdx + 1}:` : `Actividad ${actIdx + 1}:`} {inm.actividad_principal || (isResCluster ? 'Apartamento' : 'Comercial')}
+                                          {isResCluster ? `Unidad ${actIdx + 1}:` : `Actividad ${actIdx + 1}:`} {cleanClasificacionActividad(inm.actividad_principal) || (isResCluster ? 'Apartamento' : 'Comercial')}
                                         </span>
                                         <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1 py-0.2 rounded">
                                           Cód: {inm.inmueble}
@@ -5305,30 +5314,30 @@ export default function CajaPage() {
                         let dir = '';
                         if (r.inmueble) {
                           const match = userInms.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === String(r.inmueble).trim().toUpperCase());
-                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
+                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = cleanClasificacionActividad(String(match.actividad_principal || '')); dir = String(match.direccion || ''); }
                           else inmId = String(r.inmueble);
                         } else if (r.referencia?.startsWith('RECIB-HIST-')) {
                           const mHist = r.referencia.match(/^RECIB-HIST-(.+)-M\d+$/i);
                           const cod = mHist ? mHist[1] : r.referencia.split('-')[2];
                           const match = userInms.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === String(cod || '').trim().toUpperCase());
-                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
+                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = cleanClasificacionActividad(String(match.actividad_principal || '')); dir = String(match.direccion || ''); }
                           else inmId = cod || 'Facturación General';
                         } else if (r.referencia?.startsWith('MULTA-')) {
                           const mMulta = r.referencia.match(/^MULTA-(.+?)(?:-M\d+)?$/i);
                           const cod = mMulta ? mMulta[1] : '';
                           const match = userInms.find((i: any) => String(i.inmueble || '').trim().toUpperCase() === String(cod || '').trim().toUpperCase());
-                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
+                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = cleanClasificacionActividad(String(match.actividad_principal || '')); dir = String(match.direccion || ''); }
                           else inmId = cod || 'Multas';
                         } else if (r.referencia?.startsWith('CM-')) {
                           const match = userInms.find((i: any) => i.inmueble && r.referencia.includes(i.inmueble));
-                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = String(match.actividad_principal || ''); dir = String(match.direccion || ''); }
+                          if (match) { inmId = String(match.inmueble || ''); tipo = String(match.tipo || match.clasificacion || ''); act = cleanClasificacionActividad(String(match.actividad_principal || '')); dir = String(match.direccion || ''); }
                           else inmId = 'Acumulados';
                         } else {
                           const matchedInm = userInms.find((i: any) => (i.actividad_principal || '').toUpperCase() !== 'N/A') || userInms[0];
                           if (matchedInm) {
                             inmId = String(matchedInm.inmueble || 'General');
                             tipo = String(matchedInm.tipo || matchedInm.clasificacion || 'Comercial');
-                            act = String(matchedInm.actividad_principal || 'Aseo Urbano');
+                            act = cleanClasificacionActividad(String(matchedInm.actividad_principal || 'Aseo Urbano'));
                             dir = String(matchedInm.direccion || '');
                           }
                         }

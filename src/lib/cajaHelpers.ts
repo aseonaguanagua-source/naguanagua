@@ -142,9 +142,13 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
     const rawDir = (inm.direccion || '').trim();
     const padreId = (inm as any).condominio_padre_id || (inm as any).padre_id;
 
-    // Buscar si ya pertenece a un cluster existente ÚNICAMENTE por padre jerárquico explícito (N/A o condominio)
+    // Buscar si ya pertenece a un cluster existente por padre jerárquico explícito (N/A o condominio)
+    // O si este inmueble es el padre de algún inmueble que ya está en el cluster
     const matchedCluster = clusters.find((c) => {
       if (padreId && c.inms.some((i: any) => i.condominio_padre_id === padreId || i.padre_id === padreId || i.inmueble === padreId)) {
+        return true;
+      }
+      if (inm.inmueble && c.inms.some((i: any) => i.condominio_padre_id === inm.inmueble || i.padre_id === inm.inmueble)) {
         return true;
       }
       return false;
@@ -152,14 +156,19 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
 
     if (matchedCluster) {
       matchedCluster.inms.push(inm);
+      // Si este inmueble es el padre (N/A o condominio), promover su código como localId canónico
+      if (inm.inmueble && matchedCluster.inms.some((i: any) => i.padre_id === inm.inmueble || i.condominio_padre_id === inm.inmueble)) {
+        matchedCluster.localId = inm.inmueble;
+      }
       if ((!matchedCluster.direccion || matchedCluster.direccion === '0 0') && rawDir && rawDir !== '0 0') {
         matchedCluster.direccion = rawDir;
         matchedCluster.label = getShortAddress(rawDir);
       }
     } else {
-      const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (inm.inmueble || 'Local');
+      const canonicalId = padreId || inm.inmueble || `LOCAL-${clusters.length + 1}`;
+      const label = rawDir && rawDir !== '0 0' ? getShortAddress(rawDir) : (canonicalId || 'Local');
       clusters.push({
-        localId: inm.inmueble || `LOCAL-${clusters.length + 1}`,
+        localId: canonicalId,
         label,
         direccion: rawDir,
         inms: [inm],
@@ -186,4 +195,4 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
   return result;
 }
 
-export { formatPhoneNumber, isFictitiousEmail, formatMonthYear } from './formatters';
+export { formatPhoneNumber, isFictitiousEmail, formatMonthYear, formatActividad } from './formatters';
