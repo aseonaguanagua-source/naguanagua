@@ -207,11 +207,11 @@ export default function PortalLogin() {
         <div className="bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-100 overflow-hidden">
           
           {/* Header */}
-          <div className="pt-8 pb-5 px-8 text-center">
+          <div className="pt-10 pb-6 px-8 text-center">
             <div className="flex justify-center mb-3">
               <img 
-                src="/logos/IAMEC.png" 
-                alt="IAMEC" 
+                src="/logos/logo_global_rec.png" 
+                alt="Global Rec" 
                 className="h-16 w-auto object-contain cursor-pointer relative" 
                 onDoubleClick={handleLogoDoubleClick}
                 title="Doble clic para opciones de desarrollo"
@@ -222,11 +222,9 @@ export default function PortalLogin() {
                 </div>
               )}
             </div>
-            <h1 className="text-xl font-black text-emerald-800 tracking-tight">IAMEC</h1>
-            <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase mt-0.5">
-              Instituto Autónomo Municipal de Ecosocialismo
-            </p>
-            <p className="text-xs font-bold text-slate-700 mt-2.5 uppercase tracking-widest bg-slate-50 py-1 px-2.5 rounded-lg border border-slate-200/60 inline-block">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Global Rec</h1>
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-400 uppercase mt-0.5">Collection System</p>
+            <p className="text-sm font-bold text-slate-700 mt-3 uppercase tracking-widest">
               {isSetupMode ? 'Configurar Cuenta' : 'Soy Contribuyente'}
             </p>
           </div>

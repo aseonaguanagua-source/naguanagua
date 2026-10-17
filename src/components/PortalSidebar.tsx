@@ -164,7 +164,7 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
       </nav>
 
       {/* Footer */}
-      <div className="p-5 border-t border-slate-700/50">
+      <div className="p-4 border-t border-slate-700/50 space-y-3">
         <button
           onClick={handleLogout}
           className="flex items-center text-sm text-slate-400 hover:text-red-400 transition-colors w-full gap-3"
@@ -172,6 +172,17 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
           <LogOut className="w-4 h-4" />
           Cerrar Sesión
         </button>
+
+        <div className="pt-3 border-t border-slate-800/80 flex flex-col items-center justify-center text-center">
+          <img
+            src="/logos/logo_global_rec.png"
+            alt="Global Rec"
+            className="h-8 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
+          />
+          <span className="text-[9px] font-semibold tracking-wider text-slate-500 uppercase mt-1">
+            Global Rec · Collection System
+          </span>
+        </div>
       </div>
     </>
   );
