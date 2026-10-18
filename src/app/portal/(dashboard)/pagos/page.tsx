@@ -170,7 +170,10 @@ export default function DondePagarPage() {
         // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas y meses históricos.
         // Las unidades de condominio se cobran por Caja Condominios (igual que en Caja).
         const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: dbFacturas || [], identidad: portalDoc });
-        const validInms = allInms.filter(i => !isTerrenoInm(i) && (i.estado || 'Activo').toLowerCase() !== 'eliminado' && (i.estado || 'Activo').toLowerCase() !== 'inactivo');
+        const seenMap = new Map();
+        rc.billables.forEach(b => seenMap.set(b.inmueble, b));
+        allInms.forEach(a => { if (!seenMap.has(a.inmueble)) seenMap.set(a.inmueble, a); });
+        const validInms = Array.from(seenMap.values()).filter(i => !isTerrenoInm(i) && (i.estado || 'Activo').toLowerCase() !== 'eliminado' && (i.estado || 'Activo').toLowerCase() !== 'inactivo');
         setUserInms(validInms);
 
         // Cargar nombres oficiales de los condominios asociados
@@ -267,7 +270,7 @@ export default function DondePagarPage() {
       const inm = userInms.find((i: any) => i.inmueble === c);
       if (!inm) return 0;
       const histRefs = rawRecibos.filter((x: any) => x.referencia?.startsWith(`RECIB-HIST-${c}-M`));
-      const d = calcularDeudaInmueble(inm, currentRate, histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm) })));
+      const d = calcularDeudaInmueble(inm, currentRate, histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm, histRefs.length) })));
       return porMesConRetencion(d)[histRefs.findIndex((x: any) => x.referencia === r.referencia)]?.retencion || 0;
     }
     if (r.referencia?.startsWith('CM-')) return r2(desgloseReciboCM(r, userInms, currentRate).ivaRetenible * 0.75);
@@ -285,7 +288,7 @@ export default function DondePagarPage() {
       if (inm) {
         // Cálculo único de Caja (retención 75% del IVA solo para agentes de retención)
         const histRefs = rawRecibos.filter((x: any) => x.referencia?.startsWith(`RECIB-HIST-${parts[2]}-M`));
-        const meses = histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm) }));
+        const meses = histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm, histRefs.length) }));
         const d = calcularDeudaInmueble(inm, currentRate, meses);
         const idx = histRefs.findIndex((x: any) => x.referencia === r.referencia);
         const pm = porMesConRetencion(d)[idx];

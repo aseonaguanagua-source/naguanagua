@@ -184,10 +184,10 @@ export function mesesHistoricos(inm: any, hoy: Date = new Date()): { ref: string
 }
 
 /** ¿Es último mes? para una referencia RECIB-HIST-{COD}-M{n} */
-export function esUltimoMesHist(ref: string, inm: any): boolean {
+export function esUltimoMesHist(ref: string, inm: any, totalRecibosInm?: number): boolean {
   const parts = String(ref || '').split('-');
   const mNum = parseInt(parts[parts.length - 1]?.replace('M', '') || '0');
-  const total = Math.max(1, parseInt(String(inm?.meses_deuda || '1')) || 1);
+  const total = Math.max(1, totalRecibosInm || parseInt(String(inm?.meses_deuda || '1')) || 1);
   return mNum > 0 ? mNum >= total : false;
 }
 

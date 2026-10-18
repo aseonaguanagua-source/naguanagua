@@ -1207,10 +1207,24 @@ export default function CajaPage() {
             }
 
             // Para inmuebles directos (no condominios):
-            // 1. Si tienen multa acumulada, generar recibo de multa separado
+            // 2. Generar sus meses de aseo (RECIB-HIST-)
+            const isTerreno = isTerrenoInm(inm);
+            const deudaMMV = isTerreno ? 0 : parseFloat(inm.deuda_mmv || '0');
+            const meses = isTerreno ? 0 : parseInt(inm.meses_deuda || 0);
+            
+            const recibosFormales = combined.filter((r: any) => 
+              (r.referencia || '').includes(inm.inmueble) && 
+              !r.referencia?.startsWith('RECIB-HIST-') && 
+              !r.referencia?.startsWith('MULTA-')
+            ).length;
+            
+            const numMeses = isTerreno ? 0 : Math.max(0, (meses > 0 ? meses : (deudaMMV > 0 ? 1 : 0)) - recibosFormales);
+
+            // 1. Si NO tiene meses de aseo pendientes pero sí tiene multa acumulada aislada, generar recibo MULTA-
+            // (La mora de los meses adeudados va distribuida dentro de cada RECIB-HIST-, idéntico a recibosContribuyente.ts)
             const multa = parseFloat(inm.multa_bs || '0');
             const congelada = parseFloat(inm.deuda_congelada_bs || '0');
-            if (multa > 0 || congelada > 0) {
+            if (numMeses === 0 && (multa > 0 || congelada > 0)) {
               const totalMulta = (multa + congelada).toFixed(2);
               const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
               combined.push({
@@ -1227,19 +1241,6 @@ export default function CajaPage() {
                 descripcion_periodo: `MULTA POR MORA (HASTA ${formatMonthYear(fechaMora.toISOString())})`
               });
             }
-
-            // 2. Generar sus meses de aseo (RECIB-HIST-)
-            const isTerreno = isTerrenoInm(inm);
-            const deudaMMV = isTerreno ? 0 : parseFloat(inm.deuda_mmv || '0');
-            const meses = isTerreno ? 0 : parseInt(inm.meses_deuda || 0);
-            
-            const recibosFormales = combined.filter((r: any) => 
-              (r.referencia || '').includes(inm.inmueble) && 
-              !r.referencia?.startsWith('RECIB-HIST-') && 
-              !r.referencia?.startsWith('MULTA-')
-            ).length;
-            
-            const numMeses = isTerreno ? 0 : Math.max(0, (meses > 0 ? meses : (deudaMMV > 0 ? 1 : 0)) - recibosFormales);
 
             if (numMeses > 0) {
               // Generar un recibo dummy por cada mes de mora con fecha uniforme de calendario
@@ -1505,7 +1506,7 @@ export default function CajaPage() {
         tasaActualUse = parsed;
       }
     }
-    let sb4 = 0, siva4 = 0, smulta4 = 0, sivaRetencionable4 = 0, extraSb = 0;
+    let sb4 = 0, siva4 = 0, smulta4 = 0, sivaRetencionable4 = 0, extraSb = 0, extraMulta = 0;
 
     let total = 0;
     
@@ -1622,6 +1623,9 @@ export default function CajaPage() {
             item.mesesConMora += 1;
           }
         });
+      } else if (ref.startsWith('MULTA-')) {
+        const f = recibosMap.get(ref);
+        if (f) extraMulta += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
       } else {
         const f = recibosMap.get(ref);
         if (f) extraSb += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
@@ -1697,7 +1701,7 @@ export default function CajaPage() {
 
     const sb = Math.round((sb4 + extraSb) * 100) / 100;
     const siva = Math.round(siva4 * 100) / 100;
-    const smulta = Math.round(smulta4 * 100) / 100;
+    const smulta = Math.round((smulta4 + extraMulta) * 100) / 100;
     const sivaRetencionable = Math.round(sivaRetencionable4 * 100) / 100;
 
     setSumBase(sb);
@@ -5382,8 +5386,9 @@ export default function CajaPage() {
                         let groupId = `${inmId}|${tipo}|${act}`;
                         let isVirtualMonth = false;
 
-                        // REGLA CLAVE: Las actividades económicas extras se unen a un local SOLO si tienen misma cédula/RIF Y misma dirección
-                        if (hasMultipleActivitiesInThisLocal && monthKey) {
+                        const isMultaRec = String(r.referencia || '').startsWith('MULTA-');
+                        // REGLA CLAVE: Las actividades económicas extras se unen a un local SOLO si tienen misma cédula/RIF Y misma dirección (las multas administrativas no son mensualidades)
+                        if (hasMultipleActivitiesInThisLocal && monthKey && !isMultaRec) {
                           groupId = `LOCAL-${localId}-MES-${monthKey}`;
                           isVirtualMonth = true;
                         }

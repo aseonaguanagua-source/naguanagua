@@ -209,7 +209,7 @@ export default function EstadoCuentaPage() {
     if (!inm) return null;
     const currentRate = tasaBcv > 0 ? tasaBcv : 1;
     const histRefs = misFact.filter((x: any) => x.referencia?.startsWith(`RECIB-HIST-${parts[2]}-M`));
-    const meses = histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm) }));
+    const meses = histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm, histRefs.length) }));
     const d = calcularDeudaInmueble(inm, currentRate, meses);
     const idx = histRefs.findIndex((x: any) => x.referencia === r.referencia);
     return porMesConRetencion(d)[idx] || null;
