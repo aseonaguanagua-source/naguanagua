@@ -85,6 +85,11 @@ export const getUserInmuebles = (
       const nCode = String((i as any).padre_id || '').toUpperCase();
       if (iCode === sCode || pCode === sCode || nCode === sCode) return true;
     }
+    // O si este inmueble es hijo vinculado (padre_id) de un inmueble que pertenece a este contribuyente
+    const pCode = (i as any).padre_id;
+    if (pCode && fid && source.some(p => p.inmueble === pCode && (p.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase() === fid)) {
+      return true;
+    }
     return false;
   });
 };

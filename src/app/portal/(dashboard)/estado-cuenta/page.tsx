@@ -116,15 +116,12 @@ export default function EstadoCuentaPage() {
 
           // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas pendientes y meses históricos
           const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: facturasDB || [], identidad: fullDoc });
-          // Deduplicar inmuebles para no repetir unidades con condominio_padre_id
+          // Deduplicar inmuebles para no repetir unidades
           const seenInmCodes = new Set<string>();
-          const distinctInms = [
-            ...rc.billables,
-            ...allInms.filter(i => (i.condominio_padre_id || i.es_condominio) && !isTerrenoInm(i) && !rc.naCodes.includes(i.inmueble))
-          ].filter(i => {
+          const distinctInms = allInms.filter(i => {
             if (!i.inmueble || seenInmCodes.has(i.inmueble)) return false;
             seenInmCodes.add(i.inmueble);
-            return true;
+            return !isTerrenoInm(i);
           });
           setMisInmueblesDb(distinctInms);
           setMisNaCodes(rc.naCodes);
@@ -190,7 +187,13 @@ export default function EstadoCuentaPage() {
       if (est === 'eliminado' || est === 'inactivo' || est === 'desactivado') return false;
       const id = (inm.identidad || '').replace(/-/g, '').toUpperCase();
       const idFmt2 = id.charAt(0) + '-' + id.slice(1);
-      return portalDoc && (id === docNorm || idFmt2 === docFmt || id === portalDoc.toUpperCase() || id === soloNum);
+      const isDirect = portalDoc && (id === docNorm || idFmt2 === docFmt || id === portalDoc.toUpperCase() || id === soloNum);
+      const isLinked = inm.padre_id && inmuebles.some((p: any) => {
+        if (p.inmueble !== inm.padre_id) return false;
+        const pId = (p.identidad || '').replace(/-/g, '').toUpperCase();
+        return pId === docNorm || pId === portalDoc.toUpperCase() || pId === soloNum;
+      });
+      return isDirect || isLinked;
     });
   }, [misInmueblesDb, inmuebles, portalDoc]);
 
