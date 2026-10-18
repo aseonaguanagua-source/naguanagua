@@ -117,10 +117,17 @@ export default function EstadoCuentaPage() {
 
           // FUENTE ÚNICA (idéntica a Caja y Cobro Móvil): inmuebles cobrables, facturas pendientes y meses históricos
           const rc = construirRecibosContribuyente({ inmuebles: allInms, facturas: facturasDB || [], identidad: fullDoc });
-          setMisInmueblesDb([
+          // Deduplicar inmuebles para no repetir unidades con condominio_padre_id
+          const seenInmCodes = new Set<string>();
+          const distinctInms = [
             ...rc.billables,
             ...allInms.filter(i => (i.condominio_padre_id || i.es_condominio) && !isTerrenoInm(i) && !rc.naCodes.includes(i.inmueble))
-          ]);
+          ].filter(i => {
+            if (!i.inmueble || seenInmCodes.has(i.inmueble)) return false;
+            seenInmCodes.add(i.inmueble);
+            return true;
+          });
+          setMisInmueblesDb(distinctInms);
           setMisNaCodes(rc.naCodes);
           const combined: any[] = [
             ...(facturasDB || []).filter((f: any) => !ESTADOS_RECIBO_PENDIENTE.includes(f.estado)),
@@ -315,26 +322,6 @@ export default function EstadoCuentaPage() {
     .sort((a,b) => (b.emision || '').localeCompare(a.emision || ''))
     .slice(0, 10);
 
-  // Calculos
-  const totalMensual = misInmuebles.reduce((acc: number, inm: any) => {
-    const factor = parseFloat(inm.mmv_mes) || 0;
-    const cant = parseInt(inm.cant_inmuebles) || 1;
-    return acc + factor * cant * tasaBcv;
-  }, 0);
-
-  const totalPendBs = pendientes.reduce((acc: number, f: any) => {
-    const m = parseFloat(getReciboMonto(f)) || 0;
-    return acc + m;
-  }, 0);
-
-  const cuotasVencidas = cuotasData.filter(c => c.vencida);
-  const totalCuotas = cuotasVencidas.reduce((a, c) => a + c.monto, 0);
-
-  const serviciosPendientes = serviciosEsp.filter(s => s.estado !== 'Pagado');
-  const totalServiciosBs = serviciosPendientes.reduce((a: number, s: any) => a + (parseFloat(s.monto) || 0), 0);
-
-  const deudaTotalEstimada = totalPendBs + totalCuotas + totalServiciosBs;
-
   const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
   const mesLabel = (d?: string | Date | null) => {
     if (!d) return '—';
@@ -359,6 +346,102 @@ export default function EstadoCuentaPage() {
     if (!isNaN(dt.getTime())) return `${MESES[dt.getMonth()]} ${dt.getFullYear()}`;
     return str;
   };
+
+  // Agrupar los recibos pendientes por Local (Cluster / N/A) y por Período/Mes (idéntico a Caja)
+  const allRecibosGrupos = useMemo(() => {
+    const groupsMap = new Map<string, {
+      key: string;
+      localId: string;
+      cluster?: InmuebleClusterGroup;
+      periodo: string;
+      emisionDate: string;
+      vencimiento: string;
+      isMulta: boolean;
+      totalBs: number;
+      isEnVerificacion: boolean;
+      items: Array<{
+        recibo: any;
+        inmueble: any;
+        monto: number;
+        inmuDesc: string;
+        referencia: string;
+        vencimiento: string;
+      }>;
+    }>();
+
+    const sortedPendientes = [...pendientes].sort((a: any, b: any) => 
+      new Date(a.emision || 0).getTime() - new Date(b.emision || 0).getTime()
+    );
+
+    for (const f of sortedPendientes) {
+      const matchedInm = misInmuebles.find((inm: any) => inm.inmueble && f.referencia?.includes(inm.inmueble));
+      const parentCluster = clusters.find(c =>
+        c.localId === f.inmueble ||
+        c.inms.some(inm => inm.inmueble && f.referencia?.includes(inm.inmueble)) ||
+        (f.referencia && f.referencia.includes(c.localId))
+      );
+
+      const localId = parentCluster?.localId || matchedInm?.inmueble || f.inmueble || 'LOCAL';
+      const esMulta = String(f.referencia || '').startsWith('MULTA-');
+      const periodoKey = esMulta ? 'MULTA' : (f.emision ? f.emision.substring(0, 7) : 'MES');
+      const groupKey = `${localId}__${periodoKey}`;
+
+      const montoNum = parseFloat(getReciboMonto(f)) || 0;
+      const inmuDesc = matchedInm
+        ? cleanClasificacionActividad(matchedInm.actividad_principal || matchedInm.clasificacion || '')
+        : '';
+
+      if (!groupsMap.has(groupKey)) {
+        const etiquetaPeriodo = esMulta
+          ? `Multa Municipal (${localId})`
+          : mesLabel(f.emision);
+
+        groupsMap.set(groupKey, {
+          key: groupKey,
+          localId,
+          cluster: parentCluster,
+          periodo: etiquetaPeriodo,
+          emisionDate: f.emision || '',
+          vencimiento: f.vencimiento || 'N/A',
+          isMulta: esMulta,
+          totalBs: 0,
+          isEnVerificacion: true,
+          items: [],
+        });
+      }
+
+      const group = groupsMap.get(groupKey)!;
+      group.totalBs += montoNum;
+      if (montoNum > 0 || f.estado === 'Abonado' || f.estado === 'Pagado') {
+        group.isEnVerificacion = false;
+      }
+      group.items.push({
+        recibo: f,
+        inmueble: matchedInm,
+        monto: montoNum,
+        inmuDesc,
+        referencia: f.referencia,
+        vencimiento: f.vencimiento,
+      });
+    }
+
+    return Array.from(groupsMap.values());
+  }, [pendientes, misInmuebles, clusters]);
+
+  // Cálculos consolidados y canónicos por local (coincidente con Caja)
+  const totalMensual = clusters.reduce((acc: number, c: any) => {
+    return acc + (c.totalMmv * tasaBcv);
+  }, 0);
+
+  const totalPendBs = allRecibosGrupos.reduce((acc: number, g: any) => acc + g.totalBs, 0);
+
+  const cuotasVencidas = cuotasData.filter(c => c.vencida);
+  const totalCuotas = cuotasVencidas.reduce((a, c) => a + c.monto, 0);
+
+  const serviciosPendientes = serviciosEsp.filter(s => s.estado !== 'Pagado');
+  const totalServiciosBs = serviciosPendientes.reduce((a: number, s: any) => a + (parseFloat(s.monto) || 0), 0);
+
+  const deudaTotalEstimada = totalPendBs + totalCuotas + totalServiciosBs;
 
 
   const handleDownloadPDF = (targetLocalId?: string) => {
@@ -731,12 +814,13 @@ export default function EstadoCuentaPage() {
           <div className="text-lg font-bold text-slate-800">Bs. {formatBs(totalMensual)}</div>
           <div className="text-[10px] text-slate-400 mt-1">tasa: {tasaBcv.toFixed(2)}</div>
         </div>
-        <div className={"rounded-xl border p-4 text-center shadow-sm " + (pendientes.length > 0 ? "bg-red-50 border-red-200" : "bg-emerald-50 border-emerald-200")}>
-          <div className={"text-[10px] font-bold uppercase mb-1 " + (pendientes.length > 0 ? "text-red-400" : "text-emerald-400")}>Recibos Pend.</div>
-          <div className={"text-lg font-bold " + (pendientes.length > 0 ? "text-red-700" : "text-emerald-700")}>{pendientes.length}</div>
-          <div className={"text-[10px] mt-1 " + (pendientes.length > 0 ? "text-red-500" : "text-emerald-500")}>
-            {pendientes.length > 0 ? "Bs. " + formatBs(totalPendBs) : "Al día ✓"}
+        <div className={"rounded-xl border p-4 text-center shadow-sm " + (allRecibosGrupos.length > 0 ? "bg-red-50 border-red-200" : "bg-emerald-50 border-emerald-200")}>
+          <div className={"text-[10px] font-bold uppercase mb-1 " + (allRecibosGrupos.length > 0 ? "text-red-500" : "text-emerald-500")}>Recibos Pend.</div>
+          <div className={"text-lg font-bold " + (allRecibosGrupos.length > 0 ? "text-red-700" : "text-emerald-700")}>{allRecibosGrupos.length}</div>
+          <div className={"text-[10px] mt-1 font-semibold " + (allRecibosGrupos.length > 0 ? "text-red-600" : "text-emerald-600")}>
+            {allRecibosGrupos.length > 0 ? "Bs. " + formatBs(totalPendBs) : "Al día ✓"}
           </div>
+          <div className="text-[9px] text-slate-400 font-medium mt-0.5">recibos por local</div>
         </div>
         <div className={"rounded-xl border p-4 text-center shadow-sm " + (cuotasVencidas.length > 0 ? "bg-orange-50 border-orange-200" : "bg-white border-slate-200")}>
           <div className={"text-[10px] font-bold uppercase mb-1 " + (cuotasVencidas.length > 0 ? "text-orange-400" : "text-slate-400")}>Cuotas Conv.</div>
@@ -1034,114 +1118,17 @@ export default function EstadoCuentaPage() {
         </div>
       )}
 
-      {/* Recibos Pendientes */}
-      {pendientes.length > 0 && (() => {
-        const targetPendientes = selectedLocal === 'TODOS'
-          ? pendientes
-          : (() => {
-              const currentCluster = clusters.find(c => c.localId === selectedLocal);
-              if (!currentCluster) return pendientes;
-              const clusterCodes = new Set([
-                currentCluster.localId,
-                ...currentCluster.inms.map(i => i.inmueble).filter(Boolean),
-                ...currentCluster.inms.map((i: any) => i.cod_cont).filter(Boolean)
-              ]);
-              return pendientes.filter((f: any) => {
-                if (!f.referencia) return true;
-                if (f.referencia.startsWith('RECIB-HIST-')) {
-                  const parts = f.referencia.split('-');
-                  return clusterCodes.has(parts[2]);
-                }
-                if (f.referencia.startsWith('CM-')) {
-                  return Array.from(clusterCodes).some(code => f.referencia.includes(code));
-                }
-                if (f.inmueble) return clusterCodes.has(f.inmueble);
-                return false;
-              });
-            })();
+      {/* Recibos Pendientes por Local */}
+      {allRecibosGrupos.length > 0 && (() => {
+        const targetGrupos = selectedLocal === 'TODOS'
+          ? allRecibosGrupos
+          : allRecibosGrupos.filter(g => g.localId === selectedLocal);
 
-        const currentPendBs = targetPendientes.reduce((acc: number, f: any) => acc + (parseFloat(getReciboMonto(f)) || 0), 0);
-        const ivaTot = targetPendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
-        const retTot = targetPendientes.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
-
-        // Agrupar los recibos pendientes por Local (Cluster / N/A) y por Período/Mes
-        const groupsMap = new Map<string, {
-          key: string;
-          localId: string;
-          cluster?: InmuebleClusterGroup;
-          periodo: string;
-          emisionDate: string;
-          vencimiento: string;
-          isMulta: boolean;
-          totalBs: number;
-          isEnVerificacion: boolean;
-          items: Array<{
-            recibo: any;
-            inmueble: any;
-            monto: number;
-            inmuDesc: string;
-            referencia: string;
-            vencimiento: string;
-          }>;
-        }>();
-
-        const sortedPendientes = [...targetPendientes].sort((a: any, b: any) => 
-          new Date(a.emision || 0).getTime() - new Date(b.emision || 0).getTime()
-        );
-
-        for (const f of sortedPendientes) {
-          const matchedInm = misInmuebles.find((inm: any) => inm.inmueble && f.referencia?.includes(inm.inmueble));
-          const parentCluster = clusters.find(c =>
-            c.localId === f.inmueble ||
-            c.inms.some(inm => inm.inmueble && f.referencia?.includes(inm.inmueble)) ||
-            (f.referencia && f.referencia.includes(c.localId))
-          );
-
-          const localId = parentCluster?.localId || matchedInm?.inmueble || f.inmueble || 'LOCAL';
-          const esMulta = String(f.referencia || '').startsWith('MULTA-');
-          const periodoKey = esMulta ? 'MULTA' : (f.emision ? f.emision.substring(0, 7) : 'MES');
-          const groupKey = `${localId}__${periodoKey}`;
-
-          const montoNum = parseFloat(getReciboMonto(f)) || 0;
-          const inmuDesc = matchedInm
-            ? cleanClasificacionActividad(matchedInm.actividad_principal || matchedInm.clasificacion || '')
-            : '';
-
-          if (!groupsMap.has(groupKey)) {
-            const etiquetaPeriodo = esMulta
-              ? `Multa Municipal (${localId})`
-              : mesLabel(f.emision);
-
-            groupsMap.set(groupKey, {
-              key: groupKey,
-              localId,
-              cluster: parentCluster,
-              periodo: etiquetaPeriodo,
-              emisionDate: f.emision || '',
-              vencimiento: f.vencimiento || 'N/A',
-              isMulta: esMulta,
-              totalBs: 0,
-              isEnVerificacion: true,
-              items: [],
-            });
-          }
-
-          const group = groupsMap.get(groupKey)!;
-          group.totalBs += montoNum;
-          if (montoNum > 0 || f.estado === 'Abonado' || f.estado === 'Pagado') {
-            group.isEnVerificacion = false;
-          }
-          group.items.push({
-            recibo: f,
-            inmueble: matchedInm,
-            monto: montoNum,
-            inmuDesc,
-            referencia: f.referencia,
-            vencimiento: f.vencimiento,
-          });
-        }
-
-        const recibosGrupos = Array.from(groupsMap.values());
+        const currentPendBs = targetGrupos.reduce((acc: number, g: any) => acc + g.totalBs, 0);
+        const targetItems = targetGrupos.flatMap(g => g.items.map(it => it.recibo));
+        const ivaTot = targetItems.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
+        const retTot = targetItems.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
+        const recibosGrupos = targetGrupos;
 
         return (
           <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
