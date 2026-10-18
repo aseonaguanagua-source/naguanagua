@@ -13,7 +13,6 @@ import { groupInmueblesByLocal, InmuebleClusterGroup } from '@/lib/cajaHelpers';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
-import { exportToExcelWithLogos } from '@/lib/excelExport';
 
 const TIPO_ICON: Record<string, any> = {
   especial: Wrench, extraordinario: FlaskConical, inspeccion: ClipboardCheck, visto_bueno: ShieldCheck
@@ -862,35 +861,6 @@ export default function EstadoCuentaPage() {
             <h2 className="font-bold text-slate-700 uppercase text-sm tracking-wide">
               Mis Inmuebles Registrados ({clusters.length} {clusters.length === 1 ? 'Inmueble / Local' : 'Inmuebles / Locales'})
             </h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => {
-                const rows: any[] = [];
-                clusters.forEach((cluster) => {
-                  cluster.inms.forEach((inm) => {
-                    const factor = parseFloat(String(inm.mmv_mes || 0)) || 0;
-                    const cant = parseInt(String(inm.cant_inmuebles || 1), 10) || 1;
-                    const cuotaBs = factor * cant * tasaBcv;
-                    const actClean = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano';
-                    rows.push({
-                      'Local / Inmueble': cluster.localId,
-                      'Código Actividad': inm.inmueble || (inm as any).cod_cont || '-',
-                      'Tipo': cluster.tipo,
-                      'Actividad / Uso': actClean,
-                      'Dirección': cluster.direccion || 'Sin dirección',
-                      'Factor (MMV)': factor.toFixed(2),
-                      'Cant': cant,
-                      'Cuota Mensual (Bs)': formatBs(cuotaBs)
-                    });
-                  });
-                });
-                exportToExcelWithLogos(rows, `Desglose_Inmuebles_${portalDoc}.xlsx`, 'Desglose Inmuebles');
-              }}
-              className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" /> Descargar Desglose Excel
-            </button>
           </div>
         </div>
 
