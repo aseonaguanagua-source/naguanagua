@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { Building2, Search, MapPin, Store, AlertCircle, CheckCircle2, ChevronRight, Layers } from 'lucide-react';
+import { Building2, Search, MapPin, Store, AlertCircle, CheckCircle2, ChevronRight, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
@@ -12,6 +12,11 @@ export default function InmueblesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterUso, setFilterUso] = useState('Todos');
+  const [expandedClusters, setExpandedClusters] = useState<Record<string, boolean>>({});
+
+  const toggleCluster = (localId: string) => {
+    setExpandedClusters(prev => ({ ...prev, [localId]: !prev[localId] }));
+  };
 
   useEffect(() => {
     const fetchInmuebles = async () => {
@@ -184,6 +189,7 @@ export default function InmueblesPage() {
         ) : (
           filteredClusters.map((cluster) => {
             const hasMultiple = cluster.count > 1;
+            const isExpanded = expandedClusters[cluster.localId] ?? false;
 
             return (
               <div key={cluster.localId} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:border-slate-300 transition-all">
@@ -201,14 +207,24 @@ export default function InmueblesPage() {
                       {cluster.tipo === 'RESIDENCIAL' ? 'Residencial' : 'Comercial'}
                     </span>
                     {hasMultiple && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                        <Layers className="w-3 h-3" />
-                        {cluster.count} Actividades Consolidadas
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleCluster(cluster.localId)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-200 transition-colors cursor-pointer"
+                        title={isExpanded ? 'Ocultar actividades' : 'Ver actividades'}
+                      >
+                        <Layers className="w-3 h-3 text-purple-600" />
+                        <span>{cluster.count} Actividades Consolidadas</span>
+                        {isExpanded ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-purple-700" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-purple-700" />
+                        )}
+                      </button>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <span className="text-xs text-slate-500 font-medium">
                       Tarifa Local: <b>{cluster.totalMmv.toFixed(2)} MMV</b>
                     </span>
@@ -227,6 +243,22 @@ export default function InmueblesPage() {
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Al Día
                       </span>
+                    )}
+
+                    {hasMultiple && (
+                      <button
+                        type="button"
+                        onClick={() => toggleCluster(cluster.localId)}
+                        className="flex items-center gap-1 text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold py-1 px-2.5 rounded-lg transition-colors cursor-pointer"
+                        title={isExpanded ? 'Ocultar actividades' : 'Desplegar actividades'}
+                      >
+                        <span>{isExpanded ? 'Ocultar' : 'Ver'} ({cluster.count})</span>
+                        {isExpanded ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-purple-700" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-purple-700" />
+                        )}
+                      </button>
                     )}
                   </div>
                 </div>
@@ -249,54 +281,85 @@ export default function InmueblesPage() {
                   <span>{cluster.direccion || 'Sin dirección registrada'}</span>
                 </div>
 
-                {/* Tabla de Actividades de este Inmueble */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-white text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-100">
-                        <th className="px-4 py-2.5 font-bold">Código Actividad</th>
-                        <th className="px-4 py-2.5 font-bold">Actividad Económica / Ramo</th>
-                        <th className="px-4 py-2.5 font-bold text-center">Factor MMV</th>
-                        <th className="px-4 py-2.5 font-bold text-center">Unidades</th>
-                        <th className="px-4 py-2.5 font-bold text-center">Estatus</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {cluster.inms.map((inm) => {
-                        const cant = parseInt(String(inm.cant_inmuebles || '1'), 10) || 1;
-                        const mmv = parseFloat(String(inm.mmv_mes || '0')) || 0;
+                {/* Contenido: Si tiene múltiples actividades y está colapsado, mostrar barra interactiva */}
+                {hasMultiple && !isExpanded ? (
+                  <div
+                    onClick={() => toggleCluster(cluster.localId)}
+                    className="px-4 py-3 bg-slate-50/60 hover:bg-purple-50/60 cursor-pointer flex items-center justify-between transition-colors group"
+                  >
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <Layers className="w-4 h-4 text-purple-600 shrink-0" />
+                      <span>
+                        Este local consolida <b>{cluster.count} actividades comerciales</b> ({cluster.totalMmv.toFixed(2)} MMV total). Haga clic para ver el desglose individual.
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-purple-700 group-hover:text-purple-900 flex items-center gap-1 shrink-0 ml-2">
+                      <span>Desplegar actividades ({cluster.count})</span>
+                      <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5" />
+                    </span>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-white text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-100">
+                          <th className="px-4 py-2.5 font-bold">Código Actividad</th>
+                          <th className="px-4 py-2.5 font-bold">Actividad Económica / Ramo</th>
+                          <th className="px-4 py-2.5 font-bold text-center">Factor MMV</th>
+                          <th className="px-4 py-2.5 font-bold text-center">Unidades</th>
+                          <th className="px-4 py-2.5 font-bold text-center">Estatus</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {cluster.inms.map((inm) => {
+                          const cant = parseInt(String(inm.cant_inmuebles || '1'), 10) || 1;
+                          const mmv = parseFloat(String(inm.mmv_mes || '0')) || 0;
 
-                        return (
-                          <tr key={inm.id || inm.inmueble} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="px-4 py-3 font-mono font-bold text-slate-700">
-                              {inm.inmueble}
-                            </td>
-                            <td className="px-4 py-3 font-medium text-slate-800">
-                              {cleanClasificacionActividad(inm.actividad_principal) || 'Servicio de Aseo Urbano'}
-                            </td>
-                            <td className="px-4 py-3 text-center font-bold text-slate-700">
-                              {mmv.toFixed(2)}
-                            </td>
-                            <td className="px-4 py-3 text-center text-slate-500">
-                              {cant}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              {cluster.esCondominio ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                                  Cancela por Condominio
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                  Activo
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                          return (
+                            <tr key={inm.id || inm.inmueble} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="px-4 py-3 font-mono font-bold text-slate-700">
+                                {inm.inmueble}
+                              </td>
+                              <td className="px-4 py-3 font-medium text-slate-800">
+                                {cleanClasificacionActividad(inm.actividad_principal) || 'Servicio de Aseo Urbano'}
+                              </td>
+                              <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                {mmv.toFixed(2)}
+                              </td>
+                              <td className="px-4 py-3 text-center text-slate-500">
+                                {cant}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {cluster.esCondominio ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                    Cancela por Condominio
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                    Activo
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {hasMultiple && (
+                      <div className="px-4 py-2 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span>Mostrando las <b>{cluster.count}</b> actividades consolidadas de este local.</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleCluster(cluster.localId)}
+                          className="text-xs font-bold text-purple-700 hover:text-purple-900 flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>Ocultar actividades</span>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })
