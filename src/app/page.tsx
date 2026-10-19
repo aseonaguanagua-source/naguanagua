@@ -52,7 +52,7 @@ export default function Home() {
     {
       id: 'admin',
       label: 'Administrador / Sistema',
-      targetUrl: '/admin?puesto=dzara',
+      targetUrl: '/admin',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M2 3h20" />
@@ -64,7 +64,7 @@ export default function Home() {
     {
       id: 'cajero',
       label: 'Cajero',
-      targetUrl: '/admin/caja?puesto=cajero',
+      targetUrl: '/admin/caja',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect width="20" height="12" x="2" y="6" rx="2" />

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { performLogout } from '@/lib/logout';
 
 export const PUESTOS_PLANTILLA = [
-  { puesto: 'Administrador', usuario: 'dzara', defaultClave: 'dzara', rol: 'Administrador' },
+  { puesto: 'Administrador', usuario: 'admin', defaultClave: 'admin123', rol: 'Administrador' },
   { puesto: 'Cajero', usuario: 'cajero', defaultClave: 'cajero123', rol: 'Taquilla / Operador' },
   { puesto: 'Supervisor de Operaciones', usuario: 'supervisor', defaultClave: 'supervisor123', rol: 'Supervisor' },
   { puesto: 'Operador de Censo / Catastro', usuario: 'censo', defaultClave: 'censo123', rol: 'Operador de Censo' },
@@ -152,9 +152,10 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
       }
 
       // Soporte directo para credenciales maestras de administrador
-      if ((u.toLowerCase() === 'dzara' || u.toLowerCase() === 'administrador' || u.toLowerCase() === 'admin') && p === 'dzara') {
+      if ((u.toLowerCase() === 'dzara' || u.toLowerCase() === 'administrador' || u.toLowerCase() === 'admin') && (p === 'dzara' || p === 'admin123')) {
+        const uMaster = u.toLowerCase() === 'dzara' ? 'dzara' : 'admin';
         const adminData = {
-          usuario: 'dzara',
+          usuario: uMaster,
           nombre: 'Administrador',
           rol: 'Administrador',
           letra: 'DZ',
@@ -162,11 +163,11 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
         };
 
         localStorage.setItem('admin_user_data', JSON.stringify(adminData));
-        localStorage.setItem('adminUser', 'dzara');
+        localStorage.setItem('adminUser', uMaster);
         localStorage.setItem('adminLetra', 'DZ');
         localStorage.setItem('admin_auth_andministrador', 'true');
 
-        await logAudit('Inicio de Sesión Administrador (dzara)', { usuario: 'dzara' }, 'SESION', 'BAJA');
+        await logAudit(`Inicio de Sesión Administrador (${uMaster})`, { usuario: uMaster }, 'SESION', 'BAJA');
 
         setUser(adminData);
         setIsAuthenticated(true);
