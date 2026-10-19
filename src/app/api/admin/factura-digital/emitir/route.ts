@@ -983,6 +983,7 @@ export async function POST(request: Request) {
           },
           Vendedor: null,
           Comprador: {
+            RazonSocial:          razonSocialFinal,
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             Direccion:            (() => {
@@ -1215,7 +1216,7 @@ export async function POST(request: Request) {
       }
     };
 
-    const isTfhkaEnabled = process.env.TFHKA_ENABLED === 'true';
+    const isTfhkaEnabled = TheFactoryHKA.isEnabled();
 
     const { data: pagoData } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).single();
     let nuevosDetalles: any = pagoData?.detalles || {};

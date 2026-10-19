@@ -1284,14 +1284,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   // Campos reales en la tabla inmuebles: contribuyente (min), cod_cont, direccion, clasificacion, etc.
   const esCondoModal = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || !!det.es_condominio || !!det.condominio;
   const nombreContrib = esCondoModal
-    ? (det.condominio?.nombre || det.contribuyente || contribInfo?.contribuyente || '---')
+    ? (det.condominio?.nombre || contribInfo?.contribuyente || det.contribuyente || '---')
     : (contribInfo?.contribuyente || contribInfo?.Contribuyente || pago.contribuyente || '---');
   const codInmueble = esCondoModal
-    ? (det.condominio?.codigo || det.cod_inmueble || contribInfo?.inmueble || '---')
+    ? (det.condominio?.codigo || contribInfo?.inmueble || det.cod_inmueble || '---')
     : (det.cod_inmueble || pago.cod_inmueble || contribInfo?.inmueble || contribInfo?.cod_cont || contribInfo?.CodCont || '---');
   const direccion = contribInfo?.direccion || contribInfo?.Direccion || '---';
   const clasificacion = contribInfo?.clasificacion || contribInfo?.Clasificacion || '---';
-  const identidad = pago.identidad || det.condominio?.identidad || '---';
+  const identidad = (esCondoModal && (det.condominio?.identidad || contribInfo?.identidad))
+    ? (det.condominio?.identidad || contribInfo?.identidad)
+    : (pago.identidad || '---');
   const telefono = contribInfo?.telefono || '---';
   const correo = contribInfo?.correo_electronico || contribInfo?.correo || '---';
   const actividadPrincipal = esCondoModal
@@ -1840,15 +1842,40 @@ export default function ConciliacionPage() {
       </tr>,
       <tr key={'d'+idx} className="hover:bg-blue-50/30 transition-colors border-b border-slate-100">
         <td className="px-3 py-2 text-xs font-mono text-slate-700">
-                    {(() => {
+          {(() => {
+            const esCondo = Boolean(condo || det.modulo === 'condominios' || det.es_condominio || det.condominio);
+            const condoNom = det.condominio?.nombre || condo?.nombre;
+            const condoRif = det.condominio?.identidad || (condo as any)?.identidad;
             const idKey = (pago.identidad || '').replace(/-/g, '').toUpperCase();
-            const nombre = pago.contribuyente || det.contribuyente || nombresPorId.get(idKey) || '---';
-            return <div className="font-bold font-sans text-[11px] truncate max-w-[150px]" title={nombre}>{nombre}</div>;
+            const nombreNormal = pago.contribuyente || det.contribuyente || nombresPorId.get(idKey) || '---';
+            const nombrePrincipal = esCondo && condoNom ? condoNom : nombreNormal;
+            const subInfo = esCondo && condoNom && (pago.contribuyente || det.contribuyente) && (pago.contribuyente !== condoNom && det.contribuyente !== condoNom)
+              ? (pago.contribuyente || det.contribuyente)
+              : null;
+            return (
+              <div>
+                <div className="font-bold font-sans text-[11px] truncate max-w-[170px]" title={nombrePrincipal}>{nombrePrincipal}</div>
+                {subInfo && <div className="text-[10px] text-slate-600 truncate max-w-[170px]" title={`Local: ${subInfo}`}>Local: {subInfo}</div>}
+                <div className="text-[10px] text-slate-500">{esCondo && condoRif ? condoRif : pago.identidad}</div>
+              </div>
+            );
           })()}
-          <div className="text-[10px] text-slate-500">{pago.identidad}</div>
         </td>
         <td className="px-3 py-2 text-xs text-slate-600">
-          {det.cod_inmueble || pago.cod_inmueble || (condo?.lineas?.length ? condo.lineas.slice(0, 3).map(l => l.inmueble).filter(Boolean).join(', ') + (condo.lineas.length > 3 ? ` +${condo.lineas.length - 3}` : '') : condo?.codigo) || '---'}
+          {(() => {
+            const esCondo = Boolean(condo || det.modulo === 'condominios' || det.es_condominio || det.condominio);
+            const condoCod = det.condominio?.codigo || condo?.codigo;
+            const lineasCod = condo?.lineas?.length ? condo.lineas.slice(0, 3).map(l => l.inmueble || l.numero).filter(Boolean).join(', ') + (condo.lineas.length > 3 ? ` +${condo.lineas.length - 3}` : '') : null;
+            if (esCondo && condoCod) {
+              return (
+                <div>
+                  <div className="font-bold text-[11px] text-slate-800">{condoCod}</div>
+                  {lineasCod && <div className="text-[10px] text-slate-500">{lineasCod}</div>}
+                </div>
+              );
+            }
+            return det.cod_inmueble || pago.cod_inmueble || (condo?.lineas?.length ? condo.lineas.slice(0, 3).map(l => l.inmueble).filter(Boolean).join(', ') + (condo.lineas.length > 3 ? ` +${condo.lineas.length - 3}` : '') : condo?.codigo) || '---';
+          })()}
         </td>
         <td className="px-3 py-2 text-xs font-mono text-slate-600">{pago.referencia || '---'}</td>
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtFecha(pago.created_at)}</td>

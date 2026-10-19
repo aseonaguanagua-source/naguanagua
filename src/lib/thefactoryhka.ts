@@ -15,23 +15,16 @@ export interface TFHKAConfig {
 
 export class TheFactoryHKA {
   public static isDemoMode(): boolean {
+    if (process.env.TFHKA_FORCE_PRODUCTION === 'true') return false;
     if (process.env.TFHKA_FORCE_DEMO === 'true') return true;
+    if (process.env.TFHKA_DEMO === 'true') return true;
+
+    // Si existen credenciales explícitas configuradas en TFHKA_USER, siempre es PRODUCCIÓN
+    if (process.env.TFHKA_USER && process.env.TFHKA_USER.trim().length > 0) {
+      return false;
+    }
+
     if (process.env.NEXT_PUBLIC_APP_ENV === 'test' || process.env.NEXT_PUBLIC_APP_ENV === 'demo') return true;
-    if (process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development') return true;
-    
-    // Check Vercel URL
-    const vUrl = process.env.VERCEL_URL || '';
-    if (vUrl && !vUrl.includes('globalgreenrec.com') && (vUrl.includes('vercel.app') || vUrl.includes('preview'))) {
-      return true;
-    }
-
-    if (typeof window !== 'undefined') {
-      const h = window.location.hostname;
-      if (h.includes('vercel.app') || h.includes('localhost') || h.includes('127.0.0.1')) {
-        if (!h.includes('naguanagua.globalgreenrec.com')) return true;
-      }
-    }
-
     return false;
   }
 

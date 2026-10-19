@@ -208,35 +208,46 @@ export async function pagoDeRetencion(retencionId: string): Promise<any | null> 
     const { data: byDoc } = await supabase
       .from('pagos_reportados')
       .select('id, identidad, monto, detalles')
-      .filter('detalles->factura_digital->>numero_documento', 'eq', docNum)
-      .limit(1);
-    if (byDoc?.[0]) return byDoc[0];
+      .or(`detalles.ilike.%${docNum}%`)
+      .limit(5);
+    const foundDoc = (byDoc || []).find((p: any) => {
+      const d = parseDet(p.detalles);
+      return String(d.factura_digital?.numero_documento || d.factura_digital?.tfhka_seq || '').includes(docNum);
+    }) || byDoc?.[0];
+    if (foundDoc) return foundDoc;
   }
 
   // Buscar por número de control de factura si está presente
   if (retRow.factura_control) {
+    const ctrlClean = retRow.factura_control.trim();
     const { data: byCtrl } = await supabase
       .from('pagos_reportados')
       .select('id, identidad, monto, detalles')
-      .filter('detalles->factura_digital->>numero_control', 'eq', retRow.factura_control)
-      .limit(1);
-    if (byCtrl?.[0]) return byCtrl[0];
+      .or(`detalles.ilike.%${ctrlClean}%`)
+      .limit(5);
+    const foundCtrl = (byCtrl || []).find((p: any) => {
+      const d = parseDet(p.detalles);
+      return d.factura_digital?.numero_control === ctrlClean;
+    }) || byCtrl?.[0];
+    if (foundCtrl) return foundCtrl;
   }
 
-  // Fallback 2: Buscar pagos emitidos con retención para esta identidad
+  // Fallback 2: Buscar pagos emitidos con retención para esta identidad (con y sin guion)
   if (retRow.identidad) {
+    const idLimpio = retRow.identidad.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const idConGuion = idLimpio.length > 1 ? `${idLimpio[0]}-${idLimpio.slice(1)}` : idLimpio;
     const { data: byIdent } = await supabase
       .from('pagos_reportados')
       .select('id, identidad, monto, detalles')
-      .eq('identidad', retRow.identidad)
+      .or(`identidad.eq.${retRow.identidad},identidad.eq.${idLimpio},identidad.eq.${idConGuion}`)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(25);
 
     const matchIdent = (byIdent || []).find((p: any) => {
       const d = parseDet(p.detalles);
       if (!d.factura_digital?.emitida) return false;
       if (d.factura_digital?.retencion) return true;
-      if (parseFloat(String(d.monto_retencion_iva || 0)) > 0) return true;
+      if (parseFloat(String(d.monto_retencion_iva || d.retencion_iva || 0)) > 0) return true;
       return false;
     });
 

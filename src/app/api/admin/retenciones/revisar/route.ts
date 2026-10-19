@@ -265,24 +265,34 @@ export async function POST(request: Request) {
     }
 
     // ── ACCIÓN: APROBAR (CON O SIN PLANILLA) Y ENVIAR FACTURA ──
-    if (!pago || !fd.emitida || !fd.url) {
+    const finalFacturaUrl = fd.url || ret?.factura_url;
+    const finalFacturaControl = fd.numero_control || ret?.factura_control;
+    const finalFacturaDoc = fd.numero_documento || (ret?.codigo_retencion ? ret.codigo_retencion.replace(/^FAC-/i, '') : '');
+    const isFacturaEmitida = Boolean(fd.emitida || ret?.factura_emitida || (finalFacturaUrl && finalFacturaControl));
+
+    if (!isFacturaEmitida || !finalFacturaUrl) {
       return NextResponse.json({ error: 'No se encontró la factura emitida de este comprobante. Emítala primero en Facturación Electrónica.' }, { status: 409 });
     }
+
+    const finalIdentidad = pago?.identidad || ret?.identidad;
+    const finalContribuyente = ret?.contribuyente || det.contribuyente || finalIdentidad || 'Contribuyente';
+    const finalMonto = parseFloat(String(fd.retencion?.total || (ret?.monto_base ? (Number(ret.monto_base || 0) + Number(ret.monto_iva || 0)) : pago?.monto || 0)));
+    const finalCorreo = correo || (finalIdentidad ? await correoContribuyente(finalIdentidad, det) : null);
 
     // Si no existía registro en retenciones_iva (ej. aprobado sin planilla antes de que el usuario la subiera)
     if (!ret) {
       const { data: inmLink } = await supabase
         .from('inmuebles')
         .select('inmueble, contribuyente')
-        .eq('identidad', pago.identidad)
+        .eq('identidad', finalIdentidad)
         .limit(1)
         .maybeSingle();
 
       const { data: ins, error: eIns } = await supabase
         .from('retenciones_iva')
         .insert({
-          identidad: pago.identidad,
-          contribuyente: det.contribuyente || inmLink?.contribuyente || pago.identidad,
+          identidad: finalIdentidad,
+          contribuyente: finalContribuyente || inmLink?.contribuyente || finalIdentidad,
           codigo_inmueble: inmLink?.inmueble || null,
           numero_planilla: sinPlanilla ? 'S/P (Aprobado de Oficio)' : 'APROBADO',
           periodo,
@@ -290,13 +300,13 @@ export async function POST(request: Request) {
           monto_base: retObj.base || 0,
           monto_iva: retObj.iva || 0,
           monto_retenido: retObj.retenido || 0,
-          codigo_retencion: `FAC-${fd.numero_documento || ''}`,
+          codigo_retencion: `FAC-${finalFacturaDoc || ''}`,
           planilla_url: null,
           estado: 'Aprobado',
           aprobado_at: ahora,
           aprobado_por: quien,
-          factura_url: fd.url,
-          factura_control: fd.numero_control,
+          factura_url: finalFacturaUrl,
+          factura_control: finalFacturaControl,
           factura_emitida: true,
         })
         .select('id')
@@ -314,8 +324,8 @@ export async function POST(request: Request) {
           motivo_rechazo: null,
           aprobado_at: ahora,
           aprobado_por: quien,
-          factura_url: fd.url,
-          factura_control: fd.numero_control,
+          factura_url: finalFacturaUrl,
+          factura_control: finalFacturaControl,
           factura_emitida: true
         })
         .eq('id', ret.id);
@@ -325,34 +335,40 @@ export async function POST(request: Request) {
     let errorEnvio: string | undefined;
     try {
       envio = await enviarFacturaConCopiaInterna({
-        contribuyente: ret?.contribuyente || det.contribuyente || pago.identidad,
-        identidad: pago.identidad,
-        numeroControl: fd.numero_control,
-        numeroDocumento: fd.numero_documento,
-        monto: parseFloat(String(fd.retencion?.total || pago.monto || 0)),
-        fecha: fd.fecha_emision,
-        urlPdf: fd.url,
-        correoContribuyente: correo || undefined,
-        esCorreoComodin: !correo,
+        contribuyente: finalContribuyente,
+        identidad: finalIdentidad,
+        numeroControl: finalFacturaControl,
+        numeroDocumento: finalFacturaDoc,
+        monto: finalMonto,
+        fecha: fd.fecha_emision || ret?.fecha_planilla || ahora,
+        urlPdf: finalFacturaUrl,
+        correoContribuyente: finalCorreo || undefined,
+        esCorreoComodin: !finalCorreo,
       });
     } catch (e: any) {
       errorEnvio = e.message;
     }
 
-    fd.retencion = {
-      ...(fd.retencion || {}),
-      estado: 'aprobada',
-      revisado_at: ahora,
-      revisado_por: quien,
-      retencion_id: actualRetId || fd.retencion?.retencion_id,
-      motivo_rechazo: undefined,
-      aprobado_sin_planilla: !!sinPlanilla,
-      factura_enviada_at: correo && !errorEnvio ? ahora : undefined,
-      factura_enviada_a: correo || undefined,
-    };
-    fd.envio_correo = envio || fd.envio_correo;
-    det.factura_digital = fd;
-    await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);
+    if (pago) {
+      fd.emitida = true;
+      fd.url = finalFacturaUrl;
+      fd.numero_control = finalFacturaControl;
+      fd.numero_documento = finalFacturaDoc;
+      fd.envio_correo = envio || fd.envio_correo;
+      fd.retencion = {
+        ...(fd.retencion || {}),
+        estado: 'aprobada',
+        revisado_at: ahora,
+        revisado_por: quien,
+        retencion_id: actualRetId || fd.retencion?.retencion_id,
+        motivo_rechazo: undefined,
+        aprobado_sin_planilla: !!sinPlanilla,
+        factura_enviada_at: finalCorreo && !errorEnvio ? ahora : undefined,
+        factura_enviada_a: finalCorreo || undefined,
+      };
+      det.factura_digital = fd;
+      det.retencion_aprobada = true;
+    }
 
     const descAuditoria = sinPlanilla
       ? 'Comprobante de retención aprobado sin planilla por operador - factura enviada'
@@ -363,7 +379,7 @@ export async function POST(request: Request) {
       accion: descAuditoria,
       categoria: 'FACTURACION',
       modulo: '/admin/facturacion-electronica',
-      detalles: { retencion_id: actualRetId, pago_id: pago.id, factura: fd.numero_documento, sinPlanilla: !!sinPlanilla, correo, error_envio: errorEnvio }
+      detalles: { retencion_id: actualRetId, pago_id: pago?.id || null, factura: finalFacturaDoc, sinPlanilla: !!sinPlanilla, correo: finalCorreo, error_envio: errorEnvio }
     });
 
     return NextResponse.json({

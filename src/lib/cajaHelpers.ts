@@ -290,7 +290,13 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
     const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A' ||
                  (inm.actividad_principal || '').toLowerCase().includes('padre en sigyr');
 
+    const inmIsRes = isResidencialInm(inm);
+
     const matchedCluster = clusters.find((c) => {
+      // Un inmueble residencial NUNCA se agrupa con uno comercial
+      const cIsRes = c.inms.some(i => isResidencialInm(i));
+      if (inmIsRes !== cIsRes) return false;
+
       // 1. Si este inm tiene un contenedor padre (padre_id), asociar al cluster que tenga a ese padre o a sus hermanos
       if (localPadreId && c.inms.some((i: any) => i.inmueble === localPadreId || i.padre_id === localPadreId)) {
         return true;

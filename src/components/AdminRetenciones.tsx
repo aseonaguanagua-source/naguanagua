@@ -217,7 +217,7 @@ export default function AdminRetenciones() {
       const res = await fetch('/api/admin/retenciones/revisar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ retencionId: selected.id, pagoId: selected.id, accion, motivo: motivo.trim(), usuario }),
+        body: JSON.stringify({ retencionId: selected.id, pagoId: (selected as any).pago_id || selected.id, accion, motivo: motivo.trim(), usuario }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Error');

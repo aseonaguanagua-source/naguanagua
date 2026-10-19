@@ -527,9 +527,10 @@ export default function EstadoCuentaPage() {
         }
 
         // EXACTO COMO EN CAJA Y ADMIN: Redondeo a 2 decimales en Base, luego IVA al 16% sobre la Base redondeada, y mora
+        const inmEsRes = isResidencialInm(inm);
         const rawBMes = calcularMensualidad(inm, tasaValida);
         const bMes = Math.round(rawBMes * 100) / 100;
-        const iMes = esRes ? 0 : Math.round((bMes * 0.16) * 100) / 100;
+        const iMes = (esRes || inmEsRes) ? 0 : Math.round((bMes * 0.16) * 100) / 100;
         const mBase = parseInt(String(inm.meses_deuda || 0), 10) || 0;
         const mDeuda = mBase > 0 ? mBase
           : ((parseFloat(String(inm.deuda_mmv || 0)) || 0) > 0 || (parseFloat(String(inm.deuda_congelada_bs || 0)) || 0) > 0 ? 1 : 0);
@@ -545,7 +546,7 @@ export default function EstadoCuentaPage() {
 
         if (!esCasoSinMulta && mDeuda > 1) {
           const mesesConMultaInm = Math.max(0, mDeuda - 1 - totalExoneradosInm);
-          const tasaMora = esRes ? 0.10 : 0.12;
+          const tasaMora = (esRes || inmEsRes) ? 0.10 : 0.12;
           const multaMes = Math.round((bMes * tasaMora) * 100) / 100;
           multaTotal = Math.round((multaMes * mesesConMultaInm) * 100) / 100;
         }
@@ -584,7 +585,8 @@ export default function EstadoCuentaPage() {
       // Agente de retención: retiene el 75% del IVA de sus inmuebles comerciales y cancela el resto.
       const ivaRetenidoLocal = esRes ? 0 : Math.round(clusterInmBreakdown.reduce((s: number, b: any) => {
         const inmB = cluster.inms.find((i: any) => i.inmueble === b.inmueble);
-        return s + ((inmB?.agente_retencion === true || String(inmB?.agente_retencion) === 'true') ? b.ivaTotal * 0.75 : 0);
+        const bEsRes = inmB ? isResidencialInm(inmB) : false;
+        return s + (!bEsRes && (inmB?.agente_retencion === true || String(inmB?.agente_retencion) === 'true') ? b.ivaTotal * 0.75 : 0);
       }, 0) * 100) / 100;
       const esAgenteLocal = ivaRetenidoLocal > 0;
       const totalCancelarLocal = Math.round((totalPagarLocal - ivaRetenidoLocal) * 100) / 100;

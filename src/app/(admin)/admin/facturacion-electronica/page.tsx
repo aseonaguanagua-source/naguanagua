@@ -2170,7 +2170,7 @@ export default function FacturacionElectronicaPage() {
                   className="px-3.5 py-2 border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Ver Demo con Cambios</span>
+                  <span>Vista Previa con Cambios</span>
                 </button>
               </div>
               <button
