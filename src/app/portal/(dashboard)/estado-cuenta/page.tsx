@@ -5,7 +5,8 @@ import { Download, FileText, Building, Building2, MapPin, Store, Layers, Filter,
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
-import { getFAR, isResidencialInm, isTerrenoInm, calcularMensualidad, cleanClasificacionActividad, isCondominioPagoIndividual } from '@/lib/calculos';
+import { getFAR, isResidencialInm, isTerrenoInm, calcularMensualidad, cleanClasificacionActividad, isCondominioPagoIndividual, isExoneradoTotalMultas, getMesesExoneradosCount, isMesExoneradoMulta } from '@/lib/calculos';
+import { valorUCD } from '@/lib/tasaHistorica';
 import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist, reglaCobroInmueble } from '@/lib/deudaMensual';
 import { construirRecibosContribuyente, desgloseReciboCM, ESTADOS_RECIBO_PENDIENTE } from '@/lib/recibosContribuyente';
 import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
@@ -452,277 +453,507 @@ export default function EstadoCuentaPage() {
     const myContribuyente = contribuyentes?.find((c: any) => (c.Identidad || '').replace(/-/g, '').toUpperCase() === docNorm);
 
     const viewData = {
-      Contribuyente: contribuyenteMaster?.nombre || misInmuebles[0]?.contribuyente || myContribuyente?.Contribuyente || localStorage.getItem('portal_user') || '',
+      Contribuyente: contribuyenteMaster?.nombre || misInmuebles[0]?.contribuyente || myContribuyente?.Contribuyente || (typeof window !== 'undefined' ? localStorage.getItem('portal_user') : '') || 'Contribuyente',
       Identidad: portalDoc,
       Telefono: contribuyenteMaster?.telefono || misInmuebles[0]?.telefono || myContribuyente?.Telefono || '',
-      Direccion: contribuyenteMaster?.direccion || misInmuebles[0]?.direccion || myContribuyente?.Direccion || ''
+      Direccion: contribuyenteMaster?.direccion || misInmuebles[0]?.direccion || myContribuyente?.Direccion || 'Naguanagua, Edo. Carabobo'
     };
 
-    // Determinar qué locales procesar: si se especifica uno (o selectedLocal !== 'TODOS'), solo ese local
     const target = targetLocalId || selectedLocal;
-    const clustersToProcess = (target && target !== 'TODOS')
+    const clustersToRender = (target && target !== 'TODOS')
       ? clusters.filter(c => c.localId === target)
       : clusters;
 
-    if (clustersToProcess.length === 0) return;
+    if (clustersToRender.length === 0) return;
 
-    const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
-    let pageAdded = false;
+    const stripNivel = (str: string): string => {
+      if (!str) return '';
+      return cleanClasificacionActividad(str);
+    };
 
-    clustersToProcess.forEach((cluster, idx) => {
-      if (pageAdded) doc.addPage();
-      pageAdded = true;
-      const today = new Date();
-      const tasaVigente = today.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const MESES_ABR = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+    const formatPeriodo = (fecha: string | Date | undefined): string => {
+      if (!fecha) return 'N/A';
+      const d = typeof fecha === 'string' ? new Date(fecha) : fecha;
+      if (!isNaN(d.getTime())) {
+        return `${MESES_ABR[d.getMonth()]}-${d.getFullYear()}`;
+      }
+      const parts = String(fecha).split('-');
+      if (parts.length >= 2) {
+        const m = parseInt(parts[1], 10);
+        return `${MESES_ABR[m - 1] || parts[1]}-${parts[0]}`;
+      }
+      return String(fecha);
+    };
+
+    const today = new Date();
+    const tasaVigente = today.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const tasaValida = tasaBcv > 0 ? tasaBcv : 1;
+    const cajero = typeof window !== 'undefined' ? (localStorage.getItem('portal_user') || viewData.Contribuyente) : viewData.Contribuyente;
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    let pageCount = 0;
+
+    for (let clusterIdx = 0; clusterIdx < clustersToRender.length; clusterIdx++) {
+      const cluster = clustersToRender[clusterIdx];
+      const esRes = cluster.tipo === 'RESIDENCIAL';
+      const isMultiActivity = cluster.count > 1 || (cluster.inms && cluster.inms.length > 1);
+
+      // Desglose y cálculo individual por cada inmueble / actividad económica del cluster
+      let subtotalBaseLocal = 0;
+      let subtotalIvaLocal = 0;
+      let subtotalMultasLocal = 0;
+      let maxMesesCluster = 0;
+
+      const hasChildInms = cluster.inms.some((i: any) => i.padre_id === cluster.localId || cluster.inms.some((p: any) => p.inmueble !== i.inmueble && i.padre_id === p.inmueble));
+      const effectiveInms = hasChildInms
+        ? cluster.inms.filter((i: any) => i.inmueble !== cluster.localId && !cluster.inms.some((h: any) => h.padre_id === i.inmueble))
+        : cluster.inms;
+
+      const clusterInmBreakdown = (effectiveInms.length > 0 ? effectiveInms : cluster.inms).map((inm: any) => {
+        if (isTerrenoInm(inm)) {
+          return {
+            inmueble: inm.inmueble,
+            actividad: stripNivel(inm.actividad_principal || 'Terreno'),
+            meses: 0,
+            bMes: 0,
+            iMes: 0,
+            baseTotal: 0,
+            ivaTotal: 0,
+            multaTotal: 0,
+            total: 0,
+            esCasoSinMulta: true
+          };
+        }
+
+        // EXACTO COMO EN CAJA Y ADMIN: Redondeo a 2 decimales en Base, luego IVA al 16% sobre la Base redondeada, y mora
+        const rawBMes = calcularMensualidad(inm, tasaValida);
+        const bMes = Math.round(rawBMes * 100) / 100;
+        const iMes = esRes ? 0 : Math.round((bMes * 0.16) * 100) / 100;
+        const mBase = parseInt(String(inm.meses_deuda || 0), 10) || 0;
+        const mDeuda = mBase > 0 ? mBase
+          : ((parseFloat(String(inm.deuda_mmv || 0)) || 0) > 0 || (parseFloat(String(inm.deuda_congelada_bs || 0)) || 0) > 0 ? 1 : 0);
+        if (mDeuda > maxMesesCluster) maxMesesCluster = mDeuda;
+
+        const esExoneradoTotal = isExoneradoTotalMultas(inm.notas);
+        const totalExoneradosInm = getMesesExoneradosCount(inm.notas);
+        const esCasoSinMulta = (inm.inmueble === 'URB014954') || esExoneradoTotal;
+
+        const baseTotal = Math.round((bMes * mDeuda) * 100) / 100;
+        const ivaTotal = Math.round((iMes * mDeuda) * 100) / 100;
+        let multaTotal = 0;
+
+        if (!esCasoSinMulta && mDeuda > 1) {
+          const mesesConMultaInm = Math.max(0, mDeuda - 1 - totalExoneradosInm);
+          const tasaMora = esRes ? 0.10 : 0.12;
+          const multaMes = Math.round((bMes * tasaMora) * 100) / 100;
+          multaTotal = Math.round((multaMes * mesesConMultaInm) * 100) / 100;
+        }
+
+        subtotalBaseLocal += baseTotal;
+        subtotalIvaLocal += ivaTotal;
+        subtotalMultasLocal += multaTotal;
+
+        return {
+          inmueble: inm.inmueble,
+          actividad: stripNivel(inm.actividad_principal || 'Actividad Comercial'),
+          meses: mDeuda,
+          bMes,
+          iMes,
+          baseTotal,
+          ivaTotal,
+          multaTotal,
+          total: Math.round((baseTotal + ivaTotal + multaTotal) * 100) / 100,
+          esCasoSinMulta
+        };
+      });
+
+      const numMesesTotal = maxMesesCluster;
+      const baseMensualLocal = Math.round(clusterInmBreakdown.reduce((sum: number, b: any) => sum + b.bMes, 0) * 100) / 100;
+      const ivaMensualLocal = Math.round(clusterInmBreakdown.reduce((sum: number, b: any) => sum + b.iMes, 0) * 100) / 100;
+      const totalMensualLocal = Math.round((baseMensualLocal + ivaMensualLocal) * 100) / 100;
+      const totalServiciosBs = (clusterIdx === 0)
+        ? serviciosEsp.filter((s: any) => s.estado !== 'Pagado').reduce((a: number, s: any) => a + (parseFloat(s.monto) || 0), 0)
+        : 0;
+
+      subtotalBaseLocal = Math.round(subtotalBaseLocal * 100) / 100;
+      subtotalIvaLocal = Math.round(subtotalIvaLocal * 100) / 100;
+      subtotalMultasLocal = Math.round(subtotalMultasLocal * 100) / 100;
+
+      const totalPagarLocal = Math.round((subtotalBaseLocal + subtotalIvaLocal + subtotalMultasLocal + totalServiciosBs) * 100) / 100;
+      // Agente de retención: retiene el 75% del IVA de sus inmuebles comerciales y cancela el resto.
+      const ivaRetenidoLocal = esRes ? 0 : Math.round(clusterInmBreakdown.reduce((s: number, b: any) => {
+        const inmB = cluster.inms.find((i: any) => i.inmueble === b.inmueble);
+        return s + ((inmB?.agente_retencion === true || String(inmB?.agente_retencion) === 'true') ? b.ivaTotal * 0.75 : 0);
+      }, 0) * 100) / 100;
+      const esAgenteLocal = ivaRetenidoLocal > 0;
+      const totalCancelarLocal = Math.round((totalPagarLocal - ivaRetenidoLocal) * 100) / 100;
+
+      // Determinar fechas de período
+      let periodoDesde = 'N/A';
+      let periodoHasta = 'N/A';
+      if (numMesesTotal > 0) {
+        const dIni = new Date(today.getFullYear(), today.getMonth() - numMesesTotal, 1);
+        const dFin = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        periodoDesde = formatPeriodo(dIni);
+        periodoHasta = formatPeriodo(dFin);
+      }
+
+      if (pageCount > 0) doc.addPage();
+      pageCount++;
+
       const docNro = Math.floor(10000 + Math.random() * 90000);
 
-      // ── LOGOS ──
-      try { doc.addImage(logos.iamec, 'PNG', 14, 10, 38, 20, undefined, 'FAST'); } catch(e) {}
+      // ── LOGO IAMEC Naguanagua (lado izquierdo) ──
+      try { doc.addImage(logos.iamec, 'PNG', 14, 8, 42, 22); } catch(e) {}
 
-      // ── TITLE ──
-      doc.setFontSize(20);
+      // ── TÍTULO ──
+      doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('ESTADO DE CUENTA', 105, 17, { align: 'center' });
-      doc.setFontSize(9);
+      doc.text('ESTADO DE CUENTA', 105, 15, { align: 'center' });
+
+      doc.setFontSize(8.5);
+      if (isMultiActivity) {
+        doc.setTextColor(30, 64, 175);
+        doc.text('LOCAL UNIFICADO — MÚLTIPLES ACTIVIDADES ECONÓMICAS', 105, 20, { align: 'center' });
+      } else if (esRes) {
+        doc.setTextColor(5, 150, 105);
+        doc.text('EXENTO DE IVA', 105, 20, { align: 'center' });
+      }
+
+      doc.setFontSize(8);
       doc.setTextColor(220, 38, 38);
-      doc.text(`TASA VIGENTE HASTA: ${tasaVigente}`, 105, 24, { align: 'center' });
+      doc.text(`TASA VIGENTE HASTA: ${tasaVigente}`, 105, 25, { align: 'center' });
       doc.setTextColor(0, 0, 0);
 
-      // ── HORIZONTAL LINE ──
+      // ── METADATA & LÍNEA ──
       doc.setLineWidth(0.3);
-      doc.line(14, 32, 196, 32);
-
-      // ── GENERATED BY + NUMBER ──
-      const cajeroGuardado = typeof window !== 'undefined' ? localStorage.getItem('portal_user') || viewData.Contribuyente : viewData.Contribuyente;
-      doc.setFontSize(9);
+      doc.line(14, 28, 196, 28);
+      doc.setFontSize(7.5);
       doc.setFont('helvetica', 'italic');
-      doc.text(`Generado por: ${cajeroGuardado}`, 14, 38);
+      doc.text(`Generado por: ${cajero}`, 14, 32);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Nro.: ${docNro}`, 196, 38, { align: 'right' });
+      doc.text(`Página ${clusterIdx + 1} de ${clustersToRender.length}   |   Nro.: ${docNro}`, 196, 32, { align: 'right' });
+      doc.line(14, 34, 196, 34);
 
-      // ── LINE ──
-      doc.line(14, 41, 196, 41);
-
-      // ── INMUEBLE INFO ROW ──
-      const uso = cluster.count > 1
-        ? `${cluster.count} Actividades Consolidadas (${cluster.tipo})`
-        : (cleanClasificacionActividad(cluster.inms[0]?.actividad_principal || cluster.inms[0]?.clasificacion || '') || 'Servicio de Aseo Urbano');
-      const codInm = cluster.localId;
-      const area = (cluster.parentInm?.area || cluster.inms[0]?.area) ? `${cluster.parentInm?.area || cluster.inms[0]?.area} Mt2` : '—';
-
-      doc.setFontSize(9);
+      // ── DATOS DEL CONTRIBUYENTE Y LOCAL ──
+      let y = 39;
+      doc.setFontSize(8.5);
       doc.setFont('helvetica', 'normal');
-      doc.text('Código:', 14, 47);
+      doc.text('Contribuyente:', 14, y);
       doc.setFont('helvetica', 'bold');
-      doc.text(codInm, 30, 47);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Actividad:', 60, 47);
-      doc.setFont('helvetica', 'bold');
-      doc.text(uso.slice(0, 24), 76, 47);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Área Operativa:', 115, 47);
-      doc.setFont('helvetica', 'bold');
-      doc.text(area, 142, 47);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Identidad:', 162, 47);
-      doc.setFont('helvetica', 'bold');
-      doc.text(viewData.Identidad, 179, 47);
+      doc.text(String(viewData.Contribuyente || '').slice(0, 48), 38, y);
 
-      // ── NOMBRE/RAZÓN SOCIAL ──
       doc.setFont('helvetica', 'normal');
-      doc.text('Nombre o Razón Social:', 14, 54);
+      doc.text('R.I.F. / C.I.:', 145, y);
       doc.setFont('helvetica', 'bold');
-      doc.text(viewData.Contribuyente, 60, 54);
+      doc.text(viewData.Identidad || '', 165, y);
+      y += 5;
 
-      // ── DIRECCIÓN INMUEBLE ──
+      if (isMultiActivity) {
+        const codigoPrincipal = cluster.localId || 'Principal';
+        doc.setFont('helvetica', 'normal');
+        doc.text('Código Inmueble:', 14, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(codigoPrincipal, 42, y);
+
+        doc.setFont('helvetica', 'normal');
+        doc.text('Actividades:', 145, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${cluster.count} Actividades`, 165, y);
+        y += 5;
+      } else {
+        const inmSingle = cluster.inms[0];
+        doc.setFont('helvetica', 'normal');
+        doc.text('Código Inmueble:', 14, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(inmSingle?.inmueble || cluster.localId || 'Principal', 40, y);
+
+        const actLabel = cleanClasificacionActividad(inmSingle?.actividad_principal || inmSingle?.clasificacion || '') || 'Servicio de Aseo Urbano';
+        doc.setFont('helvetica', 'normal');
+        doc.text('Actividad / Inmueble:', 95, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(actLabel).slice(0, 36), 130, y);
+        y += 5;
+      }
+
+      const dirStr = cluster.direccion || viewData.Direccion || 'Naguanagua, Edo. Carabobo';
+      const splitDir = doc.splitTextToSize(`Dirección Local/Inmueble: ${dirStr}`, 182);
       doc.setFont('helvetica', 'normal');
-      const dirInm = cluster.direccion || viewData.Direccion || '';
-      const splitDir = doc.splitTextToSize(`Dirección Inmueble: ${dirInm}`, 182);
-      doc.text(splitDir, 14, 60);
+      doc.text(splitDir, 14, y);
+      y += (splitDir.length * 4) + 2;
 
-      let y = 60 + splitDir.length * 5 + 5;
+      // ── DATOS DE LA DEUDA (formato oficial) ──
+      const ucdValor = valorUCD(tasaValida);
+      const fmtN = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const mesesVencidosDisplay = numMesesTotal;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Meses vencidos:', 14, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(mesesVencidosDisplay), 40, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Período:', 60, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text(mesesVencidosDisplay > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Al día', 74, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Valor del UCD (Bs):', 135, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text(fmtN(ucdValor), 196, y, { align: 'right' });
+      y += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.text('Tasa Euro BCV:', 135, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text(fmtN(tasaValida), 196, y, { align: 'right' });
+      y += 3;
 
-      // ── LINE ──
+      doc.setDrawColor(210, 210, 210);
       doc.line(14, y, 196, y);
-      y += 6;
+      doc.setDrawColor(0, 0, 0);
+      y += 4;
+
+      // ── TABLA DE ACTIVIDADES ECONÓMICAS (SI ES LOCAL CON 2 O MÁS ACTIVIDADES) ──
+      if (isMultiActivity) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(30, 64, 175);
+        doc.text('DETALLE DE ACTIVIDADES ECONÓMICAS DEL LOCAL', 105, y, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        y += 2;
+
+        const actRows = clusterInmBreakdown.map((b: any) => {
+          const inmOriginal = cluster.inms.find((i: any) => i.inmueble === b.inmueble);
+          const fo = inmOriginal?.mmv_mes ? parseFloat(String(inmOriginal.mmv_mes)) : getFAR(b.actividad);
+          return [
+            b.inmueble || '—',
+            b.actividad,
+            fo.toFixed(2),
+            `Bs. ${b.bMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${b.iMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${(b.bMes + b.iMes).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          ];
+        });
+
+        autoTable(doc, {
+          startY: y,
+          head: [['CÓDIGO', 'ACTIVIDAD ECONÓMICA', 'F.O.', 'BASE MES (Bs.)', 'IVA 16% (Bs.)', 'TOTAL MES (Bs.)']],
+          body: actRows,
+          foot: [[
+            'TOTAL MENSUAL UNIFICADO DEL LOCAL', '', '',
+            `Bs. ${baseMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${ivaMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `Bs. ${totalMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          ]],
+          theme: 'grid',
+          headStyles: {
+            fillColor: [239, 246, 255], textColor: [30, 64, 175],
+            fontStyle: 'bold', lineColor: [191, 219, 254], lineWidth: 0.2, halign: 'center', fontSize: 7.5
+          },
+          footStyles: {
+            fillColor: [241, 245, 249], textColor: [15, 23, 42],
+            fontStyle: 'bold', lineColor: [203, 213, 225], lineWidth: 0.2, fontSize: 7.5
+          },
+          styles: { fontSize: 7, cellPadding: 1.5 },
+          columnStyles: {
+            0: { cellWidth: 24, fontStyle: 'bold' },
+            1: { cellWidth: 70 },
+            2: { cellWidth: 16, halign: 'center' },
+            3: { cellWidth: 24, halign: 'right' },
+            4: { cellWidth: 24, halign: 'right' },
+            5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
+          }
+        });
+
+        y = (doc as any).lastAutoTable.finalY + 4;
+      }
 
       // ── ESTADO DE CUENTA RESUMIDO ──
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
+      doc.setFontSize(9);
       doc.text('ESTADO DE CUENTA RESUMIDO', 105, y, { align: 'center' });
       y += 2;
       doc.line(14, y, 196, y);
-      y += 6;
-
-      // Identificar códigos del cluster para recibos
-      const clusterCodes = new Set([
-        cluster.localId,
-        ...cluster.inms.map(i => i.inmueble).filter(Boolean),
-        ...cluster.inms.map((i: any) => i.cod_cont).filter(Boolean)
-      ]);
-
-      const miembroDe = (f: any) => cluster.inms.find((m: any) => m.inmueble && String(f.referencia || '').includes(m.inmueble));
-      const inmRecibos = pendientes.filter((f: any) => {
-        if (!f.referencia) return true;
-        if (f.referencia.startsWith('RECIB-HIST-')) {
-          const parts = f.referencia.split('-');
-          return clusterCodes.has(parts[2]);
-        }
-        if (f.referencia.startsWith('CM-')) {
-          return Array.from(clusterCodes).some(code => f.referencia.includes(code));
-        }
-        if (f.inmueble) {
-          return clusterCodes.has(f.inmueble);
-        }
-        return clustersToProcess.length === 1;
-      });
-
-      const calcMonto = (f: any): number => {
-        return parseFloat(getReciboMonto(f)) || 0;
-      };
-
-      const sumBaseInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).baseMes, 0);
-      const sumMultaInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).multaMes, 0);
-      const sumIvaInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).ivaMes, 0);
-      const sumRetInm = inmRecibos.reduce((s: number, f: any) => s + getReciboBreakdown(f).retencionMes, 0);
-      let totalInm = inmRecibos.reduce((s: number, f: any) => s + calcMonto(f), 0);
-      if (idx === 0) totalInm += totalServiciosBs;
-
-      const mesesArr = [...new Set(inmRecibos.map((f: any) => mesLabel(f.emision).toUpperCase()).filter(Boolean))];
-      let periodosLabel = 'Solvente / Al Día';
-      if (mesesArr.length === 1) {
-        periodosLabel = mesesArr[0];
-      } else if (mesesArr.length > 1) {
-        periodosLabel = `${mesesArr[0]} a ${mesesArr[mesesArr.length - 1]} (${mesesArr.length} meses)`;
-      }
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-
-      const resumenRows = [
-        [`Períodos Calculados:`, periodosLabel],
-        ['Monto Recolección Aseo Urbano Bs.', `Bs. ${sumBaseInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-      ];
-      if (sumMultaInm > 0) {
-        resumenRows.push(['Monto Interés / Multa por Mora Bs.', `Bs. ${sumMultaInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
-      }
-      if (idx === 0 && totalServiciosBs > 0) {
-        resumenRows.push(['Monto Servicios Especiales Bs.', `Bs. ${totalServiciosBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
-      }
-      const esRes = cluster.tipo === 'RESIDENCIAL';
-      if (esRes) {
-        resumenRows.push(['Total Exento Bs.', `Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
-      } else {
-        resumenRows.push(
-          ['Base Imponible Bs.', `Bs. ${sumBaseInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-          ['IVA (16.00%) Bs.', `Bs. ${sumIvaInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-        );
-      }
-      resumenRows.push(['Total estado de cuenta Bs.', `Bs. ${(totalInm + sumRetInm).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
-      if (sumRetInm > 0) {
-        resumenRows.push(
-          ['IVA Retenido 75% (Agente de Retención) Bs.', `- Bs. ${sumRetInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-          ['IVA a Cancelar (25%) Bs.', `Bs. ${(sumIvaInm - sumRetInm).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-        );
-      }
-
-      resumenRows.forEach(([label, value]) => {
-        doc.setFont('helvetica', 'normal');
-        doc.text(label, 14, y);
-        doc.setFont('helvetica', 'bold');
-        const valLines = doc.splitTextToSize(value, 110);
-        doc.text(valLines, 196, y, { align: 'right' });
-        y += Math.max(5, valLines.length * 4.5);
-      });
-
-      // ── LINE ──
-      doc.line(14, y, 196, y);
-      y += 6;
-
-      // ── TOTAL A PAGAR ──
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text(sumRetInm > 0 ? 'TOTAL A CANCELAR (con retención de IVA)' : 'TOTAL A PAGAR', 14, y);
-      doc.text(`Bs. ${totalInm.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, y, { align: 'right' });
-      y += 2;
-      doc.line(14, y, 196, y);
-      y += 8;
-
-      // ── ESTADO DE CUENTA DETALLADO ──
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('ESTADO DE CUENTA DETALLADO', 105, y, { align: 'center' });
       y += 4;
 
-      const detalleRows = inmRecibos.map((f: any) => {
-        const b = getReciboBreakdown(f);
-        const monto = calcMonto(f);
-        const mInm: any = miembroDe(f) || cluster.inms[0];
-        const actClean = cleanClasificacionActividad(mInm?.actividad_principal || mInm?.clasificacion || '');
-        const det = actClean ? `Aseo ${actClean}` : (cluster.count > 1 ? `Aseo ${cluster.localId}` : 'Servicio de Aseo Urbano');
-        const esMulta = String(f.referencia || '').startsWith('MULTA-');
-        const periodoDate = esMulta ? 'MULTA MUNICIPAL' : (mesLabel(f.emision) || '—');
-        return [
-          periodoDate,
-          det,
-          b.baseMes.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
-          b.multaMes.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
-          b.ivaMes.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
-          b.retencionMes > 0 ? `- ${b.retencionMes.toLocaleString('es-VE', { minimumFractionDigits: 2 })}` : '0,00',
-          monto.toLocaleString('es-VE', { minimumFractionDigits: 2 })
-        ];
-      });
+      const resumenRows: Array<[string, string]> = [
+        [`Períodos Calculados:`, isMultiActivity
+          ? clusterInmBreakdown.map((b: any) => `${b.inmueble}: ${b.meses > 0 ? `${b.meses}m` : 'Al Día'}`).join(' | ')
+          : (numMesesTotal > 0 ? `${periodoDesde} a ${periodoHasta} (${numMesesTotal} meses)` : 'Solvente / Al Día')
+        ],
+        ['Monto Recolección Aseo Urbano Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+      ];
 
-      if (idx === 0 && serviciosPendientes.length > 0) {
-        serviciosPendientes.forEach(s => {
-          const montoServicio = parseFloat(s.monto) || 0;
-          detalleRows.push([
-            mesLabel(s.fecha) || '—',
-            (TIPO_LABEL[s.tipo] || 'Serv. Especial') + ': ' + (s.descripcion || ''),
-            montoServicio.toLocaleString('es-VE', { minimumFractionDigits: 2 }),
-            '0,00', '0,00', '0,00',
-            montoServicio.toLocaleString('es-VE', { minimumFractionDigits: 2 })
-          ]);
-        });
+      if (clusterIdx === 0 && totalServiciosBs > 0) {
+        resumenRows.push(['Monto Servicios Especiales Bs.:', `Bs. ${totalServiciosBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
       }
 
-      try {
-        autoTable(doc, {
-          startY: y,
-          head: [['PERIODO', 'DETALLE', 'RECOLECCIÓN', 'MULTA', 'IVA 16%', 'IVA RETENIDO', 'A CANCELAR BS']],
-          body: detalleRows,
-          theme: 'grid',
-          headStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold', lineColor: [0,0,0], lineWidth: 0.3, halign: 'center' },
-          styles: { fontSize: 8, cellPadding: 2 },
-          columnStyles: {
-            0: { cellWidth: 32, halign: 'center' },
-            1: { cellWidth: 38 },
-            2: { halign: 'right' },
-            3: { halign: 'right' },
-            4: { halign: 'right' },
-            5: { halign: 'right' },
-            6: { halign: 'right', fontStyle: 'bold' }
-          }
-        });
-        y = (doc as any).lastAutoTable.finalY + 8;
-      } catch(e) {}
+      if (esRes) {
+        resumenRows.push(
+          ['Total Exento de IVA Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['Base Imponible Bs.:', 'Bs. 0,00'],
+          ['IVA (0.00%) Bs.:', 'Bs. 0,00'],
+          ['Multas (Último mes sin multa) Bs.:', `Bs. ${subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+        );
+      } else {
+        resumenRows.push(
+          ['Total Exento Bs.:', `Bs. ${(clusterIdx === 0 ? totalServiciosBs : 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['Base Imponible Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['IVA (16.00%) Bs.:', `Bs. ${subtotalIvaLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['Multas (Último mes sin multa) Bs.:', `Bs. ${subtotalMultasLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+        );
+      }
+
+      resumenRows.push(['Total Estado de Cuenta Bs.:', `Bs. ${totalPagarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      if (valorUCD(tasaValida) > 0) {
+        resumenRows.push(['Total Estado de Cuenta UCD:', `${(totalPagarLocal / valorUCD(tasaValida)).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} UCD`]);
+      }
+      if (esAgenteLocal) {
+        resumenRows.push(
+          ['IVA Retenido 75% (Agente de Retención) Bs.:', `- Bs. ${ivaRetenidoLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ['IVA a Cancelar (25%) Bs.:', `Bs. ${(subtotalIvaLocal - ivaRetenidoLocal).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+        );
+      }
+
+      doc.setFontSize(8);
+      resumenRows.forEach(([lbl, val]) => {
+        doc.setFont('helvetica', 'normal');
+        doc.text(lbl, 14, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(val, 196, y, { align: 'right' });
+        y += 4.5;
+      });
+
+      doc.line(14, y, 196, y);
+      y += 5;
+
+      // ── TOTAL A PAGAR HIGHLIGHT ──
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 38, 38);
+      doc.text(esAgenteLocal ? 'TOTAL A CANCELAR (con retención de IVA)' : 'TOTAL A PAGAR', 14, y);
+      doc.text(`Bs. ${totalCancelarLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 196, y, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      y += 2;
+      doc.line(14, y, 196, y);
+      y += 5;
+
+      // ── TABLA OFICIAL MES A MES ──
+      const ucdV = valorUCD(tasaValida);
+      const f2 = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const f4 = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+      const porMes = new Map<string, { fecha: Date; base: number; multa: number; iva: number; acts: { act: string; cod: string; monto: number }[] }>();
+      clusterInmBreakdown.forEach((b: any) => {
+        const inmB = cluster.inms.find((i: any) => i.inmueble === b.inmueble);
+        const exon = getMesesExoneradosCount(inmB?.notas);
+        const conMulta = b.esCasoSinMulta ? 0 : Math.max(0, b.meses - 1 - exon);
+        const tasaMora = esRes ? 0.10 : 0.12;
+        for (let k = 0; k < b.meses; k++) {
+          const fecha = new Date(today.getFullYear(), today.getMonth() - b.meses + k, 1);
+          const key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+          if (!porMes.has(key)) porMes.set(key, { fecha, base: 0, multa: 0, iva: 0, acts: [] });
+          const m = porMes.get(key)!;
+          m.base += b.bMes;
+          m.iva += b.iMes;
+          m.multa += k < conMulta ? b.bMes * tasaMora : 0;
+          m.acts.push({ act: b.actividad, cod: b.inmueble, monto: b.bMes });
+        }
+      });
+
+      const codigoProp = isMultiActivity
+        ? (cluster.inms[0]?.condominio_padre_id || cluster.inms[0]?.padre_id || cluster.localId || cluster.inms[0]?.inmueble)
+        : (cluster.inms[0]?.inmueble || cluster.localId || '');
+      const oficialRows: any[] = [];
+      const mostrarActs = isMultiActivity || cluster.inms.length > 1;
+      [...porMes.keys()].sort().forEach(key => {
+        const m = porMes.get(key)!;
+        const tot = m.base + m.multa + m.iva;
+        oficialRows.push([
+          { content: codigoProp, styles: { fontStyle: 'bold' } },
+          `${String(m.fecha.getMonth() + 1).padStart(2, '0')}/${m.fecha.getFullYear()}`,
+          f2(m.base), '-', m.multa > 0 ? f2(m.multa) : '-', esRes ? '-' : f2(m.iva), f2(tot), ucdV > 0 ? f4(tot / ucdV) : '-',
+        ]);
+        if (mostrarActs) {
+          m.acts.forEach(a => oficialRows.push([
+            { content: `   Actividad: ${a.act} [${a.cod}]  –  Monto: ${f2(a.monto)}`, colSpan: 8, styles: { fontSize: 6.3, textColor: [71, 85, 105], fontStyle: 'italic' } },
+          ]));
+        }
+      });
+
+      if (oficialRows.length === 0) {
+        oficialRows.push([{ content: 'Solvente — No posee períodos pendientes', colSpan: 8, styles: { halign: 'center' } }]);
+      }
+
+      autoTable(doc, {
+        startY: y,
+        head: [['PROPIEDAD', 'MESES', 'SERV. ASEO', 'INT. MORA SERV. ASEO', 'MULTA IMPAGO', 'IVA', 'TOTAL BS', 'UCD']],
+        body: oficialRows,
+        foot: [[
+          'TOTALES',
+          `${Math.max(maxMesesCluster, porMes.size)} mes(es)`,
+          f2(subtotalBaseLocal), '-', f2(subtotalMultasLocal), f2(subtotalIvaLocal), f2(totalPagarLocal), ucdV > 0 ? f4(totalPagarLocal / ucdV) : '-',
+        ], ...(esAgenteLocal ? [
+          ['', 'IVA RETENIDO 75%', '', '', '', `- ${f2(ivaRetenidoLocal)}`, `- ${f2(ivaRetenidoLocal)}`, ucdV > 0 ? `- ${f4(ivaRetenidoLocal / ucdV)}` : ''],
+          ['', 'TOTAL A CANCELAR', '', '', '', f2(subtotalIvaLocal - ivaRetenidoLocal), f2(totalCancelarLocal), ucdV > 0 ? f4(totalCancelarLocal / ucdV) : ''],
+        ] : [])],
+        theme: 'grid',
+        headStyles: {
+          fillColor: [248, 250, 252], textColor: [15, 23, 42],
+          fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, halign: 'center', fontSize: 7
+        },
+        footStyles: {
+          fillColor: [241, 245, 249], textColor: [15, 23, 42],
+          fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, fontSize: 7, halign: 'right'
+        },
+        styles: { fontSize: 7, cellPadding: 1.3 },
+        columnStyles: {
+          0: { cellWidth: 24 },
+          1: { cellWidth: 18, halign: 'center' },
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right' },
+          5: { halign: 'right' },
+          6: { halign: 'right', fontStyle: 'bold' },
+          7: { halign: 'right' }
+        }
+      });
+
+      y = (doc as any).lastAutoTable.finalY + 5;
 
       // ── INFORMACIÓN DE PAGO ──
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text('INFORMACIÓN PARA PAGOS Y TRANSFERENCIAS', 105, y, { align: 'center' });
-      y += 5;
-      doc.line(14, y, 196, y);
-      y += 5;
-      doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.text('1) Banco: BANCAMIGA (0172)  |  Cta: 01720110711101340717  |  Titular: IAMEC BANCAMIGA  |  RIF: G-200086149', 14, y);
-      y += 4.5;
-      doc.text('2) Banco: BANESCO (0134)    |  Cta: 01341089590001008636  |  Titular: IAMEC BANESCO    |  RIF: G-200086149', 14, y);
-      y += 5.5;
+      doc.text('INFORMACIÓN PARA PAGOS Y TRANSFERENCIAS', 105, y, { align: 'center' });
+      y += 2;
+      doc.line(14, y, 196, y);
+      y += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.text('1) Banco: BANCAMIGA (0172)  |  Cta: 01720110711101340717  |  Beneficiario: IAMEC BANCAMIGA  |  RIF: G-20008614-9', 14, y);
+      y += 3.5;
+      doc.text('2) Banco: BANESCO (0134)    |  Cta: 01341089590001008636  |  Beneficiario: IAMEC BANESCO    |  RIF: G-20008614-9', 14, y);
+      y += 4;
       doc.setFont('helvetica', 'italic');
-      doc.text('Transferencias oficiales a nombre de: Instituto Autónomo Municipal de Ecosocialismo (IAMEC)', 14, y);
-    });
+      doc.setFontSize(6.5);
+      const notaUCD = doc.splitTextToSize('UCD: Unidad de Cuenta Dinámica, equivalente a la tasa oficial del Euro publicada por el Banco Central de Venezuela multiplicada por 57 (Ordenanza de Aseo Urbano y Gestión Integral de Residuos del Municipio Naguanagua). El monto en bolívares se calcula con el valor del UCD vigente a la fecha de pago.', 182);
+      doc.text(notaUCD, 14, y);
+      y += notaUCD.length * 3 + 1;
+      doc.setFont('helvetica', 'normal');
+
+      // ── AVISO DE VIGENCIA DE TASA ──
+      doc.setLineWidth(0.2);
+      doc.setDrawColor(220, 38, 38);
+      doc.line(14, y, 196, y);
+      y += 3.5;
+      doc.setDrawColor(0, 0, 0);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setTextColor(220, 38, 38);
+      doc.text('IMPORTANTE: Los montos indicados en este estado de cuenta son válidos ÚNICAMENTE para la fecha de emisión del presente documento.', 105, y, { align: 'center' });
+      y += 3.5;
+      doc.text('La tasa de cambio oficial BCV varía periódicamente. Para cancelar en fecha posterior, solicite un nuevo estado de cuenta actualizado.', 105, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(0, 0, 0);
+    } // fin loop clusters
 
     // ── LOGOS GUBERNAMENTALES AL PIE (Lacava, Elizabeth, Naguanagua Te Quiero) ──
     const totalPages = (doc.internal as any).getNumberOfPages();
@@ -746,7 +977,7 @@ export default function EstadoCuentaPage() {
       } catch {}
     }
 
-    const fileSuffix = clustersToProcess.length === 1 ? clustersToProcess[0].localId : 'Consolidado';
+    const fileSuffix = clustersToRender.length === 1 ? clustersToRender[0].localId : 'Consolidado';
     const fileName = `Estado_Cuenta_${viewData.Identidad}_${fileSuffix}_${Date.now()}.pdf`;
     doc.save(fileName);
   };
