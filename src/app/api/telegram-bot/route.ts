@@ -436,46 +436,83 @@ export async function POST(request: Request) {
         return; // Fin del tratamiento para locales dentro de condominio
       }
 
-      // ── LOCAL FUERA DE CONDOMINIO: DESGLOSE NORMAL COMPLETO ──
-      let baseMensualBs = 0;
-      let totalMultasBs = 0;
-      let totalCongeladaBs = 0;
-      let totalSaldoFavorBs = 0;
-      let maxMeses = 0;
+      // ── LOCAL FUERA DE CONDOMINIO: DESGLOSE NORMAL EXACTO (IDÉNTICO A CAJA) ──
+      let totalLocalBaseBs = 0;
+      let totalLocalIvaBs = 0;
+      let totalLocalMoraBs = 0;
+      let totalLocalMultasAdminBs = 0;
+      let totalLocalCongeladaBs = 0;
+      let totalLocalSaldoFavorBs = 0;
+      let maxMesesLocal = 0;
+      let tarifaMensualLocalBs = 0;
 
       cluster.inms.forEach(inm => {
         if (isTerrenoInm(inm)) return;
-        const b = calcularMensualidad(inm, tasaBcv);
-        baseMensualBs += b;
-        totalMultasBs += parseFloat(String(inm.multa_bs || '0')) || 0;
-        totalCongeladaBs += parseFloat(String(inm.deuda_congelada_bs || '0')) || 0;
-        totalSaldoFavorBs += parseFloat(String(inm.saldo_favor_bs || '0')) || 0;
-        const m = parseInt(String(inm.meses_deuda || 0), 10) || 0;
-        if (m > maxMeses) maxMeses = m;
-      });
+        const inmEsRes = isResidencialInm(inm);
+        const bMes = Math.round(calcularMensualidad(inm, tasaBcv) * 100) / 100;
+        const ivaMes = inmEsRes ? 0 : Math.round(bMes * 0.16 * 100) / 100;
+        tarifaMensualLocalBs += (bMes + ivaMes);
 
-      const mesesConMora = esExon ? 0 : Math.max(0, maxMeses - 1);
-      const tasaMora = isRes ? 0.10 : 0.12;
-      const baseDeuda = baseMensualBs * maxMeses;
-      const ivaDeuda = isRes ? 0 : baseDeuda * 0.16;
-      const moraDeuda = baseMensualBs * tasaMora * mesesConMora;
+        let jNotas: any = null;
+        try { if (inm.notas) jNotas = typeof inm.notas === 'string' ? JSON.parse(inm.notas) : inm.notas; } catch {}
+
+        if (jNotas?.periodos_custom && Object.keys(jNotas.periodos_custom).length > 0) {
+          const keys = Object.keys(jNotas.periodos_custom).sort();
+          if (keys.length > maxMesesLocal) maxMesesLocal = keys.length;
+          keys.forEach((p, idx) => {
+            const cfg = jNotas.periodos_custom[p];
+            const mmv = cfg.tarifa_mmv !== null && cfg.tarifa_mmv !== undefined ? Number(cfg.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
+            const base = Math.round((mmv * 57 * tasaBcv * (inmEsRes ? 1 : 0.128) + Number.EPSILON) * 100) / 100;
+            const iva = inmEsRes ? 0 : Math.round((base * 0.16 + Number.EPSILON) * 100) / 100;
+            const esUltimo = idx === keys.length - 1;
+            const multa = cfg.lleva_multa && !esUltimo ? Math.round((base * (inmEsRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
+            totalLocalBaseBs += base;
+            totalLocalIvaBs += iva;
+            totalLocalMoraBs += multa;
+          });
+        } else {
+          const mesesInm = parseInt(String(inm.meses_deuda || 0), 10) || 0;
+          if (mesesInm > maxMesesLocal) maxMesesLocal = mesesInm;
+
+          if (mesesInm > 0) {
+            const baseTotalInm = bMes * mesesInm;
+            const ivaTotalInm = ivaMes * mesesInm;
+            const moraTasa = inmEsRes ? 0.10 : 0.12;
+            const multaMes = Math.round(bMes * moraTasa * 100) / 100;
+            const mesesConMulta = esExon ? 0 : Math.max(0, mesesInm - 1);
+            const moraTotalInm = multaMes * mesesConMulta;
+
+            totalLocalBaseBs += baseTotalInm;
+            totalLocalIvaBs += ivaTotalInm;
+            totalLocalMoraBs += moraTotalInm;
+          } else {
+            const mmvResidual = Math.round((parseFloat(String(inm.deuda_mmv || '0')) * tasaBcv) * 100) / 100;
+            totalLocalBaseBs += mmvResidual;
+            totalLocalCongeladaBs += parseFloat(String(inm.deuda_congelada_bs || '0')) || 0;
+            totalLocalMultasAdminBs += parseFloat(String(inm.multa_bs || '0')) || 0;
+          }
+        }
+        totalLocalSaldoFavorBs += parseFloat(String(inm.saldo_favor_bs || '0')) || 0;
+      });
 
       let totalLocalBs = Math.max(
         0,
-        baseDeuda + ivaDeuda + moraDeuda + totalMultasBs + totalCongeladaBs - totalSaldoFavorBs
+        totalLocalBaseBs + totalLocalIvaBs + totalLocalMoraBs + totalLocalMultasAdminBs + totalLocalCongeladaBs - totalLocalSaldoFavorBs
       );
       totalLocalBs = Math.round(totalLocalBs * 100) / 100;
 
       granTotalBs += totalLocalBs;
-      if (totalLocalBs > 0 || maxMeses > 0) tieneDeudaGlobal = true;
+      if (totalLocalBs > 0 || maxMesesLocal > 0) tieneDeudaGlobal = true;
 
       const detalleCobro =
         `• <b>Tipo:</b> ${isRes ? '🏡 Residencial' : '🏢 Comercial'}\n` +
-        `• <b>Meses pendientes:</b> ${maxMeses} ${maxMeses === 1 ? 'mes' : 'meses'}\n` +
-        `• <b>Tarifa mensual:</b> ${fmtBs(baseMensualBs + (isRes ? 0 : baseMensualBs * 0.16))}\n` +
-        (moraDeuda > 0 ? `• <b>Recargo por mora:</b> ${fmtBs(moraDeuda)}\n` : '') +
-        (totalMultasBs > 0 ? `• <b>Multas:</b> ${fmtBs(totalMultasBs)}\n` : '') +
-        (totalSaldoFavorBs > 0 ? `• <b>Saldo a favor:</b> -${fmtBs(totalSaldoFavorBs)}\n` : '');
+        `• <b>Meses pendientes:</b> ${maxMesesLocal} ${maxMesesLocal === 1 ? 'mes' : 'meses'}\n` +
+        `• <b>Tarifa mensual:</b> ${fmtBs(tarifaMensualLocalBs)}\n` +
+        (totalLocalIvaBs > 0 ? `• <b>IVA acumulado:</b> ${fmtBs(totalLocalIvaBs)}\n` : '') +
+        (totalLocalMoraBs > 0 ? `• <b>Recargo por mora:</b> ${fmtBs(totalLocalMoraBs)}\n` : '') +
+        (totalLocalMultasAdminBs > 0 ? `• <b>Multas administrativas:</b> ${fmtBs(totalLocalMultasAdminBs)}\n` : '') +
+        (totalLocalCongeladaBs > 0 ? `• <b>Deuda convenida/congelada:</b> ${fmtBs(totalLocalCongeladaBs)}\n` : '') +
+        (totalLocalSaldoFavorBs > 0 ? `• <b>Saldo a favor:</b> -${fmtBs(totalLocalSaldoFavorBs)}\n` : '');
 
       const actsUnicos = Array.from(new Set(
         cluster.inms
