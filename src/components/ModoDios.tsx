@@ -166,6 +166,8 @@ export default function ModoDios() {
     return <input className={cls} type={type} value={val} onChange={e => on(e.target.value)} onKeyDown={e => { if (compacto && e.key === 'Enter') guardarCelda(); }} autoFocus={compacto} />;
   };
 
+  if (!activo) return null;
+
   return (
     <>
       {altHeld && <style>{`main *:hover{outline:2px dashed #f59e0b !important;cursor:help !important}`}</style>}
