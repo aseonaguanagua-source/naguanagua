@@ -223,11 +223,11 @@ export default function EstadoCuentaPage() {
     let baseMonto = 0;
     if (r.referencia?.startsWith('RECIB-HIST-')) {
       const pm = histMes(r);
-      if (pm) baseMonto = pm.totalNeto;
+      if (pm) baseMonto = pm.total;
     } else if (r.referencia?.startsWith('CM-')) {
-      // Igual a Caja (base + IVA + multa por mora), con retención del 75% del IVA para agentes
+      // Monto bruto oficial de recibo mensual CM-
       const d = desgloseReciboCM(r, inmsSource, currentRate);
-      baseMonto = Math.round((d.total - d.ivaRetenible * 0.75) * 100) / 100;
+      baseMonto = d.total;
     } else {
       baseMonto = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     }
@@ -254,7 +254,7 @@ export default function EstadoCuentaPage() {
     let multaMes = 0;
     let ivaMes = 0;        // IVA completo (16%)
     let retencionMes = 0;  // IVA retenido (75%) — solo agentes de retención
-    let totalMes = 0;      // lo que va a cancelar
+    let totalMes = 0;      // monto bruto de factura
 
     if (r.referencia?.startsWith('RECIB-HIST-')) {
       const pm = histMes(r);
@@ -263,13 +263,13 @@ export default function EstadoCuentaPage() {
         multaMes = pm.multa;
         ivaMes = pm.iva;
         retencionMes = pm.retencion;
-        totalMes = pm.totalNeto;
+        totalMes = pm.total;
       }
     } else if (r.referencia?.startsWith('CM-')) {
       const d = desgloseReciboCM(r, inmsSource, currentRate);
       baseMes = d.base; multaMes = d.multa; ivaMes = d.iva;
       retencionMes = Math.round(d.ivaRetenible * 0.75 * 100) / 100;
-      totalMes = Math.round((d.total - retencionMes) * 100) / 100;
+      totalMes = d.total;
     } else {
       totalMes = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
       if (String(r.referencia || '').startsWith('MULTA-')) {
@@ -1110,13 +1110,13 @@ export default function EstadoCuentaPage() {
               <h3 className="font-bold text-red-700 uppercase text-sm tracking-wide">
                 Recibos Pendientes {selectedLocal !== 'TODOS' ? `(${selectedLocal})` : ''}
               </h3>
-              <span className="ml-auto text-xs font-bold text-red-600">Total: Bs. {formatBs(currentPendBs)}</span>
+              <span className="ml-auto text-xs font-bold text-red-600">Total a Cancelar: Bs. {formatBs(retTot > 0 ? (currentPendBs - retTot) : currentPendBs)}</span>
             </div>
             {retTot > 0 && (
               <div className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-red-100 text-xs">
-                <div className="bg-blue-50 border border-blue-100 rounded px-2 py-1.5"><span className="block text-blue-700 font-semibold">IVA completo (16%)</span><span className="font-black text-blue-900">Bs. {formatBs(ivaTot)}</span></div>
+                <div className="bg-blue-50 border border-blue-100 rounded px-2 py-1.5"><span className="block text-blue-700 font-semibold">Subtotal Facturado</span><span className="font-black text-blue-900">Bs. {formatBs(currentPendBs)}</span></div>
                 <div className="bg-amber-50 border border-amber-100 rounded px-2 py-1.5"><span className="block text-amber-700 font-semibold">IVA retenido 75% (Agente de Retención)</span><span className="font-black text-amber-900">- Bs. {formatBs(retTot)}</span></div>
-                <div className="bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5"><span className="block text-emerald-700 font-semibold">Total a cancelar</span><span className="font-black text-emerald-900">Bs. {formatBs(currentPendBs)}</span></div>
+                <div className="bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5"><span className="block text-emerald-700 font-semibold">Total neto a cancelar</span><span className="font-black text-emerald-900">Bs. {formatBs(currentPendBs - retTot)}</span></div>
               </div>
             )}
             <div className="overflow-x-auto">

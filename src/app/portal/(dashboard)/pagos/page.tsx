@@ -286,18 +286,17 @@ export default function DondePagarPage() {
       const parts = r.referencia.split('-');
       const inm = userInms.find((i: any) => i.inmueble === parts[2]);
       if (inm) {
-        // Cálculo único de Caja (retención 75% del IVA solo para agentes de retención)
+        // Monto canónico oficial idéntico a Caja y Estado de Cuenta (base + IVA + multa distribuida)
         const histRefs = rawRecibos.filter((x: any) => x.referencia?.startsWith(`RECIB-HIST-${parts[2]}-M`));
         const meses = histRefs.map((x: any) => ({ emision: x.emision || new Date().toISOString(), esUltimo: esUltimoMesHist(x.referencia, inm, histRefs.length) }));
         const d = calcularDeudaInmueble(inm, currentRate, meses);
         const idx = histRefs.findIndex((x: any) => x.referencia === r.referencia);
-        const pm = porMesConRetencion(d)[idx];
-        if (pm) baseMonto = pm.totalNeto;
+        if (d.porMes[idx]) baseMonto = d.porMes[idx].total;
       }
     } else if (r.referencia?.startsWith('CM-')) {
-      // Igual a Caja (base + IVA + multa por mora), con retención del 75% del IVA para agentes
+      // Monto bruto oficial de recibo mensual CM-
       const d = desgloseReciboCM(r, userInms, currentRate);
-      baseMonto = r2(d.total - d.ivaRetenible * 0.75);
+      baseMonto = d.total;
     } else {
       baseMonto = parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0;
     }
@@ -723,12 +722,23 @@ export default function DondePagarPage() {
   };
 
   // Calcular montos totales seleccionados
-  const totalMontoRecibos = useMemo(() => {
+  const totalMontoRecibosBruto = useMemo(() => {
     let sum = 0;
     const refSet = new Set(selectedReceiptRefs);
     rawRecibos.forEach(r => {
       if (refSet.has(r.referencia)) {
         sum += getReciboMonto(r);
+      }
+    });
+    return parseFloat(sum.toFixed(2));
+  }, [selectedReceiptRefs, rawRecibos, effectiveTcmmv]);
+
+  const totalRetencionRecibos = useMemo(() => {
+    let sum = 0;
+    const refSet = new Set(selectedReceiptRefs);
+    rawRecibos.forEach(r => {
+      if (refSet.has(r.referencia)) {
+        sum += getReciboRetencion(r);
       }
     });
     return parseFloat(sum.toFixed(2));
@@ -741,7 +751,31 @@ export default function DondePagarPage() {
   }, [selectedConvenioIds, conveniosData]);
 
   const totalMontoServicios = serviciosPend.filter(x => selectedServicios.includes(x.referencia)).reduce((t, x) => t + (Number(x.monto) || 0), 0);
-  const montoTotal = parseFloat((totalMontoRecibos + totalMontoConvenios + totalMontoServicios).toFixed(2));
+  
+  // Monto final a cancelar / transferir (descontando retención 75% IVA de agentes)
+  const montoTotal = parseFloat(Math.max(0, totalMontoRecibosBruto - totalRetencionRecibos + totalMontoConvenios + totalMontoServicios).toFixed(2));
+
+  // Conteo de meses únicos seleccionados para no confundir períodos con cantidad de actividades
+  const totalMesesSeleccionados = useMemo(() => {
+    const monthSet = new Set<string>();
+    localGroups.forEach(g => {
+      if (g.isUnified) {
+        g.monthlyGroups.forEach(m => {
+          if (m.receiptRefs.some(ref => selectedReceiptRefs.includes(ref))) {
+            monthSet.add(`${g.localId}_${m.monthKey}`);
+          }
+        });
+      } else {
+        g.singleItems.forEach(it => {
+          if (selectedReceiptRefs.includes(it.referencia)) {
+            monthSet.add(`${g.localId}_${it.monthKey}`);
+          }
+        });
+      }
+    });
+    return monthSet.size;
+  }, [localGroups, selectedReceiptRefs]);
+
   const totalConceptosSeleccionados = selectedReceiptRefs.length + selectedConvenioIds.length + selectedServicios.length;
 
   useEffect(() => {
@@ -1444,19 +1478,35 @@ export default function DondePagarPage() {
             )}
 
             {/* Footer de Selección */}
-            <div className="bg-slate-50 p-4 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <div className="bg-slate-50 p-4 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
-                <span className="text-xs font-semibold text-slate-600 block">Total Conceptos Seleccionados:</span>
+                <span className="text-xs font-semibold text-slate-600 block">Total Períodos Seleccionados:</span>
                 <span className="text-[11px] text-slate-500">
-                  {totalConceptosSeleccionados} período{totalConceptosSeleccionados !== 1 ? 's' : ''} a pagar
+                  {totalMesesSeleccionados > 0 ? `${totalMesesSeleccionados} mes${totalMesesSeleccionados !== 1 ? 'es' : ''} a pagar` : `${selectedReceiptRefs.length} recibos`}
+                  {selectedReceiptRefs.length > totalMesesSeleccionados && totalMesesSeleccionados > 0 ? ` (${selectedReceiptRefs.length} conceptos unificados)` : ''}
+                  {selectedConvenioIds.length > 0 ? ` • ${selectedConvenioIds.length} convenio(s)` : ''}
+                  {selectedServicios.length > 0 ? ` • ${selectedServicios.length} serv. especial(es)` : ''}
                 </span>
               </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Total a Pagar</span>
-                <span className="font-black text-xl text-emerald-600">
-                  Bs. {formatBs(montoTotal)}
-                </span>
-              </div>
+              {totalRetencionRecibos > 0 ? (
+                <div className="text-right space-y-0.5">
+                  <div className="text-[11px] text-slate-500">
+                    Subtotal Facturado: <span className="font-bold text-slate-700">Bs. {formatBs(totalMontoRecibosBruto + totalMontoConvenios + totalMontoServicios)}</span>
+                  </div>
+                  <div className="text-[11px] text-amber-700 font-semibold">
+                    IVA Retenido 75% (SENIAT): <span className="font-black text-amber-800">- Bs. {formatBs(totalRetencionRecibos)}</span>
+                  </div>
+                  <div className="pt-1 border-t border-slate-200">
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Total a Transferir</span>
+                    <span className="font-black text-xl text-emerald-600">Bs. {formatBs(montoTotal)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Total a Pagar</span>
+                  <span className="font-black text-xl text-emerald-600">Bs. {formatBs(montoTotal)}</span>
+                </div>
+              )}
             </div>
 
           </div>
