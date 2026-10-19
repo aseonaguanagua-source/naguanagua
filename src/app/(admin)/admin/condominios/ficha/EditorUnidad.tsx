@@ -84,6 +84,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const [multaMotivo, setMultaMotivo] = useState('');
   const [guardandoMulta, setGuardandoMulta] = useState(false);
   const [modoMesCustom, setModoMesCustom] = useState(false);
+  const [multaReemplazaAcumulados, setMultaReemplazaAcumulados] = useState(true);
   const listaMesesCondo = useMemo(() => generarMesesCondo(), []);
 
   const agregarMultaPeriodo = async () => {
@@ -110,6 +111,21 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo agregar la multa');
+
+      if (multaReemplazaAcumulados && Number(f.multa_meses) > 0) {
+        await fetch('/api/admin/condominios/unidades', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: unidad.id,
+            cambios: { multa_meses: 0 },
+            usuario,
+            motivo: `Ajuste a 0 meses acumulados al fijar multa específica de período ${perTexto || multaPeriodo}: ${multaMotivo}`
+          })
+        });
+        setF((prev: any) => ({ ...prev, multa_meses: 0 }));
+      }
+
       alert('¡Multa asignada exitosamente!');
       setMostrarAgregarMulta(false);
       setMultaPeriodo('');
@@ -621,6 +637,19 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                         />
                       </label>
                     </div>
+                    {Number(f.multa_meses) > 0 && (
+                      <label className="flex items-center gap-2 cursor-pointer bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                        <input
+                          type="checkbox"
+                          checked={multaReemplazaAcumulados}
+                          onChange={e => setMultaReemplazaAcumulados(e.target.checked)}
+                          className="w-4 h-4 accent-amber-600 rounded"
+                        />
+                        <span className="text-xs text-amber-900 font-semibold">
+                          Fijar únicamente este período (poner en 0 los meses de multa acumulados anteriores: {f.multa_meses} meses)
+                        </span>
+                      </label>
+                    )}
                     <div className="flex justify-end gap-2 pt-1">
                       <button
                         type="button"

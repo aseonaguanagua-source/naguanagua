@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import {
   FileText, CheckCircle2, XCircle, Clock, Eye, Send,
   ChevronLeft, AlertCircle, User2, Calendar, Hash, DollarSign,
-  Search, Upload, Loader2
+  Search, Upload, Loader2, AlertTriangle
 } from 'lucide-react';
 
 interface Retencion {
@@ -58,13 +58,33 @@ export default function AdminRetenciones() {
     const arr = data || [];
 
     // Cargar también las retenciones cobradas directamente en Caja (que no están en retenciones_iva)
-    let pq = supabase.from('pagos_reportados').select('id, created_at, identidad, detalles').not('detalles->>monto_retencion_iva', 'is', null).order('created_at', { ascending: false });
+    let pq = supabase.from('pagos_reportados').select('id, created_at, identidad, detalles').order('created_at', { ascending: false }).limit(2000);
     const { data: pagos } = await pq;
     
+    // Auto-vincular retenciones_iva que no tengan factura_url o factura_control con su pago emitido
     if (pagos) {
+      for (const item of arr) {
+        if (!item.factura_url || !item.factura_control) {
+          const matchPago = pagos.find((p: any) => {
+            if (p.identidad !== item.identidad) return false;
+            const det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles;
+            return det?.factura_digital?.emitida && det?.factura_digital?.url;
+          });
+          if (matchPago) {
+            const det = typeof matchPago.detalles === 'string' ? JSON.parse(matchPago.detalles) : matchPago.detalles;
+            item.factura_url = item.factura_url || det.factura_digital?.url;
+            item.factura_control = item.factura_control || det.factura_digital?.numero_control;
+            item.factura_emitida = true;
+            if (!item.codigo_retencion || item.codigo_retencion === 'FAC-') {
+              item.codigo_retencion = `FAC-${det.factura_digital?.numero_documento || ''}`;
+            }
+          }
+        }
+      }
+
       for (const p of pagos) {
         const det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles;
-        const m = parseFloat(String(det.monto_retencion_iva || 0));
+        const m = parseFloat(String(det?.monto_retencion_iva || 0));
         if (m > 0) {
           // Si ya existe en retenciones_iva (porque el contribuyente subió la planilla), omitimos
           if (det.factura_digital?.retencion?.retencion_id) continue;
@@ -197,7 +217,7 @@ export default function AdminRetenciones() {
       const res = await fetch('/api/admin/retenciones/revisar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ retencionId: selected.id, accion, motivo: motivo.trim(), usuario }),
+        body: JSON.stringify({ retencionId: selected.id, pagoId: selected.id, accion, motivo: motivo.trim(), usuario }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Error');
@@ -212,8 +232,16 @@ export default function AdminRetenciones() {
       setMsg('Error: ' + e.message);
     }
     await load();
-    const { data: fresh } = await supabase.from('retenciones_iva').select('*').eq('id', selected.id).single();
-    if (fresh) setSelected(fresh);
+    const { data: fresh } = await supabase.from('retenciones_iva').select('*').eq('id', selected.id).maybeSingle();
+    if (fresh) {
+      setSelected(fresh);
+    } else {
+      setSelected(prev => prev ? {
+        ...prev,
+        estado: accion === 'aprobar' ? 'Aprobado' : 'Rechazado',
+        motivo_rechazo: accion === 'rechazar' ? motivo.trim() : undefined,
+      } : null);
+    }
     setProcessing(false);
   };
   const aprobar = () => revisar('aprobar');
@@ -320,16 +348,35 @@ export default function AdminRetenciones() {
           )}
         </div>
 
-        {/* Factura ya emitida */}
-        {selected.factura_emitida && selected.factura_url && (
-          <div className="bg-emerald-50 rounded-2xl border border-emerald-200 p-5">
-            <h3 className="font-bold text-emerald-700 mb-2 flex items-center gap-2">
-              <Send className="w-4 h-4" /> {selected.estado === 'Aprobado' ? 'Factura enviada al contribuyente' : 'Factura Digital'}
-            </h3>
-            <p className="text-sm text-emerald-600 mb-3">Control: {selected.factura_control}</p>
-            <a href={selected.factura_url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-sm">
-              <Eye className="w-4 h-4" /> Ver Factura Digital
+        {/* Factura Fiscal Digital */}
+        {selected.factura_url ? (
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-300 p-5 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-extrabold text-emerald-900 text-sm flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-emerald-600" /> Factura Fiscal Digital Emitida
+                </h3>
+                <p className="text-xs text-emerald-800 mt-1">
+                  <strong>Control:</strong> {selected.factura_control || 'Asignado'} {selected.codigo_retencion?.startsWith('FAC-') ? ` · Documento N° ${selected.codigo_retencion.slice(4)}` : ''}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Consulte la factura original de The Factory HKA para verificar que la Base Imponible, IVA y 75% retenido coincidan exactamente con la planilla.
+                </p>
+              </div>
+              <a href={selected.factura_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-2.5 rounded-xl text-xs transition-all shadow-md">
+                <Eye className="w-4 h-4" /> Ver / Descargar Factura Fiscal
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 text-xs text-amber-800 flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              Factura Digital aún no emitida en Facturación Electrónica para este pago.
+            </span>
+            <a href="/admin/facturacion-electronica" target="_blank" className="font-bold text-amber-900 hover:underline">
+              Ir a Facturación Electrónica →
             </a>
           </div>
         )}
@@ -346,7 +393,7 @@ export default function AdminRetenciones() {
             )}
             <div className="flex gap-3">
               <button onClick={aprobar} disabled={processing}
-                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl transition-all">
+                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl transition-all cursor-pointer">
                 <CheckCircle2 className="w-5 h-5" /> Aprobar y Enviar Factura por Correo
               </button>
             </div>
@@ -355,20 +402,82 @@ export default function AdminRetenciones() {
                 placeholder="Motivo de rechazo (requerido para rechazar)..."
                 className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none" rows={3} />
               <button onClick={rechazar} disabled={processing || !motivo.trim()}
-                className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-3 rounded-xl transition-all">
+                className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-3 rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed">
                 <XCircle className="w-5 h-5" /> Rechazar Planilla
               </button>
             </div>
           </div>
         )}
 
-        {selected.estado !== 'Pendiente' && msg && (
+        {/* En caso de que el comprobante o planilla adjunta esté errada */}
+        {selected.estado === 'Aprobado' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-amber-200 p-6 space-y-3">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600" /> ¿La planilla de retención está errada o incorrecta?
+            </h3>
+            <p className="text-xs text-slate-500">
+              Si al revisar el archivo nota que el comprobante no coincide, tiene montos o fechas incorrectas, o está incompleto, puede rechazarlo indicando el motivo. El contribuyente podrá subir una nueva planilla corregida desde su portal.
+            </p>
+            {msg && (
+              <div className={`rounded-xl px-4 py-3 text-sm font-medium ${msg.includes('✅') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                {msg}
+              </div>
+            )}
+            <div className="space-y-2 pt-1">
+              <textarea
+                value={motivo}
+                onChange={e => setMotivo(e.target.value)}
+                placeholder="Indique detalladamente el motivo de rechazo (requerido para rechazar)..."
+                className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none bg-slate-50 focus:bg-white"
+                rows={2}
+              />
+              <button
+                onClick={rechazar}
+                disabled={processing || !motivo.trim()}
+                className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-2.5 px-5 rounded-xl text-xs transition-all cursor-pointer disabled:cursor-not-allowed shadow-xs"
+              >
+                <XCircle className="w-4 h-4" /> Rechazar Comprobante de Retención
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Si está rechazada, mostrar motivo y opción de re-aprobar */}
+        {selected.estado === 'Rechazado' && (
+          <div className="bg-red-50 rounded-2xl border border-red-200 p-6 space-y-3">
+            <div className="flex items-center gap-2 text-red-800 font-bold text-sm">
+              <XCircle className="w-5 h-5 text-red-600" /> Comprobante Rechazado
+            </div>
+            {selected.motivo_rechazo && (
+              <p className="text-xs text-red-700 bg-white/90 p-3 rounded-xl border border-red-200">
+                <b>Motivo notificado al contribuyente:</b> {selected.motivo_rechazo}
+              </p>
+            )}
+            {msg && (
+              <div className={`rounded-xl px-4 py-3 text-sm font-medium ${msg.includes('✅') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                {msg}
+              </div>
+            )}
+            <p className="text-xs text-slate-600">
+              El contribuyente ha sido notificado para cargar un nuevo comprobante corregido en el portal. Si desea reabrirlo o aprobarlo:
+            </p>
+            <button
+              onClick={aprobar}
+              disabled={processing}
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-xs cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Aprobar y Reenviar Factura
+            </button>
+          </div>
+        )}
+
+        {selected.estado !== 'Pendiente' && selected.estado !== 'Aprobado' && selected.estado !== 'Rechazado' && msg && (
           <div className={`rounded-xl px-4 py-3 text-sm font-medium ${msg.includes('✅') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
             {msg}
           </div>
         )}
 
-        {selected.motivo_rechazo && (
+        {selected.motivo_rechazo && selected.estado !== 'Rechazado' && (
           <div className="bg-red-50 rounded-2xl border border-red-200 p-4 text-sm text-red-700">
             <strong>Motivo de rechazo:</strong> {selected.motivo_rechazo}
           </div>

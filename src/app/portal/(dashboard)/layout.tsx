@@ -26,6 +26,25 @@ export default function PortalDashboardLayout({ children }: { children: ReactNod
         router.replace('/portal');
         return;
       }
+      // Verificar si la sesión guardada corresponde a un condominio
+      const activeDoc = localStorage.getItem('portal_doc') || localStorage.getItem('portal_codigo');
+      if (activeDoc && !isDev) {
+        try {
+          const vRes = await fetch(`/api/contribuyente/verificar-sesion?doc=${encodeURIComponent(activeDoc)}`, { cache: 'no-store' });
+          const vData = await vRes.json();
+          if (vData?.bloqueado) {
+            ['portal_user', 'portal_doc', 'portal_codigo', 'portal_token', 'portal_nombre', 'portal_correo'].forEach(k => localStorage.removeItem(k));
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('portal_bloqueo_msg', vData.error || 'Acceso restringido para condominios.');
+            }
+            router.replace('/portal');
+            return;
+          }
+        } catch (e) {
+          console.error('Error verificando sesión de condominio:', e);
+        }
+      }
+
       setBloqueado(false);
       setIsClient(true);
       if (!localStorage.getItem('portal_user')) router.push('/portal');

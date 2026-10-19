@@ -621,7 +621,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
         const mesesPadre = parseInt(inm.meses_deuda || '0');
         const maxMesesHijos = hijos.length > 0 ? Math.max(...hijos.map(h => parseInt(h.meses_deuda || '0'))) : 0;
-        const mesesDeuda = Math.max(mesesPadre, maxMesesHijos);
+        const mesesDeuda = hijos.length > 0 ? maxMesesHijos : mesesPadre;
 
         return {
           inm,

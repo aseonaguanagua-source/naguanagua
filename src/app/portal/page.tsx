@@ -71,6 +71,14 @@ export default function PortalLogin() {
         ['portal_user', 'portal_doc', 'portal_codigo'].forEach(k => localStorage.removeItem(k));
         return;
       }
+      if (typeof window !== 'undefined') {
+        const blkMsg = sessionStorage.getItem('portal_bloqueo_msg');
+        if (blkMsg) {
+          setError(blkMsg);
+          sessionStorage.removeItem('portal_bloqueo_msg');
+          return;
+        }
+      }
       if (localStorage.getItem('portal_doc')) router.replace('/portal/dashboard');
     })();
   }, []);
@@ -99,6 +107,11 @@ export default function PortalLogin() {
           body: JSON.stringify({ identidad: fullDoc, clave: '', primerIngreso: true, devPass })
         });
         const data = await res.json();
+        if (data.error) {
+          setError(data.error);
+          setIsLoading(false);
+          return;
+        }
         if (res.ok && data.status === 'setup_required') {
           setIsSetupMode(true);
           if (data.correo) setCorreo(data.correo);

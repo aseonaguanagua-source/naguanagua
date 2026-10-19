@@ -1,0 +1,1237 @@
+{
+  "condoPlan": [
+    {
+      "id": "d1f3e999-7c0c-41a6-a98f-34e90fac4a3e",
+      "codigo": "URB024723",
+      "nombre": "CONDOMINIO RESIDENCIAS BOYNTON",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "11fc89a2-2689-4418-8a21-1984816348bb",
+      "codigo": "URB027405",
+      "nombre": "CONDOMINIO DEL CONJUNTO RESID. VALLE FRESCO III- TORRE \"B\"",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "9ef4be78-b52a-4d6e-bcb3-0b3bcdc1eead",
+      "codigo": "URB003967",
+      "nombre": "CONSTRUCTORA AGAVE C.A. (CONJ. RESD. ICEBERG TORRE SUR)",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "08be3ad8-1a92-4c99-a7d4-7b7c98557416",
+      "codigo": "URB021998",
+      "nombre": "CONDOMINIO CUMBRES DE MONTE ALEGRE I",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "53ae0768-8e0a-4ad3-a758-60e87cbeaf8e",
+      "codigo": "URB005750",
+      "nombre": "RESIDENCIAS PROFESIONALES MAÑONGO I (TORRE B)",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "3880faf4-4f1d-4be4-b6d5-df3d601f9214",
+      "codigo": "URB010562",
+      "nombre": "CONDOMINIO  RESIDENCIAS BAYONA COUNTRY",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "f335e3e4-6655-4ea8-8253-8412e5cf8d5f",
+      "codigo": "URB003191",
+      "nombre": "INVERSIONES TEMBELCA CA  (CONJ. RESD. DORAL COUNTRY EDIF 12)",
+      "aseo_pendiente_desde": "2023-03-01",
+      "multa_meses": 42
+    },
+    {
+      "id": "cb87a7bd-1d70-41f9-98e2-5b7fd32a457b",
+      "codigo": "URB023082",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL VALLE JARDIN",
+      "aseo_pendiente_desde": "2023-08-01",
+      "multa_meses": 37
+    },
+    {
+      "id": "9ef98dd8-5643-4883-9669-2c29419b792d",
+      "codigo": "URB035205",
+      "nombre": "prueba",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "63c7566e-7fc1-41ed-a490-23d58ad75582",
+      "codigo": "URB033549",
+      "nombre": "CONJUNTO RESIDENCIAL VALLE FRESCO II",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "d6041c77-60ee-41ee-b7a1-679337d3edce",
+      "codigo": "URB033630",
+      "nombre": "HOGAR HISPANO ASOCIACION CIVIL",
+      "aseo_pendiente_desde": "2024-03-01",
+      "multa_meses": 30
+    },
+    {
+      "id": "cc15f2c8-1a6a-4c41-9dcb-ca53c0dce3e6",
+      "codigo": "URB026450",
+      "nombre": "CONDOMINIO RESIDENCIAL LAS AVES TORRE A",
+      "aseo_pendiente_desde": "2023-08-01",
+      "multa_meses": 37
+    },
+    {
+      "id": "b11decf3-f451-4945-9585-473d78a1ae17",
+      "codigo": "URB035200",
+      "nombre": "GLENDY MARIA",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "34f0c25e-b86c-4331-acd3-5962c7c2da80",
+      "codigo": "URB030671",
+      "nombre": "CONDOMINIO RESIDENCIAS BAYONA",
+      "aseo_pendiente_desde": "2021-08-01",
+      "multa_meses": 61
+    },
+    {
+      "id": "8950c41e-94f6-441d-9c71-43074fd0108b",
+      "codigo": "URB034241",
+      "nombre": "SARITZA COROMOTO AGOSTINI SALAZAR",
+      "aseo_pendiente_desde": "2020-10-01",
+      "multa_meses": 71
+    },
+    {
+      "id": "442b5022-b46f-4436-a9f0-fb8e85e802c5",
+      "codigo": "URB033395",
+      "nombre": "EL REY DEL PAN NAGUANAGUA, C.A.",
+      "aseo_pendiente_desde": "2024-03-01",
+      "multa_meses": 30
+    },
+    {
+      "id": "82bc76d0-fbc0-40fc-a826-64808bb05643",
+      "codigo": "URB027316",
+      "nombre": "CONJUNTO RESIDENCIAL VALLE FRESCO II",
+      "aseo_pendiente_desde": "2022-01-01",
+      "multa_meses": 56
+    },
+    {
+      "id": "5fbb9d65-d97e-47a7-a5b6-5052cf4e880b",
+      "codigo": "URB019259",
+      "nombre": "CONDOMINIO RESIDENCIAS ARAUCA",
+      "aseo_pendiente_desde": "2019-11-01",
+      "multa_meses": 82
+    },
+    {
+      "id": "87996430-9cb0-45d4-9951-afbfae84047c",
+      "codigo": "URB025835",
+      "nombre": "CONDOMINIO EDIFICIO APAMATE",
+      "aseo_pendiente_desde": "2023-08-01",
+      "multa_meses": 37
+    },
+    {
+      "id": "30b9accd-061e-4a5f-991b-3c7f0772532b",
+      "codigo": "AURI012682",
+      "nombre": "CONJUNTO RESIDENCIAL VALLE JARDÍN",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "8900910c-f3f9-43d4-9541-f5cf9088b3b5",
+      "codigo": "URB033544",
+      "nombre": "CONJUNTO RESIDENCIAL LOS CARACAROS EDIFICIO APAMATE",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "7f903234-8e07-4d94-92fa-ccb362ffe7a7",
+      "codigo": "URB001532",
+      "nombre": "ALTOS DE MANANTIAL, C.A. (CONJ. RESID. ALTOS DE MANANTIAL)",
+      "aseo_pendiente_desde": "2023-08-01",
+      "multa_meses": 37
+    },
+    {
+      "id": "ebd9ddc4-98ff-4165-add1-c7afbcf8a1e8",
+      "codigo": "URB003686",
+      "nombre": "INVERSIONES TEMBELCA CA (CONJ. RESD. DORAL COUNTRY EDIF 13)",
+      "aseo_pendiente_desde": "2022-12-01",
+      "multa_meses": 45
+    },
+    {
+      "id": "d34c3708-8218-4b53-ac56-5c14f19fbc10",
+      "codigo": "URB003800",
+      "nombre": "INVERSIONES TEMBELCA CA (CONJ. RESD. DORAL COUNTRY TORRE 14)",
+      "aseo_pendiente_desde": "2022-12-01",
+      "multa_meses": 45
+    },
+    {
+      "id": "5e5e0dd0-2409-4f80-9b48-42567cd695e7",
+      "codigo": "URB033542",
+      "nombre": "ASOCIACION CIVIL DE COPROPIETARIOS LA QUERENCIA",
+      "aseo_pendiente_desde": "2026-06-01",
+      "multa_meses": 3
+    },
+    {
+      "id": "7567ec01-6d34-4341-bc5b-5a69c64cba93",
+      "codigo": "URB016119",
+      "nombre": "A.S 24 VALENCIA, C.A",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "79ee612a-81cf-4934-ad55-de77b8926014",
+      "codigo": "URB033760",
+      "nombre": "CORPORACION CORMAURI C.A.",
+      "aseo_pendiente_desde": "2026-05-01",
+      "multa_meses": 4
+    },
+    {
+      "id": "47d9471a-160f-4efc-8c94-a860fd519932",
+      "codigo": "URB023993",
+      "nombre": "ASOCIACION CIVIL DE COPROPIETARIOS DE LA URBANIZACION LA QUERENCIA",
+      "aseo_pendiente_desde": "2021-09-01",
+      "multa_meses": 60
+    },
+    {
+      "id": "af9fbbab-792a-4f94-90a4-a92fb8221a99",
+      "codigo": "URB024533",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL BELLO CAMPO",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "7a4e9d1a-29dd-4b3d-96d5-896de98ea190",
+      "codigo": "URB033500",
+      "nombre": "PASTELERIA Y CHARCUTERIA MAÑONGO, C.A",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "0baa9f3b-8673-4a6d-8481-aedf47678e8f",
+      "codigo": "URB001525",
+      "nombre": "MULTISERVICIOS SHINY CAR S, C.A",
+      "aseo_pendiente_desde": "2024-05-01",
+      "multa_meses": 28
+    },
+    {
+      "id": "fb6c2395-5b49-4888-80e0-a0baf62d20dc",
+      "codigo": "URB020787",
+      "nombre": "COND.CONJ. RES.DORAL COUNTRY CLUB 2DA ETAPA TORRES 6,7 Y 8",
+      "aseo_pendiente_desde": "2023-12-01",
+      "multa_meses": 33
+    },
+    {
+      "id": "0cfeb8bf-65e4-435b-9a7f-db373944e85e",
+      "codigo": "URB008934",
+      "nombre": "MULTISERVICIO DR. AUTO MAÑONGO C.A",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "8c700c5c-a558-4a17-a9d3-59020133bdd8",
+      "codigo": "AURI010110",
+      "nombre": "RAMON EUDES BLANCHART",
+      "aseo_pendiente_desde": "2025-05-01",
+      "multa_meses": 16
+    },
+    {
+      "id": "65462e32-3b4c-47bc-a1cd-7cab837979e6",
+      "codigo": "URB028497",
+      "nombre": "CONDOMINIO DEL CONJUNTO RESIDENCIAL LE FONTI",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "78dac80c-f13b-417f-9ebd-d473452527ba",
+      "codigo": "URB000326",
+      "nombre": "MULTICENTRO EL SAMAN (GRUPO ZEGNA 1104, C.A)",
+      "aseo_pendiente_desde": "2025-11-01",
+      "multa_meses": 10
+    },
+    {
+      "id": "6f01d8bc-e55d-4c4f-bbe4-f6d836578b1f",
+      "codigo": "URB003074",
+      "nombre": "NAFEB, C.A (EDIFICIO EL SOL)",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "c41f4594-cef2-4ee0-92a6-ccd51368778a",
+      "codigo": "URB003322",
+      "nombre": "YLDEFONZO JOSE PUERTA APONTE (CONJ. RESD. EL YAQUE)",
+      "aseo_pendiente_desde": "2023-07-01",
+      "multa_meses": 38
+    },
+    {
+      "id": "7e80148a-c9d2-4c52-b07c-d9493b9cf37a",
+      "codigo": "URB024783",
+      "nombre": "CASIMIRO DE FREITAS MOTA (VILLA NUESTRA SRA DE FATIMA)",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "0454e29d-e914-4986-a26d-bc62cec09b3d",
+      "codigo": "URB028116",
+      "nombre": "CONJUNTO RESIDENCIAL \"VILLAS DEL SOL\"",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "a38951c0-2bb8-4243-a125-8291f5dac7e6",
+      "codigo": "URB028483",
+      "nombre": "INVERSIONES RIO GRANDE, C.A.",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "f6cbc3e4-17ef-4c88-89e1-d86732a7a292",
+      "codigo": "URB029160",
+      "nombre": "RESD EL QUIJOTE",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "2cc7d1ae-993a-4960-a355-eafe647b85ae",
+      "codigo": "URB034480",
+      "nombre": "AGOSTINO NUNES ( RESD LA FLORECENTE )",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "9819d3e3-ff4b-49eb-a390-a86e7da74916",
+      "codigo": "URB034963",
+      "nombre": "EVILIA CARLOTA FRANCESCHI LEON",
+      "aseo_pendiente_desde": "2026-01-01",
+      "multa_meses": 8
+    },
+    {
+      "id": "1a6f6db0-ed3b-432f-a4b9-2b0df54689f0",
+      "codigo": "URB029177",
+      "nombre": "CONDOMINIO EL MIRADOR TORRE PRIMERA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "4045b60c-6aa1-49b7-9802-0708a17c1c5d",
+      "codigo": "URB030957",
+      "nombre": "FISCO MUNICIPAL DE NAGUANAGUA",
+      "aseo_pendiente_desde": "2023-08-01",
+      "multa_meses": 37
+    },
+    {
+      "id": "63988fde-f9b8-414b-9400-14ea831e6f92",
+      "codigo": "URB032743",
+      "nombre": "INVERSIONES BAMBUCA C.A. \"CONJUNTO RESIDENCIAL VILLAS BAMBU\"",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "07692f05-353c-4e06-b379-41b293e3cede",
+      "codigo": "URB014748",
+      "nombre": "CONDOMINIO RESIDENCIAS VILLA TOSCANA",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "a86bd248-a5e8-4e82-99db-f462cc616fd3",
+      "codigo": "URB030234",
+      "nombre": "CONJUNTO RESIDENCIAL COTOPERI TORRE A",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "bbd05051-9469-4a66-a040-85f1c8cd626a",
+      "codigo": "URB021130",
+      "nombre": "JAHN, C.A. ( CONJ. RESD. VICTORIA VILLAS )",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "83f68b3e-1860-4269-8f92-dcb188039886",
+      "codigo": "URB028687",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL CAMINO REAL",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "fc9da50b-6db1-4a8c-95ea-5137112f10b4",
+      "codigo": "URB004248",
+      "nombre": "INVERSIONES 5832 C.A. (CONJ. RESD. ABADIA DEL BOSQUE)",
+      "aseo_pendiente_desde": "2023-08-01",
+      "multa_meses": 37
+    },
+    {
+      "id": "fc73bca8-dffe-4798-81bb-be1b97177584",
+      "codigo": "URB019106",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL VILLAS DE BUGAMBILIA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "4d855ab8-f76e-4d4f-9099-e0d8414f3b5b",
+      "codigo": "URB011522",
+      "nombre": "CONDOMINIO SAMAN SUITE",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "f6c9d8f2-f91c-47b8-97a7-6312c7b3d816",
+      "codigo": "URB034985",
+      "nombre": "JOSE DE LOS SANTOS VERASTEGUI",
+      "aseo_pendiente_desde": "2024-05-01",
+      "multa_meses": 28
+    },
+    {
+      "id": "e6d975d3-85d3-4f87-a459-95ab951c32f1",
+      "codigo": "URB004691",
+      "nombre": "PRO-R Y A DV DEL C R ELPINAL",
+      "aseo_pendiente_desde": "2019-12-01",
+      "multa_meses": 81
+    },
+    {
+      "id": "2a98b8d7-cc83-4ba6-b1f3-63aa3cb69efc",
+      "codigo": "URB012055",
+      "nombre": "COND PORTAL DE MAÑONGO II",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "d764f394-2a7f-4d29-962e-31cb5f7d59c2",
+      "codigo": "URB028778",
+      "nombre": "CONDOMINIO CONJ RESD MARSELLA",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "6ed47517-0231-4ccf-b4ee-a2c5563c5250",
+      "codigo": "URB029043",
+      "nombre": "CONDOMINIO CONJ. RESD. LA PAZ TORRE B",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "54518911-ff7e-4eec-876b-f2d4186fff84",
+      "codigo": "URB029947",
+      "nombre": "CONDOMINIO CONJ. RESD. BAHAMAS A",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "3bfc6dff-0bb4-4a02-a39a-bfe59e22f788",
+      "codigo": "URB020208",
+      "nombre": "CONJUNTO RESIDENCIAL LOS TOTUMITOS",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "0a1be26e-8018-4e93-b041-162f03262ba4",
+      "codigo": "URB015503",
+      "nombre": "CENTRO CIENTIFICO METROPOLITANO DEL NORTE",
+      "aseo_pendiente_desde": "2022-03-01",
+      "multa_meses": 54
+    },
+    {
+      "id": "fb7c6426-6aa7-4734-9489-2e5403e5f0c8",
+      "codigo": "URB023487",
+      "nombre": "CONJUNTO RESIDENCIAL GUAYABAL COUNTRY",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "485d673e-0077-4fa8-802c-f6c4d81265d9",
+      "codigo": "URB032199",
+      "nombre": "YLDEFONZO JOSE PUERTA APONTE ( CONJ RESD NAIGUATA)",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "65454573-c106-458d-b795-37f2c9532f98",
+      "codigo": "URB019545",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL VILLAS IÑAKI",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "3f76bb9a-d106-4343-aa74-614b556b8e1c",
+      "codigo": "URB027584",
+      "nombre": "CONDOMINIO LOS CLAVELES",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "95f461bf-88a9-48c8-8532-808829d00921",
+      "codigo": "URB025376",
+      "nombre": "CONDOMINIO EDIF. ALPHA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "1f321e9a-2eee-4ffb-a3fd-8cd194d88d1e",
+      "codigo": "URB029276",
+      "nombre": "CONDOMINIO CONJ RESD LAS TINAJAS DE MANANTIAL",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "6a5d4521-f351-4daa-8e64-346febcc6884",
+      "codigo": "URB002607",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL \"RINCON GARDEN S\"",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "77b15aa9-eaa7-4361-ab60-02153ab5fc8b",
+      "codigo": "URB033021",
+      "nombre": "NEIVI COROMOTO RODRIGUEZ DE SEVERINO",
+      "aseo_pendiente_desde": "2023-10-01",
+      "multa_meses": 35
+    },
+    {
+      "id": "20100355-af86-47d9-a587-fbb4b71b2b07",
+      "codigo": "URB011398",
+      "nombre": "RESIDENCIA MAKARENA VILLA S",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "1cca3130-b021-498f-8697-6d443296aaf5",
+      "codigo": "URB028628",
+      "nombre": "COND RESIDENCIAL MANGOS VILLAGES II",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "c803c894-e98f-465e-9495-291c1aad7cba",
+      "codigo": "URB013489",
+      "nombre": "ASOCIACION CIVIL JUNTA DE CONDOMINIO, RESIDENCIAS LA NIÑA",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "bdc123d9-7ca7-45f3-98d8-7ac630d7880b",
+      "codigo": "URB018855",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL VILLA SHIRAK",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "ae468eb4-2162-440e-953d-c7628f78757f",
+      "codigo": "URB028104",
+      "nombre": "CONJUNTO RESIDENCIAL WIMBLEDON TH",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "61c1cb3e-a2c3-48d2-9cf3-6972937d21b0",
+      "codigo": "URB027481",
+      "nombre": "CONJUNTO RESIDENCIAL VALLE FRESCO III TORRE \"D\"",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "5ed2f571-f6c0-4acc-8945-52811e7faac5",
+      "codigo": "URB027449",
+      "nombre": "CONDOMINIO VALLE FRESCO III TORRE C",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "f92344a6-1977-4046-8969-69bcc3ccaaa3",
+      "codigo": "URB030367",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL EL MIRADOR TORRE CUARTA",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "e53a3ac2-2de3-4e2f-88de-337b7773cdfb",
+      "codigo": "URB029705",
+      "nombre": "CONDOMINIO RESIDENCIAS BAYONA SUITES",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "95661cf5-107b-4e64-9855-65f58a7a9353",
+      "codigo": "URB030856",
+      "nombre": "CONDOMINIO VILLAS MANAN",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "4481053b-d4a5-4562-bbf4-cbdf76287e90",
+      "codigo": "URB004525",
+      "nombre": "CONSORCIO MANGOS S SHOPPING",
+      "aseo_pendiente_desde": "2026-04-01",
+      "multa_meses": 5
+    },
+    {
+      "id": "50d1b67f-b742-4399-924b-d11f7fddee91",
+      "codigo": "URB023751",
+      "nombre": "EDIF. SRA MARGOTT",
+      "aseo_pendiente_desde": "2025-08-01",
+      "multa_meses": 13
+    },
+    {
+      "id": "dd784fd7-a57d-4f81-8cf5-bc52a4fe8cac",
+      "codigo": "URB028270",
+      "nombre": "HERMANOS GOMEZ COMUNIDAD (EDIF SANTA RITA)",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "71c5d37d-929a-4b65-9256-bcbcb5d86df4",
+      "codigo": "URB027670",
+      "nombre": "CONDOMINIO RESIDENCIAS TREBOL PLAZA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "c1a929d7-4b66-4e53-988c-6ea45c89d7d5",
+      "codigo": "URB006110",
+      "nombre": "CIRCULO CUBANO VENEZOLANO",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "64badb2b-2d6c-40cc-be64-7b878423c071",
+      "codigo": "URB013136",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL EL MIRADOR TORRE TERCERA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "74e7ebe2-03ce-4dfe-9f62-833ed21d8c04",
+      "codigo": "URB018119",
+      "nombre": "ADMINISTRADORA CONCEPTO, C.A",
+      "aseo_pendiente_desde": "2026-05-01",
+      "multa_meses": 4
+    },
+    {
+      "id": "7ae995b6-fd00-454b-ba22-f40c12f16cf1",
+      "codigo": "URB031770",
+      "nombre": "CONJUNTO RESIDENCIAL FLORIDA GARDEN",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "edd6ae85-7d94-4ab6-8738-9167c88c76d6",
+      "codigo": "URB026996",
+      "nombre": "JUNTA DE CONDOMINIO DEL PARQ RES PARIMA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "94d39f3f-709e-4113-808c-eeb55a4a03cb",
+      "codigo": "URB012091",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL ICABARU",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "d542bbf9-1554-46dd-9dc7-cec437d36868",
+      "codigo": "URB018465",
+      "nombre": "PROMOTORA SAN GABRIEL C.A (RESIDENCIAS ANTARES HOME)",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "20f8c91d-a483-49e9-a13e-3c11a3a24482",
+      "codigo": "URB032022",
+      "nombre": "CONSORCIO SAN ROQUE (CENTRO EMPRESARIAL DEL NORTE)",
+      "aseo_pendiente_desde": "2026-05-01",
+      "multa_meses": 4
+    },
+    {
+      "id": "645d3604-8ef9-46f6-8e25-fe9cca31edc7",
+      "codigo": "URB028749",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL VILLA VENECIA",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "f4408e04-352c-437d-8f87-8d4f42bea4c7",
+      "codigo": "URB015715",
+      "nombre": "COND CENTRO C Y PRO DINASTIA",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "a2dbd006-e95d-4c15-99d2-af91dd35c846",
+      "codigo": "URB003522",
+      "nombre": "CONDOMINIO CENTRO COMERCIAL \"PASEO LA GRANJA\"",
+      "aseo_pendiente_desde": "2026-05-01",
+      "multa_meses": 4
+    },
+    {
+      "id": "e71433f6-82b9-4c14-8c86-53ce02b37122",
+      "codigo": "URB021620",
+      "nombre": "CONJUNTO RESIDENCIAL LOS ALEROS",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "98c396a6-5b90-4e68-8e17-91d60c92026b",
+      "codigo": "URB025561",
+      "nombre": "JUNTA DE CONDOMINIO DEL EDIFICIO RESIDENCIAS ARACARI",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "39f3aca4-3629-46a6-b56f-edece0fd277d",
+      "codigo": "URB028709",
+      "nombre": "CONDOMINIO CONJ. RESID. MONTE LIBANO",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "116d89c2-d4d3-495e-9e25-7707e453c83c",
+      "codigo": "URB031155",
+      "nombre": "CONDOMINIO VILLAS ARANXTA",
+      "aseo_pendiente_desde": "2025-04-01",
+      "multa_meses": 17
+    },
+    {
+      "id": "973de61c-5cc6-4e62-8d38-e6c2d069476f",
+      "codigo": "URB028694",
+      "nombre": "CONJUNTO RESIDENCIAL VILLAS TINAJERO",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "6714e4a0-e516-4ada-8b27-8a7cf4b58b22",
+      "codigo": "URB025996",
+      "nombre": "EDIFICIO CASTAÑO",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "09d8ea8c-50d9-42e3-80ab-bdd8ae2eb517",
+      "codigo": "URB019940",
+      "nombre": "CONDOMINIO RESIDENCIA MAPORAL",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "1cd53778-5532-4f08-8c5a-603a836240e4",
+      "codigo": "URB021018",
+      "nombre": "RESIDENCIAS FLORIDA COUNTRY",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "d5f4a582-c254-4f98-b59e-4720228bf659",
+      "codigo": "URB004426",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL YKARAI",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "5ee7388f-ac42-467e-822c-6ac6f6fe642b",
+      "codigo": "URB026481",
+      "nombre": "CONDOMINIO CONJ. RESD. LAS AVES TORRE B",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "38e05223-72f1-458c-a0ed-c565e6c8db9e",
+      "codigo": "URB028654",
+      "nombre": "CONDOMINIO RESIDENCIAS VILLA CRISTAL",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "533117fe-6707-40c6-9361-3c15fd917618",
+      "codigo": "URB018916",
+      "nombre": "ASOCIACION DE VECINOS PARQUE NAGUANAGUA",
+      "aseo_pendiente_desde": "2024-02-01",
+      "multa_meses": 31
+    },
+    {
+      "id": "5325dae2-91c2-46be-b6be-25845feb3d68",
+      "codigo": "URB015662",
+      "nombre": "CONDOMINIO CENTRO DIAGNOSTICO DEL NORTE",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "724a4d79-e7f6-4bfe-9f24-faeb9d3c9c6b",
+      "codigo": "URB028027",
+      "nombre": "CONJUNTO RESIDENCIAL WIMBLEDON EDF. A",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "1c075607-748f-44e0-9d73-812b574aa62d",
+      "codigo": "URB024784",
+      "nombre": "CONDOMINIO RESIDENCIAS KUNUKUNUMA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "050bc3ff-c399-4a52-a6a3-710da6b7bf3b",
+      "codigo": "URB029980",
+      "nombre": "CONJ. RESD. LOS HELECHOS",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "1e281e7c-d605-4bed-a1ee-dd14f73b5b75",
+      "codigo": "URB004013",
+      "nombre": "CONDOMINIO EDIFICIO RESIDENCIAS ALESSANDRIA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "a6fcbafe-db79-41cf-b6fb-c2c7eb35131b",
+      "codigo": "URB019776",
+      "nombre": "JUNTA DE CONDOMINIO DEL CONJUNTO RESD CAMPIÑA CRISTAL",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "2fac0c05-1bc9-4175-a0e5-38b4cac7a50e",
+      "codigo": "URB026515",
+      "nombre": "CONDOMINIO RESIDENCIAS PORTAL DE MANONGO I",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "b197ada5-2026-415a-98ac-3548725e7a48",
+      "codigo": "URB001656",
+      "nombre": "CONJUNTO RESIDENCIAL PUERTA REAL ETAPA III Y IV (ETAPA III)",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "c732bbf8-6b12-42f6-a722-6ffc65f6a48b",
+      "codigo": "URB028123",
+      "nombre": "CONDOMINIO DE RESIDENCIAS ONIX",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "f92836a4-c4c4-48bf-bc45-9224e1ea27a3",
+      "codigo": "URB018835",
+      "nombre": "CONJUNTO RESIDENCIAL ALTO SAMAN",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "0cc83074-111b-4287-8a0b-267d157288d7",
+      "codigo": "URB017576",
+      "nombre": "INVERSIONES FRUTELADOS GOURMET, C.A",
+      "aseo_pendiente_desde": "2024-05-01",
+      "multa_meses": 28
+    },
+    {
+      "id": "2f149c13-fbcf-4ba0-9baa-af5d0de39a2d",
+      "codigo": "URB030454",
+      "nombre": "CONDOMINIO CENTRO EMPRESARIAL GIRARDOT",
+      "aseo_pendiente_desde": "2023-08-01",
+      "multa_meses": 37
+    },
+    {
+      "id": "53f0ec5b-e1af-43aa-906a-89dfac74049a",
+      "codigo": "URB029495",
+      "nombre": "CONDOMINIO RESIDENCIAS PORTAL DE MAÑONGO IV",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "8b2b5615-2894-4c37-9b63-a95b58e9a5fd",
+      "codigo": "URB028773",
+      "nombre": "CONDOMINIO CONJUNTO RES. LAS COLINAS",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "deafefd5-39eb-4fc2-9512-5c32bd47984a",
+      "codigo": "URB011321",
+      "nombre": "CONDOMINIO TERRAZAS DE MONTE ALEGRE II",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "6653d65f-68cc-497f-a8cf-870f5447148c",
+      "codigo": "URB026121",
+      "nombre": "CONDOMINIO PARQUE RESD. EL DORADO",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "787b58ab-3cb5-4d40-8ce0-a481505a45b9",
+      "codigo": "URB019524",
+      "nombre": "CONDOMINIO RESD BRISAS MARINAS",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "1854b2be-7c2a-4cf4-abe7-e6ca85ef5e49",
+      "codigo": "URB020242",
+      "nombre": "COND. CONJUNTO RESIDENCIAL EL RINCON",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "f6b7c1ac-b7d1-46a6-80c8-fecff777afd4",
+      "codigo": "URB020226",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL LAS TAPARITAS",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "4664b90b-08c6-4ba3-b1c6-4330e84953b1",
+      "codigo": "URB029606",
+      "nombre": "CONJUNTO RESIDENCIAL COLINAS DE LOS SAMANES",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "32ad718a-fce9-47cc-a91b-ea42a23c8ede",
+      "codigo": "URB028800",
+      "nombre": "RESIDENCIAS PROFESIONALES MAÑONGO II",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "013e925b-25cf-46b8-b020-f79a42b0c52b",
+      "codigo": "URB026268",
+      "nombre": "SUCESION TIRELLA CALABRESE GIUSEPPE (EDIF CENTRO)",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "1f700567-e8e5-4bb1-b528-282dd0186348",
+      "codigo": "URB022529",
+      "nombre": "RESIDENCIAS RUSTICANA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "d3ae2a08-d56d-4dc6-90f8-8d5509f50b82",
+      "codigo": "URB000837",
+      "nombre": "CONJUNTO RESIDENCIAL BRISAS DEL MANANTIAL",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "13cf3186-6ba9-451a-80f3-30af6e5944b0",
+      "codigo": "URB026115",
+      "nombre": "CONDOMINIO DEL CONJUNTO RESIDENCIAL MUCUCHIES",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "14f2c987-8178-4ff5-9c1e-7d8be7004afb",
+      "codigo": "URB012992",
+      "nombre": "COND CONJUNTO RESID OLYMPIC GARDEN TORRE A",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "ffda21e3-44ab-4928-b52b-2a646fdbd455",
+      "codigo": "URB028484",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL DANUBIO",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "c62aa56c-f944-4b24-bf4a-4d0a8f7d7dce",
+      "codigo": "URB017575",
+      "nombre": "INVERSIONES FRUTELADOS GOURMET, C.A",
+      "aseo_pendiente_desde": "2024-05-01",
+      "multa_meses": 28
+    },
+    {
+      "id": "fba7df93-c489-45b1-8ee0-f9efc503d4dc",
+      "codigo": "URB026963",
+      "nombre": "CONDOMINIO OLYMPIC GARDEN TORRE C",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "369bd6b0-d833-497e-ae96-3e857a3f1e31",
+      "codigo": "URB034290",
+      "nombre": "USUARIO DE PRUEBA 1",
+      "aseo_pendiente_desde": "2025-07-01",
+      "multa_meses": 14
+    },
+    {
+      "id": "0a87ab51-c3af-41a3-8a88-db939cf3b545",
+      "codigo": "URB029419",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL VALLE CLARO",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "8e11c379-68ab-4cf8-80b3-e02e2f8166a3",
+      "codigo": "URB020005",
+      "nombre": "CONDOMINIO RESIDENCIAS NICKEL 5000",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "f567d2b7-25f2-4ea6-9200-6d7b42e7ebdc",
+      "codigo": "URB019175",
+      "nombre": "CONDOMINIO RESIDENCIAS ANTILLAS  TORRE A",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "ad617398-b1c1-4630-b20d-97e5e44aaee3",
+      "codigo": "URB025867",
+      "nombre": "ASOCIACION CIVIL COND DE LA TORRE 2 DEL PARQUE RESD DON BOSCO",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "6c633866-b462-4a84-bbb1-f8a77dd614c3",
+      "codigo": "URB028148",
+      "nombre": "CONDOMINIO PARQUE COROMILA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "c68c3581-c716-4d59-9465-339d1b401c0c",
+      "codigo": "URB014005",
+      "nombre": "CONDOMINIO RESIDENCIAS PORTAL DE MANONGO III",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "89e0ce3e-5596-4209-95ed-efacd15d507b",
+      "codigo": "URB005770",
+      "nombre": "CONDOMINIO TORRE CRISTAL",
+      "aseo_pendiente_desde": "2026-05-01",
+      "multa_meses": 4
+    },
+    {
+      "id": "506e75b8-d19b-4c72-96f5-ca6feb3c846f",
+      "codigo": "URB016491",
+      "nombre": "CONDOMINIO CENTRO COMERCIAL VIA VENETO",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "7aa3112e-0600-4ac8-96b0-1a4e759adfd1",
+      "codigo": "URB002262",
+      "nombre": "ABASTOS SAN ROQUE C.A.",
+      "aseo_pendiente_desde": "2024-05-01",
+      "multa_meses": 28
+    },
+    {
+      "id": "f0a46582-f1f9-4211-b6bb-8fdc7bc25630",
+      "codigo": "URB017172",
+      "nombre": "TECHNO CELL 2025 C.A",
+      "aseo_pendiente_desde": "2024-04-01",
+      "multa_meses": 29
+    },
+    {
+      "id": "e8b45df0-2009-4a81-ba7e-6e11f098130f",
+      "codigo": "URB002730",
+      "nombre": "CONDOMINIO VILLAS DE KALEDONIA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "c4d54f71-49e0-449d-a07f-854a914ba20b",
+      "codigo": "URB019352",
+      "nombre": "ASOC DE VECINOS DE LA URB EL CAFETAL",
+      "aseo_pendiente_desde": "2023-12-01",
+      "multa_meses": 33
+    },
+    {
+      "id": "6688f6e4-61b5-4c40-add4-76fd81be57be",
+      "codigo": "URB025576",
+      "nombre": "COND. PARQUE RESIDENCIAL DON BOSCO EDIFICIO 7",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "696c11b3-28ed-478e-85a2-1f727d1c0ad2",
+      "codigo": "URB020079",
+      "nombre": "CONDOMINIO RESIDENCIAS TAGUAY SUITE",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "0e2e5faa-50dd-406d-a1b6-2020b56c6203",
+      "codigo": "URB023549",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL GUAYABAL SUITES",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "c9ee9e31-b5b4-49e9-9236-e930cb7a7ee6",
+      "codigo": "URB022539",
+      "nombre": "ALTOS DEL ROCIO 1993",
+      "aseo_pendiente_desde": "2023-08-01",
+      "multa_meses": 37
+    },
+    {
+      "id": "927b6c07-2a28-49d0-a3cb-a0e80cb8cf19",
+      "codigo": "URB033483",
+      "nombre": "SUCESION DOMENICO LUPINETTI DICRISCIENZA",
+      "aseo_pendiente_desde": "2025-11-01",
+      "multa_meses": 10
+    },
+    {
+      "id": "9554695d-b798-4e66-8fa9-f9f2f3a8fe3f",
+      "codigo": "URB023456",
+      "nombre": "JUNTA DE CONDOMINIO DEL EDIFICIO RESIDENCIAS GUAYABAL",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "428e3ba3-409e-459c-a238-fff2be976a89",
+      "codigo": "URB031063",
+      "nombre": "INVERSIONES MOFERCA C.A. ( SUN SUITES TORRE 3)",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "17a3bea5-6631-4394-ad50-a87a39597d07",
+      "codigo": "URB029866",
+      "nombre": "CONDOMINIO HOSPITAL METROPOLITANO DEL NORTE",
+      "aseo_pendiente_desde": "2024-05-01",
+      "multa_meses": 28
+    },
+    {
+      "id": "eaf4c4b2-feee-47c7-b7f4-b1a80805f902",
+      "codigo": "URB030447",
+      "nombre": "WISAM   RAFEH RAFEH (CONJUNTO RESD H.R)",
+      "aseo_pendiente_desde": "2025-10-01",
+      "multa_meses": 11
+    },
+    {
+      "id": "f0cbeed3-77f6-4069-9066-ad663d240b5a",
+      "codigo": "URB020636",
+      "nombre": "CONJUNTO RESIDENCIAL SEBUCAN",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "ae647ae7-a7ef-4b9d-bb27-b0ab2365e991",
+      "codigo": "URB028764",
+      "nombre": "CONDOMINIO VILLAGE PRIVE SECTOR A",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "871d54e8-3dec-47fd-86ed-2a349589b7be",
+      "codigo": "URB003605",
+      "nombre": "RESIDENCIAS PROFESIONALES MAÑONGO I (TORRE C )",
+      "aseo_pendiente_desde": "2026-03-01",
+      "multa_meses": 6
+    },
+    {
+      "id": "7913f9eb-7f4b-428c-a4db-9da4ecd188a6",
+      "codigo": "URB024750",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL PORTA VIA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "a8259f9c-8729-4e37-8932-6a66f766032b",
+      "codigo": "URB027789",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENDIAL TRIPOLI GARDEN",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "f0d8b6f8-a946-475c-90e2-d9cc8ab6ef43",
+      "codigo": "URB002747",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL ALTOS DE ARICAGUA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "ded18d4f-2291-43dc-b64d-deb810ce67d1",
+      "codigo": "URB028193",
+      "nombre": "CONDOMINIO GENERAL DEL CONJUNTO RESIDENCIAS VILLAS KALANKOE",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "8edcb593-8a3b-4279-99bf-407c74bebd45",
+      "codigo": "URB034298",
+      "nombre": "EUDES RAMON BLANCHART",
+      "aseo_pendiente_desde": "2026-08-01",
+      "multa_meses": 1
+    },
+    {
+      "id": "cfdffadb-84d0-478b-a7c9-8fa995ada949",
+      "codigo": "URB030328",
+      "nombre": "INVERGE C.A.",
+      "aseo_pendiente_desde": "2023-08-01",
+      "multa_meses": 37
+    },
+    {
+      "id": "378f1f3d-960c-463c-b4e6-d8542f9bff62",
+      "codigo": "URB022830",
+      "nombre": "CONDOMINIO TERESA B-3",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "4f90b65c-e10c-43cd-9cda-ceda77042517",
+      "codigo": "URB030783",
+      "nombre": "CONDOMINIO CHIRIKAYEN",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "e8450251-45c3-46f7-94bb-b6fe474593db",
+      "codigo": "URB033553",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL \"ALTOS DE MANANTIAL\"",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "698ea4b6-1627-4c2c-8c17-02113bc8bc78",
+      "codigo": "URB005063",
+      "nombre": "CONDOMINIO RESIDENCIAS MONTE ALTO",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "ae4abbf6-860a-44b5-a70e-ab3967238d20",
+      "codigo": "URB028196",
+      "nombre": "CONDOMINIO EDIFICIO SAN ANDRES",
+      "aseo_pendiente_desde": "2026-07-01",
+      "multa_meses": 2
+    },
+    {
+      "id": "969291fe-3a5a-4889-a40a-c64afa947f46",
+      "codigo": "URB023767",
+      "nombre": "CENTRO COMERCIAL PROFESIONAL Y RESIDENCIAL BAYONA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "df080062-e212-490c-adbd-e961dc7720c7",
+      "codigo": "URB010817",
+      "nombre": "CONDOMINIO ARAGUANEY SUITE",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "795a99b0-15bd-41e8-b9f3-4991191aac67",
+      "codigo": "URB021161",
+      "nombre": "CONDOMINIO RESIDENCIAS GLORIA",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    },
+    {
+      "id": "18c4adf3-6266-4cd4-9ae7-98acee7a5ca0",
+      "codigo": "URB021500",
+      "nombre": "CONDOMINIO CONJUNTO RESIDENCIAL TAZAJAL SUITE",
+      "aseo_pendiente_desde": "2026-09-01",
+      "multa_meses": 0
+    }
+  ],
+  "unitPlanCount": 10840
+}

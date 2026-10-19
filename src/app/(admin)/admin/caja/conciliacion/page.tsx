@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CheckCheck, RefreshCw, Filter, Landmark, Eye, Download, X,
   Pencil, Mail, Building2, Receipt
@@ -318,11 +318,11 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
               deudaTotal = facs.reduce((a, f) => a + (parseFloat(String(f.monto || '0').replace(/[^0-9.]/g,'')) || 0), 0);
             }
           } catch(e) {}
-          const saldoFavor = inms.reduce((a: number, i: any) =>
-            a + (parseFloat(i.saldo_favor_bs || '0') || 0), 0);
-          const codInmDet = det.cod_inmueble || pago.cod_inmueble;
+          const saldoFavor = inms.reduce((a: number, i: any) => a + (parseFloat(i.saldo_favor_bs || '0') || 0), 0);
+          const esCondo = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || !!det.es_condominio || !!det.condominio;
+          const codInmDet = det.condominio?.codigo || det.codigo_condominio || det.cod_inmueble || pago.cod_inmueble;
           const inmPrincipal = codInmDet
-            ? (inms.find((i: any) => i.cod_cont === codInmDet || i.cod_cont === codInmDet.replace(/-/g,'')) || inms[0])
+            ? (inms.find((i: any) => i.inmueble === codInmDet || i.cod_cont === codInmDet || i.cod_cont === codInmDet.replace(/-/g,'')) || inms[0])
             : inms[0];
           setInmueble({ ...inmPrincipal, _deudaTotal: deudaTotal, _saldoFavor: saldoFavor, _todos: inms });
         }
@@ -577,6 +577,46 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     (async () => {
       setLoadingContrib(true);
       try {
+        const esCondo = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || !!det.es_condominio || !!det.condominio;
+        const condoCod = det.condominio?.codigo || det.codigo_condominio || det.cod_inmueble || pago.cod_inmueble;
+
+        if (esCondo && condoCod) {
+          const { data: condoRecord } = await supabase
+            .from('condominios')
+            .select('*')
+            .eq('codigo', condoCod)
+            .maybeSingle();
+
+          const { data: inmsCondo } = await supabase
+            .from('inmuebles')
+            .select('saldo_favor_bs')
+            .or(`inmueble.eq.${condoCod},identidad.eq.${condoRecord?.identidad || pago.identidad}`);
+
+          const saldoFavorTotal = (inmsCondo || []).reduce((acc: number, i: any) => acc + (parseFloat(i.saldo_favor_bs || '0') || 0), 0);
+
+          if (condoRecord) {
+            setContribInfo({
+              contribuyente: condoRecord.nombre,
+              inmueble: condoRecord.codigo,
+              cod_cont: condoRecord.codigo,
+              identidad: condoRecord.identidad,
+              direccion: condoRecord.direccion,
+              telefono: condoRecord.telefono,
+              correo_electronico: condoRecord.correo,
+              actividad_principal: `Condominio ${condoRecord.tipo || 'Comercial'}`,
+              estado: condoRecord.estado || 'Activo',
+              _deudaTotal: 0,
+              _saldoFavor: saldoFavorTotal,
+              _totalInmuebles: condoRecord.cant_declarada || 1,
+              _esCondominio: true,
+            });
+            if (condoRecord.correo) setCorreoResponsable(condoRecord.correo);
+            if (condoRecord.telefono) setTelefonoResponsable(condoRecord.telefono);
+            setLoadingContrib(false);
+            return;
+          }
+        }
+
         const idLimpio = (pago.identidad || '').replace(/-/g, '').trim();
         const idConGuion = idLimpio.length > 1 ? idLimpio.charAt(0) + '-' + idLimpio.slice(1) : idLimpio;
         const { data: inms } = await supabase
@@ -585,11 +625,11 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           .or(`identidad.eq.${pago.identidad},identidad.eq.${idLimpio},identidad.eq.${idConGuion}`);
 
         // Buscar el inmueble que coincide con el cod_inmueble del pago si existe
-        const detCod = det.cod_inmueble || pago.cod_inmueble;
+        const detCod = det.cod_inmueble || pago.cod_inmueble || det.condominio?.codigo;
         let inm = null;
         if (inms && inms.length > 0) {
           if (detCod) {
-            inm = inms.find((i: any) => i.cod_cont === detCod || i.cod_cont === detCod.replace(/-/g,'')) || inms[0];
+            inm = inms.find((i: any) => i.inmueble === detCod || i.cod_cont === detCod || i.cod_cont === detCod.replace(/-/g,'')) || inms[0];
           } else {
             inm = inms[0];
           }
@@ -818,12 +858,48 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         await supabase.from('pagos_reportados').update({ estado: 'Rechazado' }).filter('detalles->>pago_vinculado', 'eq', pago.id);
 
         // Restaurar estado de deuda si el pago se rechaza
-        // PREFERENCIA 1: Si Caja guardó la foto exacta de deuda_previa al registrar el pago, restaurar exactamente esa foto
-        if (Array.isArray(det.deuda_previa) && det.deuda_previa.length > 0) {
-          for (const prev of det.deuda_previa) {
+        // PREFERENCIA 1: Si Caja o Condominios guardó la foto exacta de deuda_previa al registrar el pago, restaurar exactamente esa foto
+        let prevLista: any[] = Array.isArray(det.deuda_previa) && det.deuda_previa.length > 0 ? det.deuda_previa : [];
+        const esCondoPago = det.es_condominio || det.isCondominio || det.modulo === 'condominios' || (pago as any).modulo === 'condominios';
+
+        // Si no tiene deuda_previa en detalles pero es de condominios, intentar recuperarla de auditoría
+        if (prevLista.length === 0 && esCondoPago) {
+          try {
+            const codCondo = det.condominio?.codigo || pago.identidad;
+            const { data: auditRec } = await supabase
+              .from('auditoria')
+              .select('detalles')
+              .filter('detalles->>codigo', 'eq', codCondo)
+              .order('created_at', { ascending: false })
+              .limit(5);
+            const foundAudit = (auditRec || []).find((a: any) => Array.isArray(a.detalles?.deuda_previa) && a.detalles?.deuda_previa.length > 0);
+            if (foundAudit) prevLista = foundAudit.detalles.deuda_previa;
+          } catch (e) {
+            console.warn('No se pudo recuperar deuda_previa de auditoría para condominio:', e);
+          }
+        }
+
+        if (prevLista.length > 0) {
+          for (const prev of prevLista) {
+            // Restaurar unidad de condominio
+            if (prev.unidad) {
+              await supabase.from('condominio_unidades').update({
+                aseo_pendiente_desde: prev.aseo_pendiente_desde,
+                multa_meses: prev.multa_meses || 0,
+                multa_exonerada_hasta: prev.multa_exonerada_hasta || null,
+              }).eq('id', prev.unidad);
+            }
+            // Restaurar condominio padre
+            if (prev.condominio) {
+              await supabase.from('condominios').update({
+                aseo_pendiente_desde: prev.aseo_pendiente_desde,
+                multa_meses: prev.multa_meses || 0,
+              }).eq('id', prev.condominio);
+            }
+            // Restaurar inmueble
             if (prev.id || prev.inmueble) {
               const q = supabase.from('inmuebles').update({
-                meses_deuda: Math.max(0, parseInt(String(prev.meses_deuda || 0))),
+                meses_deuda: Math.max(0, parseInt(String(prev.meses_deuda || (prev.aseo_pendiente_desde ? 1 : 0)))),
                 deuda_mmv: parseFloat(String(prev.deuda_mmv || 0)),
                 multa_bs: parseFloat(String(prev.multa_bs || 0)),
                 deuda_congelada_bs: parseFloat(String(prev.deuda_congelada_bs || 0)),
@@ -855,6 +931,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 }
               }
             }
+          }
+        }
+
+        // Limpiar movimientos de condominio vinculados al pago rechazado
+        if (esCondoPago) {
+          const idsCondo = [pago.id, det.pago_principal_id, det.pago_vinculado].filter(Boolean);
+          if (idsCondo.length > 0) {
+            await supabase.from('condominio_movimientos').delete().in('pago_id', idsCondo);
           }
         }
 
@@ -1100,7 +1184,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           try {
             await supabase.from('documentos').insert([{
               identidad: pago.identidad,
-              contribuyente: contribInfo?.nombre || pago.contribuyente || pago.identidad,
+              contribuyente: (updatedDet.modulo === 'condominios' || det.modulo === 'condominios')
+                ? (det.condominio?.nombre || det.contribuyente || pago.identidad)
+                : (contribInfo?.contribuyente || contribInfo?.nombre || pago.contribuyente || pago.identidad),
               tipo: 'Nota de Credito',
               estado: 'Vigente',
               detalles: JSON.stringify({
@@ -1134,7 +1220,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             curDet.montos = { total: montoConciliadoNum };
             curDet.montoTotal = montoConciliadoNum;
           }
-          curDet.contribuyente = curDet.contribuyente || contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad;
+          curDet.contribuyente = esCondo
+            ? (curDet.condominio?.nombre || curDet.contribuyente || det.condominio?.nombre || det.contribuyente || pago.identidad)
+            : (curDet.contribuyente || contribInfo?.contribuyente || contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad);
           curDet.identidad = pago.identidad;
           const fechaFacturaFinal = fechaBanco || fechaTransaccion;
           if (!esCondo || !Array.isArray(curDet.formasPago) || curDet.formasPago.length === 0) {
@@ -1194,14 +1282,21 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const lc = "block text-xs font-semibold text-blue-600 mb-1";
 
   // Campos reales en la tabla inmuebles: contribuyente (min), cod_cont, direccion, clasificacion, etc.
-  const nombreContrib = contribInfo?.contribuyente || contribInfo?.Contribuyente || pago.contribuyente || '---';
-  const codInmueble = det.cod_inmueble || pago.cod_inmueble || contribInfo?.cod_cont || contribInfo?.CodCont || '---';
+  const esCondoModal = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || !!det.es_condominio || !!det.condominio;
+  const nombreContrib = esCondoModal
+    ? (det.condominio?.nombre || det.contribuyente || contribInfo?.contribuyente || '---')
+    : (contribInfo?.contribuyente || contribInfo?.Contribuyente || pago.contribuyente || '---');
+  const codInmueble = esCondoModal
+    ? (det.condominio?.codigo || det.cod_inmueble || contribInfo?.inmueble || '---')
+    : (det.cod_inmueble || pago.cod_inmueble || contribInfo?.inmueble || contribInfo?.cod_cont || contribInfo?.CodCont || '---');
   const direccion = contribInfo?.direccion || contribInfo?.Direccion || '---';
   const clasificacion = contribInfo?.clasificacion || contribInfo?.Clasificacion || '---';
-  const identidad = pago.identidad || '---';
+  const identidad = pago.identidad || det.condominio?.identidad || '---';
   const telefono = contribInfo?.telefono || '---';
   const correo = contribInfo?.correo_electronico || contribInfo?.correo || '---';
-  const actividadPrincipal = cleanClasificacionActividad(contribInfo?.actividad_principal || contribInfo?.Actividad || '') || 'Servicio de Aseo Urbano';
+  const actividadPrincipal = esCondoModal
+    ? `Condominio ${det.condominio?.tipo || 'Comercial'}`
+    : (cleanClasificacionActividad(contribInfo?.actividad_principal || contribInfo?.Actividad || '') || 'Servicio de Aseo Urbano');
   const saldoFavor = (contribInfo?._saldoFavor || 0).toFixed(2);
   const deudaTotal = (contribInfo?._deudaTotal || 0).toFixed(2);
   const totalInmuebles = contribInfo?._totalInmuebles || 1;
@@ -1544,6 +1639,19 @@ export default function ConciliacionPage() {
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [loading, setLoading] = useState(false);
   const condos = useCondominiosLigero();
+
+  // Mapa de nombres O(1) para evitar recorrer 50.000 inmuebles en cada fila
+  const nombresPorId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const i of inmuebles || []) {
+      const k = (i.identidad || '').replace(/-/g, '').toUpperCase();
+      if (k && !m.has(k) && (i.contribuyente || i.nombre)) {
+        m.set(k, i.contribuyente || i.nombre);
+      }
+    }
+    return m;
+  }, [inmuebles]);
+
   const [filtros, setFiltros] = useState<Filtros>({
     desde: (() => {
       const d = new Date();
@@ -1625,13 +1733,15 @@ export default function ConciliacionPage() {
           }
           const { data: rData } = await rq;
           if (rData && rData.length > 0) {
-            const idsExistentes = new Set(result.map((p: any) => p.id));
-            const refsExistentes = new Set(result.map((p: any) => (p.referencia || '').toUpperCase()));
+            const idsRetExistentes = new Set(result.filter((p: any) => p.tipo === 'Retencion de IVA').map((p: any) => p.id));
+            const refsRetExistentes = new Set(result.filter((p: any) => p.tipo === 'Retencion de IVA').map((p: any) => (p.referencia || '').toUpperCase()));
             rData.forEach((r: any) => {
               const refPlanilla = r.codigo_retencion || r.numero_planilla || 'RET';
-              if (!idsExistentes.has(r.id) && !refsExistentes.has(refPlanilla.toUpperCase())) {
+              const yaEstaEnLista = idsRetExistentes.has(r.id) || idsRetExistentes.has(`ret-${r.id}`) || refsRetExistentes.has(refPlanilla.toUpperCase());
+              if (!yaEstaEnLista) {
+                const uniqueRowId = result.some((p: any) => p.id === r.id) ? `ret-${r.id}` : r.id;
                 result.push({
-                  id: r.id,
+                  id: uniqueRowId,
                   created_at: r.created_at,
                   identidad: r.identidad,
                   contribuyente: r.contribuyente,
@@ -1731,8 +1841,8 @@ export default function ConciliacionPage() {
       <tr key={'d'+idx} className="hover:bg-blue-50/30 transition-colors border-b border-slate-100">
         <td className="px-3 py-2 text-xs font-mono text-slate-700">
                     {(() => {
-            const inm = inmuebles.find((i: any) => (i.identidad || '').replace(/-/g, '').toUpperCase() === (pago.identidad || '').replace(/-/g, '').toUpperCase());
-            const nombre = inm?.contribuyente || pago.contribuyente || '---';
+            const idKey = (pago.identidad || '').replace(/-/g, '').toUpperCase();
+            const nombre = pago.contribuyente || det.contribuyente || nombresPorId.get(idKey) || '---';
             return <div className="font-bold font-sans text-[11px] truncate max-w-[150px]" title={nombre}>{nombre}</div>;
           })()}
           <div className="text-[10px] text-slate-500">{pago.identidad}</div>

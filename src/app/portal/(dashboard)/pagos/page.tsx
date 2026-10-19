@@ -399,15 +399,15 @@ export default function DondePagarPage() {
           (i?.actividad_principal || '').toLowerCase().includes('condominio') ||
           (i?.actividad_principal || '').toLowerCase().includes('padre en sigyr: urb')
         );
-      // Solo se bloquea como régimen de condominio centralizado si no es de pago individual
-      const isCondo = c.inms.some(isCondoInm) && !c.inms.some(i => isCondominioPagoIndividual(i) || ((i as any).condominio_padre_id && isCondominioPagoIndividual((i as any).condominio_padre_id)));
+      // Cualquier inmueble o filial dentro de régimen de condominio se gestiona centralizado
+      const isCondo = c.inms.some(isCondoInm);
       const condoPadreInm = c.inms.find(isCondoInm);
       const condoPadreId = (condoPadreInm as any)?.condominio_padre_id ||
         ((condoPadreInm as any)?.actividad_principal?.match(/Padre en SIGYR:\s*(URB\d+)/i)?.[1]) ||
         ((condoPadreInm as any)?.es_condominio ? condoPadreInm?.inmueble : null);
       const condoNombre = condoPadreId ? (condoNames[condoPadreId] || condoPadreId) : null;
 
-      // Si pertenece a un régimen de condominio centralizado, no genera recibos individuales en Soy Contribuyente
+      // Si pertenece a un régimen de condominio, no genera recibos individuales en Soy Contribuyente
       if (isCondo) {
         const hasChildren = c.inms.some((i: any) => i.padre_id === clusterId || (condoPadreInm && i.inmueble !== condoPadreInm.inmueble));
         const displayInms = (hasChildren && condoPadreInm)

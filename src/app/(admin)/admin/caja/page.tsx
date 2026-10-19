@@ -934,7 +934,9 @@ export default function CajaPage() {
 
       if (freshContrib) {
         user.Identidad = freshContrib.identidad || user.Identidad;
-        user.Contribuyente = freshContrib.nombre || user.Contribuyente;
+        if (!isCodeFormat || !primaryInm?.contribuyente) {
+          user.Contribuyente = freshContrib.nombre || user.Contribuyente;
+        }
         const freshTel = formatPhoneNumber(freshContrib.telefono);
         if (freshTel) user.Telefono = freshTel;
         const freshEmail = freshContrib.email || freshContrib.correo_electronico;
@@ -978,14 +980,16 @@ export default function CajaPage() {
       // Guardar inmuebles frescos para que getReciboMonto los use
       setFreshInmuebles(activeInmFresh);
       
-      const saldoFavorFresh = activeInmFresh.reduce(
-        (sum: number, i: any) => {
-          const mesesDeuda = parseInt(String(i.meses_deuda || '0'));
-          // Si tiene meses_deuda, el saldo a favor (abono parcial) se descuenta visualmente de M1
-          if (mesesDeuda > 0) return sum;
-          return sum + (parseFloat(i.saldo_favor_bs || '0') || 0);
-        }, 0
-      );
+      const saldoFavorFresh = isCodeFormat && searchedInm
+        ? (parseInt(String(searchedInm.meses_deuda || '0')) > 0 ? 0 : (parseFloat(searchedInm.saldo_favor_bs || '0') || 0))
+        : activeInmFresh.reduce(
+            (sum: number, i: any) => {
+              const mesesDeuda = parseInt(String(i.meses_deuda || '0'));
+              // Si tiene meses_deuda, el saldo a favor (abono parcial) se descuenta visualmente de M1
+              if (mesesDeuda > 0) return sum;
+              return sum + (parseFloat(i.saldo_favor_bs || '0') || 0);
+            }, 0
+          );
       
       // Identificar contenedores N/A propios para no tratarlos como condominios externos
       const naParentCodesFresh = activeInmFresh
@@ -2892,14 +2896,19 @@ export default function CajaPage() {
           // Si algún inmueble pertenecía a un contenedor padre N/A (ej: URB033481) o condominio, limpiar también el contenedor padre si sus hijos ya no tienen deuda
           const parentCodesToSync = Array.from(new Set(userInmsClean.map((i: any) => i.condominio_padre_id || i.padre_id).filter(Boolean)));
           for (const pCode of parentCodesToSync) {
-            const parentInm = (freshInmuebles || []).find((i: any) => i.inmueble === pCode) || userInmsClean.find((i: any) => i.inmueble === pCode);
+            const { data: parentInm } = await supabase.from('inmuebles').select('id, inmueble').eq('inmueble', pCode).maybeSingle();
             if (parentInm) {
-              const children = userInmsClean.filter((i: any) => i.condominio_padre_id === pCode || i.padre_id === pCode);
-              const maxChildMonths = Math.max(0, ...children.map((c: any) => parseInt(String(c.meses_deuda || 0))));
+              const { data: currentChildren } = await supabase
+                .from('inmuebles')
+                .select('meses_deuda, deuda_mmv')
+                .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`)
+                .neq('estado', 'Eliminado');
+              const maxChildMonths = Math.max(0, ...(currentChildren || []).map((c: any) => parseInt(String(c.meses_deuda || 0))));
+              const sumDeudaMmv = Math.round((currentChildren || []).reduce((s: number, c: any) => s + parseFloat(String(c.deuda_mmv || 0)), 0) * 10000) / 10000;
               if (maxChildMonths === 0 || selectedRecibos.includes('RECIB-DEUDA')) {
                 await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0, saldo_favor_bs: 0 }).eq('id', parentInm.id);
               } else {
-                await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths }).eq('id', parentInm.id);
+                await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths, deuda_mmv: sumDeudaMmv }).eq('id', parentInm.id);
               }
             }
           }

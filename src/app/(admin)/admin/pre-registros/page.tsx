@@ -11,7 +11,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export default function PreRegistrosPage() {
-  const { inmuebles, recibos, preRegistros, aprobarPreRegistro, addContribuyente, ordenanzasConfig: ordenanzaData, setPreRegistros, setInmuebles, setFacturas, addAuditLog, tcmmv } = useAppContext();
+  const { inmuebles, recibos, preRegistros, aprobarPreRegistro, addContribuyente, siguientesCodigosInmueble, ordenanzasConfig: ordenanzaData, setPreRegistros, setInmuebles, setFacturas, addAuditLog, tcmmv } = useAppContext();
   const [showSuccess, setShowSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'Web' | 'Censo'>('Web');
   
@@ -224,8 +224,11 @@ export default function PreRegistrosPage() {
           mmv_mes: 0 // Will be recalculated in general or mapped later if needed
         }));
       } else {
+        const codigosGenerados = await siguientesCodigosInmueble(1);
+        const codigoAsignado = codigosGenerados[0] || `URB${Date.now().toString().slice(-6)}`;
         recordsToInsert = [{
           ...baseInmuebleData,
+          inmueble: codigoAsignado,
           tipo: rowToApprove.tipo === 'Residencial' ? rowToApprove.codigo : 'Inmueble'
         }];
       }

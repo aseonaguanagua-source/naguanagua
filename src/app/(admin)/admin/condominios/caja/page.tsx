@@ -14,9 +14,10 @@ import { supabase } from '@/lib/supabase';
 import { formatBs } from '@/lib/formatCurrency';
 import { acreditarSaldoFavor } from '@/lib/saldoFavor';
 import { obtenerTasaEuroFecha, fechaDMY, valorUCD } from '@/lib/tasaHistorica';
+import { periodosMultasPrevias } from '@/lib/condominios/motor';
 
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-import { parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
+import { parseLocalFloat, formatLocalNumberInput, getIdentidadVariantsExact } from '@/lib/formatters';
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const fmtPeriodo = (p: string) => { const [y, m] = String(p).split('-'); return `${MESES[parseInt(m) - 1]} ${y}`; };
 const rango = (ps: string[]) => !ps?.length ? '' : ps.length === 1 ? fmtPeriodo(ps[0]) : `${fmtPeriodo(ps[0])} – ${fmtPeriodo(ps[ps.length - 1])}`;
@@ -120,6 +121,7 @@ function Caja() {
   const [notaManualRef, setNotaManualRef] = useState('');
   const [notaManualMotivo, setNotaManualMotivo] = useState('');
   const [notasCredito, setNotasCredito] = useState<any[]>([]);
+  const [filtroNotas, setFiltroNotas] = useState('');
   const [isLoadingNotas, setIsLoadingNotas] = useState(false);
   const [notaEditando, setNotaEditando] = useState<any | null>(null);
   const [notaEditMonto, setNotaEditMonto] = useState('');
@@ -171,20 +173,60 @@ function Caja() {
     })();
   }, [cobro?.condo?.codigo, cobro?.condo?.identidad, codigo]);
 
-  useEffect(() => {
-    if (activeTab === 'NotasCredito') fetchNotasCredito();
-  }, [activeTab]);
-
   const fetchNotasCredito = async () => {
     setIsLoadingNotas(true);
     try {
-      let qDoc = supabase.from('documentos').select('*').eq('tipo', 'Nota de Credito').order('created_at', { ascending: false });
-      if (c) {
-        const idents = [c.identidad, c.codigo].filter(Boolean);
-        qDoc = qDoc.or(`identidad.in.(${idents.join(',')}),contribuyente.ilike.%${c.nombre || ''}%`);
+      const curCondo = cobro?.condo;
+      const condoCodigo = curCondo?.codigo || codigo;
+      const condoIdent = curCondo?.identidad;
+
+      if (!condoCodigo && !condoIdent) {
+        setNotasCredito([]);
+        return;
       }
-      const { data } = await qDoc;
-      if (data) setNotasCredito(data);
+
+      const rawIdents = [condoIdent, condoCodigo].filter(Boolean);
+      const allIdents = Array.from(new Set(rawIdents.flatMap(id => getIdentidadVariantsExact(id))));
+
+      const { data, error: errDocs } = await supabase
+        .from('documentos')
+        .select('*')
+        .eq('tipo', 'Nota de Credito')
+        .in('identidad', allIdents)
+        .order('created_at', { ascending: false });
+
+      if (errDocs) console.error('Error fetching notas credito:', errDocs);
+
+      const validDocs = (data || []).filter((d: any) => d.estado !== 'Anulado');
+      const docsList = [...validDocs];
+
+      // Suma de notas registradas en documentos
+      const sumaDocs = docsList.reduce((acc: number, n: any) => {
+        let details: any = {};
+        try { details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
+        return acc + parseLocalFloat(details.monto_bs ?? details.monto ?? 0);
+      }, 0);
+
+      // Si en la ficha (inmuebles/condominios) hay saldo a favor que supera los documentos existentes,
+      // sintetizamos una fila explícita para que el usuario pueda verla, editar su monto o eliminarla/ponerla a 0.
+      const diferenciaDirecta = Math.round((saldoFavorActivo - sumaDocs) * 100) / 100;
+      if (diferenciaDirecta > 0.05) {
+        docsList.unshift({
+          id: `__directo__${condoCodigo || condoIdent}`,
+          created_at: new Date().toISOString(),
+          identidad: condoIdent || condoCodigo,
+          contribuyente: curCondo?.nombre || 'Saldo a Favor en Ficha',
+          estado: 'Vigente',
+          isDirecto: true,
+          detalles: JSON.stringify({
+            monto_bs: diferenciaDirecta,
+            origen_referencia: 'Saldo a Favor en Ficha (Catastro / Condominio)',
+            motivo: 'Abono / Saldo registrado directamente en la ficha'
+          })
+        });
+      }
+
+      setNotasCredito(docsList);
     } catch (e) {
       console.error(e);
     } finally {
@@ -192,32 +234,54 @@ function Caja() {
     }
   };
 
+  useEffect(() => {
+    if (activeTab === 'NotasCredito') {
+      fetchNotasCredito();
+    }
+  }, [activeTab, cobro?.condo?.codigo, cobro?.condo?.identidad, codigo, saldoFavorActivo]);
+
   const handleEliminarNota = async (docId: string, monto: any) => {
     const montoNum = parseLocalFloat(monto);
-    if (!confirm(`¿Está seguro de quitar y eliminar esta Nota de Crédito por Bs. ${formatBs(montoNum)}?\n\nEsto revertirá automáticamente el saldo a favor o abono del condominio.`)) {
+    if (!confirm(`¿Está seguro de quitar y eliminar este saldo a favor por Bs. ${formatBs(montoNum)}?\n\nEsto revertirá automáticamente el saldo a favor del condominio.`)) {
       return;
     }
     try {
-      const res = await fetch('/api/admin/documentos/eliminar-nota-credito', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: docId,
-          motivo: 'Eliminación manual desde Caja de Condominios',
-          usuario: usuario()?.usuario || 'Admin'
-        })
-      });
-      const resJson = await res.json();
-      if (!res.ok || !resJson.ok) {
-        throw new Error(resJson.error || 'Error al eliminar la nota de crédito');
+      if (String(docId).startsWith('__directo__')) {
+        const res = await fetch('/api/admin/condominios/ajustar-saldo-favor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            codigoCondominio: cobro?.condo?.codigo || codigo,
+            identidad: cobro?.condo?.identidad,
+            nuevoMonto: 0,
+            motivo: 'Eliminación manual desde Caja de Condominios',
+            usuario: usuario()?.usuario || 'Admin'
+          })
+        });
+        const resJson = await res.json();
+        if (!res.ok || !resJson.ok) throw new Error(resJson.error || 'Error al eliminar saldo');
+      } else {
+        const res = await fetch('/api/admin/documentos/eliminar-nota-credito', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: docId,
+            motivo: 'Eliminación manual desde Caja de Condominios',
+            usuario: usuario()?.usuario || 'Admin'
+          })
+        });
+        const resJson = await res.json();
+        if (!res.ok || !resJson.ok) {
+          throw new Error(resJson.error || 'Error al eliminar la nota de crédito');
+        }
       }
       setSaldoFavorActivo(prev => Math.max(0, prev - montoNum));
-      setSuccessMsg('Nota de crédito eliminada y saldo a favor revertido.');
+      setSuccessMsg('Saldo a favor eliminado correctamente.');
       setTimeout(() => setSuccessMsg(''), 4000);
       await fetchNotasCredito();
       setCalcTrigger(prev => prev + 1);
     } catch (err: any) {
-      alert('Error eliminando nota de crédito: ' + err.message);
+      alert('Error eliminando saldo a favor: ' + err.message);
     }
   };
 
@@ -236,37 +300,56 @@ function Caja() {
   const handleGuardarEditarNota = async () => {
     if (!notaEditando) return;
     const montoParsed = parseLocalFloat(notaEditMonto);
-    if (!montoParsed || montoParsed <= 0) return alert('Ingrese un monto válido mayor a 0');
+    if (isNaN(montoParsed) || montoParsed < 0) return alert('Ingrese un monto válido mayor o igual a 0');
     setGuardandoEditNota(true);
     try {
-      const res = await fetch('/api/admin/documentos/editar-nota-credito', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: notaEditando.id,
-          nuevoMonto: montoParsed,
-          nuevaReferencia: notaEditRef.trim(),
-          nuevoMotivo: notaEditMotivo.trim(),
-          usuario: usuario()?.usuario || 'Admin'
-        })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Error al editar nota de crédito');
+      if (notaEditando.isDirecto || String(notaEditando.id).startsWith('__directo__')) {
+        const res = await fetch('/api/admin/condominios/ajustar-saldo-favor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            codigoCondominio: cobro?.condo?.codigo || codigo,
+            identidad: cobro?.condo?.identidad,
+            nuevoMonto: montoParsed,
+            motivo: notaEditMotivo.trim() || 'Ajuste manual desde Caja de Condominios',
+            usuario: usuario()?.usuario || 'Admin'
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Error al ajustar saldo');
+        setSaldoFavorActivo(montoParsed);
+        setSuccessMsg(data.mensaje || 'Saldo a favor actualizado correctamente');
+      } else {
+        const res = await fetch('/api/admin/documentos/editar-nota-credito', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: notaEditando.id,
+            nuevoMonto: montoParsed,
+            nuevaReferencia: notaEditRef.trim(),
+            nuevoMotivo: notaEditMotivo.trim(),
+            usuario: usuario()?.usuario || 'Admin'
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Error al editar nota de crédito');
 
-      if (data.diferencia) {
-        setSaldoFavorActivo(prev => Math.max(0, prev + data.diferencia));
+        if (data.diferencia) {
+          setSaldoFavorActivo(prev => Math.max(0, prev + data.diferencia));
+        }
+        setSuccessMsg(data.mensaje || 'Nota de crédito actualizada correctamente');
       }
-      setSuccessMsg(data.mensaje || 'Nota de crédito actualizada correctamente');
       setTimeout(() => setSuccessMsg(''), 4000);
       setNotaEditando(null);
       await fetchNotasCredito();
       setCalcTrigger(prev => prev + 1);
     } catch (err: any) {
-      alert('Error editando nota de crédito: ' + (err.message || err));
+      alert('Error editando saldo a favor: ' + (err.message || err));
     } finally {
       setGuardandoEditNota(false);
     }
   };
+
 
 
   useEffect(() => {
@@ -388,6 +471,33 @@ function Caja() {
   const mesesMax = base?.totales?.mesesMax || 0;
   const multasMax = Math.max(1, ...(unidadesParaMax || []).map((r: any) => (r.multaMeses || 0) + (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length + (r.multasManuales || []).length));
   const maxOpciones = soloMultas ? multasMax : mesesMax;
+  const listaMultasInfo = useMemo(() => {
+    if (!soloMultas || !unidadesParaMax || unidadesParaMax.length === 0) return [];
+    const u = unidadesParaMax[0];
+    const items: { label: string; periodo?: string }[] = [];
+    if (u.multaMeses > 0) {
+      const persPrev = periodosMultasPrevias(u.pendienteDesde, u.multaMeses);
+      for (let i = 0; i < u.multaMeses; i++) {
+        const per = persPrev[i];
+        items.push({ label: per ? fmtPeriodo(per) : `Mes ${i + 1}`, periodo: per });
+      }
+    }
+    if (u.deuda?.porMes) {
+      for (const m of u.deuda.porMes) {
+        if (m.multaBs > 0) {
+          const per = u.periodos?.[m.n - 1];
+          items.push({ label: per ? fmtPeriodo(per) : `Mora Mes ${m.n}`, periodo: per });
+        }
+      }
+    }
+    if (u.multasManuales) {
+      for (const man of u.multasManuales) {
+        const per = man.periodo;
+        items.push({ label: per ? fmtPeriodo(per) : (man.concepto || 'Multa Fija'), periodo: per });
+      }
+    }
+    return items;
+  }, [soloMultas, unidadesParaMax]);
   const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
   const sinSeleccion = (porContrib && !claves.length && !identidad.trim()) || (!porContrib && abonoLocales && !claves.length);
 
@@ -543,6 +653,8 @@ function Caja() {
       const sumaRealPagos = realPagosSubidos.reduce((a, b) => a + (Number(b.monto) || 0), 0);
       const totalAPagarCobro = cobro.totales.totalBs;
       const excedenteGenerado = faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0;
+      const nuevoCobroId = crypto.randomUUID();
+      pagoId.current = nuevoCobroId;
 
       const r = await fetch('/api/admin/condominios/cobrar', {
         method: 'POST', body: JSON.stringify({
@@ -557,7 +669,7 @@ function Caja() {
           tasaOverride: tasaParsed > 0 ? tasaParsed : (cobro?.estado?.tasa ? Number(cobro.estado.tasa) : undefined),
           fechaOverride: fechaOverrideStr || undefined,
           pago: { 
-            pagoId: pagoId.current, 
+            pagoId: nuevoCobroId, 
             metodo: realPagosSubidos[0]?.metodo || 'MÚLTIPLE', 
             banco: realPagosSubidos[0]?.banco || '', 
             referencia: realPagosSubidos[0]?.referencia || '', 
@@ -766,12 +878,51 @@ function Caja() {
               <h2 className="text-lg font-semibold text-slate-800">Control de Saldos a Favor (Notas de Crédito)</h2>
               <p className="text-xs text-slate-500 mt-0.5">Notas de crédito vinculadas al condominio {c.nombre} ({c.codigo})</p>
             </div>
-            <button
-              onClick={() => setIsNotaModalOpen(true)}
-              className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              + Generar Nota de Crédito Manual
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="🔍 Filtrar por Cédula, RIF o Nombre..."
+                  value={filtroNotas}
+                  onChange={e => setFiltroNotas(e.target.value)}
+                  className="text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 w-60"
+                />
+                {filtroNotas && (
+                  <button
+                    onClick={() => setFiltroNotas('')}
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setNotaEditando({
+                    id: `__directo__${c.codigo || c.identidad}`,
+                    isDirecto: true,
+                    detalles: JSON.stringify({
+                      monto_bs: saldoFavorActivo,
+                      origen_referencia: 'Ajuste manual de saldo a favor',
+                      motivo: 'Ajuste manual solicitado desde Caja'
+                    })
+                  });
+                  setNotaEditMonto(formatLocalNumberInput(saldoFavorActivo.toFixed(2).replace('.', ',')));
+                  setNotaEditRef('Ajuste Manual');
+                  setNotaEditMotivo('Ajuste manual de saldo a favor');
+                }}
+                className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Ajustar o poner en 0 el saldo a favor de este condominio manualmente"
+              >
+                ⚙️ Ajustar Saldo Directo
+              </button>
+              <button
+                onClick={() => setIsNotaModalOpen(true)}
+                className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                + Generar Nota de Crédito Manual
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -788,54 +939,80 @@ function Caja() {
               </thead>
               <tbody>
                 {isLoadingNotas ? <tr><td colSpan={7} className="text-center py-4 text-slate-500">Cargando...</td></tr> :
-                notasCredito.length === 0 ? <tr><td colSpan={7} className="text-center py-6 text-slate-400">No se encontraron notas de crédito para este condominio.</td></tr> :
-                notasCredito.map(n => {
-                  let details: any = {};
-                  try {
-                    details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {});
-                  } catch(e){}
-                  const rawMonto = details.monto ?? details.monto_bs ?? 0;
-                  const formattedMonto = formatBs(rawMonto);
-                  const esVigente = n.estado === 'Vigente';
-                  return (
-                    <tr key={n.id} className="border-b hover:bg-slate-50">
-                      <td className="px-4 py-3">{new Date(n.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 font-medium">{n.identidad}</td>
-                      <td className="px-4 py-3">{n.contribuyente}</td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-600">Bs. {formattedMonto}</td>
-                      <td className="px-4 py-3 text-center">{details.origen_referencia || '-'}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${esVigente ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                          {n.estado}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {esVigente ? (
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => handleAbrirEditarNota(n)}
-                              className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors cursor-pointer flex items-center gap-1"
-                              title="Editar monto y concepto de esta Nota de Crédito"
-                            >
-                              <span>✏️</span>
-                              <span>Editar</span>
-                            </button>
-                            <button
-                              onClick={() => handleEliminarNota(n.id, rawMonto)}
-                              className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1"
-                              title="Quitar / Eliminar Nota de Crédito y revertir saldo a favor"
-                            >
-                              <span>🗑️</span>
-                              <span>Quitar</span>
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-400">---</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                (() => {
+                  const notasFiltradas = notasCredito.filter(n => {
+                    if (!filtroNotas.trim()) return true;
+                    const f = filtroNotas.trim().toLowerCase();
+                    const fClean = f.replace(/[-\s]/g, '');
+                    const id = String(n.identidad || '').toLowerCase();
+                    const idClean = id.replace(/[-\s]/g, '');
+                    const name = String(n.contribuyente || '').toLowerCase();
+                    let details: any = {};
+                    try { details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
+                    const ref = String(details.origen_referencia || '').toLowerCase();
+                    return id.includes(f) || idClean.includes(fClean) || name.includes(f) || ref.includes(f);
+                  });
+
+                  if (notasFiltradas.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={7} className="text-center py-6 text-slate-400">
+                          {filtroNotas.trim() 
+                            ? `No se encontraron notas de crédito que coincidan con "${filtroNotas}".` 
+                            : 'No se encontraron notas de crédito para este condominio.'}
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return notasFiltradas.map(n => {
+                    let details: any = {};
+                    try {
+                      details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {});
+                    } catch(e){}
+                    const rawMonto = details.monto ?? details.monto_bs ?? 0;
+                    const formattedMonto = formatBs(rawMonto);
+                    const esVigente = n.estado === 'Vigente';
+                    return (
+                      <tr key={n.id} className="border-b hover:bg-slate-50">
+                        <td className="px-4 py-3">{new Date(n.created_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 font-medium">{n.identidad}</td>
+                        <td className="px-4 py-3">{n.contribuyente}</td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-600">Bs. {formattedMonto}</td>
+                        <td className="px-4 py-3 text-center">{details.origen_referencia || '-'}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${esVigente ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                            {n.estado}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {esVigente ? (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleAbrirEditarNota(n)}
+                                className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded transition-colors cursor-pointer flex items-center gap-1"
+                                title="Editar monto y concepto de este saldo a favor"
+                              >
+                                <span>✏️</span>
+                                <span>Editar</span>
+                              </button>
+                              <button
+                                onClick={() => handleEliminarNota(n.id, rawMonto)}
+                                className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1"
+                                title="Quitar / Eliminar saldo a favor"
+                              >
+                                <span>🗑️</span>
+                                <span>Quitar</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">---</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
@@ -1040,6 +1217,10 @@ function Caja() {
                       {Array.from({ length: maxOpciones }, (_, idx) => {
                         const num = idx + 1;
                         const isSelected = meses === '' || (typeof meses === 'number' && meses >= num);
+                        const infoMulta = listaMultasInfo[idx];
+                        const labelBoton = infoMulta?.label
+                          ? (num === 1 ? infoMulta.label : `Hasta ${infoMulta.label}`)
+                          : (num === 1 ? '1er Mes (El más viejo)' : `Hasta Mes ${num}`);
                         return (
                           <button
                             key={num}
@@ -1057,7 +1238,7 @@ function Caja() {
                                 : 'bg-white text-slate-700 border-slate-300 hover:border-amber-400 hover:bg-amber-50'
                             }`}
                           >
-                            {num === 1 ? '1er Mes (El más viejo)' : `Hasta Mes ${num}`}
+                            {labelBoton}
                           </button>
                         );
                       })}

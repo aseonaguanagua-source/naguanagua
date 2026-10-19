@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
 import { cleanClasificacionActividad } from '@/lib/calculos';
 import { EstadoCuenta, RenglonEstado } from './servicio';
+import * as M from './motor';
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const fmtPeriodo = (p: string) => { 
@@ -409,6 +410,7 @@ export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: num
   const porMes = r.deuda?.porMes || [];
   const periodos = r.periodos || [];
 
+  // 1. Renglones de Aseo Urbano desglosados mes a mes
   if (porMes.length > 0) {
     porMes.forEach((m, idx) => {
       const perLabel = periodos[idx] ? fmtPeriodo(periodos[idx]) : `Mes ${m.n}`;
@@ -421,27 +423,77 @@ export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: num
         `Bs. ${fmtBs(m.totalBs)}`
       ]);
     });
-  } else {
+  } else if ((r.deuda?.baseBs || 0) > 0.01) {
     rows.push([
-      r.periodos.map(fmtPeriodo).join(', ') || 'Al día',
+      r.periodos.map(fmtPeriodo).join(', ') || 'Aseo Urbano',
       `Bs. ${fmtBs(r.deuda?.baseBs || 0)}`,
-      `Bs. ${fmtBs(sumMultas)}`,
+      `Bs. ${fmtBs(r.deuda?.multaBs || 0)}`,
       `Bs. ${fmtBs(r.deuda?.ivaBs || 0)}`,
       r.deuda?.retencionBs > 0 ? `- Bs. ${fmtBs(r.deuda.retencionBs)}` : 'Bs. 0,00',
-      `Bs. ${fmtBs(r.totalBs || 0)}`
+      `Bs. ${fmtBs(r.deuda?.totalBs || 0)}`
+    ]);
+  } else if (sumMultas <= 0.01) {
+    rows.push([
+      'Al día (Sin deuda)',
+      'Bs. 0,00',
+      'Bs. 0,00',
+      'Bs. 0,00',
+      'Bs. 0,00',
+      'Bs. 0,00'
     ]);
   }
 
-  // Si hay multas extras o manuales, agregar renglón aclaratorio
-  if ((r.multaExtraBs || 0) + (r.multasManualesBs || 0) > 0.01) {
-    rows.push([
-      'Multas acumuladas / administrativas',
-      'Bs. 0,00',
-      `Bs. ${fmtBs((r.multaExtraBs || 0) + (r.multasManualesBs || 0))}`,
-      'Bs. 0,00',
-      'Bs. 0,00',
-      `Bs. ${fmtBs((r.multaExtraBs || 0) + (r.multasManualesBs || 0))}`
-    ]);
+  // 2. Multas asignadas a períodos específicos o manuales
+  if (Array.isArray(r.multasManuales) && r.multasManuales.length > 0) {
+    r.multasManuales.forEach((man: any) => {
+      const perText = man.periodo ? fmtPeriodo(man.periodo) : '';
+      const label = perText ? `Multa por mora ${perText}` : (man.concepto || 'Multa administrativa');
+      rows.push([
+        label,
+        'Bs. 0,00',
+        `Bs. ${fmtBs(man.montoBs)}`,
+        'Bs. 0,00',
+        'Bs. 0,00',
+        `Bs. ${fmtBs(man.montoBs)}`
+      ]);
+    });
+  }
+
+  // 3. Multas acumuladas previas (desglose por período)
+  if ((r.multaExtraBs || 0) > 0.01) {
+    const prevPers = M.periodosMultasPrevias(r.pendienteDesde, r.multaMeses, new Date());
+    const cuotaMulta = r.multaMeses > 0 ? (r.multaExtraBs / r.multaMeses) : r.multaExtraBs;
+
+    if (prevPers.length > 0 && prevPers.length <= 12) {
+      prevPers.forEach((p: string) => {
+        rows.push([
+          `Multa por mora ${fmtPeriodo(p)}`,
+          'Bs. 0,00',
+          `Bs. ${fmtBs(cuotaMulta)}`,
+          'Bs. 0,00',
+          'Bs. 0,00',
+          `Bs. ${fmtBs(cuotaMulta)}`
+        ]);
+      });
+    } else if (prevPers.length > 12) {
+      rows.push([
+        `Multas por mora (${r.multaMeses} meses: ${fmtPeriodo(prevPers[0])} – ${fmtPeriodo(prevPers[prevPers.length - 1])})`,
+        'Bs. 0,00',
+        `Bs. ${fmtBs(r.multaExtraBs)}`,
+        'Bs. 0,00',
+        'Bs. 0,00',
+        `Bs. ${fmtBs(r.multaExtraBs)}`
+      ]);
+    } else {
+      rows.push([
+        `Multas acumuladas (${r.multaMeses || 1} mes${r.multaMeses === 1 ? '' : 'es'})`,
+        'Bs. 0,00',
+        `Bs. ${fmtBs(r.multaExtraBs)}`,
+        'Bs. 0,00',
+        'Bs. 0,00',
+        `Bs. ${fmtBs(r.multaExtraBs)}`
+      ]);
+    }
   }
 
   autoTable(doc, {

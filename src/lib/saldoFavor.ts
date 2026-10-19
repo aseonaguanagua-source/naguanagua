@@ -57,10 +57,11 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
     0
   );
 
-  // Consolidar en el inmueble que ya tenga saldo, si no en el primer inmueble no eliminado (o el más antiguo)
+  // Si se especificó un código de inmueble específico, ese inmueble es prioritario
+  const targetInm = codigoInmueble ? data.find((i: any) => String(i.inmueble || '').toUpperCase() === codigoInmueble.toUpperCase()) : null;
   const conSaldo = data.find((i: any) => (parseFloat(i.saldo_favor_bs || '0') || 0) > 0.009);
   const vivo = data.find((i: any) => i.estado !== 'Eliminado');
-  return { total, inmueblePrincipalId: (conSaldo || vivo || data[0]).id };
+  return { total, inmueblePrincipalId: (targetInm || conSaldo || vivo || data[0]).id };
 }
 
 /**

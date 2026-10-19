@@ -36,6 +36,7 @@ type AppState = {
   setFacturas: React.Dispatch<React.SetStateAction<any[]>>;
   refreshData: (forceFresh?: boolean) => Promise<void>;
   refreshUserData: (identidad: string) => Promise<void>;
+  siguientesCodigosInmueble: (n: number) => Promise<string[]>;
   clearLocalCache: () => Promise<void>;
 };
 
@@ -581,6 +582,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Asegurar inclusión de contribuyentes de la tabla 'contribuyentes' que no tengan inmuebles aún o sean recién registrados
       rawContribuyentes.forEach((c: any) => {
         if (c.identidad && !identidadesConInmueble.has(c.identidad) && !map.has(c.identidad)) {
+          const idVars = getIdentidadVariants(c.identidad);
+          const matchedInm = (allInmuebles || []).find((i: any) => idVars.includes(i.identidad));
+          const codigoReal = matchedInm?.inmueble || matchedInm?.cod_cont || (c.cod_cont && c.cod_cont !== c.identidad ? c.cod_cont : null);
+          const actReal = matchedInm?.actividad_principal || (c.actividad && c.actividad !== 'No aplica' ? c.actividad : 'Sin Inmueble');
+          const claseReal = matchedInm?.clasificacion || matchedInm?.tipo || c.clasificacion || 'Individual';
+
           const rawEmail = c.email || c.correo_electronico || c.correo;
           const cleanEmail = isFictitiousEmail(rawEmail) ? '' : (rawEmail || '').trim();
           map.set(c.identidad, {
@@ -588,20 +595,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
             Contribuyente: c.nombre || 'Sin Nombre',
             Telefono: formatPhoneNumber(c.telefono) || 'No registrado',
             Correo: cleanEmail || 'No registrado',
-            CodCont: c.identidad,
-            cod_cont: c.identidad,
-            Direccion: c.direccion || '',
+            CodCont: codigoReal || 'Pendiente',
+            cod_cont: codigoReal || 'Pendiente',
+            Direccion: c.direccion || matchedInm?.direccion || '',
             Observaciones: c.observaciones || '',
-            Actividad: 'No aplica',
+            Actividad: actReal,
             ActividadComercial: '',
             TipoResidencia: '',
-            Clasificacion: 'Individual',
-            SaldoFavor: 0,
-            DeudaMMV: 0,
-            DeudaCongelada: 0,
+            Clasificacion: claseReal,
+            SaldoFavor: parseFloat(matchedInm?.saldo_favor_bs || '0'),
+            DeudaMMV: parseFloat(matchedInm?.deuda_mmv || '0'),
+            DeudaCongelada: parseFloat(matchedInm?.deuda_congelada_bs || '0'),
             DeudaBs: 0,
-            MesesDeuda: 0,
-            Estado: c.estado || 'Activo',
+            MesesDeuda: parseInt(matchedInm?.meses_deuda || '0'),
+            Estado: matchedInm?.estado || c.estado || 'Activo',
             FechaRegistro: c.created_at || null
           });
         }
@@ -1358,6 +1365,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFacturas,
       refreshData,
       refreshUserData,
+      siguientesCodigosInmueble,
       clearLocalCache
     }}>
       {children}

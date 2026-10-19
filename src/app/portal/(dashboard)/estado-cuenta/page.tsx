@@ -288,9 +288,9 @@ export default function EstadoCuentaPage() {
   const isCondoReceipt = (f: any): boolean => {
     const ref = String(f?.referencia || '').toUpperCase();
     const inmId = String(f?.inmueble || '').toUpperCase();
-    // Excluir cualquier inmueble que pertenezca a condominio centralizado (no individual)
+    // Excluir cualquier inmueble que pertenezca a régimen de condominio
     const matched = misInmuebles.find((i: any) => i.inmueble && (ref.includes(String(i.inmueble).toUpperCase()) || inmId === String(i.inmueble).toUpperCase()));
-    if (matched && !isCondominioPagoIndividual(matched) && !isCondominioPagoIndividual(matched.condominio_padre_id) && (
+    if (matched && (
       matched.condominio_padre_id || 
       matched.es_condominio || 
       String(matched.actividad_principal || '').toLowerCase().includes('condominio') || 
@@ -1182,10 +1182,13 @@ export default function EstadoCuentaPage() {
 
                 {/* Banner de Condominio Informativo */}
                 {cluster.esCondominio && (
-                  <div className="px-4 py-2.5 bg-purple-50/90 border-b border-purple-200 text-xs text-purple-900 flex items-center gap-2">
-                    <Building className="w-4 h-4 text-purple-600 shrink-0" />
-                    <div>
-                      <strong>Régimen de Condominio:</strong> Este inmueble cancela el servicio de aseo urbano a través de la administración del condominio. No genera cobranza individual en este portal.
+                  <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
+                    <Building className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <strong className="text-amber-900">Inmueble / Local dentro de Condominio:</strong> Este inmueble forma parte de un régimen de condominio centralizado.
+                      <p className="text-[11px] text-amber-900/90 leading-relaxed">
+                        Para consultar el detalle de su estado de cuenta, solvencia tributaria o aclarar <strong>multas y cuotas correspondientes al condominio</strong>, debe <strong>comunicarse y coordinar directamente con la Junta o Directiva de su Condominio</strong>, la cual administra el servicio y pagos centralizados ante el IAMEC.
+                      </p>
                     </div>
                   </div>
                 )}

@@ -1,0 +1,200 @@
+[
+  {
+    "parent_code": "URB005063",
+    "rif": "J-410961686",
+    "contribuyente": "CONDOMINIO RESIDENCIAS MONTE ALTO",
+    "tipo": "RESIDENCIAL",
+    "actividad": "N/A",
+    "is_condo": true,
+    "sigyr_children": 120,
+    "supa_children": 0,
+    "missing": 120
+  },
+  {
+    "parent_code": "URB029419",
+    "rif": "J-313829340",
+    "contribuyente": "CONDOMINIO CONJUNTO RESIDENCIAL VALLE CLARO",
+    "tipo": "RESIDENCIAL",
+    "actividad": "N/A",
+    "is_condo": true,
+    "sigyr_children": 117,
+    "supa_children": 0,
+    "missing": 117
+  },
+  {
+    "parent_code": "URB014218",
+    "rif": "J-305931836",
+    "contribuyente": "CONDOMINIO RESIDENCIA TERESA A-2",
+    "tipo": "RESIDENCIAL",
+    "actividad": "N/A",
+    "is_condo": true,
+    "sigyr_children": 105,
+    "supa_children": 0,
+    "missing": 105
+  },
+  {
+    "parent_code": "URB019892",
+    "rif": "J-298751231",
+    "contribuyente": "CONDOMINIO CONJ. RESID. TERRAZAS DE MAÑONGO EDIFICIO B3",
+    "tipo": "RESIDENCIAL",
+    "actividad": "N/A",
+    "is_condo": true,
+    "sigyr_children": 72,
+    "supa_children": 0,
+    "missing": 72
+  },
+  {
+    "parent_code": "URB003345",
+    "rif": "J-412075349",
+    "contribuyente": "CONDOMINIO DEL CONJUNTO RESIDENCIAL \"RESIDENCIAS LA PEDREGOSA TORRE SUR\"",
+    "tipo": "RESIDENCIAL",
+    "actividad": "N/A",
+    "is_condo": true,
+    "sigyr_children": 56,
+    "supa_children": 0,
+    "missing": 56
+  },
+  {
+    "parent_code": "URB029043",
+    "rif": "J-316365620",
+    "contribuyente": "CONDOMINIO CONJ. RESD. LA PAZ TORRE B",
+    "tipo": "RESIDENCIAL",
+    "actividad": "N/A",
+    "is_condo": true,
+    "sigyr_children": 50,
+    "supa_children": 0,
+    "missing": 50
+  },
+  {
+    "parent_code": "URB009841",
+    "rif": "J-300605930",
+    "contribuyente": "INVERSIONES HMR, C.A",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": true,
+    "sigyr_children": 39,
+    "supa_children": 0,
+    "missing": 39
+  },
+  {
+    "parent_code": "URB019940",
+    "rif": "J-308460176",
+    "contribuyente": "CONDOMINIO RESIDENCIA MAPORAL",
+    "tipo": "RESIDENCIAL",
+    "actividad": "N/A",
+    "is_condo": true,
+    "sigyr_children": 37,
+    "supa_children": 0,
+    "missing": 37
+  },
+  {
+    "parent_code": "URB028109",
+    "rif": "J-308347973",
+    "contribuyente": "CONDOMINIO EDIFICIO NAVARINO",
+    "tipo": "RESIDENCIAL",
+    "actividad": "N/A",
+    "is_condo": true,
+    "sigyr_children": 8,
+    "supa_children": 0,
+    "missing": 8
+  },
+  {
+    "parent_code": "URB033298",
+    "rif": "J-301966686",
+    "contribuyente": "AUTOYOTA C A",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": false,
+    "sigyr_children": 4,
+    "supa_children": 0,
+    "missing": 4
+  },
+  {
+    "parent_code": "URB008201",
+    "rif": "J-075802365",
+    "contribuyente": "MULTI SERVICIOS DON LUIS C A",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": false,
+    "sigyr_children": 4,
+    "supa_children": 0,
+    "missing": 4
+  },
+  {
+    "parent_code": "URB033418",
+    "rif": "J-501636281",
+    "contribuyente": "CORPORACION L.A.M.M, C.A",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": false,
+    "sigyr_children": 3,
+    "supa_children": 0,
+    "missing": 3
+  },
+  {
+    "parent_code": "URB033254",
+    "rif": "J-503922729",
+    "contribuyente": "COMEVAL NAGUANAGUA, C.A",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": false,
+    "sigyr_children": 2,
+    "supa_children": 0,
+    "missing": 2
+  },
+  {
+    "parent_code": "URB033460",
+    "rif": "J-293788544",
+    "contribuyente": "DISTRIBUIDORA INAGOANAGOA, C.A",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": false,
+    "sigyr_children": 2,
+    "supa_children": 0,
+    "missing": 2
+  },
+  {
+    "parent_code": "URB033770",
+    "rif": "J-411353710",
+    "contribuyente": "COMERCIALIZADORA S.B VALENCIA, C.A",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": false,
+    "sigyr_children": 2,
+    "supa_children": 0,
+    "missing": 2
+  },
+  {
+    "parent_code": "URB000056",
+    "rif": "J-407203843",
+    "contribuyente": "MUNDO LUCKY 2016, C.A.",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": false,
+    "sigyr_children": 2,
+    "supa_children": 0,
+    "missing": 2
+  },
+  {
+    "parent_code": "URB005995",
+    "rif": "J-408962179",
+    "contribuyente": "INVERSIONES AC. LC, C.A",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": false,
+    "sigyr_children": 2,
+    "supa_children": 0,
+    "missing": 2
+  },
+  {
+    "parent_code": "URB033348",
+    "rif": "J-075208641",
+    "contribuyente": "INVERSIONES HOTEL SAN MARCOS IHSMCA, C.A.",
+    "tipo": "COMERCIAL",
+    "actividad": "N/A",
+    "is_condo": false,
+    "sigyr_children": 2,
+    "supa_children": 0,
+    "missing": 2
+  }
+]

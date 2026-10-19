@@ -1,0 +1,2320 @@
+{
+  "timestamp": "2026-10-17T22:02:09.833Z",
+  "parents": [
+    {
+      "id": "fb2cae9f-9b44-419d-a693-d29c69073464",
+      "inmueble": "URB004585",
+      "contribuyente": "BAR RESTAURANT MONCHI´S 2023, C.A.",
+      "identidad": "J-504624020",
+      "old_actividad": "Padre en SIGYR: URB004525",
+      "old_padre_id": "URB004525",
+      "old_condo_padre": "URB004525",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB004525",
+      "hijos_count": 2
+    },
+    {
+      "id": "8ab8020d-5fc6-4435-9788-3fb06896ea50",
+      "inmueble": "URB035215",
+      "contribuyente": "VESUBIO, C.A",
+      "identidad": "J-0",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 1
+    },
+    {
+      "id": "14bb5671-b17d-47d0-b9d7-c4d9ea3c046e",
+      "inmueble": "URB033897",
+      "contribuyente": "INVERSIONES Y DELICIAS YULIET, C.A",
+      "identidad": "J-505815946",
+      "old_actividad": "Padre en SIGYR: URB033630",
+      "old_padre_id": "URB033630",
+      "old_condo_padre": null,
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB033630",
+      "hijos_count": 2
+    },
+    {
+      "id": "d3c79316-0c78-4b8a-bd07-75d1907e46b3",
+      "inmueble": "URB015180",
+      "contribuyente": "BASIC DESIGN, C.A",
+      "identidad": "J-410564040",
+      "old_actividad": "Padre en SIGYR: URB014903",
+      "old_padre_id": "URB014903",
+      "old_condo_padre": "URB014903",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB014903",
+      "hijos_count": 4
+    },
+    {
+      "id": "398e9c5f-27b0-436b-8443-5798ab027b8b",
+      "inmueble": "URB033596",
+      "contribuyente": "INVERSIONES CLK VALENCIA, C.A",
+      "identidad": "J-501747474",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "891b6fca-528a-400a-8117-911390d153a5",
+      "inmueble": "URB033734",
+      "contribuyente": "INVERSIONES FH3, C.A",
+      "identidad": "J-402871619",
+      "old_actividad": "Padre en SIGYR: URB018119",
+      "old_padre_id": "URB018119",
+      "old_condo_padre": "URB018119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB018119",
+      "hijos_count": 1
+    },
+    {
+      "id": "c8af9332-1659-4424-bf6d-f8a65764b112",
+      "inmueble": "URB033756",
+      "contribuyente": "LISANDRO PEÑA",
+      "identidad": "V-9879425",
+      "old_actividad": "Padre en SIGYR: URB005770",
+      "old_padre_id": "URB005770",
+      "old_condo_padre": "URB005770",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB005770",
+      "hijos_count": 4
+    },
+    {
+      "id": "2d9625f1-bad1-4bec-8a28-127fb85638ca",
+      "inmueble": "URB034491",
+      "contribuyente": "HOGAR HISPANO ASOCIACION CIVIL",
+      "identidad": "J-75310578",
+      "old_actividad": "Padre en SIGYR: URB033630",
+      "old_padre_id": "URB033630",
+      "old_condo_padre": "URB033630",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB033630",
+      "hijos_count": 4
+    },
+    {
+      "id": "dcff00ab-9688-4942-82d7-28845e089455",
+      "inmueble": "URB033646",
+      "contribuyente": "DISTRIBUIDORA DE ACEITE ROGIL, C.A",
+      "identidad": "J-412829300",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 2
+    },
+    {
+      "id": "9e029915-0e01-43ea-8c9e-e0af0323be9c",
+      "inmueble": "URB033854",
+      "contribuyente": "MF FILTERS, C.A.",
+      "identidad": "J-505621068",
+      "old_actividad": "Padre en SIGYR: URB030454",
+      "old_padre_id": "URB030454",
+      "old_condo_padre": "URB030454",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB030454",
+      "hijos_count": 2
+    },
+    {
+      "id": "22a12210-8cfe-4325-bafa-6c0aee10c409",
+      "inmueble": "URB016263",
+      "contribuyente": "OPERADORA 50, C.A",
+      "identidad": "J-505483994",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "e1038856-14a1-4af0-a799-5aaec94d0290",
+      "inmueble": "URB033610",
+      "contribuyente": "AA LA GRANJA 2024, C.A.",
+      "identidad": "J-505938860",
+      "old_actividad": "Padre en SIGYR: URB015849",
+      "old_padre_id": "URB015849",
+      "old_condo_padre": "URB015849",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB015849",
+      "hijos_count": 2
+    },
+    {
+      "id": "b9458edc-d215-42c0-bb95-467b9797b409",
+      "inmueble": "URB033926",
+      "contribuyente": "INVERSIONES CD.24 C.A",
+      "identidad": "J-400826608",
+      "old_actividad": "Padre en SIGYR: URB015849",
+      "old_padre_id": "URB015849",
+      "old_condo_padre": "URB015849",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB015849",
+      "hijos_count": 2
+    },
+    {
+      "id": "51a7033e-0a53-481a-87e4-76c0985673aa",
+      "inmueble": "URB015879",
+      "contribuyente": "PREPARADOS ALIMENTICIOS INTERNACIONALES PAICA, C.A",
+      "identidad": "J-002197528",
+      "old_actividad": "Padre en SIGYR: URB015849",
+      "old_padre_id": "URB015849",
+      "old_condo_padre": "URB015849",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB015849",
+      "hijos_count": 2
+    },
+    {
+      "id": "7aaf3855-7a0b-4f78-88f1-9b106fc45324",
+      "inmueble": "URB033608",
+      "contribuyente": "INVERSIONES ELEFANTE, C.A.",
+      "identidad": "J-000663084",
+      "old_actividad": "Padre en SIGYR: URB015849",
+      "old_padre_id": "URB015849",
+      "old_condo_padre": "URB015849",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB015849",
+      "hijos_count": 4
+    },
+    {
+      "id": "8dc6efab-8c0c-41d3-aa14-0a6694f87bd1",
+      "inmueble": "URB033575",
+      "contribuyente": "ANTONIO MODA VALENCIA, C.A",
+      "identidad": "J-413069083",
+      "old_actividad": "Padre en SIGYR: URB016491",
+      "old_padre_id": "URB016491",
+      "old_condo_padre": "URB016491",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016491",
+      "hijos_count": 2
+    },
+    {
+      "id": "e1d50a3f-ef8f-4ea5-8012-1a95e0266d8e",
+      "inmueble": "URB034130",
+      "contribuyente": "DOLORES MARIA LUISA PECORARO DE PAPARONI, CROCIFISSA PECORARO DE BOZZI, RAIMONDO PECORARO RODRIGUEZ Y ANTONIO PECORARO RODRIGUEZ",
+      "identidad": "V-7102040",
+      "old_actividad": "Padre en SIGYR: URB030454",
+      "old_padre_id": "URB030454",
+      "old_condo_padre": "URB030454",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB030454",
+      "hijos_count": 2
+    },
+    {
+      "id": "4445339e-ee6c-4b37-94d5-43c8fa188206",
+      "inmueble": "URB033591",
+      "contribuyente": "TOTAL SPORT 2022, C.A",
+      "identidad": "J-502097996",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "7b8da95a-bd3b-49e2-892f-d2bc96a6a01c",
+      "inmueble": "URB033557",
+      "contribuyente": "CSM GROUP 9535, C.A",
+      "identidad": "J-413082810",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 2
+    },
+    {
+      "id": "1d3a58af-7b9c-46ec-992c-ab441482b22c",
+      "inmueble": "URB034935",
+      "contribuyente": "FRANSAN SUMINISTROS Y SERVICIOS, C.A",
+      "identidad": "J-411002267",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 2
+    },
+    {
+      "id": "a32e3149-2734-4874-b149-c33581148a22",
+      "inmueble": "URB033702",
+      "contribuyente": "MARIANTHI DOUKAKI",
+      "identidad": "V-24803884",
+      "old_actividad": "Padre en SIGYR: URB008934",
+      "old_padre_id": "URB008934",
+      "old_condo_padre": "URB008934",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB008934",
+      "hijos_count": 2
+    },
+    {
+      "id": "bc12c235-8ef4-4892-b620-240e8106cd3b",
+      "inmueble": "URB033698",
+      "contribuyente": "REDVITAL COMERCIALIZADORA, C.A",
+      "identidad": "J-500328800",
+      "old_actividad": "Padre en SIGYR: URB014903",
+      "old_padre_id": "URB014903",
+      "old_condo_padre": "URB014903",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB014903",
+      "hijos_count": 4
+    },
+    {
+      "id": "adef7692-42f7-4155-bf8a-7ac95fca6482",
+      "inmueble": "URB033643",
+      "contribuyente": "HYDROFILTER, C.A.",
+      "identidad": "J-505288296",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 2
+    },
+    {
+      "id": "4aa77883-9bce-4991-b67b-35a01ce90f07",
+      "inmueble": "URB033573",
+      "contribuyente": "ZONA INFANTIL PLAY HOUSE, C.A",
+      "identidad": "J-400654220",
+      "old_actividad": "Padre en SIGYR: URB016491",
+      "old_padre_id": "URB016491",
+      "old_condo_padre": "URB016491",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016491",
+      "hijos_count": 2
+    },
+    {
+      "id": "d9683996-dd6d-4197-a0b5-77f44fd8a865",
+      "inmueble": "URB016120",
+      "contribuyente": "INVERSIONES CARABOBO 2023, C.A",
+      "identidad": "J-503693622",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 3
+    },
+    {
+      "id": "2ff967c2-3b4c-454f-be23-dbbb42ebc540",
+      "inmueble": "URB034940",
+      "contribuyente": "LA CASA DEL PERFUME VZLA C.A",
+      "identidad": "J-503292431",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 2
+    },
+    {
+      "id": "accede74-15be-4445-9117-d84cfa776912",
+      "inmueble": "URB033583",
+      "contribuyente": "INVERSIONES LA MARTINA VALENCIA, C.A",
+      "identidad": "J-506651289",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "6495ce7b-1505-4898-b503-4e7be60b3547",
+      "inmueble": "URB032062",
+      "contribuyente": "AUTOPARTES JAFENZA, C.A. (AUTOPARTES JAFENZA, C.A.)",
+      "identidad": "J-407271768",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 1
+    },
+    {
+      "id": "ad524946-3676-4bc5-8edb-2ce9e1f65a9c",
+      "inmueble": "URB033902",
+      "contribuyente": "TASCA HISPANA (TASCA LAS 3 CARABELAS)",
+      "identidad": "J-504454079",
+      "old_actividad": "Padre en SIGYR: URB033630",
+      "old_padre_id": "URB033630",
+      "old_condo_padre": "URB033630",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB033630",
+      "hijos_count": 2
+    },
+    {
+      "id": "7d4db993-7761-4e88-af1d-fd27ce7f987a",
+      "inmueble": "URB029236",
+      "contribuyente": "DIOSQUEDI VENICNA PALMA MORA",
+      "identidad": "V-22216534",
+      "old_actividad": "Padre en SIGYR: URB029224",
+      "old_padre_id": "URB029224",
+      "old_condo_padre": "URB029224",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB029224",
+      "hijos_count": 2
+    },
+    {
+      "id": "16ab7d0e-ebc8-438b-b399-37bf50847439",
+      "inmueble": "URB033880",
+      "contribuyente": "TECNICAM VENTAS, C.A.",
+      "identidad": "J-505783645",
+      "old_actividad": "Padre en SIGYR: URB016822",
+      "old_padre_id": "URB016822",
+      "old_condo_padre": "URB016822",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016822",
+      "hijos_count": 2
+    },
+    {
+      "id": "e224af14-e2da-4167-aa30-342b53050621",
+      "inmueble": "URB033584",
+      "contribuyente": "REPRESENTACIONES ULAB 24, C.A.",
+      "identidad": "J-505056603",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "b73d69dd-0bf0-4a3d-a081-7a4ba7b6a4cf",
+      "inmueble": "URB033600",
+      "contribuyente": "WATCHENCIA C.A",
+      "identidad": "J-294400442",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 4
+    },
+    {
+      "id": "7a6813de-b6b7-476d-b1c2-190472543f11",
+      "inmueble": "URB033697",
+      "contribuyente": "MUNDO MAYOR DOS, C.A",
+      "identidad": "J-315531143",
+      "old_actividad": "Padre en SIGYR: URB014903",
+      "old_padre_id": "URB014903",
+      "old_condo_padre": "URB014903",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB014903",
+      "hijos_count": 3
+    },
+    {
+      "id": "a8973df4-0cdb-41c6-ba8a-f33f1dc32466",
+      "inmueble": "URB033528",
+      "contribuyente": "FUNDACION SALA ABIERTA",
+      "identidad": "J-411820741",
+      "old_actividad": "Padre en SIGYR: URB016053",
+      "old_padre_id": "URB016053",
+      "old_condo_padre": "URB016053",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016053",
+      "hijos_count": 2
+    },
+    {
+      "id": "6fa504fb-bc61-4e9f-8ce2-1c354b514f4a",
+      "inmueble": "URB033700",
+      "contribuyente": "HOMERO ANTONIO IZQUIEL",
+      "identidad": "00000000-URB033700",
+      "old_actividad": "Padre en SIGYR: URB014903",
+      "old_padre_id": "URB014903",
+      "old_condo_padre": "URB014903",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB014903",
+      "hijos_count": 2
+    },
+    {
+      "id": "4664e516-8e24-4abb-b4c0-6999f292d7bd",
+      "inmueble": "URB033598",
+      "contribuyente": "DISTRIBUIDORA MUNDO GLOBAL 81, C.A.",
+      "identidad": "J-410077689",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "76a58b12-ddd5-48c7-a365-269f501f69ba",
+      "inmueble": "URB033526",
+      "contribuyente": "GRANJA A COLOR, C.A",
+      "identidad": "J-500542569",
+      "old_actividad": "Padre en SIGYR: URB016053",
+      "old_padre_id": "URB016053",
+      "old_condo_padre": "URB016053",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016053",
+      "hijos_count": 5
+    },
+    {
+      "id": "e19b3b0c-7109-4e26-8647-7bbd2db37982",
+      "inmueble": "URB034939",
+      "contribuyente": "CASA DE REPRESENTACION GLOBAL MEDIC, C.A",
+      "identidad": "J-412579312",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 2
+    },
+    {
+      "id": "298290ab-3e41-41b6-af0b-ff418f73295f",
+      "inmueble": "URB033613",
+      "contribuyente": "EE VLC 2022, C.A (ILAHUI)",
+      "identidad": "J-502890025",
+      "old_actividad": "Padre en SIGYR: URB015849",
+      "old_padre_id": "URB015849",
+      "old_condo_padre": "URB015849",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB015849",
+      "hijos_count": 2
+    },
+    {
+      "id": "70950556-b79e-4700-820b-fed36bb33104",
+      "inmueble": "URB033618",
+      "contribuyente": "INVESTMENTS CELL SPACE PHONE SERVICE, C.A.",
+      "identidad": "J-413082519",
+      "old_actividad": "Padre en SIGYR: URB016822",
+      "old_padre_id": "URB016822",
+      "old_condo_padre": "URB016822",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016822",
+      "hijos_count": 2
+    },
+    {
+      "id": "cff67d50-805b-4b70-9b39-cd85e2bd8d72",
+      "inmueble": "URB033730",
+      "contribuyente": "GRUPO MEDICO INNOVA LUZ, C.A.",
+      "identidad": "J-502568646",
+      "old_actividad": "Padre en SIGYR: URB003522",
+      "old_padre_id": "URB003522",
+      "old_condo_padre": "URB003522",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB003522",
+      "hijos_count": 2
+    },
+    {
+      "id": "5cce8d33-9681-4151-950e-8f18639ac2d1",
+      "inmueble": "URB033733",
+      "contribuyente": "PANADERIA PASTELERIA PASEO LA GRANJA C.A.",
+      "identidad": "J-304945132",
+      "old_actividad": "Padre en SIGYR: URB003522",
+      "old_padre_id": "URB003522",
+      "old_condo_padre": "URB003522",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB003522",
+      "hijos_count": 3
+    },
+    {
+      "id": "8f442a8d-a540-456f-9798-dd799e6e68b8",
+      "inmueble": "URB033601",
+      "contribuyente": "HIPER MARKET ROGIL 19, C.A.",
+      "identidad": "J-500696132",
+      "old_actividad": "Padre en SIGYR: URB032102",
+      "old_padre_id": "URB032102",
+      "old_condo_padre": null,
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032102",
+      "hijos_count": 1
+    },
+    {
+      "id": "fc82480a-8e0a-43ea-b5f2-313436852701",
+      "inmueble": "URB016127",
+      "contribuyente": "CORPOLIVO 3, C.A",
+      "identidad": "J-501576785",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "56f218ce-b03c-4eab-8ae1-1c27514a155a",
+      "inmueble": "URB033642",
+      "contribuyente": "GRUPO TITAN, C.A",
+      "identidad": "J-501452628",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 3
+    },
+    {
+      "id": "85eaf0f2-aff3-4efd-b399-255f0838ab5c",
+      "inmueble": "URB033594",
+      "contribuyente": "CONSORCIO BASENTO, C.A (ACAPULCO)",
+      "identidad": "J-309026739",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "c2d5dc8a-77bc-430e-b6b2-07a413c28636",
+      "inmueble": "URB033688",
+      "contribuyente": "BACCARA C SNACK BAR C.A",
+      "identidad": "J-316124320",
+      "old_actividad": "Padre en SIGYR: URB014903",
+      "old_padre_id": "URB014903",
+      "old_condo_padre": "URB014903",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB014903",
+      "hijos_count": 2
+    },
+    {
+      "id": "f700374a-eca8-405f-bfb6-8cde7d251d9c",
+      "inmueble": "URB008946",
+      "contribuyente": "INVERSIONES DOUKAT, C.A",
+      "identidad": "J-501585725",
+      "old_actividad": "Padre en SIGYR: URB008934",
+      "old_padre_id": "URB008934",
+      "old_condo_padre": "URB008934",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB008934",
+      "hijos_count": 2
+    },
+    {
+      "id": "479b5e14-32bd-4394-9439-8017026e239c",
+      "inmueble": "URB033911",
+      "contribuyente": "CARNICERIA EL CHACAL II",
+      "identidad": "J-504749737",
+      "old_actividad": "Padre en SIGYR: URB033321",
+      "old_padre_id": "URB033321",
+      "old_condo_padre": "URB033321",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB033321",
+      "hijos_count": 3
+    },
+    {
+      "id": "523acb37-1973-4867-93a0-9cd7f7b9560d",
+      "inmueble": "URB015900",
+      "contribuyente": "EL POLLO GRADUADO DE VALENCIA, C.A",
+      "identidad": "J-306342800",
+      "old_actividad": "Padre en SIGYR: URB015849",
+      "old_padre_id": "URB015849",
+      "old_condo_padre": "URB015849",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB015849",
+      "hijos_count": 2
+    },
+    {
+      "id": "0b58f4e0-9d63-4e57-879c-2a2d8c51fdc4",
+      "inmueble": "URB033851",
+      "contribuyente": "DISTRIBUIDORA CONFECO, C.A",
+      "identidad": "J-294932592",
+      "old_actividad": "Padre en SIGYR: URB030454",
+      "old_padre_id": "URB030454",
+      "old_condo_padre": "URB030454",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB030454",
+      "hijos_count": 2
+    },
+    {
+      "id": "0f7576f5-b851-4532-85c7-6e1b24cc8e4d",
+      "inmueble": "URB034500",
+      "contribuyente": "EL PARAMO BAR C.A.",
+      "identidad": "J-310056692",
+      "old_actividad": "Padre en SIGYR: URB033269",
+      "old_padre_id": "URB033269",
+      "old_condo_padre": "URB033269",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB033269",
+      "hijos_count": 2
+    },
+    {
+      "id": "da8ef17b-3df3-46f3-a4a9-b489ddbbe44e",
+      "inmueble": "URB033580",
+      "contribuyente": "INVERSIONES ALD 25 C.A",
+      "identidad": "J-504994979",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "d7568df6-3d85-438c-83aa-720b5278e17c",
+      "inmueble": "URB033590",
+      "contribuyente": "ENERGIA VIVA, C.A",
+      "identidad": "J-505677470",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 2
+    },
+    {
+      "id": "736ebf7a-ad5b-4847-bdd8-6a47d7524f6d",
+      "inmueble": "URB016228",
+      "contribuyente": "COMPAÑIA ANONIMA EMPRESA CINES UNIDOS.",
+      "identidad": "J-000126518",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 4
+    },
+    {
+      "id": "3ccd08ea-aba7-47d5-952a-55e2eda5ba89",
+      "inmueble": "URB033578",
+      "contribuyente": "AA VLC 2022, C.A",
+      "identidad": "J-502897321",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 2
+    },
+    {
+      "id": "09ae368f-19c2-4e9d-a74d-1bdfc2c068ad",
+      "inmueble": "URB033732",
+      "contribuyente": "COMERCIALIZADORA GLOBAL C Y D, C.A",
+      "identidad": "J-412864769",
+      "old_actividad": "Padre en SIGYR: URB018119",
+      "old_padre_id": "URB018119",
+      "old_condo_padre": "URB018119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB018119",
+      "hijos_count": 4
+    },
+    {
+      "id": "0fb9b067-7391-430a-9271-b34f69f1117c",
+      "inmueble": "URB033603",
+      "contribuyente": "CAJA MAGICA ADVENTURE, C.A",
+      "identidad": "J-502643095",
+      "old_actividad": "Padre en SIGYR: URB030783",
+      "old_padre_id": "URB030783",
+      "old_condo_padre": "URB030783",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB030783",
+      "hijos_count": 4
+    },
+    {
+      "id": "dc3e08e3-c9cb-4489-bc8b-f5fcc8c49a67",
+      "inmueble": "URB033977",
+      "contribuyente": "ALL GRILL 2019, C.A",
+      "identidad": "J-503312041",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 2
+    },
+    {
+      "id": "77ac94c8-7f4c-42ef-8ade-5a471d024c4f",
+      "inmueble": "URB034100",
+      "contribuyente": "CUTSPACK, C.A",
+      "identidad": "J-505431668",
+      "old_actividad": "Padre en SIGYR: URB032022",
+      "old_padre_id": "URB032022",
+      "old_condo_padre": "URB032022",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB032022",
+      "hijos_count": 3
+    },
+    {
+      "id": "d855e598-7c9e-4206-b185-f7cd6c0a46b7",
+      "inmueble": "URB033728",
+      "contribuyente": "INVERSIONES FLAGOR C.A",
+      "identidad": "J-311737316",
+      "old_actividad": "Padre en SIGYR: URB003522",
+      "old_padre_id": "URB003522",
+      "old_condo_padre": "URB003522",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB003522",
+      "hijos_count": 2
+    },
+    {
+      "id": "a9ff9315-0800-4111-9ac9-e76051252f60",
+      "inmueble": "URB035193",
+      "contribuyente": "CORPORACION FIBEX TELECOM",
+      "identidad": "J-308182516",
+      "old_actividad": "Padre en SIGYR: URB005770",
+      "old_padre_id": "URB005770",
+      "old_condo_padre": "URB005770",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB005770",
+      "hijos_count": 39
+    },
+    {
+      "id": "ec13305d-2e77-4395-8a23-ee7e01506bc9",
+      "inmueble": "URB034002",
+      "contribuyente": "EXPRESS FITNESS C.A.",
+      "identidad": "J-405003880",
+      "old_actividad": "Padre en SIGYR: URB030783",
+      "old_padre_id": "URB030783",
+      "old_condo_padre": "URB030783",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB030783",
+      "hijos_count": 3
+    },
+    {
+      "id": "173c330f-24cd-42c6-83de-c6b32d0b7e9c",
+      "inmueble": "URB033585",
+      "contribuyente": "SUPER VIDEOMANIA C,A",
+      "identidad": "J-304952104",
+      "old_actividad": "Padre en SIGYR: URB016119",
+      "old_padre_id": "URB016119",
+      "old_condo_padre": "URB016119",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB016119",
+      "hijos_count": 3
+    },
+    {
+      "id": "4d3e098f-8f19-4b24-b6d1-69ef9ad903ee",
+      "inmueble": "URB033980",
+      "contribuyente": "MINI LOCALES",
+      "identidad": "J-297781862",
+      "old_actividad": "Padre en SIGYR: URB033321",
+      "old_padre_id": "URB033321",
+      "old_condo_padre": "URB033321",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB033321",
+      "hijos_count": 12
+    },
+    {
+      "id": "15a35a54-0f32-4ca6-b54c-7a54d8e264ba",
+      "inmueble": "URB033616",
+      "contribuyente": "PANADERIA SIEMPRE CON DIOS",
+      "identidad": "J-507829227",
+      "old_actividad": "Padre en SIGYR: URB015715",
+      "old_padre_id": "URB015715",
+      "old_condo_padre": "URB015715",
+      "new_actividad": "N/A",
+      "new_padre_id": null,
+      "new_condo_padre": "URB015715",
+      "hijos_count": 2
+    }
+  ],
+  "children": [
+    {
+      "id": "7ce5b4e1-ea3e-474d-b105-022ba2149cf1",
+      "inmueble": "URB035189",
+      "padre_id": "URB004585",
+      "old_condo": null,
+      "new_condo": "URB004525"
+    },
+    {
+      "id": "5de838d3-15f5-460d-bdb0-b428f50a45e2",
+      "inmueble": "URB035190",
+      "padre_id": "URB004585",
+      "old_condo": null,
+      "new_condo": "URB004525"
+    },
+    {
+      "id": "8c5e872e-d8a3-44e0-be04-dee695a23226",
+      "inmueble": "URB016256",
+      "padre_id": "URB035215",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "5900fe7f-8f14-4e8c-a232-bc8e9c28fa2b",
+      "inmueble": "URB033899",
+      "padre_id": "URB033897",
+      "old_condo": null,
+      "new_condo": "URB033630"
+    },
+    {
+      "id": "d87a98ca-556e-443f-970c-86d95109d5c8",
+      "inmueble": "URB033898",
+      "padre_id": "URB033897",
+      "old_condo": null,
+      "new_condo": "URB033630"
+    },
+    {
+      "id": "806bbcbc-4285-4e7d-9c96-a6bae97da6e2",
+      "inmueble": "URB035178",
+      "padre_id": "URB015180",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "6c6b2dc4-94c3-4472-bddd-f4cc386b554f",
+      "inmueble": "URB035177",
+      "padre_id": "URB015180",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "b38624fd-99be-4a98-8a4d-69c4e64ec8e1",
+      "inmueble": "URB035175",
+      "padre_id": "URB015180",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "01203510-fef7-4ced-9a26-bd6eadc40989",
+      "inmueble": "URB035176",
+      "padre_id": "URB015180",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "e36855e0-4cb6-4abb-a5ea-24b414599de8",
+      "inmueble": "URB016331",
+      "padre_id": "URB033596",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "1f0b2f17-9f56-4566-baf8-7d7c58af3f6c",
+      "inmueble": "URB016330",
+      "padre_id": "URB033596",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "c61ed314-0fc6-49f2-b28e-bc4bb6205c9e",
+      "inmueble": "URB018356",
+      "padre_id": "URB033734",
+      "old_condo": null,
+      "new_condo": "URB018119"
+    },
+    {
+      "id": "a13b5426-35af-4d0d-8af5-721f3895cf5c",
+      "inmueble": "URB005800",
+      "padre_id": "URB033756",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "13f14d53-9f19-4c17-b2f0-6bcadc108de6",
+      "inmueble": "URB005799",
+      "padre_id": "URB033756",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "6ff21e44-a77f-4fdb-bc1d-d24d01ccd459",
+      "inmueble": "URB005802",
+      "padre_id": "URB033756",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "777874d0-dd34-4f04-ae30-d28b847dfce4",
+      "inmueble": "URB005801",
+      "padre_id": "URB033756",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "684342c0-fcd5-468d-8fe7-8aeff997b14d",
+      "inmueble": "URB033633",
+      "padre_id": "URB034491",
+      "old_condo": null,
+      "new_condo": "URB033630"
+    },
+    {
+      "id": "18fc9186-5852-4118-84cb-3440994bf51c",
+      "inmueble": "URB033904",
+      "padre_id": "URB034491",
+      "old_condo": null,
+      "new_condo": "URB033630"
+    },
+    {
+      "id": "79e8f427-fc11-4a54-976e-92da407c7918",
+      "inmueble": "URB033631",
+      "padre_id": "URB034491",
+      "old_condo": null,
+      "new_condo": "URB033630"
+    },
+    {
+      "id": "bcee1336-f2f6-43b2-b21f-c540593f0f25",
+      "inmueble": "URB033632",
+      "padre_id": "URB034491",
+      "old_condo": null,
+      "new_condo": "URB033630"
+    },
+    {
+      "id": "db8547ff-5914-462b-b314-1928238a7753",
+      "inmueble": "URB032074",
+      "padre_id": "URB033646",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "c81331ec-0de9-4b6d-b0a7-44926853d7af",
+      "inmueble": "URB032075",
+      "padre_id": "URB033646",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "074a8d88-e2e2-4510-a361-58cf2f17cab6",
+      "inmueble": "URB030457",
+      "padre_id": "URB033854",
+      "old_condo": null,
+      "new_condo": "URB030454"
+    },
+    {
+      "id": "3bfe5fe6-3337-4a6e-bac4-569dcf531be5",
+      "inmueble": "URB030456",
+      "padre_id": "URB033854",
+      "old_condo": null,
+      "new_condo": "URB030454"
+    },
+    {
+      "id": "55486234-3e93-4747-af44-629891485945",
+      "inmueble": "URB034119",
+      "padre_id": "URB016263",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "f5d8dd97-1a2a-4193-a2d0-df70ee4b602b",
+      "inmueble": "URB034118",
+      "padre_id": "URB016263",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "1b33ab25-f032-4022-9b62-2623e58fb80f",
+      "inmueble": "URB015975",
+      "padre_id": "URB033610",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "34c0ee0b-35a5-49e4-8143-c55f283a4a66",
+      "inmueble": "URB015976",
+      "padre_id": "URB033610",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "7685bd0f-0405-438f-90fb-a1caec4d5bc4",
+      "inmueble": "URB015882",
+      "padre_id": "URB033926",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "ab47b14e-56da-4b80-992e-70f6a3b35f48",
+      "inmueble": "URB015954",
+      "padre_id": "URB033926",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "f0da305e-201e-4f89-baae-858c305a354f",
+      "inmueble": "URB034110",
+      "padre_id": "URB015879",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "b1161be8-5737-43d5-8afd-bc4bc6e07bb8",
+      "inmueble": "URB034109",
+      "padre_id": "URB015879",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "b47880aa-c9e9-4930-9fb2-b74622c32f98",
+      "inmueble": "URB015914",
+      "padre_id": "URB033608",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "f51be92a-b831-46b5-87bd-be94edac644a",
+      "inmueble": "URB015913",
+      "padre_id": "URB033608",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "a5bedcde-f502-4e44-9018-8033123a4ce4",
+      "inmueble": "URB015916",
+      "padre_id": "URB033608",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "d09e6f65-68be-413f-b21f-6aa363d669e9",
+      "inmueble": "URB015915",
+      "padre_id": "URB033608",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "0d20535c-8b67-44c1-8c17-b1b022c36d4b",
+      "inmueble": "URB016510",
+      "padre_id": "URB033575",
+      "old_condo": null,
+      "new_condo": "URB016491"
+    },
+    {
+      "id": "0f09bf02-21ab-439e-8dc9-f4c4b63f13ce",
+      "inmueble": "URB016511",
+      "padre_id": "URB033575",
+      "old_condo": null,
+      "new_condo": "URB016491"
+    },
+    {
+      "id": "2980ffff-c278-4472-8ceb-d257e296661c",
+      "inmueble": "URB034131",
+      "padre_id": "URB034130",
+      "old_condo": null,
+      "new_condo": "URB030454"
+    },
+    {
+      "id": "ecb3df10-004e-470b-b6be-15e4cf4dd565",
+      "inmueble": "URB034132",
+      "padre_id": "URB034130",
+      "old_condo": null,
+      "new_condo": "URB030454"
+    },
+    {
+      "id": "e2b0da06-853f-4587-baba-78695621d663",
+      "inmueble": "URB016323",
+      "padre_id": "URB033591",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "67c1ab2a-5e9a-46fb-879b-3ec21e591045",
+      "inmueble": "URB016322",
+      "padre_id": "URB033591",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "b9bf39a7-57c0-474f-9582-5ba30641f987",
+      "inmueble": "URB032042",
+      "padre_id": "URB033557",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "ed0f86b5-e042-40c8-9f19-b118b6a3204d",
+      "inmueble": "URB032044",
+      "padre_id": "URB033557",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "c8a7209f-cb82-4023-8cb5-235de29d09d6",
+      "inmueble": "URB034936",
+      "padre_id": "URB034935",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "477056c3-1c46-4dc8-88e6-6a095b446fbe",
+      "inmueble": "URB032046",
+      "padre_id": "URB034935",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "85de75f0-f15b-4682-9b94-103fc7358a36",
+      "inmueble": "URB008944",
+      "padre_id": "URB033702",
+      "old_condo": null,
+      "new_condo": "URB008934"
+    },
+    {
+      "id": "37f21cd6-7322-4b3f-9857-0fd0891bb24a",
+      "inmueble": "URB034950",
+      "padre_id": "URB033702",
+      "old_condo": null,
+      "new_condo": "URB008934"
+    },
+    {
+      "id": "c173edf8-2710-4e79-9f96-41330e65a321",
+      "inmueble": "URB015126",
+      "padre_id": "URB033698",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "97362fad-4d65-4197-a89b-bbcbb9ed1cf3",
+      "inmueble": "URB015129",
+      "padre_id": "URB033698",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "8de14838-d292-4339-bb01-ff3e1a47aa85",
+      "inmueble": "URB015128",
+      "padre_id": "URB033698",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "57a978d5-0bf2-4bbe-b8bd-903c15600ca3",
+      "inmueble": "URB015127",
+      "padre_id": "URB033698",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "adb8d0c2-ca5f-45d5-a330-4f7b2ef0da4b",
+      "inmueble": "URB034157",
+      "padre_id": "URB033643",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "3c35d92d-737d-446c-9407-da32ded309e2",
+      "inmueble": "URB034158",
+      "padre_id": "URB033643",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "4d51a0c7-0f3b-4da1-9abf-6e84ee439664",
+      "inmueble": "URB016543",
+      "padre_id": "URB033573",
+      "old_condo": null,
+      "new_condo": "URB016491"
+    },
+    {
+      "id": "d4e3595f-dd27-4bda-9c31-132d9c44a722",
+      "inmueble": "URB016542",
+      "padre_id": "URB033573",
+      "old_condo": null,
+      "new_condo": "URB016491"
+    },
+    {
+      "id": "b876514f-fdc8-4adf-bed6-e17df1a32dde",
+      "inmueble": "URB016349",
+      "padre_id": "URB016120",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "4f3d1a53-2c93-4457-b4d6-d9646e4b539c",
+      "inmueble": "URB016350",
+      "padre_id": "URB016120",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "45775d28-931e-4738-8e7e-72132e110b7d",
+      "inmueble": "URB016301",
+      "padre_id": "URB016120",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "e9a8c088-84a7-4ccf-9521-4a4b638cf663",
+      "inmueble": "URB032096",
+      "padre_id": "URB034940",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "895edd5b-406d-4a7e-8d41-7b269467f0ba",
+      "inmueble": "URB034941",
+      "padre_id": "URB034940",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "1e6e57f7-e124-4ad5-a255-628df96e51e6",
+      "inmueble": "URB016329",
+      "padre_id": "URB033583",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "9edebc4d-abf9-4130-8078-3946cb301101",
+      "inmueble": "URB016328",
+      "padre_id": "URB033583",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "2343f9ad-213f-4f06-8dcd-e3b2da168d07",
+      "inmueble": "URB034155",
+      "padre_id": "URB032062",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "a6f96a3e-dcc6-47bb-9b37-f155dc18a67d",
+      "inmueble": "URB033910",
+      "padre_id": "URB033902",
+      "old_condo": null,
+      "new_condo": "URB033630"
+    },
+    {
+      "id": "ad2b3e33-479a-45a3-b0ac-c822258c3947",
+      "inmueble": "URB033909",
+      "padre_id": "URB033902",
+      "old_condo": null,
+      "new_condo": "URB033630"
+    },
+    {
+      "id": "7e73e4a6-bc95-4317-8544-e9792b2642f2",
+      "inmueble": "URB035156",
+      "padre_id": "URB029236",
+      "old_condo": null,
+      "new_condo": "URB029224"
+    },
+    {
+      "id": "a978789a-3f4c-4beb-9f04-ece287da81fc",
+      "inmueble": "URB035155",
+      "padre_id": "URB029236",
+      "old_condo": null,
+      "new_condo": "URB029224"
+    },
+    {
+      "id": "deceacaa-b4ec-4002-940e-6de1faba6661",
+      "inmueble": "URB017092",
+      "padre_id": "URB033880",
+      "old_condo": null,
+      "new_condo": "URB016822"
+    },
+    {
+      "id": "8aef39e9-3aed-4934-81aa-aca656fd0412",
+      "inmueble": "URB016989",
+      "padre_id": "URB033880",
+      "old_condo": null,
+      "new_condo": "URB016822"
+    },
+    {
+      "id": "fcfe8227-7a9c-44eb-97a8-91a60b2cbed7",
+      "inmueble": "URB016320",
+      "padre_id": "URB033584",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "0c29c443-6849-4fbd-987f-51d3981c1cdb",
+      "inmueble": "URB016319",
+      "padre_id": "URB033584",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "0cc00333-a07b-4211-ba57-ede8f2f47212",
+      "inmueble": "URB016190",
+      "padre_id": "URB033600",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "c8d5c108-500d-4d72-8aa0-0e61abe584fa",
+      "inmueble": "URB016191",
+      "padre_id": "URB033600",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "596a0041-5d11-4171-94e7-77ae9cc18195",
+      "inmueble": "URB016188",
+      "padre_id": "URB033600",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "668721f6-3b0e-44c2-aa7f-ff23600f7c20",
+      "inmueble": "URB016189",
+      "padre_id": "URB033600",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "5ffc0fbd-5cbf-4336-aaed-efbb17a62bff",
+      "inmueble": "URB014934",
+      "padre_id": "URB033697",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "0c320594-e2a0-498e-bf9d-8dac8b055b0a",
+      "inmueble": "URB014936",
+      "padre_id": "URB033697",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "48e2f58a-025f-4b03-a69b-ca8a6846516c",
+      "inmueble": "URB014935",
+      "padre_id": "URB033697",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "d19bc6a0-2437-4ca3-b9c9-977c45a00ec9",
+      "inmueble": "URB016056",
+      "padre_id": "URB033528",
+      "old_condo": null,
+      "new_condo": "URB016053"
+    },
+    {
+      "id": "f4ff0aae-8794-4ad6-af51-2fcadaee1719",
+      "inmueble": "URB016057",
+      "padre_id": "URB033528",
+      "old_condo": null,
+      "new_condo": "URB016053"
+    },
+    {
+      "id": "20413f31-f41c-41a8-9640-537778b1f1b6",
+      "inmueble": "URB014950",
+      "padre_id": "URB033700",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "71d160cb-182b-422f-94a2-469bc3f00098",
+      "inmueble": "URB014949",
+      "padre_id": "URB033700",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "a7817163-bb5f-4036-8d41-484e79828ff3",
+      "inmueble": "URB016166",
+      "padre_id": "URB033598",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "69f4177c-2864-422b-bf49-a78415d36e72",
+      "inmueble": "URB016165",
+      "padre_id": "URB033598",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "464548c1-6e02-4bef-9452-9f7405dc6b58",
+      "inmueble": "URB016069",
+      "padre_id": "URB033526",
+      "old_condo": null,
+      "new_condo": "URB016053"
+    },
+    {
+      "id": "e3c98a00-9000-42ad-a3d0-5feedcb8ed00",
+      "inmueble": "URB016072",
+      "padre_id": "URB033526",
+      "old_condo": null,
+      "new_condo": "URB016053"
+    },
+    {
+      "id": "e8d9c0d7-1a58-499c-82dd-5af00a6d6f9f",
+      "inmueble": "URB016074",
+      "padre_id": "URB033526",
+      "old_condo": null,
+      "new_condo": "URB016053"
+    },
+    {
+      "id": "9458ca3d-afe2-4014-b8dc-3dbdc59d09a1",
+      "inmueble": "URB016073",
+      "padre_id": "URB033526",
+      "old_condo": null,
+      "new_condo": "URB016053"
+    },
+    {
+      "id": "dfd0fffa-9067-4739-9929-10588a76359d",
+      "inmueble": "URB016071",
+      "padre_id": "URB033526",
+      "old_condo": null,
+      "new_condo": "URB016053"
+    },
+    {
+      "id": "c5a7152d-b556-480c-b348-d5307bc0c19e",
+      "inmueble": "URB032095",
+      "padre_id": "URB034939",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "3fce2820-b413-4470-a5f2-77f3a5671bb3",
+      "inmueble": "URB032094",
+      "padre_id": "URB034939",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "b5cac0ae-a518-4e14-b112-4234fe581304",
+      "inmueble": "URB015978",
+      "padre_id": "URB033613",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "10b579d4-4913-4cf1-9891-83650888e766",
+      "inmueble": "URB015977",
+      "padre_id": "URB033613",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "e5aa05bb-ad1a-435a-96dc-2551a1d88499",
+      "inmueble": "URB016907",
+      "padre_id": "URB033618",
+      "old_condo": null,
+      "new_condo": "URB016822"
+    },
+    {
+      "id": "13228b29-7c29-41c9-bc37-114b557f0e9c",
+      "inmueble": "URB016908",
+      "padre_id": "URB033618",
+      "old_condo": null,
+      "new_condo": "URB016822"
+    },
+    {
+      "id": "feab0758-265f-4f3d-9bb4-d33a0fea79cd",
+      "inmueble": "URB003593",
+      "padre_id": "URB033730",
+      "old_condo": null,
+      "new_condo": "URB003522"
+    },
+    {
+      "id": "e1853d1e-7144-4e5d-a6f5-9c32fe981682",
+      "inmueble": "URB003592",
+      "padre_id": "URB033730",
+      "old_condo": null,
+      "new_condo": "URB003522"
+    },
+    {
+      "id": "27348ede-2dd9-48c1-a11f-bbf4e725d65f",
+      "inmueble": "URB003569",
+      "padre_id": "URB033733",
+      "old_condo": null,
+      "new_condo": "URB003522"
+    },
+    {
+      "id": "2bda6fe0-40e8-4e90-9aeb-18c41891d2c4",
+      "inmueble": "URB003571",
+      "padre_id": "URB033733",
+      "old_condo": null,
+      "new_condo": "URB003522"
+    },
+    {
+      "id": "1a3b9613-7843-44e0-a25c-46474b761a8f",
+      "inmueble": "URB003570",
+      "padre_id": "URB033733",
+      "old_condo": null,
+      "new_condo": "URB003522"
+    },
+    {
+      "id": "3d5809a2-60bf-4f6f-b439-daeb5c0df500",
+      "inmueble": "URB032102",
+      "padre_id": "URB033601",
+      "old_condo": null,
+      "new_condo": "URB032102"
+    },
+    {
+      "id": "793fed68-df3c-4bbf-a562-228f2851a5c7",
+      "inmueble": "URB034117",
+      "padre_id": "URB016127",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "7d6cabe4-cf19-4bb1-a2b6-f788023cd195",
+      "inmueble": "URB034116",
+      "padre_id": "URB016127",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "3e2d4bbb-287c-494b-b933-2e99fd20e683",
+      "inmueble": "URB032063",
+      "padre_id": "URB033642",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "5837e465-876e-40f1-9f98-fed51bc50f62",
+      "inmueble": "URB032064",
+      "padre_id": "URB033642",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "f93f82ee-00ec-4509-b36e-2cdc80b7b327",
+      "inmueble": "URB032065",
+      "padre_id": "URB033642",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "60059c27-c192-424e-bf6d-4bc8fa5f4b24",
+      "inmueble": "URB016237",
+      "padre_id": "URB033594",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "fa785f95-9038-4992-95aa-6a66967ae642",
+      "inmueble": "URB016236",
+      "padre_id": "URB033594",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "9bca06ef-43bc-4897-971d-326409bec42b",
+      "inmueble": "URB015061",
+      "padre_id": "URB033688",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "2368ded6-c4fb-4bbf-a5eb-7fe5d1ff3f82",
+      "inmueble": "URB015062",
+      "padre_id": "URB033688",
+      "old_condo": null,
+      "new_condo": "URB014903"
+    },
+    {
+      "id": "b6a7efa6-717d-40a9-8d4b-7ae89bd94232",
+      "inmueble": "URB033750",
+      "padre_id": "URB008946",
+      "old_condo": null,
+      "new_condo": "URB008934"
+    },
+    {
+      "id": "fb4dca0b-9be3-4292-a41b-a295bd756014",
+      "inmueble": "URB033751",
+      "padre_id": "URB008946",
+      "old_condo": null,
+      "new_condo": "URB008934"
+    },
+    {
+      "id": "9de80744-44d8-4dcb-8549-be1ef6196116",
+      "inmueble": "URB000554",
+      "padre_id": "URB033911",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "86248b8d-5c52-46ca-9128-a7cc9b3ae45c",
+      "inmueble": "URB000550",
+      "padre_id": "URB033911",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "f778df40-3f90-4d28-bbd1-6cf274f1cdfc",
+      "inmueble": "URB000536",
+      "padre_id": "URB033911",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "06c6134d-e1bb-4d7e-9c86-8d2cf6d5d7ce",
+      "inmueble": "URB034103",
+      "padre_id": "URB015900",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "d11bd7da-0666-4c15-94fa-e1dab361b7e8",
+      "inmueble": "URB034104",
+      "padre_id": "URB015900",
+      "old_condo": null,
+      "new_condo": "URB015849"
+    },
+    {
+      "id": "5ef55f46-5263-4f5e-83b4-a5673c7d16ad",
+      "inmueble": "URB030469",
+      "padre_id": "URB033851",
+      "old_condo": null,
+      "new_condo": "URB030454"
+    },
+    {
+      "id": "81d8b98e-e937-43b5-a11a-72337d3dd602",
+      "inmueble": "URB030468",
+      "padre_id": "URB033851",
+      "old_condo": null,
+      "new_condo": "URB030454"
+    },
+    {
+      "id": "c67c6a16-2364-4645-b6bc-d279409e60bf",
+      "inmueble": "URB008358",
+      "padre_id": "URB034500",
+      "old_condo": null,
+      "new_condo": "URB033269"
+    },
+    {
+      "id": "a63fc099-abe6-4b13-9c5f-13ec57166833",
+      "inmueble": "URB008360",
+      "padre_id": "URB034500",
+      "old_condo": null,
+      "new_condo": "URB033269"
+    },
+    {
+      "id": "ce173f0a-e70f-4d7f-b308-5e88f834cefe",
+      "inmueble": "URB016290",
+      "padre_id": "URB033580",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "daa0a82c-97e6-4bfb-a327-649a9c085ec3",
+      "inmueble": "URB016291",
+      "padre_id": "URB033580",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "71775864-1fef-418e-a258-86bdec018058",
+      "inmueble": "URB034404",
+      "padre_id": "URB033590",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "47e4225b-cd72-459e-89cf-4f0e36a5a9a7",
+      "inmueble": "URB034405",
+      "padre_id": "URB033590",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "bd21a036-7f86-4c17-825b-23462802e37d",
+      "inmueble": "URB034123",
+      "padre_id": "URB016228",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "0869a193-f7ba-4f15-9829-1583eb3929e3",
+      "inmueble": "URB034124",
+      "padre_id": "URB016228",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "42333c71-d446-480c-8989-53c26a082df9",
+      "inmueble": "URB034122",
+      "padre_id": "URB016228",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "e54d3a92-4f4c-4641-8798-357da9662658",
+      "inmueble": "URB034125",
+      "padre_id": "URB016228",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "17c80c2e-83dc-40f3-9cb7-b82e110c0fcd",
+      "inmueble": "URB016368",
+      "padre_id": "URB033578",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "3982cccf-cda3-4ea6-872e-03e55ddcf833",
+      "inmueble": "URB016369",
+      "padre_id": "URB033578",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "3cf97170-1d29-460b-a587-72ba57d74ba3",
+      "inmueble": "URB018332",
+      "padre_id": "URB033732",
+      "old_condo": null,
+      "new_condo": "URB018119"
+    },
+    {
+      "id": "babdc137-fcfc-4d91-8eb2-76314ebb84a6",
+      "inmueble": "URB018330",
+      "padre_id": "URB033732",
+      "old_condo": null,
+      "new_condo": "URB018119"
+    },
+    {
+      "id": "26dcb6a2-a82d-46b3-bf18-4cd080386e49",
+      "inmueble": "URB018331",
+      "padre_id": "URB033732",
+      "old_condo": null,
+      "new_condo": "URB018119"
+    },
+    {
+      "id": "4d5de977-231b-49c7-8ed7-49785a12f209",
+      "inmueble": "URB018329",
+      "padre_id": "URB033732",
+      "old_condo": null,
+      "new_condo": "URB018119"
+    },
+    {
+      "id": "3dc87f73-78e3-4979-b6c6-0076f302ff91",
+      "inmueble": "URB030805",
+      "padre_id": "URB033603",
+      "old_condo": null,
+      "new_condo": "URB030783"
+    },
+    {
+      "id": "e3d32be2-3e6c-40b3-9818-1e05eb7bc164",
+      "inmueble": "URB030804",
+      "padre_id": "URB033603",
+      "old_condo": null,
+      "new_condo": "URB030783"
+    },
+    {
+      "id": "4cc92fb4-e571-4b36-83cf-cae97b17272a",
+      "inmueble": "URB030806",
+      "padre_id": "URB033603",
+      "old_condo": null,
+      "new_condo": "URB030783"
+    },
+    {
+      "id": "3b1bf2b2-ba87-4563-87dc-04feb9eabc01",
+      "inmueble": "URB030803",
+      "padre_id": "URB033603",
+      "old_condo": null,
+      "new_condo": "URB030783"
+    },
+    {
+      "id": "b4063b28-2f6e-4ee4-b305-cd4eda796171",
+      "inmueble": "URB034634",
+      "padre_id": "URB033977",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "91022de9-bd1f-4647-b884-e7687af4081f",
+      "inmueble": "URB034635",
+      "padre_id": "URB033977",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "bf96770e-bd90-4626-91e6-df4676525efd",
+      "inmueble": "URB032110",
+      "padre_id": "URB034100",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "2d13c31b-aa58-4a73-a65f-3cc53638b9af",
+      "inmueble": "URB032111",
+      "padre_id": "URB034100",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "fc22c83e-b194-4fff-90ca-f3c35f3d7b36",
+      "inmueble": "URB034128",
+      "padre_id": "URB034100",
+      "old_condo": null,
+      "new_condo": "URB032022"
+    },
+    {
+      "id": "6ffffec0-5901-4075-aa1f-0050f2b51102",
+      "inmueble": "URB003566",
+      "padre_id": "URB033728",
+      "old_condo": null,
+      "new_condo": "URB003522"
+    },
+    {
+      "id": "dec665cf-1616-46a9-969c-e43645b9476c",
+      "inmueble": "URB003567",
+      "padre_id": "URB033728",
+      "old_condo": null,
+      "new_condo": "URB003522"
+    },
+    {
+      "id": "7a31ffaa-f2e2-4ae1-a7e7-a72d0cda04fe",
+      "inmueble": "URB005874",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "525a214c-f8d9-4241-9769-9c58129a8619",
+      "inmueble": "URB005892",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "cc152528-713e-4c7b-933f-ae181d137d36",
+      "inmueble": "URB005889",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "86f1ac66-5ea4-4710-ad5a-8d9a019bfa3e",
+      "inmueble": "URB005865",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "55386a78-49be-4e6a-9682-f7229fcd2247",
+      "inmueble": "URB005879",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "53a7301d-bb7a-439f-80ac-4b3dd8d1730a",
+      "inmueble": "URB005858",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "a19d9c76-b712-4847-bb38-54366eebb948",
+      "inmueble": "URB005880",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "a50aa2b2-9d6f-49f1-8764-961655a1365d",
+      "inmueble": "URB005855",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "225b438c-a1c8-4c4e-a366-22c42393c74b",
+      "inmueble": "URB005872",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "a7f9dcf2-745b-48f0-a829-b8a973743214",
+      "inmueble": "URB005856",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "ddd4a223-a961-4a8f-9c21-8920047a68fc",
+      "inmueble": "URB005864",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "76ed4401-f918-41cc-b5f5-f511490b1495",
+      "inmueble": "URB005897",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "fef9af53-b0e8-407d-bbdf-c627710102fa",
+      "inmueble": "URB005812",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "a5c44169-322e-49fa-8a80-8b961a977b82",
+      "inmueble": "URB005888",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "d70afe10-e3f6-42d4-9b64-37422a7d4a58",
+      "inmueble": "URB005895",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "a1a20c7d-0cd4-44e1-b3dd-8fe1fb8eeafe",
+      "inmueble": "URB005854",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "66ea0c4a-1d57-4098-9a0b-f12ba0bbd020",
+      "inmueble": "URB005890",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "35bb7de4-fd2d-4610-a683-e21c0ca26e49",
+      "inmueble": "URB005866",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "5f625b38-7ab9-448d-ad6e-579ac8563653",
+      "inmueble": "URB005898",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "a50664f0-6afa-4221-b259-56983f69b4fc",
+      "inmueble": "URB005875",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "e37abf9c-d85d-4c41-97ce-5b9f153597d2",
+      "inmueble": "URB005815",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "c568c673-308e-48e1-bc0f-269254cc11f7",
+      "inmueble": "URB005894",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "14b879dc-3619-4985-97e5-025e9ed0d6f6",
+      "inmueble": "URB005871",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "a18d6637-90fb-4d48-b35a-b74fa023cce5",
+      "inmueble": "URB005863",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "3a19cb90-a622-4568-aa67-6635c85ae42c",
+      "inmueble": "URB005891",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "f7b3d893-56f6-473c-a764-4d11d6c33f67",
+      "inmueble": "URB005876",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "ebc1a053-c81e-4aee-9c4d-e797da4febe0",
+      "inmueble": "URB005816",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "ffec6857-9aa2-4a6b-b836-948b9391f9c9",
+      "inmueble": "URB005886",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "8411d318-ecff-48db-8263-678fbb85036c",
+      "inmueble": "URB005868",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "e28ceaaf-fb47-4509-981f-679d6ba85dd3",
+      "inmueble": "URB005867",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "0931c601-c693-49ab-9f08-04a3e48952bd",
+      "inmueble": "URB005893",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "63aef914-dfbb-47c4-af00-ccd8e18dadc9",
+      "inmueble": "URB005878",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "98cfdb6f-8246-4eed-8fba-2579e3fd2029",
+      "inmueble": "URB005887",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "d4566898-b487-4089-b926-ac83882617fe",
+      "inmueble": "URB005877",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "9b3d0711-b958-498a-be18-0d00dc261203",
+      "inmueble": "URB005896",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "d4223d85-e22f-41b9-a01c-39376dd7e871",
+      "inmueble": "URB005857",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "e3d1e86a-36eb-41f5-bcf9-61131d19c99d",
+      "inmueble": "URB005869",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "640c46ec-7b47-46fa-94c0-a9961598eaaf",
+      "inmueble": "URB005870",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "b942a94d-d709-487e-97fc-9e2b5acaa163",
+      "inmueble": "URB005873",
+      "padre_id": "URB035193",
+      "old_condo": null,
+      "new_condo": "URB005770"
+    },
+    {
+      "id": "5a2181c8-4805-43f7-ae5e-606cb8ebc0dd",
+      "inmueble": "URB030789",
+      "padre_id": "URB034002",
+      "old_condo": null,
+      "new_condo": "URB030783"
+    },
+    {
+      "id": "b19a9bc5-21b2-4133-962d-0c46d697ef1c",
+      "inmueble": "URB033997",
+      "padre_id": "URB034002",
+      "old_condo": null,
+      "new_condo": "URB030783"
+    },
+    {
+      "id": "7c170fed-6c9d-4280-81e5-9cb2b0436c30",
+      "inmueble": "URB034001",
+      "padre_id": "URB034002",
+      "old_condo": null,
+      "new_condo": "URB030783"
+    },
+    {
+      "id": "71be12bf-9761-4e05-868f-e6971b2e0116",
+      "inmueble": "URB016180",
+      "padre_id": "URB033585",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "69660464-cd75-44b1-b72f-801ba66f993e",
+      "inmueble": "URB016182",
+      "padre_id": "URB033585",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "e3eae5a3-070c-4ac5-a336-ebc07c1dbb38",
+      "inmueble": "URB016181",
+      "padre_id": "URB033585",
+      "old_condo": null,
+      "new_condo": "URB016119"
+    },
+    {
+      "id": "42e6c8b0-bd0d-4da3-9ebc-6370dcdb64e2",
+      "inmueble": "URB033925",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "dfbc26b2-1b45-4964-9235-6af52af6bd22",
+      "inmueble": "URB033934",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "ab760b98-2515-4455-a37c-4f090f1b571e",
+      "inmueble": "URB035081",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "e8cc13a1-1518-4323-936b-19ed76075a4e",
+      "inmueble": "URB000552",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "a9af2307-91ee-4892-94e9-4c43522140db",
+      "inmueble": "URB000551",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "d4d5ecf4-98c3-46fb-a1d0-6f73bc49a7bf",
+      "inmueble": "URB033946",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "bf8d24fa-b2ca-4ced-84ad-45cfac3e65d7",
+      "inmueble": "URB033914",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "e9a8d535-6cd3-47dd-8a90-8edc2fb19611",
+      "inmueble": "URB033933",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "9240f382-631b-46df-aa73-a29576cb44be",
+      "inmueble": "URB033916",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "19518c4e-625e-4cc5-a3dc-0358f9135a2a",
+      "inmueble": "URB033929",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "bff07379-09a5-40b1-a5bc-c22d6b9cd006",
+      "inmueble": "URB035082",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "ac082cde-1251-4954-9c4f-d1be23ec17c9",
+      "inmueble": "URB033932",
+      "padre_id": "URB033980",
+      "old_condo": null,
+      "new_condo": "URB033321"
+    },
+    {
+      "id": "2871c350-4446-4a2f-ad61-e26c807d11a8",
+      "inmueble": "URB015743",
+      "padre_id": "URB033616",
+      "old_condo": null,
+      "new_condo": "URB015715"
+    },
+    {
+      "id": "645e782a-e490-4c79-b19b-fb1b122966e3",
+      "inmueble": "URB015744",
+      "padre_id": "URB033616",
+      "old_condo": null,
+      "new_condo": "URB015715"
+    }
+  ]
+}

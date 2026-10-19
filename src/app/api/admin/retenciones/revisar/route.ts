@@ -48,7 +48,12 @@ export async function POST(request: Request) {
     }
 
     if (!pago && retencionId) {
-      pago = await pagoDeRetencion(retencionId);
+      const { data: pDirect } = await supabase
+        .from('pagos_reportados')
+        .select('id, identidad, monto, detalles')
+        .eq('id', retencionId)
+        .maybeSingle();
+      pago = pDirect || (await pagoDeRetencion(retencionId));
     }
 
     const det = pago ? parseDet(pago.detalles) : {};
@@ -234,6 +239,7 @@ export async function POST(request: Request) {
       if (pago) {
         fd.retencion = { ...(fd.retencion || {}), estado: 'rechazada', motivo_rechazo: motivo, revisado_at: ahora, revisado_por: quien };
         det.factura_digital = fd;
+        det.retencion_aprobada = false;
         await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);
       }
       let avisado = false;

@@ -1,0 +1,5052 @@
+[
+  {
+    "id": "0ab0f6ed-6c2b-4bac-9b3f-0d0f6da7b215",
+    "inmueble": "URB034917",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ba4ef567-2a97-434c-833a-b480ed59aafc",
+    "inmueble": "URB004690",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "dff40719-5a6b-4b52-99b9-ca35a3f21dc8",
+    "inmueble": "URB009013",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "57c8e22d-2663-46b7-9ea4-e759e5911a9a",
+    "inmueble": "URB002178",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 3.973,
+    "meses_deuda_antes": 29,
+    "multa_bs_antes": 25554.24,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ff1f4d85-f86d-4460-86bf-f4c5e31f23cc",
+    "inmueble": "URB034629",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 1.096,
+    "meses_deuda_antes": 8,
+    "multa_bs_antes": 6388.56,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0c67a818-508e-46db-95a6-3d7340a44232",
+    "inmueble": "URB032737",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9f074c6a-4df4-43a9-bea2-09ea9a72f27f",
+    "inmueble": "URB035044",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "135b093b-812d-4c10-8787-db7243905e65",
+    "inmueble": "URB002227",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "202050d0-80ef-4b2a-b989-97751cc6df68",
+    "inmueble": "URB003269",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b967c432-b870-4c89-aaa0-9ddf3d1ac4f3",
+    "inmueble": "URB002434",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "536c760c-0141-4fa5-b66c-8b5cdb3bebbd",
+    "inmueble": "URB000172",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8efe7268-9ec9-40a4-bb7f-fd1011dc5a18",
+    "inmueble": "URB000177",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "82ceaec5-fb99-4d82-8422-065a5ce7815f",
+    "inmueble": "URB001972",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8dca759a-6b03-4e27-aef3-935da3d3eac3",
+    "inmueble": "URB005437",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1b53e8d7-eb28-453d-8547-e8f5adcbcf6f",
+    "inmueble": "URB005457",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4f0a09a4-f7f0-4865-9d7b-b29281345db0",
+    "inmueble": "URB006058",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ace06727-a0d5-4bb1-81a1-98d2274ebd60",
+    "inmueble": "URB004883",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "10d58b33-8431-4718-b7ae-5afb22f3c338",
+    "inmueble": "URB033487",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9101855c-0c5f-4c68-8eb2-30892f929730",
+    "inmueble": "URB033492",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "39ee8288-8b5b-4876-826f-e429640cadce",
+    "inmueble": "URB032641",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7e1ee154-e95b-43c3-b59e-b692324c3bfa",
+    "inmueble": "URB032617",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "86a43c5a-08ac-4306-939d-3bb5e7fe8f9a",
+    "inmueble": "URB035186",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3b5c9067-597d-4087-a6bd-93fa878f32fe",
+    "inmueble": "URB003660",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4d3e2897-448d-43ce-91d6-25527c6f383d",
+    "inmueble": "URB009881",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0b4abf38-2e52-4a14-91e0-35d033cc1570",
+    "inmueble": "URB005350",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 8.357,
+    "meses_deuda_antes": 61,
+    "multa_bs_antes": 54759.08,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f0c2d10b-7e62-48b2-84ab-0c85fd499d4b",
+    "inmueble": "URB031789",
+    "actividad": "TERRENOS",
+    "mmv_mes_antes": 29.6,
+    "deuda_mmv_antes": 3.7536,
+    "meses_deuda_antes": 38,
+    "multa_bs_antes": 85657.84,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "779ac1d6-6907-4555-8ce7-b7222c3e99b2",
+    "inmueble": "URB002742",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 3.973,
+    "meses_deuda_antes": 29,
+    "multa_bs_antes": 25554.24,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "01d23972-8d19-4f21-9acc-a8916980314d",
+    "inmueble": "URB032742",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 1.23,
+    "meses_deuda_antes": 43,
+    "multa_bs_antes": 10,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "fc6b804d-2be1-46e7-a2af-2889c59dc9a7",
+    "inmueble": "URB032866",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e2188bb2-96f9-4514-881f-04d03e45c8aa",
+    "inmueble": "URB005367",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e472210a-e010-449e-ae99-ed1e34d6bf38",
+    "inmueble": "URB008828",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1a5e0be6-cbe4-4c13-9368-a9dca1cfe12b",
+    "inmueble": "URB004457",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f26d591e-67d8-489d-8288-6b8d69b86a64",
+    "inmueble": "URB004132",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "65ac686f-231f-403b-8a8e-cb543f416bff",
+    "inmueble": "URB003943",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3816e244-059a-4dd0-9abf-0b45e7a1f338",
+    "inmueble": "URB001476",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c06d6729-236b-40a0-8468-f5de0c61b938",
+    "inmueble": "URB005057",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6da9d961-cea1-4c9d-96e4-0d8097b85a6a",
+    "inmueble": "URB003459",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "899697ac-c876-49a4-97ef-24f91bd4a22d",
+    "inmueble": "URB005278",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "cab2ef97-34c8-4d00-9c20-777f88b9b456",
+    "inmueble": "URB003054",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "cf6b3941-7f2d-463f-8fa2-58200e319dc6",
+    "inmueble": "URB003461",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ae9e5ee0-2098-416f-8910-a0a1a6ed1337",
+    "inmueble": "URB004157",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "997a62ba-bdc8-4157-9037-594898c79162",
+    "inmueble": "URB004246",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ae043c1d-b40e-43ee-8d03-05112a51a7d6",
+    "inmueble": "URB005275",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d839aef5-c35a-448f-983c-4799ed63a6b5",
+    "inmueble": "URB008580",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d924a6e7-c0cf-4544-b98d-baeb186e72bf",
+    "inmueble": "URB032847",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c33048bc-02d1-4337-b37e-890e1ef4f30f",
+    "inmueble": "URB009274",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "82ddaa36-89aa-4271-97ee-d51324d258da",
+    "inmueble": "URB005249",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ac511276-b52f-4d6e-a9d8-fcc6596f3d62",
+    "inmueble": "URB009410",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "95f4f667-3daf-43d9-8867-d7083088865f",
+    "inmueble": "URB005976",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b6474675-8c4c-4a61-a739-1b4e47481b07",
+    "inmueble": "URB004596",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1df5f94a-aa37-4097-b8b4-4f2f339b694b",
+    "inmueble": "URB032832",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "45cccd59-a64b-43f4-84e7-3e4405d0b4c7",
+    "inmueble": "URB009901",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "308138ce-5347-489c-8806-351e2ccdf209",
+    "inmueble": "URB003798",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e181645e-4c8d-4e72-bc70-4d8fed733928",
+    "inmueble": "URB004928",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "bf192628-eda7-4361-a14e-9685ecfad12e",
+    "inmueble": "URB032917",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d1f072b3-e686-4232-88df-33965a9447c6",
+    "inmueble": "URB033045",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "45fcb5c1-b276-40b0-88b9-ddf44f9d3aaa",
+    "inmueble": "URB004491",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ca39a213-7220-4282-9e37-84c0375f560b",
+    "inmueble": "URB001399",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "25ad57ac-3ca1-41f7-b172-7e27e8da7ce2",
+    "inmueble": "URB004229",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c872f6d6-1369-42b4-8585-46b11d3d238a",
+    "inmueble": "URB005592",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f62e8d6e-f5dd-492e-b8a1-fc8f1a9bb1e9",
+    "inmueble": "URB005581",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8330356e-a410-47f0-9e16-c6c578defa72",
+    "inmueble": "URB000662",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "420a7b55-a6c0-481f-a059-0a96bb91bce3",
+    "inmueble": "URB034877",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "929bb766-8691-4766-830b-8d49c9ec506e",
+    "inmueble": "URB032580",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b0c55dc8-fe43-4083-9c0a-06e89504bc85",
+    "inmueble": "URB004114",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "79b961d3-a06d-467e-90a1-91d195f67798",
+    "inmueble": "URB009368",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "288646d3-d02e-454a-97ea-d2c4a74caa95",
+    "inmueble": "URB033490",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d2b84ce7-a163-4798-b893-8bb44f4bb4ee",
+    "inmueble": "URB009977",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "46b9af2a-cdad-4cd4-8577-1878d7b49140",
+    "inmueble": "URB032820",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4b1fd20a-fe73-43f4-9c2a-07f3a57edd92",
+    "inmueble": "URB004846",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "274e462e-0a5f-436a-9ea9-131bd9086bba",
+    "inmueble": "URB006776",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "89628a04-ed78-4fed-b786-efc85a3cf8ce",
+    "inmueble": "URB010469",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "55873c8c-b25a-4214-aa17-fa7d29198967",
+    "inmueble": "URB003631",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "50b2da52-bd3d-44e1-9ddb-a2d25d608330",
+    "inmueble": "URB004391",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "51baf2d5-ac36-4063-a21c-3f4ef2ed846c",
+    "inmueble": "URB000201",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "96a2b60a-5fde-48ea-baa1-ce683528168b",
+    "inmueble": "URB032825",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "cbd20fb5-86e0-48cf-8b3e-08760a675b8b",
+    "inmueble": "URB000449",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1b9bba94-b310-4879-aa04-ad96e0cbabb5",
+    "inmueble": "URB010506",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "940143ae-93e9-4824-9a8a-e30761cf4512",
+    "inmueble": "URB003671",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "72c94eb5-cb77-40fd-bd8c-32eebbd1c2a3",
+    "inmueble": "URB009967",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f94f52c8-a48f-4375-9c2d-9a382466b537",
+    "inmueble": "URB034561",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0408dd13-d625-4006-a0d7-9c4b9891c13a",
+    "inmueble": "URB034858",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "21d5ceb1-85be-4f0c-9207-bbc72bf2bdd5",
+    "inmueble": "URB033134",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "02338aff-0ddb-46c3-9056-c0846aee5812",
+    "inmueble": "URB008503",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3a392325-14cd-43a0-b961-6d9fd2b62c81",
+    "inmueble": "URB009358",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "208dd49c-c0c1-475c-9972-3dac65db10fa",
+    "inmueble": "URB034563",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8be98a37-be05-42b1-a603-79e3fc944248",
+    "inmueble": "URB003920",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "65f2d5ff-d97f-46e4-b30d-42d78623e35b",
+    "inmueble": "URB004838",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ce460caa-312f-4560-97b9-3bc0b883b434",
+    "inmueble": "URB004656",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6ba58327-b0d9-4b4c-b877-4b31bfc1166a",
+    "inmueble": "URB003628",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1b9f40a6-f77f-4d16-893d-3f1575d88345",
+    "inmueble": "URB009942",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "158b5fec-e6f7-488d-9cef-ffa462fdd777",
+    "inmueble": "URB001456",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "917eaa62-b0a8-4200-b21e-69b9be65f543",
+    "inmueble": "URB033493",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8a3b0c78-891c-45a4-9ad1-3d2be19d73e1",
+    "inmueble": "URB003904",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9fb93de8-68bf-4aca-afc7-b569c97fbe26",
+    "inmueble": "URB004641",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "273f5ebb-5358-4577-a973-646b065ca5a2",
+    "inmueble": "URB005544",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "79d127a2-95a3-49db-97ba-05db2eec7402",
+    "inmueble": "URB003622",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0b4dd130-6407-4ebf-9007-989e4c2831a8",
+    "inmueble": "URB004890",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8b67a40b-9ae7-4bb8-9dc6-b54062cf5958",
+    "inmueble": "URB032783",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "dfff1738-44a4-41d3-873f-59214abd26ca",
+    "inmueble": "URB004125",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 3.973,
+    "meses_deuda_antes": 29,
+    "multa_bs_antes": 25554.24,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e7d83fa2-e944-44e8-a812-13d761daa370",
+    "inmueble": "URB000664",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e76250e7-c837-4873-815c-05bb8beee578",
+    "inmueble": "URB004947",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8d71e5c2-0f14-4628-9941-77255f92b5d5",
+    "inmueble": "URB004489",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "fb0723ed-7e87-4a47-a987-72a2f896157f",
+    "inmueble": "URB033226",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "bc3cf068-45b7-4934-bd19-3b2961c79bcb",
+    "inmueble": "URB004865",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8f0a4cc8-f81c-4644-8fa7-b0e49fe15d1f",
+    "inmueble": "URB004417",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1bcf3fa8-e318-4013-9447-abf4dbb1d12e",
+    "inmueble": "URB003416",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5298ca01-cd94-45d0-a846-083a74f5dd27",
+    "inmueble": "URB004522",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7c61e73b-78e4-4342-8cd0-d722685b46e7",
+    "inmueble": "URB010515",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ca97e166-b07f-4f84-89c2-e33f6106743b",
+    "inmueble": "URB000492",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "bde96248-cd97-49cc-90ea-5f5accbf49f9",
+    "inmueble": "URB003477",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "99bef354-c5d7-4dd5-8b75-c90db6cdd8cb",
+    "inmueble": "URB004266",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e78eb822-c18e-4b02-adb5-ae0e3cdde960",
+    "inmueble": "URB032826",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b71bbbce-de20-4645-adce-5ffade8bfb93",
+    "inmueble": "URB003488",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "fb7608a5-311c-40f2-a0f7-6de3c442b767",
+    "inmueble": "URB002138",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8eaad7a4-6ec1-4c06-9eed-c1c73cf6d227",
+    "inmueble": "URB003141",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1b60b26e-b9c4-4563-a40d-ae253b62b51d",
+    "inmueble": "URB005260",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "80bc3f94-5927-4ca4-b053-b50d80ef026c",
+    "inmueble": "URB034847",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7bcd59cb-3161-464e-a09d-35174296922b",
+    "inmueble": "URB033072",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3323ef18-fc32-4f06-8d2e-74c6648dc60a",
+    "inmueble": "URB000388",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b88aa25f-e70a-4a8e-b2a1-7194aee820ba",
+    "inmueble": "URB002696",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d39d81a9-c3aa-4f38-ab78-724c5fb3bc37",
+    "inmueble": "URB001954",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "980b97e3-2ac7-4d6c-85d4-7ea9b00dc0e3",
+    "inmueble": "URB033484",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "80870a2e-9ccd-49f6-976f-47f502a50e46",
+    "inmueble": "URB033568",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ca475c12-0e4d-45de-97cb-4b6fe691ddad",
+    "inmueble": "URB004302",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "03ba3b54-c294-4027-abad-5e19b0f74246",
+    "inmueble": "URB005190",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7abd5fbc-d9ed-4c21-be07-4bca356cd06e",
+    "inmueble": "URB005196",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ab463585-394c-44d5-b744-71d4bbff0b11",
+    "inmueble": "URB005364",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c1d987b3-280c-4d5d-868f-b4d55d4a2cf2",
+    "inmueble": "URB003462",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e35eeefc-fb9c-48ff-976f-b90028bb92b9",
+    "inmueble": "URB001926",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c3f093ee-f8ce-43eb-9deb-7fe44d97692e",
+    "inmueble": "URB003956",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5d58df24-4a4c-4d28-a9e4-0da82fd42ee0",
+    "inmueble": "URB000226",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "68d904f1-2be8-43f1-9ae0-b1591b8762d1",
+    "inmueble": "URB000494",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "748e924c-77d2-47f8-8f49-eb65e71b1c35",
+    "inmueble": "URB005634",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5d1bee7c-5397-4c2d-bf3e-adb885f0c6f4",
+    "inmueble": "URB005958",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7c7d056f-d6b7-4eb6-9b1c-fbf6071a4717",
+    "inmueble": "URB003889",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6d27fa1b-ae24-4cfe-9f74-3addf962b7b4",
+    "inmueble": "URB004280",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d9fd1d2c-b768-464c-b9a1-50a878abf10f",
+    "inmueble": "URB033133",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a61a12a5-bd87-4ae2-b3c2-65bcde8f50f9",
+    "inmueble": "URB008995",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a7ed9ef7-ff96-46a0-bde9-ca430d269501",
+    "inmueble": "URB032782",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2a7cdbe4-1b41-48ba-9b19-5d465978bb2f",
+    "inmueble": "URB034797",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7312e763-5331-4212-9537-fa61ac144a56",
+    "inmueble": "URB002129",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5890e9c8-d4e2-454a-9a6b-9e8c035335b8",
+    "inmueble": "URB000481",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "34efc523-7a11-4530-a172-5fcb74b82c48",
+    "inmueble": "URB004105",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7e3523fb-4b2f-49a4-8232-3f26b08f6def",
+    "inmueble": "URB001855",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b253d493-4a3a-4eb7-950f-3073360e2e34",
+    "inmueble": "URB032679",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "28c79518-f0ca-4451-8802-d872c3824807",
+    "inmueble": "URB034588",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3de54edf-bca7-42e5-826f-c1f445de30bd",
+    "inmueble": "URB004415",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "075780a5-a459-446d-865c-51c4292a02f5",
+    "inmueble": "URB004851",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d338603b-9a7c-4a60-8bd0-9c9978c0b81b",
+    "inmueble": "URB003480",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b88f6f16-c140-4197-9a7d-bc1657be897f",
+    "inmueble": "URB004893",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7594cc86-612b-400f-8bc7-efd4d274faaa",
+    "inmueble": "URB002864",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3e658935-c75f-425e-978a-fd84038394c4",
+    "inmueble": "URB003632",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "73904e6c-e951-4d43-8926-89fa89520b5b",
+    "inmueble": "URB004197",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "30cde1a1-452f-4dfd-988c-82e55ebc63cc",
+    "inmueble": "URB032465",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4fcd7f40-0632-43b6-ab24-1050ec374730",
+    "inmueble": "URB003445",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "833281e5-3fe8-4465-b6ec-96dcfcfd545e",
+    "inmueble": "URB005320",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c007a8e7-f14a-4757-98d5-e6d0a0108d4c",
+    "inmueble": "URB005561",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c8f083a7-f9ae-4298-b3c9-997ae5e52a0c",
+    "inmueble": "URB009982",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "aaf4eb5b-7e6c-44be-a1c8-398fd062daa7",
+    "inmueble": "URB000422",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5f04ba76-a371-48b4-8f9f-b4d523c18ded",
+    "inmueble": "URB008685",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ebd081ac-ef82-4499-a81f-68fda4359f05",
+    "inmueble": "URB002744",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0ca6fdec-ca47-4fec-9dfb-36c519d908f4",
+    "inmueble": "URB004608",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2717317e-12e1-4004-b6fc-676057503ea5",
+    "inmueble": "URB004469",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0ef1412e-8ddd-4d55-a805-46e3389c51e7",
+    "inmueble": "URB002385",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e2f6d6ee-d643-4246-8ad9-b8bb292b3b9f",
+    "inmueble": "URB004959",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "99c8f712-1c4a-4177-8cd2-508241efb7fb",
+    "inmueble": "URB010390",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4ce3fe98-8334-44f4-b550-fc56dd4951bb",
+    "inmueble": "URB000458",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "fdf5c920-a35f-413b-93ec-2e9cc17bf462",
+    "inmueble": "URB000527",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "576cd1a1-bbd4-46af-a85a-fa44b28efaff",
+    "inmueble": "URB010522",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f39cdea7-101f-4ed5-958a-d2719b0afaae",
+    "inmueble": "URB003403",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e1e04757-17f1-4e30-9b56-f43d0b943c61",
+    "inmueble": "URB000532",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8e7aa6cb-ddaf-45d8-8490-1b7f041dac62",
+    "inmueble": "URB034249",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "36003b6e-e762-47b2-b321-31fc52a44b8f",
+    "inmueble": "URB009165",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "15dc4d9a-dfc7-4feb-86d4-2b4f6dd7685d",
+    "inmueble": "URB000063",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d47dc898-8b02-477e-9a29-f842ffa4074b",
+    "inmueble": "URB005303",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9abee2db-76b6-4fca-87be-0259c0c52c4c",
+    "inmueble": "URB001943",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1f344bcd-052a-422b-8067-4002bd948cbb",
+    "inmueble": "URB010518",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1f384cce-d761-41d9-b949-6d7e4b4d3953",
+    "inmueble": "URB003610",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "35cbf281-e716-4791-9b86-e984f24ebe7e",
+    "inmueble": "URB004122",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "453910df-adbb-4965-b5a4-fdc9551c73c3",
+    "inmueble": "URB033804",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b7540c95-86ac-48f8-84ec-91c0bc265852",
+    "inmueble": "URB004655",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "422248c7-b9e8-444f-9cec-79edbe924d56",
+    "inmueble": "URB002568",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.603,
+    "meses_deuda_antes": 19,
+    "multa_bs_antes": 16427.72,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e45b6bcd-fe9c-476b-884b-207739260ac3",
+    "inmueble": "URB001490",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "22612cd3-cbc5-427b-bf2b-e2111af70736",
+    "inmueble": "URB004607",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f80789d7-8d30-4120-b7ad-de6867c24db0",
+    "inmueble": "URB005418",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "aee08245-af6b-4875-9bcb-585456e97998",
+    "inmueble": "URB010502",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1399b251-40b6-444b-aa2b-c90ce1ad72a6",
+    "inmueble": "URB033116",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "fd2f644e-b8fc-4415-8adb-145dd947514f",
+    "inmueble": "URB006038",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 3.973,
+    "meses_deuda_antes": 29,
+    "multa_bs_antes": 25554.24,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "870ca03d-70ab-4715-9400-3bd48d2a85e8",
+    "inmueble": "URB004295",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f4572f5b-24dd-4b5f-b009-c02c1625a5d7",
+    "inmueble": "URB032842",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c68d8e31-6360-42fe-9d4e-3bfca004f860",
+    "inmueble": "URB004172",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ef8d0504-aea3-4343-8d43-b54266c89cb4",
+    "inmueble": "URB000356",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "abaf9629-1990-4096-8973-a37a05513689",
+    "inmueble": "URB004619",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9dc39378-a40d-4555-ba47-89df277e8614",
+    "inmueble": "URB003679",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "45f11658-a314-4e39-8893-8b2122fa3b5c",
+    "inmueble": "URB009211",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d569bd23-5f35-4e82-8618-407730874798",
+    "inmueble": "URB009242",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1a9dfdfc-7854-41d6-8bc8-39dbc06bd1c5",
+    "inmueble": "URB009312",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "bf4f51e1-9d2e-4d4d-845a-cb88f440a865",
+    "inmueble": "URB009362",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "dc550c7e-9774-4c5e-a605-fa8df464451c",
+    "inmueble": "URB033031",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "10989788-9cdf-4f04-9973-e0bb9848b6b4",
+    "inmueble": "URB009322",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7dcac584-a105-4948-abeb-fa81e8df05eb",
+    "inmueble": "URB032658",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d7d16ce5-3b16-4c41-9fb1-531a471767bf",
+    "inmueble": "URB009397",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e50e6a22-7f8c-4736-80d4-993f1765bd5a",
+    "inmueble": "URB000519",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "16f45ede-c3dc-4542-a44e-b96ae0df1e17",
+    "inmueble": "URB032861",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e693196b-b473-432a-bd31-83abf2258db1",
+    "inmueble": "URB000028",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "fd6761d7-bb6f-4b6a-abc5-d6c362e74463",
+    "inmueble": "URB000184",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e8567b66-a0d0-4b04-a606-e514dfef33dd",
+    "inmueble": "URB004297",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "37abd100-62fe-4416-9ce8-06f8769b031e",
+    "inmueble": "URB003952",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d869342f-f1d7-413d-8d8a-5f4baa10723a",
+    "inmueble": "URB000355",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1a9f055f-b920-4df3-8937-24a1d8e6d0c2",
+    "inmueble": "URB032878",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "af613aa4-deda-4c56-81c9-31b93d15ceff",
+    "inmueble": "URB005218",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "41c6a158-0f95-4102-b6ab-95116c71cd0e",
+    "inmueble": "URB004300",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5f43a720-6263-4d21-b8e4-6d77c4124414",
+    "inmueble": "URB034867",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ef31fe27-4139-4118-80a8-c4e0b5b3810c",
+    "inmueble": "URB035006",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3363be4c-7bf7-4d74-ab6b-776fd3ba8a9c",
+    "inmueble": "URB035007",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2f3c730c-92e5-4cdd-93f1-571ffba724f3",
+    "inmueble": "URB004113",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "420a3c3e-4d8c-42fb-b948-048f4ff0729f",
+    "inmueble": "URB000475",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9bde22f6-83f7-4995-9e7e-63d596972ab1",
+    "inmueble": "URB008655",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c5cac010-91cd-40a5-8040-ae4e8cce77be",
+    "inmueble": "URB000075",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7895da69-dedf-492e-b4a6-45c610f84d70",
+    "inmueble": "URB005441",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "02d4a39b-5dcc-4135-9abc-f057d04f73c6",
+    "inmueble": "URB004418",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1038ad8b-ce49-4ffe-9ecb-cb0e99bcddd3",
+    "inmueble": "URB002727",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d1b22f03-e68f-44ad-9ff3-569d0dc9b99c",
+    "inmueble": "URB010529",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e8fa1405-7c4e-4ad9-8082-d0c507de0bef",
+    "inmueble": "URB004506",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "58ffef08-f641-443f-8eeb-ce866530d5d9",
+    "inmueble": "URB005259",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1694a883-e3e5-4e03-a7f7-257e3040f640",
+    "inmueble": "URB009420",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b2be0f2e-aa5c-44bf-bee5-a889b65a3ed1",
+    "inmueble": "URB009357",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "cb9153e5-5ae4-432a-a165-4e32e6d3926e",
+    "inmueble": "URB005611",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "fafb0861-88de-4ae4-87c1-048b7b2b08a7",
+    "inmueble": "URB004401",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7e1cb739-20e5-4c0b-ba1b-4b94e963b492",
+    "inmueble": "URB009171",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f752e7a9-30e3-4c06-88e3-ff3f888b2312",
+    "inmueble": "URB002728",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "834f7500-c947-4713-9185-bc8f0f20592a",
+    "inmueble": "URB009951",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2eea0c9a-73d6-4dad-9737-060fdae9747e",
+    "inmueble": "URB033047",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7092ac85-52e5-4d23-bfb3-ab18dec36c3b",
+    "inmueble": "URB009884",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.466,
+    "meses_deuda_antes": 18,
+    "multa_bs_antes": 15515.07,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7fc9ef48-451a-4029-9153-40a03252b483",
+    "inmueble": "URB001927",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "cef16b8b-2f0e-4877-beaa-429f9b3b7bd4",
+    "inmueble": "URB004298",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "92bdce06-51e0-4159-8732-df7a61bdc5f2",
+    "inmueble": "URB000420",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2b652954-a477-42fa-bc21-309b892d003b",
+    "inmueble": "URB033256",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7046bacb-b38e-448c-ab83-178072ac844a",
+    "inmueble": "URB002704",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1c3960a4-4cd4-4faa-8bb1-51daaf6d5de3",
+    "inmueble": "URB032628",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "63d24367-2436-431a-ab35-5efed5540c2d",
+    "inmueble": "URB032786",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d6fc0fd3-507f-40ff-84c4-6ec391cea0fe",
+    "inmueble": "URB009885",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.466,
+    "meses_deuda_antes": 18,
+    "multa_bs_antes": 15515.07,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d29a4ae8-cd31-4e97-816c-ea324e4cae4a",
+    "inmueble": "URB032633",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5bbe693e-12d0-4141-9be7-13c27eeeb582",
+    "inmueble": "URB005384",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "189b0fbe-fbd4-4b03-b1d5-626445105b4b",
+    "inmueble": "URB002091",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ed556d21-ed90-4aae-aa96-ce1740deb44f",
+    "inmueble": "URB032569",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0b8ca61a-5ff3-4192-8293-da5ca65e266e",
+    "inmueble": "URB003452",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f3564989-ad1d-472f-aadd-39e9da69c62f",
+    "inmueble": "URB002664",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c1aa21fb-70f4-442f-a0da-5071d7a9fdd9",
+    "inmueble": "URB009363",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c7413bf4-d77a-49e8-9fb6-a95791889823",
+    "inmueble": "URB005392",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "cd8beb67-39dc-4a45-ba7e-c11e02a47f93",
+    "inmueble": "URB032963",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ad826147-40b8-4234-860d-e3b43a12cf5b",
+    "inmueble": "URB002141",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b2c03ba6-7f73-4f6d-90fb-c348cc43b17d",
+    "inmueble": "URB034599",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "effecbc8-3a17-4a46-b8b6-9ac3ba2001b8",
+    "inmueble": "URB000623",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "511b324f-8a05-4ba7-9813-d20e8a366ab8",
+    "inmueble": "URB000010",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8866f748-d0fc-4162-85dd-e23f0f7a5c72",
+    "inmueble": "URB000023",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8b2769d8-7330-4629-b41b-13a1b504e3be",
+    "inmueble": "URB033759",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "24d9bb06-e085-4c9a-9282-56ce3e6abf81",
+    "inmueble": "URB005673",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0d304f73-aff0-4a00-9b1b-30f3d6281bda",
+    "inmueble": "URB009040",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "10a5e3c9-a746-4618-863e-e353b2caacc4",
+    "inmueble": "URB009344",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0890ef48-11a7-4f35-860b-82c5c988126e",
+    "inmueble": "URB004303",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5353c0d1-7280-48cd-b46d-08cbf62a9afb",
+    "inmueble": "URB003672",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8d3a3689-1e1a-4e90-be1a-cfcc5b3b2e24",
+    "inmueble": "URB000181",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "07cbbdd3-e485-4cb9-8ddd-7014bc8124b9",
+    "inmueble": "URB004938",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6b51dbe8-7ddb-4e52-aade-368f8a7047dc",
+    "inmueble": "URB032731",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3dc0c2ef-885e-4a5f-b7ca-b53ead0491f3",
+    "inmueble": "URB033569",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ee38d437-7cca-469e-ba67-d50b6c5f14f7",
+    "inmueble": "URB034278",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c3afea33-ad21-4181-a2a2-56bf247b1d56",
+    "inmueble": "URB010006",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "54a2035a-f4e8-48c6-aa5a-3a711e789650",
+    "inmueble": "URB005216",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ee3f0b97-2a3c-4887-bd75-7d04c7c7cb12",
+    "inmueble": "URB005372",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6e86b1e3-5a8e-42db-9477-7cdcbc6578fd",
+    "inmueble": "URB033861",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9811abd2-ea48-40d4-b776-399be83c4843",
+    "inmueble": "URB004176",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "dd71e0c9-380c-4813-86bd-22427f3541e6",
+    "inmueble": "URB010428",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "35bb2bf1-19b1-4998-927e-c115257443f5",
+    "inmueble": "URB009419",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 9126.51,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5de009f7-2142-4f2e-8306-951f7ee95a24",
+    "inmueble": "URB009895",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a94e133d-9181-4216-9f3f-43ce6091530d",
+    "inmueble": "URB003519",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5075ec88-1ae9-4bf4-a7f7-cfa8f1dc4629",
+    "inmueble": "URB002306",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "277d6dac-08c6-45b8-9ec4-bd4a1e168709",
+    "inmueble": "URB000524",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6b525b5a-3c2b-460c-a01f-63ad3d116e47",
+    "inmueble": "URB000183",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4456773a-3123-419a-9d44-5e1f53e2ef07",
+    "inmueble": "URB000468",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ce9dc65d-4f88-47ca-98f7-e372e9ed76d2",
+    "inmueble": "URB000669",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3cb0e48b-28d1-4e4e-af50-59c44508f3b1",
+    "inmueble": "URB000644",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ff7beadb-3e03-49ef-9330-30e203992d6f",
+    "inmueble": "URB003494",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "24ec6aba-3774-443d-95ca-3e844ec8d40e",
+    "inmueble": "URB033862",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ec08ac61-b598-4e52-b282-5eb32ebebca8",
+    "inmueble": "URB034901",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4ac4a84d-88ba-4979-bb84-50f734ab031a",
+    "inmueble": "URB005279",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "421db4b0-0638-4af8-86df-0d1ed1cee408",
+    "inmueble": "URB008978",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1578a190-f174-4c38-87f5-f09c26bb5b61",
+    "inmueble": "URB034843",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2cc62b10-3503-4321-8169-f029fc3fc3d9",
+    "inmueble": "URB005185",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e9988835-a89f-46f7-bf30-7007b414ae1c",
+    "inmueble": "URB032816",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c596ac05-3039-421b-a27f-741b15eb2014",
+    "inmueble": "URB005944",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f04af4e8-806b-4927-9228-962b4f543f07",
+    "inmueble": "URB003684",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1a496c09-e658-4661-af71-8cd1665809fb",
+    "inmueble": "URB033210",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9cb38eb4-2da5-4b31-b725-85cfbff93d07",
+    "inmueble": "URB033570",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c6481fce-926d-4d07-85fa-e3425f6d2d84",
+    "inmueble": "URB033486",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0346c346-b225-420a-a298-ff4da2fa33f5",
+    "inmueble": "AURI006330",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "22c1d731-f473-451a-ad6b-889204f154f0",
+    "inmueble": "URB004875",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2370452b-171d-4097-87a2-a097191980b3",
+    "inmueble": "URB033059",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6e64924a-d23f-4445-a852-dbd4afc2ec7e",
+    "inmueble": "URB032643",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4edcbefa-b433-4fd1-853d-61007e7e5375",
+    "inmueble": "URB033491",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4da95cab-bdfe-4b10-923f-7abe9c468182",
+    "inmueble": "URB002423",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "75946e24-aaab-4a76-bd1f-bdb8739938c1",
+    "inmueble": "URB032858",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ce66a527-e6a0-4eb0-880f-8249bf3746be",
+    "inmueble": "URB005346",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e05c9dc9-9f07-401b-84a4-bf7a6f4e9b77",
+    "inmueble": "URB004279",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6c616878-e2c2-4b76-bba2-33713b9d5537",
+    "inmueble": "URB033208",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c79ddaa2-dd4f-4e34-95fa-944a5d071d5f",
+    "inmueble": "URB004146",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d6189a81-3e9c-441c-9bc0-1de08bbca0a1",
+    "inmueble": "URB004239",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9eeadb8b-e074-476d-b731-4f34ee9cbd1b",
+    "inmueble": "URB032644",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1a3fcec9-36b3-4a24-adaf-9e8c0ceadfe1",
+    "inmueble": "URB034912",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3ef12512-1f8d-49f2-864f-229d042b7c06",
+    "inmueble": "URB033565",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "138913b9-809b-4684-a708-d4395925725c",
+    "inmueble": "URB001463",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "743415bd-1825-4d26-977a-e13131c0baa1",
+    "inmueble": "URB032879",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a52bdff7-f037-43bb-8ab3-b6aba7b9ab96",
+    "inmueble": "URB005488",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6f9556a3-5381-43cf-b0d3-1d3880c3ae48",
+    "inmueble": "URB034885",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "61310eec-a3ee-4d4f-9f6d-3b6af263f75b",
+    "inmueble": "URB010481",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6f0900cb-7fc4-4f19-ae57-f36b556f0910",
+    "inmueble": "URB034030",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c634609d-1ef7-4123-a655-41ae4a2ec6be",
+    "inmueble": "URB004188",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "afe5cc5a-b237-465b-993f-34974be8ff36",
+    "inmueble": "AURI006121",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "cf4ab7db-d22c-42bc-b50e-922044ea03d5",
+    "inmueble": "URB004983",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b29d3e91-e77f-4282-9387-3d4334014339",
+    "inmueble": "URB000360",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "feafc247-2017-497d-967e-b2686a75d951",
+    "inmueble": "URB004468",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f05377f4-7f0a-4c73-b925-71fa4a5b6571",
+    "inmueble": "URB004159",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7a07c7fb-f37b-4da5-903c-547df933f652",
+    "inmueble": "URB005371",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b23a50bf-2c15-45ff-987f-f2920db9d73e",
+    "inmueble": "URB004982",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6d18ffce-c591-413a-8c9d-705c0f35c49a",
+    "inmueble": "URB004648",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "93d02200-1a09-410d-a263-7219f37b0d1a",
+    "inmueble": "URB033566",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b91a9776-2c5e-4219-a23e-1532063973f7",
+    "inmueble": "URB003148",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d96e42fd-0979-4f12-a723-230a827b7def",
+    "inmueble": "URB003794",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1a336479-6dd5-456f-ad0c-a70de7e8370a",
+    "inmueble": "URB005382",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ec526cd8-3008-41cb-bb23-41a06de85618",
+    "inmueble": "URB003767",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "996169ed-c091-4158-995a-830670c950dd",
+    "inmueble": "URB001940",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0b85fc76-457e-427d-a94a-0a17ab0da875",
+    "inmueble": "URB004479",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8de32050-404e-4009-bae3-7234c842aaa1",
+    "inmueble": "URB009926",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7248fc6c-78a9-408a-a0fd-aaed2c6a6eea",
+    "inmueble": "URB033050",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f6040ce2-6c5a-4c24-8a6c-f779c35d770c",
+    "inmueble": "URB003795",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a686a9ca-fc6c-406e-b9d2-741cbebfa4d2",
+    "inmueble": "URB002130",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "bddcec44-870d-48df-936c-ecc3096f1245",
+    "inmueble": "URB000561",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "578b0000-3bbb-4839-8145-920ca2c00727",
+    "inmueble": "URB006022",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "81425b82-a0de-4a60-a42a-8e23ec46615d",
+    "inmueble": "URB005641",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9bad0332-12a4-49fe-8b89-e17c73dbb377",
+    "inmueble": "URB003678",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "41ce3f64-b6da-4882-b278-dadd050c9a63",
+    "inmueble": "URB000031",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ab1a3a2b-28b0-4a37-a3be-1cbfb2cbafc9",
+    "inmueble": "URB032844",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "374dd557-ccd9-45d9-8276-820edf9a0394",
+    "inmueble": "URB032914",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d1c95f78-0599-45e6-afce-27d4450cbc16",
+    "inmueble": "URB000062",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2da810db-ad37-43c5-a315-857b0a272008",
+    "inmueble": "URB003335",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2443e6ab-77ae-4dab-aa95-0e0ee21e4073",
+    "inmueble": "URB004661",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "4a7eaed0-ac9a-4562-a041-57b1db12a7d9",
+    "inmueble": "URB005221",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1441eddd-e1ad-4b7a-9f80-70e1b0293eaf",
+    "inmueble": "URB005401",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e519e165-7a82-47b4-9c96-2c0b4841ac33",
+    "inmueble": "URB000032",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8139c71e-d47e-483f-82a3-f37514cf94b2",
+    "inmueble": "URB000421",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9e745038-7411-44af-bd42-a301d7a22a01",
+    "inmueble": "URB032886",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9ced3e8e-f7c7-40f1-9817-a564924ce73a",
+    "inmueble": "URB003946",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c038a43c-4284-4dde-be19-8fbbca3ad17b",
+    "inmueble": "URB004689",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "048c5b2b-bca5-43d1-b042-640a0d70d50c",
+    "inmueble": "URB005381",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1e67480c-1c6d-43f4-a0a6-c39e14d2063c",
+    "inmueble": "URB000622",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d90bf2a4-f4c1-4bc0-850c-1f8d6e673b2d",
+    "inmueble": "URB002205",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "12e01202-0c8d-433b-9cc9-cbc8c1960da8",
+    "inmueble": "URB033951",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6aefba97-5542-4372-81fe-053f7f8e07ad",
+    "inmueble": "URB005039",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b060ab1a-c0c3-414b-abf8-c64030304189",
+    "inmueble": "URB002660",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3dfa6c52-bc5c-40fd-99e4-ef95e6369c59",
+    "inmueble": "URB032972",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d6fc343d-5f1f-4809-9214-5c29950a93c6",
+    "inmueble": "URB009412",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.466,
+    "meses_deuda_antes": 18,
+    "multa_bs_antes": 15515.07,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "92f41872-e9a2-4f6f-a90f-d6938ea0dba9",
+    "inmueble": "URB009411",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.466,
+    "meses_deuda_antes": 18,
+    "multa_bs_antes": 15515.07,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a7e68442-5355-45fd-abaf-ac7e88cf11d9",
+    "inmueble": "URB000487",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "af6b210f-d69a-460a-af68-95b0c1357ec2",
+    "inmueble": "URB009130",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c18f0d08-6d0c-467c-9811-01f99d816e1e",
+    "inmueble": "URB003498",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a3d351b5-1e52-4302-915e-ecf22888dcc0",
+    "inmueble": "URB008511",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "cabb0107-8721-40b9-a736-3076281667c3",
+    "inmueble": "URB003038",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "eb6f1a12-e29d-4421-83c9-4a1b96686290",
+    "inmueble": "URB003264",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2ee970c7-99e7-4a6f-84ba-7ffc55b03a57",
+    "inmueble": "URB005308",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9061f94f-0463-4b97-b913-8acc0632469e",
+    "inmueble": "URB033984",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "09a8a2cf-fd77-4099-8c88-3be325cb2c7a",
+    "inmueble": "URB032824",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "724e40dc-8e1b-4b65-bf42-18555f058f6d",
+    "inmueble": "URB032907",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "18209e00-ff37-46cc-82a9-8bca4dfee6a2",
+    "inmueble": "URB007227",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "805f48f0-46c2-4ffd-be9c-19acd577934d",
+    "inmueble": "URB032570",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2a7c7e8f-06e8-4ad3-9c02-d8f52403229c",
+    "inmueble": "URB004151",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "71ae0786-9226-41c8-afb6-44d4d2a8e883",
+    "inmueble": "URB034995",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9a340fb2-6a8e-4a2c-8aef-c3bc56aee9c3",
+    "inmueble": "URB003788",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "582c0240-10d8-4ffb-959e-5c900333374b",
+    "inmueble": "URB009882",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.466,
+    "meses_deuda_antes": 18,
+    "multa_bs_antes": 15515.07,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e6781ba8-ab83-4f4a-8351-d92a1a62f7e9",
+    "inmueble": "URB032932",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "bba01e15-4e1c-4dbc-bdc4-c389803e4c97",
+    "inmueble": "URB003169",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "eaedab24-4cc7-4327-afd6-ae0025843828",
+    "inmueble": "URB009288",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7b65964a-aba5-41a3-9779-05e2a3a9400f",
+    "inmueble": "URB009413",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.466,
+    "meses_deuda_antes": 18,
+    "multa_bs_antes": 15515.07,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f027020d-6828-4fc9-ac07-2b1966e91c04",
+    "inmueble": "URB008478",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "dfdc0841-2163-4977-8068-3e2ae9c0e6f2",
+    "inmueble": "URB009883",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.466,
+    "meses_deuda_antes": 18,
+    "multa_bs_antes": 15515.07,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d8bd18a5-b8fe-4b34-8de8-a3494e10b3cb",
+    "inmueble": "URB035235",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "066830ba-c444-4486-b641-2b36568638ed",
+    "inmueble": "URB032627",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0682b031-f01a-4c21-8f89-0ef22ed31a66",
+    "inmueble": "URB032940",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "fd8718b6-9c4b-4402-bec1-63cd1853522f",
+    "inmueble": "URB035238",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "dd24a97e-0c3f-4000-b6f3-6a919288e79b",
+    "inmueble": "URB035227",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e0bd1954-467b-4ea8-b149-9ac9506bde8c",
+    "inmueble": "URB032997",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3e7c0e68-19b2-4588-810f-a264b5305e82",
+    "inmueble": "URB004517",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "761d74b2-c52a-4bc3-890c-b18bf764468e",
+    "inmueble": "URB002572",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "79aea906-1d0d-4a8d-ab00-722f32e87dc6",
+    "inmueble": "URB003499",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b579f002-acd9-46dc-9482-77b999f317fd",
+    "inmueble": "URB002344",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2c8f459f-252c-4946-b15c-684b2007059e",
+    "inmueble": "URB032719",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2f451f0c-1844-478f-9298-a75bb9a14d8c",
+    "inmueble": "URB003136",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "19308e2a-e38a-4e65-abfb-cdc5261dfc27",
+    "inmueble": "URB003147",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "69d25d6d-e095-4b6d-b47e-d6d340428619",
+    "inmueble": "URB004475",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "69a4f538-6620-4e74-bdd4-567786cd182a",
+    "inmueble": "URB004242",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0c394403-c0bd-4994-ac18-67043cbb4666",
+    "inmueble": "URB034582",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f03d8690-fdd7-4ae8-bb62-8b9c33df429b",
+    "inmueble": "URB004638",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e43ff2e6-606d-4828-8dbb-41cc8d1a08a2",
+    "inmueble": "URB000157",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3d463e26-e09c-4713-80a9-8575ce4b4625",
+    "inmueble": "URB003182",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "fb9af5f2-c192-4f70-897c-f94d437a7140",
+    "inmueble": "URB004162",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3ca2bd89-7903-4c5c-91da-dccdd0859971",
+    "inmueble": "URB004231",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "454e6ba1-1110-4ac0-8530-018ab8944715",
+    "inmueble": "URB005413",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b6c81cea-a06d-401c-abe7-2c1af46dc3c0",
+    "inmueble": "URB033488",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a100b382-c906-43ca-90de-ac0d265f696f",
+    "inmueble": "URB004236",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "bed70eb1-56a5-42df-aaed-544e99fdc962",
+    "inmueble": "URB033182",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0.822,
+    "meses_deuda_antes": 6,
+    "multa_bs_antes": 4563.26,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "39b09f4a-dbe1-4f54-8990-aec831ed8273",
+    "inmueble": "URB005207",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0794a90e-399a-4628-907d-05a3bfff59c5",
+    "inmueble": "URB035061",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "336d3420-818c-4ca5-9cc7-056f87975346",
+    "inmueble": "URB004274",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a7c3bed7-d9a6-4143-b6ab-575ae4b52712",
+    "inmueble": "URB009244",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "61e0c49c-6650-489a-b1cd-165500b25a33",
+    "inmueble": "URB000517",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6b24ed07-058d-4da1-b055-f4d79439a844",
+    "inmueble": "AURI006001",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "29318cc6-3f4a-4401-89c0-63c29c983575",
+    "inmueble": "URB009930",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7ba74afe-9b66-47d5-a708-77b10f83493c",
+    "inmueble": "URB004471",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6643ecfc-7f0b-4a5d-bc9e-11e872e4a138",
+    "inmueble": "URB033078",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9ef1dc7c-e560-4448-b1e2-f748d20888da",
+    "inmueble": "URB009957",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.466,
+    "meses_deuda_antes": 18,
+    "multa_bs_antes": 15515.07,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6859ce84-6f26-4b7e-8039-d1e5947a7cf6",
+    "inmueble": "URB009958",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 2.466,
+    "meses_deuda_antes": 18,
+    "multa_bs_antes": 15515.07,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ca1bf514-63c5-4c1d-9282-6e7d820631d1",
+    "inmueble": "URB035231",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "938c63e6-faa0-4670-98a3-399288695eff",
+    "inmueble": "URB032996",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e6cec314-48bc-45d8-85d2-ad6a812d9245",
+    "inmueble": "URB002005",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "34ecdc57-776a-4a4d-8181-0b6f776a9afb",
+    "inmueble": "URB009417",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c8e4af60-95e5-412e-b98e-acab4b1180cb",
+    "inmueble": "URB001393",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "efde7bfb-940b-4e3d-bda9-5a34dd925c0c",
+    "inmueble": "URB032651",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0825a314-194b-4fb4-9a45-bf6cd16e0593",
+    "inmueble": "URB003789",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "93d2000d-b34d-4495-9603-0b46cf5d64e6",
+    "inmueble": "URB010378",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "3276ad6a-de99-4e2a-be4f-eb034d117a2f",
+    "inmueble": "URB032821",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7223a6fb-2cfa-414a-99a2-3cb6be77ed5c",
+    "inmueble": "URB034021",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "452ee0e2-de24-4d4e-9a99-4ae45a0ebb63",
+    "inmueble": "URB035060",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0fb9a0bf-899c-4222-8921-cc1f8a57cce2",
+    "inmueble": "URB033765",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "43966e88-e484-4aab-9ab5-ff390e755cc3",
+    "inmueble": "URB034347",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "bbcb9657-c17b-4b96-9012-320643c26966",
+    "inmueble": "URB034639",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "103262f2-e3e0-41ed-bf79-a1f3db016ac1",
+    "inmueble": "URB034889",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2e84ac4a-1fc8-47c6-9c6a-ce30849cfcc3",
+    "inmueble": "URB035014",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "395299fd-b24d-4f86-baa4-52c43cf39ae1",
+    "inmueble": "URB034637",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c64e672f-c59c-4339-9cd5-35f2a7c940ed",
+    "inmueble": "URB000657",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "91065ca7-332e-4d2f-9fa4-1578e1132207",
+    "inmueble": "URB034677",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a0a4a6c2-0e18-48cb-8904-3777d26c4205",
+    "inmueble": "URB034752",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5aee6467-be18-4e14-b59d-61768dd62caf",
+    "inmueble": "URB035098",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1ca7a33a-4cf6-4432-85ef-de69aae5119a",
+    "inmueble": "URB003425",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f8239fb6-0085-4ba6-b7cb-17b2a2260d77",
+    "inmueble": "URB005317",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "de99b3bf-3889-451c-88f6-f3504cd443b0",
+    "inmueble": "URB005195",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "097629d7-44e8-468a-b770-bd999deb3573",
+    "inmueble": "URB004118",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "12ba7cc1-b7af-4d9d-9195-04cd78953fb7",
+    "inmueble": "URB034648",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d6ee4266-e5b7-48d5-9bfc-43e706b6ad84",
+    "inmueble": "URB010519",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c01418d3-7acc-43f4-9006-a2fc07c4e090",
+    "inmueble": "URB035191",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9591ac28-6bc4-4811-9c53-19359f2786a9",
+    "inmueble": "URB010444",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "549b6062-94ad-41b6-8a16-39a14bc57d37",
+    "inmueble": "URB032422",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8c61a895-ff97-4003-8f2a-d772ee2c3d3d",
+    "inmueble": "URB003073",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b1d1cc2a-53aa-41f4-b3e1-4ed3fc177305",
+    "inmueble": "URB004109",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2bd7981a-dd1d-4ddc-8d95-a17f1d4f799c",
+    "inmueble": "URB034625",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "81b8ab05-5684-4530-9b79-31fbb158a678",
+    "inmueble": "URB001412",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f0167ceb-8db6-4818-bdfa-5cc892533c11",
+    "inmueble": "URB004200",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "55136ce7-96a5-4032-9faa-09a6a084a9e1",
+    "inmueble": "URB004630",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5e169150-88bc-4476-92aa-f37198f70d26",
+    "inmueble": "URB032978",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "389f84d9-33ec-4a17-9e58-703294f3b863",
+    "inmueble": "URB034753",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b948fc34-ed75-4ad8-81e4-99b7151fa6a7",
+    "inmueble": "URB034900",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "e7aed491-7dfb-4ba6-bd44-09912f8a6a01",
+    "inmueble": "URB034922",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "89f9ff3a-dff6-4323-8238-02e46e4f8284",
+    "inmueble": "URB003170",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "f51aee07-9721-4e6b-8c6c-b3e11a971ed8",
+    "inmueble": "URB034875",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2f22f56b-f9c8-4b6e-973b-96726925212a",
+    "inmueble": "URB000419",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "9a395728-f1fa-45fe-83e3-cf9eb710d6d5",
+    "inmueble": "URB033485",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "801fe709-2c81-4932-be64-cc64d5f15996",
+    "inmueble": "URB033216",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "b558c2b5-9de7-4858-9c6f-4ac7fa3a31c0",
+    "inmueble": "URB008273",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6ce74b2c-7bdc-468f-be19-33965caa0185",
+    "inmueble": "URB009418",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 1.644,
+    "meses_deuda_antes": 12,
+    "multa_bs_antes": 10039.16,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "770c03af-493b-4cb0-9d93-6795f7d2485f",
+    "inmueble": "URB008750",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "05c65238-0749-414f-a1dc-7efd2bd11c65",
+    "inmueble": "URB003057",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "48affb77-b6ff-4e95-acaa-332b545f19e2",
+    "inmueble": "URB003050",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "df2a0062-0cb5-4e40-b10a-29f1598f830f",
+    "inmueble": "URB003097",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "283c60ac-3dd3-482e-8824-18d9b0284d20",
+    "inmueble": "URB004450",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "454f66b3-a116-4f94-8b37-57ce033723cd",
+    "inmueble": "URB003613",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ab1163ba-cb18-4223-a6c0-0e98081af84a",
+    "inmueble": "URB004989",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d86c0ead-78d8-4e5c-8761-b13791b24d2f",
+    "inmueble": "URB001890",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "432a4388-483e-4c50-91e0-4e64d0096871",
+    "inmueble": "URB032951",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "c37301d7-2ccf-420d-8b5f-fb4804e5a902",
+    "inmueble": "URB002008",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8e18539e-b348-40c2-b0e2-05438d13f440",
+    "inmueble": "URB003627",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d50b48c7-401c-4e2c-878f-73e07a5c92c7",
+    "inmueble": "URB000067",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "bb72e139-17dd-41a4-878c-f1295264a3b5",
+    "inmueble": "URB000402",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ddd793d9-3a79-4399-a215-b5138be2a930",
+    "inmueble": "URB003667",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "793eec3e-6dbf-48d0-8c7f-7016c63c281b",
+    "inmueble": "URB003953",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "93a30be0-2925-4944-8350-181e4791ca65",
+    "inmueble": "URB009910",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "0978ca75-ec26-4eb4-9ba2-bce35cde7bce",
+    "inmueble": "URB005336",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "741b3df2-2d5b-4140-8165-b0329095f5ee",
+    "inmueble": "URB032948",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "ecfd3b27-db56-400d-bb84-5b5ce4984137",
+    "inmueble": "URB032784",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6f624d9a-312f-4fad-8e3e-20f7ffe07a22",
+    "inmueble": "URB003888",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1aea5446-4d19-44f5-8b9e-de91804fb723",
+    "inmueble": "URB005467",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "44c8461d-6da0-4d7a-b3a7-38435ab0b1c9",
+    "inmueble": "AURI009429",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.8,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "1cb80168-a84c-4ae2-b01e-a586b5d058ad",
+    "inmueble": "URB003762",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "42491de5-16a9-4d67-b005-89d8dbab5f87",
+    "inmueble": "URB004897",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "6dbbc8b3-897a-4130-97a9-4d9e879b3537",
+    "inmueble": "URB005251",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "a8b58397-c04c-40c2-80e4-1521e5967f39",
+    "inmueble": "URB034630",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "2f390083-a720-4a0f-bc8a-c71ba44ece50",
+    "inmueble": "URB035078",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "5d90c26a-cbb8-456d-a634-f6605d441c2e",
+    "inmueble": "URB035049",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "41f16481-f5d3-4d72-9bc6-194be3a07a99",
+    "inmueble": "URB034640",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "25c6c0c5-c7f6-4bad-98f7-08c41250b67c",
+    "inmueble": "URB009959",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "89f9fa05-3e52-4e22-9467-f3d9b84e4dc8",
+    "inmueble": "URB034921",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "141803a6-ead9-4121-8c38-3c18d66a5106",
+    "inmueble": "URB035192",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "8e46fcc8-866c-4e42-92e9-27a9729ac99c",
+    "inmueble": "URB003056",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "7bbb9597-c8ae-4f82-8691-cad7b55efb90",
+    "inmueble": "URB032484",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "d4497178-b457-4975-8a5e-0e21a2ce860a",
+    "inmueble": "URB010542",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "cdca8597-3327-4cd9-8197-42b4ad6df48c",
+    "inmueble": "URB035046",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 1.98,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  },
+  {
+    "id": "62d5cee7-8c05-4a73-8383-cf84971c6350",
+    "inmueble": "URB033567",
+    "actividad": "SERVICIO EXTRAORDINARIO",
+    "mmv_mes_antes": 0.021588,
+    "deuda_mmv_antes": 0,
+    "meses_deuda_antes": 0,
+    "multa_bs_antes": 0,
+    "deuda_congelada_bs_antes": 0
+  }
+]

@@ -310,22 +310,62 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   const porId = new Map<string, any>(datos.unidades.map((u: any) => [u.id, u]));
   const lineaPor = new Map(cobro.lineas.map(l => [l.clave, l]));
   const grupo = cobro.facturas.length > 1 ? pago.pagoId : null;
-  const refFinal = ref || `EFECTIVO-${Date.now()}`;
+  let refFinal = ref || `EFECTIVO-${Date.now()}`;
 
-  // 1) Un pago por factura (el primero usa el id de la pantalla: si se envía dos veces, falla y no cobra doble)
+  // Foto de deuda previa para permitir reversión / rechazo seguro
+  const antes: any[] = [];
+  for (const l of cobro.lineas) {
+    const u = porId.get(l.clave);
+    if (u) {
+      antes.push({ unidad: u.id, inmueble: u.inmueble, aseo_pendiente_desde: u.aseo_pendiente_desde, multa_meses: u.multa_meses, multa_exonerada_hasta: u.multa_exonerada_hasta });
+    } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
+      antes.push({ condominio: c.id, codigo: c.codigo, aseo_pendiente_desde: c.aseo_pendiente_desde, multa_meses: c.multa_meses });
+    }
+  }
+
+  // 1) Un pago por factura
   const pagos: { id: string; reciboRef: string; factura: Factura }[] = [];
   const fechaPagoReal = (pago.pagosAgregados || []).find((pa: any) => pa?.fecha && pa?.metodo !== 'Saldo a Favor')?.fecha;
   const fechaTransaccion = String(fechaPagoReal || sol.fechaOverride || new Date(Date.now() - 4 * 3600 * 1000).toISOString()).slice(0, 10);
+
+  // Si la referencia ingresada ya existía en un pago previo rechazado, anulado o reversado, liberarla
+  if (refFinal && !refFinal.startsWith('EFECTIVO-')) {
+    try {
+      await sb
+        .from('pagos_reportados')
+        .update({ referencia: `RECH-${refFinal}-${Date.now().toString().slice(-4)}` })
+        .eq('referencia', refFinal)
+        .in('estado', ['Rechazado', 'Anulado', 'Reversado']);
+
+      const { data: refActiva } = await sb
+        .from('pagos_reportados')
+        .select('id, referencia, estado, monto, identidad')
+        .eq('referencia', refFinal)
+        .limit(1);
+
+      if (refActiva && refActiva.length > 0) {
+        refFinal = `${refFinal}-${c.codigo || 'CONDO'}`;
+      }
+    } catch (e) {
+      console.warn('Error verificando duplicidad de referencia:', e);
+    }
+  }
+
   for (let i = 0; i < cobro.facturas.length; i++) {
     const f = cobro.facturas[i];
-    const id = i === 0 ? pago.pagoId : crypto.randomUUID();
+    let id = (pago.pagoId && i === 0) ? pago.pagoId : crypto.randomUUID();
+    // Si el ID ya existe en la BD por un intento previo, usar uno nuevo
+    if (i === 0 && id) {
+      const { data: idExistente } = await sb.from('pagos_reportados').select('id').eq('id', id).maybeSingle();
+      if (idExistente) {
+        id = crypto.randomUUID();
+      }
+    }
     const reciboRef = `CONDO-${c.codigo}-${Date.now().toString().slice(-6)}${cobro.facturas.length > 1 ? `-${i + 1}` : ''}`;
     const ls = f.lineas.map(k => lineaPor.get(k)!).filter(Boolean);
     const ret = r2(ls.reduce((a, l) => a + l.retencionBs, 0));
     let formasPago = [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, bancoDestino: pago.bancoDestino || undefined, referencia: ref || undefined, monto: f.totalBs }];
     if (pago.pagosAgregados && pago.pagosAgregados.length > 0) {
-      // Si el cobro tiene múltiples facturas y múltiples pagos agregados, se prorratea. 
-      // Por simplicidad, guardamos los métodos en los detalles. 
       formasPago = pago.pagosAgregados.map(pa => ({
         descripcion: pa.metodo, fecha: pa.fecha ? new Date(pa.fecha + 'T12:00:00Z').toISOString() : new Date().toISOString(), forma: formaPagoCodigo(pa.metodo), banco: pa.banco || undefined, bancoDestino: pa.bancoDestino || undefined, referencia: pa.referencia || undefined, monto: pa.monto
       }));
@@ -333,12 +373,22 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
 
     const periodosDesc = ls.flatMap(l => l.periodos);
     const periodoTexto = rango(periodosDesc) || 'Aseo Urbano';
-    const fBase = f.baseBs !== undefined ? f.baseBs : r2(ls.reduce((a, l) => a + l.baseBs, 0));
+    let fBase = f.baseBs !== undefined ? f.baseBs : r2(ls.reduce((a, l) => a + l.baseBs, 0));
     const fMulta = f.multaBs !== undefined ? f.multaBs : r2(ls.reduce((a, l) => a + l.multaBs + l.multasAparteBs, 0));
-    const fIva = f.ivaBs !== undefined ? f.ivaBs : r2(ls.reduce((a, l) => a + l.ivaBs, 0));
+    let fIva = f.ivaBs !== undefined ? f.ivaBs : r2(ls.reduce((a, l) => a + l.ivaBs, 0));
     const fRet = f.retencionBs !== undefined ? f.retencionBs : ret;
-    const fSubtotal = r2(fBase + fMulta);
+    let fSubtotal = r2(fBase + fMulta);
     const fTotalBruto = f.totalBrutoBs !== undefined ? f.totalBrutoBs : r2(fSubtotal + fIva);
+
+    if (fMulta === 0 && fIva > 0 && fTotalBruto > 0) {
+      const baseRec = r2(fTotalBruto / 1.16);
+      const ivaRec = r2(fTotalBruto - baseRec);
+      if (Math.abs(ivaRec - r2(baseRec * 0.16)) <= 0.01 && Math.abs(baseRec - fBase) <= 1.0) {
+        fBase = baseRec;
+        fIva = ivaRec;
+        fSubtotal = fBase;
+      }
+    }
 
     const conceptos = [];
     if (fSubtotal > 0) {
@@ -377,8 +427,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       montoNeto: f.totalBs,
       montoCancelado: f.totalBs,
       formaPago: formaPagoCodigo(pago.metodo) === '03' ? 'TRANSFERENCIA' : pago.metodo.toUpperCase(),
-      banco: pago.banco || 'Banco',
-      referencia: refFinal,
+      banco: (pago.pagosAgregados && pago.pagosAgregados.length > 1)
+        ? pago.pagosAgregados.map((pa: any) => pa.banco || pa.metodo).filter(Boolean).join(' / ')
+        : (pago.banco || 'Banco'),
+      referencia: (pago.pagosAgregados && pago.pagosAgregados.length > 1)
+        ? pago.pagosAgregados.map((pa: any) => pa.referencia).filter(Boolean).join(' / ')
+        : refFinal,
       tasaBcv: tasa,
     };
 
@@ -401,6 +455,10 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       agente_retencion: fRet > 0,
       contribuyente: f.nombre,
       identidad: f.identidad,
+      cod_inmueble: c.codigo,
+      codigo_inmueble: c.codigo,
+      correo: c.correo || undefined,
+      telefono: c.telefono || undefined,
       factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
       formasPago,
       pagos_agregados: pago.pagosAgregados,
@@ -412,6 +470,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       fecha_ingreso_caja: new Date().toISOString().slice(0, 10),
       periodos_pagados: periodoTexto,
       recibo_caja: [reciboCajaItem],
+      deuda_previa: antes,
       ...(i === 0 && (pago.saldoFavorGenerado || 0) > 0.01 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
     };
     const esTransferencia = pago.metodo.toLowerCase().includes('transferencia') || pago.metodo.toLowerCase().includes('pago móvil') || (pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => pa.metodo.toLowerCase().includes('transferencia') || pa.metodo.toLowerCase().includes('pago móvil')));
@@ -423,9 +482,21 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       : (pago.montoRecibido && cobro.facturas.length === 1 ? pago.montoRecibido : f.totalBs);
     const fila: any = { id, identidad: f.identidad, monto: montoReportadoReal, banco: pago.banco || pago.metodo, referencia: refFinal, tipo: pago.metodo, estado: esTransferencia ? 'Por Verificar' : 'Aprobado', modulo: 'condominios', detalles, created_at: fechaRegistro.toISOString() };
     if (grupo) fila.grupo_pago = grupo;
-    const { error } = await sb.from('pagos_reportados').insert(fila);
+    
+    let { error } = await sb.from('pagos_reportados').insert(fila);
+    if (error && error.message.includes('duplicate')) {
+      // Reintentar resolviendo colisión de clave primaria o referencia
+      if (error.message.includes('referencia_key') || error.message.includes('referencia')) {
+        fila.referencia = `${refFinal}-${Date.now().toString().slice(-4)}`;
+      } else {
+        fila.id = crypto.randomUUID();
+      }
+      const reintento = await sb.from('pagos_reportados').insert(fila);
+      error = reintento.error;
+    }
+
     if (error) {
-      if (i === 0) throw new Error(error.message.includes('duplicate') ? 'Este pago ya fue registrado.' : 'No se pudo registrar el pago: ' + error.message);
+      if (i === 0) throw new Error('No se pudo registrar el pago: ' + error.message);
       throw new Error(`Se registró parte del pago pero falló la parte ${i + 1}: ${error.message}. Avise al administrador (pago ${pago.pagoId}).`);
     }
 
@@ -540,7 +611,6 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   }
 
   // 2) Bajar la deuda en el módulo y sincronizar tabla inmuebles
-  const antes: any[] = [];
   for (const l of cobro.lineas) {
     const u = porId.get(l.clave);
     if (u) {

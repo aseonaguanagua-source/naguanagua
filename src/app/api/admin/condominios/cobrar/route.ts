@@ -40,16 +40,19 @@ export async function POST(req: Request) {
       let currId = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : cobro.condo?.identidad;
       const condoCod = cobro.condo?.codigo;
 
-      // 1. Si es modo CONDOMINIO, sumar el abono registrado en la tabla condominios
       if (cobro.modo === 'CONDOMINIO' && condoCod) {
+        // En modo condominio: el saldo a favor es el abono_bs registrado en condominios
         const { data: cRow } = await sb.from('condominios').select('abono_bs').eq('codigo', condoCod).maybeSingle();
-        if (cRow && cRow.abono_bs) {
-          saldoFavorDisp += parseFloat(cRow.abono_bs) || 0;
+        const abonoCondo = parseFloat(cRow?.abono_bs) || 0;
+        if (abonoCondo > 0) {
+          saldoFavorDisp = abonoCondo;
+        } else {
+          // Fallback a inmuebles por código matriz si no estaba en condominios
+          const { data: inmSF } = await sb.from('inmuebles').select('saldo_favor_bs').eq('inmueble', condoCod).maybeSingle();
+          saldoFavorDisp = parseFloat(inmSF?.saldo_favor_bs) || 0;
         }
-      }
-
-      // 2. Sumar saldo a favor de los inmuebles (por variantes de RIF o por código de inmueble)
-      if (currId || condoCod) {
+      } else if (currId || condoCod) {
+        // Modo contribuyente/local individual: saldo del inmueble o contribuyente
         const idVars = currId ? getIdentidadVariantsExact(currId) : [];
         let query = sb.from('inmuebles').select('saldo_favor_bs');
         if (idVars.length > 0 && condoCod) {
@@ -60,8 +63,7 @@ export async function POST(req: Request) {
           query = query.eq('inmueble', condoCod);
         }
         const { data: inmSF } = await query;
-        const sfInm = (inmSF || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
-        saldoFavorDisp += sfInm;
+        saldoFavorDisp = (inmSF || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
       }
       
       saldoFavorDisp = Math.round(saldoFavorDisp * 100) / 100;

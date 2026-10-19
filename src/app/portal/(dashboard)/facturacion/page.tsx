@@ -6,12 +6,65 @@ import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatter
 import { formatBs } from '@/lib/formatCurrency';
 import Link from 'next/link';
 
+const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+function formatPeriodoStr(p: string | null | undefined): string {
+  if (!p) return '';
+  const str = String(p).trim();
+  if (/^\d{4}-\d{2}$/.test(str)) {
+    const [y, m] = str.split('-');
+    const idx = parseInt(m, 10) - 1;
+    return `${MESES_NOMBRES[idx] || m} ${y}`;
+  }
+  return str;
+}
+
+function resolverPeriodoFactura(p: any, det: any, ret?: { estado?: string; periodo?: string }): string {
+  if (det.periodos_pagados) return String(det.periodos_pagados);
+
+  const rcPeriods = Array.isArray(det.recibo_caja)
+    ? Array.from(new Set(det.recibo_caja.map((r: any) => r.periodo).filter(Boolean)))
+    : [];
+  if (rcPeriods.length > 0) return rcPeriods.join(', ');
+
+  if (det.condominio?.lineas) {
+    const condoPers = Array.from(new Set(det.condominio.lineas.flatMap((l: any) => l.periodos || []))).filter(Boolean);
+    if (condoPers.length > 0) return condoPers.map((p: any) => formatPeriodoStr(p)).join(', ');
+  }
+
+  if (det.periodo) return formatPeriodoStr(det.periodo);
+  if (Array.isArray(det.periodos) && det.periodos.length > 0) return det.periodos.map((p: any) => formatPeriodoStr(p)).join(', ');
+  if (det.factura_digital?.periodo) return String(det.factura_digital.periodo);
+  if (ret?.periodo) return String(ret.periodo);
+
+  if (Array.isArray(det.recibo_caja)) {
+    for (const rc of det.recibo_caja) {
+      if (Array.isArray(rc.conceptos)) {
+        for (const c of rc.conceptos) {
+          const m = String(c.descripcion || '').match(/Per[íi]odo:?\s*([^·)]+)/i);
+          if (m && m[1]) return m[1].trim();
+        }
+      }
+    }
+  }
+
+  const fEmi = det.factura_digital?.fecha_emision || det.fecha_transaccion || p.created_at;
+  if (fEmi) {
+    const d = new Date(fEmi);
+    if (!isNaN(d.getTime())) {
+      return `${MESES_NOMBRES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+    }
+  }
+  return '—';
+}
+
 interface FacturaFiscal {
   id: string;
   pagoId: string;
   numeroFactura: string;
   numeroControl: string;
   fechaEmision: string;
+  periodo?: string;
   montoTotal: number;
   baseImponible: number;
   ivaMonto: number;
@@ -55,13 +108,14 @@ export default function FacturacionPortalPage() {
         // 2. Obtener retenciones_iva para corroborar aprobaciones
         const { data: retenciones } = await supabase
           .from('retenciones_iva')
-          .select('id, estado, codigo_retencion, factura_control, numero_planilla')
+          .select('id, estado, codigo_retencion, factura_control, numero_planilla, periodo')
           .or(orFilter);
 
-        const retMap = new Map<string, string>();
+        const retMap = new Map<string, { estado: string; periodo?: string }>();
         (retenciones || []).forEach(r => {
-          if (r.codigo_retencion) retMap.set(r.codigo_retencion.trim(), r.estado);
-          if (r.factura_control) retMap.set(r.factura_control.trim(), r.estado);
+          const val = { estado: r.estado, periodo: r.periodo };
+          if (r.codigo_retencion) retMap.set(r.codigo_retencion.trim(), val);
+          if (r.factura_control) retMap.set(r.factura_control.trim(), val);
         });
 
         const lista: FacturaFiscal[] = [];
@@ -86,14 +140,15 @@ export default function FacturacionPortalPage() {
           let puedeVer = true;
           let motivoBloqueo = '';
 
+          const matchedRet = retMap.get(`FAC-${numDoc}`) || (numCtrl !== 'N/A' ? retMap.get(numCtrl) : undefined);
+
           if (esAgente) {
             // Verificar estado en fd.retencion o en retenciones_iva
             let st = r.estado;
             if (!st || st === 'esperando_planilla') {
-              const matchedEstado = retMap.get(`FAC-${numDoc}`) || (numCtrl !== 'N/A' ? retMap.get(numCtrl) : undefined);
-              if (matchedEstado === 'Aprobado') st = 'aprobada';
-              else if (matchedEstado === 'Rechazado') st = 'rechazada';
-              else if (matchedEstado === 'Pendiente') st = 'planilla_recibida';
+              if (matchedRet?.estado === 'Aprobado') st = 'aprobada';
+              else if (matchedRet?.estado === 'Rechazado') st = 'rechazada';
+              else if (matchedRet?.estado === 'Pendiente') st = 'planilla_recibida';
             }
 
             retEstado = st || 'esperando_planilla';
@@ -114,6 +169,7 @@ export default function FacturacionPortalPage() {
           const total = parseFloat(String(r.total || det.montoTotal || det.monto_factura || p.monto || 0)) || 0;
           const base = parseFloat(String(r.base || (total ? total / 1.16 : 0))) || 0;
           const iva = parseFloat(String(r.iva || (total - base))) || 0;
+          const periodoFacturado = resolverPeriodoFactura(p, det, matchedRet);
 
           lista.push({
             id: `fac_${p.id}`,
@@ -121,6 +177,7 @@ export default function FacturacionPortalPage() {
             numeroFactura: String(numDoc).padStart(8, '0'),
             numeroControl: numCtrl,
             fechaEmision: fechaEmi,
+            periodo: periodoFacturado,
             montoTotal: total,
             baseImponible: base,
             ivaMonto: iva,
@@ -152,7 +209,8 @@ export default function FacturacionPortalPage() {
     return facturas.filter(f => 
       f.numeroFactura.toLowerCase().includes(q) ||
       f.numeroControl.toLowerCase().includes(q) ||
-      f.fechaEmision.includes(q)
+      f.fechaEmision.includes(q) ||
+      (f.periodo && f.periodo.toLowerCase().includes(q))
     );
   }, [facturas, searchTerm]);
 
@@ -200,6 +258,7 @@ export default function FacturacionPortalPage() {
                 <th className="px-5 py-3 font-bold">N° Factura</th>
                 <th className="px-5 py-3 font-bold">N° Control</th>
                 <th className="px-5 py-3 font-bold text-center">Fecha Emisión</th>
+                <th className="px-5 py-3 font-bold text-center">Período Facturado</th>
                 <th className="px-5 py-3 font-bold text-right">Total Factura (Bs.)</th>
                 <th className="px-5 py-3 font-bold text-center">Condición Fiscal</th>
                 <th className="px-5 py-3 font-bold text-center">Documento</th>
@@ -208,13 +267,13 @@ export default function FacturacionPortalPage() {
             <tbody className="divide-y divide-slate-100 text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-slate-400">
+                  <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
                     Cargando facturas oficiales emitidas...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
                     <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-medium text-slate-600">No se encontraron facturas fiscales emitidas para este RIF.</p>
                     <p className="text-[11px] text-slate-400 mt-1">Las facturas emitidas por la administración tributaria aparecerán reflejadas aquí automáticamente.</p>
@@ -231,6 +290,11 @@ export default function FacturacionPortalPage() {
                     </td>
                     <td className="px-5 py-3.5 text-center text-slate-600 font-medium">
                       {fac.fechaEmision}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200 uppercase tracking-tight">
+                        {fac.periodo || '—'}
+                      </span>
                     </td>
                     <td className="px-5 py-3.5 text-right font-black text-slate-800">
                       Bs. {formatBs(fac.montoTotal)}

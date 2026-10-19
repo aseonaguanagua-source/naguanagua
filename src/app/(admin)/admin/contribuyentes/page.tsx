@@ -1,5 +1,5 @@
 'use client';
-import { getIdentidadVariantsExact } from '@/lib/formatters';
+import { getIdentidadVariantsExact, getIdentidadVariants } from '@/lib/formatters';
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
@@ -310,17 +310,20 @@ function ContribuyentesPageContent() {
   const handleReactivate = async (row: any) => {
     if (!confirm(`¿Está seguro de reactivar y pasar a 'Activo' al contribuyente ${row.Contribuyente} (${row.Identidad})?`)) return;
     try {
+      const vars = getIdentidadVariants(row.Identidad || '');
       const { error: err1 } = await supabase
         .from('inmuebles')
         .update({ estado: 'Activo' })
-        .eq('identidad', row.Identidad);
+        .in('identidad', vars.length > 0 ? vars : [row.Identidad]);
       if (err1) throw err1;
 
-      if (row.id) {
+      // Si tiene código de inmueble específico
+      const cods = String(row.CodCont || row.cod_cont || row.inmueble || '').split(/\s+/).filter(Boolean);
+      if (cods.length > 0) {
         await supabase
-          .from('contribuyentes')
+          .from('inmuebles')
           .update({ estado: 'Activo' })
-          .eq('identidad', row.Identidad);
+          .in('inmueble', cods);
       }
 
       await logAudit(
@@ -355,8 +358,13 @@ function ContribuyentesPageContent() {
       const { type, row } = statusModal;
       const nuevoEstado = type === 'Eliminar' ? 'Eliminado' : 'Inactivo';
       
-      const { error } = await supabase.from('inmuebles').update({ estado: nuevoEstado }).eq('identidad', row.Identidad);
+      const vars = getIdentidadVariants(row.Identidad || '');
+      const { error } = await supabase.from('inmuebles').update({ estado: nuevoEstado }).in('identidad', vars.length > 0 ? vars : [row.Identidad]);
       if (error) throw error;
+      const cods = String(row.CodCont || row.cod_cont || row.inmueble || '').split(/\s+/).filter(Boolean);
+      if (cods.length > 0) {
+        await supabase.from('inmuebles').update({ estado: nuevoEstado }).in('inmueble', cods);
+      }
       
       await addAuditLog(
         type === 'Eliminar' ? 'ELIMINAR_CONTRIBUYENTE' : 'DESACTIVAR_CONTRIBUYENTE',
@@ -1865,23 +1873,29 @@ function ContribuyentesPageContent() {
 
       (contsData || []).forEach((c: any) => {
         if (c.identidad && !identidadesConInmueble.has(c.identidad) && !mapResults.has(c.identidad)) {
+          const idVars = getIdentidadVariantsExact(c.identidad);
+          const matchedInm = (allFoundInmuebles || []).find((i: any) => idVars.includes(i.identidad));
+          const codigoReal = matchedInm?.inmueble || matchedInm?.cod_cont || (c.cod_cont && c.cod_cont !== c.identidad ? c.cod_cont : null);
+          const actReal = matchedInm?.actividad_principal || (c.actividad && c.actividad !== 'No aplica' ? c.actividad : 'Sin Inmueble');
+          const claseReal = matchedInm?.clasificacion || matchedInm?.tipo || c.clasificacion || 'Individual';
+
           mapResults.set(c.identidad, {
             Identidad: c.identidad,
             Contribuyente: c.nombre || 'Sin Nombre',
             Telefono: c.telefono || 'No registrado',
             Correo: c.email || 'No registrado',
-            CodCont: c.identidad,
-            cod_cont: c.identidad,
-            Direccion: c.direccion || '',
+            CodCont: codigoReal || 'Pendiente',
+            cod_cont: codigoReal || 'Pendiente',
+            Direccion: c.direccion || matchedInm?.direccion || '',
             Observaciones: c.observaciones || '',
-            Actividad: 'No aplica',
-            Clasificacion: 'Individual',
-            SaldoFavor: 0,
-            DeudaMMV: 0,
-            DeudaCongelada: 0,
+            Actividad: actReal,
+            Clasificacion: claseReal,
+            SaldoFavor: parseFloat(matchedInm?.saldo_favor_bs || '0'),
+            DeudaMMV: parseFloat(matchedInm?.deuda_mmv || '0'),
+            DeudaCongelada: parseFloat(matchedInm?.deuda_congelada_bs || '0'),
             DeudaBs: 0,
-            MesesDeuda: 0,
-            Estado: c.estado || 'Activo',
+            MesesDeuda: parseInt(matchedInm?.meses_deuda || '0'),
+            Estado: matchedInm?.estado || c.estado || 'Activo',
             FechaRegistro: c.created_at || null
           });
         }

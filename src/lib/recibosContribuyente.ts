@@ -40,8 +40,6 @@ export interface RecibosContribuyente {
  */
 export function isCondominioInm(inm: any, allInms: any[] = []): boolean {
   if (!inm) return false;
-  if (isCondominioPagoIndividual(inm)) return false;
-  if (inm.condominio_padre_id && isCondominioPagoIndividual(inm.condominio_padre_id)) return false;
   if (inm.condominio_padre_id && String(inm.condominio_padre_id).trim() !== '') return true;
   if (inm.es_condominio === true) return true;
   const act = String(inm.actividad_principal || '').toLowerCase();
@@ -49,9 +47,6 @@ export function isCondominioInm(inm: any, allInms: any[] = []): boolean {
   if (inm.padre_id) {
     if (String(inm.padre_id).startsWith('CONDO-')) return true;
     const parent = allInms.find(p => p.inmueble === inm.padre_id);
-    if (parent && (isCondominioPagoIndividual(parent) || (parent.condominio_padre_id && isCondominioPagoIndividual(parent.condominio_padre_id)))) {
-      return false;
-    }
     if (parent && (parent.condominio_padre_id || parent.es_condominio || String(parent.actividad_principal || '').toLowerCase().includes('condominio'))) {
       return true;
     }

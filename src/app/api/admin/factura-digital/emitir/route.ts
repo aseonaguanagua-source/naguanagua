@@ -123,13 +123,26 @@ export async function POST(request: Request) {
       }
       let dm: any = pm?.detalles || {};
       if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
-      if (
+      const esPagoConRetencion = Boolean(
+        esRetencion || 
+        dm?.es_retencion || 
+        dm?.conRetencion ||
+        dm?.agente_retencion || 
+        pm?.tipo === 'Retencion de IVA' || 
+        (parseFloat(String(dm?.monto_retencion_iva || dm?.retencion_iva || 0)) > 0)
+      );
+
+      // Si el operador está emitiendo manualmente la factura desde el modal (con montos de servicio/total),
+      // o si es un pago con retención de IVA, se permite emitir la factura fiscal del mes.
+      const esEmisionManualConMontos = Boolean((montoServicio > 0 || montoTotal > 0 || totalManualNum > 0) && !dryRun);
+
+      if (!esPagoConRetencion && !esEmisionManualConMontos && (
         dm?.es_abono === true ||
         dm?.abono === true ||
         pm?.tipo === 'Abono' ||
         dm?.pago_parcial === true ||
         (dm?.monto_pendiente !== undefined && parseFloat(String(dm.monto_pendiente)) > 0.05)
-      ) {
+      )) {
         return NextResponse.json({ error: 'No se puede emitir factura electrónica para un abono o pago parcial. La factura solo se emite cuando se completa el pago total del mes.' }, { status: 400 });
       }
       if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
@@ -627,12 +640,38 @@ export async function POST(request: Request) {
       if (matchPeriodo) periodoGlobal = matchPeriodo[1]?.trim();
     }
 
+    const explicitBase = parseFloat(String(montoServicio ?? montos?.servicio ?? 0)) || 0;
+    const explicitMulta = parseFloat(String(montoMulta ?? montos?.multa ?? 0)) || 0;
+    const explicitTotal = parseFloat(String(montoTotal ?? montos?.total ?? totalManualNum ?? 0)) || 0;
+
     const detallesItems: any[] = [];
     let numLinea = 1;
+    totalGravado = 0;
+    totalIVA = 0;
+    totalExento = 0;
 
-    if (itemsGravados.length > 0) {
-      const baseGravada = rcSubTotal > 0 ? rcSubTotal : r2(itemsGravados.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
-      const ivaGravado = rcIva > 0 ? rcIva : r2(itemsGravados.reduce((s: number, it: any) => s + (parseFloat(it.ValorIVA) || 0), 0));
+    if (itemsGravados.length > 0 || explicitBase > 0) {
+      let baseGravada = 0;
+      let ivaGravado = 0;
+
+      if (explicitBase > 0) {
+        baseGravada = r2(explicitBase);
+        ivaGravado = r2(baseGravada * 0.16);
+      } else if (explicitTotal > 0 && explicitMulta >= 0) {
+        const gravadoConIva = r2(Math.max(0, explicitTotal - explicitMulta));
+        baseGravada = r2(gravadoConIva / 1.16);
+        ivaGravado = r2(gravadoConIva - baseGravada);
+      } else if (rcTotal > 0 && itemsExentos.length === 0) {
+        baseGravada = r2(rcTotal / 1.16);
+        ivaGravado = r2(rcTotal - baseGravada);
+      } else if (rcSubTotal > 0) {
+        baseGravada = rcSubTotal;
+        ivaGravado = r2(baseGravada * 0.16);
+      } else {
+        baseGravada = r2(itemsGravados.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
+        ivaGravado = r2(baseGravada * 0.16);
+      }
+
       totalGravado = baseGravada;
       totalIVA = ivaGravado;
       detallesItems.push({
@@ -640,7 +679,7 @@ export async function POST(request: Request) {
         CodigoCIIU:              "0198",
         CodigoPLU:               "ASEO001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             `Servicio de Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`.slice(0, 250),
+        Descripcion:             ((concepto && String(concepto).trim()) || (detPago?.concepto && String(detPago.concepto).trim()) || `Servicio de Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`).slice(0, 250),
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          baseGravada.toFixed(2),
@@ -660,32 +699,39 @@ export async function POST(request: Request) {
       });
     }
 
-    if (itemsExentos.length > 0) {
-      const baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
-      totalExento = baseExenta;
-      detallesItems.push({
-        NumeroLinea:             String(numLinea++),
-        CodigoCIIU:              "0198",
-        CodigoPLU:               "MULT001",
-        IndicadorBienoServicio:  "2",
-        Descripcion:             `Multa por Mora - Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`.slice(0, 250),
-        Cantidad:                "1",
-        UnidadMedida:            "NIU",
-        PrecioUnitario:          baseExenta.toFixed(2),
-        PrecioUnitarioDescuento: null,
-        MontoBonificacion:       null,
-        DescripcionBonificacion: null,
-        DescuentoMonto:          "0.00",
-        RecargoMonto:            "0",
-        PrecioItem:              baseExenta.toFixed(2),
-        PrecioAntesDescuento:    baseExenta.toFixed(2),
-        CodigoImpuesto:          "E",
-        TasaIVA:                 "0",
-        ValorIVA:                "0.00",
-        ValorTotalItem:          baseExenta.toFixed(2),
-        InfoAdicionalItem:       [],
-        ListaItemOTI:            null,
-      });
+    if (itemsExentos.length > 0 || explicitMulta > 0) {
+      let baseExenta = 0;
+      if (explicitMulta > 0) {
+        baseExenta = r2(explicitMulta);
+      } else {
+        baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
+      }
+      if (baseExenta > 0) {
+        totalExento = baseExenta;
+        detallesItems.push({
+          NumeroLinea:             String(numLinea++),
+          CodigoCIIU:              "0198",
+          CodigoPLU:               "MULT001",
+          IndicadorBienoServicio:  "2",
+          Descripcion:             `Multa por Mora - Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`.slice(0, 250),
+          Cantidad:                "1",
+          UnidadMedida:            "NIU",
+          PrecioUnitario:          baseExenta.toFixed(2),
+          PrecioUnitarioDescuento: null,
+          MontoBonificacion:       null,
+          DescripcionBonificacion: null,
+          DescuentoMonto:          "0.00",
+          RecargoMonto:            "0",
+          PrecioItem:              baseExenta.toFixed(2),
+          PrecioAntesDescuento:    baseExenta.toFixed(2),
+          CodigoImpuesto:          "E",
+          TasaIVA:                 "0",
+          ValorIVA:                "0.00",
+          ValorTotalItem:          baseExenta.toFixed(2),
+          InfoAdicionalItem:       [],
+          ListaItemOTI:            null,
+        });
+      }
     }
 
     // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
@@ -939,9 +985,14 @@ export async function POST(request: Request) {
           Comprador: {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
-            RazonSocial:          razonSocialFinal,
-            Direccion:            String(propRef?.direccion || "NAGUANAGUA").trim().slice(0, 100),
-            Ubigeo:               null,
+            Direccion:            (() => {
+              const matchedProp = (userProps || []).find((p: any) => 
+                (detPago.cod_inmueble && p.inmueble === detPago.cod_inmueble) ||
+                (codigoContribuyente && p.inmueble === codigoContribuyente) ||
+                (detPago.recibo_caja?.[0]?.inmueble && p.inmueble === detPago.recibo_caja[0].inmueble)
+              );
+              return String(detPago?.recibo_caja?.[0]?.domicilioFiscal || matchedProp?.direccion || propRef?.direccion || "NAGUANAGUA").trim().slice(0, 100);
+            })(),
             Pais:                 "VE",
             Notificar:            null,
             Telefono:             [],
@@ -1331,6 +1382,9 @@ export async function POST(request: Request) {
     if (modulo) {
       nuevosDetalles.modulo = modulo;
     }
+    nuevosDetalles.base_imponible = totalGravado;
+    nuevosDetalles.iva_monto = totalIVA;
+    nuevosDetalles.factura_digital_error = null;
 
     const updatePayload: any = { detalles: nuevosDetalles };
     if (identidad && String(identidad).trim()) updatePayload.identidad = String(identidad).trim().toUpperCase();

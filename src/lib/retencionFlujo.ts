@@ -190,5 +190,58 @@ export async function pagoDeRetencion(retencionId: string): Promise<any | null> 
     .select('id, identidad, monto, detalles')
     .eq('detalles->factura_digital->retencion->>retencion_id', retencionId)
     .limit(1);
-  return data?.[0] || null;
+  if (data?.[0]) return data[0];
+
+  // Fallback 1: Buscar en retenciones_iva para extraer identidad y posibles datos de factura
+  const { data: retRow } = await supabase
+    .from('retenciones_iva')
+    .select('*')
+    .eq('id', retencionId)
+    .maybeSingle();
+
+  if (!retRow) return null;
+
+  // Buscar por número de documento en codigo_retencion (ej: FAC-90001151678 o 90001151678)
+  const docMatch = String(retRow.codigo_retencion || retRow.planilla_url || '').match(/(\d{8,12})/);
+  if (docMatch) {
+    const docNum = docMatch[1];
+    const { data: byDoc } = await supabase
+      .from('pagos_reportados')
+      .select('id, identidad, monto, detalles')
+      .filter('detalles->factura_digital->>numero_documento', 'eq', docNum)
+      .limit(1);
+    if (byDoc?.[0]) return byDoc[0];
+  }
+
+  // Buscar por número de control de factura si está presente
+  if (retRow.factura_control) {
+    const { data: byCtrl } = await supabase
+      .from('pagos_reportados')
+      .select('id, identidad, monto, detalles')
+      .filter('detalles->factura_digital->>numero_control', 'eq', retRow.factura_control)
+      .limit(1);
+    if (byCtrl?.[0]) return byCtrl[0];
+  }
+
+  // Fallback 2: Buscar pagos emitidos con retención para esta identidad
+  if (retRow.identidad) {
+    const { data: byIdent } = await supabase
+      .from('pagos_reportados')
+      .select('id, identidad, monto, detalles')
+      .eq('identidad', retRow.identidad)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    const matchIdent = (byIdent || []).find((p: any) => {
+      const d = parseDet(p.detalles);
+      if (!d.factura_digital?.emitida) return false;
+      if (d.factura_digital?.retencion) return true;
+      if (parseFloat(String(d.monto_retencion_iva || 0)) > 0) return true;
+      return false;
+    });
+
+    if (matchIdent) return matchIdent;
+  }
+
+  return null;
 }

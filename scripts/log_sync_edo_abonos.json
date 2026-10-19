@@ -1,0 +1,7610 @@
+[
+  {
+    "code": "URB015669",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015665",
+    "condo": "URB015662",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015670",
+    "condo": "URB015662",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015696",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015694",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015695",
+    "condo": "URB015662",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015682",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015687",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015690",
+    "condo": "URB015662",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015681",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015688",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015666",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015663",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015691",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015671",
+    "condo": "URB015662",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015684",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034507",
+    "condo": "URB015662",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015680",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015679",
+    "condo": "URB015662",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015689",
+    "condo": "URB015662",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015674",
+    "condo": "URB015662",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015683",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015677",
+    "condo": "URB015662",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015732",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015793",
+    "condo": "URB015715",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015737",
+    "condo": "URB015715",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033617",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015810",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015723",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033827",
+    "condo": "URB015715",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015753",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015757",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033616",
+    "condo": "URB015715",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015726",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015740",
+    "condo": "URB015715",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015795",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015730",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015760",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015802",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015736",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015750",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015764",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015765",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015749",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015734",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015766",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015803",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015767",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015768",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015769",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015770",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015801",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015747",
+    "condo": "URB015715",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015798",
+    "condo": "URB015715",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015716",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015748",
+    "condo": "URB015715",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015775",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015778",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015779",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015794",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015724",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015780",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015806",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015781",
+    "condo": "URB015715",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015751",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015731",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015782",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015729",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015735",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015797",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015784",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015785",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015786",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015788",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015808",
+    "condo": "URB015715",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015791",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015796",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB015745",
+    "condo": "URB015715",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004570",
+    "condo": "URB004525",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004553",
+    "condo": "URB004525",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004573",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004535",
+    "condo": "URB004525",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004591",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004539",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004543",
+    "condo": "URB004525",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004534",
+    "condo": "URB004525",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004580",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033628",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033629",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004572",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004559",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004527",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004528",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004529",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004541",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004548",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004592",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004564",
+    "condo": "URB004525",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004550",
+    "condo": "URB004525",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034528",
+    "condo": "URB004525",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004551",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004563",
+    "condo": "URB004525",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004584",
+    "condo": "URB004525",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB004583",
+    "condo": "URB004525",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003544",
+    "condo": "URB003522",
+    "antes_desde": "2022-12-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003602",
+    "condo": "URB003522",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003531",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003565",
+    "condo": "URB003522",
+    "antes_desde": "2025-11-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003526",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033728",
+    "condo": "URB003522",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003537",
+    "condo": "URB003522",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034650",
+    "condo": "URB003522",
+    "antes_desde": "2025-09-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033736",
+    "condo": "URB003522",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003546",
+    "condo": "URB003522",
+    "antes_desde": "2024-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003538",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003559",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003595",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003561",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003555",
+    "condo": "URB003522",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003554",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003525",
+    "condo": "URB003522",
+    "antes_desde": null,
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034223",
+    "condo": "URB003522",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003540",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003575",
+    "condo": "URB003522",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003557",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003601",
+    "condo": "URB003522",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003545",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003528",
+    "condo": "URB003522",
+    "antes_desde": "2024-02-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003589",
+    "condo": "URB003522",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003543",
+    "condo": "URB003522",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003563",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003533",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003551",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003536",
+    "condo": "URB003522",
+    "antes_desde": "2026-01-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003541",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034208",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003534",
+    "condo": "URB003522",
+    "antes_desde": "2024-02-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003530",
+    "condo": "URB003522",
+    "antes_desde": "2023-11-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003564",
+    "condo": "URB003522",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003549",
+    "condo": "URB003522",
+    "antes_desde": "2024-02-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003542",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003603",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003586",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003527",
+    "condo": "URB003522",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003581",
+    "condo": "URB003522",
+    "antes_desde": null,
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003577",
+    "condo": "URB003522",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB003552",
+    "condo": "URB003522",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB035193",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005795",
+    "condo": "URB005770",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005778",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005836",
+    "condo": "URB005770",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005798",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005790",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005817",
+    "condo": "URB005770",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005828",
+    "condo": "URB005770",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005774",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005829",
+    "condo": "URB005770",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005826",
+    "condo": "URB005770",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005777",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005788",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005775",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005794",
+    "condo": "URB005770",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005901",
+    "condo": "URB005770",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005852",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005827",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005796",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005834",
+    "condo": "URB005770",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005853",
+    "condo": "URB005770",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005844",
+    "condo": "URB005770",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005845",
+    "condo": "URB005770",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB005846",
+    "condo": "URB005770",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010345",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010346",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034238",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034655",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010349",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010348",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010350",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034654",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010351",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010352",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034458",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010354",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010355",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034782",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB035001",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010344",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010357",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010356",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010360",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010361",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB010362",
+    "condo": "URB010343",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018256",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018313",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018162",
+    "condo": "URB018119",
+    "antes_desde": "2022-11-01",
+    "nuevo_desde": "2023-09-01",
+    "mesesPend": 37,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018163",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018165",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018166",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018169",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018170",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018171",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018361",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018172",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018173",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018174",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018175",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018176",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018177",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018178",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018179",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018180",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018182",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018183",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018186",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018187",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018188",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018189",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018190",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018191",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018192",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018194",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018197",
+    "condo": "URB018119",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-06-01",
+    "mesesPend": 4,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018198",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018199",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018202",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018203",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018204",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018205",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018206",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018207",
+    "condo": "URB018119",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018208",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018209",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018210",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018314",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018324",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018322",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018326",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018358",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018327",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018368",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018357",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018145",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018128",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018350",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018351",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018161",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018367",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018140",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018154",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018353",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018126",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018359",
+    "condo": "URB018119",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018124",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018156",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018127",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018157",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018354",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018123",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018158",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018325",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018328",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018365",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018366",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018159",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018147",
+    "condo": "URB018119",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018148",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018348",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018150",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018122",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018363",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018136",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018185",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018137",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018138",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018213",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018146",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018218",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018220",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018222",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018143",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018224",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018225",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018226",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018227",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018121",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018230",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018333",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018334",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018339",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018120",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018342",
+    "condo": "URB018119",
+    "antes_desde": "2026-03-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018130",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018343",
+    "condo": "URB018119",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018344",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018232",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018233",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018234",
+    "condo": "URB018119",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018236",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018237",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018238",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018347",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018241",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034242",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018242",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018243",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018244",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018245",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018246",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018248",
+    "condo": "URB018119",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018249",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018251",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018252",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018254",
+    "condo": "URB018119",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-06-01",
+    "mesesPend": 4,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018135",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018255",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018360",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018131",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018318",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033737",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018259",
+    "condo": "URB018119",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018260",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018261",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018262",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018263",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018134",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018132",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018133",
+    "condo": "URB018119",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018307",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018308",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018309",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018310",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018311",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018312",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018305",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018306",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018264",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018266",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018270",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018273",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018274",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018275",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018276",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018277",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018278",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018279",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018280",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018281",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018282",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018265",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018283",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018284",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018285",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018286",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018287",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018288",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018289",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018290",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018291",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018292",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018293",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018294",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018295",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018296",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018297",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018298",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018299",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018300",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018301",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018151",
+    "condo": "URB018119",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018267",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018303",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018268",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018269",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018271",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018272",
+    "condo": "URB018119",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016861",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017293",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017186",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017310",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017199",
+    "condo": "URB016822",
+    "antes_desde": "2026-01-01",
+    "nuevo_desde": "2026-06-01",
+    "mesesPend": 4,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016895",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016953",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017115",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016927",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017201",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB016937",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016881",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016841",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017193",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016958",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016828",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017203",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016896",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017171",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017175",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017397",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033868",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017145",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017017",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033869",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017267",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB033717",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017396",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017360",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016960",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017134",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016829",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017022",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017021",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016983",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017014",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017015",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017016",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016919",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016913",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017300",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017207",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017389",
+    "condo": "URB016822",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-05-01",
+    "mesesPend": 5,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016865",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017135",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017012",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017208",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016847",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017312",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017392",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016974",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017071",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017328",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016951",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017209",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017072",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017137",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016914",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016970",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017331",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017325",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016994",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017210",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017184",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017058",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017354",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017355",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017211",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016943",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017384",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017309",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016878",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017301",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB016930",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016859",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016893",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016843",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB035211",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017057",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017212",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017213",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017385",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017376",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017011",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017073",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017332",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017273",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033618",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017344",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017004",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017074",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017215",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017348",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017387",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033619",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016928",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016852",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016888",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017306",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017216",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017161",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017217",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017370",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017377",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017218",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017394",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017395",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017327",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017220",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017295",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017023",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017205",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB035003",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016947",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017026",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017196",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016876",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017222",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016926",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017150",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016946",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017223",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017010",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB016854",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017382",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017030",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017224",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017075",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017116",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016891",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB017225",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016903",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017290",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017335",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016939",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017167",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016977",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017291",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017166",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017270",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016975",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017192",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017274",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017261",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016857",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016998",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017036",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017227",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017038",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017228",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016826",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017229",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016870",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017206",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017231",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017230",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017287",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017164",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017259",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017336",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034515",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016873",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017162",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017368",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017379",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017232",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016890",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017269",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016922",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017181",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017182",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017180",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017122",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016993",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017147",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017148",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017144",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017121",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016874",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017234",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017235",
+    "condo": "URB016822",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017236",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017357",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016944",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017107",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016964",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017183",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017149",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017316",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017190",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017375",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017345",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017243",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017339",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017237",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016917",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017178",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017378",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017342",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017271",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017340",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017055",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017056",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017063",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017341",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017299",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033625",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017262",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017298",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017386",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017315",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033622",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017076",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017391",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017238",
+    "condo": "URB016822",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-06-01",
+    "mesesPend": 4,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017338",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017077",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016923",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017352",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016875",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017372",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017160",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016883",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017240",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017197",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033623",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033842",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034044",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017317",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016968",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-06-01",
+    "mesesPend": 4,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016868",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016959",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017242",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017104",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016877",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017388",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017241",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016867",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016842",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016858",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016860",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017173",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017198",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016957",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017124",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB017048",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB016827",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016846",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017289",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016911",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017157",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017109",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017049",
+    "condo": "URB016822",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017131",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017319",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017034",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017318",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016986",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017028",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017381",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017284",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017111",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017179",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016988",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017346",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017286",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017333",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017188",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016992",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017324",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017362",
+    "condo": "URB016822",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB017047",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-06-01",
+    "mesesPend": 4,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016899",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016871",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016934",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017305",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017079",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017174",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017020",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017245",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016966",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017170",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016979",
+    "condo": "URB016822",
+    "antes_desde": "2025-12-01",
+    "nuevo_desde": "2026-02-01",
+    "mesesPend": 8,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016980",
+    "condo": "URB016822",
+    "antes_desde": "2023-11-01",
+    "nuevo_desde": "2024-07-01",
+    "mesesPend": 27,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016851",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017297",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017140",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017320",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017246",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016962",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017126",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017081",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017247",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017083",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017112",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017244",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016850",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017288",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016909",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016915",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017113",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017187",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017398",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016831",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017399",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016880",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033624",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016904",
+    "condo": "URB016822",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017151",
+    "condo": "URB016822",
+    "antes_desde": "2025-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016991",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016832",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017334",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016910",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017154",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017265",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017085",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017013",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017326",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016824",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017272",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017002",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017343",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017275",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016984",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017169",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017086",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-06-01",
+    "mesesPend": 4,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017185",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016971",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017250",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016855",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016973",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017088",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017152",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017252",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017258",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017006",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017009",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017008",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016940",
+    "condo": "URB016822",
+    "antes_desde": "2025-11-01",
+    "nuevo_desde": "2025-12-01",
+    "mesesPend": 10,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB017118",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017165",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016906",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016863",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016833",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017177",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017094",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016825",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016887",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017249",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017040",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017283",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016929",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033865",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017364",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017296",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017168",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017280",
+    "condo": "URB016822",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-06-01",
+    "mesesPend": 4,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016961",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-06-01",
+    "mesesPend": 4,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017191",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017366",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016950",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017313",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017031",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016949",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016901",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017024",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017263",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016924",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017095",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016836",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017146",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017108",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016840",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017000",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017096",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017097",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017098",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017099",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017019",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016987",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017100",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016925",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033880",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017292",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB017101",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017253",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017322",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016845",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017042",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017159",
+    "condo": "URB016822",
+    "antes_desde": "2026-03-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016967",
+    "condo": "URB016822",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017367",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034670",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017105",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034671",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034672",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017356",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017371",
+    "condo": "URB016822",
+    "antes_desde": "2026-05-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017278",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017035",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017383",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017255",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017133",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017102",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017314",
+    "condo": "URB016822",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016886",
+    "condo": "URB016822",
+    "antes_desde": "2026-04-01",
+    "nuevo_desde": "2026-05-01",
+    "mesesPend": 5,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017070",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017256",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017001",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016834",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017176",
+    "condo": "URB016822",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB016931",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017257",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017103",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB017141",
+    "condo": "URB016822",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB008954",
+    "condo": "URB008934",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033634",
+    "condo": "URB032022",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033721",
+    "condo": "URB032022",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033638",
+    "condo": "URB032022",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034937",
+    "condo": "URB032022",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032051",
+    "condo": "URB032022",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032054",
+    "condo": "URB032022",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032055",
+    "condo": "URB032022",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032057",
+    "condo": "URB032022",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032058",
+    "condo": "URB032022",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032061",
+    "condo": "URB032022",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032062",
+    "condo": "URB032022",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033643",
+    "condo": "URB032022",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-09-01",
+    "mesesPend": 1,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033973",
+    "condo": "URB032022",
+    "antes_desde": "2026-06-01",
+    "nuevo_desde": "2026-07-01",
+    "mesesPend": 3,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB033599",
+    "condo": "URB032022",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032088",
+    "condo": "URB032022",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032089",
+    "condo": "URB032022",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB032090",
+    "condo": "URB032022",
+    "antes_desde": "2026-08-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034940",
+    "condo": "URB032022",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB034100",
+    "condo": "URB032022",
+    "antes_desde": "2026-07-01",
+    "nuevo_desde": "2026-08-01",
+    "mesesPend": 2,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018500",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018622",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB034111",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018602",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018594",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018595",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018611",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018596",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018625",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB033684",
+    "condo": "URB018483",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018508",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018608",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018493",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018621",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018556",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018557",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018497",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018558",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018486",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018502",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018559",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018509",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018561",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018496",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018562",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018563",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018503",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018531",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018530",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018526",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018525",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018524",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018564",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018512",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018565",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018566",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018567",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018568",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018569",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018495",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018544",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018570",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018630",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018571",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018542",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018572",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018537",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018489",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018541",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018573",
+    "condo": "URB018483",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018515",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018574",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018614",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018575",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018576",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018577",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018545",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018578",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018499",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018521",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018520",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018522",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018517",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018579",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018580",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018581",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018494",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018582",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB033686",
+    "condo": "URB018483",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018629",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018628",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB034674",
+    "condo": "URB018483",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018583",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018627",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018516",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018527",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018613",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018584",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018585",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018586",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018538",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018543",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018587",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018588",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018589",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018539",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018540",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018590",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018591",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018592",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018593",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018599",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018600",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018601",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018612",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018506",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018548",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018549",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018550",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018504",
+    "condo": "URB018483",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018485",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018501",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018484",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018623",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018626",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018609",
+    "condo": "URB018483",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018619",
+    "condo": "URB018483",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018620",
+    "condo": "URB018483",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018507",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018607",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018624",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018618",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018546",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018488",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018547",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018610",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018492",
+    "condo": "URB018483",
+    "antes_desde": "2026-09-01",
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": false
+  },
+  {
+    "code": "URB018519",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018551",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018523",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018617",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018505",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018487",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018615",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018552",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018553",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018511",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018616",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018491",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018597",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018555",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018528",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018554",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018510",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018514",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018518",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018532",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018513",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018631",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018529",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  },
+  {
+    "code": "URB018598",
+    "condo": "URB018483",
+    "antes_desde": null,
+    "nuevo_desde": "2026-10-01",
+    "mesesPend": 0,
+    "teniaPagoSistema": true
+  }
+]

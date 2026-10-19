@@ -71,7 +71,11 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
   useEffect(() => {
     if (!identProp) { setInmsBD([]); return; }
     supabase.from('inmuebles').select('*').in('identidad', getIdentidadVariants(identProp))
-      .then(({ data }) => setInmsBD((data || []).filter((i: any) => i.estado !== 'Eliminado')));
+      .then(({ data }) => {
+        const rows = data || [];
+        const vivas = rows.filter((i: any) => i.estado !== 'Eliminado');
+        setInmsBD(vivas.length > 0 ? vivas : rows);
+      });
   }, [identProp]);
 
   // Inmuebles pertenecientes al contribuyente
@@ -82,6 +86,11 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       (i.identidad || '').replace(/-/g, '').toUpperCase() === rowIdentidad && i.estado !== 'Eliminado'
     );
     if (directos.length > 0) return directos;
+
+    const allDirectos = inmuebles.filter((i: any) =>
+      (i.identidad || '').replace(/-/g, '').toUpperCase() === rowIdentidad
+    );
+    if (allDirectos.length > 0) return allDirectos;
 
     if (row?.inmueble) {
       const byCode = inmuebles.filter((i: any) => i.inmueble === row.inmueble);
@@ -312,6 +321,7 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
           notas: nuevaNota
         };
         if (fijarTarifa) updateData.mmv_mes = mmvMes;
+        if (selectedCount > 0) updateData.estado = 'Activo';
 
         if (selectedCount === 0) {
           updateData.multa_bs = 0;
