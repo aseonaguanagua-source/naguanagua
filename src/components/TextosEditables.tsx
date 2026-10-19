@@ -104,7 +104,15 @@ export default function TextosEditables() {
     };
   }, [activo, pathname]);
 
-  if (!dev) return null;
+  const [mostrarBoton, setMostrarBoton] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      setMostrarBoton(p.get('editar_textos') === '1');
+    }
+  }, [pathname]);
+
+  if (!dev || !mostrarBoton) return null;
   const nPagina = Object.keys(textos[pathname] || {}).length, nGlobal = Object.keys(textos['*'] || {}).length;
   return (
     <div data-editor-textos className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end gap-1.5 print:hidden">
