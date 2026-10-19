@@ -1149,7 +1149,20 @@ function ContribuyentesPageContent() {
         };
       });
 
-      const numMesesTotal = clusterDeudas.length > 0 ? clusterDeudas.length : maxMesesCluster;
+      // Extraer meses únicos calendario de clusterDeudas para no duplicar conteo cuando hay múltiples actividades por mes
+      const uniqueMesesCount = clusterDeudas.length > 0
+        ? new Set(clusterDeudas.map((f: any) => {
+            if (f.emision) {
+              const d = new Date(f.emision);
+              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            }
+            return f.mes || f.periodo || f.referencia || '';
+          }).filter(Boolean)).size
+        : maxMesesCluster;
+
+      const numMesesTotal = cluster.isMultiActivity
+        ? (maxMesesCluster > 0 ? maxMesesCluster : uniqueMesesCount)
+        : (clusterDeudas.length > 0 ? (uniqueMesesCount > 0 ? uniqueMesesCount : clusterDeudas.length) : maxMesesCluster);
       const baseMensualLocal = Math.round(clusterInmBreakdown.reduce((sum: number, b: any) => sum + b.bMes, 0) * 100) / 100;
       const ivaMensualLocal = Math.round(clusterInmBreakdown.reduce((sum: number, b: any) => sum + b.iMes, 0) * 100) / 100;
       const totalMensualLocal = Math.round((baseMensualLocal + ivaMensualLocal) * 100) / 100;
@@ -1285,15 +1298,18 @@ function ContribuyentesPageContent() {
       // ── DATOS DE LA DEUDA (formato oficial) ──
       const ucdValor = valorUCD(tasaValida);
       const fmtN = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const mesesVencidosDisplay = cluster.isMultiActivity
+        ? (maxMesesCluster > 0 ? maxMesesCluster : numMesesTotal)
+        : (numMesesTotal || maxMesesCluster);
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.text('Meses vencidos:', 14, y);
       doc.setFont('helvetica', 'bold');
-      doc.text(String(Math.max(maxMesesCluster, numMesesTotal)), 40, y);
+      doc.text(String(mesesVencidosDisplay), 40, y);
       doc.setFont('helvetica', 'normal');
       doc.text('Período:', 60, y);
       doc.setFont('helvetica', 'bold');
-      doc.text(numMesesTotal > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Al día', 74, y);
+      doc.text(mesesVencidosDisplay > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Al día', 74, y);
       doc.setFont('helvetica', 'normal');
       doc.text('Valor del UCD (Bs):', 135, y);
       doc.setFont('helvetica', 'bold');
