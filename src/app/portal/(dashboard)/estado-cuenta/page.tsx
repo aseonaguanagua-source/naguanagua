@@ -810,12 +810,7 @@ export default function EstadoCuentaPage() {
       )}
 
       {/* Resumen Financiero */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 text-center shadow-sm">
-          <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Cuota Mensual</div>
-          <div className="text-lg font-bold text-slate-800">Bs. {formatBs(totalMensual)}</div>
-          <div className="text-[10px] text-slate-400 mt-1">tasa: {tasaBcv.toFixed(2)}</div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className={"rounded-xl border p-4 text-center shadow-sm " + (allRecibosGrupos.length > 0 ? "bg-red-50 border-red-200" : "bg-emerald-50 border-emerald-200")}>
           <div className={"text-[10px] font-bold uppercase mb-1 " + (allRecibosGrupos.length > 0 ? "text-red-500" : "text-emerald-500")}>Recibos Pend.</div>
           <div className={"text-lg font-bold " + (allRecibosGrupos.length > 0 ? "text-red-700" : "text-emerald-700")}>{allRecibosGrupos.length}</div>
@@ -922,9 +917,9 @@ export default function EstadoCuentaPage() {
                       </span>
                     ) : (
                       <div className="text-right">
-                        <div className="text-[10px] uppercase font-bold text-slate-400">Cuota Local</div>
-                        <div className="text-sm font-black text-emerald-700">Bs. {formatBs(cuotaClusterBs)}</div>
-                        <div className="text-[10px] text-slate-400">{cluster.totalMmv.toFixed(2)} MMV</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Tarifa Asignada</div>
+                        <div className="text-sm font-black text-slate-700">{cluster.totalMmv.toFixed(2)} MMV</div>
+                        <div className="text-[10px] text-slate-400">{cluster.count > 1 ? `${cluster.count} actividades` : '1 actividad'}</div>
                       </div>
                     )}
                     <button
@@ -988,15 +983,13 @@ export default function EstadoCuentaPage() {
                         <tr>
                           <th className="px-4 py-2.5">Código Actividad</th>
                           <th className="px-4 py-2.5">Actividad / Uso</th>
-                          <th className="px-4 py-2.5 text-center">Factor</th>
-                          <th className="px-4 py-2.5 text-right">Cuota Mensual</th>
+                          <th className="px-4 py-2.5 text-right">Factor MMV</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {cluster.inms.map((inm: any, idx: number) => {
                           const factor = parseFloat(String(inm.mmv_mes || 0)) || 0;
                           const cant = parseInt(String(inm.cant_inmuebles || 1), 10) || 1;
-                          const cuotaBs = factor * cant * tasaBcv;
                           const actClean = cleanClasificacionActividad(inm.actividad_principal || inm.clasificacion || '') || 'Servicio de Aseo Urbano';
 
                           return (
@@ -1008,11 +1001,8 @@ export default function EstadoCuentaPage() {
                               <td className="px-4 py-2.5 text-xs font-medium text-slate-700">
                                 {actClean}
                               </td>
-                              <td className="px-4 py-2.5 text-center text-xs text-slate-500">
+                              <td className="px-4 py-2.5 text-right font-mono text-xs font-bold text-slate-700">
                                 {factor.toFixed(2)} MMV {cant > 1 ? `x ${cant}` : ''}
-                              </td>
-                              <td className="px-4 py-2.5 text-right text-xs font-bold text-emerald-700">
-                                Bs. {formatBs(cuotaBs)}
                               </td>
                             </tr>
                           );
