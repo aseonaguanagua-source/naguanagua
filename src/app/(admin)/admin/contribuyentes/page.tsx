@@ -2137,8 +2137,42 @@ function ContribuyentesPageContent() {
       }];
     }
 
+    // Cargar documentos del expediente digitalizado y dirección guardada en contribuyentes
+    let direccionEfectiva = row.Direccion || '';
+    try {
+      const { data: cRow } = await supabase
+        .from('contribuyentes')
+        .select('observaciones, direccion')
+        .eq('identidad', row.Identidad)
+        .maybeSingle();
+
+      if (cRow) {
+        if ((!direccionEfectiva || direccionEfectiva === '0 0' || direccionEfectiva.trim() === '0') && cRow.direccion) {
+          direccionEfectiva = cRow.direccion;
+        }
+
+        const obs = cRow.observaciones || '';
+        const docCedulaMatch = obs.match(/\[DOC_CEDULA:\s*([^\]]+)\]/);
+        const docFichaMatch = obs.match(/\[DOC_FICHA:\s*([^\]]+)\]/);
+        const docRegistroMatch = obs.match(/\[DOC_REGISTRO:\s*([^\]]+)\]/);
+
+        setUploadDocs({
+          cedula: { url: docCedulaMatch ? docCedulaMatch[1].trim() : '', uploading: false, name: docCedulaMatch ? 'Copia de Cédula / RIF cargada' : '' },
+          ficha: { url: docFichaMatch ? docFichaMatch[1].trim() : '', uploading: false, name: docFichaMatch ? 'Ficha Catastral cargada' : '' },
+          registro: { url: docRegistroMatch ? docRegistroMatch[1].trim() : '', uploading: false, name: docRegistroMatch ? 'Registro Mercantil cargado' : '' },
+        });
+      } else {
+        setUploadDocs({
+          cedula: { url: '', uploading: false, name: '' },
+          ficha: { url: '', uploading: false, name: '' },
+          registro: { url: '', uploading: false, name: '' },
+        });
+      }
+    } catch (_) {}
+
     setFormData({ 
       ...row,
+      Direccion: direccionEfectiva,
       Clasificacion: autoClasificacion,
       telefonoPrefijo,
       telefonoNumero,
@@ -2155,7 +2189,7 @@ function ContribuyentesPageContent() {
       __inmuebleCodes: misInmuebles.map((i: any) => i.inmueble).filter(Boolean),
       Nota: '',
     });
-    setOriginalData({ ...row, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia, NivelMetraje });
+    setOriginalData({ ...row, Direccion: direccionEfectiva, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia, NivelMetraje });
     setEditingId(row.Identidad);
     setIsNew(false);
     setShowSuccess(false);
@@ -2163,6 +2197,11 @@ function ContribuyentesPageContent() {
   };
 
   const handleAdd = () => {
+    setUploadDocs({
+      cedula: { url: '', uploading: false, name: '' },
+      ficha: { url: '', uploading: false, name: '' },
+      registro: { url: '', uploading: false, name: '' },
+    });
     const defaultData = {
       Identidad: '',
       Contribuyente: '',
@@ -2471,6 +2510,27 @@ function ContribuyentesPageContent() {
         return;
       } else if (editingId) {
         await updateContribuyente(editingId, dataToSave);
+      }
+
+      // Asegurar que los documentos de uploadDocs queden registrados en observaciones
+      const idParaDocs = editingId || dataToSave.Identidad;
+      if (idParaDocs) {
+        try {
+          const { data: cObs } = await supabase.from('contribuyentes').select('observaciones').eq('identidad', idParaDocs).maybeSingle();
+          let obsCur = cObs?.observaciones || '';
+          let cambioObs = false;
+          ['cedula', 'ficha', 'registro'].forEach((tipo) => {
+            const doc = (uploadDocs as any)[tipo];
+            if (doc?.url && !obsCur.includes(doc.url)) {
+              const tag = `[DOC_${tipo.toUpperCase()}: ${doc.url}]`;
+              obsCur = obsCur ? `${obsCur}\n${tag}` : tag;
+              cambioObs = true;
+            }
+          });
+          if (cambioObs) {
+            await supabase.from('contribuyentes').update({ observaciones: obsCur }).eq('identidad', idParaDocs);
+          }
+        } catch (_) {}
       }
       
       setOriginalData(dataToSave);
