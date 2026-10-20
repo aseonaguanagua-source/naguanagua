@@ -798,6 +798,8 @@ export default function FacturacionElectronicaPage() {
       if (data.success) {
         if (data.skipped) {
           alert(`Aviso: ${data.message || 'Exento de factura fiscal comercial'}`);
+        } else if (data.yaEmitida) {
+          alert(`Aviso: Este pago ya tenía asignada la Factura Fiscal Digital N° Control: ${data.numeroControl}.\n\nNo se generó una factura nueva en The Factory HKA.`);
         } else {
           alert(`¡Factura Digital emitida exitosamente!\nNúmero de Control: ${data.numeroControl || 'Generado'}\nSe envió copia al cliente y al archivo fiscal interno.`);
         }

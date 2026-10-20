@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       pagoId, recibos, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
       correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
-      esRetencion, referencia, modulo, fechaEmisionOverride, fecha
+      esRetencion, referencia, modulo, fechaEmisionOverride, fecha, reemitir = false
     } = await request.json();
     // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
     const totalManualNum = Math.round((parseFloat(String(totalManual ?? 0)) || 0) * 100) / 100;
@@ -1262,8 +1262,8 @@ export async function POST(request: Request) {
     if (isTfhkaEnabled) {
       console.log(`[TFHKA] Enviando Factura Real para pago ${pagoId}`);
       try {
-        // Evitar doble emisión real del mismo pago (si está anulada sí se permite reemitir)
-        if (nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated && !nuevosDetalles.factura_digital?.anulada) {
+        // Evitar doble emisión real del mismo pago (si está anulada o se solicita reemitir, sí se permite emitir nueva factura)
+        if (!reemitir && nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated && !nuevosDetalles.factura_digital?.anulada) {
           return NextResponse.json({ success: true, yaEmitida: true, url: nuevosDetalles.factura_digital.url, numeroControl: nuevosDetalles.factura_digital.numero_control });
         }
 
@@ -1290,7 +1290,7 @@ export async function POST(request: Request) {
         }
 
         delete nuevosDetalles.factura_digital_error;
-        if (nuevosDetalles.factura_digital?.anulada) {
+        if (nuevosDetalles.factura_digital?.anulada || (reemitir && nuevosDetalles.factura_digital?.emitida)) {
           nuevosDetalles.facturas_digitales_previas = [
             ...(nuevosDetalles.facturas_digitales_previas || []),
             nuevosDetalles.factura_digital
