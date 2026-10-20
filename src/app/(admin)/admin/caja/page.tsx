@@ -829,9 +829,9 @@ export default function CajaPage() {
         setRecibos([]);
         setCuotas([]);
         setPagosPendientes([]);
-        // Auto-seleccionar para cobro inmediato en taquilla
-        setSelectedServicios(srvEsp.map((s: any) => s.referencia));
-        setSelectedTalaPoda(tala.map((s: any) => s.referencia));
+        // Auto-seleccionar para cobro inmediato en taquilla (solo si tienen monto cotizado > 0)
+        setSelectedServicios(srvEsp.filter((s: any) => parseFloat(s.monto || '0') > 0).map((s: any) => s.referencia));
+        setSelectedTalaPoda(tala.filter((s: any) => parseFloat(s.monto || '0') > 0).map((s: any) => s.referencia));
         // Los servicios especiales ya tienen el monto total con IVA incluido / tasa exenta
         setIvaPercent(0);
         setRetencionIVA(0);
@@ -5654,32 +5654,40 @@ export default function CajaPage() {
                   <span className="text-xs text-green-600 font-medium">({talaPoda.length})</span>
                 </div>
                 <div className="p-4 space-y-2">
-                  {talaPoda.map((s: any) => (
-                    <label key={s.referencia} className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${selectedTalaPoda.includes(s.referencia) ? 'bg-green-50 border-green-300' : 'hover:bg-slate-50 border-slate-200'}`}>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedTalaPoda.includes(s.referencia)}
-                          onChange={() => toggleTalaPoda(s.referencia)}
-                          className="w-4 h-4 text-green-600 rounded border-slate-300 focus:ring-green-500"
-                        />
-                        <TreePine className="w-5 h-5 text-green-600 flex-shrink-0" />
-                        <div>
-                          <p className="font-semibold text-sm text-slate-800">{s.descripcion || 'Servicio de Tala y Poda'}</p>
-                          <p className="text-xs text-slate-500">{s.referencia} • {s.fecha || 'Sin fecha'}</p>
-                        </div>
-                      </div>
-                      {(() => {
-                        const baseMonto = parseFloat(s.monto || '0');
-                        return (
-                          <div className="text-right shrink-0">
-                            <span className="font-bold text-green-700 block text-sm">Bs. {formatBs(baseMonto)}</span>
-                            <span className="text-[10px] text-emerald-600 font-medium">Monto Total (Tasa / IVA Incluido)</span>
+                  {talaPoda.map((s: any) => {
+                    const baseMonto = parseFloat(s.monto || '0');
+                    const esCobrable = baseMonto > 0;
+                    return (
+                      <label key={s.referencia} className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${!esCobrable ? 'bg-slate-50 border-slate-200 opacity-75 cursor-not-allowed' : selectedTalaPoda.includes(s.referencia) ? 'bg-green-50 border-green-300 cursor-pointer' : 'hover:bg-slate-50 border-slate-200 cursor-pointer'}`}>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            disabled={!esCobrable}
+                            checked={selectedTalaPoda.includes(s.referencia)}
+                            onChange={() => esCobrable && toggleTalaPoda(s.referencia)}
+                            className="w-4 h-4 text-green-600 rounded border-slate-300 focus:ring-green-500 disabled:opacity-50"
+                          />
+                          <TreePine className="w-5 h-5 text-green-600 flex-shrink-0" />
+                          <div>
+                            <p className="font-semibold text-sm text-slate-800">{s.descripcion || 'Servicio de Tala y Poda'}</p>
+                            <p className="text-xs text-slate-500">{s.referencia} • {s.fecha || 'Sin fecha'}</p>
                           </div>
-                        );
-                      })()}
-                    </label>
-                  ))}
+                        </div>
+                        <div className="text-right shrink-0">
+                          {esCobrable ? (
+                            <>
+                              <span className="font-bold text-green-700 block text-sm">Bs. {formatBs(baseMonto)}</span>
+                              <span className="text-[10px] text-emerald-600 font-medium">Monto Total (Tasa / IVA Incluido)</span>
+                            </>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold">
+                              ⏳ Cotización Pendiente
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -5696,14 +5704,21 @@ export default function CajaPage() {
                   {serviciosEsp.map((s) => {
                     const iconMap: Record<string, any> = { especial: Wrench, extraordinario: FlaskConical, inspeccion: ClipboardCheck, visto_bueno: ShieldCheck };
                     const Icon = iconMap[s.tipo] || Wrench;
+                    const ucd = Number(s.valor_ucd || 0);
+                    const fac = Number(s.factor || 1);
+                    const nve = Number(s.nve || 1);
+                    const currentTasa = customBcvRate && !isNaN(parseFloat(customBcvRate)) ? parseFloat(customBcvRate) : (tcmmv || 0);
+                    const baseMonto = (ucd > 0 && currentTasa > 0) ? Math.round(ucd * fac * nve * currentTasa * 100) / 100 : parseFloat(s.monto || '0');
+                    const esCobrable = baseMonto > 0;
                     return (
-                      <label key={s.referencia} className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${selectedServicios.includes(s.referencia) ? 'bg-purple-50 border-purple-200' : 'hover:bg-slate-50 border-slate-200'}`}>
+                      <label key={s.referencia} className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${!esCobrable ? 'bg-slate-50 border-slate-200 opacity-75 cursor-not-allowed' : selectedServicios.includes(s.referencia) ? 'bg-purple-50 border-purple-200 cursor-pointer' : 'hover:bg-slate-50 border-slate-200 cursor-pointer'}`}>
                         <div className="flex items-center gap-3">
                           <input 
                             type="checkbox"
+                            disabled={!esCobrable}
                             checked={selectedServicios.includes(s.referencia)}
-                            onChange={() => toggleServicio(s.referencia)}
-                            className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500"
+                            onChange={() => esCobrable && toggleServicio(s.referencia)}
+                            className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 disabled:opacity-50"
                           />
                           <Icon className="w-4 h-4 text-purple-500 flex-shrink-0" />
                           <div>
@@ -5711,23 +5726,22 @@ export default function CajaPage() {
                             <p className="text-xs text-slate-500">{s.referencia} • {s.fecha}</p>
                           </div>
                         </div>
-                        {(() => {
-                          const ucd = Number(s.valor_ucd || 0);
-                          const fac = Number(s.factor || 1);
-                          const nve = Number(s.nve || 1);
-                          const currentTasa = customBcvRate && !isNaN(parseFloat(customBcvRate)) ? parseFloat(customBcvRate) : (tcmmv || 0);
-                          const baseMonto = (ucd > 0 && currentTasa > 0) ? Math.round(ucd * fac * nve * currentTasa * 100) / 100 : parseFloat(s.monto || '0');
-                          return (
-                            <div className="text-right shrink-0">
+                        <div className="text-right shrink-0">
+                          {esCobrable ? (
+                            <>
                               <span className="font-bold text-purple-700 block text-sm">Bs. {formatBs(baseMonto)}</span>
                               {ucd > 0 ? (
                                 <span className="text-[10px] text-slate-500 font-medium">{ucd * fac * nve} UCD · Tasa Bs {formatBs(currentTasa)}</span>
                               ) : (
                                 <span className="text-[10px] text-emerald-600 font-medium">Tasa Administrativa</span>
                               )}
-                            </div>
-                          );
-                        })()}
+                            </>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold">
+                              ⏳ Cotización Pendiente
+                            </span>
+                          )}
+                        </div>
                       </label>
                     );
                   })}

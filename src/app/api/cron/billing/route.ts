@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     // no meses_deuda. Se rediseña junto con el libro de deuda mensual antes del próximo cierre.
     const { data: inmRaw, error: inmueblesError } = await supabase
       .from('inmuebles')
-      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, clasificacion, actividad_principal, estado, es_condominio')
+      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, meses_deuda, clasificacion, actividad_principal, estado, es_condominio')
       .gt('mmv_mes', 0)
       .eq('estado', 'Activo');
     if (inmueblesError) throw inmueblesError;
@@ -106,7 +106,7 @@ export async function GET(request: Request) {
 
     // ── PASO 3: Construir batch de recibos nuevas ──
     const facturasNuevas: any[] = [];
-    const inmueblesAActualizar: { id: string; nuevaDeudaMmv: number }[] = [];
+    const inmueblesAActualizar: { id: string; nuevaDeudaMmv: number; nuevoMesesDeuda: number }[] = [];
 
     for (const inm of inmuebles) {
       if (!inm.inmueble) continue;
@@ -145,9 +145,10 @@ export async function GET(request: Request) {
         vencimiento:   vencimientoDate
       });
 
-      // Agregar al Set para evitar duplicados dentro de la miamec ejecución
+      // Agregar al Set para evitar duplicados dentro de la misma ejecución
       refsExistentes.add(refFactura);
-      inmueblesAActualizar.push({ id: inm.id, nuevaDeudaMmv });
+      const nuevoMesesDeuda = (parseInt(String(inm.meses_deuda || 0)) || 0) + 1;
+      inmueblesAActualizar.push({ id: inm.id, nuevaDeudaMmv, nuevoMesesDeuda });
     }
 
     const omitidos = todasLasRefs.length - facturasNuevas.length;
@@ -171,10 +172,10 @@ export async function GET(request: Request) {
 
     if (insertError) throw insertError;
 
-    // ── PASO 5: Actualizar deuda_mmv en paralelo (batch updates) ──
+    // ── PASO 5: Actualizar deuda_mmv y meses_deuda en paralelo (batch updates) ──
     await Promise.all(
-      inmueblesAActualizar.map(({ id, nuevaDeudaMmv }) =>
-        supabase.from('inmuebles').update({ deuda_mmv: nuevaDeudaMmv }).eq('id', id)
+      inmueblesAActualizar.map(({ id, nuevaDeudaMmv, nuevoMesesDeuda }) =>
+        supabase.from('inmuebles').update({ deuda_mmv: nuevaDeudaMmv, meses_deuda: nuevoMesesDeuda }).eq('id', id)
       )
     );
 

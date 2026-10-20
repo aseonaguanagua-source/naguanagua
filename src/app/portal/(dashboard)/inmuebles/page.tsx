@@ -38,12 +38,28 @@ export default function InmueblesPage() {
           .or(orFilter)
           .neq('estado', 'Eliminado');
 
+        // Consultar también unidades de condominios asociadas a esta identidad
+        const { data: condoUnits } = await supabase.from('condominio_unidades').select('inmueble').or(orFilter);
+        let allInmsRaw = [...(inmsDB || [])];
+        if (condoUnits && condoUnits.length > 0) {
+          const condoCodes = condoUnits.map((u: any) => u.inmueble).filter(Boolean);
+          const missingCodes = condoCodes.filter((c: string) => !allInmsRaw.some(i => i.inmueble === c));
+          if (missingCodes.length > 0) {
+            const { data: extraInms } = await supabase
+              .from('inmuebles')
+              .select('id,identidad,inmueble,contribuyente,cant_inmuebles,mmv_mes,deuda_mmv,deuda_congelada_bs,clasificacion,tipo,direccion,actividad_principal,agente_retencion,multa_bs,meses_deuda,es_condominio,condominio_padre_id,padre_id,estado')
+              .in('inmueble', missingCodes)
+              .neq('estado', 'Eliminado');
+            if (extraInms) allInmsRaw.push(...extraInms);
+          }
+        }
+
         const isActivo = (i: any) => {
           const est = (i.estado || 'Activo').trim().toLowerCase();
           return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
         };
 
-        let inmsFinal: InmuebleBasic[] = inmsDB ? inmsDB.filter(isActivo) : [];
+        let inmsFinal: InmuebleBasic[] = allInmsRaw.filter(isActivo);
 
         // Si es condominio, traer las unidades filiales asociadas
         const isCondo = inmsFinal.some(i => i.es_condominio === true || (i.actividad_principal || '').toLowerCase().includes('condominio'));

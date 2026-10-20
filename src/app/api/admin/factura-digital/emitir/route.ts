@@ -362,7 +362,7 @@ export async function POST(request: Request) {
         CodigoImpuesto:          isRes ? "E" : "G",
         TasaIVA:                 isRes ? "0" : "16",
         ValorIVA:                valorIVA.toFixed(2),
-        ValorTotalItem:          String(parseFloat((montoItem + valorIVA).toFixed(2))),
+        ValorTotalItem:          (montoItem + valorIVA).toFixed(2),
         InfoAdicionalItem:       [],
         ListaItemOTI:            null,
       };
@@ -400,7 +400,7 @@ export async function POST(request: Request) {
         CodigoImpuesto:          isRes ? "E" : "G",
         TasaIVA:                 isRes ? "0" : "16",
         ValorIVA:                valorIVAHist.toFixed(2),
-        ValorTotalItem:          String(parseFloat((baseFinal + valorIVAHist).toFixed(2))),
+        ValorTotalItem:          (baseFinal + valorIVAHist).toFixed(2),
         InfoAdicionalItem:       [],
         ListaItemOTI:            null,
       });
@@ -1013,9 +1013,11 @@ export async function POST(request: Request) {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             Direccion:            (() => {
+              const isValidDir = (d: any) => d && typeof d === 'string' && d.trim().length > 3 && d.trim() !== '0 0' && d.trim() !== '0' && d.trim().toUpperCase() !== 'N/A';
               const dirEspecifica = matchedPropEspecifico?.direccion;
               const dirRecibo = detPago?.recibo_caja?.[0]?.domicilioFiscal;
-              return String(dirEspecifica || dirRecibo || propRef?.direccion || "NAGUANAGUA").trim().slice(0, 100);
+              const cand = isValidDir(dirEspecifica) ? dirEspecifica : (isValidDir(dirRecibo) ? dirRecibo : (isValidDir(propRef?.direccion) ? propRef?.direccion : (isValidDir(contribuyente?.direccion) ? contribuyente?.direccion : "NAGUANAGUA")));
+              return String(cand || "NAGUANAGUA").trim().slice(0, 100);
             })(),
             Pais:                 "VE",
             Notificar:            null,
