@@ -55,7 +55,7 @@ export async function GET(req: Request) {
 
 const EDITABLES = ['modalidad', 'cant_declarada', 'tarifa_mmv', 'tarifa_fija_bs', 'actividad', 'agente_retencion',
   'permite_pago_por_unidad', 'permite_abonos', 'cobro_tarifa_por_unidad', 'correo', 'telefono', 'administradora', 'notas', 'estado',
-  'tipo', 'nombre', 'identidad', 'multa_meses'] as const;
+  'tipo', 'nombre', 'identidad', 'multa_meses', 'direccion'] as const;
 
 /** PATCH { codigo, cambios, usuario, motivo } — solo administrador; queda en auditoría con el antes/después. */
 export async function PATCH(req: Request) {
@@ -64,9 +64,9 @@ export async function PATCH(req: Request) {
     const u = String(usuario || '').trim().toLowerCase();
     const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
     
-    // Si solo modifica notas, teléfono, correo o clave_portal, permitir a cualquier operador o usuario autenticado
+    // Si solo modifica notas, teléfono, correo, dirección o clave_portal, permitir a cualquier operador o usuario autenticado
     const keysModificadas = Object.keys(cambios || {});
-    const soloInfoContactoONotas = keysModificadas.length > 0 && keysModificadas.every(k => ['notas', 'telefono', 'correo', 'clave_portal'].includes(k));
+    const soloInfoContactoONotas = keysModificadas.length > 0 && keysModificadas.every(k => ['notas', 'telefono', 'correo', 'direccion', 'clave_portal'].includes(k));
     
     if (!soloInfoContactoONotas) {
       if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) return NextResponse.json({ error: 'Solo un administrador puede modificar la configuración del condominio.' }, { status: 403 });
@@ -98,10 +98,11 @@ export async function PATCH(req: Request) {
       await sb.from('inmuebles').update({ notas: upd.notas || null }).eq('inmueble', antes.codigo);
     }
     // Sincronizar teléfono y correo en inmuebles
-    if ('telefono' in upd || 'correo' in upd) {
+    if ('telefono' in upd || 'correo' in upd || 'direccion' in upd) {
       const inmUpd: any = {};
       if ('telefono' in upd) inmUpd.telefono = upd.telefono || null;
       if ('correo' in upd) inmUpd.correo_electronico = upd.correo || null;
+      if ('direccion' in upd) inmUpd.direccion = upd.direccion || null;
       await sb.from('inmuebles').update(inmUpd).eq('inmueble', antes.codigo);
     }
     // Sincronizar clave_portal en inmuebles

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink
 } from 'lucide-react';
 import EditorUnidad from './EditorUnidad';
 import ModalAjusteMeses from './ModalAjusteMeses';
@@ -36,7 +36,7 @@ function Ficha() {
   const [d, setD] = useState<any>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'deuda' | 'unidades' | 'movimientos'>('deuda');
+  const [tab, setTab] = useState<'deuda' | 'unidades' | 'movimientos' | 'pagos'>('deuda');
   const [q, setQ] = useState(unidadFoco);
   const [soloDeuda, setSoloDeuda] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -177,6 +177,7 @@ function Ficha() {
       agente_retencion: !!c.agente_retencion, permite_pago_por_unidad: !!c.permite_pago_por_unidad,
       permite_abonos: c.permite_abonos !== false, cobro_tarifa_por_unidad: !!c.cobro_tarifa_por_unidad,
       correo: c.correo || '', telefono: c.telefono || '', notas: c.notas || '',
+      direccion: c.direccion || '',
       tipo: c.tipo, nombre: c.nombre || '', identidad: c.identidad || '',
       clave_portal: c.clave_portal || '',
       meses: e?.totales?.meses ?? mesesPendientes(c.aseo_pendiente_desde), multa_meses: c.multa_meses || 0,
@@ -566,14 +567,14 @@ function Ficha() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-3 border-b border-slate-100">
               <div className="flex gap-1">
-                {([['deuda', 'Estado de cuenta', Wallet], ['unidades', `Unidades (${d.unidades.length})`, Layers], ['movimientos', `Movimientos (${d.movimientos.length})`, History]] as const).map(([k, label, Icon]) => (
+                {([['deuda', 'Estado de cuenta', Wallet], ['unidades', `Unidades (${d.unidades.length})`, Layers], ['movimientos', `Movimientos (${d.movimientos.length})`, History], ['pagos', `Historial de Pagos (${(d.pagos || []).length})`, Receipt]] as const).map(([k, label, Icon]) => (
                   <button key={k} onClick={() => setTab(k as any)}
                     className={`px-4 py-2.5 text-sm font-extrabold border-b-2 -mb-px flex items-center gap-2 cursor-pointer ${tab === k ? 'border-emerald-600 text-emerald-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                     <Icon className="w-4 h-4" /> {label}
                   </button>
                 ))}
               </div>
-              {tab !== 'movimientos' && (
+              {tab !== 'movimientos' && tab !== 'pagos' && (
                 <div className="flex items-center gap-3 pb-2">
                   <div className="relative">
                     <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -832,6 +833,82 @@ function Ficha() {
                 )}
               </div>
             )}
+
+            {tab === 'pagos' && (
+              <div className="p-4">
+                {(!d.pagos || d.pagos.length === 0) ? (
+                  <div className="py-12 text-center text-slate-500 text-sm">
+                    No se han registrado pagos para este condominio. Los pagos procesados en Caja o confirmados en Conciliación aparecerán aquí.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
+                        <tr>
+                          <th className="text-left py-2.5 px-3">Fecha</th>
+                          <th className="text-left py-2.5 px-3">Referencia</th>
+                          <th className="text-left py-2.5 px-3">Método / Banco</th>
+                          <th className="text-left py-2.5 px-3">Contribuyente</th>
+                          <th className="text-right py-2.5 px-3">Monto (Bs)</th>
+                          <th className="text-center py-2.5 px-3">Estado</th>
+                          <th className="text-left py-2.5 px-3">Cajero / Operador</th>
+                          <th className="text-center py-2.5 px-3">Comprobante</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {d.pagos.map((p: any) => {
+                          const det = p.detalles || {};
+                          const cajero = det.cajero || det.usuario || p.usuario || '—';
+                          const fechaFmt = p.created_at ? new Date(p.created_at).toLocaleString('es-VE') : '—';
+                          const comprobante = p.comprobante_url || det.comprobante_url;
+                          const esAprobado = p.estado === 'Aprobado' || p.estado === 'Conciliado';
+                          const esPendiente = p.estado === 'Por Verificar' || p.estado === 'Pendiente';
+                          const esRechazado = p.estado === 'Rechazado' || p.estado === 'Anulado' || p.estado === 'Reversado';
+                          
+                          return (
+                            <tr key={p.id} className="hover:bg-slate-50/70">
+                              <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{fechaFmt}</td>
+                              <td className="py-2.5 px-3 font-mono font-bold text-xs text-slate-800">{p.referencia || '—'}</td>
+                              <td className="py-2.5 px-3 text-xs text-slate-700">
+                                <span className="font-semibold">{p.tipo || 'Pago'}</span>
+                                {p.banco && <span className="text-slate-500 block text-[11px]">{p.banco}</span>}
+                              </td>
+                              <td className="py-2.5 px-3 text-xs text-slate-700">
+                                <span className="font-medium block">{det.contribuyente || c?.nombre || '—'}</span>
+                                <span className="text-[11px] font-mono text-slate-500">{p.identidad || det.identidad || '—'}</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right tabular-nums font-black text-emerald-700 text-xs">
+                                Bs {fmtBs(p.monto)}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                  esAprobado ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                                  esPendiente ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                                  esRechazado ? 'bg-red-100 text-red-800 border border-red-300' :
+                                  'bg-slate-100 text-slate-700 border border-slate-300'
+                                }`}>
+                                  {p.estado}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-xs text-slate-600">{cajero}</td>
+                              <td className="py-2.5 px-3 text-center">
+                                {comprobante ? (
+                                  <a href={comprobante} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-bold underline">
+                                    <ExternalLink className="w-3 h-3" /> Ver
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-400 text-xs">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -876,6 +953,8 @@ function Ficha() {
                   <input value={form.correo} onChange={ev => setForm({ ...form, correo: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2" /></label>
                 <label className="block"><span className="text-xs font-bold text-slate-700">Teléfono</span>
                   <input value={form.telefono} onChange={ev => setForm({ ...form, telefono: ev.target.value })} className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2" /></label>
+                <label className="block sm:col-span-2"><span className="text-xs font-bold text-slate-700">Dirección fiscal</span>
+                  <input value={form.direccion || ''} onChange={ev => setForm({ ...form, direccion: ev.target.value })} placeholder="Dirección fiscal oficial del condominio" className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2" /></label>
                 <label className="block sm:col-span-2"><span className="text-xs font-bold text-emerald-800">Clave de acceso web (Portal del Contribuyente)</span>
                   <input value={form.clave_portal || ''} onChange={ev => setForm({ ...form, clave_portal: ev.target.value })} placeholder="Asignar o cambiar clave para ingresar por la web" className="mt-1 w-full border border-emerald-300 bg-emerald-50/30 rounded-xl px-3 py-2 font-mono text-sm" /></label>
               </div>

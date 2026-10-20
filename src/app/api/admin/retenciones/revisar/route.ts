@@ -243,11 +243,26 @@ export async function POST(request: Request) {
       if (ret) {
         await supabase
           .from('retenciones_iva')
-          .update({ estado: 'Rechazado', motivo_rechazo: motivo, aprobado_at: ahora, aprobado_por: quien })
+          .update({
+            estado: 'Rechazado',
+            motivo_rechazo: motivo,
+            aprobado_at: ahora,
+            aprobado_por: quien,
+            planilla_url: null,
+            numero_planilla: null,
+          })
           .eq('id', ret.id);
       }
       if (pago) {
-        fd.retencion = { ...(fd.retencion || {}), estado: 'rechazada', motivo_rechazo: motivo, revisado_at: ahora, revisado_por: quien };
+        fd.retencion = {
+          ...(fd.retencion || {}),
+          estado: 'rechazada',
+          motivo_rechazo: motivo,
+          revisado_at: ahora,
+          revisado_por: quien,
+          planilla_recibida_at: null,
+          comprobante_url: null,
+        };
         det.factura_digital = fd;
         det.retencion_aprobada = false;
         await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);

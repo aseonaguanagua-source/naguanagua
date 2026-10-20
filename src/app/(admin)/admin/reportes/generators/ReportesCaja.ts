@@ -114,10 +114,35 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   const porMes = new Map<string, any[]>();
   transf.forEach(p => {
     const det = parseDet(p);
-    const fPago = String(det.fecha_transaccion || det.fecha_banco || fechaVE(p.created_at)).slice(0, 10);
-    const key = fPago.slice(0, 7);
-    if (!porMes.has(key)) porMes.set(key, []);
-    porMes.get(key)!.push({ p, det, fPago });
+    const pagsAgregados = Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1
+      ? det.pagos_agregados.filter((pa: any) => pa && Number(pa.monto) > 0 && pa.metodo !== 'Saldo a Favor')
+      : null;
+
+    if (pagsAgregados && pagsAgregados.length > 1) {
+      pagsAgregados.forEach((pa: any) => {
+        const fPagoSub = String(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fechaVE(p.created_at)).slice(0, 10);
+        const keySub = fPagoSub.slice(0, 7);
+        if (!porMes.has(keySub)) porMes.set(keySub, []);
+        porMes.get(keySub)!.push({
+          p: {
+            ...p,
+            monto: Number(pa.monto) || 0,
+            banco: pa.banco || p.banco,
+            referencia: pa.referencia || p.referencia,
+            tipo: pa.metodo || p.tipo,
+          },
+          det,
+          fPago: fPagoSub,
+          esSubPago: true,
+          montoTotalReportado: Number(p.monto) || 1,
+        });
+      });
+    } else {
+      const fPago = String(det.fecha_transaccion || det.fecha_banco || fechaVE(p.created_at)).slice(0, 10);
+      const key = fPago.slice(0, 7);
+      if (!porMes.has(key)) porMes.set(key, []);
+      porMes.get(key)!.push({ p, det, fPago, esSubPago: false, montoTotalReportado: Number(p.monto) || 1 });
+    }
   });
 
   const wb = new ExcelJS.Workbook();
@@ -126,31 +151,41 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   const wsPto = wb.addWorksheet('CONCILIACION DEL PUNTO DE VENTA');
 
   // Conciliación bancaria
-  const cols = ['Fecha Pago', 'Banco Emisor', 'Referencia', 'Forma de Pago', 'Monto Pagado', 'Fecha Factura', 'Nro Serie', 'Código Cliente', 'Razón Social', 'Aseo Urbano', '% IVA', 'Monto IVA', 'Retención IVA', 'Nota de Crédito', 'Exento'];
-  [12, 18, 14, 14, 15, 12, 12, 14, 38, 15, 7, 13, 13, 13, 13].forEach((w, i) => { wsBan.getColumn(i + 2).width = w; });
+  const cols = ['Fecha Pago', 'Banco Emisor', 'Referencia', 'Forma de Pago', 'Monto Pagado', 'Fecha Factura', 'Nro Serie', 'Código Cliente', 'Razón Social', 'Cajero / Operador', 'Aseo Urbano', '% IVA', 'Monto IVA', 'Retención IVA', 'Nota de Crédito', 'Exento'];
+  [12, 18, 14, 14, 15, 12, 12, 14, 34, 20, 15, 7, 13, 13, 13, 13].forEach((w, i) => { wsBan.getColumn(i + 2).width = w; });
   wsBan.getColumn(1).width = 3;
   let f = 1;
   const totalesMes: [string, number][] = [];
   [...porMes.keys()].sort().forEach(key => {
     const [y, m] = key.split('-');
-    wsBan.mergeCells(f, 2, f, 16);
+    wsBan.mergeCells(f, 2, f, 17);
     wsBan.getCell(f, 2).value = `CONCILIACION BANCARIA DE PAGOS (TRANSFERENCIAS) REPORTADAS LUEGO DEL CIERRE DE MES: MES ${MESES[parseInt(m) - 1]} ${y}`;
     wsBan.getCell(f, 2).font = { bold: true }; wsBan.getCell(f, 2).alignment = { horizontal: 'center' };
     f++;
     cab(wsBan, f++, cols, 2);
     let sub = 0;
-    porMes.get(key)!.sort((a, b) => a.fPago.localeCompare(b.fPago)).forEach(({ p, det, fPago }) => {
+    porMes.get(key)!.sort((a, b) => a.fPago.localeCompare(b.fPago)).forEach(({ p, det, fPago, esSubPago, montoTotalReportado }) => {
       const ret = retPorPago.get(String(p.id)) ?? Number(det.monto_retencion_iva || 0);
-      const mt = montosPago(p, det, inmMap, ret);
+      const mtTotal = montosPago(p, det, inmMap, ret);
+      const factor = esSubPago && montoTotalReportado > 0 ? (Number(p.monto) || 0) / montoTotalReportado : 1;
+      const mt = esSubPago ? {
+        base: r2(mtTotal.base * factor),
+        iva: r2(mtTotal.iva * factor),
+        ret: r2(mtTotal.ret * factor),
+        exento: r2(mtTotal.exento * factor)
+      } : mtTotal;
       const fd = det.factura_digital || {};
-      const nc = Number(det.saldo_favor || 0) > 0 ? Number(det.saldo_favor) : 0;
+      const ncTotal = Number(det.saldo_favor || 0) > 0 ? Number(det.saldo_favor) : 0;
+      const nc = esSubPago ? r2(ncTotal * factor) : ncTotal;
+      const cajero = det.cajero || det.usuario || p.usuario || '';
       const row = wsBan.getRow(f++);
       const vals: any[] = [
         dmy(fPago), p.banco || '', p.referencia || '', p.tipo || 'Transferencia', r2(Number(p.monto) || 0), dmy(fechaVE(p.created_at)),
-        fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || '', codigosDePago(det).join(', '), nombreDe(p.identidad, det),
+        fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || '', codigosDePago(det, p).join(', '), nombreDe(p.identidad, det),
+        cajero,
         mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
       ];
-      vals.forEach((v, i) => { const c = row.getCell(i + 2); c.value = v; c.border = BORDE; c.font = { size: 9 }; if ([4, 9, 11, 12, 13, 14].includes(i)) c.numFmt = '#,##0.00'; });
+      vals.forEach((v, i) => { const c = row.getCell(i + 2); c.value = v; c.border = BORDE; c.font = { size: 9 }; if ([4, 10, 12, 13, 14, 15].includes(i)) c.numFmt = '#,##0.00'; });
       sub += Number(p.monto) || 0;
     });
     const t = wsBan.getRow(f++);

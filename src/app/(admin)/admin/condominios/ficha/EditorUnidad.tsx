@@ -147,6 +147,8 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const mensualBs = Number(renglon?.mensualBs) || 0;
   const multaPorMesBs = Math.round(mensualBs * pctMulta * 100) / 100;
   const multaMesesN = Math.max(0, parseInt(f.multa_meses) || 0);
+  const mesesMoraAuto = (renglon?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
+  const totalBadgeMeses = mesesMoraAuto + multaMesesN;
 
   const esNA = actCom.trim().toUpperCase() === 'N/A' || actCom.trim() === '';
   const actividad = clase === 'RES' ? actRes : (actCom.trim() ? actividadConNivel(actCom.trim().toUpperCase(), nivel) : '');
@@ -503,21 +505,24 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3 items-end">
-              <label className="block"><span className={lbl}>Meses de multa</span>
+              <label className="block"><span className={lbl}>Meses multa adicionales</span>
                 <div className="mt-1 flex items-center gap-1">
                   <button type="button" onClick={() => setF({ ...f, multa_meses: Math.max(0, multaMesesN - 1) })} className="w-9 h-9 rounded-lg border border-slate-300 bg-white font-black cursor-pointer hover:bg-slate-50">−</button>
                   <input id="unidad-multa-meses" type="number" min={0} value={f.multa_meses} onChange={e => setF({ ...f, multa_meses: e.target.value })} className="w-16 h-9 text-center border border-slate-300 rounded-lg text-sm" />
                   <button type="button" onClick={() => setF({ ...f, multa_meses: multaMesesN + 1 })} className="w-9 h-9 rounded-lg border border-slate-300 bg-white font-black cursor-pointer hover:bg-slate-50">+</button>
                 </div></label>
-              <div className="text-xs text-slate-700">
+              <div className="text-xs text-slate-700 space-y-1.5">
                 {mensualBs > 0 ? (
-                  <>{multaMesesN} mes(es) × Bs {fmtBs(multaPorMesBs)} <span className="text-slate-500">({esRes ? '10' : '12'}% de la mensualidad Bs {fmtBs(mensualBs)})</span> = <b className="text-red-700">Bs {fmtBs(multaPorMesBs * multaMesesN)}</b></>
+                  <div>{multaMesesN} mes(es) adicional(es) × Bs {fmtBs(multaPorMesBs)} <span className="text-slate-500">({esRes ? '10' : '12'}% de Bs {fmtBs(mensualBs)})</span> = <b className="text-red-700">Bs {fmtBs(multaPorMesBs * multaMesesN)}</b></div>
                 ) : (
-                  <>Cada mes de multa = {esRes ? '10' : '12'}% de la mensualidad de la unidad.</>
+                  <div>Cada mes de multa = {esRes ? '10' : '12'}% de la mensualidad de la unidad.</div>
                 )}
+                <div className="p-2 rounded-lg bg-amber-100/80 border border-amber-300 text-[11px] text-amber-950">
+                  <span className="font-bold">Total reflejado en la ficha:</span> {mesesMoraAuto} mora automática de aseo + {multaMesesN} adicionales = <b className="text-red-700 font-extrabold">{totalBadgeMeses} meses de multa</b>
+                </div>
               </div>
             </div>
-            <div className="text-[11px] text-slate-500">Los meses de aseo pendientes ya llevan su multa automática (todos menos el más reciente). Aquí se agregan multas de meses adicionales; se guardan con “Guardar cambios”.</div>
+            <div className="text-[11px] text-slate-500">Los meses vencidos de aseo ya generan mora automática ({mesesMoraAuto} mes(es)). El valor indicado arriba agrega multas adicionales por períodos previos o sanciones específicas.</div>
             
             {/* Botón para asignar multa a un período específico */}
             {!nueva && (

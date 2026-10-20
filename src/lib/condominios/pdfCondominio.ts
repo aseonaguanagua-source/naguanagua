@@ -389,19 +389,34 @@ export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: num
 
   // ── RESUMEN TOTALES DE LA UNIDAD ──
   const sumMultas = (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
+  const baseAseo = r.deuda?.baseBs || 0;
+  const ivaBs = r.deuda?.ivaBs || 0;
+  const retencionBs = r.deuda?.retencionBs || 0;
+  const totalBrutoBs = Math.round((baseAseo + sumMultas + ivaBs) * 100) / 100;
+  const totalNetoBs = r.totalBs || (totalBrutoBs - retencionBs);
+
   doc.setFont('helvetica', 'bold');
   doc.text('RESUMEN DE LIQUIDACIÓN DE LA UNIDAD', 105, y, { align: 'center' });
-  y += 6;
+  y += 5;
   doc.setFont('helvetica', 'normal');
-  doc.text(`Aseo: Bs. ${fmtBs(r.deuda?.baseBs || 0)}`, 14, y);
-  doc.text(`Multas: Bs. ${fmtBs(sumMultas)}`, 65, y);
-  doc.text(`IVA: Bs. ${fmtBs(r.deuda?.ivaBs || 0)}`, 115, y);
-  doc.text(`Retención IVA: Bs. ${fmtBs(r.deuda?.retencionBs || 0)}`, 155, y);
+  doc.text(`Aseo: Bs. ${fmtBs(baseAseo)}`, 14, y);
+  doc.text(`Multas: Bs. ${fmtBs(sumMultas)}`, 60, y);
+  doc.text(`IVA: Bs. ${fmtBs(ivaBs)}`, 105, y);
+  if (retencionBs > 0) {
+    doc.text(`Retención IVA (75%): − Bs. ${fmtBs(retencionBs)}`, 145, y);
+  }
   y += 5;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(2, 132, 199);
-  doc.text(`TOTAL A PAGAR: Bs. ${fmtBs(r.totalBs || 0)}`, 196, y, { align: 'right' });
+  doc.setFontSize(8.5);
+  if (retencionBs > 0) {
+    doc.setTextColor(71, 85, 105);
+    doc.text(`TOTAL FACTURA BRUTO: Bs. ${fmtBs(totalBrutoBs)}`, 14, y);
+    doc.setTextColor(2, 132, 199);
+    doc.text(`TOTAL NETO A PAGAR: Bs. ${fmtBs(totalNetoBs)}`, 196, y, { align: 'right' });
+  } else {
+    doc.setTextColor(2, 132, 199);
+    doc.text(`TOTAL A PAGAR: Bs. ${fmtBs(totalNetoBs)}`, 196, y, { align: 'right' });
+  }
   doc.setTextColor(0, 0, 0);
   y += 6;
 
@@ -529,9 +544,18 @@ export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: num
 
   const finalY = (doc as any).lastAutoTable.finalY + 8;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(2, 132, 199);
-  doc.text(`TOTAL NETO A PAGAR: Bs. ${fmtBs(r.totalBs || 0)}`, 196, finalY, { align: 'right' });
+  if (retencionBs > 0) {
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Total Factura Fiscal (Bruto): Bs. ${fmtBs(totalBrutoBs)}   |   Retención IVA (75%): − Bs. ${fmtBs(retencionBs)}`, 14, finalY);
+    doc.setFontSize(10.5);
+    doc.setTextColor(2, 132, 199);
+    doc.text(`TOTAL NETO A PAGAR: Bs. ${fmtBs(totalNetoBs)}`, 196, finalY + 5, { align: 'right' });
+  } else {
+    doc.setFontSize(10.5);
+    doc.setTextColor(2, 132, 199);
+    doc.text(`TOTAL A PAGAR: Bs. ${fmtBs(totalNetoBs)}`, 196, finalY, { align: 'right' });
+  }
 
   const totalPages = (doc.internal as any).getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {

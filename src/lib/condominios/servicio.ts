@@ -394,7 +394,24 @@ export async function cargarCondominio(codigo: string) {
   
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(300);
   const { data: multas } = await sb.from('condominio_multas').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false });
-  return { condo, unidades, movimientos: movimientos || [], multas: multas || [] };
+
+  // Cargar historial de pagos reportados asociados a este condominio
+  const pagoIds = [...new Set((movimientos || []).map((m: any) => m.pago_id).filter(Boolean))];
+  const pagosMap = new Map<string, any>();
+  if (pagoIds.length > 0) {
+    const { data: pagosPorId } = await sb.from('pagos_reportados').select('id, identidad, monto, referencia, tipo, banco, estado, created_at, detalles, comprobante_url').in('id', pagoIds.slice(0, 200));
+    (pagosPorId || []).forEach(p => pagosMap.set(p.id, p));
+  }
+  if (condo.identidad) {
+    const { data: pagosPorRif } = await sb.from('pagos_reportados').select('id, identidad, monto, referencia, tipo, banco, estado, created_at, detalles, comprobante_url').eq('identidad', condo.identidad).order('created_at', { ascending: false }).limit(50);
+    (pagosPorRif || []).forEach(p => { if (!pagosMap.has(p.id)) pagosMap.set(p.id, p); });
+  }
+  const { data: pagosPorCod } = await sb.from('pagos_reportados').select('id, identidad, monto, referencia, tipo, banco, estado, created_at, detalles, comprobante_url').filter('detalles->condominio->>codigo', 'eq', condo.codigo).limit(50);
+  (pagosPorCod || []).forEach(p => { if (!pagosMap.has(p.id)) pagosMap.set(p.id, p); });
+
+  const pagos = Array.from(pagosMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  return { condo, unidades, movimientos: movimientos || [], multas: multas || [], pagos };
 }
 
 /** Resumen de todos los condominios (lista + panel). */

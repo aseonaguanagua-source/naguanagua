@@ -24,14 +24,51 @@ const fechaISO = (d: any) => {
 };
 const dmy = (iso: string) => { const [y, m, d] = String(iso || '').split('-'); return d ? `${d}/${m}/${y}` : iso; };
 
-export const codigosDePago = (det: any): string[] => {
+export const codigosDePago = (det: any, p?: any): string[] => {
   const s = new Set<string>();
-  (Array.isArray(det.recibos) ? det.recibos : []).forEach((ref: string) => {
-    const m = String(ref || '').toUpperCase().match(/^(?:RECIB-HIST-(.+)-M\d+|MULTA-(.+?)(?:-M\d+)?)$/);
-    if (m) s.add(m[1] || m[2]);
+  if (!det && !p) return [];
+  const d = det || {};
+
+  // 1. Campos directos de inmueble
+  if (d.cod_inmueble) s.add(String(d.cod_inmueble).trim().toUpperCase());
+  if (d.codigo_inmueble) s.add(String(d.codigo_inmueble).trim().toUpperCase());
+  if (d.inmueble) s.add(String(d.inmueble).trim().toUpperCase());
+  if (p?.inmueble) s.add(String(p.inmueble).trim().toUpperCase());
+
+  // 2. Condominios y sus líneas
+  if (d.condominio?.codigo) s.add(String(d.condominio.codigo).trim().toUpperCase());
+  if (d.condominio_codigo) s.add(String(d.condominio_codigo).trim().toUpperCase());
+  if (Array.isArray(d.condominio?.lineas)) {
+    d.condominio.lineas.forEach((l: any) => {
+      if (l?.inmueble) s.add(String(l.inmueble).trim().toUpperCase());
+    });
+  }
+
+  // 3. Array de recibos
+  (Array.isArray(d.recibos) ? d.recibos : []).forEach((ref: string) => {
+    const str = String(ref || '').toUpperCase().trim();
+    const m = str.match(/^(?:RECIB-HIST-(.+)-M\d+|MULTA-(.+?)(?:-M\d+)?|CM-(.+?)-\d{4}-\d{2}|CONDO-(.+?)-\d+)$/);
+    if (m) {
+      s.add(m[1] || m[2] || m[3] || m[4]);
+    } else if (/^[A-Z]{3,4}\d{4,8}$/.test(str)) {
+      s.add(str);
+    }
   });
-  (Array.isArray(det.deuda_previa) ? det.deuda_previa : []).forEach((d: any) => d?.inmueble && s.add(String(d.inmueble).toUpperCase()));
-  return [...s];
+
+  // 4. Recibos de caja
+  (Array.isArray(d.recibo_caja) ? d.recibo_caja : []).forEach((rc: any) => {
+    if (rc?.inmueble) s.add(String(rc.inmueble).trim().toUpperCase());
+    if (rc?.codigo_inmueble) s.add(String(rc.codigo_inmueble).trim().toUpperCase());
+    if (rc?.cod_inmueble) s.add(String(rc.cod_inmueble).trim().toUpperCase());
+  });
+
+  // 5. Deuda previa
+  (Array.isArray(d.deuda_previa) ? d.deuda_previa : []).forEach((dp: any) => {
+    if (dp?.inmueble) s.add(String(dp.inmueble).trim().toUpperCase());
+    if (dp?.codigo) s.add(String(dp.codigo).trim().toUpperCase());
+  });
+
+  return [...s].filter(Boolean);
 };
 
 /** Inmuebles (columnas de desglose) de los códigos que aparecen en los pagos. */

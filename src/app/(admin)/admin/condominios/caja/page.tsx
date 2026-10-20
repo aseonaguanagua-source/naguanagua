@@ -504,9 +504,10 @@ function Caja() {
   const agregarPago = () => {
     let montoParsed = parseLocalFloat(montoAct);
     if (!montoParsed || montoParsed <= 0) return alert('Monto inválido.');
-    if (['Transferencia', 'Deposito'].includes(metodoAct)) {
+    if (['Transferencia', 'Deposito', 'Punto de Venta'].includes(metodoAct)) {
       if (!bancoAct) return alert('Seleccione banco.');
-      if (referenciaAct.trim().length < 4) return alert('La referencia debe tener al menos 4 caracteres.');
+      const refClean = referenciaAct.trim().replace(/\D/g, '');
+      if (refClean.length !== 8) return alert('La referencia debe tener exactamente 8 dígitos numéricos.');
       if (metodoAct === 'Transferencia' && !comprobanteAct) return alert('Es obligatorio adjuntar el comprobante para Transferencia.');
     }
     // if (montoParsed > faltaPagar + 0.05) return alert('El monto supera la deuda restante.');
@@ -1662,7 +1663,7 @@ function Caja() {
                         <option value="">Seleccione banco</option>
                         {LISTA_BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
-                      <input type="text" placeholder="Referencia / Comprobante" value={referenciaAct} onChange={e => setReferenciaAct(e.target.value)} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
+                      <input type="text" placeholder="Referencia (8 dígitos)" maxLength={8} value={referenciaAct} onChange={e => setReferenciaAct(e.target.value.replace(/\D/g, '').slice(0, 8))} className="w-full rounded-lg bg-slate-800 border border-white/20 px-2 py-1.5 text-xs outline-none font-mono text-white placeholder:text-white/40" />
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <span className="text-[10px] font-semibold text-white/60 mb-0.5 block">F. Transacción (Banco)</span>

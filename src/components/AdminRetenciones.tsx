@@ -313,9 +313,14 @@ export default function AdminRetenciones() {
             <h3 className="font-bold text-slate-700 flex items-center gap-2">
               <FileText className="w-4 h-4 text-emerald-600" /> Planilla de Retención (IVA)
             </h3>
-            {selected.planilla_url && (
+            {selected.planilla_url && selected.estado !== 'Rechazado' && selected.estado !== 'rechazada' && (
               <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Planilla Adjunta
+              </span>
+            )}
+            {(selected.estado === 'Rechazado' || selected.estado === 'rechazada') && (
+              <span className="text-xs bg-red-100 text-red-800 font-bold px-2.5 py-1 rounded-full border border-red-200 flex items-center gap-1">
+                <XCircle className="w-3.5 h-3.5" /> Comprobante Rechazado
               </span>
             )}
           </div>
