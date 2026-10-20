@@ -14,7 +14,7 @@ import { desglosarPago } from '@/lib/desglosePago';
 import { FILTROS_MODULO, FiltroModulo, OR_CONDOMINIOS, infoCondominioPago, pasaFiltroModulo, rifsCondominios, useCondominiosLigero } from '@/lib/condominios/pagosCondominio';
 import { actualizarPago } from '@/lib/actualizarPago';
 import { acreditarSaldoFavor, descontarSaldoFavor } from '@/lib/saldoFavor';
-import { parseLocalFloat, formatLocalNumberInput, formatBs } from '@/lib/formatters';
+import { parseLocalFloat, formatLocalNumberInput, formatBs, getIdentidadVariantsExact } from '@/lib/formatters';
 
 /** Fecha (YYYY-MM-DD) de la transacción tal como se registró en Caja / Caja de Condominios. */
 const fechaTransaccionDe = (det: any): string => {
@@ -569,8 +569,45 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const tasaOriginal = det.tasa_bcv ? Number(det.tasa_bcv) : 0;
   const [tasaCustom, setTasaCustom] = useState<string>(tasaOriginal ? tasaOriginal.toFixed(2) : '');
   const [facturasParaConciliar, setFacturasParaConciliar] = useState<any[]>([]);
+  const [pagosVinculados, setPagosVinculados] = useState<any[]>([]);
+  const [cargandoVinculados, setCargandoVinculados] = useState(false);
+  const [conciliarTodoElGrupo, setConciliarTodoElGrupo] = useState(true);
 
   const bancosVenezuela = LISTA_BANCOS;
+
+  // Cargar pagos vinculados / transferencias adicionales del mismo grupo o factura
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        setCargandoVinculados(true);
+        const mainId = det.pago_principal_id || (pago.grupo_pago && typeof pago.grupo_pago === 'string' && pago.grupo_pago !== pago.id ? pago.grupo_pago : pago.id);
+        const orParts = [
+          `id.eq.${mainId}`,
+          `grupo_pago.eq.${mainId}`,
+          `detalles->>pago_principal_id.eq.${mainId}`
+        ];
+        if (pago.grupo_pago && typeof pago.grupo_pago === 'string') {
+          orParts.push(`grupo_pago.eq.${pago.grupo_pago}`);
+        }
+        const { data } = await supabase
+          .from('pagos_reportados')
+          .select('*')
+          .or(orParts.join(','));
+        
+        if (!cancel && data && data.length > 1) {
+          setPagosVinculados(data);
+        } else if (!cancel) {
+          setPagosVinculados([]);
+        }
+      } catch (e) {
+        console.error('Error fetching pagos vinculados:', e);
+      } finally {
+        if (!cancel) setCargandoVinculados(false);
+      }
+    })();
+    return () => { cancel = true; };
+  }, [pago.id, det.pago_principal_id, pago.grupo_pago]);
 
   // Cargar TODA la info del contribuyente desde inmuebles
   useEffect(() => {
@@ -821,6 +858,34 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       }
       await actualizarPago(pago.id, payloadAct, { soloSiEstado: pago.estado || 'Por Verificar' });
 
+      // Si conciliarTodoElGrupo está activo y hay pagos vinculados, actualizar también los demás pagos del grupo
+      if (conciliarTodoElGrupo && pagosVinculados.length > 1) {
+        const otrosPagos = pagosVinculados.filter((p: any) => p.id !== pago.id && p.estado !== estatus);
+        for (const op of otrosPagos) {
+          const opDet = parseDetalles(op.detalles);
+          const opUpdatedDet = {
+            ...opDet,
+            analista: updatedDet.analista,
+            fecha_conciliado: new Date().toISOString(),
+            observaciones: observaciones ? `${opDet.observaciones || ''} [Conciliado en grupo con ${pago.referencia || pago.id}] ${observaciones}`.trim() : opDet.observaciones,
+            tasa_bcv: tasaParaGuardar,
+            tasa_bcv_conciliacion: tasaParaGuardar,
+          };
+          if (estatus === 'Rechazado') {
+            delete (opUpdatedDet as any).factura_digital;
+            (opUpdatedDet as any).factura_digital = { emitida: false, pendiente: false, rechazada: true, rechazada_at: new Date().toISOString() };
+          }
+          const opPayload: any = {
+            estado: estatus,
+            detalles: opUpdatedDet
+          };
+          if (estatus === 'Rechazado' && op.referencia && !op.referencia.startsWith('RECH-')) {
+            opPayload.referencia = `RECH-${op.referencia}-${op.id.slice(0, 6)}`;
+          }
+          await actualizarPago(op.id, opPayload);
+        }
+      }
+
       // Auditoría: Registro de conciliación de pago
       await logAudit(
         `Pago ${estatus} en Conciliación Bancaria`,
@@ -1015,37 +1080,82 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
         
-        // ── LIMPIAR O REDUCIR DEUDA DEL INMUEBLE (RECIB-HIST-* o RECIB-DEUDA) ──
-        const histRefsConcil = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
+        // ── LIMPIAR O REDUCIR DEUDA DEL INMUEBLE (RECIB-HIST-*, dummy-hist-*, MULTA-*, RECIB-DEUDA o Facturas) ──
+        const histRefsConcil = recibos.filter((r: string) => r.startsWith('RECIB-HIST-') || r.startsWith('dummy-hist-'));
+        const multaRefsConcil = recibos.filter((r: string) => r.startsWith('MULTA-') || r.startsWith('multa-'));
         const retencionIvaPago = parseFloat(String(det.monto_retencion_iva || det.retencion_monto || det.retencion || 0)) || 0;
         const saldoUsadoPago = parseFloat(String(det.saldo_usado || det.descuentoSaldoFavor || 0)) || 0;
         const dineroTotalCubierto = montoConciliadoNum + retencionIvaPago + saldoUsadoPago;
         const esAbonoParcialConcil = !!det.es_abono || (montoConciliadoNum > 0 && det.total_seleccionado && dineroTotalCubierto < parseFloat(det.total_seleccionado) - 1.00);
-        if (recibos.includes('RECIB-DEUDA') || histRefsConcil.length > 0) {
+
+        // Recolectar códigos de inmuebles de referencias, detalles y del propio pago
+        const propertyCodesFromRefs = new Set<string>();
+        recibos.forEach((r: string) => {
+          const mHist = r.match(/(?:RECIB-HIST|dummy-hist)-([A-Z0-9_-]+)-\d+/i);
+          if (mHist && mHist[1]) propertyCodesFromRefs.add(mHist[1].toUpperCase());
+          const mMulta = r.match(/MULTA-([A-Z0-9_-]+)/i);
+          if (mMulta && mMulta[1]) propertyCodesFromRefs.add(mMulta[1].toUpperCase());
+        });
+        if (det.cod_inmueble) propertyCodesFromRefs.add(String(det.cod_inmueble).toUpperCase());
+        if (det.inmueble) propertyCodesFromRefs.add(String(det.inmueble).toUpperCase());
+        if (pago.cod_inmueble) propertyCodesFromRefs.add(String(pago.cod_inmueble).toUpperCase());
+        if (Array.isArray(det.inmuebles)) {
+          det.inmuebles.forEach((ic: any) => {
+            if (typeof ic === 'string') propertyCodesFromRefs.add(ic.toUpperCase());
+            else if (ic?.inmueble) propertyCodesFromRefs.add(String(ic.inmueble).toUpperCase());
+          });
+        }
+        if (facs && facs.length > 0) {
+          facs.forEach((f: any) => {
+            if (f.inmueble) propertyCodesFromRefs.add(String(f.inmueble).toUpperCase());
+          });
+        }
+
+        const idVariants = getIdentidadVariantsExact(pago.identidad);
+        const orFilterInms = [
+          ...idVariants.map(v => `identidad.eq.${v}`),
+          ...Array.from(propertyCodesFromRefs).map(c => `inmueble.eq.${c}`)
+        ];
+
+        if (recibos.includes('RECIB-DEUDA') || histRefsConcil.length > 0 || multaRefsConcil.length > 0 || (facs && facs.length > 0)) {
           const { data: inmList2 } = await supabase
             .from('inmuebles')
             .select('*')
-            .eq('identidad', pago.identidad);
+            .or(orFilterInms.join(','));
+
           if (inmList2 && inmList2.length > 0) {
             let dineroConcil = montoConciliadoNum;
             
             const inmsToProcess = inmList2.filter(inm => {
-              const histRefsThisInm = histRefsConcil.filter((r: string) => r.includes(`-${inm.inmueble || inm.codigo}-`));
-              return histRefsThisInm.length > 0 || recibos.includes('RECIB-DEUDA');
+              const inmCod = String(inm.inmueble || inm.codigo || '').toUpperCase();
+              const histRefsThisInm = histRefsConcil.filter((r: string) => r.toUpperCase().includes(`-${inmCod}-`));
+              const multaRefsThisInm = multaRefsConcil.filter((r: string) => r.toUpperCase().includes(`MULTA-${inmCod}`));
+              const facsThisInm = (facs || []).filter((f: any) => (f.inmueble && String(f.inmueble).toUpperCase() === inmCod));
+              return histRefsThisInm.length > 0 || multaRefsThisInm.length > 0 || facsThisInm.length > 0 || recibos.includes('RECIB-DEUDA') || propertyCodesFromRefs.has(inmCod);
             });
 
-            for (let idx = 0; idx < inmsToProcess.length; idx++) {
-              const inm = inmsToProcess[idx];
-              const isLastInm = idx === inmsToProcess.length - 1;
+            const listFinal = inmsToProcess.length > 0 ? inmsToProcess : inmList2;
 
-              const histRefsThisInm = histRefsConcil.filter((r: string) => r.includes(`-${inm.inmueble || inm.codigo}-`));
-              // Igual que Caja: si meses_deuda = 0 pero hay deuda_mmv (mes facturado por el cron), es 1 mes adeudado
+            for (let idx = 0; idx < listFinal.length; idx++) {
+              const inm = listFinal[idx];
+              const isLastInm = idx === listFinal.length - 1;
+              const inmCod = String(inm.inmueble || inm.codigo || '').toUpperCase();
+
+              const histRefsThisInm = histRefsConcil.filter((r: string) => r.toUpperCase().includes(`-${inmCod}-`));
+              const multaRefsThisInm = multaRefsConcil.filter((r: string) => r.toUpperCase().includes(`MULTA-${inmCod}`));
+              const facsThisInm = (facs || []).filter((f: any) => (f.inmueble && String(f.inmueble).toUpperCase() === inmCod));
               const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0))) || (parseFloat(String(inm.deuda_mmv || 0)) > 0 ? 1 : 0);
-              
+
+              // Multas específicas liquidadas
+              if (multaRefsThisInm.length > 0 && !esAbonoParcialConcil) {
+                await supabase.from('inmuebles').update({ multa_bs: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
+              }
+
               if (recibos.includes('RECIB-DEUDA') && !esAbonoParcialConcil) {
                 await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', inm.id);
-              } else if (!esAbonoParcialConcil && histRefsThisInm.length > 0) {
-                const nuevoMeses = Math.max(0, numMesesInm - histRefsThisInm.length);
+              } else if (!esAbonoParcialConcil && (histRefsThisInm.length > 0 || facsThisInm.length > 0)) {
+                const mesesPagados = histRefsThisInm.length > 0 ? histRefsThisInm.length : facsThisInm.length;
+                const nuevoMeses = Math.max(0, numMesesInm - mesesPagados);
                 const d = parseFloat(String(inm.deuda_mmv || 0));
                 const m = parseFloat(String(inm.multa_bs || 0));
                 const nuevaDeudaMMV = nuevoMeses === 0 ? 0 : parseFloat(((d * nuevoMeses) / (numMesesInm || 1)).toFixed(6));
@@ -1146,11 +1256,18 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             }
 
             // Si el contribuyente ya no tiene meses pendientes en ningún inmueble, marcar cualquier factura pendiente como Pagado
-            if (recibos.some((r: string) => r.startsWith('RECIB-HIST-') || r === 'RECIB-DEUDA')) {
-              const { data: allUserInms } = await supabase.from('inmuebles').select('meses_deuda, deuda_mmv').eq('identidad', pago.identidad).neq('estado', 'Eliminado');
+            if (recibos.some((r: string) => r.startsWith('RECIB-HIST-') || r.startsWith('dummy-hist-') || r === 'RECIB-DEUDA')) {
+              const { data: allUserInms } = await supabase
+                .from('inmuebles')
+                .select('meses_deuda, deuda_mmv')
+                .or(idVariants.map(v => `identidad.eq.${v}`).join(','))
+                .neq('estado', 'Eliminado');
               const hasRemainingDebt = (allUserInms || []).some((i: any) => parseInt(String(i.meses_deuda || 0)) > 0 || parseFloat(String(i.deuda_mmv || 0)) > 0.01);
               if (!hasRemainingDebt) {
-                await supabase.from('facturas').update({ estado: 'Pagado', fecha_pago: new Date().toISOString().split('T')[0] }).eq('identidad', pago.identidad).in('estado', ['Pendiente', 'Por Verificar']);
+                await supabase.from('facturas')
+                  .update({ estado: 'Pagado', fecha_pago: new Date().toISOString().split('T')[0] })
+                  .or(idVariants.map(v => `identidad.eq.${v}`).join(','))
+                  .in('estado', ['Pendiente', 'Por Verificar']);
               }
             }
           }
@@ -1318,6 +1435,89 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             <h2 className="text-xl font-bold text-slate-800 uppercase tracking-wider">Conciliacion de Pagos</h2>
           </div>
           <div className="p-6 space-y-4">
+
+            {/* MULTI-TRANSFERENCIAS VINCULADAS */}
+            {pagosVinculados.length > 1 && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 bg-indigo-600 text-white rounded text-xs font-black">🔗</span>
+                    <div>
+                      <h4 className="font-bold text-xs text-indigo-900 uppercase tracking-wide">
+                        Operación con Múltiples Transferencias ({pagosVinculados.length} pagos vinculados)
+                      </h4>
+                      <p className="text-[11px] text-indigo-700">
+                        Este pago forma parte de una liquidación dividida en varias transferencias bancarias.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-bold text-slate-500 uppercase">Total Combinado</div>
+                    <div className="text-sm font-black text-indigo-900">
+                      Bs. {formatBs(pagosVinculados.reduce((s, p) => s + (parseFloat(String(p.monto || '0')) || 0), 0))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 mb-3">
+                  {pagosVinculados.map((pv: any, pidx: number) => {
+                    const isCurrent = pv.id === pago.id;
+                    const pvMonto = parseFloat(String(pv.monto || '0')) || 0;
+                    return (
+                      <div
+                        key={pv.id || pidx}
+                        className={`flex items-center justify-between text-xs p-2 rounded-lg border transition-all ${
+                          isCurrent
+                            ? 'bg-indigo-100/90 border-indigo-300 font-bold shadow-xs'
+                            : 'bg-white border-indigo-100 hover:bg-indigo-50/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-200 text-indigo-900 font-mono font-bold">
+                            #{pidx + 1}
+                          </span>
+                          <span className="font-mono text-slate-800">{pv.referencia || 'Sin Referencia'}</span>
+                          <span className="text-slate-500 text-[11px]">({pv.banco || pv.tipo || 'Transferencia'})</span>
+                          {isCurrent && (
+                            <span className="text-[10px] bg-indigo-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">
+                              Pago en Pantalla
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                              pv.estado === 'Aprobado'
+                                ? 'bg-green-100 text-green-700'
+                                : pv.estado === 'Rechazado'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}
+                          >
+                            {pv.estado || 'Por Verificar'}
+                          </span>
+                          <span className="font-bold font-mono text-slate-900">
+                            Bs. {formatBs(pvMonto)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer bg-white/80 p-2 rounded-lg border border-indigo-200 hover:bg-white transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={conciliarTodoElGrupo}
+                    onChange={(e) => setConciliarTodoElGrupo(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-indigo-900 font-bold">
+                    Conciliar simultáneamente todas las transferencias vinculadas de este grupo
+                  </span>
+                </label>
+              </div>
+            )}
 
             {/* INFO CONTRIBUYENTE � Solo lectura - TODOS los datos */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -1837,6 +2037,14 @@ export default function ConciliacionPage() {
               {condo.grupo && <span className="px-1.5 py-0.5 rounded bg-sky-600 text-white text-[10px] font-black">Pago repartido · parte {condo.grupo.parte} de {condo.grupo.partes} · total Bs {fmt(condo.grupo.montoTotal)}</span>}
             </span>
           )}
+          {!condo && (det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago) && (
+            <span className="inline-flex items-center gap-1.5 mr-2 font-sans align-middle">
+              <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">🔗 MULTI-TRANSFERENCIA</span>
+              {det.es_pago_adicional && (
+                <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-300 text-[10px] font-bold">Transferencia Adicional</span>
+              )}
+            </span>
+          )}
           {docInfo}
         </td>
       </tr>,
@@ -1877,7 +2085,14 @@ export default function ConciliacionPage() {
             return det.cod_inmueble || pago.cod_inmueble || (condo?.lineas?.length ? condo.lineas.slice(0, 3).map(l => l.inmueble).filter(Boolean).join(', ') + (condo.lineas.length > 3 ? ` +${condo.lineas.length - 3}` : '') : condo?.codigo) || '---';
           })()}
         </td>
-        <td className="px-3 py-2 text-xs font-mono text-slate-600">{pago.referencia || '---'}</td>
+        <td className="px-3 py-2 text-xs font-mono text-slate-600">
+          <div className="flex items-center gap-1.5">
+            <span>{pago.referencia || '---'}</span>
+            {(det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago) && (
+              <span className="px-1 py-0.2 rounded bg-indigo-100 text-indigo-700 font-sans text-[9px] font-bold" title="Parte de un pago con múltiples transferencias">🔗 Multi</span>
+            )}
+          </div>
+        </td>
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtFecha(pago.created_at)}</td>
         <td className="px-3 py-2 text-xs text-slate-600">
           {pago.tipo === 'Retencion de IVA' ? (

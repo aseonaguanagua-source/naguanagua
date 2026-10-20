@@ -560,12 +560,45 @@ export default function CajaPage() {
     let user: any = null;
     const isCodeFormat = /^(AURI|URB|[A-Z]{3,})\d+/i.test(rawSearch) || /^[A-Z]+\d+$/i.test(rawSearch);
 
-    // 1. PRIORIDAD ABSOLUTA: Búsqueda exacta por Código de Inmueble (AURI..., URB...)
-    const matchedInm = (inmuebles || []).find((i: any) => {
+    // 0. PRIORIDAD: Búsqueda directa por Código de Servicio Especial (SRV-..., SERV-...)
+    const isSrvSearch = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.includes('SRV-') || rawSearch.includes('SERV-');
+    if (isSrvSearch) {
+      const { data: srvDirect } = await supabase
+        .from('servicios_especiales')
+        .select('*')
+        .ilike('referencia', `%${rawSearch.trim()}%`)
+        .order('created_at', { ascending: false });
+
+      if (srvDirect && srvDirect.length > 0) {
+        const srvPendientes = srvDirect.filter((s: any) => s.estado === 'Pendiente');
+        const srvListToUse = srvPendientes.length > 0 ? srvPendientes : srvDirect;
+        const srv = srvListToUse[0];
+        user = {
+          Identidad: srv.identidad || 'N/A',
+          Contribuyente: srv.contribuyente || 'Contribuyente',
+          Telefono: srv.telefono || 'No registrado',
+          Correo: srv.correo || 'No registrado',
+          CodCont: srv.referencia,
+          cod_cont: srv.referencia,
+          Direccion: srv.direccion_evento || 'Municipio Naguanagua',
+          Clasificacion: 'Servicio Especial',
+          Tipo: 'SERVICIO',
+          Actividad: srv.descripcion || 'Servicio Especial',
+          SaldoFavor: 0,
+          DeudaTotal: parseFloat(srv.monto || '0'),
+          Estado: srv.estado || 'Activo',
+          isServicioEspecialDirecto: true,
+          _serviciosCargados: srvListToUse
+        };
+      }
+    }
+
+    // 1. Búsqueda exacta por Código de Inmueble (AURI..., URB...)
+    const matchedInm = !user ? (inmuebles || []).find((i: any) => {
       const cod = (i.inmueble || i.Inmueble || i.cod_cont || '').trim().toUpperCase();
       const vivo = i.estado !== 'Eliminado' && i.Estado !== 'Eliminado';
       return vivo && (cod === rawSearch || cod === inputClean.toUpperCase());
-    });
+    }) : null;
 
     if (matchedInm) {
       user = {
@@ -745,14 +778,15 @@ export default function CajaPage() {
 
       // Fallback 3: buscar en tabla servicios_especiales (por código único de planilla o por cédula/RIF)
       if (!user) {
-        const isSrvPattern = /^SRV-/i.test(rawSearch) || rawSearch.toUpperCase().includes('SRV-');
+        const isSrvPattern = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.toUpperCase().includes('SRV-') || rawSearch.toUpperCase().includes('SERV-');
         let qSrv = supabase.from('servicios_especiales').select('*');
         if (isSrvPattern) {
           qSrv = qSrv.ilike('referencia', `%${rawSearch.trim()}%`);
         } else {
           const srvOrFilters = [
             `referencia.ilike.%${rawSearch.trim()}%`,
-            ...searchVariants.map(v => `identidad.eq.${v}`)
+            ...searchVariants.map(v => `identidad.eq.${v}`),
+            ...(inputClean.length >= 4 ? [`identidad.ilike.%${inputClean}%`] : [])
           ];
           qSrv = qSrv.or(srvOrFilters.join(','));
         }
