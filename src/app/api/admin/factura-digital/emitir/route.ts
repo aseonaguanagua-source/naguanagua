@@ -281,7 +281,7 @@ export async function POST(request: Request) {
         const countHistThisInm = histRecibos.filter((r: string) => r.split('-').slice(2, -1).join('-') === codInm).length;
         const totalMeses = Math.max(1, parseInt(previa?.meses_deuda || inm?.meses_deuda || countHistThisInm || '1'));
         const isUltimoMes = mesNum >= totalMeses;
-        const montoMulta = (!isUltimoMes && totalMeses > 1) ? parseFloat((montoBase * pctMulta).toFixed(2)) : 0;
+        const montoMulta = (!detPago?.recibo_caja && !isUltimoMes && totalMeses > 1) ? parseFloat((montoBase * pctMulta).toFixed(2)) : 0;
 
         const fechaPagoBase = new Date(detPago?.fecha_transaccion || pagoRow?.created_at || fechaActual);
         const dPer = new Date(Date.UTC(fechaPagoBase.getUTCFullYear(), fechaPagoBase.getUTCMonth() - totalMeses + mesNum - 1, 1));
@@ -617,13 +617,14 @@ export async function POST(request: Request) {
     const r2 = (n: number) => Math.round(n * 100) / 100;
 
     // Desglose exacto de recibos emitidos en caja si existen
-    let rcSubTotal = 0, rcIva = 0, rcTotal = 0, periodoRecibo = '';
+    let rcSubTotal = 0, rcIva = 0, rcExento = 0, rcTotal = 0, periodoRecibo = '';
     if (detPago.recibo_caja) {
       try {
         const rc = typeof detPago.recibo_caja === 'string' ? JSON.parse(detPago.recibo_caja) : detPago.recibo_caja;
         if (Array.isArray(rc) && rc.length > 0) {
           rcSubTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.subTotal || 0)) || 0), 0));
           rcIva = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.iva || 0)) || 0), 0));
+          rcExento = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0));
           rcTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0));
           periodoRecibo = rc[0]?.periodo || '';
         }
@@ -661,11 +662,17 @@ export async function POST(request: Request) {
         const gravadoConIva = r2(Math.max(0, explicitTotal - explicitMulta));
         baseGravada = r2(gravadoConIva / 1.16);
         ivaGravado = r2(gravadoConIva - baseGravada);
+      } else if (rcTotal > 0 && rcExento > 0) {
+        // En recibo_caja con exento (multa), la base gravada se calcula sobre la porción no exenta
+        const gravadoConIva = r2(Math.max(0, rcTotal - rcExento));
+        baseGravada = r2(gravadoConIva / 1.16);
+        ivaGravado = r2(gravadoConIva - baseGravada);
       } else if (rcTotal > 0 && itemsExentos.length === 0) {
         baseGravada = r2(rcTotal / 1.16);
         ivaGravado = r2(rcTotal - baseGravada);
       } else if (rcSubTotal > 0) {
-        baseGravada = rcSubTotal;
+        const baseReal = rcExento > 0 ? r2(rcSubTotal - rcExento) : rcSubTotal;
+        baseGravada = baseReal;
         ivaGravado = r2(baseGravada * 0.16);
       } else {
         baseGravada = r2(itemsGravados.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
@@ -699,10 +706,12 @@ export async function POST(request: Request) {
       });
     }
 
-    if (itemsExentos.length > 0 || explicitMulta > 0) {
+    if (itemsExentos.length > 0 || explicitMulta > 0 || rcExento > 0) {
       let baseExenta = 0;
       if (explicitMulta > 0) {
         baseExenta = r2(explicitMulta);
+      } else if (rcExento > 0) {
+        baseExenta = rcExento;
       } else {
         baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
       }
@@ -858,11 +867,28 @@ export async function POST(request: Request) {
       }
     }
 
-    // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
-    const comRef: any = activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
+    // Detección precisa del inmueble facturado para contribuyentes con múltiples sedes/inmuebles (ej. Banco Activo)
+    const condoRecibo = (recibos || []).find((r: string) => /^CONDO-/i.test(String(r)));
+    const condoCode = condoRecibo ? condoRecibo.split('-')[1] : null;
+    const codRc = detPago.recibo_caja?.[0]?.codContribuyente || detPago.recibo_caja?.[0]?.inmueble || null;
     const codHist = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
+
+    const matchedPropEspecifico = (activeProps || []).find((p: any) => 
+      (codHist && p.inmueble === codHist) ||
+      (codRc && p.inmueble === codRc) ||
+      (detPago.cod_inmueble && p.inmueble === detPago.cod_inmueble) ||
+      (condoCode && (p.condominio_padre_id === condoCode || p.padre_id === condoCode))
+    ) || (userProps || []).find((p: any) =>
+      (codHist && p.inmueble === codHist) ||
+      (codRc && p.inmueble === codRc) ||
+      (detPago.cod_inmueble && p.inmueble === detPago.cod_inmueble) ||
+      (condoCode && (p.condominio_padre_id === condoCode || p.padre_id === condoCode))
+    );
+
+    // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
+    const comRef: any = matchedPropEspecifico || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
     const lineaCom = lineasCondo?.find((l: any) => !l.residencial);
-    const codigoContribuyente = lineasCondo ? (lineaCom?.inmueble || condoDet?.codigo || '') : (codHist || comRef?.inmueble || '');
+    const codigoContribuyente = lineasCondo ? (lineaCom?.inmueble || condoDet?.codigo || '') : (matchedPropEspecifico?.inmueble || codHist || comRef?.inmueble || '');
     // N° de Licencia de Actividades Económicas: el NÚMERO registrado en el inmueble (nunca el nombre de la actividad).
     // Si el sistema no lo tiene, el campo no se envía.
     let licenciaAE = '';
@@ -987,12 +1013,9 @@ export async function POST(request: Request) {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             Direccion:            (() => {
-              const matchedProp = (userProps || []).find((p: any) => 
-                (detPago.cod_inmueble && p.inmueble === detPago.cod_inmueble) ||
-                (codigoContribuyente && p.inmueble === codigoContribuyente) ||
-                (detPago.recibo_caja?.[0]?.inmueble && p.inmueble === detPago.recibo_caja[0].inmueble)
-              );
-              return String(detPago?.recibo_caja?.[0]?.domicilioFiscal || matchedProp?.direccion || propRef?.direccion || "NAGUANAGUA").trim().slice(0, 100);
+              const dirEspecifica = matchedPropEspecifico?.direccion;
+              const dirRecibo = detPago?.recibo_caja?.[0]?.domicilioFiscal;
+              return String(dirEspecifica || dirRecibo || propRef?.direccion || "NAGUANAGUA").trim().slice(0, 100);
             })(),
             Pais:                 "VE",
             Notificar:            null,

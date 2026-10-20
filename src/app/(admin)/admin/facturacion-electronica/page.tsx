@@ -638,9 +638,19 @@ export default function FacturacionElectronicaPage() {
     ref = Math.round(ref * 100) / 100;
     setTotalReferencia(ref);
     const montoTotal = totalOverride && totalOverride > 0 ? totalOverride : ref;
-    const baseEstimada = (montoTotal / 1.16).toFixed(2);
+    let exentoRecibo = 0;
+    if (pago.detalles?.recibo_caja) {
+      try {
+        const rc = typeof pago.detalles.recibo_caja === 'string' ? JSON.parse(pago.detalles.recibo_caja) : pago.detalles.recibo_caja;
+        if (Array.isArray(rc)) {
+          exentoRecibo = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0);
+        }
+      } catch (_) {}
+    }
+    const montoGravado = Math.max(0, montoTotal - exentoRecibo);
+    const baseEstimada = (montoGravado / 1.16).toFixed(2);
     setAjusteMontoServicio(baseEstimada);
-    setAjusteMontoMulta('0.00');
+    setAjusteMontoMulta(exentoRecibo > 0 ? exentoRecibo.toFixed(2) : '0.00');
     if (!totalOverride) setMotivoAjuste('');
     setTotalForzado(totalOverride && totalOverride > 0 ? totalOverride : null);
 
