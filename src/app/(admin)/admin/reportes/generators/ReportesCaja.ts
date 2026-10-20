@@ -119,6 +119,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       : null;
 
     if (pagsAgregados && pagsAgregados.length > 1) {
+      const totalBase = pagsAgregados.reduce((acc: number, x: any) => acc + (Number(x.monto) || 0), 0) || Number(p.monto) || 1;
       pagsAgregados.forEach((pa: any) => {
         const fPagoSub = String(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fechaVE(p.created_at)).slice(0, 10);
         const keySub = fPagoSub.slice(0, 7);
@@ -134,7 +135,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           det,
           fPago: fPagoSub,
           esSubPago: true,
-          montoTotalReportado: Number(p.monto) || 1,
+          montoTotalReportado: totalBase,
         });
       });
     } else {
