@@ -66,7 +66,9 @@ export default function AdminRetenciones() {
       for (const item of arr) {
         if (!item.factura_url || !item.factura_control) {
           const matchPago = pagos.find((p: any) => {
-            if (p.identidad !== item.identidad) return false;
+            const id1 = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            const id2 = String(item.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            if (!id1 || id1 !== id2) return false;
             const det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles;
             return det?.factura_digital?.emitida && det?.factura_digital?.url;
           });

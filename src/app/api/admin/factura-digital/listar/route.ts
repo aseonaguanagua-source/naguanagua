@@ -132,6 +132,9 @@ export async function GET(request: Request) {
       if (ctrl) controlesFacturas.push(ctrl);
     });
 
+    // Normalizador de identidades (sin guiones ni símbolos)
+    const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
     const retencionesIvaMap = new Map<string, any>();
     const retencionesPorControlMap = new Map<string, any>();
 
@@ -148,15 +151,21 @@ export async function GET(request: Request) {
         const { data: rets } = await q;
         (rets || []).forEach(r => {
           retencionesIvaMap.set(r.id, r);
-          if (r.factura_control) retencionesPorControlMap.set(r.factura_control, r);
+          if (r.factura_control) {
+            const ctrl = String(r.factura_control).trim();
+            const idKey = normId(r.identidad);
+            if (idKey) {
+              retencionesPorControlMap.set(`${ctrl}_${idKey}`, r);
+            }
+            if (!retencionesPorControlMap.has(ctrl)) {
+              retencionesPorControlMap.set(ctrl, r);
+            }
+          }
         });
       } catch (err) {
         console.warn('Error cargando retenciones_iva en listar:', err);
       }
     }
-
-    // Normalizador de identidades (sin guiones ni símbolos)
-    const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
     // Helper para detectar si un texto es un RIF o marcador genérico en vez del nombre real
     const esPlaceholderNombre = (name: any) => {
@@ -406,7 +415,22 @@ export async function GET(request: Request) {
       const docFinal = tieneRetencion ? 'factura' : clasif.documento;
 
       // Agente de retención: la factura se envía solo al aprobar su comprobante
-      const retRow = (fd?.retencion?.retencion_id ? retencionesIvaMap.get(fd.retencion.retencion_id) : null) || (fd?.numero_control ? retencionesPorControlMap.get(fd.numero_control) : null);
+      const pNormId = normId(pago.identidad);
+      let retRow = fd?.retencion?.retencion_id ? retencionesIvaMap.get(fd.retencion.retencion_id) : null;
+      // Descartar retRow por ID si no pertenece al mismo contribuyente (evitar IDs cruzados)
+      if (retRow && pNormId && normId(retRow.identidad) !== pNormId) {
+        retRow = null;
+      }
+      if (!retRow && fd?.numero_control) {
+        const ctrl = String(fd.numero_control).trim();
+        retRow = retencionesPorControlMap.get(`${ctrl}_${pNormId}`);
+        if (!retRow) {
+          const cand = retencionesPorControlMap.get(ctrl);
+          if (cand && (!cand.identidad || normId(cand.identidad) === pNormId)) {
+            retRow = cand;
+          }
+        }
+      }
       const stRet = fd?.retencion?.estado || (retRow ? (retRow.estado === 'Pendiente' ? 'planilla_recibida' : String(retRow.estado).toLowerCase()) : null);
 
       return {

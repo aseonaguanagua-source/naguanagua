@@ -67,6 +67,8 @@ export async function POST(request: Request) {
     // 2. Resolver la fila en retenciones_iva si existe
     let ret: any = null;
     let actualRetId = retencionId || retObj.retencion_id || null;
+    const norm = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const pNorm = norm(pago?.identidad);
 
     if (actualRetId) {
       const { data: rData } = await supabase
@@ -74,18 +76,26 @@ export async function POST(request: Request) {
         .select('*')
         .eq('id', actualRetId)
         .maybeSingle();
-      ret = rData;
+      if (rData) {
+        // Solo aceptar si pertenece al mismo contribuyente o no hay pago vinculado
+        if (!pago || !pNorm || !rData.identidad || norm(rData.identidad) === pNorm) {
+          ret = rData;
+        } else {
+          console.warn(`[retenciones/revisar] Descartando retencion_id ${actualRetId} (pertenece a ${rData.identidad}, no a ${pago?.identidad})`);
+          actualRetId = null;
+        }
+      }
     }
 
     if (!ret && fd.numero_control) {
-      const { data: rData } = await supabase
+      const { data: rList } = await supabase
         .from('retenciones_iva')
         .select('*')
-        .eq('factura_control', fd.numero_control)
-        .maybeSingle();
-      if (rData) {
-        ret = rData;
-        actualRetId = rData.id;
+        .eq('factura_control', fd.numero_control);
+      const rMatch = (rList || []).find((r: any) => !pNorm || !r.identidad || norm(r.identidad) === pNorm);
+      if (rMatch) {
+        ret = rMatch;
+        actualRetId = rMatch.id;
       }
     }
 

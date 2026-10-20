@@ -220,15 +220,17 @@ export async function pagoDeRetencion(retencionId: string): Promise<any | null> 
   // Buscar por número de control de factura si está presente
   if (retRow.factura_control) {
     const ctrlClean = retRow.factura_control.trim();
+    const idLimpio = (retRow.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const { data: byCtrl } = await supabase
       .from('pagos_reportados')
       .select('id, identidad, monto, detalles')
       .or(`detalles.ilike.%${ctrlClean}%`)
-      .limit(5);
+      .limit(10);
     const foundCtrl = (byCtrl || []).find((p: any) => {
       const d = parseDet(p.detalles);
-      return d.factura_digital?.numero_control === ctrlClean;
-    }) || byCtrl?.[0];
+      const pId = (p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      return d.factura_digital?.numero_control === ctrlClean && (!idLimpio || pId === idLimpio);
+    });
     if (foundCtrl) return foundCtrl;
   }
 
