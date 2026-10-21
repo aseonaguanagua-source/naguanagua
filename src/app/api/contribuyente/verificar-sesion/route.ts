@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { getIdentidadVariantsExact } from "@/lib/formatters";
 
 export async function GET(request: Request) {
@@ -11,28 +11,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ bloqueado: false });
     }
 
-    const variantes = getIdentidadVariantsExact(doc.trim());
-    const isCondoCode = /^(URB|AURI)\d+/i.test(doc.trim());
+    const cleanDoc = doc.trim();
+    const variantes = getIdentidadVariantsExact(cleanDoc);
+    const rawNum = cleanDoc.replace(/\D/g, '');
 
-    // 1. Verificar en tabla condominios
+    // 1. Verificar en tabla condominios (por código de condominio o por RIF/identidad)
+    const condoOrFilters = [
+      ...variantes.map(v => `identidad.eq.${v}`),
+      `codigo.eq.${cleanDoc.toUpperCase()}`
+    ];
+    if (rawNum.length >= 6) {
+      condoOrFilters.push(`identidad.ilike.%${rawNum}%`);
+    }
+
     const { data: condoMatches } = await supabase
       .from('condominios')
       .select('id, codigo, nombre')
-      .or(variantes.map(v => `identidad.eq.${v}`).join(','))
+      .or(condoOrFilters.join(','))
       .limit(1);
 
-    let condoByCode = null;
-    if (isCondoCode) {
-      const { data: cbc } = await supabase
-        .from('condominios')
-        .select('id, codigo, nombre')
-        .eq('codigo', doc.trim().toUpperCase())
-        .maybeSingle();
-      condoByCode = cbc;
-    }
-
-    if ((condoMatches && condoMatches.length > 0) || condoByCode) {
-      const cNom = condoMatches?.[0]?.nombre || condoByCode?.nombre || 'su condominio';
+    if (condoMatches && condoMatches.length > 0) {
+      const cNom = condoMatches[0]?.nombre || 'su condominio';
       return NextResponse.json({
         bloqueado: true,
         esCondominio: true,
@@ -40,15 +39,15 @@ export async function GET(request: Request) {
       });
     }
 
-    // 2. Verificar si todos sus inmuebles corresponden a régimen matriz de condominio
+    // 2. Verificar si alguno de sus inmuebles corresponde a régimen matriz de condominio
     const { data: inmsCondoCheck } = await supabase
       .from('inmuebles')
       .select('es_condominio, clasificacion, inmueble, contribuyente')
       .or(variantes.map(v => `identidad.eq.${v}`).join(','))
       .limit(10);
 
-    if (inmsCondoCheck && inmsCondoCheck.length > 0 && inmsCondoCheck.every((i: any) => i.es_condominio === true || String(i.clasificacion || '').toLowerCase() === 'condominio')) {
-      const cNom = inmsCondoCheck[0]?.contribuyente || 'su condominio';
+    if (inmsCondoCheck && inmsCondoCheck.length > 0 && inmsCondoCheck.some((i: any) => i.es_condominio === true || String(i.clasificacion || '').toLowerCase() === 'condominio')) {
+      const cNom = inmsCondoCheck.find((i: any) => i.es_condominio === true)?.contribuyente || inmsCondoCheck[0]?.contribuyente || 'su condominio';
       return NextResponse.json({
         bloqueado: true,
         esCondominio: true,
