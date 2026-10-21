@@ -410,9 +410,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       estado: 'Aprobado',
-      facturaEnviada: !!correo && !errorEnvio,
-      correo,
-      error: !correo ? 'El contribuyente no tiene correo registrado: la factura quedó en el archivo fiscal interno.' : errorEnvio
+      facturaEnviada: !!finalCorreo && !errorEnvio && (envio ? envio.clienteEnviado : true),
+      correo: finalCorreo,
+      error: !finalCorreo ? 'El contribuyente no tiene correo registrado: la factura quedó en el archivo fiscal interno.' : (errorEnvio || envio?.error)
     });
 
   } catch (e: any) {

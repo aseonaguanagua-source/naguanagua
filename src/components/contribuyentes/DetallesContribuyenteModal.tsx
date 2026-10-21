@@ -147,6 +147,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   const [facturasDb, setFacturasDb] = useState<any[]>([]);
   const [pagosDb, setPagosDb] = useState<any[]>([]);
   const [serviciosEspDb, setServiciosEspDb] = useState<any[]>([]);
+  const [conveniosDb, setConveniosDb] = useState<any[]>([]);
   const [selectedInmSolvencia, setSelectedInmSolvencia] = useState('');
   const [expandedNAs, setExpandedNAs] = useState<Record<string, boolean>>({});
   const [selectedInmCode, setSelectedInmCode] = useState<string | null>(null);
@@ -363,7 +364,38 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       }
     };
 
-    Promise.all([fetchInmuebles(), fetchFacturas(), fetchPagos(), fetchServicios(), fetchNotas(), fetchPagosPendientes()])
+    const fetchConvenios = async () => {
+      try {
+        const idClean = ident.replace(/\D/g, '');
+        let allConv: any[] = [];
+        if (idVariants.length > 0) {
+          const { data } = await supabase
+            .from('convenios_pago')
+            .select('*, convenios_cuotas(*)')
+            .or(idVariants.map(v => `identidad.eq.${v}`).join(','));
+          if (data && data.length > 0) allConv = data;
+        }
+
+        if (allConv.length === 0) {
+          const orFilters = [
+            ...(idClean.length >= 4 ? [`identidad.ilike.%${idClean}%`] : []),
+            ...codes.map(c => `numero.ilike.%${c.replace(/\D/g, '')}%`)
+          ];
+          if (orFilters.length > 0) {
+            const { data: convFallback } = await supabase
+              .from('convenios_pago')
+              .select('*, convenios_cuotas(*)')
+              .or(orFilters.join(','));
+            if (convFallback && convFallback.length > 0) allConv = convFallback;
+          }
+        }
+        if (isMounted) setConveniosDb(allConv);
+      } catch (err) {
+        console.error('Error cargando convenios en modal:', err);
+      }
+    };
+
+    Promise.all([fetchInmuebles(), fetchFacturas(), fetchPagos(), fetchServicios(), fetchConvenios(), fetchNotas(), fetchPagosPendientes()])
       .finally(() => {
         if (isMounted) setLoading(false);
       });
@@ -927,7 +959,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             { id: 'inmuebles', label: `Inmuebles (${unifiedInmuebles.length}${userInms.length > unifiedInmuebles.length ? ` · ${userInms.length} act.` : ''})`, icon: Building2 },
             { id: 'deuda', label: `Estado de Cuenta (${facturasDb.length} recibos)`, icon: DollarSign },
             { id: 'pagos', label: `Historial de Pagos (${pagosDb.length})`, icon: Receipt },
-            { id: 'servicios', label: `Servicios y Convenios (${serviciosEspDb.length})`, icon: FileText },
+            { id: 'servicios', label: `Servicios y Convenios (${serviciosEspDb.length + (conveniosDb.length > 0 ? conveniosDb.length : (conveniosGlobal || []).filter(c => { const cIdClean = (c.identidad || '').replace(/\D/g, ''); const vIdClean = (viewData?.Identidad || '').replace(/\D/g, ''); return vIdClean.length >= 4 && cIdClean === vIdClean; }).length)})`, icon: FileText },
             { id: 'notas', label: `Notas de Crédito (${notasDb.length})`, icon: CreditCard },
           ].map(tab => {
             const Icon = tab.icon;
@@ -1960,11 +1992,13 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                     (viewData.CodCont || viewData.inmueble || '').toUpperCase(),
                     ...((viewData.inmuebles || []).map((i: any) => (i.inmueble || '').toUpperCase()))
                   ]);
-                  const userConvenios = conveniosGlobal.filter(c => {
+                  const convSource = conveniosDb.length > 0 ? conveniosDb : (conveniosGlobal || []);
+                  const userConvenios = convSource.filter((c: any) => {
                     const cIdClean = (c.identidad || '').replace(/\D/g, '');
-                    const idMatch = vIdClean.length >= 4 && cIdClean === vIdClean;
+                    const idMatch = vIdClean.length >= 4 && (cIdClean === vIdClean || cIdClean.includes(vIdClean) || vIdClean.includes(cIdClean));
                     const inmMatch = c.inmueble && vInmCodes.has(String(c.inmueble).toUpperCase());
-                    return idMatch || inmMatch;
+                    const numMatch = Array.from(vInmCodes).some((code: string) => code && (c.numero || '').toUpperCase().includes(code.replace(/\D/g, '')));
+                    return idMatch || inmMatch || numMatch;
                   });
                   if (userConvenios.length === 0) {
                     return (
@@ -1975,19 +2009,84 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                   }
 
                   return (
-                    <div className="space-y-3">
-                      {userConvenios.map((conv, idx) => (
-                        <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-2 text-xs">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                            <span className="font-bold text-slate-800">Convenio N° {conv.numero || idx + 1}</span>
-                            <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded font-bold text-[10px]">{conv.estado}</span>
+                    <div className="space-y-4">
+                      {userConvenios.map((conv: any, idx: number) => {
+                        let cuotasList: any[] = [];
+                        if (Array.isArray(conv.convenios_cuotas) && conv.convenios_cuotas.length > 0) {
+                          cuotasList = conv.convenios_cuotas;
+                        } else if (conv.detalle_cuotas) {
+                          try {
+                            cuotasList = typeof conv.detalle_cuotas === 'string' ? JSON.parse(conv.detalle_cuotas) : conv.detalle_cuotas;
+                          } catch (_) {}
+                        }
+
+                        return (
+                          <div key={conv.id || idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 text-xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-slate-800 text-sm">{conv.numero || `Convenio N° ${idx + 1}`}</span>
+                                <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full font-bold text-[10px]">{conv.estado || 'Activo'}</span>
+                              </div>
+                              <span className="text-[11px] text-slate-500 font-medium">
+                                Creado: {conv.created_at ? String(conv.created_at).slice(0, 10) : 'N/A'}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                              <div>
+                                <span className="text-[11px] text-slate-500 block">Monto Total Financiado</span>
+                                <span className="font-black text-slate-900 text-sm">Bs. {formatBs(conv.monto_total)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[11px] text-slate-500 block">Cuotas Pactadas</span>
+                                <span className="font-bold text-slate-800">{conv.cuotas || cuotasList.length} cuotas</span>
+                              </div>
+                              <div>
+                                <span className="text-[11px] text-slate-500 block">Cuota Inicial</span>
+                                <span className="font-bold text-slate-800">Bs. {formatBs(conv.inicial || 0)}</span>
+                              </div>
+                            </div>
+
+                            {cuotasList && cuotasList.length > 0 && (
+                              <div className="mt-2">
+                                <h4 className="font-bold text-slate-700 text-[11px] mb-1.5 uppercase tracking-wider">Cronograma de Cuotas</h4>
+                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                  <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 text-[10px] uppercase font-bold">
+                                      <tr>
+                                        <th className="px-3 py-2">N°</th>
+                                        <th className="px-3 py-2">Fecha Vencimiento</th>
+                                        <th className="px-3 py-2 text-right">Monto (Bs)</th>
+                                        <th className="px-3 py-2 text-center">Estado</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {cuotasList.map((cuota: any, cIdx: number) => {
+                                        const cEstado = cuota.estado || (cuota.pagado ? 'Pagada' : 'Pendiente');
+                                        const isPagada = cEstado.toLowerCase().includes('pag');
+                                        return (
+                                          <tr key={cuota.id || cIdx} className="hover:bg-slate-50">
+                                            <td className="px-3 py-2 font-bold text-slate-700">Cuota {cIdx + 1}</td>
+                                            <td className="px-3 py-2 text-slate-600">{cuota.fecha ? String(cuota.fecha).slice(0, 10) : 'N/A'}</td>
+                                            <td className="px-3 py-2 text-right font-black text-slate-900">Bs. {formatBs(cuota.monto)}</td>
+                                            <td className="px-3 py-2 text-center">
+                                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                isPagada ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                              }`}>
+                                                {cEstado}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex justify-between text-slate-600">
-                            <span>Monto Total Financiado:</span>
-                            <span className="font-bold text-slate-900">Bs. {formatBs(conv.monto_total)}</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })()}

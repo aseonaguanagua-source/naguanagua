@@ -758,6 +758,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return c;
         }));
       }
+
+      // Refrescar convenios de este contribuyente
+      const { data: freshConvs } = await supabase
+        .from('convenios_pago')
+        .select('*, convenios_cuotas(*)')
+        .or(`identidad.eq.${identidad},identidad.eq.${idClean}`);
+
+      if (freshConvs) {
+        setConvenios(prev => {
+          const next = [
+            ...prev.filter(c => (c.identidad || '').replace(/-/g, '').toUpperCase() !== idClean),
+            ...freshConvs.map((c: any) => ({
+              ...c,
+              monto_total: typeof c.monto_total === 'number' ? `${c.monto_total.toFixed(2)} Bs` : (c.monto_total || '0.00 Bs'),
+              inicio: c.convenios_cuotas?.[0]?.fecha || (c.created_at ? c.created_at.slice(0, 10) : ''),
+              detalle_cuotas: JSON.stringify(c.convenios_cuotas || [])
+            }))
+          ];
+          try {
+            getFromIndexedDB<any>('naguanagua_full_cache').then(cached => {
+              if (cached) {
+                cached.convenios = next;
+                saveToIndexedDB('naguanagua_full_cache', cached).catch(() => {});
+              }
+            }).catch(() => {});
+          } catch (_) {}
+          return next;
+        });
+      }
     } catch (error) {
       console.error('Error en refreshUserData:', error);
     }

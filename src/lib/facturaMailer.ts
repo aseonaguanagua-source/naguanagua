@@ -181,14 +181,12 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
 
   const fromEmail = process.env.RESEND_FROM || DEFAULT_RESEND_FROM;
 
-  // PDF oficial de TFHKA, adjunto (el contribuyente NO recibe enlace al visor web)
-  const pdf = params.numeroDocumento ? await TheFactoryHKA.descargarPdf(params.numeroDocumento) : null;
+  // PDF oficial de TFHKA, adjunto (el contribuyente recibe su factura en PDF adjunto)
+  const pdf = await TheFactoryHKA.descargarPdf(params.numeroDocumento || '', '', '01', params.numeroControl);
   const attachments = pdf ? [{ filename: `Factura_${params.numeroControl}.pdf`, content: pdf }] : undefined;
 
   // 1. Envío al contribuyente (si no tiene correo real, solo se envía la copia institucional del paso 2)
-  if (!esComodin && !pdf) {
-    lastError = 'No se pudo descargar el PDF de la factura desde The Factory HKA; no se envió al contribuyente.';
-  } else if (!esComodin) try {
+  if (!esComodin) try {
     const htmlCliente = buildFacturaEmailTemplate({
       contribuyente: params.contribuyente,
       identidad: params.identidad,
@@ -196,10 +194,10 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
       numeroDocumento: numDoc,
       monto: params.monto,
       fecha: fechaStr,
-      urlPdf: '',
+      urlPdf: params.urlPdf || '',
       esCopiaInterna: false,
       esCorreoComodin: esComodin,
-      pdfAdjunto: true,
+      pdfAdjunto: !!pdf,
     });
 
     const resCliente = await resend.emails.send({

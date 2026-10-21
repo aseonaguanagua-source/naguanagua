@@ -202,20 +202,42 @@ export class TheFactoryHKA {
 
   /**
    * Descarga el PDF oficial de un documento emitido (api/DescargaArchivo).
-   * Se adjunta al correo para que el contribuyente reciba SOLO su factura,
-   * sin enlace al visor web de TFHKA.
+   * En The Factory HKA Venezuela, DescargaArchivo requiere el Número de Control (ej: '00-00000188' -> '0000000188').
+   * Se prueban tanto el número de control formateado como el número de documento para máxima compatibilidad.
    */
-  static async descargarPdf(numeroDocumento: string | number, serie: string = '', tipoDocumento: string = '01'): Promise<Buffer | null> {
+  static async descargarPdf(numeroDocumento: string | number, serie: string = '', tipoDocumento: string = '01', numeroControl?: string): Promise<Buffer | null> {
     try {
       const token = await this.getToken();
-      const response = await fetch(`${this.getBaseUrl()}/api/DescargaArchivo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ serie, tipoDocumento, numeroDocumento: String(numeroDocumento), tipoArchivo: 'PDF' }),
-      });
-      const data: any = await response.json().catch(() => ({}));
-      if (!data?.archivo) return null;
-      return Buffer.from(data.archivo, 'base64');
+      const candidates: string[] = [];
+
+      if (numeroControl) {
+        const cleanCtrl = String(numeroControl).replace(/-/g, '').trim();
+        if (cleanCtrl) candidates.push(cleanCtrl.padStart(10, '0'));
+      }
+
+      const strDoc = String(numeroDocumento || '').trim();
+      if (strDoc) {
+        const cleanDoc = strDoc.replace(/-/g, '').trim();
+        if (/^\d+$/.test(cleanDoc) && cleanDoc.length <= 10) {
+          candidates.push(cleanDoc.padStart(10, '0'));
+        }
+        candidates.push(strDoc);
+      }
+
+      for (const cand of Array.from(new Set(candidates))) {
+        try {
+          const response = await fetch(`${this.getBaseUrl()}/api/DescargaArchivo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ serie, tipoDocumento, numeroDocumento: cand, tipoArchivo: 'PDF' }),
+          });
+          const data: any = await response.json().catch(() => ({}));
+          if (data?.archivo) {
+            return Buffer.from(data.archivo, 'base64');
+          }
+        } catch (_) {}
+      }
+      return null;
     } catch {
       return null;
     }
