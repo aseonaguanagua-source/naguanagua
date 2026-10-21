@@ -156,6 +156,7 @@ export default function CajaPage() {
   const [loadingNotas, setLoadingNotas] = useState(false);
   const [notaTab, setNotaTab] = useState<'lista' | 'crear'>('lista');
   const [isPagoMultiple, setIsPagoMultiple] = useState(false);
+  const [abonoPrevioAprobado, setAbonoPrevioAprobado] = useState<number>(0);
 
   // Modal de Confirmación de Pago
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -553,6 +554,7 @@ export default function CajaPage() {
     setPagosPendientes([]);
     setPagosPorConciliar([]);
     setMontoPorConciliar(0);
+    setAbonoPrevioAprobado(0);
     setNotificacionConciliacion(null);
     setTotalBs(0);
 
@@ -1015,12 +1017,23 @@ export default function CajaPage() {
       // Guardar inmuebles frescos para que getReciboMonto los use
       setFreshInmuebles(activeInmFresh);
       
+      // Inmuebles con saldo_favor_bs cuando tienen meses_deuda representan abonos previos ya aprobados en Conciliación
+      const abonoPrevioInmuebles = isCodeFormat && searchedInm
+        ? (parseInt(String(searchedInm.meses_deuda || '0')) > 0 ? (parseFloat(searchedInm.saldo_favor_bs || '0') || 0) : 0)
+        : activeInmFresh.reduce(
+            (sum: number, i: any) => {
+              const mesesDeuda = parseInt(String(i.meses_deuda || '0'));
+              if (mesesDeuda > 0) return sum + (parseFloat(i.saldo_favor_bs || '0') || 0);
+              return sum;
+            }, 0
+          );
+
       const saldoFavorFresh = isCodeFormat && searchedInm
         ? (parseInt(String(searchedInm.meses_deuda || '0')) > 0 ? 0 : (parseFloat(searchedInm.saldo_favor_bs || '0') || 0))
         : activeInmFresh.reduce(
             (sum: number, i: any) => {
               const mesesDeuda = parseInt(String(i.meses_deuda || '0'));
-              // Si tiene meses_deuda, el saldo a favor (abono parcial) se descuenta visualmente de M1
+              // Si tiene meses_deuda, el saldo a favor es un abono previo que reduce la deuda
               if (mesesDeuda > 0) return sum;
               return sum + (parseFloat(i.saldo_favor_bs || '0') || 0);
             }, 0
@@ -1051,6 +1064,7 @@ export default function CajaPage() {
 
           const currentBcvRate = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : tcmmv;
           const meses = Math.max(0, parseInt(i.meses_deuda || '0'));
+          let subtotalInm = 0;
           let jNotas: any = null;
           try { if (i.notas) jNotas = typeof i.notas === 'string' ? JSON.parse(i.notas) : i.notas; } catch {}
           if (jNotas?.periodos_custom && Object.keys(jNotas.periodos_custom).length > 0) {
@@ -1066,22 +1080,24 @@ export default function CajaPage() {
               const multa = cfg.lleva_multa && !esUltimo ? Math.round((base * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
               s += base + iva + multa;
             });
-            return sum + s;
-          }
-          if (meses > 0) {
+            subtotalInm = s;
+          } else if (meses > 0) {
             const esRes = isResidencialInm(i);
             const baseMes = Math.round(calcularMensualidad(i, currentBcvRate) * 100) / 100;
             const ivaMes = esRes ? 0 : Math.round((baseMes * 0.16) * 100) / 100;
             const moraTasa = esRes ? 0.10 : 0.12;
             const multaMes = Math.round((baseMes * moraTasa) * 100) / 100;
             const mesesConMulta = Math.max(0, meses - 1);
-            return sum + ((baseMes + ivaMes) * meses) + (multaMes * mesesConMulta);
+            subtotalInm = ((baseMes + ivaMes) * meses) + (multaMes * mesesConMulta);
+          } else {
+            subtotalInm = (parseFloat(i.deuda_mmv || '0') * currentBcvRate) + parseFloat(i.deuda_congelada_bs || '0');
           }
-          return sum + (parseFloat(i.deuda_mmv || '0') * currentBcvRate) + parseFloat(i.deuda_congelada_bs || '0');
+          const abonoInm = parseFloat(i.saldo_favor_bs || '0') || 0;
+          return sum + Math.max(0, subtotalInm - abonoInm);
         }, 0
       );
       
-      setFoundUser({ ...user, SaldoFavor: saldoFavorFresh, DeudaTotal: deudaTotalFresh });
+      setFoundUser({ ...user, SaldoFavor: saldoFavorFresh, AbonoPrevio: abonoPrevioInmuebles, DeudaTotal: deudaTotalFresh });
 
       // Auditoría: Registro de consulta de contribuyente
       logAudit('Consulta de Contribuyente en Caja', {
@@ -1582,7 +1598,10 @@ export default function CajaPage() {
         const ucd = Number(s.valor_ucd || 0);
         const fac = Number(s.factor || 1);
         const nve = Number(s.nve || 1);
-        const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
+        const tieneAbono = String(s.notas || '').includes('[ABONO:') || (parseFloat(s.monto || '0') < ((ucd * fac * nve * (tasaActualUse || 1)) - 1.00));
+        const baseMonto = (tieneAbono || ucd <= 0 || tasaActualUse <= 0) 
+          ? parseFloat(s.monto || '0') 
+          : Math.round(ucd * fac * nve * tasaActualUse * 100) / 100;
         total += baseMonto;
       }
     });
@@ -1593,7 +1612,10 @@ export default function CajaPage() {
         const ucd = Number(s.valor_ucd || 0);
         const fac = Number(s.factor || 1);
         const nve = Number(s.nve || 1);
-        const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
+        const tieneAbono = String(s.notas || '').includes('[ABONO:') || (parseFloat(s.monto || '0') < ((ucd * fac * nve * (tasaActualUse || 1)) - 1.00));
+        const baseMonto = (tieneAbono || ucd <= 0 || tasaActualUse <= 0) 
+          ? parseFloat(s.monto || '0') 
+          : Math.round(ucd * fac * nve * tasaActualUse * 100) / 100;
         total += baseMonto;
       }
     });
@@ -1703,6 +1725,7 @@ export default function CajaPage() {
     );
 
     // Calcular con precisión canónica de 2 decimales idéntica a recibos y factura SENIAT
+    let totalAbonoPrevio = 0;
     inmSelectedMap.forEach(({ inm, totalMeses, mesesConMora }) => {
       const esRes = isResidencialInm(inm);
       const bMes = Math.round(calcularMensualidad(inm, tasaActualUse) * 100) / 100;
@@ -1726,6 +1749,12 @@ export default function CajaPage() {
       const multaMes = Math.round((bMes * tasaMora) * 100) / 100;
       const multaInm = Math.round((multaMes * mesesConMora) * 100) / 100;
       smulta4 += multaInm;
+
+      // Abono previo aprobado en conciliación para este inmueble
+      const saldoAbonoInm = parseFloat(inm.saldo_favor_bs || '0') || 0;
+      if (saldoAbonoInm > 0) {
+        totalAbonoPrevio += saldoAbonoInm;
+      }
     });
 
     selectedCuotas.forEach(sc => {
@@ -1739,7 +1768,10 @@ export default function CajaPage() {
         const ucd = Number(s.valor_ucd || 0);
         const fac = Number(s.factor || 1);
         const nve = Number(s.nve || 1);
-        const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
+        const tieneAbono = String(s.notas || '').includes('[ABONO:') || (parseFloat(s.monto || '0') < ((ucd * fac * nve * (tasaActualUse || 1)) - 1.00));
+        const baseMonto = (tieneAbono || ucd <= 0 || tasaActualUse <= 0) 
+          ? parseFloat(s.monto || '0') 
+          : Math.round(ucd * fac * nve * tasaActualUse * 100) / 100;
         extraSb += baseMonto;
       }
     });
@@ -1749,7 +1781,10 @@ export default function CajaPage() {
         const ucd = Number(s.valor_ucd || 0);
         const fac = Number(s.factor || 1);
         const nve = Number(s.nve || 1);
-        const baseMonto = (ucd > 0 && tasaActualUse > 0) ? Math.round(ucd * fac * nve * tasaActualUse * 100) / 100 : parseFloat(s.monto || '0');
+        const tieneAbono = String(s.notas || '').includes('[ABONO:') || (parseFloat(s.monto || '0') < ((ucd * fac * nve * (tasaActualUse || 1)) - 1.00));
+        const baseMonto = (tieneAbono || ucd <= 0 || tasaActualUse <= 0) 
+          ? parseFloat(s.monto || '0') 
+          : Math.round(ucd * fac * nve * tasaActualUse * 100) / 100;
         extraSb += baseMonto;
       }
     });
@@ -1763,6 +1798,7 @@ export default function CajaPage() {
     setSumIVA(siva);
     setSumMulta(smulta);
     setSumIVARetencionable(sivaRetencionable);
+    setAbonoPrevioAprobado(totalAbonoPrevio);
     setTotalBs(isCondominio && selectedRecibos.length === 0 ? total : parseFloat((sb + siva + smulta).toFixed(2)));
 
     // Ajuste dinámico de retención:
@@ -1840,7 +1876,7 @@ export default function CajaPage() {
     return 0;
   })();
 
-  const totalNetoAPagar = Math.max(0, Math.round(((sumBase + sumIVA + sumMulta) - montoRetencionIVARounded + ajusteMontoAcordado - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)) * 100) / 100);
+  const totalNetoAPagar = Math.max(0, Math.round(((sumBase + sumIVA + sumMulta) - montoRetencionIVARounded + ajusteMontoAcordado - abonoPrevioAprobado - (useSaldoFavor ? (foundUser?.SaldoFavor || 0) : 0)) * 100) / 100);
 
   /** Códigos de inmueble que toca el cobro actual / el contribuyente buscado. */
   const codigosDelCobro = (soloSeleccion: boolean): string[] => {
@@ -1884,7 +1920,7 @@ export default function CajaPage() {
     const descuentoSaldoFavor = (paymentMethod !== 'Saldo a Favor' && useSaldoFavor)
       ? Math.round(Math.min(totalConImpuestos, maxSaldoUsable) * 100) / 100
       : 0;
-    const finalTotal = Math.max(0, Math.round((totalConImpuestos - descuentoSaldoFavor) * 100) / 100);
+    const finalTotal = Math.max(0, Math.round((totalConImpuestos - abonoPrevioAprobado - descuentoSaldoFavor) * 100) / 100);
     
     let saldoAFavorNuevo = 0;
     let esAbono = isAbonoCondo;
@@ -1945,6 +1981,9 @@ export default function CajaPage() {
           saldoAFavorNuevo = diffDeb;
         } else if (diffDeb < -0.02) {
           esAbono = true;
+        } else {
+          esAbono = false;
+          montoReal = finalTotal;
         }
       }
     } else if (paymentMethod === 'Saldo a Favor') {
@@ -1964,6 +2003,7 @@ export default function CajaPage() {
     // ── Abrir modal de confirmación en lugar de confirm() nativo ──
     setConfirmPayload({
       montoReal, finalTotal, totalConImpuestos, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion,
+      abonoPrevioAprobado,
       recibosSeleccionados: selectedRecibos,
       cuotasSeleccionadas: selectedCuotas,
       serviciosSeleccionados: selectedServicios,
@@ -1974,7 +2014,8 @@ export default function CajaPage() {
 
   const handleConfirmAndPay = async () => {
     if (!confirmPayload) return;
-    const { montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion } = confirmPayload;
+    const { montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion, abonoPrevioAprobado: payloadAbonoPrevio } = confirmPayload;
+    const abonoPrevioAprobado = payloadAbonoPrevio || 0;
     const totalConImpuestos = confirmPayload.totalConImpuestos ?? Math.round((finalTotal + (realMontoRetencionIVA || 0) + (descuentoSaldoFavor || 0)) * 100) / 100;
     const totalFacturaBruto = Math.round((totalConImpuestos + (realMontoRetencionIVA || 0)) * 100) / 100;
     const isAutoAprobado = ['Debito', 'Credito', 'Saldo a Favor', 'TMD', 'TVD'].includes(paymentMethod);
@@ -2470,8 +2511,9 @@ export default function CajaPage() {
       }
 
       // Detect abono: montoDebito provided and < finalTotal, o marcado como abono/pago multiple
-      const diffDebito = montoDebito && parseLocalFloat(montoDebito) > 0 ? (confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor) - parseLocalFloat(montoDebito) : 0;
-      const esAbonoParcial = (diffDebito > 0.02) || !!confirmPayload.esAbono || (montoReal < (confirmPayload.finalTotal + confirmPayload.descuentoSaldoFavor) - 0.02);
+      const debVal = montoDebito ? parseLocalFloat(montoDebito) : 0;
+      const diffDebito = debVal > 0 ? (confirmPayload.finalTotal - debVal) : 0;
+      const esAbonoParcial = (diffDebito > 0.02) || !!confirmPayload.esAbono || (montoReal < confirmPayload.finalTotal - 0.02);
       const esAbonoDebito = esAbonoParcial;
 
       if (isAutoAprobado) {
@@ -2677,6 +2719,7 @@ export default function CajaPage() {
             saldo_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
             descuento_saldo_favor: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
             saldo_favor_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
+            abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
             monto_factura: (realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos, // Monto total bruto de la factura fiscal
             monto_neto_factura: finalTotal,
             total_seleccionado: totalBs,
@@ -2807,7 +2850,7 @@ export default function CajaPage() {
             for (const inm of userInmsClean) {
               const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
               const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
-              if (selectedRecibos.includes('RECIB-DEUDA') || (histRefsThisInm.length >= numMesesInm && numMesesInm > 0)) {
+              if (selectedRecibos.includes('RECIB-DEUDA') || (histRefsThisInm.length >= numMesesInm && (numMesesInm > 0 || histRefsThisInm.length > 0 || (inm.saldo_favor_bs || 0) > 0))) {
                 await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0, saldo_favor_bs: 0 }).eq('id', inm.id);
               } else if (histRefsThisInm.length > 0) {
                 const nuevoMeses = Math.max(0, numMesesInm - histRefsThisInm.length);
@@ -2822,6 +2865,32 @@ export default function CajaPage() {
                   saldo_favor_bs: 0,
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                 }).eq('id', inm.id);
+              }
+            }
+
+            // Si se liquidó la deuda restante tras un abono previo, marcar abonos anteriores como completados
+            if (abonoPrevioAprobado > 0) {
+              try {
+                const { data: abonosPrevios } = await supabase
+                  .from('pagos_reportados')
+                  .select('id, detalles')
+                  .eq('identidad', foundUser.Identidad)
+                  .eq('estado', 'Aprobado');
+                if (abonosPrevios && abonosPrevios.length > 0) {
+                  for (const ap of abonosPrevios) {
+                    let parsedDet: any = {};
+                    try { parsedDet = typeof ap.detalles === 'string' ? JSON.parse(ap.detalles) : ap.detalles; } catch(e){}
+                    if (parsedDet?.es_abono && !parsedDet?.abono_completado) {
+                      parsedDet.abono_completado = true;
+                      parsedDet.completado_con_pago_id = pagoId;
+                      await supabase.from('pagos_reportados').update({
+                        detalles: JSON.stringify(parsedDet)
+                      }).eq('id', ap.id);
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn('Error marcando abonos previos como completados:', e);
               }
             }
           } else {
@@ -3348,6 +3417,7 @@ export default function CajaPage() {
             monto_abonado: esAbono ? montoReal : undefined,
             total_seleccionado: totalBs,
             saldo_usado: descuentoSaldoFavor,
+            abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
             tasa_bcv: currentBcvRate,
             deuda_total_sistema: foundUser.DeudaTotal,
             deuda_previa: deudaPreviaT,
@@ -4695,6 +4765,17 @@ export default function CajaPage() {
                 </label>
               </div>
             )}
+            {foundUser.AbonoPrevio > 0 && (
+              <div className="bg-amber-50 border-2 border-amber-500 p-4 rounded-xl flex flex-col items-center justify-center min-w-[200px]">
+                <span className="text-amber-800 font-bold text-sm uppercase flex items-center gap-1">
+                  <span>💳</span> Abono Previo Conciliado
+                </span>
+                <span className="text-2xl font-black text-amber-700">Bs. {formatBs(foundUser.AbonoPrevio)}</span>
+                <span className="text-[10px] text-amber-700 mt-1 font-medium text-center">
+                  Deducido del total a pagar
+                </span>
+              </div>
+            )}
           </div>
           {!foundUser.es_condominio && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -5893,6 +5974,14 @@ export default function CajaPage() {
                   <span>- Bs. {formatBs(Math.min((sumBase + sumIVA + sumMulta) - (sumIVARetencionable * (retencionIVA / 100)), foundUser.SaldoFavor))}</span>
                 </div>
               )}
+              {abonoPrevioAprobado > 0 && (
+                <div className="flex justify-between items-center text-amber-700 font-semibold mt-2 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+                  <span className="flex items-center gap-1.5">
+                    <span>💳</span> Abono Previo Conciliado:
+                  </span>
+                  <span className="font-bold">- Bs. {formatBs(abonoPrevioAprobado)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-200">
                 <span className="text-slate-800 font-bold text-base">Total Neto a Pagar:</span>
                 <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(totalNetoAPagar)}</span>
@@ -6425,6 +6514,13 @@ export default function CajaPage() {
                 <div className="flex justify-between text-xs text-slate-600 px-1 py-0.5">
                   <span>Descuento saldo a favor:</span>
                   <span className="font-bold text-emerald-600">- Bs. {formatBs(confirmPayload.descuentoSaldoFavor)}</span>
+                </div>
+              )}
+
+              {confirmPayload.abonoPrevioAprobado > 0 && (
+                <div className="flex justify-between text-xs text-amber-800 px-1 py-0.5 font-medium">
+                  <span className="flex items-center gap-1">💳 Abono previo conciliado:</span>
+                  <span className="font-bold text-amber-700">- Bs. {formatBs(confirmPayload.abonoPrevioAprobado)}</span>
                 </div>
               )}
 

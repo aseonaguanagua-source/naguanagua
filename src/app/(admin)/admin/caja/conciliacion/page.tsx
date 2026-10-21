@@ -1068,10 +1068,36 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         }
       }
 
-      // Servicios especiales / extraordinarios incluidos en el pago: al aprobar quedan Pagados
-      if (estatus === 'Aprobado' && det.servicios && det.servicios.length > 0) {
-        await fetch('/api/admin/servicios-especiales', { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ referencias: det.servicios.map((s: any) => typeof s === 'string' ? s : s.referencia), estado: 'Pagado' }) });
+      // Servicios especiales / extraordinarios incluidos en el pago: al aprobar quedan Pagados o con abono
+      const allSrvRefs = [
+        ...(det.servicios || []).map((s: any) => typeof s === 'string' ? s : s.referencia),
+        ...(det.tala_poda || []).map((s: any) => typeof s === 'string' ? s : s.referencia)
+      ].filter(Boolean);
+
+      if (estatus === 'Aprobado' && allSrvRefs.length > 0) {
+        const { data: srvRows } = await supabase.from('servicios_especiales').select('*').in('referencia', allSrvRefs);
+        const srvTotalMonto = (srvRows || []).reduce((acc: number, s: any) => acc + (parseFloat(s.monto) || 0), 0);
+        const esAbonoSrv = !!det.es_abono || (montoConciliadoNum > 0 && srvTotalMonto > 0 && montoConciliadoNum < srvTotalMonto - 1.00);
+
+        if (esAbonoSrv && montoConciliadoNum > 0) {
+          let dineroDisponibleSrv = montoConciliadoNum;
+          for (const srv of (srvRows || [])) {
+            const mSrv = parseFloat(srv.monto || '0');
+            if (dineroDisponibleSrv >= mSrv - 1.00) {
+              dineroDisponibleSrv = Math.max(0, dineroDisponibleSrv - mSrv);
+              await supabase.from('servicios_especiales').update({ estado: 'Pagado' }).eq('referencia', srv.referencia);
+            } else if (dineroDisponibleSrv > 1.00) {
+              const montoRestante = parseFloat((mSrv - dineroDisponibleSrv).toFixed(2));
+              const fechaVE = new Intl.DateTimeFormat('es-VE', { dateStyle: 'short' }).format(new Date());
+              const notaAbono = `${srv.notas || ''} [ABONO: Bs. ${dineroDisponibleSrv.toFixed(2)} conciliado el ${fechaVE}. Restante: Bs. ${montoRestante}]`;
+              await supabase.from('servicios_especiales').update({ monto: montoRestante, estado: 'Pendiente', notas: notaAbono }).eq('referencia', srv.referencia);
+              dineroDisponibleSrv = 0;
+            }
+          }
+        } else {
+          await fetch('/api/admin/servicios-especiales', { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referencias: allSrvRefs, estado: 'Pagado' }) });
+        }
       }
 
       if (estatus === 'Aprobado' && recibos.length > 0) {
