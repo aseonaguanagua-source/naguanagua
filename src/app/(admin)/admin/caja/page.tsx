@@ -3510,56 +3510,15 @@ export default function CajaPage() {
                 esAbono: !!esAbono,
               };
             });
-            setReciboData(arrCondo);
+            // Para transferencias NO se emite ni se muestra recibo inmediato porque no está conciliado
+            setReciboData(null);
+            alert('✅ Pago registrado exitosamente en estado "Por Verificar".\n\nPor normativa de recaudación, el recibo y la factura fiscal se generarán una vez que el pago sea CONCILIADO en el módulo de Conciliación Bancaria.');
           } else if (hijosPagados.length === 1) {
-            const hijo = hijosPagados[0];
-            const infoDebt = getHijoDebt(hijo);
-            const localDesc = getLocalLabel(hijo);
-            const nombreLocal = hijo.contribuyente ? ` - ${hijo.contribuyente}` : '';
-            const refNum = refNumBase;
-            const esResInm = isResidencialInm(hijo);
-            const montoHijo = infoDebt.total > 0 ? infoDebt.total : montoReal;
-            setReciboData({
-              reciboNo: refNum,
-              controlWeb: `WEB-${refNum}`,
-              fechaEmision: new Date().toISOString().split('T')[0],
-              codContribuyente: hijo.inmueble || hijo.id || foundUser.Identidad,
-              razonSocial: hijo.contribuyente || foundUser.Contribuyente || '',
-              domicilioFiscal: sanitizarDireccionFiscal(hijo.direccion, {
-                unidadNumero: localDesc || hijo.unidadNumero || null,
-                nombreCondo: foundUser.Contribuyente || null,
-                parentDir: foundUser.Direccion || null
-              }).toUpperCase(),
-              rifCi: foundUser.Identidad,
-              caja: cajero_id_recibo,
-              conceptos: [{
-                descripcion: `Aseo Urbano - ${localDesc}${nombreLocal} (${hijo.inmueble || ''})`,
-                precioUnit: montoHijo,
-                total: montoHijo
-              }],
-              subTotal: montoHijo,
-              exento: esResInm ? montoHijo : 0,
-              iva: esResInm ? 0 : parseFloat((montoHijo - (montoHijo / 1.16)).toFixed(2)),
-              total: montoHijo,
-              formaPago: 'TRANSFERENCIA',
-              banco: banco || 'Transferencia',
-              referencia: referencia || 'N/A',
-              tasaBcv: currentBcvRate || tcmmv || undefined,
-              tipoContribuyente: esResInm ? 'Residencial' : 'Comercial',
-              esAbono: !!esAbono,
-            });
+            setReciboData(null);
+            alert('✅ Pago registrado exitosamente en estado "Por Verificar".\n\nPor normativa de recaudación, el recibo y la factura fiscal se generarán una vez que el pago sea CONCILIADO en el módulo de Conciliación Bancaria.');
           } else {
-            const arr = armarRecibosCobro({
-              selectedRefs: selectedRecibos,
-              montoReal,
-              paymentMethod: 'Transferencia',
-              banco: banco || 'Transferencia',
-              referencia: referencia || 'N/A',
-              esAbono: !!esAbono,
-              montoPendiente: esAbono ? Math.max(0, (foundUser.DeudaTotal || finalTotal) - montoReal) : undefined,
-              selectedHijosIds: selectedHijos
-            });
-            setReciboData(arr.length === 1 ? arr[0] : arr);
+            setReciboData(null);
+            alert('✅ Pago registrado exitosamente en estado "Por Verificar".\n\nPor normativa de recaudación, el recibo y la factura fiscal se generarán una vez que el pago sea CONCILIADO en el módulo de Conciliación Bancaria.');
           }
         } catch(e) {}
       }

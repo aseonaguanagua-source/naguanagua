@@ -36,6 +36,9 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
   const { data: pago, error } = await supabase.from('pagos_reportados').select('*').eq('id', pagoId).maybeSingle();
   if (error) throw error;
   if (!pago) throw new Error('Pago no encontrado');
+  if (pago.estado !== 'Aprobado') {
+    throw new Error(`El pago no está conciliado (estado actual: "${pago.estado || 'Pendiente'}"). No se puede emitir ni enviar recibo hasta que sea aprobado en Conciliación Bancaria.`);
+  }
   const det = parseDetalles(pago.detalles);
   const recibos: string[] = det.recibos || [];
 

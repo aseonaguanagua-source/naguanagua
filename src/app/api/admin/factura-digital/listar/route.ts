@@ -506,6 +506,7 @@ export async function GET(request: Request) {
           reciboCajaGuardado: Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0,
           // Procesado = factura emitida (facturas) o recibo enviado (recibos)
           procesado: docFinal === 'factura' ? (emitida || Boolean(fd?.anulada)) : reciboEnviado,
+          conciliado: pago.estado === 'Aprobado',
         };
       });
 
@@ -515,7 +516,7 @@ export async function GET(request: Request) {
         filtered = filtered.filter(i => i.documento === documentoFiltro);
       }
       if (filter === 'pendientes') {
-        filtered = filtered.filter(i => !i.procesado && !i.facturaAnulada && i.estado !== 'Anulado' && i.estado !== 'Rechazado');
+        filtered = filtered.filter(i => !i.procesado && !i.facturaAnulada && i.estado === 'Aprobado');
       } else if (filter === 'emitidas') {
         filtered = filtered.filter(i => i.procesado && !i.facturaAnulada && i.estado !== 'Anulado' && i.estado !== 'Rechazado');
       } else if (filter === 'anuladas') {

@@ -46,6 +46,12 @@ export async function GET(request: Request) {
     if (error) throw error;
     if (!pago) return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 });
 
+    if (pago.estado !== 'Aprobado') {
+      return NextResponse.json({ 
+        error: `El pago no está conciliado (estado actual: "${pago.estado || 'Pendiente'}"). No se puede emitir ni descargar recibo hasta que sea aprobado en Conciliación Bancaria.` 
+      }, { status: 400 });
+    }
+
     const det = parseDetalles(pago.detalles);
 
     // Desglose real por período (incluye las multas pagadas)

@@ -1577,15 +1577,24 @@ export default function FacturacionElectronicaPage() {
                                 <span>Verificar</span>
                               </button>
 
-                              {/* Botón Emitir */}
-                              <button
-                                onClick={() => handleOpenEmitModal(pago)}
-                                className="text-[11px] bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-                                title="Emitir Factura Digital a The Factory HKA"
-                              >
-                                <FileText className="w-3.5 h-3.5 text-[#c8e64c]" />
-                                <span>Emitir</span>
-                              </button>
+                              {/* Botón Emitir o Badge Por Conciliar */}
+                              {pago.estado !== 'Aprobado' ? (
+                                <span 
+                                  className="text-[11px] bg-amber-50 text-amber-800 font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 flex items-center gap-1 select-none"
+                                  title={`Pago no conciliado (estado: ${pago.estado || 'Por Verificar'}). Debe ser aprobado en Conciliación Bancaria antes de emitir la factura fiscal.`}
+                                >
+                                  ⏳ Por Conciliar
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleOpenEmitModal(pago)}
+                                  className="text-[11px] bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                  title="Emitir Factura Digital a The Factory HKA"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-[#c8e64c]" />
+                                  <span>Emitir</span>
+                                </button>
+                              )}
                             </>
                           )}
                         </div>

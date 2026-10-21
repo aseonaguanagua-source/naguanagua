@@ -692,18 +692,26 @@ function Caja() {
         setSaldoFavorActivo(Math.max(0, saldoFavorActivo - descuentoSaldoFavor - realPagosSubidos.filter(p=>p.metodo==='Saldo a Favor').reduce((a,b)=>a+b.monto,0)));
       }
 
-      setRecibo({
-        ...j,
-        partes: j.pagos,
-        monto: totalAPagarCobro,
-        montoRecibido: sumaRealPagos > totalAPagarCobro ? sumaRealPagos : totalAPagarCobro,
-        saldoFavorGenerado: excedenteGenerado,
-        metodo: 'MÚLTIPLE',
-        banco: '',
-        referencia: '',
-        fecha: new Date(),
-        prueba: false
-      });
+      const tieneTransferenciaOPorVerificar = realPagosSubidos.some(p => p.metodo === 'Transferencia' || p.metodo === 'Depósito') || j.estado === 'Por Verificar';
+
+      if (tieneTransferenciaOPorVerificar) {
+        setRecibo(null);
+        alert('✅ Cobro registrado exitosamente en estado "Por Verificar".\n\nPor normativa de recaudación, el recibo de caja y la factura fiscal se emitirán una vez que el pago sea CONCILIADO en el módulo de Conciliación Bancaria.');
+        setSuccessMsg('Transferencia registrada exitosamente. Pendiente de aprobación en Conciliación Bancaria.');
+      } else {
+        setRecibo({
+          ...j,
+          partes: j.pagos,
+          monto: totalAPagarCobro,
+          montoRecibido: sumaRealPagos > totalAPagarCobro ? sumaRealPagos : totalAPagarCobro,
+          saldoFavorGenerado: excedenteGenerado,
+          metodo: 'MÚLTIPLE',
+          banco: '',
+          referencia: '',
+          fecha: new Date(),
+          prueba: false
+        });
+      }
       setReferencia(''); setClaves([]); setAbonoLocales(false); setMeses(''); setSoloMultas(false); setPagosAgregados([]);
     } catch (e: any) { alert(e.message); } finally { setCobrando(false); }
   };

@@ -328,6 +328,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   const pagos: { id: string; reciboRef: string; factura: Factura }[] = [];
   const fechaPagoReal = (pago.pagosAgregados || []).find((pa: any) => pa?.fecha && pa?.metodo !== 'Saldo a Favor')?.fecha;
   const fechaTransaccion = String(fechaPagoReal || sol.fechaOverride || new Date(Date.now() - 4 * 3600 * 1000).toISOString()).slice(0, 10);
+  const esTransferencia = (pago.metodo || '').toLowerCase().includes('transferencia') || (pago.metodo || '').toLowerCase().includes('pago móvil') || Boolean(pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => (pa.metodo || '').toLowerCase().includes('transferencia') || (pa.metodo || '').toLowerCase().includes('pago móvil')));
 
   // Si la referencia ingresada ya existía en un pago previo rechazado, anulado o reversado, liberarla
   if (refFinal && !refFinal.startsWith('EFECTIVO-')) {
@@ -477,7 +478,6 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       deuda_previa: antes,
       ...(i === 0 && (pago.saldoFavorGenerado || 0) > 0.01 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
     };
-    const esTransferencia = pago.metodo.toLowerCase().includes('transferencia') || pago.metodo.toLowerCase().includes('pago móvil') || (pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => pa.metodo.toLowerCase().includes('transferencia') || pa.metodo.toLowerCase().includes('pago móvil')));
     const fechaRegistro = new Date();
     const pagosReales = (pago.pagosAgregados || []).filter((pa: any) => pa && pa.metodo !== 'Saldo a Favor');
     const primerReal = pagosReales[0] || (pago.pagosAgregados && pago.pagosAgregados[0]);
@@ -724,6 +724,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     monto: cobro.totales.totalBs, 
     montoRecibido: pago.montoRecibido || (cobro.totales.totalBs + (pago.saldoFavorGenerado || 0)),
     saldoFavorGenerado: pago.saldoFavorGenerado || 0,
+    estado: esTransferencia ? 'Por Verificar' : 'Aprobado',
+    esTransferencia,
     cobro 
   };
 }

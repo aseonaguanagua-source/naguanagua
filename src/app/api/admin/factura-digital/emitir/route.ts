@@ -121,8 +121,10 @@ export async function POST(request: Request) {
     let condoDet: any = null;
     {
       const { data: pm }: any = await supabase.from('pagos_reportados').select('modulo, detalles, estado, tipo').eq('id', pagoId).maybeSingle();
-      if (pm && ['Rechazado', 'Anulado', 'Reversado', 'Condonado'].includes(String(pm.estado || ''))) {
-        return NextResponse.json({ error: `No se puede emitir factura para un pago con estado ${pm.estado}.` }, { status: 400 });
+      if (pm && pm.estado !== 'Aprobado') {
+        return NextResponse.json({ 
+          error: `No se puede emitir factura fiscal: el pago aún no ha sido conciliado (estado actual: "${pm.estado || 'Pendiente'}"). Debe ser aprobado en Conciliación Bancaria antes de facturar.` 
+        }, { status: 400 });
       }
       let dm: any = pm?.detalles || {};
       if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }

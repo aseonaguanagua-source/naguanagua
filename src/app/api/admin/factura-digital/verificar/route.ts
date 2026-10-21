@@ -232,6 +232,10 @@ export async function POST(request: Request) {
       errores.push('El número de identificación fiscal (' + docIdentidad + ') es inválido o muy corto.');
     }
 
+    if (pagoData && pagoData.estado !== 'Aprobado') {
+      errores.push(`El pago no está conciliado (estado actual: "${pagoData.estado || 'Pendiente'}"). Debe ser aprobado en Conciliación Bancaria antes de emitir la factura fiscal.`);
+    }
+
     if (montoTotal <= 0) {
       errores.push('El monto a facturar debe ser mayor a cero.');
     }
