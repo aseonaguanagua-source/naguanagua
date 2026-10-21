@@ -56,7 +56,7 @@ export async function GET(request: Request) {
       query = query.eq('estado', estado);
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(100);
 
     if (error) {
       console.error('Error fetching servicios:', error);

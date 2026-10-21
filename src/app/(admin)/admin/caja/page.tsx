@@ -26,11 +26,18 @@ const BANCOS_VENEZUELA = LISTA_BANCOS;
 const updateServiciosEspecialesEstado = async (referencias: string[], estado: string) => {
   if (!referencias || referencias.length === 0) return;
   try {
-    await fetch('/api/admin/servicios-especiales', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ referencias, estado })
-    });
+    const { error } = await supabase
+      .from('servicios_especiales')
+      .update({ estado })
+      .in('referencia', referencias);
+
+    if (error) {
+      await fetch('/api/admin/servicios-especiales', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referencias, estado })
+      });
+    }
   } catch (err) {
     console.error('Error actualizando servicios_especiales:', err);
   }
@@ -1409,14 +1416,6 @@ export default function CajaPage() {
       });
       setTalaPoda(filteredTala);
 
-      // Cargar pagos pendientes de verificar para bloquear seleccion y notificar monto por conciliar
-      const { data: allPorVerificar } = await supabase
-        .from('pagos_reportados')
-        .select('*')
-        .in('estado', ['Por Verificar', 'Pendiente'])
-        .order('created_at', { ascending: false })
-        .limit(2000);
-
       const rawIdentList = [
         ...userIdentVariants,
         user.Identidad,
@@ -1434,6 +1433,23 @@ export default function CajaPage() {
         const nums = String(id).replace(/\D/g, '');
         if (nums.length >= 4) cleanIdents.add(nums);
       });
+
+      // Cargar pagos pendientes de verificar para bloquear seleccion y notificar monto por conciliar (optimizado)
+      const identOrs = [
+        ...userIdentVariants.map(v => `identidad.eq.${v}`),
+        ...(user.Identidad ? [`identidad.eq.${user.Identidad}`] : []),
+        ...(rawSearch ? [`identidad.ilike.%${rawSearch}%`] : [])
+      ];
+      let queryPend = supabase
+        .from('pagos_reportados')
+        .select('id, identidad, monto, banco, referencia, tipo, estado, created_at, detalles')
+        .in('estado', ['Por Verificar', 'Pendiente']);
+      if (identOrs.length > 0) {
+        queryPend = queryPend.or(identOrs.join(','));
+      }
+      const { data: allPorVerificar } = await queryPend
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       const userInmCodes = Array.from(new Set([
         ...((activeInmFresh || []).map((i: any) => String(i.inmueble || '').trim().toLowerCase())),
@@ -2616,7 +2632,9 @@ export default function CajaPage() {
         }
 
         const pagoId = crypto.randomUUID();
-        const deudaPrevia = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
+        const deudaPrevia = (selectedRecibos.length > 0 || isCondominio)
+          ? await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id))
+          : [];
         const hoyStr = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
         const fechaUTC = fechaCorteCaja === hoyStr 
           ? new Date().toISOString() 
@@ -2676,6 +2694,93 @@ export default function CajaPage() {
           }
         }
 
+        // Preparar detalles completos de facturación y formas de pago
+        let digitalRecibos = [...selectedRecibos];
+        let digitalMontos = selectedRecibos.reduce((acc: Record<string, number>, ref: string) => {
+          acc[ref] = reciboMontoMap.get(ref) ?? 0;
+          return acc;
+        }, {} as Record<string, number>);
+
+        if (isCondominio) {
+          const refCondo = `CONDO-${foundUser.CodCont || foundUser.cod_cont || 'PADRE'}-${Date.now().toString().slice(-6)}`;
+          digitalRecibos = [refCondo];
+          digitalMontos = { [refCondo]: montoReal };
+        }
+
+        const fpsList: any[] = [];
+        if (finalTotal > 0 || paymentMethod !== 'Saldo a Favor') {
+          fpsList.push({
+            descripcion: paymentMethod === 'TMD' ? 'TARJETA DE CRÉDITO MASTER (TMD)' : paymentMethod === 'TVD' ? 'TARJETA DE CRÉDITO VISA (TVD)' : paymentMethod === 'Credito' ? 'TARJETA DE CRÉDITO' : paymentMethod === 'Debito' ? 'TARJETA DE DÉBITO' : paymentMethod,
+            fecha: new Date().toISOString(),
+            forma: paymentMethod === 'Debito' ? '05' : ['Credito', 'TMD', 'TVD'].includes(paymentMethod) ? '06' : '99',
+            banco: banco || undefined,
+            referencia: reqRef ? referencia : referenciaDebito || undefined,
+            monto: finalTotal
+          });
+        }
+        if (descuentoSaldoFavor > 0) {
+          fpsList.push({
+            descripcion: 'COMPENSACIÓN (NOTA DE CRÉDITO / SALDO A FAVOR)',
+            fecha: new Date().toISOString(),
+            forma: '99',
+            referencia: 'NC-SALDO-FAVOR',
+            monto: descuentoSaldoFavor
+          });
+        }
+
+        const fullDetalles: any = {
+          contribuyente: foundUser.Contribuyente,
+          contribuyente_nombre: foundUser.Contribuyente,
+          recibos: digitalRecibos,
+          montos: digitalMontos,
+          cuotas: selectedCuotas,
+          servicios: selectedServicios,
+          tala_poda: selectedTalaPoda,
+          cajero: cajero_id,
+          es_abono: esAbonoDebito,
+          monto_abonado: esAbonoDebito ? montoReal : undefined,
+          tasa_bcv: currentBcvRate,
+          deuda_total_sistema: foundUser.DeudaTotal,
+          fecha_transaccion: fechaTransaccion,
+          tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
+          nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
+          iva_percent: ivaPercent,
+          es_condominio: isCondominio,
+          condominio_modo: condominioModo,
+          condominio_hijos_pagados: condominioModo === 'Local' ? selectedHijos : (condominioModo === 'Total' ? condominioHijos.map(h => h.id) : []),
+          deuda_previa: deudaPrevia,
+          // Comprobantes
+          comprobante_url: comprobanteUrl || undefined,
+          comprobante_b64: comprobanteB64 || undefined,
+          comprobante_nombre: comprobante?.name || undefined,
+          comprobante_retencion_url: compRetUrl || undefined,
+          comprobante_retencion_b64: compRetB64 || undefined,
+          comprobante_retencion_nombre: comprobanteRetencionFile?.name || undefined,
+          // Desglose del pago por encima para la factura electrónica:
+          saldo_favor: saldoAFavorNuevo,
+          saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+          monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+          saldo_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
+          descuento_saldo_favor: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
+          saldo_favor_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
+          abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
+          monto_factura: (realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos, // Monto total bruto de la factura fiscal
+          monto_neto_factura: finalTotal,
+          montoTotal: totalFacturaBruto,
+          total_seleccionado: totalBs,
+          monto_retencion_iva: esAbonoDebito ? 0 : realMontoRetencionIVA,
+          es_retencion: esAbonoDebito ? false : (realMontoRetencionIVA > 0),
+          agente_retencion: esAbonoDebito ? false : (realMontoRetencionIVA > 0),
+          formasPago: fpsList,
+          ...(!esAbonoDebito ? {
+            factura_digital: {
+              emitida: false,
+              pendiente: true,
+              preparada_at: new Date().toISOString()
+            }
+          } : {})
+        };
+
         const { error: insertErr } = await supabase.from('pagos_reportados').insert({
           id: pagoId,
           identidad: foundUser.Identidad,
@@ -2685,48 +2790,7 @@ export default function CajaPage() {
           tipo: paymentMethod,
           estado: 'Aprobado',
           created_at: fechaUTC,
-          detalles: JSON.stringify({
-            contribuyente: foundUser.Contribuyente,
-            contribuyente_nombre: foundUser.Contribuyente,
-            recibos: selectedRecibos,
-            cuotas: selectedCuotas,
-            servicios: selectedServicios,
-            tala_poda: selectedTalaPoda,
-            cajero: cajero_id,
-            es_abono: esAbonoDebito,
-            monto_abonado: esAbonoDebito ? montoReal : undefined,
-            tasa_bcv: currentBcvRate,
-            deuda_total_sistema: foundUser.DeudaTotal,
-            fecha_transaccion: fechaTransaccion,
-            tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
-            nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
-            iva_percent: ivaPercent,
-            es_condominio: isCondominio,
-            condominio_modo: condominioModo,
-            condominio_hijos_pagados: condominioModo === 'Local' ? selectedHijos : (condominioModo === 'Total' ? condominioHijos.map(h => h.id) : []),
-            deuda_previa: deudaPrevia,
-            // Comprobantes
-            comprobante_url: comprobanteUrl || undefined,
-            comprobante_b64: comprobanteB64 || undefined,
-            comprobante_nombre: comprobante?.name || undefined,
-            comprobante_retencion_url: compRetUrl || undefined,
-            comprobante_retencion_b64: compRetB64 || undefined,
-            comprobante_retencion_nombre: comprobanteRetencionFile?.name || undefined,
-            // Desglose del pago por encima para la factura electrónica:
-            saldo_favor: saldoAFavorNuevo,
-            saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
-            monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
-            saldo_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
-            descuento_saldo_favor: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
-            saldo_favor_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
-            abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
-            monto_factura: (realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos, // Monto total bruto de la factura fiscal
-            monto_neto_factura: finalTotal,
-            total_seleccionado: totalBs,
-            monto_retencion_iva: esAbonoDebito ? 0 : realMontoRetencionIVA,
-            es_retencion: esAbonoDebito ? false : (realMontoRetencionIVA > 0),
-            agente_retencion: esAbonoDebito ? false : (realMontoRetencionIVA > 0)
-          })
+          detalles: JSON.stringify(fullDetalles)
         });
         if (insertErr) {
           console.error('Error insertando pago:', insertErr);
@@ -2753,80 +2817,6 @@ export default function CajaPage() {
               nota: 'Generado automáticamente por retención de agente.'
             })
           });
-        }
-
-
-        // ── TFHKA FACTURACIÓN DIGITAL (antes de limpiar deuda para tener los montos) ──
-        if (pagoId) {
-          try {
-            // Para condominios, se emite UNA SOLA factura digital al condominio padre, NO a los locales individuales
-            let digitalRecibos = [...selectedRecibos];
-            let digitalMontos = selectedRecibos.reduce((acc: Record<string, number>, ref: string) => {
-              acc[ref] = reciboMontoMap.get(ref) ?? 0;
-              return acc;
-            }, {} as Record<string, number>);
-
-            if (isCondominio) {
-              const refCondo = `CONDO-${foundUser.CodCont || foundUser.cod_cont || 'PADRE'}-${Date.now().toString().slice(-6)}`;
-              digitalRecibos = [refCondo];
-              digitalMontos = { [refCondo]: montoReal };
-            }
-
-            // Guardar detalles preparados para emisión manual controlada en el módulo de Facturación Electrónica
-            const { data: currentPago } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).single();
-            let currentDetalles: any = currentPago?.detalles || {};
-            if (typeof currentDetalles === 'string') {
-              try { currentDetalles = JSON.parse(currentDetalles); } catch(e) { currentDetalles = {}; }
-            }
-            if (!esAbonoDebito) {
-              currentDetalles.factura_digital = currentDetalles.factura_digital || {
-                emitida: false,
-                pendiente: true,
-                preparada_at: new Date().toISOString()
-              };
-            }
-            currentDetalles.recibos = digitalRecibos;
-            currentDetalles.montos = digitalMontos;
-            currentDetalles.contribuyente = foundUser.Contribuyente;
-            currentDetalles.identidad = foundUser.Identidad;
-            currentDetalles.montoTotal = totalFacturaBruto;
-            currentDetalles.saldo_favor = saldoAFavorNuevo;
-            currentDetalles.saldo_a_favor_nuevo = saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined;
-            currentDetalles.monto_sobrante = saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined;
-            currentDetalles.monto_factura = totalFacturaBruto;
-            currentDetalles.monto_neto_factura = finalTotal;
-            currentDetalles.saldo_usado = descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined;
-            currentDetalles.descuento_saldo_favor = descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined;
-            currentDetalles.saldo_favor_usado = descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined;
-            currentDetalles.monto_retencion_iva = esAbonoDebito ? 0 : realMontoRetencionIVA;
-            currentDetalles.es_retencion = esAbonoDebito ? false : (realMontoRetencionIVA > 0);
-            currentDetalles.agente_retencion = esAbonoDebito ? false : (realMontoRetencionIVA > 0);
-            currentDetalles.isCondominio = isCondominio;
-            const fpsList: any[] = [];
-            if (finalTotal > 0 || paymentMethod !== 'Saldo a Favor') {
-              fpsList.push({
-                descripcion: paymentMethod === 'TMD' ? 'TARJETA DE CRÉDITO MASTER (TMD)' : paymentMethod === 'TVD' ? 'TARJETA DE CRÉDITO VISA (TVD)' : paymentMethod === 'Credito' ? 'TARJETA DE CRÉDITO' : paymentMethod === 'Debito' ? 'TARJETA DE DÉBITO' : paymentMethod,
-                fecha: new Date().toISOString(),
-                forma: paymentMethod === 'Debito' ? '05' : ['Credito', 'TMD', 'TVD'].includes(paymentMethod) ? '06' : '99',
-                banco: banco || undefined,
-                referencia: reqRef ? referencia : referenciaDebito || undefined,
-                monto: finalTotal
-              });
-            }
-            if (descuentoSaldoFavor > 0) {
-              fpsList.push({
-                descripcion: 'COMPENSACIÓN (NOTA DE CRÉDITO / SALDO A FAVOR)',
-                fecha: new Date().toISOString(),
-                forma: '99',
-                referencia: 'NC-SALDO-FAVOR',
-                monto: descuentoSaldoFavor
-              });
-            }
-            currentDetalles.formasPago = fpsList;
-            await actualizarPago(pagoId, { detalles: currentDetalles });
-          } catch(err) {
-            console.error('Error guardando datos para factura digital', err);
-          }
         }
 
         // ── LIMPIAR O REDUCIR DEUDA DE INMUEBLES (RECIB-HIST-* o RECIB-DEUDA) ──
@@ -3654,7 +3644,7 @@ export default function CajaPage() {
           setConfirmPayload(null);
           await handleSearch();
         }
-      }, 2500);
+      }, 600);
       
     } catch (err: any) {
       console.error(err);
