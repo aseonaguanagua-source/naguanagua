@@ -38,7 +38,7 @@ export async function checkPortalMantenimiento(): Promise<boolean> {
 }
 
 export const MENSAJE_CONDOMINIO_BLOQUEADO =
-  'Acceso restringido para condominios: Las cuentas de condominios residenciales y comerciales no pueden ingresar por el portal web. Su facturación, recaudación y solvencia se gestionan directamente a través de la Junta de Condominio o en las oficinas del IAMEC.';
+  'Error de conexión (ERR-CONN-R). Por favor revise su conexión a internet. Si persiste la falla por favor comunicarse con los números de atención del IAMEC:\n• Aseo Comercial: 0424-4282365\n• Aseo Residencial: 0424-4282364\n• Atención Mixta (Residencial y Comercial): 0424-4526080 / 0414-5952927';
 
 export async function esCondominioDoc(doc: string): Promise<boolean> {
   if (!doc) return false;
