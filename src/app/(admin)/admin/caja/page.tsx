@@ -560,13 +560,18 @@ export default function CajaPage() {
     let user: any = null;
     const isCodeFormat = /^(AURI|URB|[A-Z]{3,})\d+/i.test(rawSearch) || /^[A-Z]+\d+$/i.test(rawSearch);
 
-    // 0. PRIORIDAD: Búsqueda directa por Código de Servicio Especial (SRV-..., SERV-...)
-    const isSrvSearch = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.includes('SRV-') || rawSearch.includes('SERV-');
+    // 0. PRIORIDAD: Búsqueda directa por Código de Servicio Especial (SRV-..., SERV-..., o código de planilla)
+    const digitsOnly = rawSearch.replace(/\D/g, '');
+    const isSrvSearch = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.includes('SRV') || rawSearch.includes('SERV');
     if (isSrvSearch) {
+      const srvOrFilters = [`referencia.ilike.%${rawSearch.trim()}%`];
+      if (digitsOnly.length >= 3) {
+        srvOrFilters.push(`referencia.ilike.%${digitsOnly}%`);
+      }
       const { data: srvDirect } = await supabase
         .from('servicios_especiales')
         .select('*')
-        .ilike('referencia', `%${rawSearch.trim()}%`)
+        .or(srvOrFilters.join(','))
         .order('created_at', { ascending: false });
 
       if (srvDirect && srvDirect.length > 0) {
@@ -776,18 +781,30 @@ export default function CajaPage() {
         }
       }
 
-      // Fallback 3: buscar en tabla servicios_especiales (por código único de planilla o por cédula/RIF)
+      // Fallback 3: buscar en tabla servicios_especiales (por código único de planilla, número, cédula/RIF o nombre)
       if (!user) {
-        const isSrvPattern = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.toUpperCase().includes('SRV-') || rawSearch.toUpperCase().includes('SERV-');
+        const digits = rawSearch.replace(/\D/g, '');
+        const isSrvPattern = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.toUpperCase().includes('SRV') || rawSearch.toUpperCase().includes('SERV');
         let qSrv = supabase.from('servicios_especiales').select('*');
         if (isSrvPattern) {
-          qSrv = qSrv.ilike('referencia', `%${rawSearch.trim()}%`);
+          const srvFilters = [`referencia.ilike.%${rawSearch.trim()}%`];
+          if (digits.length >= 3) srvFilters.push(`referencia.ilike.%${digits}%`);
+          qSrv = qSrv.or(srvFilters.join(','));
         } else {
           const srvOrFilters = [
             `referencia.ilike.%${rawSearch.trim()}%`,
             ...searchVariants.map(v => `identidad.eq.${v}`),
             ...(inputClean.length >= 4 ? [`identidad.ilike.%${inputClean}%`] : [])
           ];
+          if (digits.length >= 3) {
+            srvOrFilters.push(`referencia.ilike.%${digits}%`);
+          }
+          if (digits.length >= 6) {
+            srvOrFilters.push(`identidad.ilike.%${digits}%`);
+          }
+          if (rawSearch.length >= 3 && !/^\d+$/.test(rawSearch)) {
+            srvOrFilters.push(`contribuyente.ilike.%${rawSearch}%`);
+          }
           qSrv = qSrv.or(srvOrFilters.join(','));
         }
         const { data: srvFallbackList } = await qSrv.order('created_at', { ascending: false });
