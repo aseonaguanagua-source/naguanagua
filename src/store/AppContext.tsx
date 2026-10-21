@@ -1048,19 +1048,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const cambio = o.uso !== local.uso || o.actividad !== local.actividad || o.nivel !== local.nivel ||
               o.tipoResidencia !== local.tipoResidencia || o.estatus !== local.estatus || o.agente_retencion !== local.agente_retencion;
             if (!cambio) continue;
-            const mmv = calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
-            if (local.uso !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}" (${local.codigo}).`);
+            const mmv = isTerrenoInm(act) ? 0 : calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
+            if (local.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}" (${local.codigo}).`);
             const { error: eU } = await supabase.from('inmuebles')
               .update({ actividad_principal: act, tipo: tipoDeUso(local.uso), mmv_mes: mmv, agente_retencion: local.agente_retencion === true })
               .eq('inmueble', local.codigo);
             if (eU) throw eU;
             cambios.push(`${local.codigo}: ${o.actividad || o.tipoResidencia || '-'} → ${act} (${mmv} MMV)`);
           } else {
-            let mmv = calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
+            let mmv = isTerrenoInm(act) ? 0 : calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
             if (local.uso === 'Residencial' && !(mmv > 0)) {
               mmv = 0.80;
             }
-            if (local.uso !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}". Seleccione una actividad válida.`);
+            if (local.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}". Seleccione una actividad válida.`);
             const codigo = codigosNuevos[iNuevo++];
             const { error: eI } = await supabase.from('inmuebles').insert([{
               inmueble: codigo,
@@ -1098,8 +1098,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         if (tarifaCambio) {
           nuevaActividad = nuevaClasificacion === 'Residencial' ? (data.TipoResidencia || 'No aplica') : actividadConNivel(data.ActividadComercial || '', idxNivel(data.NivelMetraje));
-          const mmv = calcularMmvMes(data, ordenanzasConfig);
-          if (nuevaClasificacion !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${nuevaActividad}".`);
+          const mmv = isTerrenoInm(nuevaActividad) ? 0 : calcularMmvMes(data, ordenanzasConfig);
+          if (nuevaClasificacion !== 'Residencial' && !isTerrenoInm(nuevaActividad) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${nuevaActividad}".`);
           
           if (!objetivo) {
             if (codigosPropios.length > 1) {
@@ -1150,8 +1150,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (extras.length > 0) {
           const codigos = await siguientesCodigosInmueble(extras.length);
           const rows = extras.map((a: any, i: number) => {
-            const mmv = calcularMmvMes({ uso: 'Comercial', actividad: a.actividad, nivel: a.nivel }, ordenanzasConfig);
-            if (!(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${a.actividad}".`);
+            const mmv = isTerrenoInm(a.actividad) ? 0 : calcularMmvMes({ uso: 'Comercial', actividad: a.actividad, nivel: a.nivel }, ordenanzasConfig);
+            if (!isTerrenoInm(a.actividad) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${a.actividad}".`);
             cambios.push(`NUEVO ${codigos[i]}: ${a.actividad} (${mmv} MMV)`);
             return {
               inmueble: codigos[i], identidad: identidadExacta, contribuyente: data.Contribuyente,
@@ -1291,8 +1291,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const codigos = await siguientesCodigosInmueble(unidades.length);
       const rowsToInsert = unidades.map((u: any, idx: number) => {
         const act = actividadDeLocal(u);
-        const mmv = calcularMmvMes({ ...u, actividad: act }, ordenanzasConfig);
-        if (u.uso !== 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para la actividad "${act || '(vacía)'}".`);
+        const mmv = isTerrenoInm(act) ? 0 : calcularMmvMes({ ...u, actividad: act }, ordenanzasConfig);
+        if (u.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para la actividad "${act || '(vacía)'}".`);
         if (u.uso === 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act || '(vacío)'}".`);
         return {
           inmueble: codigos[idx],
