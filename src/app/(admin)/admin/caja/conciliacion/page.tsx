@@ -63,7 +63,7 @@ const BANCOS_DESTINO = [
   'BANCO PROVINCIAL - 0108',
 ];
 
-const FORMAS_PAGO = ['Todos', 'Transferencia', 'Punto de Venta', 'Debito', 'TMD (Master)', 'TVD (Visa)', 'Efectivo', 'Retencion de IVA'];
+const FORMAS_PAGO = ['Todos', 'Transferencia', 'Punto de Venta', 'Debito', 'TMD (Master)', 'TVD (Visa)', 'Efectivo'];
 const ESTATUS_LIST = ['Todos', 'Pendiente', 'Por Verificar', 'Aprobado', 'Rechazado'];
 const ESTATUS_CONCILIAR = ['Aprobado', 'Rechazado', 'Con Diferencia'];
 
@@ -1872,7 +1872,7 @@ export default function ConciliacionPage() {
       const tieneTermino = Boolean(filtros.referencia && filtros.referencia.trim());
       const soloVerificacion = filtros.estatus === 'Por Verificar';
       const armar = () => {
-        let q = supabase.from('pagos_reportados').select('*').order('created_at', { ascending: false }).limit(500);
+        let q = supabase.from('pagos_reportados').select('*').neq('tipo', 'Retencion de IVA').order('created_at', { ascending: false }).limit(500);
         // Si hay búsqueda por término o se busca 'Por Verificar', no limitar por fecha
         if (!tieneTermino && !soloVerificacion && filtros.desde) q = q.gte('created_at', filtros.desde + 'T04:00:00.000Z');
         if (!tieneTermino && !soloVerificacion && filtros.hasta) { const d = new Date(filtros.hasta + 'T04:00:00Z'); d.setDate(d.getDate()+1); q = q.lte('created_at', d.toISOString()); }
@@ -1918,63 +1918,8 @@ export default function ConciliacionPage() {
         const { data } = await q;
         result = data || [];
       }
-      result = result.filter((p: any) => pasaFiltroModulo(p, filtros.modulo, condos));
-
-      // Cargar también retenciones de la tabla retenciones_iva para que salgan en la lista principal
-      if (filtros.modulo === 'Todos' || filtros.modulo === 'Contribuyentes') {
-        try {
-          let rq = supabase.from('retenciones_iva').select('*').order('created_at', { ascending: false }).limit(200);
-          if (!tieneTermino && !soloVerificacion && filtros.desde) rq = rq.gte('created_at', filtros.desde + 'T04:00:00.000Z');
-          if (!tieneTermino && filtros.estatus !== 'Todos') {
-            const stMap: Record<string, string> = { 'Por Verificar': 'Pendiente', 'Aprobado': 'Aprobado', 'Rechazado': 'Rechazado', 'Pendiente': 'Pendiente' };
-            if (stMap[filtros.estatus]) rq = rq.eq('estado', stMap[filtros.estatus]);
-          }
-          if (tieneTermino) {
-            const term = filtros.referencia.trim();
-            rq = rq.or(`identidad.ilike.%${term}%,contribuyente.ilike.%${term}%,codigo_retencion.ilike.%${term}%,numero_planilla.ilike.%${term}%`);
-          }
-          const { data: rData } = await rq;
-          if (rData && rData.length > 0) {
-            const idsRetExistentes = new Set(result.filter((p: any) => p.tipo === 'Retencion de IVA').map((p: any) => p.id));
-            const refsRetExistentes = new Set(result.filter((p: any) => p.tipo === 'Retencion de IVA').map((p: any) => (p.referencia || '').toUpperCase()));
-            rData.forEach((r: any) => {
-              const refPlanilla = r.codigo_retencion || r.numero_planilla || 'RET';
-              const yaEstaEnLista = idsRetExistentes.has(r.id) || idsRetExistentes.has(`ret-${r.id}`) || refsRetExistentes.has(refPlanilla.toUpperCase());
-              if (!yaEstaEnLista) {
-                const uniqueRowId = result.some((p: any) => p.id === r.id) ? `ret-${r.id}` : r.id;
-                result.push({
-                  id: uniqueRowId,
-                  created_at: r.created_at,
-                  identidad: r.identidad,
-                  contribuyente: r.contribuyente,
-                  monto: r.monto_retenido,
-                  banco: 'Retención SENIAT (75%)',
-                  referencia: refPlanilla,
-                  tipo: 'Retencion de IVA',
-                  estado: r.estado === 'Pendiente' ? 'Por Verificar' : r.estado,
-                  modulo: 'contribuyentes',
-                  grupo_pago: null,
-                  detalles: {
-                    montoTotal: r.monto_retenido,
-                    monto_factura: r.monto_base,
-                    monto_retencion_iva: r.monto_retenido,
-                    comprobante_url: r.planilla_url,
-                    comprobante_nombre: r.numero_planilla,
-                    es_retencion: true,
-                    contribuyente: r.contribuyente,
-                    retencion_db_id: r.id,
-                    isRetencionPlanilla: true,
-                    periodo: r.periodo
-                  }
-                });
-              }
-            });
-            result.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
-          }
-        } catch (e) {
-          console.error('Error cargando retenciones_iva en conciliacion:', e);
-        }
-      }
+      // Filtrar estrictamente: solo pagos bancarios (sin retenciones de IVA, que se gestionan en su propio módulo)
+      result = result.filter((p: any) => p.tipo !== 'Retencion de IVA' && !p.detalles?.es_retencion && pasaFiltroModulo(p, filtros.modulo, condos));
 
       if (filtros.referencia && filtros.referencia.trim()) {
         const t = filtros.referencia.trim().toLowerCase();
