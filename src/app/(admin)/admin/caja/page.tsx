@@ -4351,7 +4351,7 @@ export default function CajaPage() {
                 </div>
               ) : null}
 
-              {!foundUser.es_condominio && (
+              {!foundUser.es_condominio && !foundUser.isServicioEspecialDirecto && (
               <div className="mt-2 text-xs bg-slate-100 text-slate-600 px-3 py-2 rounded border border-slate-200 w-full max-h-[400px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-2 sticky top-0 bg-slate-100 z-10 py-1">
                   <span className="font-bold">Fórmula Aplicada:</span>
@@ -5314,7 +5314,7 @@ export default function CajaPage() {
             )}
 
             {/* Recibos de Aseo Mensual */}
-            {(!isCondominio || recibos.length > 0) && (
+            {!foundUser?.isServicioEspecialDirecto && (!isCondominio || recibos.length > 0) && (
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">

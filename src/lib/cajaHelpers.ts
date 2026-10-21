@@ -51,7 +51,7 @@ export const getUserInmuebles = (
   contextInmuebles: InmuebleBasic[],
   foundUser: ContribuyenteBasic | null
 ): InmuebleBasic[] => {
-  if (!foundUser) return [];
+  if (!foundUser || (foundUser as any).isServicioEspecialDirecto) return [];
 
   const isTrueCondo = 
     ((foundUser as any).Contribuyente || '').toLowerCase().includes('condominio') ||
@@ -72,6 +72,18 @@ export const getUserInmuebles = (
     return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
   };
 
+  // Pre-calcular Set de inmuebles propios del contribuyente para evitar O(n^2) anidado sobre decenas de miles de registros
+  const fidInmueblesSet = new Set<string>();
+  if (fid) {
+    for (let idx = 0; idx < source.length; idx++) {
+      const p = source[idx];
+      const pFid = (p.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
+      if (pFid === fid && p.inmueble) {
+        fidInmueblesSet.add(String(p.inmueble).toUpperCase());
+      }
+    }
+  }
+
   return source.filter((i) => {
     if (!isActivo(i)) return false;
     if (isTrueCondo) return true;
@@ -85,9 +97,9 @@ export const getUserInmuebles = (
       const nCode = String((i as any).padre_id || '').toUpperCase();
       if (iCode === sCode || pCode === sCode || nCode === sCode) return true;
     }
-    // O si este inmueble es hijo vinculado (padre_id) de un inmueble que pertenece a este contribuyente
+    // O si este inmueble es hijo vinculado (padre_id) de un inmueble que pertenece a este contribuyente (lookup O(1))
     const pCode = (i as any).padre_id;
-    if (pCode && fid && source.some(p => p.inmueble === pCode && (p.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase() === fid)) {
+    if (pCode && fidInmueblesSet.has(String(pCode).toUpperCase())) {
       return true;
     }
     return false;
