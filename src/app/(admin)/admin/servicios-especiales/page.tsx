@@ -1,10 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Wrench, Search, Plus, Trash2, CheckCircle2, AlertCircle, FlaskConical, ClipboardCheck, ShieldCheck, X, RefreshCw, BookOpen, FileSpreadsheet, TreePine, Pencil } from 'lucide-react';
+import { Wrench, Search, Plus, Trash2, CheckCircle2, AlertCircle, FlaskConical, ClipboardCheck, ShieldCheck, X, RefreshCw, BookOpen, FileSpreadsheet, TreePine, Pencil, Phone, UserCheck, MapPin, Calendar, FileDown } from 'lucide-react';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { useAppContext } from '@/store/AppContext';
 import { TARIFAS_ESPECIAL, TARIFAS_EXTRAORDINARIO, CONCEPTOS_IAMEC, generarPlanillaServicio } from '@/lib/planillaServicio';
-import { FileDown } from 'lucide-react';
 
 type TipoServicio = 'especial' | 'extraordinario' | 'inspeccion' | 'visto_bueno' | 'tala_poda';
 
@@ -98,6 +97,9 @@ export default function ServiciosEspecialesPage() {
   const [servicioEditando, setServicioEditando] = useState<any | null>(null);
   const [montoEdit, setMontoEdit] = useState('');
   const [descEdit, setDescEdit] = useState('');
+  const [contactoEdit, setContactoEdit] = useState('');
+  const [telefonoEdit, setTelefonoEdit] = useState('');
+  const [direccionEdit, setDireccionEdit] = useState('');
   const [guardandoEdit, setGuardandoEdit] = useState(false);
 
   const loadServicios = async () => {
@@ -116,6 +118,9 @@ export default function ServiciosEspecialesPage() {
     setServicioEditando(s);
     setMontoEdit(String(s.monto ?? ''));
     setDescEdit(s.descripcion || '');
+    setContactoEdit(s.contacto || String(s.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '');
+    setTelefonoEdit(s.telefono || '');
+    setDireccionEdit(s.direccion_evento || '');
   };
 
   const handleGuardarEditServicio = async () => {
@@ -131,6 +136,9 @@ export default function ServiciosEspecialesPage() {
           id: servicioEditando.id,
           monto: nuevoMonto,
           descripcion: descEdit.trim() || servicioEditando.descripcion,
+          contacto: contactoEdit.trim(),
+          telefono: telefonoEdit.trim() || null,
+          direccion_evento: direccionEdit.trim() || null,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Error al guardar');
@@ -236,7 +244,14 @@ export default function ServiciosEspecialesPage() {
   }).filter(Boolean).slice(0, 8) : [];
 
   const selectContrib = (c: any) => {
-    setForm(prev => ({ ...prev, identidad: c.Identidad || '', contribuyenteNombre: c.Contribuyente || '' }));
+    setForm(prev => ({
+      ...prev,
+      identidad: c.Identidad || '',
+      contribuyenteNombre: c.Contribuyente || '',
+      telefono: prev.telefono || c.Telefono || '',
+      correo: prev.correo || c.Correo || '',
+      direccion: prev.direccion || c.Direccion || ''
+    }));
     setInmuebleSel(c._codigo || (c._codigos?.length === 1 ? c._codigos[0] : ''));
     setSearchContrib(c.Contribuyente || '');
   };
@@ -279,13 +294,14 @@ export default function ServiciosEspecialesPage() {
           descripcion: form.descripcion,
           monto: parseFloat(form.monto),
           fecha: form.fecha,
-          notas: `${form.notas || ''}${sinRegistro ? ' [SIN_REGISTRO_PREVIO]' : ''}`.trim(),
-          estado: 'Pendiente',
-          referencia: codigoUnico,
-          origen: sinRegistro ? 'funcionario_sin_registro' : 'funcionario',
+          contacto: form.contacto ? form.contacto.trim() : null,
           telefono: form.telefono || null,
           correo: form.correo || null,
           direccion_evento: form.lugar || form.direccion || null,
+          notas: `${form.notas || ''}${sinRegistro ? ' [SIN_REGISTRO_PREVIO]' : ''}${form.contacto ? ` [CONTACTO:${form.contacto.trim()}]` : ''}`.trim(),
+          estado: 'Pendiente',
+          referencia: codigoUnico,
+          origen: sinRegistro ? 'funcionario_sin_registro' : 'funcionario',
           ...(inmuebleSel ? { inmueble: inmuebleSel } : {}),
           ...(() => {
             const p = calcPlanilla();
@@ -298,7 +314,6 @@ export default function ServiciosEspecialesPage() {
               hora_evento: form.horario || null, direccion_evento: form.lugar || form.direccion || null,
               aforo: form.aforo ? parseInt(form.aforo) : null, telefono: form.telefono || null,
               correo: form.correo || null,
-              notas: `${form.notas || ''}${form.contacto ? ` [CONTACTO:${form.contacto}]` : ''}`.trim(),
             };
           })()
         })
@@ -311,7 +326,7 @@ export default function ServiciosEspecialesPage() {
         });
 
         // Descargar la planilla automáticamente con el código único generado
-        if (form.tipo === 'especial' || form.tipo === 'extraordinario') {
+        if (form.tipo === 'especial' || form.tipo === 'extraordinario' || form.tipo === 'inspeccion') {
           const p = calcPlanilla();
           descargarPlanilla(form.tipo, {
             vehiculo: form.vehiculo,
@@ -327,7 +342,7 @@ export default function ServiciosEspecialesPage() {
             aforo: form.aforo,
             valor_ucd: p?.valorUcd,
             nve: p?.nve,
-            factor: p?.factor,
+            factor: p?.factor || (form.tipo === 'inspeccion' ? parseFloat(form.area || '0') : null),
             tasa_euro: tcmmv,
           });
         }
@@ -550,7 +565,22 @@ export default function ServiciosEspecialesPage() {
                       <td className="px-4 py-3 font-mono text-xs text-slate-500">{s.referencia || '-'}</td>
                       <td className="px-4 py-3">
                         <p className="font-semibold text-slate-800">{s.contribuyente}</p>
-                        <p className="text-xs text-slate-400">{s.identidad}</p>
+                        <div className="flex flex-col text-xs text-slate-500 mt-0.5 space-y-0.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-slate-400">{s.identidad}</span>
+                            {(s as any).inmueble && <span className="text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 text-[10px]">{(s as any).inmueble}</span>}
+                          </div>
+                          {((s as any).contacto || String((s as any).notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1]) && (
+                            <p className="text-purple-700 font-medium flex items-center gap-1">
+                              <span>👤 Contacto:</span> <span className="font-bold">{(s as any).contacto || String((s as any).notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1]}</span>
+                            </p>
+                          )}
+                          {(s as any).telefono && (
+                            <p className="text-slate-500 flex items-center gap-1">
+                              <span>📞</span> <span>{(s as any).telefono}</span>
+                            </p>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{s.descripcion}</td>
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{s.fecha}</td>
@@ -604,11 +634,46 @@ export default function ServiciosEspecialesPage() {
               </div>
               <button onClick={() => setServicioEditando(null)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-3.5 max-h-[75vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Contribuyente</label>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Contribuyente / Solicitante</label>
                 <p className="text-sm font-semibold text-slate-800">{servicioEditando.contribuyente} ({servicioEditando.identidad})</p>
               </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Persona de contacto</label>
+                  <input 
+                    type="text" 
+                    value={contactoEdit} 
+                    onChange={e => setContactoEdit(e.target.value)} 
+                    placeholder="Nombre del contacto"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Teléfono</label>
+                  <input 
+                    type="text" 
+                    value={telefonoEdit} 
+                    onChange={e => setTelefonoEdit(e.target.value)} 
+                    placeholder="0414-1234567"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none" 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Dirección / Lugar del Servicio</label>
+                <input 
+                  type="text" 
+                  value={direccionEdit} 
+                  onChange={e => setDireccionEdit(e.target.value)} 
+                  placeholder="Dirección del inmueble o servicio"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none" 
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Descripción</label>
                 <input 
@@ -618,6 +683,7 @@ export default function ServiciosEspecialesPage() {
                   className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none" 
                 />
               </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Monto (Bs) *</label>
                 <input 
@@ -795,41 +861,90 @@ export default function ServiciosEspecialesPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Teléfono / Celular</label>
-                        <input
-                          type="text"
-                          placeholder="0414-1234567"
-                          value={form.telefono}
-                          onChange={e => setForm(prev => ({ ...prev, telefono: e.target.value }))}
-                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Correo Electrónico</label>
-                        <input
-                          type="email"
-                          placeholder="cliente@correo.com"
-                          value={form.correo}
-                          onChange={e => setForm(prev => ({ ...prev, correo: e.target.value }))}
-                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Dirección / Ubicación del Solicitante</label>
-                      <input
-                        type="text"
-                        placeholder="Dirección fiscal o residencia"
-                        value={form.direccion}
-                        onChange={e => setForm(prev => ({ ...prev, direccion: e.target.value }))}
-                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 bg-white"
-                      />
-                    </div>
                   </div>
                 )}
+              </div>
+
+              {/* Sección Universal de Contacto y Ubicación — Para TODOS los tipos de servicios e inspecciones */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-purple-600" />
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    Datos de Contacto y Ubicación del Servicio
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                      Persona de contacto *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Ing. Pedro Pérez / Persona que atiende"
+                      value={form.contacto}
+                      onChange={e => setForm(prev => ({ ...prev, contacto: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                      Teléfono de contacto *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="0414-1234567 / 0412-7654321"
+                      value={form.telefono}
+                      onChange={e => setForm(prev => ({ ...prev, telefono: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                      Correo Electrónico
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="contacto@correo.com"
+                      value={form.correo}
+                      onChange={e => setForm(prev => ({ ...prev, correo: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                      Fecha del Servicio / Inspección
+                    </label>
+                    <input
+                      type="date"
+                      value={form.fechaEvento || form.fecha}
+                      onChange={e => setForm(prev => ({ ...prev, fechaEvento: e.target.value, fecha: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                      Dirección / Lugar del Inmueble o Servicio *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Av. Universidad, C.C. La Granja / Res. Don Bosco Apto 4B"
+                      value={form.lugar || form.direccion}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setForm(prev => ({ ...prev, lugar: val, direccion: val }));
+                      }}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white"
+                      required
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Servicio Especial / Extraordinario — campos de la planilla oficial */}
@@ -878,35 +993,19 @@ export default function ServiciosEspecialesPage() {
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className={lbl}>Persona de contacto</label>
-                        <input value={form.contacto} onChange={e => setForm(prev => ({ ...prev, contacto: e.target.value }))} className={inp} />
-                      </div>
-                      <div>
-                        <label className={lbl}>Teléfono</label>
-                        <input value={form.telefono} onChange={e => setForm(prev => ({ ...prev, telefono: e.target.value }))} className={inp} />
-                      </div>
                       {esp && (
                         <div className="col-span-2">
                           <label className={lbl}>Nombre del evento</label>
                           <input value={form.nombreEvento} onChange={e => setForm(prev => ({ ...prev, nombreEvento: e.target.value }))} className={inp} />
                         </div>
                       )}
-                      <div className="col-span-2">
-                        <label className={lbl}>{esp ? 'Lugar' : 'Dirección'}</label>
-                        <input value={form.lugar} onChange={e => setForm(prev => ({ ...prev, lugar: e.target.value }))} className={inp} />
-                      </div>
-                      <div>
-                        <label className={lbl}>Fecha del servicio</label>
-                        <input type="date" value={form.fechaEvento} onChange={e => setForm(prev => ({ ...prev, fechaEvento: e.target.value }))} className={inp} />
-                      </div>
-                      <div>
+                      <div className={esp ? '' : 'col-span-2'}>
                         <label className={lbl}>Horario</label>
                         <input placeholder="Ej: 8:00 am a 4:00 pm" value={form.horario} onChange={e => setForm(prev => ({ ...prev, horario: e.target.value }))} className={inp} />
                       </div>
                       {esp && (
                         <div>
-                          <label className={lbl}>Aforo</label>
+                          <label className={lbl}>Aforo estimado</label>
                           <input type="number" min="0" value={form.aforo} onChange={e => setForm(prev => ({ ...prev, aforo: e.target.value }))} className={inp} />
                         </div>
                       )}

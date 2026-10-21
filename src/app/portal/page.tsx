@@ -251,7 +251,7 @@ export default function PortalLogin() {
             </p>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm text-center font-medium">
+              <div className="mb-4 p-3.5 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs text-left font-medium whitespace-pre-line leading-relaxed">
                 {error}
               </div>
             )}

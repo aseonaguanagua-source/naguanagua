@@ -65,6 +65,7 @@ export async function GET(request: Request) {
 
     const enriched = (data || []).map((s: any) => ({
       ...s,
+      contacto: s.contacto || String(s.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '',
       origen: s.origen || (s.notas?.includes('[ORIGEN:contribuyente]') ? 'contribuyente' : 'funcionario')
     }));
 
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tipo, identidad, contribuyente, descripcion, monto, fecha, notas, estado, referencia, origen } = body;
+    const { tipo, identidad, contribuyente, descripcion, monto, fecha, notas, estado, referencia, origen, contacto } = body;
 
     if (!identidad || !descripcion || monto === undefined || monto === null || isNaN(Number(monto))) {
       return NextResponse.json({ error: 'Datos incompletos o monto inválido' }, { status: 400 });
@@ -85,7 +86,12 @@ export async function POST(request: Request) {
 
     const origenStr = origen || 'funcionario';
     const originTag = `[ORIGEN:${origenStr}]`;
-    const finalNotas = notas ? (notas.includes('[ORIGEN:') ? notas : `${originTag} ${notas}`) : originTag;
+    const cleanContacto = (contacto || '').trim();
+    const contactoTag = cleanContacto ? `[CONTACTO:${cleanContacto}]` : '';
+
+    let finalNotas = notas ? String(notas) : '';
+    if (!finalNotas.includes('[ORIGEN:')) finalNotas = `${originTag} ${finalNotas}`.trim();
+    if (contactoTag && !finalNotas.includes('[CONTACTO:')) finalNotas = `${finalNotas} ${contactoTag}`.trim();
 
     const baseRow: any = {
       tipo,
@@ -97,7 +103,7 @@ export async function POST(request: Request) {
       estado: estado || 'Pendiente',
       referencia: referencia || `SRV-${Date.now()}`
     };
-    // Campos de la planilla (Servicio Especial / Extraordinario). Solo se envían si vienen.
+    // Campos de la planilla (Servicio Especial / Extraordinario / Inspección). Solo se envían si vienen.
     const EXTRA = ['categoria', 'inmueble', 'tarifa_id', 'vehiculo', 'nivel', 'valor_ucd', 'nve', 'factor', 'tasa_euro',
       'nombre_evento', 'fecha_evento', 'hora_evento', 'direccion_evento', 'aforo', 'telefono', 'correo', 'creado_por'];
     for (const k of EXTRA) if (body[k] !== undefined && body[k] !== null && body[k] !== '') baseRow[k] = body[k];
@@ -105,7 +111,7 @@ export async function POST(request: Request) {
     // Intentar primero con la columna origen por si existe en el esquema
     let result = await supabase
       .from('servicios_especiales')
-      .insert([{ ...baseRow, notas: notas || '', origen: origenStr }])
+      .insert([{ ...baseRow, notas: finalNotas, origen: origenStr }])
       .select()
       .maybeSingle();
 
@@ -125,6 +131,7 @@ export async function POST(request: Request) {
 
     const row = result.data ? {
       ...result.data,
+      contacto: cleanContacto || String(result.data.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '',
       origen: result.data.origen || origenStr
     } : null;
 
@@ -162,15 +169,33 @@ export async function DELETE(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, monto, descripcion, fecha, notas, referencias, ids, estado } = body;
+    const { id, monto, descripcion, fecha, notas, referencias, ids, estado, contacto, telefono, direccion_evento } = body;
 
     if (id) {
       const upd: any = {};
       if (monto !== undefined) upd.monto = Number(monto);
       if (descripcion !== undefined) upd.descripcion = descripcion;
       if (fecha !== undefined) upd.fecha = fecha;
-      if (notas !== undefined) upd.notas = notas;
       if (estado !== undefined) upd.estado = estado;
+      if (telefono !== undefined) upd.telefono = telefono;
+      if (direccion_evento !== undefined) upd.direccion_evento = direccion_evento;
+
+      if (contacto !== undefined || notas !== undefined) {
+        let curNotas = notas;
+        if (curNotas === undefined) {
+          const { data: cur } = await supabase.from('servicios_especiales').select('notas').eq('id', id).single();
+          curNotas = cur?.notas || '';
+        }
+        if (contacto !== undefined) {
+          const cleanContacto = (contacto || '').trim();
+          if (curNotas.includes('[CONTACTO:')) {
+            curNotas = cleanContacto ? curNotas.replace(/\[CONTACTO:[^\]]*\]/, `[CONTACTO:${cleanContacto}]`) : curNotas.replace(/\[CONTACTO:[^\]]*\]/, '').trim();
+          } else if (cleanContacto) {
+            curNotas = `${curNotas} [CONTACTO:${cleanContacto}]`.trim();
+          }
+        }
+        upd.notas = curNotas;
+      }
 
       const { data, error } = await supabase
         .from('servicios_especiales')
@@ -179,7 +204,11 @@ export async function PATCH(request: Request) {
         .select()
         .single();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ success: true, data });
+      const enrichedRow = data ? {
+        ...data,
+        contacto: contacto !== undefined ? contacto : (String(data.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '')
+      } : null;
+      return NextResponse.json({ success: true, data: enrichedRow });
     }
 
     let query = supabase.from('servicios_especiales').update({ estado: estado || 'Pagado' });

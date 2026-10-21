@@ -38,7 +38,7 @@ export async function checkPortalMantenimiento(): Promise<boolean> {
 }
 
 export const MENSAJE_CONDOMINIO_BLOQUEADO =
-  'Error de conexión (ERR-CONN-R). Por favor revise su conexión a internet. Si el problema persiste, por favor comunicarse con los números telefónicos del IAMEC: 0414-5952927.';
+  'Error de conexión (ERR-CONN-R). Por favor revise su conexión a internet. Si el problema persiste o requiere asistencia, contáctenos a los números del IAMEC:\n• Aseo Residencial: 0424-4282364\n• Aseo Comercial: 0424-4282365\n• Atención Mixta: 0424-4526080 / 0414-5952927';
 
 export async function esCondominioDoc(doc: string): Promise<boolean> {
   if (!doc) return false;
