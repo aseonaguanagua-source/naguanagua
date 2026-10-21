@@ -16,17 +16,40 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const identidad = searchParams.get('identidad');
     const referencia = searchParams.get('referencia');
+    const search = searchParams.get('q') || searchParams.get('search');
     const estado = searchParams.get('estado');
 
     let query = supabase
       .from('servicios_especiales')
       .select('*');
 
-    if (referencia) {
-      query = query.eq('referencia', referencia.trim().toUpperCase());
+    if (search) {
+      const raw = search.trim().toUpperCase();
+      const digits = raw.replace(/\D/g, '');
+      const orFilters = [
+        `referencia.ilike.%${raw}%`,
+        `identidad.ilike.%${raw}%`
+      ];
+      if (digits.length >= 3) {
+        orFilters.push(`referencia.ilike.%${digits}%`);
+        orFilters.push(`identidad.ilike.%${digits}%`);
+      }
+      if (raw.length >= 3 && !/^\d+$/.test(raw)) {
+        orFilters.push(`contribuyente.ilike.%${raw}%`);
+      }
+      query = query.or(orFilters.join(','));
+    } else if (referencia) {
+      const rawRef = referencia.trim().toUpperCase();
+      const digits = rawRef.replace(/\D/g, '');
+      const orFilters = [`referencia.ilike.%${rawRef}%`];
+      if (digits.length >= 3) orFilters.push(`referencia.ilike.%${digits}%`);
+      query = query.or(orFilters.join(','));
     } else if (identidad) {
       const variants = getIdentidadVariants(identidad);
-      query = query.in('identidad', variants);
+      const digits = identidad.replace(/\D/g, '');
+      const orFilters = variants.map(v => `identidad.eq.${v}`);
+      if (digits.length >= 6) orFilters.push(`identidad.ilike.%${digits}%`);
+      query = query.or(orFilters.join(','));
     }
 
     if (estado) {

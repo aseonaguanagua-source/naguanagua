@@ -58,7 +58,18 @@ const snapshotDeudaPrevia = async (identidad: string, hijosIds: string[] = []) =
   }
 };
 
-
+const fetchServiciosEspecialesAdmin = async (term: string) => {
+  if (!term || term.trim().length < 2) return [];
+  try {
+    const res = await fetch(`/api/admin/servicios-especiales?q=${encodeURIComponent(term.trim())}`, { cache: 'no-store' });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.error('Error buscando servicios especiales:', e);
+  }
+  return [];
+};
 
 export default function CajaPage() {
   const { inmuebles, convenios, contribuyentes, documentos, tcmmv, refreshData, refreshUserData } = useAppContext();
@@ -560,20 +571,11 @@ export default function CajaPage() {
     let user: any = null;
     const isCodeFormat = /^(AURI|URB|[A-Z]{3,})\d+/i.test(rawSearch) || /^[A-Z]+\d+$/i.test(rawSearch);
 
-    // 0. PRIORIDAD: Búsqueda directa por Código de Servicio Especial (SRV-..., SERV-..., o código de planilla)
+    // 0. PRIORIDAD: Búsqueda directa por Código de Servicio Especial (SRV-..., número de planilla ej: 1933 o 26-1933)
     const digitsOnly = rawSearch.replace(/\D/g, '');
-    const isSrvSearch = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.includes('SRV') || rawSearch.includes('SERV');
-    if (isSrvSearch) {
-      const srvOrFilters = [`referencia.ilike.%${rawSearch.trim()}%`];
-      if (digitsOnly.length >= 3) {
-        srvOrFilters.push(`referencia.ilike.%${digitsOnly}%`);
-      }
-      const { data: srvDirect } = await supabase
-        .from('servicios_especiales')
-        .select('*')
-        .or(srvOrFilters.join(','))
-        .order('created_at', { ascending: false });
-
+    const isLikelySrv = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.includes('SRV') || rawSearch.includes('SERV') || (rawSearch.includes('-') && digitsOnly.length >= 3) || (/^\d{3,5}$/.test(rawSearch));
+    if (isLikelySrv) {
+      const srvDirect = await fetchServiciosEspecialesAdmin(rawSearch);
       if (srvDirect && srvDirect.length > 0) {
         const srvPendientes = srvDirect.filter((s: any) => s.estado === 'Pendiente');
         const srvListToUse = srvPendientes.length > 0 ? srvPendientes : srvDirect;
@@ -781,33 +783,15 @@ export default function CajaPage() {
         }
       }
 
-      // Fallback 3: buscar en tabla servicios_especiales (por código único de planilla, número, cédula/RIF o nombre)
+      // Fallback 3: buscar en tabla servicios_especiales vía API Admin (bypassa RLS)
       if (!user) {
-        const digits = rawSearch.replace(/\D/g, '');
-        const isSrvPattern = /^S(RV|ERV)[-_]/i.test(rawSearch) || rawSearch.toUpperCase().includes('SRV') || rawSearch.toUpperCase().includes('SERV');
-        let qSrv = supabase.from('servicios_especiales').select('*');
-        if (isSrvPattern) {
-          const srvFilters = [`referencia.ilike.%${rawSearch.trim()}%`];
-          if (digits.length >= 3) srvFilters.push(`referencia.ilike.%${digits}%`);
-          qSrv = qSrv.or(srvFilters.join(','));
-        } else {
-          const srvOrFilters = [
-            `referencia.ilike.%${rawSearch.trim()}%`,
-            ...searchVariants.map(v => `identidad.eq.${v}`),
-            ...(inputClean.length >= 4 ? [`identidad.ilike.%${inputClean}%`] : [])
-          ];
-          if (digits.length >= 3) {
-            srvOrFilters.push(`referencia.ilike.%${digits}%`);
-          }
-          if (digits.length >= 6) {
-            srvOrFilters.push(`identidad.ilike.%${digits}%`);
-          }
-          if (rawSearch.length >= 3 && !/^\d+$/.test(rawSearch)) {
-            srvOrFilters.push(`contribuyente.ilike.%${rawSearch}%`);
-          }
-          qSrv = qSrv.or(srvOrFilters.join(','));
+        let srvFallbackList = await fetchServiciosEspecialesAdmin(rawSearch);
+        if ((!srvFallbackList || srvFallbackList.length === 0) && activePrefix && inputClean) {
+          srvFallbackList = await fetchServiciosEspecialesAdmin(`${activePrefix}-${inputClean}`);
         }
-        const { data: srvFallbackList } = await qSrv.order('created_at', { ascending: false });
+        if ((!srvFallbackList || srvFallbackList.length === 0) && digitsOnly.length >= 3) {
+          srvFallbackList = await fetchServiciosEspecialesAdmin(digitsOnly);
+        }
         if (srvFallbackList && srvFallbackList.length > 0) {
           const srvPendientes = srvFallbackList.filter((s: any) => s.estado === 'Pendiente');
           const srvListToUse = srvPendientes.length > 0 ? srvPendientes : srvFallbackList;
