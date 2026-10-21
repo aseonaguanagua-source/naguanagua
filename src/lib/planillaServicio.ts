@@ -84,28 +84,48 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   const W = doc.internal.pageSize.getWidth();
   const L = 18, R = W - 18;
 
-  // Encabezado
-  try { doc.addImage(logos.iamec, 'PNG', L, 10, 38, 21); } catch { /* sin logo */ }
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-  doc.text('ALCALDÍA DEL MUNICIPIO NAGUANAGUA — IAMEC', W / 2 + 12, 16, { align: 'center' });
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
-  doc.text('INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO NAGUANAGUA · RIF: G-20008614-9', W / 2 + 12, 21, { align: 'center' });
-  doc.text('Carretera Nacional Vía La Entrada, C.C. Río Sil, Nivel 2, Local 37, Bárbula, Naguanagua, Carabobo', W / 2 + 12, 25, { align: 'center' });
+  // ── Encabezado Oficial IAMEC ──
+  // Logo IAMEC a la izquierda sin solapamiento
+  const logoW = 34, logoH = 19;
+  try { doc.addImage(logos.iamec, 'PNG', L, 9, logoW, logoH); } catch { /* sin logo */ }
 
-  // Código único destacado para cobro en caja en esquina superior
+  // Código único destacado para cobro en caja a la derecha (ubicado limpiamente sin tapar logos ni renglones)
+  const boxW = 50, boxH = 16.5;
+  const boxX = R - boxW;
+  const boxY = 10;
   if (d.referencia) {
     doc.setFillColor(240, 253, 244);
     doc.setDrawColor(22, 101, 52);
-    doc.roundedRect(R - 58, 10, 58, 16, 2, 2, 'FD');
+    doc.setLineWidth(0.4);
+    doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, 'FD');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
+    doc.setFontSize(6.5);
     doc.setTextColor(22, 101, 52);
-    doc.text('CÓDIGO DE COBRO EN CAJA', R - 29, 15, { align: 'center' });
-    doc.setFontSize(10);
+    doc.text('CÓDIGO PARA CANCELAR EN CAJA', boxX + boxW / 2, boxY + 5.5, { align: 'center' });
+    const refStr = String(d.referencia);
+    doc.setFontSize(refStr.length > 18 ? 8 : (refStr.length > 14 ? 9 : 10));
     doc.setTextColor(15, 23, 42);
-    doc.text(d.referencia, R - 29, 22, { align: 'center' });
+    doc.text(refStr, boxX + boxW / 2, boxY + 12.5, { align: 'center' });
     doc.setTextColor(0);
   }
+
+  // Texto institucional en el espacio central libre (sin tocar logo ni código de caja)
+  const xCenter = (L + logoW + 4 + boxX) / 2;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO', xCenter, 14, { align: 'center' });
+  doc.setFontSize(9.5);
+  doc.setTextColor(22, 101, 52);
+  doc.text('IAMEC NAGUANAGUA', xCenter, 18.5, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(71, 85, 105);
+  doc.text('ESTADO CARABOBO · RIF: G-20008614-9', xCenter, 22.5, { align: 'center' });
+  doc.setFontSize(6);
+  doc.setTextColor(100, 116, 139);
+  doc.text('C.C. Río Sil, Nivel 2, Local 37, Bárbula · Naguanagua', xCenter, 26, { align: 'center' });
+  doc.setTextColor(0);
 
   const tituloBanner = insp
     ? 'SOLICITUD / ACTA DE INSPECCIÓN TÉCNICA AMBIENTAL'
@@ -116,9 +136,9 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
         : tp
           ? 'PERMISO DE PODA Y TALA'
           : 'SERVICIO EXTRAORDINARIO';
-  doc.setFillColor(22, 101, 52); doc.rect(L, 35, R - L, 9, 'F');
+  doc.setFillColor(22, 101, 52); doc.rect(L, 34, R - L, 9, 'F');
   doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(insp ? 11 : 13);
-  doc.text(tituloBanner, W / 2, 41.3, { align: 'center' });
+  doc.text(tituloBanner, W / 2, 40.3, { align: 'center' });
   doc.setTextColor(0);
 
   let y = 52;
@@ -229,7 +249,7 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   doc.text(insp ? 'Inspector Técnico IAMEC' : 'Firma y Sello IAMEC', L + 37.5, y + 5, { align: 'center' });
   doc.text('Firma del Solicitante / Contribuyente', R - 37.5, y + 5, { align: 'center' });
 
-  // ── LOGOS INSTITUCIONALES EN LA PARTE INFERIOR ──
+  // ── LOGOS INSTITUCIONALES EN LA PARTE INFERIOR (SIN ALCALDÍA) ──
   const yLogos = 246;
   try {
     if ((logos as any).lacava) {
@@ -238,12 +258,7 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   } catch {}
   try {
     if ((logos as any).elizabeth) {
-      doc.addImage((logos as any).elizabeth, 'PNG', W / 2 - 25, yLogos + 3, 50, 9.5);
-    }
-  } catch {}
-  try {
-    if ((logos as any).naguanaguaTeQuiero) {
-      doc.addImage((logos as any).naguanaguaTeQuiero, 'PNG', R - 42, yLogos, 40, 15);
+      doc.addImage((logos as any).elizabeth, 'PNG', R - 50, yLogos + 3, 48, 9.5);
     }
   } catch {}
 

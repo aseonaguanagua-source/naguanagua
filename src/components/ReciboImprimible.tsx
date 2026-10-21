@@ -207,6 +207,14 @@ function ReciboContenido({
     fontSize: baseFontSize
   } as React.CSSProperties;
 
+  const isServicio = 
+    data.tipoContribuyente?.toLowerCase().includes('servicio') ||
+    data.tipoContribuyente?.toLowerCase().includes('tasa') ||
+    data.conceptos?.some(c => {
+      const desc = (c.descripcion || '').toLowerCase();
+      return desc.includes('servicio especial') || desc.includes('servicio extraordinario') || desc.includes('tala') || desc.includes('poda') || desc.includes('inspecc') || desc.includes('visto bueno') || desc.includes('tasa adm');
+    });
+
   return (
     <div style={{
       background: '#fff', color: '#000', border: B,
@@ -215,32 +223,49 @@ function ReciboContenido({
       boxSizing: 'border-box'
     }}>
 
-      {/* ── ENCABEZADO OFICIAL MUNICIPAL ── */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom: B, padding:'4px 8px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" style={{ width:42, height:36, objectFit:'contain' }} />
-          <div>
-            <div style={{ fontWeight:'bold', fontSize:8.5, lineHeight:1.2, color:'#064e3b' }}>
-              ALCALDÍA BOLIVARIANA DE NAGUANAGUA
-            </div>
-            <div style={{ fontWeight:'bold', fontSize:7.5, lineHeight:1.2 }}>
-              INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO (IAMEC)
-            </div>
-            <div style={{ fontSize:7, lineHeight:1.2, color:'#475569' }}>
-              ESTADO CARABOBO · RIF: G-20012028-2 · GESTIÓN INTEGRAL DE RESIDUOS
+      {/* ── ENCABEZADO OFICIAL (EN SERVICIOS SOLO IAMEC SIN ALCALDÍA) ── */}
+      {isServicio ? (
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom: B, padding:'4px 8px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logos/IAMEC.png" alt="IAMEC" style={{ width:54, height:30, objectFit:'contain' }} />
+            <div>
+              <div style={{ fontWeight:'bold', fontSize:9, lineHeight:1.2, color:'#064e3b' }}>
+                INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO (IAMEC)
+              </div>
+              <div style={{ fontSize:7, lineHeight:1.2, color:'#475569' }}>
+                ESTADO CARABOBO · RIF: G-20008614-9 · DIRECCIÓN DE ECOSOCIALISMO Y AMBIENTE
+              </div>
             </div>
           </div>
         </div>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logos/IAMEC.png" alt="IAMEC" style={{ width:50, height:28, objectFit:'contain' }} />
-      </div>
+      ) : (
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom: B, padding:'4px 8px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" style={{ width:42, height:36, objectFit:'contain' }} />
+            <div>
+              <div style={{ fontWeight:'bold', fontSize:8.5, lineHeight:1.2, color:'#064e3b' }}>
+                ALCALDÍA BOLIVARIANA DE NAGUANAGUA
+              </div>
+              <div style={{ fontWeight:'bold', fontSize:7.5, lineHeight:1.2 }}>
+                INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO (IAMEC)
+              </div>
+              <div style={{ fontSize:7, lineHeight:1.2, color:'#475569' }}>
+                ESTADO CARABOBO · RIF: G-20012028-2 · GESTIÓN INTEGRAL DE RESIDUOS
+              </div>
+            </div>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logos/IAMEC.png" alt="IAMEC" style={{ width:50, height:28, objectFit:'contain' }} />
+        </div>
+      )}
 
-      {/* ── TÍTULO (EN RESIDENCIAL SIEMPRE ES RECIBO DE COBRO) ── */}
+      {/* ── TÍTULO (EN RESIDENCIAL ASEO URBANO, EN SERVICIOS ESPECIALES IAMEC) ── */}
       <div style={{ textAlign:'center', fontWeight:'bold', fontSize:9.5, letterSpacing:'0.05em', borderBottom: B, padding:'2.5px 0', background: '#f8fafc' }}>
         {data.esAbono 
           ? 'RECIBO DE ABONO / PAGO PARCIAL' 
-          : 'RECIBO DE COBRO - ASEO URBANO'}
+          : (isServicio ? 'RECIBO DE COBRO - SERVICIOS ESPECIALES IAMEC' : 'RECIBO DE COBRO - ASEO URBANO')}
       </div>
 
       {/* ── DATOS CONTRIBUYENTE + Nro ── */}

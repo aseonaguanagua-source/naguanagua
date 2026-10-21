@@ -35,13 +35,14 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
   doc.rect(0, 0, W, 30, 'F');
   const logo = logoIamec();
   if (logo) { try { doc.addImage(logo, 'PNG', M, 5, 20, 20); } catch { /* logo opcional */ } }
+  const isServicio = (d.det?.servicios && d.det.servicios.length > 0) || (d.det?.tala_poda && d.det.tala_poda.length > 0) || String(d.pago.tipo || '').toLowerCase().includes('servicio');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text('ALCALDÍA DE NAGUANAGUA • IAMEC', W / 2, 13, { align: 'center' });
+  doc.setFontSize(isServicio ? 12 : 14);
+  doc.text(isServicio ? 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO (IAMEC)' : 'ALCALDÍA DE NAGUANAGUA • IAMEC', W / 2, 13, { align: 'center' });
   doc.setFontSize(10);
   doc.setTextColor(220, 252, 231);
-  doc.text('RECIBO DE PAGO • SERVICIO DE ASEO URBANO', W / 2, 20, { align: 'center' });
+  doc.text(isServicio ? 'RECIBO DE PAGO • SERVICIOS ESPECIALES' : 'RECIBO DE PAGO • SERVICIO DE ASEO URBANO', W / 2, 20, { align: 'center' });
   doc.setFontSize(8);
   doc.text('R.I.F. G-20008614-9', W / 2, 25, { align: 'center' });
   y = 40;
