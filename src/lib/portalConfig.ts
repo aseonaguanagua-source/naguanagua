@@ -43,16 +43,29 @@ export const MENSAJE_CONDOMINIO_BLOQUEADO =
 export async function esCondominioDoc(doc: string): Promise<boolean> {
   if (!doc) return false;
   const raw = String(doc).trim();
-  const rawNaked = raw.replace(/^[VJGEP]-?/i, '');
-  const variantes = Array.from(new Set([
-    raw,
-    raw.toUpperCase(),
-    rawNaked,
-    `V-${rawNaked}`,
-    `J-${rawNaked}`,
-    `G-${rawNaked}`,
-    `E-${rawNaked}`
-  ]));
+  const rawUpper = raw.toUpperCase();
+  
+  // Extraer prefijo si existe
+  const matchPrefix = rawUpper.match(/^([VJGEP])-?(\d+)$/i);
+  const prefix = matchPrefix ? matchPrefix[1].toUpperCase() : '';
+  const digits = matchPrefix ? matchPrefix[2] : rawUpper.replace(/^[VJGEP]-?/i, '');
+
+  // Las personas naturales (V o E) NUNCA son condominios, a menos que hayan buscado un código URB/AURI
+  if ((prefix === 'V' || prefix === 'E') && !rawUpper.startsWith('URB') && !rawUpper.startsWith('AURI')) {
+    return false;
+  }
+
+  // Generar variantes exactas conservando el prefijo si fue indicado
+  const variantes: string[] = [];
+  variantes.push(rawUpper);
+  if (prefix) {
+    variantes.push(`${prefix}-${digits}`);
+    variantes.push(`${prefix}${digits}`);
+  } else {
+    variantes.push(digits);
+    variantes.push(`J-${digits}`);
+    variantes.push(`G-${digits}`);
+  }
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -60,10 +73,10 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
   const sb = createClient(supabaseUrl, supabaseKey);
 
   try {
+    // 1. Verificar si está registrado en la tabla oficial de condominios
     const orCondo = [
       ...variantes.map(v => `identidad.eq.${v}`),
-      `codigo.eq.${raw}`,
-      `codigo.eq.${raw.toUpperCase()}`
+      `codigo.eq.${rawUpper}`
     ].join(',');
 
     const { data: cMatches } = await sb
@@ -74,24 +87,25 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
 
     if (cMatches && cMatches.length > 0) return true;
 
+    // 2. Verificar en la tabla de inmuebles si es un registro matriz de condominio
     const orInm = [
       ...variantes.map(v => `identidad.eq.${v}`),
-      `inmueble.eq.${raw.toUpperCase()}`
+      `inmueble.eq.${rawUpper}`
     ].join(',');
 
     const { data: inms } = await sb
       .from('inmuebles')
-      .select('inmueble, tipo, clasificacion, es_condominio, contribuyente, actividad_principal')
+      .select('inmueble, tipo, clasificacion, es_condominio, contribuyente')
       .or(orInm)
       .limit(10);
 
     if (inms && inms.length > 0) {
       const isC = inms.some(i => 
         i.es_condominio === true ||
-        String(i.tipo || '').toLowerCase().includes('condominio') ||
-        String(i.clasificacion || '').toLowerCase().includes('condominio') ||
+        String(i.clasificacion || '').toLowerCase() === 'condominio' ||
         String(i.contribuyente || '').toLowerCase().includes('condominio') ||
-        String(i.contribuyente || '').toLowerCase().includes('junta de cond')
+        String(i.contribuyente || '').toLowerCase().includes('junta de cond') ||
+        String(i.contribuyente || '').toLowerCase().includes('asociacion civil')
       );
       if (isC) return true;
     }
