@@ -1315,11 +1315,27 @@ export default function CajaPage() {
       setRecibos(combined);
 
       
-      // Load Convenios Cuotas
+      // Load Convenios Cuotas (fresco desde base de datos o fallback a memoria)
       const userConvenioVariants = new Set(userIdentVariants.map(v => v.replace(/-/g, '').toUpperCase()));
-      const userConvenios = convenios.filter((c: any) => {
+      let convListToUse = convenios;
+      try {
+        const { data: dbConvFresh } = await supabase
+          .from('convenios_pago')
+          .select('*, convenios_cuotas(*)')
+          .or(userIdentVariants.map(v => `identidad.eq.${v}`).join(','));
+        if (dbConvFresh && dbConvFresh.length > 0) {
+          convListToUse = dbConvFresh.map((c: any) => ({
+            ...c,
+            detalle_cuotas: JSON.stringify(c.convenios_cuotas || [])
+          }));
+        }
+      } catch (e) {
+        console.warn('Error fetching fresh convenios_pago in caja:', e);
+      }
+
+      const userConvenios = (convListToUse || []).filter((c: any) => {
         const idCleanConv = (c.identidad || '').replace(/-/g, '').toUpperCase();
-        const matchesUser = userConvenioVariants.has(idCleanConv) && c.estado === 'Al Día';
+        const matchesUser = userConvenioVariants.has(idCleanConv) && (c.estado === 'Al Día' || c.estado === 'Activo');
         if (!matchesUser) return false;
         const allowedInmCodes = new Set((activeInmFresh || []).map((i: any) => String(i.inmueble || '').toUpperCase()));
         if (c.inmueble && allowedInmCodes.size > 0 && !allowedInmCodes.has(c.inmueble.toUpperCase())) return false;

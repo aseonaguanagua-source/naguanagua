@@ -1861,7 +1861,17 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                 </div>
 
                 {(() => {
-                  const userConvenios = conveniosGlobal.filter(c => c.identidad === viewData.Identidad);
+                  const vIdClean = (viewData.Identidad || '').replace(/\D/g, '');
+                  const vInmCodes = new Set([
+                    (viewData.CodCont || viewData.inmueble || '').toUpperCase(),
+                    ...((viewData.inmuebles || []).map((i: any) => (i.inmueble || '').toUpperCase()))
+                  ]);
+                  const userConvenios = conveniosGlobal.filter(c => {
+                    const cIdClean = (c.identidad || '').replace(/\D/g, '');
+                    const idMatch = vIdClean.length >= 4 && cIdClean === vIdClean;
+                    const inmMatch = c.inmueble && vInmCodes.has(String(c.inmueble).toUpperCase());
+                    return idMatch || inmMatch;
+                  });
                   if (userConvenios.length === 0) {
                     return (
                       <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center text-slate-500 text-xs">

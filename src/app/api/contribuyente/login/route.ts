@@ -20,45 +20,6 @@ export async function POST(request: Request) {
     // Coincidencia exacta de prefijo (V con V, J con J, G con G) para evitar mezclas
     const variantes = getIdentidadVariantsExact(identidad);
     const orFilter = variantes.map(v => `identidad.eq.${v}`).join(',');
-    const rawNum = identidad.replace(/\D/g, '');
-
-    // 0. Bloquear acceso al portal para Condominios (su administración es centralizada con IAMEC)
-    const condoOrFilters = [
-      ...variantes.map(v => `identidad.eq.${v}`),
-      `codigo.eq.${identidad.trim().toUpperCase()}`
-    ];
-    if (rawNum.length >= 6) {
-      condoOrFilters.push(`identidad.ilike.%${rawNum}%`);
-    }
-
-    const { data: condoMatches } = await supabase
-      .from('condominios')
-      .select('id, codigo, nombre')
-      .or(condoOrFilters.join(','))
-      .limit(1);
-
-    if (condoMatches && condoMatches.length > 0) {
-      const cNom = condoMatches[0]?.nombre || 'su condominio';
-      return NextResponse.json({
-        error: `El acceso a este portal está reservado para personas naturales y comercios individuales. La administración, facturación y solvencia de los Condominios (${cNom}) se gestiona de forma centralizada y directa a través del IAMEC y la Dirección de Condominios de la Alcaldía. Para trámites o estados de cuenta, comuníquese con la oficina de atención a condominios.`,
-        esCondominio: true
-      }, { status: 403 });
-    }
-
-    // Verificar en inmuebles si posee un condominio matriz
-    const { data: inmsCondoCheck } = await supabase
-      .from('inmuebles')
-      .select('es_condominio, clasificacion, inmueble, contribuyente')
-      .or(orFilter)
-      .limit(10);
-
-    if (inmsCondoCheck && inmsCondoCheck.length > 0 && inmsCondoCheck.some((i: any) => i.es_condominio === true || String(i.clasificacion || '').toLowerCase() === 'condominio')) {
-      const cNom = inmsCondoCheck.find((i: any) => i.es_condominio === true)?.contribuyente || inmsCondoCheck[0]?.contribuyente || 'su condominio';
-      return NextResponse.json({
-        error: `El acceso a este portal está reservado para personas naturales y comercios individuales. La administración, facturación y solvencia de los Condominios (${cNom}) se gestiona de forma centralizada y directa a través del IAMEC y la Dirección de Condominios de la Alcaldía. Para trámites o estados de cuenta, comuníquese con la oficina de atención a condominios.`,
-        esCondominio: true
-      }, { status: 403 });
-    }
 
     // Buscar en inmuebles activos primero
     let { data: records, error } = await supabase
