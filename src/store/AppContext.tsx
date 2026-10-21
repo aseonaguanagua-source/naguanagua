@@ -299,7 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supabase.from('documentos').select('*'),
         supabase.from('certificados').select('*'),
         supabase.from('reclamos').select('*'),
-        supabase.from('convenios').select('*'),
+        supabase.from('convenios_pago').select('*, convenios_cuotas(*)'),
         supabase.from('pre_liquidaciones').select('*'),
         fetch('/api/admin/auditoria?limit=200', { cache: 'no-store' }).then(r => r.json()).then(j => ({ data: j?.data || [] })).catch(() => ({ data: [] as any[] })),
         supabase.from('sistema_config').select('*'),
@@ -622,7 +622,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (dbDocumentos) setDocumentos(dbDocumentos);
       if (dbCertificados) setCertificados(dbCertificados);
       if (dbReclamos) setReclamos(dbReclamos);
-      if (dbConvenios) setConvenios(dbConvenios);
+      const formattedConvenios = (dbConvenios || []).map((c: any) => ({
+        ...c,
+        contribuyente: (mappedInmuebles || []).find((i: any) => i.identidad === c.identidad)?.contribuyente || c.identidad,
+        monto_total: typeof c.monto_total === 'number' ? `${c.monto_total.toFixed(2)} Bs` : (c.monto_total || '0.00 Bs'),
+        inicio: c.convenios_cuotas?.[0]?.fecha || (c.created_at ? c.created_at.slice(0, 10) : ''),
+        detalle_cuotas: JSON.stringify(c.convenios_cuotas || [])
+      }));
+      setConvenios(formattedConvenios);
       if (dbPreLiquidaciones) setPreLiquidaciones(dbPreLiquidaciones);
 
       // Guardar en caché persistente IndexedDB para cargas instantáneas subsiguientes
@@ -639,7 +646,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           documentos: dbDocumentos || [],
           certificados: dbCertificados || [],
           reclamos: dbReclamos || [],
-          convenios: dbConvenios || [],
+          convenios: formattedConvenios,
           preLiquidaciones: dbPreLiquidaciones || [],
           auditLogs: dbAuditLogs || [],
           tcmmv: currentTcmmv,
@@ -840,7 +847,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // 4. Convenios de pago en tiempo real
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'convenios' },
+        { event: '*', schema: 'public', table: 'convenios_pago' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
             setConvenios(prev => [payload.new, ...prev]);

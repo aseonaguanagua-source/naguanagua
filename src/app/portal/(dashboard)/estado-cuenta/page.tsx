@@ -140,18 +140,17 @@ export default function EstadoCuentaPage() {
           setMisFactDb(combined);
 
           // 3. Convenios
-          const { data: convenios } = await supabase.from('convenios').select('*')
+          const { data: convenios } = await supabase.from('convenios_pago').select('*, convenios_cuotas(*)')
             .or(orFilter)
             .in('estado', ['Al Día', 'Activo']);
           if (convenios) {
             const hoy = new Date().toISOString().split('T')[0];
             const cuotas: any[] = [];
             for (const conv of convenios) {
-              let parsed: any[] = [];
-              try { parsed = JSON.parse(conv.detalle_cuotas || '[]'); } catch {}
-              parsed.forEach((c: any) => {
+              const cuotasList = conv.convenios_cuotas || [];
+              cuotasList.forEach((c: any, idx: number) => {
                 if (c.estado === 'Pendiente') {
-                  cuotas.push({ conv: conv.numero, cuota: c.id + 1, fecha: c.fecha, vencida: c.fecha <= hoy, monto: parseFloat(c.monto) || 0 });
+                  cuotas.push({ conv: conv.numero, cuota: idx + 1, fecha: c.fecha, vencida: c.fecha <= hoy, monto: parseFloat(c.monto) || 0 });
                 }
               });
             }

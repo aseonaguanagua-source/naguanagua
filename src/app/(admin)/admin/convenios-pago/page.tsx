@@ -271,23 +271,37 @@ export default function ConveniosPagoPage() {
 
       // 1. Crear el convenio PRIMERO. Si falla, no se toca la deuda (antes la deuda se congelaba
       //    y el insert fallaba en silencio, dejando al contribuyente sin deuda y sin convenio).
+      // 1. Crear el convenio PRIMERO en convenios_pago. Si falla, no se toca la deuda.
       const nroConvenio = `CONV-${Date.now().toString().slice(-6)}`;
-      const { error: convErr } = await supabase.from('convenios').insert({
+      const convId = crypto.randomUUID();
+      const { error: convErr } = await supabase.from('convenios_pago').insert({
+        id: convId,
         numero: nroConvenio,
-        contribuyente: foundUser.contribuyente,
         identidad: foundUser.identidad,
-        monto_total: `${totalFijado.toFixed(2)} Bs`,
+        monto_total: totalFijado,
         cuotas: cuotas,
-        frecuencia: frecuencia,
-        inicio: fechaInicio,
         estado: 'Al Día',
-        documento_url: docUrl,
-        detalle_cuotas: JSON.stringify(listaCuotas)
+        inicial: 0
       });
       if (convErr) {
         alert('No se pudo registrar el convenio (' + convErr.message + '). La deuda NO fue modificada.');
         setIsProcessing(false);
         return;
+      }
+
+      // 1.1 Insertar las cuotas programadas en convenios_cuotas
+      if (listaCuotas && listaCuotas.length > 0) {
+        const cuotasPayload = listaCuotas.map(c => ({
+          id: crypto.randomUUID(),
+          convenio_id: convId,
+          fecha: c.fecha,
+          monto: parseFloat(c.monto) || 0,
+          estado: 'Pendiente'
+        }));
+        const { error: cuotasErr } = await supabase.from('convenios_cuotas').insert(cuotasPayload);
+        if (cuotasErr) {
+          console.warn('Error guardando convenios_cuotas:', cuotasErr);
+        }
       }
 
       // 2. Actualizar inmuebles
