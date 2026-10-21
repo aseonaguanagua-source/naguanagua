@@ -7,11 +7,12 @@ import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
 
 export default function ConveniosPagoPage() {
-  const { convenios, inmuebles, recibos, tcmmv, refreshData } = useAppContext();
+  const { convenios, inmuebles, recibos, tcmmv, refreshData, refreshUserData } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewCuotasModal, setViewCuotasModal] = useState<{isOpen: boolean, convenio: any}>({isOpen: false, convenio: null});
   const [searchDoc, setSearchDoc] = useState('');
   const [foundUser, setFoundUser] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
   
   const [cuotas, setCuotas] = useState(1);
   const [frecuencia, setFrecuencia] = useState('Mensual');
@@ -107,38 +108,114 @@ export default function ConveniosPagoPage() {
     ) }
   ];
 
-  const handleSearch = () => {
-    const userInmuebles = inmuebles.filter(i => i.identidad === searchDoc || i.cod_cont === searchDoc);
-    
-    // Also find pending recibos
-    const cleanSearchDoc = searchDoc.replace(/-/g, '').toUpperCase();
-    const userFacturas = (recibos || []).filter(f => {
-      const idCleanFactura = (f.identidad || '').replace(/-/g, '').toUpperCase();
-      const belongsToUser = idCleanFactura === cleanSearchDoc || (userInmuebles.length > 0 && f.contribuyente === userInmuebles[0].contribuyente);
-      return belongsToUser && f.estado === 'Pendiente';
-    });
+  const handleSearch = async () => {
+    const raw = (searchDoc || '').trim();
+    if (!raw) return;
 
-    if (userInmuebles.length > 0 || userFacturas.length > 0) {
-      const identidad = userInmuebles.length > 0 ? userInmuebles[0].identidad : userFacturas[0].identidad;
-      const contribuyente = userInmuebles.length > 0 ? userInmuebles[0].contribuyente : userFacturas[0].contribuyente;
-      
-      const totalMMV = userInmuebles.reduce((acc, curr) => acc + (parseFloat(curr.deuda_mmv) || parseFloat(curr.DeudaMMV) || 0), 0);
-      const totalCongelada = userInmuebles.reduce((acc, curr) => acc + (parseFloat(curr.deuda_congelada_bs) || parseFloat(curr.DeudaCongelada) || 0), 0);
-      const totalFacturasBs = userFacturas.reduce((acc, curr) => acc + (parseFloat(curr.monto) || 0), 0);
+    setIsSearching(true);
+    setFoundUser(null);
 
-      setFoundUser({
-        identidad,
-        contribuyente,
-        inmuebles: userInmuebles,
-        recibos: userFacturas,
-        totalMMV,
-        totalCongelada,
-        totalFacturasBs,
-        montoACongelar: ((totalMMV * tcmmv) + totalCongelada + totalFacturasBs).toFixed(2)
-      });
-    } else {
-      setFoundUser(null);
-      alert('Contribuyente no encontrado o no tiene deuda pendiente.');
+    try {
+      // 1. Normalizar término de búsqueda
+      const cleanSearchDoc = raw.replace(/[\s-]/g, '').toUpperCase();
+      const soloNum = cleanSearchDoc.replace(/\D/g, '');
+      const prefix = cleanSearchDoc.match(/^[VEJPG]/)?.[0] || 'V';
+      const idFmt = (soloNum && soloNum.length >= 4) ? `${prefix}-${soloNum}` : '';
+
+      // 2. Buscar en Supabase para obtener datos frescos y completos
+      const ors: string[] = [
+        `identidad.ilike.%${cleanSearchDoc}%`,
+        `inmueble.ilike.%${raw.toUpperCase()}%`,
+      ];
+      if (idFmt) ors.push(`identidad.eq.${idFmt}`);
+      if (soloNum && soloNum.length >= 4) ors.push(`identidad.ilike.%${soloNum}%`);
+
+      let userInmuebles: any[] = [];
+      const { data: dbInms } = await supabase
+        .from('inmuebles')
+        .select('*')
+        .or(ors.join(','));
+
+      if (dbInms && dbInms.length > 0) {
+        userInmuebles = dbInms;
+      } else if (Array.isArray(inmuebles) && inmuebles.length > 0) {
+        userInmuebles = inmuebles.filter((i: any) => {
+          const iId = String(i.identidad || '').replace(/[\s-]/g, '').toUpperCase();
+          const iCod = String(i.inmueble || i.cod_inmueble || i.cod_cont || '').toUpperCase();
+          return iId === cleanSearchDoc || (soloNum && iId.includes(soloNum)) || iCod === raw.toUpperCase();
+        });
+      }
+
+      // Buscar facturas pendientes asociadas
+      const { data: dbFacturas } = await supabase
+        .from('facturas')
+        .select('*')
+        .eq('estado', 'Pendiente')
+        .or(ors.join(','));
+
+      let userFacturas = dbFacturas || [];
+      if (!userFacturas.length && Array.isArray(recibos)) {
+        userFacturas = recibos.filter(f => {
+          const idCleanFactura = (f.identidad || '').replace(/[\s-]/g, '').toUpperCase();
+          const belongsToUser = idCleanFactura === cleanSearchDoc || (userInmuebles.length > 0 && f.contribuyente === userInmuebles[0].contribuyente);
+          return belongsToUser && f.estado === 'Pendiente';
+        });
+      }
+
+      // Obtener tasa efectiva si tcmmv está en 0
+      let tasaEfectiva = tcmmv;
+      if (!tasaEfectiva || tasaEfectiva <= 0) {
+        const { data: cfg } = await supabase
+          .from('sistema_config')
+          .select('id, valor')
+          .in('id', ['tasa_bcv_manual', 'tasa_bcv_semanal', 'tasa_bcv_diaria']);
+        const v = (id: string) => parseFloat(String(cfg?.find((c: any) => c.id === id)?.valor || 0)) || 0;
+        tasaEfectiva = v('tasa_bcv_manual') || v('tasa_bcv_semanal') || v('tasa_bcv_diaria') || 993.18;
+      }
+
+      if (userInmuebles.length > 0 || userFacturas.length > 0) {
+        const identidad = userInmuebles.length > 0 ? userInmuebles[0].identidad : userFacturas[0].identidad;
+        const contribuyente = userInmuebles.length > 0 ? userInmuebles[0].contribuyente : userFacturas[0].contribuyente;
+
+        // Calcular deuda MMV (directa o por meses_deuda * mmv_mes)
+        const totalMMV = userInmuebles.reduce((acc, curr) => {
+          const mmvDirecto = parseFloat(curr.deuda_mmv) || parseFloat(curr.DeudaMMV) || 0;
+          if (mmvDirecto > 0) return acc + mmvDirecto;
+          const meses = parseInt(curr.meses_deuda || '0') || 0;
+          const mmvMes = parseFloat(curr.mmv_mes || '0') || 0;
+          return acc + (meses * mmvMes);
+        }, 0);
+
+        const totalCongelada = userInmuebles.reduce((acc, curr) => acc + (parseFloat(curr.deuda_congelada_bs) || parseFloat(curr.DeudaCongelada) || 0), 0);
+        const totalFacturasBs = userFacturas.reduce((acc, curr) => acc + (parseFloat(curr.monto) || 0), 0);
+        const montoACongelarNum = (totalMMV * tasaEfectiva) + totalCongelada + totalFacturasBs;
+
+        if (montoACongelarNum <= 0.01) {
+          alert(`El contribuyente ${contribuyente} (${identidad}) no presenta deuda pendiente que refinanciar.`);
+          setFoundUser(null);
+          return;
+        }
+
+        setFoundUser({
+          identidad,
+          contribuyente,
+          inmuebles: userInmuebles,
+          recibos: userFacturas,
+          totalMMV: Math.round(totalMMV * 100) / 100,
+          totalCongelada,
+          totalFacturasBs,
+          tasaEfectiva,
+          montoACongelar: montoACongelarNum.toFixed(2)
+        });
+      } else {
+        setFoundUser(null);
+        alert('Contribuyente no encontrado. Verifique la cédula, RIF o código de inmueble.');
+      }
+    } catch (err: any) {
+      console.error('Error buscando contribuyente para convenio:', err);
+      alert('Error en la búsqueda: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -214,15 +291,17 @@ export default function ConveniosPagoPage() {
       }
 
       // 2. Actualizar inmuebles
+      const tasaAplicada = foundUser.tasaEfectiva || tcmmv || 993.18;
       for (const inm of foundUser.inmuebles) {
-        const mmv = inm.DeudaMMV || inm.deuda_mmv || 0;
+        const mmv = parseFloat(inm.DeudaMMV || inm.deuda_mmv || '0') || ((parseInt(inm.meses_deuda || '0') || 0) * (parseFloat(inm.mmv_mes || '0') || 0));
         if (mmv > 0) {
-          const bsToFreeze = mmv * tcmmv;
+          const bsToFreeze = mmv * tasaAplicada;
           const currentFrozen = parseFloat(inm.deuda_congelada_bs || inm.DeudaCongelada || '0');
           await supabase
             .from('inmuebles')
             .update({ 
               deuda_mmv: 0, 
+              meses_deuda: 0,
               deuda_congelada_bs: currentFrozen + bsToFreeze 
             })
             .eq('id', inm.id);
@@ -238,20 +317,20 @@ export default function ConveniosPagoPage() {
           .in('referencia', referencias);
       }
 
-
       // Registrar en auditoria
       await logAudit('Convenio de Pago Creado', {
         nro_convenio: nroConvenio,
         identidad: foundUser.identidad,
         monto_congelado: totalFijado,
         cuotas,
-        tasa_bcv: tcmmv,
+        tasa_bcv: tasaAplicada,
       }, 'CONVENIO');
 
       alert('Convenio creado exitosamente. La deuda ha sido congelada.');
       setIsModalOpen(false);
       // Refrescar datos sin recargar toda la pagina
       if (typeof refreshData === 'function') await refreshData();
+      if (typeof refreshUserData === 'function' && foundUser?.identidad) await refreshUserData(foundUser.identidad);
       
     } catch (error) {
       console.error(error);
@@ -302,32 +381,44 @@ export default function ConveniosPagoPage() {
                     type="text" 
                     value={searchDoc}
                     onChange={(e) => setSearchDoc(e.target.value)}
-                    placeholder="V-12345678 o C-001"
-                    className="flex-1 border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSearch(); } }}
+                    placeholder="V-12345678, 12345678 o AURI001"
+                    className="flex-1 border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 font-mono"
                   />
-                  <button onClick={handleSearch} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded border border-slate-200">
-                    <Search size={16} />
+                  <button 
+                    type="button"
+                    onClick={handleSearch} 
+                    disabled={isSearching}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-semibold cursor-pointer disabled:opacity-50 flex items-center justify-center min-w-[44px] transition-colors"
+                    title="Buscar contribuyente"
+                  >
+                    <Search size={16} className={isSearching ? 'animate-spin' : ''} />
                   </button>
                 </div>
               </div>
 
               {foundUser && (
                 <div className="bg-blue-50 p-4 rounded-md border border-blue-100 text-sm space-y-2">
-                  <p><span className="font-semibold">Contribuyente:</span> {foundUser.contribuyente}</p>
-                  <p><span className="font-semibold">Identidad:</span> {foundUser.identidad}</p>
+                  <p><span className="font-semibold text-slate-800">Contribuyente:</span> {foundUser.contribuyente}</p>
+                  <p><span className="font-semibold text-slate-800">Cédula / RIF:</span> {foundUser.identidad}</p>
+                  <p className="text-xs text-slate-600">
+                    <span className="font-semibold">Inmueble(s):</span> {foundUser.inmuebles.map((i: any) => i.inmueble).filter(Boolean).join(', ') || 'N/A'}
+                  </p>
                   <div className="pt-2 mt-2 border-t border-blue-200/50">
-                    <p className="text-xs text-slate-500 mb-1">Tasa BCV (UCD) Actual: <span className="font-semibold text-slate-700">{tcmmv} Bs</span></p>
+                    <p className="text-xs text-slate-500 mb-1">Tasa BCV (UCD) Aplicada: <span className="font-semibold text-slate-700">Bs. {Number(foundUser.tasaEfectiva || tcmmv).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></p>
                     <p className="flex justify-between items-center text-red-600 font-medium">
                       <span>Deuda Fluctuante a Congelar (UCD):</span>
                       <span>{foundUser.totalMMV} UCD</span>
                     </p>
-                    <p className="flex justify-between items-center text-slate-600 font-medium mt-1">
-                      <span>Deuda por Recibos (Recibos):</span>
-                      <span>{foundUser.totalFacturasBs?.toFixed(2)} Bs</span>
-                    </p>
+                    {foundUser.totalFacturasBs > 0 && (
+                      <p className="flex justify-between items-center text-slate-600 font-medium mt-1">
+                        <span>Deuda por Facturas / Recibos:</span>
+                        <span>Bs. {Number(foundUser.totalFacturasBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </p>
+                    )}
                     <p className="flex justify-between items-center text-emerald-700 font-bold text-lg mt-1 pt-1 border-t border-blue-200/50">
-                      <span>Monto Final de la Deuda (Bs):</span>
-                      <span>{foundUser.montoACongelar} Bs</span>
+                      <span>Monto Final de la Deuda Congelada (Bs):</span>
+                      <span>Bs. {Number(foundUser.montoACongelar).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </p>
                   </div>
                 </div>
