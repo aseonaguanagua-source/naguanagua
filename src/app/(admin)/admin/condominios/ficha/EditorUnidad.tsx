@@ -58,6 +58,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     meses: unidad ? mesesPendientes(unidad.aseo_pendiente_desde) : 0, multa_meses: unidad?.multa_meses || 0,
     tarifa_mmv: unidad?.tarifa_mmv ?? '', agente_retencion: !!unidad?.agente_retencion,
     telefono: unidad?.telefono || '', correo: unidad?.correo || '',
+    direccion: unidad?.direccion || '',
   });
   const [actividadesExtra, setActividadesExtra] = useState<any[]>(unidad?.actividades_extra || []);
   const [actRes, setActRes] = useState(claseIni === 'RES' && actIni ? actIni.toUpperCase() : RESIDENCIALES[1].label);
@@ -173,7 +174,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       actividad: f.estado === 'Desocupada' && clase === 'COM' && !actCom.trim() ? 'INMUEBLES DESOCUPADOS' : actividad,
       tarifa_mmv: tarifa === '' ? null : tarifa,
       agente_retencion: f.agente_retencion === true,
-      telefono: f.telefono, correo: f.correo, actividades_extra: actividadesExtra,
+      telefono: f.telefono, correo: f.correo, direccion: f.direccion, actividades_extra: actividadesExtra,
       desocupada_desde: tieneDesocupado ? (desocupadaDesde || null) : null,
       desocupada_hasta: tieneDesocupado ? (desocupadaHasta || null) : null,
       tarifa_desocupada_mmv: tieneDesocupado ? (parseFloat(tarifaDesocupadaMmv) || 1.98) : null,
@@ -189,6 +190,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
         padre_unidad_id: unidad.padre_unidad_id || null,
         telefono: unidad.telefono || '',
         correo: unidad.correo || '',
+        direccion: unidad.direccion || '',
         actividades_extra: unidad.actividades_extra || [],
         desocupada_desde: unidad.desocupada_desde || null,
         desocupada_hasta: unidad.desocupada_hasta || null,
@@ -289,6 +291,8 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
               <input id="unidad-telefono" value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} placeholder="Ej. 0414-1234567" className={inp} /></label>
             <label className="block"><span className={lbl}>Correo electrónico</span>
               <input id="unidad-correo" value={f.correo} onChange={e => setF({ ...f, correo: e.target.value })} placeholder="correo@ejemplo.com" type="email" className={inp} /></label>
+            <label className="block sm:col-span-2"><span className={lbl}>Dirección del inmueble (local / oficina / apto)</span>
+              <input id="unidad-direccion" value={f.direccion} onChange={e => setF({ ...f, direccion: e.target.value })} placeholder="Ej. Urb. La Granja, Av. Universidad, C.C. Cristal, Local MZ-B12" className={inp} /></label>
           </div>
 
           {/* Clasificación y actividad */}

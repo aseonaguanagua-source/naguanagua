@@ -34,6 +34,7 @@ function limpiar(c: any) {
   // Save extras temporarily to process in route
   if ('telefono' in c) out._telefono = txt(c.telefono);
   if ('correo' in c) out._correo = txt(c.correo);
+  if ('direccion' in c) out._direccion = txt(c.direccion);
   if ('actividades_extra' in c) out._actividades_extra = c.actividades_extra;
   return out;
 }
@@ -59,8 +60,8 @@ export async function POST(req: Request) {
       if (ya) return NextResponse.json({ error: `El inmueble ${fila.inmueble} ya está registrado en ${(ya as any).condominios?.nombre || 'otro condominio'} (${ya.estado}). Búsquelo y edítelo.` }, { status: 409 });
     }
     // Extra fields processing
-    const _tel = fila._telefono; const _cor = fila._correo; const _actExt = fila._actividades_extra;
-    delete fila._telefono; delete fila._correo; delete fila._actividades_extra;
+    const _tel = fila._telefono; const _cor = fila._correo; const _dir = fila._direccion; const _actExt = fila._actividades_extra;
+    delete fila._telefono; delete fila._correo; delete fila._direccion; delete fila._actividades_extra;
 
     // Generate code if missing
     if (!fila.inmueble) {
@@ -87,6 +88,7 @@ export async function POST(req: Request) {
       identidad: fila.identidad,
       telefono: _tel,
       correo_electronico: _cor,
+      direccion: _dir,
       notas: notasStr,
       condominio_padre_id: c.codigo,
       es_condominio: false
@@ -116,8 +118,8 @@ export async function PATCH(req: Request) {
     const upd = limpiar(cambios || {});
     const esAgente = cambios.agente_retencion === true;
     
-    const _tel = upd._telefono; const _cor = upd._correo; const _actExt = upd._actividades_extra;
-    delete upd._telefono; delete upd._correo; delete upd._actividades_extra;
+    const _tel = upd._telefono; const _cor = upd._correo; const _dir = upd._direccion; const _actExt = upd._actividades_extra;
+    delete upd._telefono; delete upd._correo; delete upd._direccion; delete upd._actividades_extra;
     delete (upd as any).condominio_id;
 
     if (upd.padre_unidad_id === id) return NextResponse.json({ error: 'Una unidad no puede depender de sí misma.' }, { status: 400 });
@@ -133,6 +135,7 @@ export async function PATCH(req: Request) {
       if ('agente_retencion' in cambios) inmUpd.agente_retencion = esAgente;
       if (_tel !== undefined) inmUpd.telefono = _tel;
       if (_cor !== undefined) inmUpd.correo_electronico = _cor;
+      if (_dir !== undefined) inmUpd.direccion = _dir;
       if ('desocupada_desde' in cambios || _actExt !== undefined) {
         const { data: currInm } = await sb.from('inmuebles').select('notas').eq('inmueble', inmuebleAActualizar).maybeSingle();
         let existingNotes: any = {};
@@ -171,7 +174,7 @@ export async function PATCH(req: Request) {
     }
     // Quitar lo que no cambió
     for (const k of Object.keys(upd)) if (String(upd[k] ?? '') === String(antes[k] ?? '')) delete upd[k];
-    if (!Object.keys(upd).length && !('agente_retencion' in cambios) && _tel === undefined && _cor === undefined && _actExt === undefined && !('desocupada_desde' in cambios)) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
+    if (!Object.keys(upd).length && !('agente_retencion' in cambios) && _tel === undefined && _cor === undefined && _dir === undefined && _actExt === undefined && !('desocupada_desde' in cambios)) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });
 
     if (Object.keys(upd).length > 0) {
       const { error } = await sb.from('condominio_unidades').update(upd).eq('id', id);

@@ -350,7 +350,7 @@ export async function cargarCondominio(codigo: string) {
   const agentes = new Map<string, any>();
   if (codigosUnidades.length > 0) {
     for (let i = 0; i < codigosUnidades.length; i += 300) {
-      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion, multa_bs, telefono, correo_electronico, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
+      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion, multa_bs, telefono, correo_electronico, direccion, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
       (inm || []).forEach(r => agentes.set(r.inmueble, r));
     }
   }
@@ -382,6 +382,7 @@ export async function cargarCondominio(codigo: string) {
       multa_bs: parseFloat(inf.multa_bs || '0'),
       telefono: inf.telefono || '',
       correo: inf.correo_electronico || '',
+      direccion: inf.direccion || '',
       actividades_extra: extras,
       desocupada_desde,
       desocupada_hasta,
