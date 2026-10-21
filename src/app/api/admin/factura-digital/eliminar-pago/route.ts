@@ -22,8 +22,17 @@ export async function POST(req: Request) {
 
     // 1. Solo administrador
     const u = String(usuario || '').trim().toLowerCase();
-    const { data: trab } = await supabase.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
-    const esAdmin = !!trab && (trab.rol === 'Administrador' || u === 'dzara') && String(trab.estado || 'Activo').toLowerCase() === 'activo';
+    let cleanU = u;
+    if (cleanU.includes('(')) cleanU = cleanU.split('(')[0].trim();
+    if (cleanU.includes('-')) cleanU = cleanU.split('-').pop()!.trim();
+
+    const { data: trab } = await supabase.from('trabajadores')
+      .select('usuario, nombre, rol, estado')
+      .or(`usuario.ilike.${u},usuario.ilike.${cleanU}`)
+      .maybeSingle();
+
+    const esAdmin = (u === 'dzara' || cleanU === 'dzara' || cleanU === 'isamar' || cleanU === 'raquel') || 
+      (!!trab && (trab.rol === 'Administrador' || trab.rol === 'Super Administrador') && String(trab.estado || 'Activo').toLowerCase() === 'activo');
     if (!esAdmin) return NextResponse.json({ error: 'Solo un administrador puede eliminar pagos.' }, { status: 403 });
     if (confirmar && String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo de la eliminación.' }, { status: 400 });
 
@@ -37,27 +46,79 @@ export async function POST(req: Request) {
 
     const recibos: string[] = Array.isArray(det.recibos) ? det.recibos : [];
     const previa: any[] = Array.isArray(det.deuda_previa) ? det.deuda_previa : [];
-    const codigos = new Set<string>(recibos.map(r => extraerCodigoInmueble(r)).filter(Boolean) as string[]);
-    previa.forEach(p => p?.inmueble && codigos.add(String(p.inmueble).toUpperCase()));
+    
+    // Identificar los códigos de inmueble involucrados en ESTE pago específicamente
+    const codigosInvolucrados = new Set<string>();
+    recibos.forEach(r => {
+      const c = extraerCodigoInmueble(r);
+      if (c) codigosInvolucrados.add(c.toUpperCase());
+    });
+    if (Array.isArray(det.recibo_caja)) {
+      det.recibo_caja.forEach((rc: any) => {
+        if (rc.codContribuyente) codigosInvolucrados.add(String(rc.codContribuyente).trim().toUpperCase());
+      });
+    }
+    if (det.inmueble) codigosInvolucrados.add(String(det.inmueble).trim().toUpperCase());
+    if (det.codigo_inmueble) codigosInvolucrados.add(String(det.codigo_inmueble).trim().toUpperCase());
+    if (pago.inmueble) codigosInvolucrados.add(String(pago.inmueble).trim().toUpperCase());
 
-    // 3. Pagos posteriores sobre los mismos inmuebles o el mismo contribuyente → bloquear (se desharían también)
+    // Solo si no hubo códigos específicos en recibos ni detalles pero hay previa, se toman de la previa
+    if (codigosInvolucrados.size === 0 && previa.length > 0) {
+      previa.forEach(p => p?.inmueble && codigosInvolucrados.add(String(p.inmueble).trim().toUpperCase()));
+    }
+
+    // 3. Pagos posteriores:
+    // Solo bloquean si son pagos ACTIVOS (no rechazados ni anulados) que tocan exactamente los MISMOS inmuebles.
+    // Si un contribuyente tiene varios códigos/inmuebles (ej. URB002601 y URB000324), un pago sobre URB000324
+    // no bloquea eliminar un pago erróneo sobre URB002601.
     const { data: posteriores } = await supabase.from('pagos_reportados')
-      .select('id, created_at, identidad, monto, detalles').gt('created_at', pago.created_at).order('created_at').limit(1000);
+      .select('id, created_at, identidad, monto, estado, referencia, tipo, detalles')
+      .gt('created_at', pago.created_at)
+      .not('estado', 'in', '(Rechazado,Anulado,Reversado)')
+      .order('created_at')
+      .limit(1000);
+
     const choques = (posteriores || []).filter((p: any) => {
-      if (p.identidad && p.identidad === pago.identidad) return true;
+      if (p.id === pago.id) return false;
+
       const d = parseDetalles(p.detalles);
       const refs: string[] = Array.isArray(d.recibos) ? d.recibos : [];
-      return refs.some(r => codigos.has(String(extraerCodigoInmueble(r) || '')));
+      const codsPost: string[] = refs.map(r => extraerCodigoInmueble(r)).filter(Boolean) as string[];
+      if (Array.isArray(d.recibo_caja)) {
+        d.recibo_caja.forEach((rc: any) => {
+          if (rc.codContribuyente) codsPost.push(String(rc.codContribuyente).trim().toUpperCase());
+        });
+      }
+      if (d.inmueble) codsPost.push(String(d.inmueble).trim().toUpperCase());
+      if (d.codigo_inmueble) codsPost.push(String(d.codigo_inmueble).trim().toUpperCase());
+
+      // Si este pago tenía inmuebles identificados:
+      if (codigosInvolucrados.size > 0) {
+        // Solo hay choque si el pago posterior afecta a alguno de los mismos inmuebles
+        return codsPost.some(c => codigosInvolucrados.has(c));
+      }
+
+      // Si no hay códigos de inmueble en ninguno, entonces sí revisamos por identidad
+      return p.identidad && p.identidad === pago.identidad;
     });
+
     if (choques.length > 0) {
       const lista = choques.slice(0, 5).map((p: any) => `${new Date(p.created_at).toLocaleString('es-VE', { timeZone: 'America/Caracas' })} · ${p.identidad} · Bs ${num(p.monto).toFixed(2)}`).join('\n');
-      return NextResponse.json({ error: `Hay ${choques.length} pago(s) posterior(es) del mismo contribuyente o inmueble. Elimínelos primero (del más reciente al más antiguo):\n${lista}` }, { status: 409 });
+      return NextResponse.json({ error: `Hay ${choques.length} pago(s) posterior(es) activo(s) sobre el mismo inmueble. Elimínelos primero (del más reciente al más antiguo):\n${lista}` }, { status: 409 });
     }
 
     // 4. Estado actual de los inmuebles involucrados
-    const ids = previa.map(p => p?.id).filter(Boolean);
+    const previaFiltrada = previa.filter(p => {
+      if (codigosInvolucrados.size > 0) {
+        return p?.inmueble && codigosInvolucrados.has(String(p.inmueble).trim().toUpperCase());
+      }
+      return true;
+    });
+    const ids = previaFiltrada.map(p => p?.id).filter(Boolean);
+    const codigosParaConsultar = codigosInvolucrados.size > 0 ? [...codigosInvolucrados] : [];
+
     const [{ data: porCodigo }, { data: porId }] = await Promise.all([
-      codigos.size ? supabase.from('inmuebles').select('*').in('inmueble', [...codigos]) : Promise.resolve({ data: [] as any[] }),
+      codigosParaConsultar.length ? supabase.from('inmuebles').select('*').in('inmueble', codigosParaConsultar) : Promise.resolve({ data: [] as any[] }),
       ids.length ? supabase.from('inmuebles').select('*').in('id', ids) : Promise.resolve({ data: [] as any[] }),
     ]);
     const actuales = new Map<string, any>();
@@ -68,9 +129,9 @@ export async function POST(req: Request) {
     const cambios: Cambio[] = [];
     let estimado = false;
 
-    if (previa.length > 0) {
-      for (const p of previa) {
-        const act = actuales.get(p.id) || [...actuales.values()].find(i => i.inmueble === p.inmueble);
+    if (previaFiltrada.length > 0) {
+      for (const p of previaFiltrada) {
+        const act = actuales.get(p.id) || [...actuales.values()].find(i => String(i.inmueble).toUpperCase() === String(p.inmueble).toUpperCase());
         if (!act) continue;
         const antes: any = {}, despues: any = {};
         let difiere = false;
@@ -88,7 +149,7 @@ export async function POST(req: Request) {
       }
       const tasa = num(det.tasa_bcv_aplicada || det.tasa_bcv);
       const montos = det.montos && typeof det.montos === 'object' ? det.montos : {};
-      for (const cod of codigos) {
+      for (const cod of codigosInvolucrados) {
         const act = [...actuales.values()].find(i => String(i.inmueble).toUpperCase() === cod);
         if (!act) continue;
         const mesesPagados = recibos.filter(r => new RegExp(`^RECIB-HIST-${cod}-M\\d+$`, 'i').test(r)).length;
