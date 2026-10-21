@@ -844,6 +844,28 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         }
       }
 
+      // Snapshot de deuda previa al aprobar para poder restaurar si el operador se equivoca y luego rechaza
+      if (estatus === 'Aprobado' && (!updatedDet.deuda_previa || (Array.isArray(updatedDet.deuda_previa) && updatedDet.deuda_previa.length === 0))) {
+        try {
+          const propCodesSnap = new Set<string>();
+          recibos.forEach((r: string) => {
+            const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
+            if (m && m[1]) propCodesSnap.add(m[1].toUpperCase());
+            const mDir = r.match(/(URB\d+|AURI\d+)/i);
+            if (mDir && mDir[1]) propCodesSnap.add(mDir[1].toUpperCase());
+          });
+          const idVarsSnap = getIdentidadVariantsExact(pago.identidad);
+          const orConditionsSnap = [
+            ...idVarsSnap.map(v => `identidad.eq.${v}`),
+            ...Array.from(propCodesSnap).map(c => `inmueble.eq.${c}`)
+          ];
+          const { data: inmsFoto } = await supabase.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs').or(orConditionsSnap.join(','));
+          if (inmsFoto && inmsFoto.length > 0) {
+            updatedDet.deuda_previa = inmsFoto;
+          }
+        } catch(e) {}
+      }
+
       // Actualizar el pago (por el servidor; solo si sigue en su estado actual → no se aprueba dos veces)
       if (pago.estado === 'Aprobado' && estatus === 'Aprobado') throw new Error('Este pago ya está aprobado; aprobarlo otra vez descontaría la deuda dos veces.');
       updatedDet.fecha_conciliado = new Date().toISOString();
@@ -975,25 +997,37 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             }
           }
         } else {
-          // Fallback: solo restaurar meses si el pago estuvo previamente Aprobado (nunca sumar meses a pagos por verificar)
-          const pagoEstabaAprobado = pago.estado === 'Aprobado' || pago.estado === 'Con Diferencia';
+          // Fallback: solo restaurar meses si el pago estuvo previamente Aprobado o si vino de Caja con deuda descontada
+          const pagoEstabaAprobado = pago.estado === 'Aprobado' || pago.estado === 'Con Diferencia' || det.fecha_conciliado || det.recibo_caja;
           if (pagoEstabaAprobado) {
-            const histRefsRech = recibos.filter((r: string) => r.startsWith('RECIB-HIST-'));
-            if (histRefsRech.length > 0) {
-              const { data: inmListRech } = await supabase.from('inmuebles').select('*').eq('identidad', pago.identidad);
-              if (inmListRech && inmListRech.length > 0) {
-                for (const inm of inmListRech) {
-                  const histThisInm = histRefsRech.filter((r: string) => r.includes(`-${inm.inmueble || inm.codigo}-`));
-                  if (histThisInm.length > 0) {
-                    const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
-                    const nuevoMeses = numMesesInm + histThisInm.length;
-                    const mmv = parseFloat(String(inm.mmv_mes || 0)) || 0;
-                    await supabase.from('inmuebles').update({
-                      meses_deuda: nuevoMeses,
-                      deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
-                    }).eq('id', inm.id);
-                  }
-                }
+            const propCodesRech = new Set<string>();
+            recibos.forEach((r: string) => {
+              const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
+              if (m && m[1]) propCodesRech.add(m[1].toUpperCase());
+              const mDir = r.match(/(URB\d+|AURI\d+)/i);
+              if (mDir && mDir[1]) propCodesRech.add(mDir[1].toUpperCase());
+            });
+            if (det.cod_inmueble) propCodesRech.add(String(det.cod_inmueble).toUpperCase());
+            if (det.inmueble) propCodesRech.add(String(det.inmueble).toUpperCase());
+            if (pago.cod_inmueble) propCodesRech.add(String(pago.cod_inmueble).toUpperCase());
+
+            const idVarsRech = getIdentidadVariantsExact(pago.identidad);
+            const orCondsRech = [
+              ...idVarsRech.map(v => `identidad.eq.${v}`),
+              ...Array.from(propCodesRech).map(c => `inmueble.eq.${c}`)
+            ];
+
+            const { data: inmListRech } = await supabase.from('inmuebles').select('*').or(orCondsRech.join(','));
+            if (inmListRech && inmListRech.length > 0) {
+              for (const inm of inmListRech) {
+                const mesesThisInm = recibos.filter((r: string) => r.toUpperCase().includes(String(inm.inmueble || '').toUpperCase())).length || 1;
+                const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+                const nuevoMeses = numMesesInm + mesesThisInm;
+                const mmv = parseFloat(String(inm.mmv_mes || 0)) || (parseFloat(String(inm.deuda_mmv || 0)) / (numMesesInm || 1)) || 0;
+                await supabase.from('inmuebles').update({
+                  meses_deuda: nuevoMeses,
+                  deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
+                }).eq('id', inm.id);
               }
             }
           }

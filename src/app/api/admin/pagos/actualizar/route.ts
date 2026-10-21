@@ -33,14 +33,161 @@ export async function POST(req: Request) {
     if (!Object.keys(upd).length) return NextResponse.json({ error: 'Nada que actualizar.' }, { status: 400 });
     if ('estado' in upd && !ESTADOS.includes(upd.estado)) return NextResponse.json({ error: 'Estado inválido.' }, { status: 400 });
 
-    // Si se rechaza el pago, liberar la referencia bancaria para permitir reuso
+    // Si se rechaza el pago, restaurar deuda del contribuyente y liberar referencia bancaria
     if (upd.estado === 'Rechazado') {
-      const { data: actualP } = await sb.from('pagos_reportados').select('referencia, detalles').eq('id', pagoId).maybeSingle();
-      if (actualP?.referencia && !actualP.referencia.startsWith('RECH-')) {
-        upd.referencia = `RECH-${actualP.referencia}-${pagoId.slice(0, 6)}`;
+      const { data: actualP } = await sb.from('pagos_reportados').select('*').eq('id', pagoId).maybeSingle();
+      if (actualP) {
+        if (actualP.referencia && !actualP.referencia.startsWith('RECH-')) {
+          upd.referencia = `RECH-${actualP.referencia}-${pagoId.slice(0, 6)}`;
+        }
         let d = typeof upd.detalles === 'object' ? { ...upd.detalles } : (actualP.detalles || {});
         d.referencia_original = actualP.referencia;
+        d.factura_digital = { emitida: false, pendiente: false, rechazada: true, rechazada_at: new Date().toISOString() };
+        d.saldo_favor = 0;
+        d.saldo_favor_bs = 0;
+        d.monto_saldo_favor = 0;
+        d.saldo_favor_acreditado = false;
         upd.detalles = d;
+
+        // Determinar si el pago había descontado deuda (previamente Aprobado, con conciliación o de Caja/Condominios)
+        const detP = typeof actualP.detalles === 'string' ? JSON.parse(actualP.detalles || '{}') : (actualP.detalles || {});
+        const detMerged = { ...detP, ...d };
+        const habiaDescontadoDeuda = 
+          actualP.estado === 'Aprobado' || 
+          actualP.estado === 'Con Diferencia' || 
+          Boolean(detMerged.fecha_conciliado) || 
+          Boolean(detMerged.recibo_caja) || 
+          (Array.isArray(detMerged.deuda_previa) && detMerged.deuda_previa.length > 0) || 
+          actualP.modulo === 'condominios';
+
+        if (habiaDescontadoDeuda) {
+          const prevLista = Array.isArray(detMerged.deuda_previa) && detMerged.deuda_previa.length > 0 ? detMerged.deuda_previa : [];
+          
+          if (prevLista.length > 0) {
+            for (const prev of prevLista) {
+              if (prev.unidad) {
+                await sb.from('condominio_unidades').update({
+                  aseo_pendiente_desde: prev.aseo_pendiente_desde,
+                  multa_meses: prev.multa_meses || 0,
+                  multa_exonerada_hasta: prev.multa_exonerada_hasta || null,
+                }).eq('id', prev.unidad);
+              }
+              if (prev.condominio) {
+                await sb.from('condominios').update({
+                  aseo_pendiente_desde: prev.aseo_pendiente_desde,
+                  multa_meses: prev.multa_meses || 0,
+                }).eq('id', prev.condominio);
+              }
+              if (prev.id || prev.inmueble) {
+                const nMeses = Math.max(0, parseInt(String(prev.meses_deuda || (prev.aseo_pendiente_desde ? 1 : 0))));
+                const updInm: any = {
+                  meses_deuda: nMeses,
+                  deuda_mmv: parseFloat(String(prev.deuda_mmv || 0)),
+                  multa_bs: parseFloat(String(prev.multa_bs || 0)),
+                  deuda_congelada_bs: parseFloat(String(prev.deuda_congelada_bs || 0)),
+                  saldo_favor_bs: parseFloat(String(prev.saldo_favor_bs || 0)),
+                };
+                if (prev.id) await sb.from('inmuebles').update(updInm).eq('id', prev.id);
+                else if (prev.inmueble) await sb.from('inmuebles').update(updInm).eq('inmueble', prev.inmueble);
+              }
+            }
+          } else {
+            // Fallback: restaurar por recibos y RIF
+            const recibos: string[] = Array.isArray(detMerged.recibos) ? detMerged.recibos : [];
+            const propCodes = new Set<string>();
+            recibos.forEach((r: string) => {
+              const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
+              if (m && m[1]) propCodes.add(m[1].toUpperCase());
+              const mDir = r.match(/(URB\d+|AURI\d+)/i);
+              if (mDir && mDir[1]) propCodes.add(mDir[1].toUpperCase());
+            });
+            if (detMerged.cod_inmueble) propCodes.add(String(detMerged.cod_inmueble).toUpperCase());
+            if (detMerged.inmueble) propCodes.add(String(detMerged.inmueble).toUpperCase());
+            if (actualP.cod_inmueble) propCodes.add(String(actualP.cod_inmueble).toUpperCase());
+            if (Array.isArray(detMerged.inmuebles)) {
+              detMerged.inmuebles.forEach((ic: any) => {
+                if (typeof ic === 'string') propCodes.add(ic.toUpperCase());
+                else if (ic?.inmueble) propCodes.add(String(ic.inmueble).toUpperCase());
+              });
+            }
+            if (detMerged.recibo_caja) {
+              const rcArr = Array.isArray(detMerged.recibo_caja) ? detMerged.recibo_caja : [detMerged.recibo_caja];
+              rcArr.forEach((rc: any) => {
+                if (rc?.codContribuyente) propCodes.add(String(rc.codContribuyente).toUpperCase());
+                if (rc?.inmueble) propCodes.add(String(rc.inmueble).toUpperCase());
+              });
+            }
+
+            const rawId = String(actualP.identidad || '').trim().toUpperCase();
+            const sinG = rawId.replace(/-/g, '');
+            const conG = /^[VEJPG]\d/.test(sinG) ? `${sinG[0]}-${sinG.slice(1)}` : rawId;
+            const idVars = [...new Set([rawId, sinG, conG].filter(Boolean))];
+            
+            const orConditions = [
+              ...idVars.map(v => `identidad.eq.${v}`),
+              ...Array.from(propCodes).map(c => `inmueble.eq.${c}`)
+            ];
+
+            const { data: inmsAfectados } = await sb.from('inmuebles').select('*').or(orConditions.join(','));
+            if (inmsAfectados && inmsAfectados.length > 0) {
+              for (const inm of inmsAfectados) {
+                const mesesPagados = recibos.filter((r: string) => r.toUpperCase().includes(String(inm.inmueble || '').toUpperCase())).length || 1;
+                const curMeses = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+                const nuevoMeses = curMeses + mesesPagados;
+                const mmv = parseFloat(String(inm.mmv_mes || 0)) || (parseFloat(String(inm.deuda_mmv || 0)) / (curMeses || 1)) || 0;
+                await sb.from('inmuebles').update({
+                  meses_deuda: nuevoMeses,
+                  deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
+                }).eq('id', inm.id);
+              }
+            }
+
+            // Condominios: retroceder fecha de aseo si aplica
+            const esCondo = actualP.modulo === 'condominios' || detMerged.es_condominio || detMerged.modulo === 'condominios';
+            if (esCondo) {
+              const condoCod = detMerged.condominio?.codigo || detMerged.codigo_condominio || (Array.from(propCodes)[0]);
+              if (condoCod) {
+                const { data: cRow } = await sb.from('condominios').select('*').eq('codigo', condoCod).maybeSingle();
+                if (cRow && cRow.aseo_pendiente_desde) {
+                  const mesesARevertir = recibos.length > 0 ? recibos.length : (detMerged.meses || 1);
+                  const f = new Date(cRow.aseo_pendiente_desde + 'T12:00:00Z');
+                  f.setMonth(f.getMonth() - mesesARevertir);
+                  const nuevaFecha = f.toISOString().slice(0, 10);
+                  await sb.from('condominios').update({ aseo_pendiente_desde: nuevaFecha }).eq('id', cRow.id);
+                  await sb.from('condominio_unidades').update({ aseo_pendiente_desde: nuevaFecha }).eq('condominio_id', cRow.id);
+                }
+              }
+            }
+          }
+
+          // Restaurar recibos a Pendiente
+          const recibos: string[] = Array.isArray(detMerged.recibos) ? detMerged.recibos : [];
+          if (recibos.length > 0) {
+            await sb.from('facturas').update({ estado: 'Pendiente' }).in('referencia', recibos);
+          }
+          if (detMerged.cuotas && detMerged.cuotas.length > 0) {
+            await sb.from('convenios_cuotas').update({ estado: 'Pendiente' }).in('id', detMerged.cuotas.map((c: any) => typeof c === 'object' ? c.id : c));
+          }
+          if (detMerged.servicios && detMerged.servicios.length > 0) {
+            await sb.from('servicios_especiales').update({ estado: 'Pendiente' }).in('referencia', detMerged.servicios.map((s: any) => typeof s === 'string' ? s : s.referencia));
+          }
+
+          // Limpiar movimientos de condominio
+          await sb.from('condominio_movimientos').delete().in('pago_id', [pagoId, detMerged.pago_principal_id, detMerged.pago_vinculado].filter(Boolean));
+
+          // Rechazar comprobantes de retención vinculados
+          await sb.from('pagos_reportados').update({ estado: 'Rechazado' }).filter('detalles->>pago_vinculado', 'eq', pagoId);
+
+          // Revertir notas de crédito creadas por exceso o saldo a favor
+          try {
+            const ors = [];
+            if (actualP.referencia) ors.push(`detalles->>origen_referencia.ilike.%${actualP.referencia}%`);
+            if (pagoId) ors.push(`detalles->>origen_referencia.ilike.%${pagoId}%`);
+            if (ors.length > 0) {
+              await sb.from('documentos').update({ estado: 'Anulada' }).eq('tipo', 'Nota de Credito').or(ors.join(','));
+            }
+          } catch(e) {}
+        }
       }
     }
 
