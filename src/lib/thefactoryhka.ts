@@ -209,12 +209,6 @@ export class TheFactoryHKA {
     try {
       const token = await this.getToken();
       const candidates: string[] = [];
-
-      if (numeroControl) {
-        const cleanCtrl = String(numeroControl).replace(/-/g, '').trim();
-        if (cleanCtrl) candidates.push(cleanCtrl.padStart(10, '0'));
-      }
-
       const strDoc = String(numeroDocumento || '').trim();
       if (strDoc) {
         const cleanDoc = strDoc.replace(/-/g, '').trim();
@@ -222,6 +216,11 @@ export class TheFactoryHKA {
           candidates.push(cleanDoc.padStart(10, '0'));
         }
         candidates.push(strDoc);
+      }
+
+      if (numeroControl) {
+        const cleanCtrl = String(numeroControl).replace(/-/g, '').trim();
+        if (cleanCtrl) candidates.push(cleanCtrl.padStart(10, '0'));
       }
 
       for (const cand of Array.from(new Set(candidates))) {

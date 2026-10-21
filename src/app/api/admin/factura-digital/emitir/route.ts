@@ -3,7 +3,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
 import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
-import { isFictitiousEmail } from '@/lib/formatters';
+import { isFictitiousEmail, sanitizarDireccionFiscal } from '@/lib/formatters';
 import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, portalRetencionesUrl } from '@/lib/retencionFlujo';
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
 import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
@@ -1018,11 +1018,23 @@ export async function POST(request: Request) {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             Direccion:            (() => {
+              const uNum = lineaCom?.unidadNumero || 
+                lineasCondo?.[0]?.unidadNumero || 
+                detPago?.condominio?.lineas?.[0]?.unidadNumero ||
+                null;
+              const nombreCondo = condoDet?.nombre || detPago?.condominio?.nombre || null;
+              const parentDir = condoDet?.direccion || detPago?.condominio?.direccion || null;
+              
               const isValidDir = (d: any) => d && typeof d === 'string' && d.trim().length > 3 && d.trim() !== '0 0' && d.trim() !== '0' && d.trim().toUpperCase() !== 'N/A';
               const dirEspecifica = matchedPropEspecifico?.direccion;
               const dirRecibo = detPago?.recibo_caja?.[0]?.domicilioFiscal;
-              const cand = isValidDir(dirEspecifica) ? dirEspecifica : (isValidDir(dirRecibo) ? dirRecibo : (isValidDir(propRef?.direccion) ? propRef?.direccion : (isValidDir(contribuyente?.direccion) ? contribuyente?.direccion : "NAGUANAGUA")));
-              return String(cand || "NAGUANAGUA").trim().slice(0, 100);
+              const cand = isValidDir(dirEspecifica) ? dirEspecifica : (isValidDir(dirRecibo) ? dirRecibo : (isValidDir(propRef?.direccion) ? propRef?.direccion : (isValidDir(contribuyente?.direccion) ? contribuyente?.direccion : parentDir)));
+              
+              return sanitizarDireccionFiscal(cand, {
+                unidadNumero: uNum,
+                nombreCondo,
+                parentDir
+              });
             })(),
             Pais:                 "VE",
             Notificar:            null,

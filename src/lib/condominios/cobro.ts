@@ -18,6 +18,7 @@ import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import * as M from './motor';
 import { calcularEstado, cargarCondominio, tasaVigente, EstadoCuenta, RenglonEstado } from './servicio';
 import { descontarSaldoFavor, acreditarSaldoFavor } from '@/lib/saldoFavor';
+import { sanitizarDireccionFiscal } from '@/lib/formatters';
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -413,7 +414,10 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       fechaIngresoCaja: new Date().toISOString().slice(0, 10),
       codContribuyente: f.identidad,
       razonSocial: f.nombre,
-      domicilioFiscal: c.direccion || 'NAGUANAGUA, CARABOBO',
+      domicilioFiscal: sanitizarDireccionFiscal(c.direccion, {
+        unidadNumero: ls[0]?.numero || null,
+        nombreCondo: c.nombre,
+      }),
       rifCi: f.identidad,
       caja: pago.cajero || 'Caja',
       periodo: periodoTexto,

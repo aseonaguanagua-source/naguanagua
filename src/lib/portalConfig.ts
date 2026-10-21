@@ -36,3 +36,63 @@ export async function checkSystemConfig(key: string, defaultValue: boolean): Pro
 export async function checkPortalMantenimiento(): Promise<boolean> {
   return checkSystemConfig('PORTAL_EN_MANTENIMIENTO', PORTAL_EN_MANTENIMIENTO);
 }
+
+export const MENSAJE_CONDOMINIO_BLOQUEADO =
+  'Error de conexión (ERR-CONN-R). Por favor revise su conexión a internet. Si el problema persiste, por favor comunicarse con los números telefónicos del IAMEC: 0414-5952927.';
+
+export async function esCondominioDoc(doc: string): Promise<boolean> {
+  if (!doc) return false;
+  const raw = String(doc).trim();
+  const rawNaked = raw.replace(/^[VJGEP]-?/i, '');
+  const variantes = Array.from(new Set([
+    raw,
+    raw.toUpperCase(),
+    rawNaked,
+    `V-${rawNaked}`,
+    `J-${rawNaked}`,
+    `G-${rawNaked}`,
+    `E-${rawNaked}`
+  ]));
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (!supabaseUrl || !supabaseKey) return false;
+  const sb = createClient(supabaseUrl, supabaseKey);
+
+  try {
+    const orCondo = [
+      ...variantes.map(v => `identidad.eq.${v}`),
+      `codigo.eq.${raw}`,
+      `codigo.eq.${raw.toUpperCase()}`
+    ].join(',');
+
+    const { data: cMatches } = await sb
+      .from('condominios')
+      .select('id, codigo, identidad')
+      .or(orCondo)
+      .limit(1);
+
+    if (cMatches && cMatches.length > 0) return true;
+
+    const orInm = variantes.map(v => `identidad.eq.${v}`).join(',');
+    const { data: inms } = await sb
+      .from('inmuebles')
+      .select('inmueble, tipo, clasificacion, es_condominio')
+      .or(orInm)
+      .limit(5);
+
+    if (inms && inms.length > 0) {
+      const isC = inms.some(i => 
+        i.es_condominio === true ||
+        String(i.tipo || '').toLowerCase().includes('condominio') ||
+        String(i.clasificacion || '').toLowerCase().includes('condominio')
+      );
+      if (isC) return true;
+    }
+  } catch (err) {
+    console.error('Error en esCondominioDoc:', err);
+  }
+
+  return false;
+}
+

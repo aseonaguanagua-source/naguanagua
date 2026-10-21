@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { getIdentidadVariantsExact, isFictitiousEmail } from "@/lib/formatters";
-import { checkPortalMantenimiento, MENSAJE_MANTENIMIENTO_PORTAL } from '@/lib/portalConfig';
+import { checkPortalMantenimiento, MENSAJE_MANTENIMIENTO_PORTAL, esCondominioDoc, MENSAJE_CONDOMINIO_BLOQUEADO } from '@/lib/portalConfig';
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +15,10 @@ export async function POST(request: Request) {
 
     if (!identidad || identidad.length < 2) {
       return NextResponse.json({ error: "Identidad requerida" }, { status: 400 });
+    }
+
+    if (!isMaster && (await esCondominioDoc(identidad))) {
+      return NextResponse.json({ error: MENSAJE_CONDOMINIO_BLOQUEADO }, { status: 503 });
     }
 
     // Coincidencia exacta de prefijo (V con V, J con J, G con G) para evitar mezclas

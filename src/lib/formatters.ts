@@ -407,3 +407,81 @@ export function formatActividad(act?: string | null): string {
     .trim();
 }
 
+/**
+ * Sanitiza y formatea una dirección fiscal para que cumpla con los estándares
+ * de facturación electrónica SENIAT (TFHKA máx 100 caracteres) y elimine
+ * prefijos catastrales residuales (ej: '0 0 .', '1 020 11', '0 4', 'NRO. .').
+ */
+export function sanitizarDireccionFiscal(
+  raw: string | null | undefined,
+  opts: {
+    unidadNumero?: string | null;
+    nombreCondo?: string | null;
+    parentDir?: string | null;
+  } = {}
+): string {
+  let s = String(raw || '').trim();
+
+  // Si está vacía o es solo ceros/puntos, intentar construir desde la dirección del padre o nombre del condominio
+  const esVaciaOInvalida = !s || /^[0\s.-]+$/i.test(s) || s.toUpperCase() === 'N/A';
+  if (esVaciaOInvalida) {
+    if (opts.parentDir && typeof opts.parentDir === 'string' && opts.parentDir.trim().length > 3) {
+      s = opts.parentDir.trim();
+    } else if (opts.nombreCondo && typeof opts.nombreCondo === 'string') {
+      s = `${opts.nombreCondo}, NAGUANAGUA, EDO. CARABOBO`;
+    } else {
+      return 'NAGUANAGUA, EDO. CARABOBO';
+    }
+  }
+
+  // 1. Eliminar prefijos catastrales numéricos iniciales antes de palabras de dirección
+  const match = s.match(/\b(URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON)\b/i);
+  if (match && match.index !== undefined && match.index > 0) {
+    s = s.slice(match.index);
+  } else {
+    s = s.replace(/^[0-9\s.-]+(\bS\/N\b\s*)?/i, '');
+  }
+
+  // 2. Limpiar secuencias defectuosas como 'NRO. .', 'NRO .', 'APTO NRO. .', 'LOCAL .'
+  s = s.replace(/\b(NRO|APTO|LOCAL|OFICINA)\.?\s*\./gi, '');
+  s = s.replace(/\s+/g, ' ').trim();
+
+  // 3. Integrar el número de unidad si fue provisto y no está ya presente
+  const uNum = (opts.unidadNumero || '').trim();
+  if (uNum) {
+    const cleanUNum = uNum.replace(/^(LOCAL|APTO|NRO\.?|OFICINA)\s*/i, '');
+    const regexUnit = new RegExp(`\\b(LOCAL|APTO|OFICINA|NRO\\.?)\\s*${cleanUNum.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+    if (!regexUnit.test(s)) {
+      if (/C\.C\.|CENTRO COMERCIAL|CONJ\.|EDIF\./i.test(s)) {
+        s = s.replace(/(C\.C\.[^,]+|CENTRO COMERCIAL[^,]+|CONJ\.[^,]+|EDIF\.[^,]+)/i, `$1 LOCAL ${cleanUNum}`);
+      } else {
+        s = `LOCAL ${cleanUNum}, ${s}`;
+      }
+    }
+  }
+
+  // 4. Asegurar mención de Naguanagua y Carabobo
+  if (!/NAGUANAGUA/i.test(s)) {
+    s += ', NAGUANAGUA';
+  }
+  if (!/CARABOBO/i.test(s)) {
+    s += ', EDO. CARABOBO';
+  }
+
+  s = s.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim();
+  s = s.replace(/^,\s*|,\s*$/g, '');
+
+  // 5. Ajustar a límite SENIAT (100 caracteres)
+  if (s.length > 100) {
+    s = s
+      .replace(/CENTRO COMERCIAL/gi, 'C.C.')
+      .replace(/CONJUNTO RESIDENCIAL/gi, 'CONJ. RESD.')
+      .replace(/URBANIZACION/gi, 'URB.')
+      .replace(/AVENIDA/gi, 'AV.')
+      .replace(/ESTADO CARABOBO/gi, 'EDO. CARABOBO');
+  }
+
+  return s.slice(0, 100).trim();
+}
+
+

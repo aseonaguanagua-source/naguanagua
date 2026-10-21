@@ -7,7 +7,7 @@ import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { actualizarPago } from '@/lib/actualizarPago';
 import { formatBs, formatPhoneNumber, isFictitiousEmail, formatMonthYear, getIdentidadVariants, parseLocalFloat, formatLocalNumberInput } from '@/lib/formatCurrency';
-import { getIdentidadVariantsExact } from '@/lib/formatters';
+import { getIdentidadVariantsExact, sanitizarDireccionFiscal } from '@/lib/formatters';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { ModalComprobante } from '@/components/caja/ModalComprobante';
 import { logAudit } from '@/lib/audit';
@@ -3157,7 +3157,11 @@ export default function CajaPage() {
                   fechaEmision: new Date().toISOString().split('T')[0],
                   codContribuyente: hijo.inmueble || hijo.id || foundUser.Identidad,
                   razonSocial: hijo.contribuyente || foundUser.Contribuyente || '',
-                  domicilioFiscal: ((hijo.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+                  domicilioFiscal: sanitizarDireccionFiscal(hijo.direccion, {
+                    unidadNumero: localDesc || hijo.unidadNumero || null,
+                    nombreCondo: foundUser.Contribuyente || null,
+                    parentDir: foundUser.Direccion || null
+                  }).toUpperCase(),
                   rifCi: foundUser.Identidad,
                   caja: cajero_id_recibo,
                   periodo: rango || undefined,
@@ -3193,7 +3197,11 @@ export default function CajaPage() {
                 fechaEmision: new Date().toISOString().split('T')[0],
                 codContribuyente: hijo.inmueble || hijo.id || foundUser.Identidad,
                 razonSocial: hijo.contribuyente || foundUser.Contribuyente || '',
-                domicilioFiscal: ((hijo.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+                domicilioFiscal: sanitizarDireccionFiscal(hijo.direccion, {
+                  unidadNumero: localDesc || hijo.unidadNumero || null,
+                  nombreCondo: foundUser.Contribuyente || null,
+                  parentDir: foundUser.Direccion || null
+                }).toUpperCase(),
                 rifCi: foundUser.Identidad,
                 caja: cajero_id_recibo,
                 conceptos: [{
@@ -3477,7 +3485,11 @@ export default function CajaPage() {
                 fechaEmision: new Date().toISOString().split('T')[0],
                 codContribuyente: hijo.inmueble || hijo.id || foundUser.Identidad,
                 razonSocial: hijo.contribuyente || foundUser.Contribuyente || '',
-                domicilioFiscal: ((hijo.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+                domicilioFiscal: sanitizarDireccionFiscal(hijo.direccion, {
+                  unidadNumero: localDesc || hijo.unidadNumero || null,
+                  nombreCondo: foundUser.Contribuyente || null,
+                  parentDir: foundUser.Direccion || null
+                }).toUpperCase(),
                 rifCi: foundUser.Identidad,
                 caja: cajero_id_recibo,
                 periodo: rango || undefined,
@@ -3513,7 +3525,11 @@ export default function CajaPage() {
               fechaEmision: new Date().toISOString().split('T')[0],
               codContribuyente: hijo.inmueble || hijo.id || foundUser.Identidad,
               razonSocial: hijo.contribuyente || foundUser.Contribuyente || '',
-              domicilioFiscal: ((hijo.direccion || foundUser.Direccion || 'NAGUANAGUA, CARABOBO') as string).toUpperCase(),
+              domicilioFiscal: sanitizarDireccionFiscal(hijo.direccion, {
+                unidadNumero: localDesc || hijo.unidadNumero || null,
+                nombreCondo: foundUser.Contribuyente || null,
+                parentDir: foundUser.Direccion || null
+              }).toUpperCase(),
               rifCi: foundUser.Identidad,
               caja: cajero_id_recibo,
               conceptos: [{
