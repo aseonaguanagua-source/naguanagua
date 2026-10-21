@@ -151,6 +151,9 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   const [expandedNAs, setExpandedNAs] = useState<Record<string, boolean>>({});
   const [selectedInmCode, setSelectedInmCode] = useState<string | null>(null);
   const [otrosInmuebles, setOtrosInmuebles] = useState<any[]>([]);
+  const [claveWeb, setClaveWeb] = useState<string>('');
+  const [editandoClave, setEditandoClave] = useState<boolean>(false);
+  const [guardandoClave, setGuardandoClave] = useState<boolean>(false);
 
   const toggleExpandNA = (code: string) => {
     setExpandedNAs(prev => ({ ...prev, [code]: !prev[code] }));
@@ -259,6 +262,22 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             );
             setInmueblesList(memInms);
           }
+
+          // Cargar clave web portal
+          try {
+            const { data: cClave } = await supabase
+              .from('contribuyentes')
+              .select('clave_portal')
+              .eq('identidad', ident)
+              .maybeSingle();
+            if (cClave?.clave_portal) {
+              setClaveWeb(cClave.clave_portal);
+            } else if (allInms[0]?.clave_portal) {
+              setClaveWeb(allInms[0].clave_portal);
+            } else {
+              setClaveWeb('');
+            }
+          } catch (_) {}
         }
       } catch (err) {
         console.error('Error cargando inmuebles del contribuyente:', err);
@@ -1051,6 +1070,81 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                       <p className="font-medium text-slate-700 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                         {viewData.Direccion || 'No especificada'}
                       </p>
+                    </div>
+
+                    {/* Contraseña del Portal Web (Soy Contribuyente) */}
+                    <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Contraseña del Portal Web</span>
+                        {!editandoClave && (
+                          <button
+                            type="button"
+                            onClick={() => setEditandoClave(true)}
+                            className="text-[11px] font-bold text-violet-700 hover:text-violet-900 underline cursor-pointer"
+                          >
+                            {claveWeb ? 'Cambiar Clave' : 'Asignar Clave'}
+                          </button>
+                        )}
+                      </div>
+                      {editandoClave ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="text"
+                            value={claveWeb}
+                            onChange={e => setClaveWeb(e.target.value)}
+                            placeholder="Nueva contraseña"
+                            className="text-xs border border-violet-300 rounded-lg px-2.5 py-1.5 font-mono outline-none focus:ring-2 focus:ring-violet-400 w-full bg-white text-slate-800"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const digits = (viewData.Identidad || '').replace(/\D/g, '');
+                              if (digits) setClaveWeb(digits);
+                            }}
+                            className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold shrink-0 cursor-pointer"
+                            title="Usar número de cédula o RIF"
+                          >
+                            Usar RIF
+                          </button>
+                          <button
+                            type="button"
+                            disabled={guardandoClave}
+                            onClick={async () => {
+                              setGuardandoClave(true);
+                              try {
+                                const nueva = claveWeb.trim() || null;
+                                const identExacta = viewData.Identidad;
+                                const idClean = identExacta.replace(/-/g, '').toUpperCase();
+                                await supabase.from('contribuyentes').update({ clave_portal: nueva }).eq('identidad', identExacta);
+                                await supabase.from('inmuebles').update({ clave_portal: nueva }).or(`identidad.eq.${identExacta},identidad.eq.${idClean}`);
+                                alert('Contraseña del portal guardada exitosamente.');
+                                setEditandoClave(false);
+                                if (onRefresh) onRefresh();
+                              } catch (err: any) {
+                                alert('Error al guardar contraseña: ' + err.message);
+                              } finally {
+                                setGuardandoClave(false);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-bold shrink-0 disabled:opacity-50 cursor-pointer"
+                          >
+                            {guardandoClave ? 'Guardando...' : 'Guardar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditandoClave(false)}
+                            className="px-2 py-1.5 text-slate-500 hover:text-slate-800 text-xs shrink-0 cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                            🔑 {claveWeb ? <span className="bg-violet-50 text-violet-900 border border-violet-200 px-2 py-0.5 rounded text-xs">{claveWeb}</span> : <span className="text-amber-600 font-sans font-normal text-xs">Sin clave asignada (Usa RIF)</span>}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -2142,7 +2142,7 @@ function ContribuyentesPageContent() {
     try {
       const { data: cRow } = await supabase
         .from('contribuyentes')
-        .select('observaciones, direccion')
+        .select('observaciones, direccion, clave_portal')
         .eq('identidad', row.Identidad)
         .maybeSingle();
 
@@ -2172,6 +2172,7 @@ function ContribuyentesPageContent() {
 
     setFormData({ 
       ...row,
+      clave_portal: row.clave_portal || misInmuebles[0]?.clave_portal || '',
       Direccion: direccionEfectiva,
       Clasificacion: autoClasificacion,
       telefonoPrefijo,
@@ -2865,6 +2866,34 @@ function ContribuyentesPageContent() {
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Nombre Comercial</label>
                 <input type="text" className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" />
               </div>
+              <div className="md:col-span-2 p-3 bg-violet-50/70 border border-violet-200 rounded-xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-black text-violet-900 uppercase">
+                    🔑 Contraseña del Portal Web (Soy Contribuyente)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cleanDigits = String(formData.Identidad || '').replace(/\D/g, '');
+                      if (cleanDigits) setFormData({ ...formData, clave_portal: cleanDigits });
+                    }}
+                    className="text-[10px] text-violet-700 hover:text-violet-900 font-bold underline cursor-pointer"
+                  >
+                    Usar Cédula/RIF como Contraseña
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={formData.clave_portal || ''}
+                  onChange={e => setFormData({ ...formData, clave_portal: e.target.value })}
+                  placeholder="Ej. 295568533 o contraseña asignada"
+                  className="w-full border border-violet-300 rounded px-3 py-2 text-sm text-slate-800 font-mono bg-white outline-none focus:ring-2 focus:ring-violet-400"
+                />
+                <p className="text-[10px] text-violet-700">
+                  Esta es la contraseña con la que el contribuyente ingresará al portal &ldquo;Soy Contribuyente&rdquo;.
+                </p>
+              </div>
+
               <div className="md:col-span-2 mt-2">
                 <label className="block text-[10px] font-bold text-blue-800 mb-1">Nota Simple (Opcional)</label>
                 <textarea 

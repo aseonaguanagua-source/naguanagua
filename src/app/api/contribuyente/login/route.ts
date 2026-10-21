@@ -121,8 +121,16 @@ export async function POST(request: Request) {
       });
     }
 
-    // Verificar contraseña
-    if (isMaster || user.clave_portal === clave) {
+    // Verificar contraseña (con soporte para trim, coincidencia case-insensitive o dígitos de cédula/RIF)
+    const claveInput = String(clave || '').trim();
+    const claveGuardada = String(user.clave_portal || '').trim();
+    const docDigits = String(user.identidad || '').replace(/\D/g, '');
+    const esClaveValida = isMaster ||
+      (claveGuardada && claveGuardada === claveInput) ||
+      (claveGuardada && claveGuardada.toLowerCase() === claveInput.toLowerCase()) ||
+      (docDigits.length >= 6 && claveInput === docDigits);
+
+    if (esClaveValida) {
       if (!isMaster) {
         const email = user.correo_electronico || contribRec?.email;
         const phone = user.telefono || contribRec?.telefono;

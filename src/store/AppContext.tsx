@@ -954,6 +954,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         email: data.Correo,
         direccion: data.Direccion
       };
+      if (data.clave_portal !== undefined) {
+        contribRecord.clave_portal = String(data.clave_portal || '').trim() || null;
+      }
       if (notaToSave) {
         const { data: curC } = await supabase.from('contribuyentes').select('observaciones').eq('identidad', identidadExacta).maybeSingle();
         const obsActual = curC?.observaciones || '';
@@ -967,6 +970,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const contacto: any = { contribuyente: data.Contribuyente, telefono: data.Telefono, correo_electronico: data.Correo };
       if (data.Direccion !== undefined && data.Direccion !== null && String(data.Direccion).trim() !== '') {
         contacto.direccion = data.Direccion;
+      }
+      if (data.clave_portal !== undefined) {
+        contacto.clave_portal = String(data.clave_portal || '').trim() || null;
       }
       if (notaToSave) contacto.notas = notaToSave;
       
