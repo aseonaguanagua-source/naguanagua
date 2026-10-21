@@ -657,6 +657,8 @@ function Caja() {
       const nuevoCobroId = crypto.randomUUID();
       pagoId.current = nuevoCobroId;
 
+      const primerPagoReal = realPagosSubidos.find(p => p.metodo !== 'Saldo a Favor') || realPagosSubidos[0];
+
       const r = await fetch('/api/admin/condominios/cobrar', {
         method: 'POST', body: JSON.stringify({
           accion: 'cobrar', codigo, modo,
@@ -671,12 +673,12 @@ function Caja() {
           fechaOverride: fechaOverrideStr || undefined,
           pago: { 
             pagoId: nuevoCobroId, 
-            metodo: realPagosSubidos[0]?.metodo || 'MÚLTIPLE', 
-            banco: realPagosSubidos[0]?.banco || '', 
-            referencia: realPagosSubidos[0]?.referencia || '', 
+            metodo: primerPagoReal?.metodo || 'MÚLTIPLE', 
+            banco: primerPagoReal?.banco || '', 
+            referencia: primerPagoReal?.referencia || '', 
             montoRecibido: sumaRealPagos > totalAPagarCobro ? sumaRealPagos : totalAPagarCobro, 
             cajero: getCajeroId(),
-            bancoDestino: realPagosSubidos[0]?.bancoDestino || '',
+            bancoDestino: primerPagoReal?.bancoDestino || '',
             pagosAgregados: realPagosSubidos,
             saldoFavorGenerado: excedenteGenerado
           },

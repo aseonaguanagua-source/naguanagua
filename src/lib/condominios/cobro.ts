@@ -475,13 +475,36 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     };
     const esTransferencia = pago.metodo.toLowerCase().includes('transferencia') || pago.metodo.toLowerCase().includes('pago móvil') || (pago.pagosAgregados && pago.pagosAgregados.some((pa: any) => pa.metodo.toLowerCase().includes('transferencia') || pa.metodo.toLowerCase().includes('pago móvil')));
     const fechaRegistro = new Date();
-    const pagosReales = (pago.pagosAgregados || []).filter((pa: any) => pa.metodo !== 'Saldo a Favor');
-    const pagoAgregadoCoincidente = pagosReales.find((pa: any) => pa.referencia === refFinal) || (pagosReales.length > 0 ? pagosReales[0] : null);
+    const pagosReales = (pago.pagosAgregados || []).filter((pa: any) => pa && pa.metodo !== 'Saldo a Favor');
+    const primerReal = pagosReales[0] || (pago.pagosAgregados && pago.pagosAgregados[0]);
+
+    if (primerReal && refFinal.toLowerCase().includes('saldo favor') && primerReal.referencia && !primerReal.referencia.toLowerCase().includes('saldo favor')) {
+      refFinal = primerReal.referencia;
+    }
+    const metodoFila = (primerReal && pago.metodo === 'Saldo a Favor') ? primerReal.metodo : pago.metodo;
+    const bancoFila = (primerReal && (!pago.banco || pago.banco === 'Saldo a Favor')) ? (primerReal.banco || primerReal.metodo) : (pago.banco || pago.metodo);
+
+    const pagoAgregadoCoincidente = pagosReales.find((pa: any) => pa.referencia === refFinal) || primerReal;
     const montoReportadoReal = (pagoAgregadoCoincidente && Number(pagoAgregadoCoincidente.monto) > 0)
       ? Number(pagoAgregadoCoincidente.monto)
       : (pago.montoRecibido && cobro.facturas.length === 1 ? pago.montoRecibido : f.totalBs);
-    const fila: any = { id, identidad: f.identidad, monto: montoReportadoReal, banco: pago.banco || pago.metodo, referencia: refFinal, tipo: pago.metodo, estado: esTransferencia ? 'Por Verificar' : 'Aprobado', modulo: 'condominios', detalles, created_at: fechaRegistro.toISOString() };
-    if (grupo) fila.grupo_pago = grupo;
+
+    const esMultiPago = cobro.facturas.length > 1 || pagosReales.length > 1;
+    const grupoId = grupo || (esMultiPago ? (pago.pagoId || id) : null);
+
+    const fila: any = { 
+      id, 
+      identidad: f.identidad, 
+      monto: montoReportadoReal, 
+      banco: bancoFila, 
+      referencia: refFinal, 
+      tipo: metodoFila, 
+      estado: esTransferencia ? 'Por Verificar' : 'Aprobado', 
+      modulo: 'condominios', 
+      detalles, 
+      created_at: fechaRegistro.toISOString() 
+    };
+    if (grupoId) fila.grupo_pago = grupoId;
     
     let { error } = await sb.from('pagos_reportados').insert(fila);
     if (error && error.message.includes('duplicate')) {
@@ -489,7 +512,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       if (error.message.includes('referencia_key') || error.message.includes('referencia')) {
         fila.referencia = `${refFinal}-${Date.now().toString().slice(-4)}`;
       } else {
-        fila.id = crypto.randomUUID();
+        id = crypto.randomUUID();
+        fila.id = id;
       }
       const reintento = await sb.from('pagos_reportados').insert(fila);
       error = reintento.error;
@@ -515,7 +539,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
           tipo: paExtra.metodo,
           estado: esTransExtra ? 'Por Verificar' : 'Aprobado',
           modulo: 'condominios',
-          grupo_pago: grupo || id,
+          grupo_pago: grupoId || fila.id,
           created_at: fechaRegistro.toISOString(),
           detalles: {
             ...detalles,
@@ -527,7 +551,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             banco_destino: paExtra.bancoDestino || pago.bancoDestino,
             comprobante_url: paExtra.comprobante_url,
             comprobante_nombre: paExtra.comprobante_nombre,
-            pago_principal_id: id,
+            pago_principal_id: fila.id,
             es_pago_adicional: true,
             factura_digital: { emitida: false, pendiente: false, es_pago_adicional: true }
           }
