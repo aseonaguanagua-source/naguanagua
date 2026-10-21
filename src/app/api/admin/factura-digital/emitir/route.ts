@@ -88,7 +88,7 @@ function formatearFecha(isoString: string): string {
 export async function POST(request: Request) {
   try {
     const { 
-      pagoId, recibos, montos: montosBody, contribuyente, identidad, formasPago, 
+      pagoId, recibos: recibosBody, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
       correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
       esRetencion, referencia, modulo, fechaEmisionOverride, fecha, reemitir = false
@@ -100,12 +100,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Faltan datos obligatorios (pagoId requerido)' }, { status: 400 });
     }
 
+    let recibos: string[] = Array.isArray(recibosBody) ? recibosBody : [];
+
     // REGLA: las multas de inmuebles COMERCIALES se facturan (ítem exento), incluso si el pago es solo multa
     // (p. ej. local de un condominio comercial). Las multas residenciales nunca se facturan.
     // Montos por referencia: del payload o, si no vienen (emisión por lote), los que guardó Caja en el pago.
     const montos: Record<string, any> = montosBody && typeof montosBody === 'object' ? montosBody : {};
     let montosMulta: Record<string, any> = { ...montos };
-    if (Array.isArray(recibos) && recibos.some((r: string) => /^MULTA-/i.test(String(r)) && !montos[r])) {
+    if (recibos.some((r: string) => /^MULTA-/i.test(String(r)) && !montos[r])) {
       const { data: pagoMontos } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
       let dm: any = pagoMontos?.detalles || {};
       if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
@@ -218,7 +220,11 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const { data: facturasBD } = lineasCondo ? { data: [] as any[] } : await supabase.from('facturas').select('*').in('referencia', recibos);
+    if (recibos.length === 0 && Array.isArray(detPago?.recibos)) {
+      recibos = detPago.recibos;
+    }
+
+    const { data: facturasBD } = lineasCondo || recibos.length === 0 ? { data: [] as any[] } : await supabase.from('facturas').select('*').in('referencia', recibos);
 
     const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -265,10 +271,15 @@ export async function POST(request: Request) {
           ? montoCaja
           : parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
 
-        // Fallback: si deuda ya fue limpiada y no hay monto de caja
-        if (montoBase <= 0 && montoTotal && parseFloat(String(montoTotal)) > 0) {
-          // Dividir montoTotal entre la cantidad de recibos HIST
-          montoBase = parseFloat(String(montoTotal)) / histRecibos.length;
+        // Fallback: si deuda ya fue limpiada y no hay monto de caja por ítem individual
+        if (montoBase <= 0) {
+          const subTotalRc = parseFloat(String(detPago?.recibo_caja?.[0]?.subTotal || detPago?.recibo_caja?.[0]?.baseImponible || detPago?.base_imponible || '0'));
+          const totalRc = parseFloat(String(detPago?.recibo_caja?.[0]?.total || detPago?.monto_factura || detPago?.total_seleccionado || montoTotal || pagoRow?.monto || '0'));
+          if (subTotalRc > 0) {
+            montoBase = parseFloat((subTotalRc / histRecibos.length).toFixed(2));
+          } else if (totalRc > 0) {
+            montoBase = parseFloat(((totalRc / 1.16) / histRecibos.length).toFixed(2));
+          }
         }
 
         // MULTA: calcular como % del base (NO usar multa_bs que es el total histórico acumulado)
@@ -874,25 +885,41 @@ export async function POST(request: Request) {
 
     // Detección precisa del inmueble facturado para contribuyentes con múltiples sedes/inmuebles (ej. Banco Activo)
     const condoRecibo = (recibos || []).find((r: string) => /^CONDO-/i.test(String(r)));
-    const condoCode = condoRecibo ? condoRecibo.split('-')[1] : null;
+    const condoCode = condoRecibo ? condoRecibo.split('-')[1] : (condoDet?.codigo || null);
     const codRc = detPago.recibo_caja?.[0]?.codContribuyente || detPago.recibo_caja?.[0]?.inmueble || null;
     const codHist = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
 
-    const matchedPropEspecifico = (activeProps || []).find((p: any) => 
-      (codHist && p.inmueble === codHist) ||
-      (codRc && p.inmueble === codRc) ||
-      (detPago.cod_inmueble && p.inmueble === detPago.cod_inmueble) ||
+    const lineaCom = lineasCondo?.find((l: any) => !l.residencial) || lineasCondo?.[0];
+    const codInmEspecifico = 
+      lineaCom?.inmueble ||
+      lineasCondo?.[0]?.inmueble ||
+      detPago?.condominio?.lineas?.[0]?.inmueble ||
+      detPago?.condominio_hijos_pagados?.[0]?.inmueble ||
+      (detPago.cod_inmueble && !String(detPago.cod_inmueble).startsWith('CONDO-') ? detPago.cod_inmueble : null) ||
+      (detPago.codigo_inmueble && !String(detPago.codigo_inmueble).startsWith('CONDO-') ? detPago.codigo_inmueble : null) ||
+      detPago.inmueble ||
+      (codRc && /^[A-Z]{3,4}\d{4,8}$/i.test(codRc) ? codRc : null) ||
+      codHist;
+
+    let matchedPropEspecifico = (activeProps || []).find((p: any) => 
+      (codInmEspecifico && p.inmueble === codInmEspecifico) ||
       (condoCode && (p.condominio_padre_id === condoCode || p.padre_id === condoCode))
     ) || (userProps || []).find((p: any) =>
-      (codHist && p.inmueble === codHist) ||
-      (codRc && p.inmueble === codRc) ||
-      (detPago.cod_inmueble && p.inmueble === detPago.cod_inmueble) ||
+      (codInmEspecifico && p.inmueble === codInmEspecifico) ||
       (condoCode && (p.condominio_padre_id === condoCode || p.padre_id === condoCode))
     );
 
+    if (!matchedPropEspecifico && codInmEspecifico) {
+      const { data: dbInm } = await supabase
+        .from('inmuebles')
+        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion')
+        .eq('inmueble', codInmEspecifico)
+        .maybeSingle();
+      if (dbInm) matchedPropEspecifico = dbInm;
+    }
+
     // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
     const comRef: any = matchedPropEspecifico || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
-    const lineaCom = lineasCondo?.find((l: any) => !l.residencial);
     const codigoContribuyente = lineasCondo ? (lineaCom?.inmueble || condoDet?.codigo || '') : (matchedPropEspecifico?.inmueble || codHist || comRef?.inmueble || '');
     // N° de Licencia de Actividades Económicas: el NÚMERO registrado en el inmueble (nunca el nombre de la actividad).
     // Si el sistema no lo tiene, el campo no se envía.
@@ -1018,8 +1045,11 @@ export async function POST(request: Request) {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             Direccion:            (() => {
-              const uNum = lineaCom?.unidadNumero || 
+              const uNum = lineaCom?.numero ||
+                lineaCom?.unidadNumero || 
+                lineasCondo?.[0]?.numero ||
                 lineasCondo?.[0]?.unidadNumero || 
+                detPago?.condominio?.lineas?.[0]?.numero ||
                 detPago?.condominio?.lineas?.[0]?.unidadNumero ||
                 null;
               const nombreCondo = condoDet?.nombre || detPago?.condominio?.nombre || null;
@@ -1304,8 +1334,9 @@ export async function POST(request: Request) {
     if (isTfhkaEnabled) {
       console.log(`[TFHKA] Enviando Factura Real para pago ${pagoId}`);
       try {
-        // Evitar doble emisión real del mismo pago (si está anulada o se solicita reemitir, sí se permite emitir nueva factura)
-        if (!reemitir && nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated && !nuevosDetalles.factura_digital?.anulada) {
+        // Evitar doble emisión real del mismo pago (si está anulada, si proviene de demo o se solicita reemitir, sí se permite emitir nueva factura oficial)
+        const esDemoPrevio = String(nuevosDetalles.factura_digital?.url || '').includes('demo');
+        if (!reemitir && !esDemoPrevio && nuevosDetalles.factura_digital?.emitida && nuevosDetalles.factura_digital?.tfhka_seq && !nuevosDetalles.factura_digital?.simulated && !nuevosDetalles.factura_digital?.anulada) {
           return NextResponse.json({ success: true, yaEmitida: true, url: nuevosDetalles.factura_digital.url, numeroControl: nuevosDetalles.factura_digital.numero_control });
         }
 

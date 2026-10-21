@@ -3,6 +3,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, Send, ShieldCheck, AlertTriangle, QrCode } from 'lucide-react';
 import { formatBs } from '@/lib/formatCurrency';
 import { supabase } from '@/lib/supabase';
+import { sanitizarDireccionFiscal } from '@/lib/formatters';
 
 interface DemoFacturaProps {
   isOpen: boolean;
@@ -167,8 +168,17 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   const numeroDoc = pago?.numeroDocumento || det.numero_documento || '00000XXX';
   const numeroCtrl = pago?.numeroControl || det.numero_control || '00-00000XXX';
 
-  const rawCod = det.inmueble || (det.recibos && det.recibos[0]) || (pago?.inmuebles && pago.inmuebles[0]?.inmueble) || (pago?.recibos && pago.recibos[0]) || '';
-  const inmuebleCod = rawCod.startsWith('RECIB-HIST-') ? rawCod.replace('RECIB-HIST-', '').split('-')[0] : rawCod;
+  const rawCod = 
+    det.condominio?.lineas?.[0]?.inmueble ||
+    det.lineas?.[0]?.inmueble ||
+    det.condominio_hijos_pagados?.[0]?.inmueble ||
+    det.inmueble ||
+    (det.codigo_inmueble && !String(det.codigo_inmueble).startsWith('CONDO-') ? det.codigo_inmueble : '') ||
+    (det.cod_inmueble && !String(det.cod_inmueble).startsWith('CONDO-') ? det.cod_inmueble : '') ||
+    (det.recibos && det.recibos[0]) ||
+    (pago?.inmuebles && pago.inmuebles[0]?.inmueble) ||
+    '';
+  const inmuebleCod = rawCod.startsWith('RECIB-HIST-') ? rawCod.replace('RECIB-HIST-', '').split('-')[0] : (rawCod.startsWith('CONDO-') ? '' : rawCod);
   const mesAseo = periodoRecibo || det.mes_aseo || (pago?.mesesServicio && pago.mesesServicio[0]) || 'Mes en Curso';
   const nombreReceptor = pago?.contribuyente || det.contribuyente || det.contribuyente_nombre || 'Contribuyente';
   const rifReceptor = pago?.identidad || det.identidad || '';
@@ -180,16 +190,31 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
 
   // Obtener dirección y licencia de la base de datos si no viene en el pago
   useEffect(() => {
-    if (!isOpen || !inmuebleCod) return;
+    if (!isOpen) return;
     let cancel = false;
 
     async function loadInmuebleInfo() {
       try {
-        const { data: inm } = await supabase
-          .from('inmuebles')
-          .select('direccion, licencia')
-          .eq('inmueble', inmuebleCod)
-          .maybeSingle();
+        let inm: any = null;
+        if (inmuebleCod) {
+          const { data } = await supabase
+            .from('inmuebles')
+            .select('direccion, licencia')
+            .eq('inmueble', inmuebleCod)
+            .maybeSingle();
+          inm = data;
+        }
+
+        // Si no se encontró por código directo pero hay identidad y condominio
+        if (!inm && rifReceptor && det.condominio?.codigo) {
+          const { data: list } = await supabase
+            .from('inmuebles')
+            .select('direccion, licencia, condominio_padre_id')
+            .eq('identidad', rifReceptor)
+            .eq('condominio_padre_id', det.condominio.codigo)
+            .limit(1);
+          if (list && list.length > 0) inm = list[0];
+        }
 
         if (!cancel && inm) {
           if (inm.direccion) setInmuebleDireccion(inm.direccion);
@@ -202,12 +227,19 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
 
     loadInmuebleInfo();
     return () => { cancel = true; };
-  }, [isOpen, inmuebleCod]);
+  }, [isOpen, inmuebleCod, rifReceptor, det.condominio?.codigo]);
 
   if (!isOpen || !pago) return null;
 
-  const direccionFinal = det.direccion || inmuebleDireccion || 'AV. DON JULIO CENTENO C.C. SAMBIL NIVEL AUTOPISTA LOCAL L-035 URB. MAÑONGO, NAGUANAGUA EDO. CARABOBO';
-  const licenciaFinal = det.licencia || inmuebleLicencia || 'VENTA DE EQUIPOS Y ARTICULOS VARIOS';
+  const direccionFinal = sanitizarDireccionFiscal(
+    inmuebleDireccion || det.direccion || det.recibo_caja?.[0]?.domicilioFiscal,
+    {
+      unidadNumero: det.condominio?.lineas?.[0]?.numero,
+      nombreCondo: det.condominio?.nombre,
+      parentDir: det.condominio?.direccion
+    }
+  );
+  const licenciaFinal = inmuebleLicencia || det.licencia || 'ACTIVIDAD ECONÓMICA GENERAL';
 
   const handlePrint = () => {
     const prevTitle = document.title;

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { isResidencialInm } from '@/lib/calculos';
+import { sanitizarDireccionFiscal } from '@/lib/formatters';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,23 +152,57 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Buscar información de correo en inmuebles y contribuyentes
+    // 4. Buscar información del inmueble ESPECÍFICO facturado
+    let detPagoObj: any = pagoData?.detalles || {};
+    if (typeof detPagoObj === 'string') { try { detPagoObj = JSON.parse(detPagoObj); } catch { detPagoObj = {}; } }
+
+    const codInmEspecifico = 
+      detPagoObj.condominio?.lineas?.[0]?.inmueble ||
+      detPagoObj.lineas?.[0]?.inmueble ||
+      detPagoObj.condominio_hijos_pagados?.[0]?.inmueble ||
+      detPagoObj.inmueble ||
+      (detPagoObj.codigo_inmueble && !String(detPagoObj.codigo_inmueble).startsWith('CONDO-') ? detPagoObj.codigo_inmueble : null) ||
+      (detPagoObj.cod_inmueble && !String(detPagoObj.cod_inmueble).startsWith('CONDO-') ? detPagoObj.cod_inmueble : null) ||
+      detPagoObj.recibo_caja?.[0]?.inmueble ||
+      (() => {
+        const rec = (detPagoObj.recibos || []).find((r: string) => /^RECIB-HIST-/i.test(r));
+        return rec ? rec.split('-')[2] : null;
+      })();
+
+    let prop: any = null;
+    if (codInmEspecifico) {
+      const { data: matchedInm } = await supabase
+        .from('inmuebles')
+        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, telefono, condominio_padre_id')
+        .eq('inmueble', codInmEspecifico)
+        .maybeSingle();
+      if (matchedInm) prop = matchedInm;
+    }
+
     const idNaked = docIdentidad.replace(/^[VJGEP]-?/i, '');
     const idVariants = [docIdentidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];
+
+    if (!prop) {
+      const { data: inmuebleDb } = await supabase
+        .from('inmuebles')
+        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, telefono, condominio_padre_id')
+        .in('identidad', idVariants)
+        .not('estado', 'ilike', 'eliminado%')
+        .limit(10);
+
+      const condoCode = detPagoObj.condominio?.codigo || detPagoObj.cod_inmueble;
+      if (condoCode && inmuebleDb && inmuebleDb.length > 0) {
+        prop = inmuebleDb.find((p: any) => p.condominio_padre_id === condoCode) || inmuebleDb[0];
+      } else {
+        prop = inmuebleDb && inmuebleDb.length > 0 ? inmuebleDb[0] : null;
+      }
+    }
 
     const { data: contribuyenteDb } = await supabase
       .from('contribuyentes')
       .select('nombre, email, telefono, direccion')
       .in('identidad', idVariants)
       .maybeSingle();
-
-    const { data: inmuebleDb } = await supabase
-      .from('inmuebles')
-      .select('tipo, actividad_principal, direccion, correo_electronico, telefono')
-      .in('identidad', idVariants)
-      .limit(1);
-
-    const prop = inmuebleDb && inmuebleDb.length > 0 ? inmuebleDb[0] : null;
 
     const emailReal = contribuyenteDb?.email || prop?.correo_electronico || pagoData?.detalles?.correo || null;
     const fallbackEmail = TheFactoryHKA.getFallbackEmail();
@@ -252,7 +287,14 @@ export async function POST(request: Request) {
         tipo: tipoId,
         numero: numId,
         razonSocial: nombreContrib,
-        direccion: prop?.direccion || contribuyenteDb?.direccion || 'NAGUANAGUA, EDO. CARABOBO',
+        direccion: sanitizarDireccionFiscal(
+          prop?.direccion || detPagoObj?.recibo_caja?.[0]?.domicilioFiscal || contribuyenteDb?.direccion,
+          {
+            unidadNumero: detPagoObj?.condominio?.lineas?.[0]?.numero,
+            nombreCondo: detPagoObj?.condominio?.nombre,
+            parentDir: detPagoObj?.condominio?.direccion
+          }
+        ),
         correo: emailFinal,
         usaCorreoComodin,
         requiereActualizacionCorreo: usaCorreoComodin,
