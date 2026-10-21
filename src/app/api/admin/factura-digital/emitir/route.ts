@@ -6,6 +6,7 @@ import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
 import { isFictitiousEmail } from '@/lib/formatters';
 import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, portalRetencionesUrl } from '@/lib/retencionFlujo';
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
+import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
 
 /** Siguiente N° de factura (correlativo propio, serie vacía). */
 async function siguienteNumeroDocumento(sb: any): Promise<number> {
@@ -222,6 +223,10 @@ export async function POST(request: Request) {
     const MESES_NOMBRES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     const obtenerMesAseoTexto = (fechaBase?: string | Date) => {
+      const res = resolverConceptoPeriodoPago(pagoRow);
+      if (res && res !== 'Servicio de Aseo Urbano Comercial') {
+        return res.replace(/^Servicio de Aseo Urbano Comercial\s*[-–]\s*/i, '');
+      }
       if (detPago?.concepto) return String(detPago.concepto);
       if (detPago?.mes_aseo) return String(detPago.mes_aseo);
       if (detPago?.detalle) return String(detPago.detalle);

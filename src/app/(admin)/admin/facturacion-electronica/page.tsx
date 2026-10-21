@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { DemoFacturaModal } from '@/components/facturacion/DemoFacturaModal';
+import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -654,21 +655,7 @@ export default function FacturacionElectronicaPage() {
     if (!totalOverride) setMotivoAjuste('');
     setTotalForzado(totalOverride && totalOverride > 0 ? totalOverride : null);
 
-    let conceptoPeriodo = `Servicio de Aseo Urbano Comercial - ${getMesActual()}`;
-    const fPago = pago.detalles?.fecha_pago || pago.detalles?.fecha_transaccion || pago.created_at;
-    if (pago.detalles?.concepto || pago.detalles?.detalle || pago.concepto) {
-      conceptoPeriodo = String(pago.detalles?.concepto || pago.detalles?.detalle || pago.concepto).trim();
-    } else if (pago.detalles?.mes_aseo) {
-      const ma = String(pago.detalles.mes_aseo).trim();
-      conceptoPeriodo = ma.toLowerCase().includes('servicio') ? ma : `Servicio de Aseo Urbano Comercial - ${ma}`;
-    } else if (fPago) {
-      const d = new Date(fPago);
-      if (!isNaN(d.getTime())) {
-        const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-        const mIdx = d.getMonth() === 9 ? 8 : (d.getMonth() === 0 ? 11 : d.getMonth() - 1);
-        conceptoPeriodo = `Servicio de Aseo Urbano Comercial - ${meses[mIdx]} ${d.getFullYear()}`;
-      }
-    }
+    const conceptoPeriodo = resolverConceptoPeriodoPago(pago);
     setAjusteConcepto(conceptoPeriodo);
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
