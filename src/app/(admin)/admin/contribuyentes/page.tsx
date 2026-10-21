@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
 import HuerfanosPanel from '@/components/HuerfanosPanel';
 import { useAppContext } from '@/store/AppContext';
-import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent, Printer, ShieldAlert } from 'lucide-react';
+import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent, Printer, ShieldAlert, Lock } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import { inmuebleTieneDeuda } from '@/lib/solvencia';
 import { ordenanzaData } from '@/data/ordenanza';
@@ -1997,6 +1997,10 @@ function ContribuyentesPageContent() {
   };
 
   const handleEdit = async (row: any) => {
+    if (row.isCondoChild || row.condominio_padre_id) {
+      alert(`⚠️ Esta unidad pertenece al Condominio "${row.condominio_padre_nombre || row.condominio_padre_id}".\n\nPor normativa técnica y operativa, las unidades filiales dentro de condominios deben editarse y gestionarse exclusivamente desde el módulo de Condominios.`);
+      return;
+    }
     let telefonoPrefijo = '0414';
     let telefonoNumero = '';
     if (row.Telefono) {
@@ -3673,13 +3677,23 @@ function ContribuyentesPageContent() {
             >
               <Eye className="w-4 h-4" />
             </button>
-            <button 
-              onClick={() => handleEdit(row)}
-              className="bg-slate-100 text-slate-600 hover:bg-slate-200 p-1.5 rounded transition-colors"
-              title="Editar"
-            >
-              <Edit className="w-4 h-4" />
-            </button>
+            {row.isCondoChild || row.condominio_padre_id ? (
+              <button 
+                disabled
+                className="bg-slate-100 text-slate-300 p-1.5 rounded cursor-not-allowed"
+                title={`Unidad dentro de Condominio (${row.condominio_padre_id}). Debe editarse desde el módulo de Condominios.`}
+              >
+                <Lock className="w-4 h-4 text-slate-400" />
+              </button>
+            ) : (
+              <button 
+                onClick={() => handleEdit(row)}
+                className="bg-slate-100 text-slate-600 hover:bg-slate-200 p-1.5 rounded transition-colors"
+                title="Editar"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
+            )}
             <button 
               onClick={() => { setSelectedDebtRow(row); setDebtModalOpen(true); }}
               className="bg-orange-50 text-orange-600 hover:bg-orange-100 p-1.5 rounded transition-colors"

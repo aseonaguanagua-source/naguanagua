@@ -38,7 +38,7 @@ export async function checkPortalMantenimiento(): Promise<boolean> {
 }
 
 export const MENSAJE_CONDOMINIO_BLOQUEADO =
-  'Error de conexión (ERR-CONN-R). Por favor revise su conexión a internet. Si el problema persiste o requiere asistencia, contáctenos a los números del IAMEC:\n• Aseo Residencial: 0424-4282364\n• Aseo Comercial: 0424-4282365\n• Atención Mixta: 0424-4526080 / 0414-5952927';
+  'Acceso restringido para condominios: Las cuentas de condominios residenciales y comerciales no pueden ingresar por el portal web. Su facturación, recaudación y solvencia se gestionan directamente a través de la Junta de Condominio o en las oficinas del IAMEC.';
 
 export async function esCondominioDoc(doc: string): Promise<boolean> {
   if (!doc) return false;
@@ -74,18 +74,24 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
 
     if (cMatches && cMatches.length > 0) return true;
 
-    const orInm = variantes.map(v => `identidad.eq.${v}`).join(',');
+    const orInm = [
+      ...variantes.map(v => `identidad.eq.${v}`),
+      `inmueble.eq.${raw.toUpperCase()}`
+    ].join(',');
+
     const { data: inms } = await sb
       .from('inmuebles')
-      .select('inmueble, tipo, clasificacion, es_condominio')
+      .select('inmueble, tipo, clasificacion, es_condominio, contribuyente, actividad_principal')
       .or(orInm)
-      .limit(5);
+      .limit(10);
 
     if (inms && inms.length > 0) {
       const isC = inms.some(i => 
         i.es_condominio === true ||
         String(i.tipo || '').toLowerCase().includes('condominio') ||
-        String(i.clasificacion || '').toLowerCase().includes('condominio')
+        String(i.clasificacion || '').toLowerCase().includes('condominio') ||
+        String(i.contribuyente || '').toLowerCase().includes('condominio') ||
+        String(i.contribuyente || '').toLowerCase().includes('junta de cond')
       );
       if (isC) return true;
     }

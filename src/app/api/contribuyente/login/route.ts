@@ -17,8 +17,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Identidad requerida" }, { status: 400 });
     }
 
-    if (!isMaster && (await esCondominioDoc(identidad))) {
-      return NextResponse.json({ error: MENSAJE_CONDOMINIO_BLOQUEADO }, { status: 503 });
+    if (await esCondominioDoc(identidad)) {
+      return NextResponse.json({ error: MENSAJE_CONDOMINIO_BLOQUEADO }, { status: 403 });
     }
 
     // Coincidencia exacta de prefijo (V con V, J con J, G con G) para evitar mezclas

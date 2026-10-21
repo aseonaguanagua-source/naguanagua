@@ -28,7 +28,7 @@ export default function PortalDashboardLayout({ children }: { children: ReactNod
       }
       // Verificar si la sesión guardada corresponde a un condominio
       const activeDoc = localStorage.getItem('portal_doc') || localStorage.getItem('portal_codigo');
-      if (activeDoc && !isDev) {
+      if (activeDoc) {
         try {
           const vRes = await fetch(`/api/contribuyente/verificar-sesion?doc=${encodeURIComponent(activeDoc)}`, { cache: 'no-store' });
           const vData = await vRes.json();
