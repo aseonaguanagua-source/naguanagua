@@ -118,14 +118,59 @@ export function resolverConceptoPeriodoPago(pago: any): string {
     if (d) return d;
   }
 
-  // 5. Fallback por fecha de pago/transacción
+  // 5. Revisar si hay notas con el período explícito
+  const notasTexto = String(det.notas || pago.notas || '');
+  const matchNotas = notasTexto.match(/\((([A-Za-z]+)\s+DE\s+(\d{4})\s+a\s+([A-Za-z]+)\s+DE\s+(\d{4}))\)/i);
+  if (matchNotas) {
+    const fmt = formatearPeriodoParaConcepto(matchNotas[1]);
+    if (fmt) return `Servicio de Aseo Urbano Comercial - ${fmt}`;
+  }
+
+  // 6. Detectar cantidad de meses pagados
+  const numMeses =
+    (typeof pago.mesesServicio === 'number' && pago.mesesServicio > 0 ? pago.mesesServicio : 0) ||
+    (parseInt(String(det.meses_deuda || 0)) || 0) ||
+    (Array.isArray(det.deuda_previa) ? Math.max(0, ...det.deuda_previa.map((dp: any) => parseInt(String(dp?.meses_deuda || 0)) || 0)) : 0) ||
+    (Array.isArray(det.recibos) ? det.recibos.filter((r: string) => /^(RECIB-HIST|CM)-/i.test(r)).length : 0) ||
+    (Array.isArray(det.condominio?.lineas) ? Math.max(0, ...det.condominio.lineas.map((l: any) => Number(l.meses) || 0)) : 0) ||
+    1;
+
+  // 7. Fallback por fecha de pago/transacción respetando cantidad de meses
   const fPago = det.fecha_pago || det.fecha_transaccion || pago.created_at;
   if (fPago) {
     const d = new Date(fPago);
     if (!isNaN(d.getTime())) {
       const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      const mIdx = d.getMonth() === 9 ? 8 : (d.getMonth() === 0 ? 11 : d.getMonth() - 1);
-      return `Servicio de Aseo Urbano Comercial - ${meses[mIdx]} ${d.getFullYear()}`;
+      // En recaudación de aseo, el mes facturado al pagar en el mes M es M-1 (ej. en octubre se cancela septiembre)
+      let endMonth = d.getMonth() - 1;
+      let endYear = d.getFullYear();
+      if (endMonth < 0) {
+        endMonth = 11;
+        endYear -= 1;
+      }
+
+      if (numMeses <= 1) {
+        return `Servicio de Aseo Urbano Comercial - ${meses[endMonth]} ${endYear}`;
+      }
+
+      let startMonth = endMonth - (numMeses - 1);
+      let startYear = endYear;
+      while (startMonth < 0) {
+        startMonth += 12;
+        startYear -= 1;
+      }
+
+      if (numMeses === 2) {
+        if (startYear === endYear) {
+          return `Servicio de Aseo Urbano Comercial - ${meses[startMonth]} ${startYear} y ${meses[endMonth]} ${endYear}`;
+        }
+        return `Servicio de Aseo Urbano Comercial - ${meses[startMonth]} ${startYear} y ${meses[endMonth]} ${endYear}`;
+      }
+
+      if (startYear === endYear) {
+        return `Servicio de Aseo Urbano Comercial - ${meses[startMonth]} a ${meses[endMonth]} ${endYear} (${numMeses} meses)`;
+      }
+      return `Servicio de Aseo Urbano Comercial - ${meses[startMonth]} ${startYear} a ${meses[endMonth]} ${endYear} (${numMeses} meses)`;
     }
   }
 

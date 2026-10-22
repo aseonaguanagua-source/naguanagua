@@ -98,7 +98,22 @@ export async function GET(request: Request) {
         return true;
       }
 
-      // REGLA: Los abonos o pagos parciales ordinarios que no han completado el pago total del mes no deben salir para emisión
+      // Si hay un término de búsqueda específico, SIEMPRE mostrarlo para permitir auditar o emitir
+      if (query) {
+        return true;
+      }
+
+      // Si es un pago con retención de agente, debe salir para gestión de retención
+      if (d?.es_retencion === true || d?.conRetencion === true || Boolean(d?.pago_retencion_id)) {
+        return true;
+      }
+
+      // Si el pago liquidó recibos de cobro (recibos históricos o del mes), debe salir para facturación
+      if (Array.isArray(d?.recibos) && d.recibos.length > 0) {
+        return true;
+      }
+
+      // REGLA: Los abonos o pagos parciales ordinarios que no han completado el pago total del mes y no tienen recibos liquidados no deben salir por defecto
       if (
         d?.es_abono === true ||
         d?.abono === true ||
@@ -107,16 +122,6 @@ export async function GET(request: Request) {
         (d?.monto_pendiente !== undefined && parseFloat(String(d.monto_pendiente)) > 0.05)
       ) {
         return false;
-      }
-
-      // Si hay un término de búsqueda específico, mostrarlo para permitir auditar o emitir
-      if (query) {
-        return true;
-      }
-
-      // Si es un pago con retención de agente, debe salir para gestión de retención
-      if (d?.es_retencion === true || d?.conRetencion === true || Boolean(d?.pago_retencion_id)) {
-        return true;
       }
 
       return true;

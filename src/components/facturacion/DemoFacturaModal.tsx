@@ -79,6 +79,9 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   let iva = 0;
   let retencionIva = 0;
   let exento = parseFloat(String(det.multa_bs || 0)) || 0;
+  if (exento === 0 && Array.isArray(det.deuda_previa)) {
+    exento = det.deuda_previa.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+  }
 
   // Desglose exacto de los recibos emitidos en caja si existen
   let rcSubTotal = 0, rcIva = 0, rcTotal = 0, periodoRecibo = '';

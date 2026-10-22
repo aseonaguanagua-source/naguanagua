@@ -647,17 +647,54 @@ export default function FacturacionElectronicaPage() {
     setTotalReferencia(ref);
     const montoTotal = totalOverride && totalOverride > 0 ? totalOverride : ref;
     let exentoRecibo = 0;
+    // 1. Revisar si recibo_caja contiene conceptos que sean explícitamente Multa
     if (pago.detalles?.recibo_caja) {
       try {
         const rc = typeof pago.detalles.recibo_caja === 'string' ? JSON.parse(pago.detalles.recibo_caja) : pago.detalles.recibo_caja;
         if (Array.isArray(rc)) {
-          exentoRecibo = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0);
+          for (const r of rc) {
+            if (Array.isArray(r.conceptos)) {
+              for (const c of r.conceptos) {
+                if (/multa/i.test(String(c.descripcion || c.concepto || ''))) {
+                  exentoRecibo += parseFloat(String(c.total || c.precioUnit || 0)) || 0;
+                }
+              }
+            }
+          }
         }
       } catch (_) {}
     }
-    if (exentoRecibo === 0) {
-      exentoRecibo = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.montos?.multa || 0)) || 0;
+
+    // 2. Si no viene en los conceptos de recibo_caja, revisar montos de recibos MULTA-
+    if (exentoRecibo === 0 && pago.detalles?.montos && typeof pago.detalles.montos === 'object') {
+      for (const [k, v] of Object.entries(pago.detalles.montos)) {
+        if (/^MULTA-/i.test(k)) {
+          exentoRecibo += parseFloat(String(v || 0)) || 0;
+        }
+      }
     }
+
+    // 3. Revisar multas en condominio
+    if (exentoRecibo === 0 && Array.isArray(pago.detalles?.condominio?.lineas)) {
+      exentoRecibo = pago.detalles.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
+    }
+
+    // 4. Revisar deuda_previa (donde se guarda la multa_bs exacta del inmueble en el momento de liquidar)
+    if (exentoRecibo === 0 && Array.isArray(pago.detalles?.deuda_previa)) {
+      exentoRecibo = pago.detalles.deuda_previa.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+    }
+
+    // 5. Revisar multa_bs / monto_multa directo
+    if (exentoRecibo === 0) {
+      exentoRecibo = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.montos?.multa || pago.detalles?.monto_multa || 0)) || 0;
+    }
+
+    // Salvaguarda: si exentoRecibo es igual o mayor a montoTotal y el pago liquida servicio (mesesServicio > 0 o recibos ordinarios),
+    // NO puede ser que el 100% sea multa. En ese caso la multa es 0 y todo es servicio gravado.
+    if (exentoRecibo >= montoTotal && ((pago.mesesServicio && pago.mesesServicio > 0) || (Array.isArray(pago.detalles?.recibos) && pago.detalles.recibos.some((r: string) => !/^MULTA-/i.test(r))))) {
+      exentoRecibo = 0;
+    }
+
     const montoGravado = Math.max(0, montoTotal - exentoRecibo);
     const baseEstimada = (montoGravado / 1.16).toFixed(2);
     setAjusteMontoServicio(baseEstimada);

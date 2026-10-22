@@ -1959,6 +1959,14 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                     <ExternalLink className="w-3 h-3" />
                                     <span>Ver Factura TFHKA</span>
                                   </a>
+                                ) : (facturaDigital?.pendiente || facturaDigital?.emitida === false || (!facturaDigital && (p.estado === 'Aprobado' || p.estado === 'Conciliado') && p.tipo !== 'Retencion de IVA' && !String(p.referencia || '').startsWith('RET-'))) ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200" title="Pago conciliado en banco. Listo para emitir en Facturación Electrónica.">
+                                    <span>⏳ Pendiente Emisión</span>
+                                  </span>
+                                ) : (p.tipo === 'Retencion de IVA' || String(p.referencia || '').startsWith('RET-')) ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-200" title="Comprobante de Retención de IVA 75%">
+                                    <span>📄 Retención 75% IVA</span>
+                                  </span>
                                 ) : (
                                   <span className="text-slate-400 text-[11px]">—</span>
                                 )}
