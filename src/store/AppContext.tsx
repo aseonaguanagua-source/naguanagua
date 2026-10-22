@@ -299,7 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supabase.from('documentos').select('*'),
         supabase.from('certificados').select('*'),
         supabase.from('reclamos').select('*'),
-        supabase.from('convenios_pago').select('*, convenios_cuotas(*)'),
+        fetch('/api/admin/convenios', { cache: 'no-store' }).then(r => r.json()).then(j => ({ data: j?.data || [] })).catch(() => ({ data: [] as any[] })),
         supabase.from('pre_liquidaciones').select('*'),
         fetch('/api/admin/auditoria?limit=200', { cache: 'no-store' }).then(r => r.json()).then(j => ({ data: j?.data || [] })).catch(() => ({ data: [] as any[] })),
         supabase.from('sistema_config').select('*'),
@@ -760,10 +760,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Refrescar convenios de este contribuyente
-      const { data: freshConvs } = await supabase
-        .from('convenios_pago')
-        .select('*, convenios_cuotas(*)')
-        .or(`identidad.eq.${identidad},identidad.eq.${idClean}`);
+      const { data: freshConvs } = await fetch(`/api/admin/convenios?identidad=${encodeURIComponent(identidad)}`, { cache: 'no-store' })
+        .then(r => r.json())
+        .catch(() => ({ data: [] }));
 
       if (freshConvs) {
         setConvenios(prev => {

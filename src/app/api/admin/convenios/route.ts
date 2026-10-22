@@ -1,12 +1,37 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { data, error } = await supabase
+    const url = new URL(req.url);
+    const identidad = url.searchParams.get('identidad');
+    const codigo = url.searchParams.get('codigo');
+
+    let query = supabase
       .from('convenios_pago')
       .select('*, convenios_cuotas(*)')
       .order('created_at', { ascending: false });
+
+    if (identidad || codigo) {
+      const idClean = (identidad || '').replace(/\D/g, '');
+      const codClean = (codigo || '').replace(/\D/g, '');
+      const filters: string[] = [];
+      if (idClean.length >= 4) {
+        filters.push(`identidad.ilike.%${idClean}%`);
+        filters.push(`numero.ilike.%${idClean}%`);
+      }
+      if (codClean.length >= 2) {
+        filters.push(`numero.ilike.%${codClean}%`);
+      }
+      if (codigo && codigo.length >= 3) {
+        filters.push(`numero.ilike.%${codigo}%`);
+      }
+      if (filters.length > 0) {
+        query = query.or(filters.join(','));
+      }
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching convenios_pago in API:', error);

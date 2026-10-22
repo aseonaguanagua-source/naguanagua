@@ -366,30 +366,19 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
     const fetchConvenios = async () => {
       try {
-        const idClean = ident.replace(/\D/g, '');
-        let allConv: any[] = [];
-        if (idVariants.length > 0) {
-          const { data } = await supabase
-            .from('convenios_pago')
-            .select('*, convenios_cuotas(*)')
-            .or(idVariants.map(v => `identidad.eq.${v}`).join(','));
-          if (data && data.length > 0) allConv = data;
+        const codeParam = codes[0] || '';
+        const res = await fetch(`/api/admin/convenios?identidad=${encodeURIComponent(ident)}&codigo=${encodeURIComponent(codeParam)}`, { cache: 'no-store' });
+        const j = await res.json();
+        if (j.ok && Array.isArray(j.data) && j.data.length > 0) {
+          if (isMounted) setConveniosDb(j.data);
+          return;
         }
 
-        if (allConv.length === 0) {
-          const orFilters = [
-            ...(idClean.length >= 4 ? [`identidad.ilike.%${idClean}%`] : []),
-            ...codes.map(c => `numero.ilike.%${c.replace(/\D/g, '')}%`)
-          ];
-          if (orFilters.length > 0) {
-            const { data: convFallback } = await supabase
-              .from('convenios_pago')
-              .select('*, convenios_cuotas(*)')
-              .or(orFilters.join(','));
-            if (convFallback && convFallback.length > 0) allConv = convFallback;
-          }
+        const resAll = await fetch('/api/admin/convenios', { cache: 'no-store' });
+        const jAll = await resAll.json();
+        if (jAll.ok && Array.isArray(jAll.data)) {
+          if (isMounted) setConveniosDb(jAll.data);
         }
-        if (isMounted) setConveniosDb(allConv);
       } catch (err) {
         console.error('Error cargando convenios en modal:', err);
       }
@@ -959,7 +948,17 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             { id: 'inmuebles', label: `Inmuebles (${unifiedInmuebles.length}${userInms.length > unifiedInmuebles.length ? ` · ${userInms.length} act.` : ''})`, icon: Building2 },
             { id: 'deuda', label: `Estado de Cuenta (${facturasDb.length} recibos)`, icon: DollarSign },
             { id: 'pagos', label: `Historial de Pagos (${pagosDb.length})`, icon: Receipt },
-            { id: 'servicios', label: `Servicios y Convenios (${serviciosEspDb.length + (conveniosDb.length > 0 ? conveniosDb.length : (conveniosGlobal || []).filter(c => { const cIdClean = (c.identidad || '').replace(/\D/g, ''); const vIdClean = (viewData?.Identidad || '').replace(/\D/g, ''); return vIdClean.length >= 4 && cIdClean === vIdClean; }).length)})`, icon: FileText },
+            { id: 'servicios', label: `Servicios y Convenios (${serviciosEspDb.length + (conveniosDb.length > 0 ? conveniosDb.filter(c => {
+              const cIdClean = (c.identidad || '').replace(/\D/g, '');
+              const vIdClean = (viewData?.Identidad || '').replace(/\D/g, '');
+              const vInms = [viewData?.CodCont, viewData?.inmueble, ...(inmueblesList || []).map((i: any) => i.inmueble)].filter(Boolean);
+              return (vIdClean.length >= 4 && (cIdClean === vIdClean || cIdClean.includes(vIdClean) || vIdClean.includes(cIdClean))) ||
+                     vInms.some(cd => cd && (c.numero || '').toUpperCase().includes(String(cd).replace(/\D/g, '')));
+            }).length : (conveniosGlobal || []).filter(c => {
+              const cIdClean = (c.identidad || '').replace(/\D/g, '');
+              const vIdClean = (viewData?.Identidad || '').replace(/\D/g, '');
+              return vIdClean.length >= 4 && cIdClean === vIdClean;
+            }).length)})`, icon: FileText },
             { id: 'notas', label: `Notas de Crédito (${notasDb.length})`, icon: CreditCard },
           ].map(tab => {
             const Icon = tab.icon;
@@ -1990,14 +1989,18 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                   const vIdClean = (viewData.Identidad || '').replace(/\D/g, '');
                   const vInmCodes = new Set([
                     (viewData.CodCont || viewData.inmueble || '').toUpperCase(),
-                    ...((viewData.inmuebles || []).map((i: any) => (i.inmueble || '').toUpperCase()))
-                  ]);
+                    ...((viewData.inmuebles || []).map((i: any) => (i.inmueble || '').toUpperCase())),
+                    ...inmueblesList.map((i: any) => (i.inmueble || '').toUpperCase())
+                  ].filter(Boolean));
                   const convSource = conveniosDb.length > 0 ? conveniosDb : (conveniosGlobal || []);
                   const userConvenios = convSource.filter((c: any) => {
                     const cIdClean = (c.identidad || '').replace(/\D/g, '');
                     const idMatch = vIdClean.length >= 4 && (cIdClean === vIdClean || cIdClean.includes(vIdClean) || vIdClean.includes(cIdClean));
                     const inmMatch = c.inmueble && vInmCodes.has(String(c.inmueble).toUpperCase());
-                    const numMatch = Array.from(vInmCodes).some((code: string) => code && (c.numero || '').toUpperCase().includes(code.replace(/\D/g, '')));
+                    const numMatch = Array.from(vInmCodes).some((code: string) => {
+                      const numOnly = code.replace(/\D/g, '');
+                      return numOnly.length >= 3 && (c.numero || '').toUpperCase().includes(numOnly);
+                    });
                     return idMatch || inmMatch || numMatch;
                   });
                   if (userConvenios.length === 0) {
