@@ -8,11 +8,48 @@ import { logAudit } from '@/lib/audit';
 
 export default function ConveniosPagoPage() {
   const { convenios, inmuebles, recibos, tcmmv, refreshData, refreshUserData } = useAppContext();
+  const [dbConveniosList, setDbConveniosList] = useState<any[]>([]);
+  const [loadingConv, setLoadingConv] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewCuotasModal, setViewCuotasModal] = useState<{isOpen: boolean, convenio: any}>({isOpen: false, convenio: null});
   const [searchDoc, setSearchDoc] = useState('');
   const [foundUser, setFoundUser] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
+
+  const fetchFreshConvenios = async () => {
+    setLoadingConv(true);
+    try {
+      const { data, error } = await supabase
+        .from('convenios_pago')
+        .select('*, convenios_cuotas(*)')
+        .order('created_at', { ascending: false });
+      if (data && data.length > 0) {
+        const formatted = data.map((c: any) => {
+          const inmMatch = (inmuebles || []).find((i: any) => {
+            const cIdClean = String(c.identidad || '').replace(/\D/g, '');
+            const iIdClean = String(i.identidad || i.Identidad || '').replace(/\D/g, '');
+            return cIdClean && iIdClean && cIdClean === iIdClean;
+          });
+          return {
+            ...c,
+            contribuyente: inmMatch?.contribuyente || inmMatch?.Contribuyente || c.identidad,
+            monto_total: typeof c.monto_total === 'number' ? `${c.monto_total.toFixed(2)} Bs` : (c.monto_total || '0.00 Bs'),
+            inicio: c.convenios_cuotas?.[0]?.fecha || (c.created_at ? c.created_at.slice(0, 10) : ''),
+            detalle_cuotas: JSON.stringify(c.convenios_cuotas || [])
+          };
+        });
+        setDbConveniosList(formatted);
+      }
+    } catch (e) {
+      console.warn('Error cargando convenios_pago frescos:', e);
+    } finally {
+      setLoadingConv(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFreshConvenios();
+  }, [inmuebles]);
   
   const [cuotas, setCuotas] = useState(1);
   const [frecuencia, setFrecuencia] = useState('Mensual');
@@ -191,7 +228,17 @@ export default function ConveniosPagoPage() {
         const montoACongelarNum = (totalMMV * tasaEfectiva) + totalCongelada + totalFacturasBs;
 
         if (montoACongelarNum <= 0.01) {
-          alert(`El contribuyente ${contribuyente} (${identidad}) no presenta deuda pendiente que refinanciar.`);
+          const { data: convActivo } = await supabase
+            .from('convenios_pago')
+            .select('numero, monto_total, cuotas, estado')
+            .eq('identidad', identidad)
+            .limit(1);
+
+          if (convActivo && convActivo.length > 0) {
+            alert(`El contribuyente ${contribuyente} (${identidad}) ya tiene un Convenio de Pago registrado (${convActivo[0].numero}) por Bs. ${convActivo[0].monto_total} (${convActivo[0].cuotas} cuotas, Estado: ${convActivo[0].estado}). Las cuotas pueden ser cobradas directamente en Caja.`);
+          } else {
+            alert(`El contribuyente ${contribuyente} (${identidad}) no presenta deuda pendiente que refinanciar.`);
+          }
           setFoundUser(null);
           return;
         }
@@ -343,6 +390,7 @@ export default function ConveniosPagoPage() {
       alert('Convenio creado exitosamente. La deuda ha sido congelada.');
       setIsModalOpen(false);
       // Refrescar datos sin recargar toda la pagina
+      await fetchFreshConvenios();
       if (typeof refreshData === 'function') await refreshData();
       if (typeof refreshUserData === 'function' && foundUser?.identidad) await refreshUserData(foundUser.identidad);
       
@@ -370,7 +418,7 @@ export default function ConveniosPagoPage() {
         </button>
       </div>
 
-      <DataTable data={convenios} columns={columns} itemsPerPage={10} />
+      <DataTable data={dbConveniosList.length > 0 ? dbConveniosList : convenios} columns={columns} itemsPerPage={10} />
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 overflow-y-auto">

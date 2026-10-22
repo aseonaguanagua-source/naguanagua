@@ -144,24 +144,9 @@ export default function EstadoCuentaPage() {
           await supabase.from('facturas').update({ estado: 'Pendiente' }).in('referencia', detalles.recibos);
         }
         if (detalles.cuotas && detalles.cuotas.length > 0) {
-          const { data: convs } = await supabase.from('convenios').select('*');
-          if (convs) {
-            const convMap = new Map();
-            detalles.cuotas.forEach((sc: any) => {
-              if (!convMap.has(sc.convId)) convMap.set(sc.convId, { toUpdate: [] });
-              convMap.get(sc.convId).toUpdate.push(sc.cuotaId);
-            });
-            for (const [cId, data] of convMap.entries()) {
-              const rawConv = convs.find(c => c.id === cId);
-              if (rawConv) {
-                let parsed = [];
-                try { parsed = JSON.parse(rawConv.detalle_cuotas); } catch(e){}
-                parsed.forEach((c: any) => {
-                  if (data.toUpdate.includes(c.id)) c.estado = 'Pendiente';
-                });
-                await supabase.from('convenios').update({ detalle_cuotas: JSON.stringify(parsed) }).eq('id', cId);
-              }
-            }
+          const cuotaIds = detalles.cuotas.map((sc: any) => sc.cuotaId).filter(Boolean);
+          if (cuotaIds.length > 0) {
+            await supabase.from('convenios_cuotas').update({ estado: 'Pendiente' }).in('id', cuotaIds);
           }
         }
       } else if (accion === 'Aprobar') {
@@ -173,22 +158,18 @@ export default function EstadoCuentaPage() {
             await supabase.from('facturas').update({ estado: 'Pagado' }).in('referencia', detalles.recibos);
           }
           if (detalles.cuotas && detalles.cuotas.length > 0) {
-            const { data: convs } = await supabase.from('convenios').select('*');
-            if (convs) {
-              const convMap = new Map();
-              detalles.cuotas.forEach((sc: any) => {
-                if (!convMap.has(sc.convId)) convMap.set(sc.convId, { toUpdate: [] });
-                convMap.get(sc.convId).toUpdate.push(sc.cuotaId);
-              });
-              for (const [cId, data] of convMap.entries()) {
-                const rawConv = convs.find(c => c.id === cId);
-                if (rawConv) {
-                  let parsed = [];
-                  try { parsed = JSON.parse(rawConv.detalle_cuotas); } catch(e){}
-                  parsed.forEach((c: any) => {
-                    if (data.toUpdate.includes(c.id)) c.estado = 'Pagado';
-                  });
-                  await supabase.from('convenios').update({ detalle_cuotas: JSON.stringify(parsed) }).eq('id', cId);
+            const cuotaIds = detalles.cuotas.map((sc: any) => sc.cuotaId).filter(Boolean);
+            if (cuotaIds.length > 0) {
+              await supabase.from('convenios_cuotas').update({ estado: 'Pagado' }).in('id', cuotaIds);
+              const convIds = Array.from(new Set(detalles.cuotas.map((sc: any) => sc.convId).filter(Boolean)));
+              for (const cId of convIds) {
+                const { data: rest } = await supabase
+                  .from('convenios_cuotas')
+                  .select('id')
+                  .eq('convenio_id', cId)
+                  .neq('estado', 'Pagado');
+                if (!rest || rest.length === 0) {
+                  await supabase.from('convenios_pago').update({ estado: 'Pagado' }).eq('id', cId);
                 }
               }
             }
@@ -230,27 +211,10 @@ export default function EstadoCuentaPage() {
 
           // 2. Process Cuotas
           if (detalles.cuotas && detalles.cuotas.length > 0) {
-            const { data: convs } = await supabase.from('convenios').select('*');
-            if (convs) {
-              // Extract all selected cuotas to sort them by date across all convenios
-              let flatCuotas: any[] = [];
-              detalles.cuotas.forEach((sc: any) => {
-                const rawConv = convs.find(c => c.id === sc.convId);
-                if (rawConv) {
-                  let parsed = [];
-                  try { parsed = JSON.parse(rawConv.detalle_cuotas); } catch(e){}
-                  const cuotaObj = parsed.find((c: any) => c.id === sc.cuotaId);
-                  if (cuotaObj) {
-                    flatCuotas.push({ ...cuotaObj, convId: sc.convId, rawConv });
-                  }
-                }
-              });
-
-              // Sort by date oldest first
-              flatCuotas.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
-
-              // Apply dinero
-              const convUpdates = new Map();
+            const cuotaIds = detalles.cuotas.map((sc: any) => sc.cuotaId).filter(Boolean);
+            const { data: dbCuotas } = await supabase.from('convenios_cuotas').select('*').in('id', cuotaIds);
+            if (dbCuotas && dbCuotas.length > 0) {
+              const flatCuotas = [...dbCuotas].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
               for (const c of flatCuotas) {
                 const montoC = parseFloat(c.monto || '0');
                 let newEstado = 'Pendiente';
@@ -262,25 +226,21 @@ export default function EstadoCuentaPage() {
                 } else if (dineroDisponible > 0) {
                   const montoRestante = (montoC - dineroDisponible).toFixed(2);
                   newEstado = 'Pendiente';
-                  newMonto = `${montoRestante}`;
+                  newMonto = Number(montoRestante);
                   dineroDisponible = 0;
                 }
 
-                if (!convUpdates.has(c.convId)) {
-                  let parsed = [];
-                  try { parsed = JSON.parse(c.rawConv.detalle_cuotas); } catch(e){}
-                  convUpdates.set(c.convId, parsed);
+                await supabase.from('convenios_cuotas').update({ estado: newEstado, monto: newMonto }).eq('id', c.id);
+                if (newEstado === 'Pagado') {
+                  const { data: rest } = await supabase
+                    .from('convenios_cuotas')
+                    .select('id')
+                    .eq('convenio_id', c.convenio_id)
+                    .neq('estado', 'Pagado');
+                  if (!rest || rest.length === 0) {
+                    await supabase.from('convenios_pago').update({ estado: 'Pagado' }).eq('id', c.convenio_id);
+                  }
                 }
-                const parsedList = convUpdates.get(c.convId);
-                const targetCuota = parsedList.find((tc: any) => tc.id === c.id);
-                if (targetCuota) {
-                  targetCuota.estado = newEstado;
-                  targetCuota.monto = newMonto;
-                }
-              }
-
-              for (const [cId, parsed] of convUpdates.entries()) {
-                await supabase.from('convenios').update({ detalle_cuotas: JSON.stringify(parsed) }).eq('id', cId);
               }
             }
           }
