@@ -187,8 +187,14 @@ export const generarCuadreCajaPDF = (
 
   let startY = curResY + 20;
 
+  const cMap = new Map<string, any>();
+  contribuyentes.forEach(c => {
+    const raw = c.Identidad || c.identidad;
+    if (raw) cMap.set(String(raw).toUpperCase().replace(/[-.\s]/g, ''), c);
+  });
+
   const getNombreContribuyente = (p: any, c: any) => {
-    return c?.Contribuyente || p.contribuyente || p.identidad || 'N/A';
+    return c?.Contribuyente || c?.contribuyente || p.contribuyente || p.identidad || 'N/A';
   };
 
   const drawSubTable = (title: string, dataItems: any[], columns: string[], rowMapper: (p: any, cInfo: any) => any[], footerTotal: number, footerLabel: string) => {
@@ -204,7 +210,8 @@ export const generarCuadreCajaPDF = (
     doc.text(title, pageWidth / 2, startY, { align: 'center' });
     
     const body = dataItems.map(p => {
-      const cInfo = contribuyentes.find(c => c.Identidad === p.identidad) || {};
+      const idClean = String(p.identidad || '').toUpperCase().replace(/[-.\s]/g, '');
+      const cInfo = cMap.get(idClean) || {};
       return rowMapper(p, cInfo);
     });
 
@@ -268,31 +275,82 @@ export const generarCuadreCajaPDF = (
     "Total Credito:"
   );
 
-  drawSubTable(
-    "TRANSFERENCIAS CONCILIADAS", 
-    transferencias, 
-    ["FECHA/HORA", "FECHA BCO", "TIPO", "FECHA LIBRO", "DOCUMENTO", "BANCO ORIGEN", "REFERENCIA", "BANCO DESTINO", "REF. DESTINO", "MONTO"],
-    (p, c) => {
-      const bClass = clasificarBancoDestino(p);
-      const det = p.detalles ? (typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles) : {};
-      const bDestRaw = det.banco_destino || det.banco_receptor || p.banco_destino || 'N/A';
-      const bDestLabel = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(bDestRaw).substring(0, 15);
-      return [
-        new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
-        new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
-        String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
-        ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO"),
-        p.referencia_bancaria || p.referencia || 'N/A',
-        String(p.banco_origen || 'N/A').substring(0,15),
-        p.referencia || 'N/A',
-        bDestLabel,
-        p.referencia || 'N/A',
-        (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      ];
-    },
-    totalTransf,
-    `Banesco: ${formatBs(totalTransfBanesco)}  |  Bancamiga: ${formatBs(totalTransfBancamiga)}  |  Total:`
-  );
+  const mapperTransf = (p: any, c: any) => {
+    const bClass = clasificarBancoDestino(p);
+    const det = p.detalles ? (typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles) : {};
+    const bDestRaw = det.banco_destino || det.banco_receptor || p.banco_destino || 'N/A';
+    const bDestLabel = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(bDestRaw).substring(0, 15);
+    return [
+      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
+      String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
+      ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO"),
+      p.referencia_bancaria || p.referencia || 'N/A',
+      String(p.banco_origen || 'N/A').substring(0,15),
+      p.referencia || 'N/A',
+      bDestLabel,
+      p.referencia || 'N/A',
+      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ];
+  };
+
+  const colsTransf = ["FECHA/HORA", "FECHA BCO", "TIPO", "FECHA LIBRO", "DOCUMENTO", "BANCO ORIGEN", "REFERENCIA", "BANCO DESTINO", "REF. DESTINO", "MONTO"];
+
+  // Transferencias Banesco
+  if (transfBanesco.length > 0) {
+    drawSubTable(
+      "TRANSFERENCIAS BANESCO",
+      transfBanesco,
+      colsTransf,
+      mapperTransf,
+      totalTransfBanesco,
+      "Subtotal Banesco:"
+    );
+  }
+
+  // Transferencias Bancamiga
+  if (transfBancamiga.length > 0) {
+    drawSubTable(
+      "TRANSFERENCIAS BANCAMIGA",
+      transfBancamiga,
+      colsTransf,
+      mapperTransf,
+      totalTransfBancamiga,
+      "Subtotal Bancamiga:"
+    );
+  }
+
+  // Otras Transferencias si existen
+  if (transfOtros.length > 0) {
+    drawSubTable(
+      "OTRAS TRANSFERENCIAS",
+      transfOtros,
+      colsTransf,
+      mapperTransf,
+      totalTransfOtros,
+      "Subtotal Otras Transferencias:"
+    );
+  }
+
+  // Tarjeta / Fila de Sumatoria Total de Transferencias en PDF
+  if (transferencias.length > 0) {
+    if (startY > pageHeight - 60) {
+      doc.addPage();
+      startY = 40;
+    }
+    doc.setFillColor(245, 247, 250);
+    doc.rect(40, startY, pageWidth - 80, 24, 'F');
+    doc.setDrawColor(200, 205, 215);
+    doc.rect(40, startY, pageWidth - 80, 24, 'S');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`TOTAL SUMATORIA DE TRANSFERENCIAS (${transferencias.length} registros)`, 50, startY + 15);
+    doc.setFontSize(8);
+    const sumText = `Banesco: ${formatBs(totalTransfBanesco)}   |   Bancamiga: ${formatBs(totalTransfBancamiga)}   |   TOTAL: ${formatBs(totalTransf)}`;
+    doc.text(sumText, pageWidth - 50, startY + 15, { align: 'right' });
+    startY += 36;
+  }
 
   drawSubTable(
     "DEPÓSITOS BANCARIOS", 

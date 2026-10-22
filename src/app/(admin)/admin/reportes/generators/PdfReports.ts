@@ -299,32 +299,79 @@ export const generarCorteCajaPDF = (
     "Total Credito:"
   );
 
-  // 3. Transferencias
-  drawSubTable(
-    "TRANSFERENCIAS REGISTRADAS POR EL CAJERO", 
-    transferencias, 
-    ["FECHA/HORA", "BANCO ORIGEN", "BANCO DESTINO", "REFERENCIA", "MONTO Bs.", "MONTO EUR"],
-    (p, c) => {
-      let det: any = {};
-      try { det = (typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles) || {}; } catch(e) {}
-      const bancoOrigen = String(p.banco || det.banco_origen || det.banco_emisor || 'N/A').substring(0,22);
-      const bClass = clasificarBancoDestino(p);
-      const bancoDestino = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(det.banco_destino || det.banco_receptor || 'N/A').substring(0,22);
-      const montoNum = parseFloat(det.monto_conciliado || p.monto || '0');
-      const tasaPagoEuro = det.tasa_euro || det.tasa_bcv_conciliacion || tasaEuro || 0;
-      const montoEur = tasaPagoEuro > 0 ? (montoNum / tasaPagoEuro).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
-      return [
-        new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
-        bancoOrigen,
-        bancoDestino,
-        String(p.referencia || 'N/A'),
-        montoNum.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        montoEur
-      ];
-    },
-    totalTransf,
-    `Banesco: ${formatBs(totalTransfBanesco)}  |  Bancamiga: ${formatBs(totalTransfBancamiga)}  |  Total:`
-  );
+  // 3. Transferencias Banesco, Bancamiga y Otras
+  const mapperTransfPdf = (p: any, c: any) => {
+    let det: any = {};
+    try { det = (typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles) || {}; } catch(e) {}
+    const bancoOrigen = String(p.banco || det.banco_origen || det.banco_emisor || 'N/A').substring(0,22);
+    const bClass = clasificarBancoDestino(p);
+    const bancoDestino = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(det.banco_destino || det.banco_receptor || 'N/A').substring(0,22);
+    const montoNum = parseFloat(det.monto_conciliado || p.monto || '0');
+    const tasaPagoEuro = det.tasa_euro || det.tasa_bcv_conciliacion || tasaEuro || 0;
+    const montoEur = tasaPagoEuro > 0 ? (montoNum / tasaPagoEuro).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
+    return [
+      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+      bancoOrigen,
+      bancoDestino,
+      String(p.referencia || 'N/A'),
+      montoNum.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      montoEur
+    ];
+  };
+
+  const colsTransfPdf = ["FECHA/HORA", "BANCO ORIGEN", "BANCO DESTINO", "REFERENCIA", "MONTO Bs.", "MONTO EUR"];
+
+  if (transfBanesco.length > 0) {
+    drawSubTable(
+      "TRANSFERENCIAS BANESCO",
+      transfBanesco,
+      colsTransfPdf,
+      mapperTransfPdf,
+      totalTransfBanesco,
+      "Subtotal Banesco:"
+    );
+  }
+
+  if (transfBancamiga.length > 0) {
+    drawSubTable(
+      "TRANSFERENCIAS BANCAMIGA",
+      transfBancamiga,
+      colsTransfPdf,
+      mapperTransfPdf,
+      totalTransfBancamiga,
+      "Subtotal Bancamiga:"
+    );
+  }
+
+  if (transfOtros.length > 0) {
+    drawSubTable(
+      "OTRAS TRANSFERENCIAS",
+      transfOtros,
+      colsTransfPdf,
+      mapperTransfPdf,
+      totalTransfOtros,
+      "Subtotal Otras:"
+    );
+  }
+
+  if (transferencias.length > 0) {
+    if (startY > pageHeight - 60) {
+      doc.addPage();
+      startY = 40;
+    }
+    doc.setFillColor(245, 247, 250);
+    doc.rect(40, startY, pageWidth - 80, 22, 'F');
+    doc.setDrawColor(200, 205, 215);
+    doc.rect(40, startY, pageWidth - 80, 22, 'S');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`TOTAL SUMATORIA DE TRANSFERENCIAS (${transferencias.length} registros)`, 50, startY + 14);
+    doc.setFontSize(8);
+    const sumText = `Banesco: ${formatBs(totalTransfBanesco)}  |  Bancamiga: ${formatBs(totalTransfBancamiga)}  |  TOTAL: ${formatBs(totalTransf)}`;
+    doc.text(sumText, pageWidth - 50, startY + 14, { align: 'right' });
+    startY += 32;
+  }
 
   // 3. Saldo a Favor
   drawSubTable(

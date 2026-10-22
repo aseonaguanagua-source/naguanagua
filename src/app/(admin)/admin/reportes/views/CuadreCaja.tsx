@@ -51,15 +51,14 @@ function isTransfPago(p: any) {
   return !isDebitoPago(p) && !isCreditoPago(p) && !isDepositoPago(p) && !isSaldoPago(p) && !isRetencionPago(p);
 }
 
-function getNombre(p: any, contribuyentes: any[] = []): string {
+function getNombre(p: any, contribMap?: Map<string, string>): string {
   if (!p.identidad) return p.contribuyente || '';
   const clean = (s: string) => (s || '').replace(/[-.\s]/g, '').toUpperCase();
   const idClean = clean(p.identidad);
-  const found = contribuyentes.find((c: any) => clean(c.identidad || '') === idClean || clean(c.Identidad || '') === idClean);
-  return found?.contribuyente || found?.Contribuyente || p.contribuyente || '';
+  return contribMap?.get(idClean) || p.contribuyente || '';
 }
 
-function coincideBusqueda(p: any, term: string, contribuyentes: any[] = []): boolean {
+function coincideBusqueda(p: any, term: string, contribMap?: Map<string, string>): boolean {
   if (!term || !term.trim()) return true;
   const q = term.trim().toLowerCase();
   const qClean = q.replace(/[^a-z0-9]/gi, '');
@@ -72,7 +71,7 @@ function coincideBusqueda(p: any, term: string, contribuyentes: any[] = []): boo
   if (qClean && idClean.includes(qClean)) return true;
 
   // 2. Nombre / Contribuyente
-  const nombre = String(getNombre(p, contribuyentes) || p.contribuyente || det.contribuyente || '').toLowerCase();
+  const nombre = String(getNombre(p, contribMap) || p.contribuyente || det.contribuyente || '').toLowerCase();
   if (nombre.includes(q)) return true;
 
   // 3. Referencia bancaria
@@ -135,6 +134,19 @@ const FORMAS = ['Todas', 'Tarjetas (Débito y Crédito)', 'Debito', 'Credito (TM
 
 export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contribuyentes = [], onBack, onPagoActualizado }: Props) {
   const today = new Date().toISOString().slice(0, 10);
+
+  const contribMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of contribuyentes) {
+      const raw = c.identidad || c.Identidad;
+      if (raw) {
+        const id = String(raw).replace(/[-.\s]/g, '').toUpperCase();
+        const nom = c.contribuyente || c.Contribuyente || c.razon_social || '';
+        if (id && nom) m.set(id, nom);
+      }
+    }
+    return m;
+  }, [contribuyentes]);
 
   const effectiveIsAdmin = useMemo(() => {
     if (isAdmin) return true;
@@ -246,7 +258,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       // Solo transferencias del portal web sin cajero requieren estar previamente conciliadas
       if (isTransfPago(p) && !det.cajero && p.estado !== 'Aprobado' && p.estado !== 'Con Diferencia') return false;
 
-      if (hasSearch && !coincideBusqueda(p, searchTerm, contribuyentes)) return false;
+      if (hasSearch && !coincideBusqueda(p, searchTerm, contribMap)) return false;
 
       return true;
     });
@@ -255,7 +267,7 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const pagosFiltrados = useMemo(() => {
     if (!showReport && !searchTerm.trim()) return [];
     return getFilteredPagos();
-  }, [showReport, pagos, fecha, cajero, forma, effectiveIsAdmin, currentUser, searchTerm, buscarEnTodoHistorial]);
+  }, [showReport, pagos, fecha, cajero, forma, effectiveIsAdmin, currentUser, searchTerm, buscarEnTodoHistorial, contribMap]);
 
   const debitos = pagosFiltrados.filter(p => isDebitoPago(p));
   const creditos = pagosFiltrados.filter(p => isCreditoPago(p));
@@ -282,6 +294,72 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCuadre = totalDebito + totalCredito + totalTransf + totalDeposito + totalSaldo;
   const cajeroLabel = cajero ? cajero : (!effectiveIsAdmin ? currentUser : 'Todos');
+
+  const renderTablaTransf = (titulo: string, items: any[], subtotalMonto: number, themeColor: string, bgTheme: string, borderTheme: string) => {
+    if (items.length === 0) return null;
+    return (
+      <div style={{ marginTop: 14 }}>
+        <div style={{ ...S.secHdr, background: bgTheme, color: themeColor, border: `1px solid ${borderTheme}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px' }}>
+          <span style={{ fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            🏦 {titulo}
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: themeColor }}>
+            {items.length} registro(s) · Subtotal: Bs {fmtBs(subtotalMonto)}
+          </span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>{['#', 'Fecha/Hora', 'Fecha Bco', 'Tipo', 'Fecha Libro', 'Cajero', 'Contribuyente', 'Recibo', 'Banco Emisor', 'Referencia', 'Banco Destino', 'Monto']
+                .map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {items.map((p, i) => {
+                const det = parseDet(p); const recs: string[] = det.recibos || [];
+                const mC = parseFloat(det.monto_conciliado || p.monto) || 0;
+                const bancoDestClass = clasificarBancoDestino(p);
+                const bDestTexto = det.banco_destino || det.banco_receptor || p.banco || '-';
+                return (
+                  <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
+                    <td style={S.td}>{i + 1}</td>
+                    <td style={S.td}>{fmtDT(p.created_at)}</td>
+                    <td style={S.td}>{det.fecha_banco || '-'}</td>
+                    <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td>
+                    <td style={S.td}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
+                    <td style={S.td}>{det.cajero || '-'}</td>
+                    <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad} - {getNombre(p, contribMap) || p.contribuyente}</td>
+                    <td style={S.td}>{recs[0] || '-'}</td>
+                    <td style={S.td}>{p.banco || '-'}</td>
+                    <td style={S.td}>{p.referencia || '-'}</td>
+                    <td style={S.td}>
+                      {bancoDestClass === 'Banesco' ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                          BANESCO
+                        </span>
+                      ) : bancoDestClass === 'Bancamiga' ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                          BANCAMIGA
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11, color: '#475569' }}>{bDestTexto}</span>
+                      )}
+                    </td>
+                    <CeldaMonto p={p} valor={mC} />
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={11} style={{ ...S.tf, color: themeColor }}>Subtotal {titulo}: {items.length} item(s)</td>
+                <td style={{ ...S.tf, textAlign: 'right', color: themeColor, fontWeight: 900 }}>Bs {fmtBs(subtotalMonto)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   const handleDescargarPDF = () => {
     const items = getFilteredPagos();
@@ -508,83 +586,39 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
             </div>
           </>}
 
-          {/* Transferencias */}
-          {transferencias.length > 0 && <>
-            <div style={{ ...S.secHdr, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>TRANSFERENCIA</span>
-              <div style={{ display: 'flex', gap: 8, fontSize: 11, fontWeight: 700 }}>
-                <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#065f46', padding: '2px 8px', borderRadius: 4 }}>
-                  Banesco: Bs {fmtBs(totalTransfBanesco)} ({transfBanesco.length})
-                </span>
-                <span style={{ background: 'rgba(14, 165, 233, 0.2)', color: '#0369a1', padding: '2px 8px', borderRadius: 4 }}>
-                  Bancamiga: Bs {fmtBs(totalTransfBancamiga)} ({transfBancamiga.length})
-                </span>
+          {/* Transferencias Banesco */}
+          {transfBanesco.length > 0 && renderTablaTransf('TRANSFERENCIAS BANESCO', transfBanesco, totalTransfBanesco, '#065f46', '#ecfdf5', '#a7f3d0')}
+
+          {/* Transferencias Bancamiga */}
+          {transfBancamiga.length > 0 && renderTablaTransf('TRANSFERENCIAS BANCAMIGA', transfBancamiga, totalTransfBancamiga, '#0369a1', '#f0f9ff', '#bae6fd')}
+
+          {/* Otras Transferencias si existen */}
+          {transfOtros.length > 0 && renderTablaTransf('OTRAS TRANSFERENCIAS', transfOtros, totalTransfOtros, '#475569', '#f8fafc', '#cbd5e1')}
+
+          {/* Sumatoria Total de Transferencias */}
+          {transferencias.length > 0 && (
+            <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 8, padding: '12px 16px', marginTop: 14, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                📊 SUMATORIA TOTAL DE TRANSFERENCIAS ({transferencias.length} registros)
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+                <div style={{ fontSize: 12, color: '#065f46', fontWeight: 700 }}>
+                  Banesco ({transfBanesco.length}): <span style={{ fontSize: 13, fontWeight: 900 }}>Bs {fmtBs(totalTransfBanesco)}</span>
+                </div>
+                <div style={{ fontSize: 12, color: '#0369a1', fontWeight: 700 }}>
+                  Bancamiga ({transfBancamiga.length}): <span style={{ fontSize: 13, fontWeight: 900 }}>Bs {fmtBs(totalTransfBancamiga)}</span>
+                </div>
+                {transfOtros.length > 0 && (
+                  <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>
+                    Otras ({transfOtros.length}): <span style={{ fontSize: 13, fontWeight: 900 }}>Bs {fmtBs(totalTransfOtros)}</span>
+                  </div>
+                )}
+                <div style={{ fontSize: 13, background: '#1e293b', color: '#fff', padding: '6px 14px', borderRadius: 6, fontWeight: 900 }}>
+                  TOTAL GENERAL: Bs {fmtBs(totalTransf)}
+                </div>
               </div>
             </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>{['#', 'Fecha/Hora', 'Fecha Bco', 'Tipo', 'Fecha Libro', 'Cajero', 'Contribuyente', 'Recibo', 'Banco Emisor', 'Referencia', 'Banco Destino', 'Monto']
-                    .map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
-                </thead>
-                <tbody>
-                  {transferencias.map((p, i) => {
-                    const det = parseDet(p); const recs: string[] = det.recibos || [];
-                    const mC = parseFloat(det.monto_conciliado || p.monto) || 0;
-                    const bancoDestClass = clasificarBancoDestino(p);
-                    const bDestTexto = det.banco_destino || det.banco_receptor || p.banco || '-';
-                    return (
-                      <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
-                        <td style={S.td}>{i + 1}</td>
-                        <td style={S.td}>{fmtDT(p.created_at)}</td>
-                        <td style={S.td}>{det.fecha_banco || '-'}</td>
-                        <td style={{ ...S.td, fontWeight: 700 }}>{p.tipo}</td>
-                        <td style={S.td}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
-                        <td style={S.td}>{det.cajero || '-'}</td>
-                        <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad}-{p.contribuyente}</td>
-                        <td style={S.td}>{recs[0] || '-'}</td>
-                        <td style={S.td}>{p.banco || '-'}</td>
-                        <td style={S.td}>{p.referencia || '-'}</td>
-                        <td style={S.td}>
-                          {bancoDestClass === 'Banesco' ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 11 }} title={bDestTexto}>
-                              🏦 Banesco
-                            </span>
-                          ) : bancoDestClass === 'Bancamiga' ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 11 }} title={bDestTexto}>
-                              🏦 Bancamiga
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 11, color: '#475569' }}>{bDestTexto}</span>
-                          )}
-                        </td>
-                        <CeldaMonto p={p} valor={mC} />
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: '#f1f5f9' }}>
-                    <td colSpan={11} style={{ ...S.tf, fontSize: 11 }}>
-                      <b>Subtotales:</b>
-                      <span style={{ marginLeft: 10, color: '#047857', fontWeight: 700 }}>
-                        Banesco ({transfBanesco.length}): Bs {fmtBs(totalTransfBanesco)}
-                      </span>
-                      <span style={{ marginLeft: 16, color: '#0284c7', fontWeight: 700 }}>
-                        Bancamiga ({transfBancamiga.length}): Bs {fmtBs(totalTransfBancamiga)}
-                      </span>
-                      {transfOtros.length > 0 && (
-                        <span style={{ marginLeft: 16, color: '#64748b' }}>
-                          Otros ({transfOtros.length}): Bs {fmtBs(totalTransfOtros)}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ ...S.tf, textAlign: 'right', fontWeight: 900 }}>Total: {fmtBs(totalTransf)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </>}
+          )}
 
           {/* Debitos */}
           {debitos.length > 0 && <>

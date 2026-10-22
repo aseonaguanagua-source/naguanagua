@@ -210,29 +210,129 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
             </div>
           </div>
 
-          {transferencias.length > 0 && (
+          {/* Transferencias Banesco */}
+          {transfBanesco.length > 0 && (
             <div className="p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-1 mb-3">
-                <h3 className="font-bold text-sm text-slate-700 uppercase tracking-wide">Transferencia</h3>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
-                    Banesco: Bs. {fmtBs(totalTransfBanesco)} ({transfBanesco.length})
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-bold">
-                    Bancamiga: Bs. {fmtBs(totalTransfBancamiga)} ({transfBancamiga.length})
-                  </span>
-                </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200 bg-emerald-50/60 p-2.5 rounded-t-lg">
+                <h3 className="font-extrabold text-sm text-emerald-900 uppercase tracking-wide flex items-center gap-2">
+                  🏦 Transferencias Banesco
+                </h3>
+                <span className="text-xs font-bold text-emerald-800">
+                  {transfBanesco.length} registro(s) · Subtotal: Bs. {fmtBs(totalTransfBanesco)}
+                </span>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto border border-emerald-100 rounded-b-lg">
                 <table className="w-full text-[11px] border-collapse">
                   <thead><tr>{['#','Fecha/Hora','Fecha Bco','Tipo','Fecha Libro','Cajero','Contribuyente','Recibo','Banco Emisor','Referencia','Banco Destino','Monto'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
                   <tbody>
-                    {transferencias.map((p, i) => {
+                    {transfBanesco.map((p, i) => {
                       const det = parseDet(p);
                       const recibos: string[] = det.recibos || [];
                       const monto = parseFloat(det.monto_conciliado || p.monto) || 0;
-                      const bTipo = clasificarBancoDestino(p);
-                      const destStr = det.banco_destino || det.banco_receptor || '-';
+                      return (
+                        <tr key={p.id} className="hover:bg-emerald-50/30">
+                          <td className={tdCls}>{i+1}</td>
+                          <td className={tdCls}>{fmtDateTime(p.created_at)}</td>
+                          <td className={tdCls}>{det.fecha_banco || '-'}</td>
+                          <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
+                          <td className={tdCls}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
+                          <td className={tdCls}>{det.cajero || '-'}</td>
+                          <td className={tdCls}>{p.identidad} - {p.contribuyente}</td>
+                          <td className={tdCls}>{recibos[0] || '-'}</td>
+                          <td className={tdCls}>{p.banco || '-'}</td>
+                          <td className={tdCls}>{p.referencia || '-'}</td>
+                          <td className={tdCls}>
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              BANESCO
+                            </span>
+                          </td>
+                          <td className={`${tdCls} text-right font-semibold text-emerald-900`}>Bs. {fmtBs(monto)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-emerald-50 font-bold">
+                      <td colSpan={11} className={`${tdCls} text-emerald-900`}>Subtotal Transferencias Banesco ({transfBanesco.length} items)</td>
+                      <td className={`${tdCls} text-right font-black text-emerald-900`}>Bs. {fmtBs(totalTransfBanesco)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Transferencias Bancamiga */}
+          {transfBancamiga.length > 0 && (
+            <div className="p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-200 bg-sky-50/60 p-2.5 rounded-t-lg">
+                <h3 className="font-extrabold text-sm text-sky-900 uppercase tracking-wide flex items-center gap-2">
+                  🏦 Transferencias Bancamiga
+                </h3>
+                <span className="text-xs font-bold text-sky-800">
+                  {transfBancamiga.length} registro(s) · Subtotal: Bs. {fmtBs(totalTransfBancamiga)}
+                </span>
+              </div>
+              <div className="overflow-x-auto border border-sky-100 rounded-b-lg">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead><tr>{['#','Fecha/Hora','Fecha Bco','Tipo','Fecha Libro','Cajero','Contribuyente','Recibo','Banco Emisor','Referencia','Banco Destino','Monto'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {transfBancamiga.map((p, i) => {
+                      const det = parseDet(p);
+                      const recibos: string[] = det.recibos || [];
+                      const monto = parseFloat(det.monto_conciliado || p.monto) || 0;
+                      return (
+                        <tr key={p.id} className="hover:bg-sky-50/30">
+                          <td className={tdCls}>{i+1}</td>
+                          <td className={tdCls}>{fmtDateTime(p.created_at)}</td>
+                          <td className={tdCls}>{det.fecha_banco || '-'}</td>
+                          <td className={`${tdCls} font-semibold`}>{p.tipo}</td>
+                          <td className={tdCls}>{det.fecha_banco ? fmtDate(det.fecha_banco) : ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || p.tipoContribuyente?.toLowerCase().includes('residencial')) ? 'RECIBO' : 'NO FACTURADO')}</td>
+                          <td className={tdCls}>{det.cajero || '-'}</td>
+                          <td className={tdCls}>{p.identidad} - {p.contribuyente}</td>
+                          <td className={tdCls}>{recibos[0] || '-'}</td>
+                          <td className={tdCls}>{p.banco || '-'}</td>
+                          <td className={tdCls}>{p.referencia || '-'}</td>
+                          <td className={tdCls}>
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                              BANCAMIGA
+                            </span>
+                          </td>
+                          <td className={`${tdCls} text-right font-semibold text-sky-900`}>Bs. {fmtBs(monto)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-sky-50 font-bold">
+                      <td colSpan={11} className={`${tdCls} text-sky-900`}>Subtotal Transferencias Bancamiga ({transfBancamiga.length} items)</td>
+                      <td className={`${tdCls} text-right font-black text-sky-900`}>Bs. {fmtBs(totalTransfBancamiga)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Otras Transferencias */}
+          {transfOtros.length > 0 && (
+            <div className="p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 p-2.5 rounded-t-lg">
+                <h3 className="font-extrabold text-sm text-slate-700 uppercase tracking-wide">
+                  Otras Transferencias
+                </h3>
+                <span className="text-xs font-bold text-slate-600">
+                  {transfOtros.length} registro(s) · Subtotal: Bs. {fmtBs(totalTransfOtros)}
+                </span>
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-b-lg">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead><tr>{['#','Fecha/Hora','Fecha Bco','Tipo','Fecha Libro','Cajero','Contribuyente','Recibo','Banco Emisor','Referencia','Banco Destino','Monto'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {transfOtros.map((p, i) => {
+                      const det = parseDet(p);
+                      const recibos: string[] = det.recibos || [];
+                      const monto = parseFloat(det.monto_conciliado || p.monto) || 0;
                       return (
                         <tr key={p.id} className="hover:bg-slate-50">
                           <td className={tdCls}>{i+1}</td>
@@ -245,19 +345,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                           <td className={tdCls}>{recibos[0] || '-'}</td>
                           <td className={tdCls}>{p.banco || '-'}</td>
                           <td className={tdCls}>{p.referencia || '-'}</td>
-                          <td className={tdCls}>
-                            {bTipo === 'Banesco' ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                🏦 Banesco
-                              </span>
-                            ) : bTipo === 'Bancamiga' ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                                🏦 Bancamiga
-                              </span>
-                            ) : (
-                              <span>{destStr}</span>
-                            )}
-                          </td>
+                          <td className={tdCls}>{det.banco_destino || det.banco_receptor || '-'}</td>
                           <td className={`${tdCls} text-right font-semibold`}>Bs. {fmtBs(monto)}</td>
                         </tr>
                       );
@@ -265,23 +353,36 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-100 font-bold">
-                      <td colSpan={9} className={`${tdCls} text-right space-x-2 text-[10px]`}>
-                        <span className="text-emerald-800 font-bold">Banesco: Bs. {fmtBs(totalTransfBanesco)} ({transfBanesco.length})</span>
-                        <span className="text-slate-300">|</span>
-                        <span className="text-sky-800 font-bold">Bancamiga: Bs. {fmtBs(totalTransfBancamiga)} ({transfBancamiga.length})</span>
-                        {totalTransfOtros > 0 && (
-                          <>
-                            <span className="text-slate-300">|</span>
-                            <span className="text-slate-700 font-bold">Otros: Bs. {fmtBs(totalTransfOtros)} ({transfOtros.length})</span>
-                          </>
-                        )}
-                        <span className="text-slate-300">|</span>
-                        <span>Total Items: {transferencias.length}</span>
-                      </td>
-                      <td colSpan={3} className={`${tdCls} text-right font-black`}>Bs. {fmtBs(totalTransf)}</td>
+                      <td colSpan={11} className={tdCls}>Subtotal Otras Transferencias ({transfOtros.length} items)</td>
+                      <td className={`${tdCls} text-right font-black`}>Bs. {fmtBs(totalTransfOtros)}</td>
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Tarjeta de Sumatoria Total de Transferencias */}
+          {transferencias.length > 0 && (
+            <div className="mx-4 mb-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
+              <div className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                📊 Sumatoria Total de Transferencias ({transferencias.length} registros)
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs">
+                <div className="text-emerald-800 font-bold">
+                  Banesco ({transfBanesco.length}): <span className="font-black text-sm">Bs. {fmtBs(totalTransfBanesco)}</span>
+                </div>
+                <div className="text-sky-800 font-bold">
+                  Bancamiga ({transfBancamiga.length}): <span className="font-black text-sm">Bs. {fmtBs(totalTransfBancamiga)}</span>
+                </div>
+                {transfOtros.length > 0 && (
+                  <div className="text-slate-600 font-bold">
+                    Otras ({transfOtros.length}): <span className="font-black text-sm">Bs. {fmtBs(totalTransfOtros)}</span>
+                  </div>
+                )}
+                <div className="px-3 py-1 bg-slate-900 text-white rounded-lg font-black text-sm shadow-xs">
+                  Total General: Bs. {fmtBs(totalTransf)}
+                </div>
               </div>
             </div>
           )}

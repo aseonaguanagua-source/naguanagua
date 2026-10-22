@@ -568,8 +568,76 @@ export async function GET(request: Request) {
         };
       });
 
+      // ─── AGRUPACIÓN Y DESDUPLICACIÓN DE MÚLTIPLES TRANSFERENCIAS PARA EL MISMO RECIBO ───
+      // Si un contribuyente pagó una misma factura/recibo con 2 o más transferencias,
+      // se unifican en un único ítem de emisión para evitar facturas duplicadas en el SENIAT.
+      const dedupedItems: any[] = [];
+      const processedIds = new Set<string>();
+
+      for (const item of items) {
+        if (processedIds.has(item.id)) continue;
+
+        const pNormId = normId(item.identidad);
+        const itemRecibos = Array.isArray(item.recibos) ? item.recibos.filter(Boolean) : [];
+
+        if (!item.facturaEmitida && itemRecibos.length > 0) {
+          // Encontrar duplicados / transferencias complementarias del mismo recibo y contribuyente
+          const hermanos = items.filter(other => 
+            other.id !== item.id &&
+            !processedIds.has(other.id) &&
+            !other.facturaEmitida &&
+            normId(other.identidad) === pNormId &&
+            Array.isArray(other.recibos) &&
+            other.recibos.some((r: string) => itemRecibos.includes(r))
+          );
+
+          if (hermanos.length > 0) {
+            // Ordenar para dejar el pago con mayor monto como principal
+            const todosLosPagos = [item, ...hermanos].sort((a, b) => (b.montoPagado || 0) - (a.montoPagado || 0));
+            const principal = todosLosPagos[0];
+            const secundarios = todosLosPagos.slice(1);
+
+            const totalTransferido = todosLosPagos.reduce((acc, p) => acc + (parseFloat(String(p.montoPagado || 0)) || 0), 0);
+            const refs = Array.from(new Set(todosLosPagos.map(p => p.referencia).filter(Boolean))).join(', ');
+            const secIds = secundarios.map(s => s.id);
+
+            principal.montoPagado = Math.round(totalTransferido * 100) / 100;
+            principal.referencia = refs;
+            (principal as any).pagosVinculadosIds = secIds;
+            (principal as any).pagosVinculadosDetalles = todosLosPagos.map(p => ({
+              id: p.id,
+              referencia: p.referencia,
+              monto: p.montoPagado,
+              banco: p.banco
+            }));
+
+            // Marcar secundarios en la base de datos para que queden vinculados permanentemente
+            for (const sec of secundarios) {
+              processedIds.add(sec.id);
+              try {
+                await supabase.from('pagos_reportados').update({
+                  detalles: {
+                    ...(sec.detalles || {}),
+                    pago_principal_id: principal.id,
+                    es_pago_adicional: true,
+                    vinculado_a_referencia: principal.referencia
+                  }
+                }).eq('id', sec.id);
+              } catch(e) {}
+            }
+
+            processedIds.add(principal.id);
+            dedupedItems.push(principal);
+            continue;
+          }
+        }
+
+        processedIds.add(item.id);
+        dedupedItems.push(item);
+      }
+
       // Aplicar filtros
-      let filtered = items;
+      let filtered = dedupedItems;
       if (documentoFiltro === 'factura' || documentoFiltro === 'recibo') {
         filtered = filtered.filter(i => i.documento === documentoFiltro);
       }

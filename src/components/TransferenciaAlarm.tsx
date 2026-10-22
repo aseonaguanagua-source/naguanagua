@@ -52,79 +52,14 @@ export default function TransferenciaAlarm() {
     return () => events.forEach(e => document.removeEventListener(e, handler));
   }, [unlockAudio]);
 
-  // ── Voz con SpeechSynthesis ──
-  const speakAlert = useCallback((texto: string) => {
-    if (silenced) return;
-    try {
-      if (!window.speechSynthesis) return;
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(texto);
-      utter.lang = 'es-VE';
-      utter.rate = 0.92;
-      utter.pitch = 1.0;
-      utter.volume = 1.0;
-      // Precargar voces y elegir española
-      const setVoice = () => {
-        const voces = window.speechSynthesis.getVoices();
-        const vozEs = voces.find(v => v.lang.startsWith('es')) || null;
-        if (vozEs) utter.voice = vozEs;
-        window.speechSynthesis.speak(utter);
-      };
-      if (window.speechSynthesis.getVoices().length > 0) {
-        setVoice();
-      } else {
-        window.speechSynthesis.onvoiceschanged = setVoice;
-      }
-    } catch (e) {
-      console.warn('SpeechSynthesis no disponible:', e);
-    }
-  }, [silenced]);
+  // ── Notificaciones sin sonido permanentemente a petición del usuario ──
+  const speakAlert = useCallback((_texto: string) => {
+    return;
+  }, []);
 
-  // ── Reproducir alarma: pitidos + voz ──
-  const playAlarm = useCallback((alerta?: Alerta) => {
-    if (silenced) return;
-    try {
-      let ctx = audioCtxRef.current;
-      if (!ctx || ctx.state === 'closed') {
-        ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        audioCtxRef.current = ctx;
-      }
-      if (ctx.state === 'suspended') ctx.resume();
-
-      const playTone = (freq: number, start: number, dur: number, vol = 0.5) => {
-        const osc = ctx!.createOscillator();
-        const gain = ctx!.createGain();
-        osc.connect(gain);
-        gain.connect(ctx!.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, ctx!.currentTime + start);
-        gain.gain.setValueAtTime(0, ctx!.currentTime + start);
-        gain.gain.linearRampToValueAtTime(vol, ctx!.currentTime + start + 0.02);
-        gain.gain.linearRampToValueAtTime(0, ctx!.currentTime + start + dur);
-        osc.start(ctx!.currentTime + start);
-        osc.stop(ctx!.currentTime + start + dur + 0.05);
-      };
-
-      // Pitidos urgentes
-      playTone(1046, 0.00, 0.12);
-      playTone(784,  0.14, 0.12);
-      playTone(1046, 0.40, 0.12);
-      playTone(784,  0.54, 0.12);
-      playTone(1046, 0.80, 0.12);
-      playTone(784,  0.94, 0.12);
-
-      // Voz después de los pitidos
-      const montoFmt = alerta
-        ? Number(alerta.monto).toLocaleString('es-VE', { minimumFractionDigits: 2 })
-        : '';
-      const mensaje = alerta
-        ? `Atención. Transferencia aprobada. Contribuyente: ${alerta.identidad}. Monto: ${montoFmt} bolívares.`
-        : 'Atención. Transferencia aprobada.';
-      setTimeout(() => speakAlert(mensaje), 1300);
-    } catch (e) {
-      console.warn('Error reproduciendo alarma:', e);
-    }
-  }, [silenced, speakAlert]);
+  const playAlarm = useCallback((_alerta?: Alerta) => {
+    return;
+  }, []);
 
   const triggerAlarm = useCallback((pago: Alerta) => {
     if (seenIds.current.has(pago.id)) return;
@@ -134,11 +69,7 @@ export default function TransferenciaAlarm() {
     setVisible(true);
     setPulsing(true);
     setTimeout(() => setPulsing(false), 3000);
-
-    playAlarm(pago);
-    if (alarmInterval.current) clearInterval(alarmInterval.current);
-    alarmInterval.current = setInterval(() => playAlarm(pago), 8000);
-  }, [playAlarm]);
+  }, []);
 
   const stopAlarm = useCallback(() => {
     if (alarmInterval.current) {

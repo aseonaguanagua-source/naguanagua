@@ -1660,14 +1660,22 @@ export async function POST(request: Request) {
 
     // Sincronizar pagos adicionales vinculados a esta transacción múltiple
     try {
-      const { data: pagosHijos } = await supabase
+      const idsHijos = new Set<string>();
+      if (Array.isArray((detPago as any)?.pagosVinculadosIds)) (detPago as any).pagosVinculadosIds.forEach((id: string) => idsHijos.add(id));
+      if (Array.isArray((detPago as any)?.pagos_vinculados_ids)) (detPago as any).pagos_vinculados_ids.forEach((id: string) => idsHijos.add(id));
+
+      const { data: pagosHijosDb } = await supabase
         .from('pagos_reportados')
         .select('id, detalles')
         .contains('detalles', { pago_principal_id: pagoId });
+      (pagosHijosDb || []).forEach(ph => idsHijos.add(ph.id));
 
-      if (pagosHijos && pagosHijos.length > 0) {
-        for (const ph of pagosHijos) {
-          const dHijo = ph.detalles || {};
+      if (idsHijos.size > 0) {
+        for (const hId of idsHijos) {
+          const { data: rowHijo } = await supabase.from('pagos_reportados').select('detalles').eq('id', hId).maybeSingle();
+          const dHijo = rowHijo?.detalles || {};
+          dHijo.pago_principal_id = pagoId;
+          dHijo.es_pago_adicional = true;
           dHijo.factura_digital = {
             emitida: true,
             es_pago_adicional: true,
@@ -1678,7 +1686,7 @@ export async function POST(request: Request) {
             fecha_emision: nuevosDetalles.factura_digital?.fecha_emision || new Date().toISOString()
           };
           delete dHijo.factura_digital_error;
-          await supabase.from('pagos_reportados').update({ detalles: dHijo }).eq('id', ph.id);
+          await supabase.from('pagos_reportados').update({ detalles: dHijo }).eq('id', hId);
         }
       }
     } catch (syncErr: any) {

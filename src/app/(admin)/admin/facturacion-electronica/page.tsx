@@ -1251,7 +1251,19 @@ export default function FacturacionElectronicaPage() {
                       <td className="py-3.5 px-4">
                         <span className="font-bold text-slate-800 text-[13px] block">{pago.contribuyente}</span>
                         {pago.referencia && (
-                          <span className="text-[10px] text-slate-400 font-mono">Ref: {pago.referencia}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-[10px] text-slate-600 font-mono bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              Ref: {pago.referencia}
+                            </span>
+                            <button
+                              onClick={() => handleOpenEditModal(pago)}
+                              className="inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                              title="Editar referencia o corregir datos de este pago"
+                            >
+                              <Edit3 className="w-3 h-3 text-amber-600" />
+                              <span>Editar Ref</span>
+                            </button>
+                          </div>
                         )}
                         {(pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle) && (
                           <span className="block text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 mt-0.5 max-w-[280px] truncate" title={pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle}>

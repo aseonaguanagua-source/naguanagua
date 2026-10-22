@@ -57,6 +57,8 @@ export async function POST(req: Request) {
       ...det,
       contribuyente: nuevoNombre,
       contribuyente_nombre: nuevoNombre,
+      referencia: nuevaRef,
+      referencia_origen: nuevaRef,
       agente_retencion: flagRetencion,
       es_retencion: flagRetencion,
       modulo: nuevoModulo,

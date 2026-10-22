@@ -895,13 +895,44 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         } catch(e) {}
       }
 
-      // Actualizar el pago (por el servidor; solo si sigue en su estado actual → no se aprueba dos veces)
-      if (pago.estado === 'Aprobado' && estatus === 'Aprobado') throw new Error('Este pago ya está aprobado; aprobarlo otra vez descontaría la deuda dos veces.');
+      const refFinal = (referenciaOrigen || '').trim() || pago.referencia;
+      if (refFinal) {
+        updatedDet.referencia = refFinal;
+        updatedDet.referencia_origen = refFinal;
+        if (pago.referencia && pago.referencia !== refFinal && !updatedDet.referencia_original) {
+          updatedDet.referencia_original = pago.referencia;
+        }
+      }
+      if (bancoReceptor) {
+        updatedDet.banco_destino = bancoReceptor;
+        updatedDet.banco_receptor = bancoReceptor;
+      }
+      if (fechaTransaccion) {
+        updatedDet.fecha_transaccion = fechaTransaccion;
+      }
+      if (fechaBanco) {
+        updatedDet.fecha_banco = fechaBanco;
+      }
+
+      // Si el pago ya estaba aprobado y se confirma en Aprobado, es una edición de datos / corrección de referencia
+      if (pago.estado === 'Aprobado' && estatus === 'Aprobado') {
+        const payloadEdicion: any = {
+          banco: bancoEmisor,
+          referencia: refFinal,
+          detalles: updatedDet
+        };
+        await actualizarPago(pago.id, payloadEdicion);
+        alert('¡Datos y referencia del pago actualizados exitosamente!');
+        onClose();
+        return;
+      }
+
       updatedDet.fecha_conciliado = new Date().toISOString();
       const payloadAct: any = {
         estado: estatus,
         banco: bancoEmisor,
         tipo: pago.tipo,
+        referencia: refFinal,
         detalles: updatedDet
       };
       if (estatus === 'Rechazado' && pago.referencia && !pago.referencia.startsWith('RECH-')) {
@@ -1973,7 +2004,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             <div className="flex gap-2">
               <button onClick={onClose} className="px-4 py-2 border border-slate-400 text-slate-600 hover:bg-slate-50 rounded font-semibold text-sm flex items-center gap-1"><X size={14}/> Cerrar</button>
               <button onClick={handleConciliar} disabled={isProcessing} className="px-5 py-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 rounded font-bold text-sm flex items-center gap-2">
-                {isProcessing ? <RefreshCw size={14} className="animate-spin"/> : <CheckCheck size={14}/>} Conciliar
+                {isProcessing ? <RefreshCw size={14} className="animate-spin"/> : <CheckCheck size={14}/>} {pago.estado === 'Aprobado' ? 'Guardar Cambios / Referencia' : 'Conciliar'}
               </button>
             </div>
           </div>
