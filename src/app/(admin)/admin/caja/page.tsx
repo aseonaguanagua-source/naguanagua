@@ -2513,23 +2513,23 @@ export default function CajaPage() {
       }
 
       // Si hay saldo a favor nuevo, generar Nota de Crédito
-      if (saldoAFavorNuevo > 0) {
+      // Para pagos inmediatos (efectivo, punto auto-aprobado) se emite aquí;
+      // para transferencias/depósitos por conciliar, se emite al conciliarse para evitar duplicación
+      if (saldoAFavorNuevo > 0 && (!reqRef || isAutoAprobado)) {
         await supabase.from('documentos').insert([{
           identidad: foundUser.Identidad,
           contribuyente: foundUser.Contribuyente,
           tipo: 'Nota de Credito',
           estado: 'Vigente',
           detalles: JSON.stringify({
-            monto: formatBs(saldoAFavorNuevo),
-            origen_referencia: reqRef ? referencia : 'Debito',
+            monto: (Math.round(saldoAFavorNuevo * 100) / 100).toFixed(2),
+            origen_referencia: reqRef ? referencia : 'Debito/Punto',
             fecha_emision: new Date().toISOString()
           })
         }]);
         // ─ Acreditar nuevo Saldo a Favor para métodos inmediatos (débito, crédito, punto, etc.) ─
-        if (!reqRef || isAutoAprobado) {
-          const result = await acreditarSaldoFavor(foundUser.Identidad, saldoAFavorNuevo, foundUser.CodCont || foundUser.cod_cont);
-          if (!result.ok) console.error('Error acreditando saldo:', result.error);
-        }
+        const result = await acreditarSaldoFavor(foundUser.Identidad, saldoAFavorNuevo, foundUser.CodCont || foundUser.cod_cont);
+        if (!result.ok) console.error('Error acreditando saldo:', result.error);
       }
       
       // ─ Descontar Saldo a Favor usado como descuento (fix I-6) ─

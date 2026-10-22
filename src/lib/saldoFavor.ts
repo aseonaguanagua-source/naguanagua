@@ -67,6 +67,29 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
 /**
  * Acredita saldo a favor al inmueble principal del contribuyente y/o condominio.
  */
+async function resolveCondo(identidad?: string, codigoCondominio?: string, client?: any): Promise<{ id: string; codigo: string; abono_bs: number } | null> {
+  const sb = client || supabase;
+  if (codigoCondominio) {
+    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', String(codigoCondominio).trim().toUpperCase()).maybeSingle();
+    if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
+  }
+  if (!identidad) return null;
+  const idTrim = String(identidad).trim().toUpperCase();
+  if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(idTrim)) {
+    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', idTrim).maybeSingle();
+    if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
+  }
+  const sinGuion = idTrim.replace(/[^A-Z0-9]/g, '');
+  const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : idTrim;
+  const variantes = [...new Set([idTrim, sinGuion, conGuion].filter(Boolean))];
+  const { data } = await sb.from('condominios').select('id, codigo, abono_bs').in('identidad', variantes).maybeSingle();
+  if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
+  return null;
+}
+
+/**
+ * Acredita saldo a favor al inmueble principal del contribuyente y/o condominio.
+ */
 export async function acreditarSaldoFavor(
   identidad: string,
   monto: number,
@@ -74,24 +97,20 @@ export async function acreditarSaldoFavor(
   dbClient?: any
 ): Promise<SaldoUpdateResult> {
   const client = dbClient || supabase;
+  const montoNum = Math.round((Number(monto) || 0) * 100) / 100;
+  if (montoNum <= 0) return { ok: true, nuevoSaldo: 0 };
+
   const { inmueblePrincipalId } = await getSaldoFavorTotal(identidad, codigoCondominio, client);
   
   // Si es un condominio y tiene registro en tabla condominios, actualizar abono_bs
-  if (codigoCondominio) {
-    const { data: condoRow } = await client
-      .from('condominios')
-      .select('id, abono_bs')
-      .eq('codigo', codigoCondominio.toUpperCase())
-      .maybeSingle();
-
-    if (condoRow) {
-      const nuevoAbono = (parseFloat(condoRow.abono_bs || '0') || 0) + monto;
-      await client.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', condoRow.id);
-    }
+  const condoRow = await resolveCondo(identidad, codigoCondominio, client);
+  if (condoRow) {
+    const nuevoAbono = Math.round((condoRow.abono_bs + montoNum) * 100) / 100;
+    await client.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', condoRow.id);
   }
 
   if (!inmueblePrincipalId) {
-    if (codigoCondominio) return { ok: true, nuevoSaldo: monto };
+    if (condoRow || codigoCondominio) return { ok: true, nuevoSaldo: montoNum };
     return { ok: false, error: 'No se encontraron inmuebles para el contribuyente' };
   }
 
@@ -103,7 +122,7 @@ export async function acreditarSaldoFavor(
     .single();
 
   const currentSaldo = parseFloat(inm?.saldo_favor_bs || '0') || 0;
-  const nuevoSaldo = currentSaldo + monto;
+  const nuevoSaldo = Math.round((currentSaldo + montoNum) * 100) / 100;
 
   const { error } = await client
     .from('inmuebles')
@@ -129,26 +148,12 @@ export async function descontarSaldoFavor(
   if (montoNum <= 0) return { ok: true, nuevoSaldo: 0 };
 
   // 1. Si es condominio, descontar de tabla condominios
-  let targetCondoCod = codigoCondominio ? String(codigoCondominio).trim().toUpperCase() : undefined;
-  if (!targetCondoCod && identidad) {
-    const { data: cByCod } = await client.from('condominios').select('codigo').eq('codigo', String(identidad).trim().toUpperCase()).maybeSingle();
-    if (cByCod) targetCondoCod = cByCod.codigo;
-  }
-
+  const condoRow = await resolveCondo(identidad, codigoCondominio, client);
   let condoActualizado = false;
-  if (targetCondoCod) {
-    const { data: cRow } = await client
-      .from('condominios')
-      .select('id, abono_bs')
-      .eq('codigo', targetCondoCod)
-      .maybeSingle();
-
-    if (cRow) {
-      const abonoAct = parseFloat(cRow.abono_bs || '0') || 0;
-      const nuevoAbono = Math.max(0, Math.round((abonoAct - montoNum) * 100) / 100);
-      await client.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', cRow.id);
-      condoActualizado = true;
-    }
+  if (condoRow) {
+    const nuevoAbono = Math.max(0, Math.round((condoRow.abono_bs - montoNum) * 100) / 100);
+    await client.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', condoRow.id);
+    condoActualizado = true;
   }
 
   // 2. Descontar también de inmuebles para mantener la sincronía exacta
@@ -171,7 +176,7 @@ export async function descontarSaldoFavor(
   const { data: inms, error: e1 } = await q.order('id', { ascending: true });
   if (e1) return { ok: false, error: e1.message };
   if (!inms || inms.length === 0) {
-    if (condoActualizado || targetCondoCod) return { ok: true, nuevoSaldo: 0 };
+    if (condoActualizado || condoRow) return { ok: true, nuevoSaldo: 0 };
     return { ok: false, error: 'No se encontraron inmuebles para el contribuyente' };
   }
 

@@ -1356,23 +1356,50 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         // Excedente de una transacción (registrado en Caja como saldo a favor): se acredita al aprobar.
         const excedenteCaja = parseFloat(String(det.saldo_favor || 0)) || 0;
         if (excedenteCaja > 0.01 && !det.saldo_favor_acreditado) {
-          const rSF = await acreditarSaldoFavor(pago.identidad, Math.round(excedenteCaja * 100) / 100);
+          const condoCod = (updatedDet.modulo === 'condominios' || det.modulo === 'condominios')
+            ? (det.condominio?.codigo || det.codigo_condominio || updatedDet?.condominio?.codigo)
+            : undefined;
+          const rSF = await acreditarSaldoFavor(pago.identidad, Math.round(excedenteCaja * 100) / 100, condoCod);
           if (!rSF.ok) throw new Error('No se pudo acreditar la nota de crédito: ' + rSF.error);
           try {
-            await supabase.from('documentos').insert([{
-              identidad: pago.identidad,
-              contribuyente: (updatedDet.modulo === 'condominios' || det.modulo === 'condominios')
-                ? (det.condominio?.nombre || det.contribuyente || pago.identidad)
-                : (contribInfo?.contribuyente || contribInfo?.nombre || pago.contribuyente || pago.identidad),
-              tipo: 'Nota de Credito',
-              estado: 'Vigente',
-              detalles: JSON.stringify({
-                monto: (Math.round(excedenteCaja * 100) / 100).toFixed(2),
-                origen_referencia: `Excedente conciliado. Ref: ${pago.referencia}`,
-                fecha_emision: new Date().toISOString(),
-                analista: updatedDet.analista || 'Administrador'
-              }),
-            }]);
+            const refClean = String(pago.referencia || '').trim();
+            const { data: existingDocs } = await supabase
+              .from('documentos')
+              .select('id, detalles')
+              .eq('identidad', pago.identidad)
+              .ilike('tipo', '%nota%')
+              .ilike('estado', 'vigente');
+
+            const yaExiste = (existingDocs || []).find((d: any) => {
+              const detStr = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
+              return refClean && detStr.includes(refClean);
+            });
+
+            if (yaExiste) {
+              await supabase.from('documentos').update({
+                detalles: JSON.stringify({
+                  monto: (Math.round(excedenteCaja * 100) / 100).toFixed(2),
+                  origen_referencia: `Excedente conciliado. Ref: ${pago.referencia}`,
+                  fecha_emision: new Date().toISOString(),
+                  analista: updatedDet.analista || 'Administrador'
+                })
+              }).eq('id', yaExiste.id);
+            } else {
+              await supabase.from('documentos').insert([{
+                identidad: pago.identidad,
+                contribuyente: (updatedDet.modulo === 'condominios' || det.modulo === 'condominios')
+                  ? (det.condominio?.nombre || det.contribuyente || pago.identidad)
+                  : (contribInfo?.contribuyente || contribInfo?.nombre || pago.contribuyente || pago.identidad),
+                tipo: 'Nota de Credito',
+                estado: 'Vigente',
+                detalles: JSON.stringify({
+                  monto: (Math.round(excedenteCaja * 100) / 100).toFixed(2),
+                  origen_referencia: `Excedente conciliado. Ref: ${pago.referencia}`,
+                  fecha_emision: new Date().toISOString(),
+                  analista: updatedDet.analista || 'Administrador'
+                }),
+              }]);
+            }
           } catch(e) { console.error('Error insertando nota de credito en documentos:', e); }
           updatedDet.saldo_favor_acreditado = true;
           await actualizarPago(pago.id, { detalles: { ...updatedDet, saldo_favor_acreditado: true } });
