@@ -245,21 +245,32 @@ export default function ConveniosPagoPage() {
         const totalFacturasBs = userFacturas.reduce((acc, curr) => acc + (parseFloat(curr.monto) || 0), 0);
         const montoACongelarNum = (totalMMV * tasaEfectiva) + totalCongelada + totalFacturasBs;
 
-        if (montoACongelarNum <= 0.01) {
-          const { data: convActivo } = await supabase
-            .from('convenios_pago')
-            .select('numero, monto_total, cuotas, estado')
-            .eq('identidad', identidad)
-            .limit(1);
+        const { data: convActivo } = await supabase
+          .from('convenios_pago')
+          .select('id, numero, monto_total, cuotas, estado')
+          .eq('identidad', identidad)
+          .limit(1);
 
-          if (convActivo && convActivo.length > 0) {
-            alert(`El contribuyente ${contribuyente} (${identidad}) ya tiene un Convenio de Pago registrado (${convActivo[0].numero}) por Bs. ${convActivo[0].monto_total} (${convActivo[0].cuotas} cuotas, Estado: ${convActivo[0].estado}). Las cuotas pueden ser cobradas directamente en Caja.`);
-          } else {
-            alert(`El contribuyente ${contribuyente} (${identidad}) no presenta deuda pendiente que refinanciar.`);
+        let convExistenteId: string | null = null;
+        let convExistenteNumero: string | null = null;
+
+        if (convActivo && convActivo.length > 0) {
+          const renegociar = confirm(
+            `El contribuyente ${contribuyente} (${identidad}) ya tiene un Convenio de Pago registrado (${convActivo[0].numero}) por Bs. ${convActivo[0].monto_total} (${convActivo[0].cuotas} cuotas, Estado: ${convActivo[0].estado}).\n\n¿Desea renegociar o actualizar este convenio con nuevos montos o cuotas?`
+          );
+          if (!renegociar) {
+            setFoundUser(null);
+            return;
           }
+          convExistenteId = convActivo[0].id;
+          convExistenteNumero = convActivo[0].numero;
+        } else if (montoACongelarNum <= 0.01) {
+          alert(`El contribuyente ${contribuyente} (${identidad}) no presenta deuda pendiente que refinanciar.`);
           setFoundUser(null);
           return;
         }
+
+        const montoBase = montoACongelarNum > 0 ? montoACongelarNum : (convActivo?.[0]?.monto_total || 0);
 
         setFoundUser({
           identidad,
@@ -270,7 +281,9 @@ export default function ConveniosPagoPage() {
           totalCongelada,
           totalFacturasBs,
           tasaEfectiva,
-          montoACongelar: montoACongelarNum.toFixed(2)
+          montoACongelar: Number(montoBase).toFixed(2),
+          convExistenteId,
+          convExistenteNumero
         });
       } else {
         setFoundUser(null);
@@ -350,8 +363,8 @@ export default function ConveniosPagoPage() {
       }
 
       const facturasReferencias = (foundUser.recibos || []).map((f: any) => f.referencia).filter(Boolean);
-      const nroConvenio = `CONV-${Date.now().toString().slice(-6)}`;
-      const convId = crypto.randomUUID();
+      const nroConvenio = foundUser.convExistenteNumero || `CONV-${Date.now().toString().slice(-6)}`;
+      const convId = foundUser.convExistenteId || crypto.randomUUID();
 
       // 2. Llamada a API del servidor (bypassa RLS con supabaseAdmin)
       const resConv = await fetch('/api/admin/convenios', {
@@ -480,10 +493,32 @@ export default function ConveniosPagoPage() {
                         <span>Bs. {Number(foundUser.totalFacturasBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </p>
                     )}
-                    <p className="flex justify-between items-center text-emerald-700 font-bold text-lg mt-1 pt-1 border-t border-blue-200/50">
-                      <span>Monto Final de la Deuda Congelada (Bs):</span>
-                      <span>Bs. {Number(foundUser.montoACongelar).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </p>
+                    <div className="flex justify-between items-center text-emerald-700 font-bold text-base mt-1 pt-1 border-t border-blue-200/50">
+                      <span>Monto Final de la Deuda a Congelar (Bs):</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={foundUser.montoACongelar}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFoundUser((prev: any) => ({ ...prev, montoACongelar: val }));
+                          }}
+                          className="w-36 border border-emerald-400 bg-white rounded px-2 py-1 text-right text-emerald-800 font-bold text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sum = listaCuotas.reduce((acc, curr) => acc + (parseFloat(curr.monto) || 0), 0);
+                            if (sum > 0) setFoundUser((prev: any) => ({ ...prev, montoACongelar: sum.toFixed(2) }));
+                          }}
+                          className="text-[11px] text-blue-600 hover:text-blue-800 underline font-semibold cursor-pointer"
+                          title="Igualar a la suma de las cuotas"
+                        >
+                          Auto-sumar
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

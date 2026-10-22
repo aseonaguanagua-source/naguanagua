@@ -44,27 +44,52 @@ export async function POST(request: Request) {
     const finalConvId = convId || crypto.randomUUID();
     const finalNro = nroConvenio || `CONV-${Date.now().toString().slice(-6)}`;
 
-    // 1. Insertar en convenios_pago
-    const { error: convErr } = await supabase.from('convenios_pago').insert({
-      id: finalConvId,
-      numero: finalNro,
-      identidad: identidad,
-      monto_total: parseFloat(montoTotal) || 0,
-      cuotas: parseInt(cuotas) || 1,
-      estado: 'Al Día',
-      inicial: 0
-    });
+    // Verificar si ya existe por id o número
+    const { data: existing } = await supabase
+      .from('convenios_pago')
+      .select('id, numero')
+      .or(`id.eq.${finalConvId},numero.eq.${finalNro}`)
+      .maybeSingle();
 
-    if (convErr) {
-      console.error('Error insertando en convenios_pago:', convErr);
-      return NextResponse.json({ ok: false, error: convErr.message }, { status: 500 });
+    let targetConvId = finalConvId;
+
+    if (existing) {
+      targetConvId = existing.id;
+      const { error: updErr } = await supabase.from('convenios_pago').update({
+        monto_total: parseFloat(montoTotal) || 0,
+        cuotas: parseInt(cuotas) || 1,
+        estado: 'Al Día'
+      }).eq('id', existing.id);
+
+      if (updErr) {
+        console.error('Error actualizando convenios_pago:', updErr);
+        return NextResponse.json({ ok: false, error: updErr.message }, { status: 500 });
+      }
+
+      // Eliminar cuotas anteriores para reemplazarlas
+      await supabase.from('convenios_cuotas').delete().eq('convenio_id', existing.id);
+    } else {
+      const { error: convErr } = await supabase.from('convenios_pago').insert({
+        id: finalConvId,
+        numero: finalNro,
+        identidad: identidad,
+        monto_total: parseFloat(montoTotal) || 0,
+        cuotas: parseInt(cuotas) || 1,
+        estado: 'Al Día',
+        inicial: 0
+      });
+
+      if (convErr) {
+        console.error('Error insertando en convenios_pago:', convErr);
+        return NextResponse.json({ ok: false, error: convErr.message }, { status: 500 });
+      }
     }
 
     // 2. Insertar cuotas en convenios_cuotas
     if (Array.isArray(listaCuotas) && listaCuotas.length > 0) {
       const cuotasPayload = listaCuotas.map((c: any) => ({
         id: crypto.randomUUID(),
-        convenio_id: finalConvId,
+        convenio_id: targetConvId,
         fecha: c.fecha,
         monto: parseFloat(c.monto) || 0,
         estado: 'Pendiente'
