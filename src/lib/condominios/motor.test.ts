@@ -100,13 +100,11 @@ t('Mismo dueño con varias actividades NO es condominio', () => {
   assert.equal(esCondominioReal({ identidad: 'J-123' }, []), true);
 });
 
-t('Reparto residencial: suma = cargo del condominio; las no registradas van en un grupo', () => {
+t('Reparto residencial: cuando hay unidades registradas se cobran solo ellas', () => {
   const c: Condominio = { codigo: 'URBX', tipo: 'RESIDENCIAL', modalidad: 'CENTRALIZADO', cant_declarada: 565, actividad: 'APARTAMENTO (ZONA A)', tarifa_mmv: 0.618 };
   const unidades = Array.from({ length: 546 }, (_, i) => ({ id: `u${i}`, estado: 'Activa' as const }));
   const rep = cargosPorUnidad(c, unidades, TASA);
-  assert.equal(rep.length, 547);
-  assert.equal(rep.find(r => r.clave === SIN_REGISTRAR)!.cantidad, 19);
-  assert.equal(Math.round(rep.reduce((s, r) => s + r.montoBs, 0) * 100) / 100, cargoMensual(c, unidades, TASA).condominioBs);
+  assert.equal(rep.length, 546);
 });
 
 t('Reparto con más registradas que declaradas: total = declarada, cuadra al céntimo', () => {

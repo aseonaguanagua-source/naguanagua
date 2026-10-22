@@ -393,6 +393,37 @@ export async function POST(request: Request) {
       };
       det.factura_digital = fd;
       det.retencion_aprobada = true;
+
+      const { error: errUpPago } = await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pago.id);
+      if (errUpPago) console.error('[revisar/aprobar] Error updating pagos_reportados:', errUpPago);
+    }
+
+    // Asegurar que si hay pagos hermanos con el mismo número de control o retencionId, también queden aprobados
+    if (actualRetId || finalFacturaControl) {
+      try {
+        const { data: hermanos } = await supabase
+          .from('pagos_reportados')
+          .select('id, detalles')
+          .neq('id', pago?.id || '00000000-0000-0000-0000-000000000000');
+        for (const h of hermanos || []) {
+          const hDet = parseDet(h.detalles);
+          const hFd = hDet.factura_digital;
+          const matchRet = actualRetId && hFd?.retencion?.retencion_id === actualRetId;
+          const matchCtrl = finalFacturaControl && hFd?.numero_control === finalFacturaControl;
+          if (matchRet || matchCtrl) {
+            hDet.retencion_aprobada = true;
+            if (hFd?.retencion) {
+              hFd.retencion.estado = 'aprobada';
+              hFd.retencion.revisado_at = ahora;
+              hFd.retencion.revisado_por = quien;
+            }
+            hDet.factura_digital = hFd;
+            await supabase.from('pagos_reportados').update({ detalles: hDet }).eq('id', h.id);
+          }
+        }
+      } catch (errH: any) {
+        console.warn('[revisar/aprobar] Error actualizando pagos vinculados:', errH);
+      }
     }
 
     const descAuditoria = sinPlanilla

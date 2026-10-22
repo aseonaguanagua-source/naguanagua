@@ -317,8 +317,23 @@ export function esCondominioReal(padre: { identidad?: string | null }, unidadesA
 export { isResidencialInm };
 
 /** Mes actual en Caracas como {y, m} (m: 1–12). */
-export function mesActualCaracas(hoy: Date = new Date()): { y: number; m: number } {
-  const t = new Date(hoy.getTime() - 4 * 3600 * 1000);
+export function mesActualCaracas(hoy: Date | string = new Date()): { y: number; m: number } {
+  if (typeof hoy === 'string' && /^\d{4}-\d{2}/.test(hoy)) {
+    const [y, m] = hoy.slice(0, 7).split('-').map(Number);
+    return { y, m };
+  }
+  const d = hoy instanceof Date ? hoy : new Date(hoy);
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: 'numeric',
+    }).formatToParts(d);
+    const y = parseInt(parts.find(p => p.type === 'year')?.value || '0', 10);
+    const m = parseInt(parts.find(p => p.type === 'month')?.value || '0', 10);
+    if (y > 2000 && m >= 1 && m <= 12) return { y, m };
+  } catch {}
+  const t = new Date(d.getTime() - 4 * 3600 * 1000);
   return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1 };
 }
 

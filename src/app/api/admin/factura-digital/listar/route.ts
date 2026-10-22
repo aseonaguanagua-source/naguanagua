@@ -431,7 +431,9 @@ export async function GET(request: Request) {
           }
         }
       }
-      const stRet = fd?.retencion?.estado || (retRow ? (retRow.estado === 'Pendiente' ? 'planilla_recibida' : String(retRow.estado).toLowerCase()) : null);
+      const stRet = (retRow?.estado === 'Aprobado' || det?.retencion_aprobada === true || fd?.retencion?.estado === 'aprobada')
+        ? 'aprobada'
+        : (fd?.retencion?.estado || (retRow ? (retRow.estado === 'Pendiente' ? 'planilla_recibida' : String(retRow.estado).toLowerCase()) : null));
 
       return {
         id: pago.id,

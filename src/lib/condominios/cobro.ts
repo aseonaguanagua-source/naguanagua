@@ -107,7 +107,9 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
   if (!datos) throw new Error('Condominio no encontrado');
   const tasa = sol.tasaOverride && sol.tasaOverride > 0 ? sol.tasaOverride : await tasaVigente();
   if (!(tasa > 0)) throw new Error('No hay tasa BCV vigente configurada.');
-  const fecha = sol.fechaOverride ? new Date(sol.fechaOverride) : new Date();
+  const fecha = sol.fechaOverride
+    ? new Date(sol.fechaOverride.includes('T') ? sol.fechaOverride : `${sol.fechaOverride}T12:00:00-04:00`)
+    : new Date();
   const estado = calcularEstado(datos.condo, datos.unidades, tasa, fecha, datos.multas);
   const porAct = estado.porActividad;
   const avisos: string[] = [];
