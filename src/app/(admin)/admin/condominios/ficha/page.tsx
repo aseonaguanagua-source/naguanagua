@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink, Handshake
 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import EditorUnidad from './EditorUnidad';
 import ModalAjusteMeses from './ModalAjusteMeses';
 import { mesesPendientes } from '@/lib/condominios/motor';
@@ -55,6 +56,7 @@ function Ficha() {
   const [notaCondominio, setNotaCondominio] = useState('');
   const [guardandoNota, setGuardandoNota] = useState(false);
   const [ajusteMesesTarget, setAjusteMesesTarget] = useState<{ unidad: any; renglon: any } | null>(null);
+  const [conveniosUnidades, setConveniosUnidades] = useState<Record<string, any>>({});
 
   const handleGuardarNota = async () => {
     if (!c?.codigo) return;
@@ -89,6 +91,24 @@ function Ficha() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo cargar');
       setD(j);
+
+      // Cargar convenios activos para detectar unidades con convenio
+      try {
+        const { data: convs } = await supabase
+          .from('convenios_pago')
+          .select('id, numero, identidad, monto_total, cuotas, estado')
+          .neq('estado', 'Anulado');
+        const cMap: Record<string, any> = {};
+        (convs || []).forEach(cv => {
+          if (cv.identidad) {
+            const clean = cv.identidad.replace(/[\s-]/g, '').toUpperCase();
+            cMap[clean] = cv;
+            const soloNum = clean.replace(/\D/g, '');
+            if (soloNum) cMap[soloNum] = cv;
+          }
+        });
+        setConveniosUnidades(cMap);
+      } catch (_) {}
     } catch (e: any) { setError(e.message); } finally { setCargando(false); }
   };
   useEffect(() => { setAdmin(esAdmin()); if (codigo) cargar(); }, [codigo]);
@@ -613,24 +633,53 @@ function Ficha() {
                       ) : visibles.map((r: any) => {
                         const sinReg = r.clave === '__SIN_REGISTRAR__';
                         const open = abierto === r.clave;
+                        const u = unidadDe(r.clave);
+                        const uIdClean = (u?.identidad || r?.identidad || '').replace(/[\s-]/g, '').toUpperCase();
+                        const uNum = uIdClean.replace(/\D/g, '');
+                        const convUnidad = conveniosUnidades[uIdClean] || (uNum ? conveniosUnidades[uNum] : null);
                         return (
                           <React.Fragment key={r.clave}>
                             <tr onClick={() => setAbierto(open ? null : r.clave)} className={`cursor-pointer hover:bg-emerald-50/40 ${sinReg ? 'bg-amber-50/50' : ''} ${unidadFoco && r.inmueble === unidadFoco ? 'bg-emerald-50' : ''}`}>
                               <td className="pl-3 text-slate-400">{r.deuda.meses > 0 ? (open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />) : null}</td>
                               <td className="py-2.5 px-3">
-                                <div className="font-bold text-slate-900 flex items-center gap-2">{sinReg ? <span className="text-amber-800">Unidades declaradas sin registrar</span> : <span className="font-mono">{r.inmueble}{r.numero ? ` · ${r.numero}` : ''}</span>}
+                                <div className="font-bold text-slate-900 flex items-center gap-2">
+                                  {sinReg ? (
+                                    <span className="text-amber-800">Unidades declaradas sin registrar</span>
+                                  ) : (
+                                    <span className="font-mono">{r.inmueble}{r.numero ? ` · ${r.numero}` : ''}</span>
+                                  )}
+                                  {convUnidad && (
+                                    <Link
+                                      href="/admin/convenios-pago"
+                                      onClick={ev => ev.stopPropagation()}
+                                      title={`Convenio ${convUnidad.numero}: Bs. ${convUnidad.monto_total} (${convUnidad.cuotas} cuotas) - Estado: ${convUnidad.estado}`}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition-colors shadow-2xs"
+                                    >
+                                      <Handshake className="w-3 h-3 text-amber-600" /> {convUnidad.numero}
+                                    </Link>
+                                  )}
                                   <div className="flex gap-1" onClick={ev => ev.stopPropagation()}>
-                                    {admin && unidadDe(r.clave) && (
-                                      <button title="Editar unidad" onClick={() => setEditorU(unidadDe(r.clave))} className="p-1.5 rounded-md text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer border border-transparent hover:border-emerald-200 bg-white shadow-sm"><Pencil className="w-3.5 h-3.5" /></button>
+                                    {admin && u && (
+                                      <button title="Editar unidad" onClick={() => setEditorU(u)} className="p-1.5 rounded-md text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer border border-transparent hover:border-emerald-200 bg-white shadow-sm"><Pencil className="w-3.5 h-3.5" /></button>
                                     )}
-                                    {admin && unidadDe(r.clave) && unidadDe(r.clave).estado !== 'Desocupada' && (
-                                      <button title="Marcar como desocupada" onClick={() => desocuparUnidad(unidadDe(r.clave))} className="p-1.5 rounded-md text-slate-500 hover:text-amber-700 hover:bg-amber-50 cursor-pointer border border-transparent hover:border-amber-200 bg-white shadow-sm"><Ban className="w-3.5 h-3.5" /></button>
+                                    {admin && u && u.estado !== 'Desocupada' && (
+                                      <button title="Marcar como desocupada" onClick={() => desocuparUnidad(u)} className="p-1.5 rounded-md text-slate-500 hover:text-amber-700 hover:bg-amber-50 cursor-pointer border border-transparent hover:border-amber-200 bg-white shadow-sm"><Ban className="w-3.5 h-3.5" /></button>
                                     )}
-                                    {admin && unidadDe(r.clave) && (
-                                      <button title="Eliminar de la lista" onClick={() => eliminarUnidad(unidadDe(r.clave))} className="p-1.5 rounded-md text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer border border-transparent hover:border-red-200 bg-white shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
+                                    {admin && u && (
+                                      <button title="Eliminar de la lista" onClick={() => eliminarUnidad(u)} className="p-1.5 rounded-md text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer border border-transparent hover:border-red-200 bg-white shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>
                                     )}
-                                    {unidadDe(r.clave) && (
+                                    {u && (
                                       <button onClick={(ev) => exportarUnidad(r, ev)} title="Descargar Estado de Cuenta individual de esta unidad" className="px-2 py-0.5 rounded-md text-sky-700 bg-sky-50 hover:bg-sky-100 cursor-pointer border border-sky-200 text-[11px] font-bold flex items-center gap-1 shadow-2xs"><FileText className="w-3 h-3" /> E/C</button>
+                                    )}
+                                    {convUnidad && (
+                                      <Link
+                                        href="/admin/convenios-pago"
+                                        onClick={ev => ev.stopPropagation()}
+                                        title={`Ver cuotas de ${convUnidad.numero}`}
+                                        className="px-2 py-0.5 rounded-md text-amber-800 bg-amber-50 hover:bg-amber-100 cursor-pointer border border-amber-200 text-[11px] font-bold flex items-center gap-1 shadow-2xs"
+                                      >
+                                        <Handshake className="w-3 h-3 text-amber-600" /> Convenio
+                                      </Link>
                                     )}
                                     {unidadDe(r.clave) && (
                                       <button

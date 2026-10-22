@@ -153,3 +153,75 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const numero = searchParams.get('numero');
+
+    if (!id && !numero) {
+      return NextResponse.json({ ok: false, error: 'Falta id o número de convenio' }, { status: 400 });
+    }
+
+    let query = supabase.from('convenios_pago').select('*');
+    if (id) query = query.eq('id', id);
+    else if (numero) query = query.eq('numero', numero);
+    const { data: conv, error: cErr } = await query.maybeSingle();
+
+    if (!conv) {
+      return NextResponse.json({ ok: false, error: 'Convenio no encontrado' }, { status: 404 });
+    }
+
+    // 1. Marcar convenio como Anulado
+    await supabase.from('convenios_pago').update({ estado: 'Anulado' }).eq('id', conv.id);
+
+    // 2. Marcar cuotas pendientes como Anuladas
+    await supabase
+      .from('convenios_cuotas')
+      .update({ estado: 'Anulada' })
+      .eq('convenio_id', conv.id)
+      .eq('estado', 'Pendiente');
+
+    // 3. Descongelar deuda en inmuebles asociados
+    if (conv.identidad) {
+      const { data: inms } = await supabase
+        .from('inmuebles')
+        .select('id, notas, deuda_congelada_bs')
+        .eq('identidad', conv.identidad);
+
+      if (inms && inms.length > 0) {
+        for (const inm of inms) {
+          const notasActuales = (inm.notas || '').replace(/Convenio de Pago[^\n;.]*/gi, '').trim();
+          await supabase
+            .from('inmuebles')
+            .update({
+              deuda_congelada_bs: 0,
+              notas: notasActuales ? `${notasActuales} (Convenio ${conv.numero} Anulado)` : `Convenio ${conv.numero} Anulado`
+            })
+            .eq('id', inm.id);
+        }
+      }
+    }
+
+    // 4. Auditoria
+    try {
+      await supabase.from('auditoria').insert({
+        accion: 'Convenio de Pago Anulado',
+        modulo: 'CONVENIO',
+        usuario: 'ADMIN',
+        detalles: {
+          id: conv.id,
+          numero: conv.numero,
+          identidad: conv.identidad,
+          monto_total: conv.monto_total
+        }
+      });
+    } catch (_) {}
+
+    return NextResponse.json({ ok: true, message: `Convenio ${conv.numero} desactivado exitosamente.` });
+  } catch (err: any) {
+    console.error('API convenios DELETE error:', err);
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+  }
+}

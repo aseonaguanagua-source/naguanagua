@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { DataTable } from '@/components/DataTable';
-import { Handshake, FileEdit, Plus, X, Search, Upload } from 'lucide-react';
+import { Handshake, FileEdit, Plus, X, Search, Upload, Ban } from 'lucide-react';
 import { useAppContext } from '@/store/AppContext';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
@@ -15,6 +15,31 @@ export default function ConveniosPagoPage() {
   const [searchDoc, setSearchDoc] = useState('');
   const [foundUser, setFoundUser] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
+
+  const handleDesactivarConvenio = async (conv: any) => {
+    if (!conv) return;
+    const confirmacion = confirm(
+      `¿Está seguro de DESACTIVAR / ANULAR el convenio ${conv.numero}?\n\nContribuyente: ${conv.contribuyente || conv.identidad}\nDeuda: Bs. ${conv.monto_total}\n\nAl desactivarlo, las cuotas pendientes quedarán canceladas y la deuda congelada del contribuyente volverá a su estado normal.`
+    );
+    if (!confirmacion) return;
+
+    try {
+      const res = await fetch(`/api/admin/convenios?id=${encodeURIComponent(conv.id || '')}&numero=${encodeURIComponent(conv.numero || '')}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        alert('Error al desactivar el convenio: ' + (data.error || 'Error en servidor'));
+        return;
+      }
+      alert(data.message || 'Convenio desactivado exitosamente.');
+      setViewCuotasModal({ isOpen: false, convenio: null });
+      await fetchFreshConvenios();
+      if (typeof refreshData === 'function') await refreshData();
+    } catch (e: any) {
+      alert('Error al desactivar convenio: ' + e.message);
+    }
+  };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -147,10 +172,10 @@ export default function ConveniosPagoPage() {
       }`}>{row.estado}</span>
     ) },
     { key: 'actions', header: 'Gestión', render: (row: any) => (
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <button 
           onClick={() => setViewCuotasModal({isOpen: true, convenio: row})}
-          className="text-slate-600 hover:text-slate-900 text-xs flex items-center gap-1"
+          className="text-slate-600 hover:text-slate-900 text-xs flex items-center gap-1 cursor-pointer font-semibold"
         >
           <FileEdit size={14} /> Cuotas
         </button>
@@ -158,6 +183,15 @@ export default function ConveniosPagoPage() {
           <a href={row.documento_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1">
             <Handshake size={14} /> PDF
           </a>
+        )}
+        {row.estado !== 'Anulado' && (
+          <button
+            onClick={() => handleDesactivarConvenio(row)}
+            title="Desactivar / Anular Convenio"
+            className="text-red-500 hover:text-red-700 text-xs flex items-center gap-1 cursor-pointer ml-1"
+          >
+            <Ban size={13} /> Anular
+          </button>
         )}
       </div>
     ) }
@@ -713,10 +747,23 @@ export default function ConveniosPagoPage() {
               )}
             </div>
             
-            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-end">
+            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-between items-center">
+              {viewCuotasModal.convenio?.estado !== 'Anulado' ? (
+                <button
+                  type="button"
+                  onClick={() => handleDesactivarConvenio(viewCuotasModal.convenio)}
+                  className="px-4 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Ban size={14} /> Desactivar Convenio
+                </button>
+              ) : (
+                <span className="text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded border border-red-200">
+                  Convenio Anulado
+                </span>
+              )}
               <button 
                 onClick={() => setViewCuotasModal({isOpen: false, convenio: null})}
-                className="px-6 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded shadow-sm"
+                className="px-6 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded shadow-sm cursor-pointer"
               >
                 Cerrar
               </button>
