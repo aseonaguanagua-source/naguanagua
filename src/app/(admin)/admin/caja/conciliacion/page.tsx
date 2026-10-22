@@ -615,9 +615,20 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       setLoadingContrib(true);
       try {
         const esCondo = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || !!det.es_condominio || !!det.condominio;
-        const condoCod = det.condominio?.codigo || det.codigo_condominio || det.cod_inmueble || pago.cod_inmueble;
+        const condoCod = det.condominio?.codigo || det.codigo_condominio || pago.cod_inmueble;
 
-        if (esCondo && condoCod) {
+        // Detectar si el pago corresponde a un local/unidad individual dentro del condominio
+        const unidadCod = det.condominio?.lineas?.[0]?.inmueble 
+          || det.deuda_previa?.[0]?.inmueble
+          || (det.cod_inmueble && det.cod_inmueble !== condoCod ? det.cod_inmueble : null)
+          || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null)
+          || (det.inmueble && det.inmueble !== condoCod ? det.inmueble : null);
+
+        const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
+        const idCondoLimpio = (det.condominio?.identidad || '').replace(/-/g, '').trim().toUpperCase();
+        const esPagoUnidadIndividual = (!!unidadCod && unidadCod !== condoCod) || (idCondoLimpio && idPagoLimpio && idPagoLimpio !== idCondoLimpio);
+
+        if (esCondo && condoCod && !esPagoUnidadIndividual) {
           const { data: condoRecord } = await supabase
             .from('condominios')
             .select('*')
@@ -656,13 +667,17 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
         const idLimpio = (pago.identidad || '').replace(/-/g, '').trim();
         const idConGuion = idLimpio.length > 1 ? idLimpio.charAt(0) + '-' + idLimpio.slice(1) : idLimpio;
+        const detCod = unidadCod || (det.cod_inmueble !== condoCod ? det.cod_inmueble : null) || (det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null) || pago.cod_inmueble;
+
+        let orFilter = `identidad.eq.${pago.identidad},identidad.eq.${idLimpio},identidad.eq.${idConGuion}`;
+        if (detCod) orFilter += `,inmueble.eq.${detCod}`;
+
         const { data: inms } = await supabase
           .from('inmuebles')
           .select('*')
-          .or(`identidad.eq.${pago.identidad},identidad.eq.${idLimpio},identidad.eq.${idConGuion}`);
+          .or(orFilter);
 
         // Buscar el inmueble que coincide con el cod_inmueble del pago si existe
-        const detCod = det.cod_inmueble || pago.cod_inmueble || det.condominio?.codigo;
         let inm = null;
         if (inms && inms.length > 0) {
           if (detCod) {
@@ -708,7 +723,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             .eq('identidad', pago.identidad)
             .limit(1)
             .maybeSingle();
-          if (fac) setContribInfo({ contribuyente: fac.contribuyente, identidad: fac.identidad, _fallback: true });
+          if (fac) {
+            setContribInfo({ contribuyente: fac.contribuyente, identidad: fac.identidad, _fallback: true });
+          } else if (det.contribuyente || det.recibo_caja?.[0]?.razonSocial) {
+            setContribInfo({
+              contribuyente: det.contribuyente || det.recibo_caja?.[0]?.razonSocial,
+              inmueble: detCod || pago.cod_inmueble,
+              identidad: pago.identidad,
+              _fallback: true
+            });
+          }
         }
       } catch(e) { console.error('[Conciliacion] Error cargando contribuyente:', e); }
       setLoadingContrib(false);
