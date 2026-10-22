@@ -1468,6 +1468,33 @@ function Caja() {
                               <div className="text-[11px] text-slate-500">{r.propietario || ''}{r.identidad ? ` · ${r.identidad}` : ''}</div>
                               {r.actividad && <div className="text-[10px] text-violet-700 font-bold truncate max-w-[340px]">{r.actividad}</div>}
                               {r.multasManuales?.map((m: any) => <div key={m.id} className="text-[10px] text-red-700">• Multa: {m.concepto} (Bs {fmtBs(m.montoBs)})</div>)}
+                              {(() => {
+                                const convUnit = (cobro?.convenios || []).find((cv: any) => {
+                                  const idClean = (cv.identidad || '').replace(/\D/g, '');
+                                  const rIdClean = (r.identidad || '').replace(/\D/g, '');
+                                  const inmCode = (r.inmueble || '').replace(/\D/g, '');
+                                  const numClean = (cv.numero || '').replace(/\D/g, '');
+                                  return (idClean.length >= 4 && idClean === rIdClean) || (inmCode.length >= 3 && numClean.includes(inmCode));
+                                });
+                                if (!convUnit) return null;
+                                const cuotasPend = (convUnit.convenios_cuotas || []).filter((q: any) => (q.estado || '').toLowerCase().includes('pend')).length;
+                                return (
+                                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
+                                    <span className="bg-orange-100 text-orange-950 border border-orange-300 px-2 py-0.5 rounded font-extrabold text-[10px] flex items-center gap-1 shadow-2xs">
+                                      📋 Convenio: {convUnit.numero} ({cuotasPend || convUnit.cuotas} cuotas pend.)
+                                    </span>
+                                    <a
+                                      href={`/admin/caja?cedula=${encodeURIComponent(r.identidad || '')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded font-bold text-[10px] transition-colors shadow-2xs"
+                                      title="Cobrar cuota de convenio en Caja General"
+                                    >
+                                      Cobrar en Caja General ↗
+                                    </a>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="text-center px-2 py-1.5" onClick={e => e.stopPropagation()}>
                               {maxMesesFila > 0 ? (
@@ -1741,6 +1768,39 @@ function Caja() {
                   <div className="flex justify-between gap-2"><span>Saldo a favor que le quedará</span><b className="tabular-nums">Bs {fmtBs(Math.max(0, saldoFavorActivo - descuentoSaldoFavor) + (faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0))}</b></div>
                 </div>
               )}
+
+              {/* Información de Convenio si la unidad en cobro lo tiene */}
+              {(() => {
+                const convsEnCobro = (cobro?.convenios || []).filter((cv: any) => {
+                  const idClean = (cv.identidad || '').replace(/\D/g, '');
+                  const numClean = (cv.numero || '').replace(/\D/g, '');
+                  return cobro.lineas.some((l: any) => {
+                    const lIdClean = (l.identidad || '').replace(/\D/g, '');
+                    const lInmClean = (l.inmueble || '').replace(/\D/g, '');
+                    return (idClean.length >= 4 && idClean === lIdClean) || (lInmClean.length >= 3 && numClean.includes(lInmClean));
+                  });
+                });
+                if (convsEnCobro.length === 0) return null;
+                return (
+                  <div className="rounded-xl bg-orange-500/15 border border-orange-400/40 text-orange-200 text-xs p-3 space-y-1.5 mb-2">
+                    <div className="font-extrabold flex items-center gap-1.5 text-orange-300">
+                      <span>📋</span>
+                      <span>Convenio de Pago Activo ({convsEnCobro.map((c: any) => c.numero).join(', ')})</span>
+                    </div>
+                    <p className="text-[11px] text-orange-200/90 leading-tight">
+                      Este propietario tiene un convenio formalizado. Las cuotas se cobran por Caja General.
+                    </p>
+                    <a
+                      href={`/admin/caja?cedula=${encodeURIComponent(convsEnCobro[0].identidad || '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 hover:text-white underline pt-0.5"
+                    >
+                      Ir a Caja General para cobrar cuotas →
+                    </a>
+                  </div>
+                );
+              })()}
 
               {activa ? (
                 <button id="btn-cobrar-condominio" onClick={cobrar} disabled={cobrando || calculando || !cobro.lineas.length || faltaPagar > 0.05}

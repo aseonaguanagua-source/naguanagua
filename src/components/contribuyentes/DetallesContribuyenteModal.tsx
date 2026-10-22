@@ -696,7 +696,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       // solo la multa de los usuarios. Todo lo demás lo hace condominio por oficina.
       const isCondo = (inm.condominio_padre_id || inm.es_condominio) && !isNAParent;
       if (isCondo) {
-        const m = (parseFloat(inm.multa_bs || '0') || 0) + (parseFloat(inm.deuda_congelada_bs || '0') || 0);
+        const m = parseFloat(inm.multa_bs || '0') || 0;
         totalMultas += m;
         return;
       }
@@ -704,7 +704,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       const meses = Math.max(0, mesesDeuda);
       if (meses > mesesMax) mesesMax = meses;
       if (meses <= 0) {
-        const m = (parseFloat(inm.multa_bs || '0') || 0) + (parseFloat(inm.deuda_congelada_bs || '0') || 0);
+        const m = parseFloat(inm.multa_bs || '0') || 0;
         totalMultas += m;
         return;
       }
@@ -760,8 +760,9 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
     const subtotal = Math.round((totalBase + totalIva + totalMultas) * 100) / 100;
     const retencion75 = esAgente ? Math.round(totalIva * 0.75 * 100) / 100 : 0;
     const totalPagar = Math.max(0, Math.round((subtotal - retencion75) * 100) / 100);
+    const totalConvenio = unifiedInmuebles.reduce((a, g) => a + (parseFloat(g.inm?.deuda_congelada_bs || '0') || 0), 0);
 
-    return { totalBase, totalIva, totalMultas, subtotal, retencion75, totalPagar, mesesMax };
+    return { totalBase, totalIva, totalMultas, totalConvenio, subtotal, retencion75, totalPagar, mesesMax };
   }, [unifiedInmuebles, tasaEfectiva, esAgente]);
 
   // Condominio padre si aplica
@@ -909,6 +910,31 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             </div>
           </div>
         </div>
+
+        {/* ══ BANNER DE CONVENIO FORMALIZADO ══ */}
+        {resumenDeudaInmuebles.totalConvenio > 0 && (
+          <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 border-b-2 border-orange-400 p-3.5 px-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📋</span>
+              <div>
+                <h4 className="text-xs font-black uppercase text-orange-950 tracking-wide">
+                  Convenio de Pago Activo Formalizado
+                </h4>
+                <p className="text-xs text-orange-900 mt-0.5">
+                  Este contribuyente tiene una deuda congelada en convenio por <strong className="font-black text-orange-950">Bs. {formatBs(resumenDeudaInmuebles.totalConvenio)}</strong> dividida en cuotas mensuales.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('servicios')}
+              className="px-3.5 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold transition-all shrink-0 shadow-2xs cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Ver Cuotas</span>
+              <span>→</span>
+            </button>
+          </div>
+        )}
 
         {/* ══ BANNER DE CONCILIACIÓN PENDIENTE EN MODAL ══ */}
         {pagosConciliacionPendientes.length > 0 && (
@@ -1244,7 +1270,8 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                     const meses = mesesDeuda;
                     const esRes = isResidencialInm(inm);
                     const isCondoInm = (inm.condominio_padre_id || inm.es_condominio) && !isNAParent;
-                    const multaInmTotal = (parseFloat(inm.multa_bs || '0') || 0) + (parseFloat(inm.deuda_congelada_bs || '0') || 0);
+                    const multaInmTotal = parseFloat(inm.multa_bs || '0') || 0;
+                    const convenioInmTotal = parseFloat(inm.deuda_congelada_bs || '0') || 0;
                     let baseMes = 0;
                     let ivaMes = 0;
                     if (isNAParent && hijos && hijos.length > 0) {
@@ -1513,6 +1540,10 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                             multaInmTotal > 0 ? (
                               <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
                                 Multa Bs. {formatBs(multaInmTotal)}
+                              </span>
+                            ) : convenioInmTotal > 0 ? (
+                              <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200" title="Deuda congelada en convenio de pago">
+                                Convenio Bs. {formatBs(convenioInmTotal)}
                               </span>
                             ) : (
                               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60" title="Aseo administrado directamente por la oficina del condominio">

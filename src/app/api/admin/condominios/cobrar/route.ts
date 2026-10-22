@@ -67,7 +67,17 @@ export async function POST(req: Request) {
       }
       
       saldoFavorDisp = Math.round(saldoFavorDisp * 100) / 100;
-      return NextResponse.json({ ...cobro, cajaActiva: activa, saldoFavorActivo: saldoFavorDisp });
+
+      // Convenios de pago activos formalizados
+      let conveniosList: any[] = [];
+      try {
+        const { data: convs } = await sb.from('convenios_pago').select('*, convenios_cuotas(*)').eq('estado', 'Al Día');
+        conveniosList = convs || [];
+      } catch (err) {
+        console.warn('Error fetching convenios in condominios/cobrar:', err);
+      }
+
+      return NextResponse.json({ ...cobro, cajaActiva: activa, saldoFavorActivo: saldoFavorDisp, convenios: conveniosList });
     }
 
     const u = String(b.usuario || '').trim().toLowerCase();

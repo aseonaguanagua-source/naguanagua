@@ -41,9 +41,8 @@ function calcRowDeudaCanonical(r: any, rate: number): number {
   // Regla de Condominios: ninguna información de condominios sale por sistema,
   // solo la multa de los usuarios. Todo lo demás lo hace condominio por oficina.
   if (r.condominio_padre_id || r.es_condominio) {
-    const congelada = parseFloat(String(r.deuda_congelada_bs || 0)) || 0;
     const multaBs = parseFloat(String(r.multa_bs || 0)) || 0;
-    return Math.round(Math.max(0, congelada + multaBs) * 100) / 100;
+    return Math.round(Math.max(0, multaBs) * 100) / 100;
   }
 
   const esRes = isResidencialInm(r);
@@ -58,11 +57,10 @@ function calcRowDeudaCanonical(r: any, rate: number): number {
   const iva4 = esRes ? 0 : Math.round((base4 * 0.16) * 10000) / 10000;
   const multa4 = Math.round((bMes * tasaMora * mesesConMora) * 10000) / 10000;
   const ret4 = (!esRes && r.agente_retencion === true) ? Math.round((iva4 * 0.75) * 10000) / 10000 : 0;
-  const congelada = parseFloat(String(r.deuda_congelada_bs || 0)) || 0;
   const multaBs = parseFloat(String(r.multa_bs || 0)) || 0;
   const saldoFavor = parseFloat(String(r.saldo_favor_bs || 0)) || 0;
 
-  return Math.round(Math.max(0, base4 + iva4 + multa4 + congelada + multaBs - ret4 - saldoFavor) * 100) / 100;
+  return Math.round(Math.max(0, base4 + iva4 + multa4 + multaBs - ret4 - saldoFavor) * 100) / 100;
 }
 
 function ContribuyentesPageContent() {
