@@ -648,6 +648,9 @@ export default function FacturacionElectronicaPage() {
         }
       } catch (_) {}
     }
+    if (exentoRecibo === 0) {
+      exentoRecibo = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.montos?.multa || 0)) || 0;
+    }
     const montoGravado = Math.max(0, montoTotal - exentoRecibo);
     const baseEstimada = (montoGravado / 1.16).toFixed(2);
     setAjusteMontoServicio(baseEstimada);

@@ -4,6 +4,7 @@ import { X, Printer, Send, ShieldCheck, AlertTriangle, QrCode } from 'lucide-rea
 import { formatBs } from '@/lib/formatCurrency';
 import { supabase } from '@/lib/supabase';
 import { sanitizarDireccionFiscal } from '@/lib/formatters';
+import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
 
 interface DemoFacturaProps {
   isOpen: boolean;
@@ -16,6 +17,8 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   const printAreaRef = useRef<HTMLDivElement>(null);
   const [inmuebleDireccion, setInmuebleDireccion] = useState<string>('');
   const [inmuebleLicencia, setInmuebleLicencia] = useState<string>('');
+  const [simulacionTFHKA, setSimulacionTFHKA] = useState<any>(null);
+  const [cargandoSimulacion, setCargandoSimulacion] = useState<boolean>(false);
 
   const det = pago?.detalles || {};
   const esRetencion = Boolean(
@@ -276,13 +279,49 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     return () => { cancel = true; };
   }, [isOpen, inmuebleCod, rifReceptor, det.condominio?.codigo]);
 
+  // Simulación oficial directa desde el backend de emisión The Factory HKA (dryRun)
+  useEffect(() => {
+    if (!isOpen || !pago?.id) {
+      setSimulacionTFHKA(null);
+      return;
+    }
+    let cancel = false;
+    setCargandoSimulacion(true);
+
+    async function fetchSimulacion() {
+      try {
+        const res = await fetch('/api/admin/factura-digital/emitir', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pagoId: pago.id,
+            dryRun: true,
+            enviarCorreo: false,
+            montoTotal: pago.monto || pago.montoTotal || det.montoTotal
+          })
+        });
+        const d = await res.json();
+        if (!cancel && d?.payload?.documentoElectronico) {
+          setSimulacionTFHKA(d.payload.documentoElectronico);
+        }
+      } catch (err) {
+        console.warn('No se pudo obtener simulación exacta de TFHKA:', err);
+      } finally {
+        if (!cancel) setCargandoSimulacion(false);
+      }
+    }
+
+    fetchSimulacion();
+    return () => { cancel = true; };
+  }, [isOpen, pago?.id]);
+
   if (!isOpen || !pago) return null;
 
   const uNumFinal = esCondoGlobal
     ? null
     : (det.condominio?.lineas?.[0]?.numero || det.condominio_hijos_pagados?.[0]?.numero || null);
 
-  const direccionFinal = sanitizarDireccionFiscal(
+  const direccionFinal = simulacionTFHKA?.Comprador?.Direccion || sanitizarDireccionFiscal(
     inmuebleDireccion || det.direccion || det.recibo_caja?.[0]?.domicilioFiscal,
     {
       unidadNumero: uNumFinal,
@@ -290,7 +329,16 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
       parentDir: det.condominio?.direccion
     }
   );
+  const nombreReceptorFinal = simulacionTFHKA?.Comprador?.RazonSocial || nombreReceptor;
   const licenciaFinal = inmuebleLicencia || det.licencia || 'ACTIVIDAD ECONÓMICA GENERAL';
+  const conceptoGeneralFinal = resolverConceptoPeriodoPago(pago);
+
+  // Totales sincronizados con la simulación real de The Factory HKA si está disponible
+  const simTot = simulacionTFHKA?.Encabezado?.Totales;
+  const baseImponibleFinal = simTot?.MontoGravadoTotal ? parseFloat(simTot.MontoGravadoTotal) : baseImponible;
+  const ivaFinal = simTot?.TotalIVA ? parseFloat(simTot.TotalIVA) : iva;
+  const exentoFinal = simTot?.MontoExentoTotal ? parseFloat(simTot.MontoExentoTotal) : exento;
+  const totalFacturaFinal = simTot?.TotalAPagar ? parseFloat(simTot.TotalAPagar) : totalFactura;
 
   const handlePrint = () => {
     const prevTitle = document.title;
@@ -443,7 +491,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
               </div>
               <div className="flex flex-wrap gap-x-2">
                 <span className="font-bold text-slate-800">Razón Social / Nombre:</span>
-                <span className="font-bold text-slate-900 uppercase">{nombreReceptor}</span>
+                <span className="font-bold text-slate-900 uppercase">{nombreReceptorFinal}</span>
               </div>
               <div className="flex flex-wrap gap-x-2">
                 <span className="font-bold text-slate-800">Dirección:</span>
@@ -478,38 +526,67 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  <tr className="align-top">
-                    <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
-                    <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
-                      Servicio de Aseo Urbano - {inmuebleCod} ({mesAseo})
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                      {formatBs(baseImponible)}
-                    </td>
-                    <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
-                      G
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
-                      {formatBs(baseImponible)}
-                    </td>
-                  </tr>
+                  {Array.isArray(simulacionTFHKA?.DetallesItems) && simulacionTFHKA.DetallesItems.length > 0 ? (
+                    simulacionTFHKA.DetallesItems.map((item: any, idx: number) => {
+                      const esEx = item.CodigoImpuesto === 'E';
+                      const pu = parseFloat(item.PrecioUnitario || '0') || 0;
+                      const tot = parseFloat(item.ValorTotalItem || item.PrecioItem || '0') || 0;
+                      return (
+                        <tr key={idx} className={esEx ? 'align-top bg-slate-50/60' : 'align-top'}>
+                          <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">
+                            {item.Cantidad || '1'}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
+                            {item.Descripcion}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                            {formatBs(pu)}
+                          </td>
+                          <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
+                            {esEx ? '(E)' : 'G'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
+                            {formatBs(tot)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <>
+                      <tr className="align-top">
+                        <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
+                        <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
+                          {conceptoGeneralFinal}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                          {formatBs(baseImponibleFinal)}
+                        </td>
+                        <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
+                          G
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
+                          {formatBs(baseImponibleFinal)}
+                        </td>
+                      </tr>
 
-                  {exento > 0 && (
-                    <tr className="align-top bg-slate-50/60">
-                      <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
-                      <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
-                        Multa por Mora - Aseo Urbano {inmuebleCod}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                        {formatBs(exento)}
-                      </td>
-                      <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
-                        (E)
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
-                        {formatBs(exento)}
-                      </td>
-                    </tr>
+                      {exentoFinal > 0 && (
+                        <tr className="align-top bg-slate-50/60">
+                          <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
+                          <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
+                            Multa por Mora - Aseo Urbano {inmuebleCod}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                            {formatBs(exentoFinal)}
+                          </td>
+                          <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
+                            (E)
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
+                            {formatBs(exentoFinal)}
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   )}
                 </tbody>
               </table>
@@ -600,7 +677,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                     )}
                     <div className="pt-1 border-t border-slate-300 font-bold text-slate-900 flex justify-between">
                       <span>Total Cancelado Factura:</span>
-                      <span className="font-mono text-emerald-900">Bs. {formatBs(totalFactura)}</span>
+                      <span className="font-mono text-emerald-900">Bs. {formatBs(totalFacturaFinal)}</span>
                     </div>
                   </div>
                 </div>
@@ -612,7 +689,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   <span className="text-slate-600 font-sans font-medium">Subtotal</span>
                   <div className="space-x-3">
                     <span className="text-slate-400">BS.</span>
-                    <span className="font-bold">{formatBs(baseImponible + exento)}</span>
+                    <span className="font-bold">{formatBs(baseImponibleFinal + exentoFinal)}</span>
                   </div>
                 </div>
 
@@ -628,7 +705,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   <span className="text-slate-600 font-sans font-medium">Exento</span>
                   <div className="space-x-3">
                     <span className="text-slate-400">BS.</span>
-                    <span className="font-bold">{formatBs(exento)}</span>
+                    <span className="font-bold">{formatBs(exentoFinal)}</span>
                   </div>
                 </div>
 
@@ -636,7 +713,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   <span className="text-slate-600 font-sans font-medium">Base Imponible (G)</span>
                   <div className="space-x-3">
                     <span className="text-slate-400">BS.</span>
-                    <span className="font-bold">{formatBs(baseImponible)}</span>
+                    <span className="font-bold">{formatBs(baseImponibleFinal)}</span>
                   </div>
                 </div>
 
@@ -644,7 +721,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   <span className="text-slate-600 font-sans font-medium">Alícuota IVA (16.00%)</span>
                   <div className="space-x-3">
                     <span className="text-slate-400">BS.</span>
-                    <span className="font-bold">{formatBs(iva)}</span>
+                    <span className="font-bold">{formatBs(ivaFinal)}</span>
                   </div>
                 </div>
 
@@ -652,7 +729,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   <span className="text-slate-700 font-sans font-bold">Total Documento</span>
                   <div className="space-x-3">
                     <span className="text-slate-500">BS.</span>
-                    <span className="font-black">{formatBs(totalFactura)}</span>
+                    <span className="font-black">{formatBs(totalFacturaFinal)}</span>
                   </div>
                 </div>
 
@@ -679,7 +756,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                   <span className="text-xs sm:text-sm font-black font-sans uppercase">Total a Pagar</span>
                   <div className="space-x-2 text-sm sm:text-base font-black">
                     <span className="text-slate-600 text-xs font-bold">BS.</span>
-                    <span>{formatBs(totalFactura)}</span>
+                    <span>{formatBs(totalFacturaFinal)}</span>
                   </div>
                 </div>
 
@@ -727,10 +804,10 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             {esRetencion ? (
               <span className="text-amber-900 font-semibold flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-amber-600" />
-                Agente de Retención: Factura Fiscal <b>Bs {formatBs(totalFactura)}</b> | Cancelado por el cliente: <b>Bs {formatBs(montoNetoCobrado)}</b>
+                Agente de Retención: Factura Fiscal <b>Bs {formatBs(totalFacturaFinal)}</b> | Cancelado por el cliente: <b>Bs {formatBs(montoNetoCobrado)}</b>
               </span>
             ) : (
-              <span>Factura Fiscal Ordinaria por un total de <b>Bs {formatBs(totalFactura)}</b></span>
+              <span>Factura Fiscal Ordinaria por un total de <b>Bs {formatBs(totalFacturaFinal)}</b></span>
             )}
           </div>
 
@@ -745,7 +822,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
               <button
                 onClick={() => {
                   onClose();
-                  onProcederEmitir(pago, totalFactura, totalFactura);
+                  onProcederEmitir(pago, totalFacturaFinal, totalFacturaFinal);
                 }}
                 className="px-5 py-2.5 bg-[#0d2a4a] hover:bg-[#153e6b] text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md transition-colors cursor-pointer"
               >
