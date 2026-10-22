@@ -16,15 +16,33 @@ export default function ConveniosPagoPage() {
   const [foundUser, setFoundUser] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
 
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setFoundUser(null);
+    setSearchDoc('');
+    setListaCuotas([]);
+    setCuotas(1);
+    setDocumento(null);
+    setIsProcessing(false);
+  };
+
+  const handleOpenModal = () => {
+    setFoundUser(null);
+    setSearchDoc('');
+    setListaCuotas([]);
+    setCuotas(1);
+    setDocumento(null);
+    setIsProcessing(false);
+    setIsModalOpen(true);
+  };
+
   const fetchFreshConvenios = async () => {
     setLoadingConv(true);
     try {
-      const { data, error } = await supabase
-        .from('convenios_pago')
-        .select('*, convenios_cuotas(*)')
-        .order('created_at', { ascending: false });
-      if (data && data.length > 0) {
-        const formatted = data.map((c: any) => {
+      const res = await fetch('/api/admin/convenios');
+      const j = await res.json();
+      if (j.ok && Array.isArray(j.data)) {
+        const formatted = j.data.map((c: any) => {
           const inmMatch = (inmuebles || []).find((i: any) => {
             const cIdClean = String(c.identidad || '').replace(/\D/g, '');
             const iIdClean = String(i.identidad || i.Identidad || '').replace(/\D/g, '');
@@ -316,79 +334,53 @@ export default function ConveniosPagoPage() {
         }
       }
 
-      // 1. Crear el convenio PRIMERO. Si falla, no se toca la deuda (antes la deuda se congelaba
-      //    y el insert fallaba en silencio, dejando al contribuyente sin deuda y sin convenio).
-      // 1. Crear el convenio PRIMERO en convenios_pago. Si falla, no se toca la deuda.
-      const nroConvenio = `CONV-${Date.now().toString().slice(-6)}`;
-      const convId = crypto.randomUUID();
-      const { error: convErr } = await supabase.from('convenios_pago').insert({
-        id: convId,
-        numero: nroConvenio,
-        identidad: foundUser.identidad,
-        monto_total: totalFijado,
-        cuotas: cuotas,
-        estado: 'Al Día',
-        inicial: 0
-      });
-      if (convErr) {
-        alert('No se pudo registrar el convenio (' + convErr.message + '). La deuda NO fue modificada.');
-        setIsProcessing(false);
-        return;
-      }
-
-      // 1.1 Insertar las cuotas programadas en convenios_cuotas
-      if (listaCuotas && listaCuotas.length > 0) {
-        const cuotasPayload = listaCuotas.map(c => ({
-          id: crypto.randomUUID(),
-          convenio_id: convId,
-          fecha: c.fecha,
-          monto: parseFloat(c.monto) || 0,
-          estado: 'Pendiente'
-        }));
-        const { error: cuotasErr } = await supabase.from('convenios_cuotas').insert(cuotasPayload);
-        if (cuotasErr) {
-          console.warn('Error guardando convenios_cuotas:', cuotasErr);
-        }
-      }
-
-      // 2. Actualizar inmuebles
+      // 1. Preparar datos de inmuebles a congelar
       const tasaAplicada = foundUser.tasaEfectiva || tcmmv || 993.18;
+      const inmueblesUpdates = [];
       for (const inm of foundUser.inmuebles) {
         const mmv = parseFloat(inm.DeudaMMV || inm.deuda_mmv || '0') || ((parseInt(inm.meses_deuda || '0') || 0) * (parseFloat(inm.mmv_mes || '0') || 0));
         if (mmv > 0) {
           const bsToFreeze = mmv * tasaAplicada;
           const currentFrozen = parseFloat(inm.deuda_congelada_bs || inm.DeudaCongelada || '0');
-          await supabase
-            .from('inmuebles')
-            .update({ 
-              deuda_mmv: 0, 
-              meses_deuda: 0,
-              deuda_congelada_bs: currentFrozen + bsToFreeze 
-            })
-            .eq('id', inm.id);
+          inmueblesUpdates.push({
+            id: inm.id,
+            deuda_congelada_bs: currentFrozen + bsToFreeze
+          });
         }
       }
 
-      // Actualizar recibos incluidas
-      if (foundUser.recibos && foundUser.recibos.length > 0) {
-        const referencias = foundUser.recibos.map((f: any) => f.referencia);
-        await supabase
-          .from('facturas')
-          .update({ estado: 'Refinanciado' })
-          .in('referencia', referencias);
+      const facturasReferencias = (foundUser.recibos || []).map((f: any) => f.referencia).filter(Boolean);
+      const nroConvenio = `CONV-${Date.now().toString().slice(-6)}`;
+      const convId = crypto.randomUUID();
+
+      // 2. Llamada a API del servidor (bypassa RLS con supabaseAdmin)
+      const resConv = await fetch('/api/admin/convenios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          convId,
+          nroConvenio,
+          identidad: foundUser.identidad,
+          contribuyente: foundUser.contribuyente,
+          montoTotal: totalFijado,
+          cuotas,
+          docUrl,
+          listaCuotas,
+          inmueblesUpdates,
+          facturasReferencias,
+          tasaAplicada
+        })
+      });
+
+      const resJson = await resConv.json();
+      if (!resConv.ok || !resJson.ok) {
+        alert('No se pudo registrar el convenio (' + (resJson.error || 'Error en servidor') + '). La deuda NO fue modificada.');
+        setIsProcessing(false);
+        return;
       }
 
-      // Registrar en auditoria
-      await logAudit('Convenio de Pago Creado', {
-        nro_convenio: nroConvenio,
-        identidad: foundUser.identidad,
-        monto_congelado: totalFijado,
-        cuotas,
-        tasa_bcv: tasaAplicada,
-      }, 'CONVENIO');
-
       alert('Convenio creado exitosamente. La deuda ha sido congelada.');
-      setIsModalOpen(false);
+      handleCloseModal();
       // Refrescar datos sin recargar toda la pagina
       await fetchFreshConvenios();
       if (typeof refreshData === 'function') await refreshData();
@@ -411,8 +403,8 @@ export default function ConveniosPagoPage() {
           </h1>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
+          onClick={handleOpenModal}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer"
         >
           <Plus size={16} /> Crear Convenio
         </button>
@@ -427,7 +419,7 @@ export default function ConveniosPagoPage() {
               <h3 className="font-semibold text-slate-800 uppercase text-sm flex items-center gap-2">
                 <Handshake size={16} /> Nuevo Convenio de Pago
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -461,6 +453,16 @@ export default function ConveniosPagoPage() {
 
               {foundUser && (
                 <div className="bg-blue-50 p-4 rounded-md border border-blue-100 text-sm space-y-2">
+                  <div className="flex items-center justify-between pb-2 border-b border-blue-200/60">
+                    <span className="font-bold text-xs uppercase tracking-wide text-blue-900">Contribuyente Seleccionado</span>
+                    <button 
+                      type="button"
+                      onClick={() => { setFoundUser(null); setSearchDoc(''); setListaCuotas([]); }}
+                      className="text-xs text-blue-700 hover:text-blue-900 font-semibold underline cursor-pointer"
+                    >
+                      Cambiar contribuyente
+                    </button>
+                  </div>
                   <p><span className="font-semibold text-slate-800">Contribuyente:</span> {foundUser.contribuyente}</p>
                   <p><span className="font-semibold text-slate-800">Cédula / RIF:</span> {foundUser.identidad}</p>
                   <p className="text-xs text-slate-600">
@@ -590,8 +592,8 @@ export default function ConveniosPagoPage() {
 
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 sticky bottom-0 z-10">
               <button 
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800"
+                onClick={handleCloseModal}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 cursor-pointer"
               >
                 Cancelar
               </button>
