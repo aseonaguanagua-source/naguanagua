@@ -709,7 +709,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                 type="button"
                 onClick={async () => {
                   const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
-                  generarPdfEstadoCuentaUnidad(condo, renglon, condo.tarifa_mmv || 0, usuario);
+                  await generarPdfEstadoCuentaUnidad(condo, renglon, condo.tarifa_mmv || 0, usuario);
                 }}
                 className="px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 cursor-pointer shadow-2xs"
                 title="Descargar Estado de Cuenta de esta unidad"

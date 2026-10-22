@@ -1979,7 +1979,9 @@ export default function ConciliacionPage() {
             `detalles->condominio->>nombre.ilike.%${term}%`,
             `detalles->condominio->>codigo.ilike.%${term}%`,
             `detalles->>condominio_nombre.ilike.%${term}%`,
-            `detalles->>contribuyente.ilike.%${term}%`
+            `detalles->>contribuyente.ilike.%${term}%`,
+            `detalles->>codigo_inmueble.ilike.%${term}%`,
+            `detalles->>cod_inmueble.ilike.%${term}%`
           ];
           if (rifsMatching.length > 0) {
             orParts.push(`identidad.in.(${rifsMatching.slice(0, 50).join(',')})`);
@@ -2005,8 +2007,14 @@ export default function ConciliacionPage() {
         const { data } = await q;
         result = data || [];
       }
-      // Filtrar estrictamente: solo pagos bancarios (sin retenciones de IVA, que se gestionan en su propio módulo)
-      result = result.filter((p: any) => p.tipo !== 'Retencion de IVA' && !p.detalles?.es_retencion && pasaFiltroModulo(p, filtros.modulo, condos));
+      // Filtrar estrictamente: solo pagos bancarios (sin comprobantes puros de retención de IVA, que se gestionan en su propio módulo)
+      result = result.filter((p: any) => {
+        if (p.tipo === 'Retencion de IVA') return false;
+        if (String(p.referencia || '').startsWith('RET-')) return false;
+        const det = parseDetalles(p.detalles);
+        if (det.pago_vinculado && p.banco === 'N/A') return false;
+        return pasaFiltroModulo(p, filtros.modulo, condos);
+      });
 
       if (filtros.referencia && filtros.referencia.trim()) {
         const t = filtros.referencia.trim().toLowerCase();
@@ -2016,7 +2024,7 @@ export default function ConciliacionPage() {
           const det = parseDetalles(p.detalles);
           const condo = infoCondominioPago(p, condos);
           const condoNom = (condo?.nombre || det.condominio?.nombre || det.condominio_nombre || '').toLowerCase();
-          const condoCod = (condo?.codigo || det.condominio?.codigo || '').toLowerCase();
+          const condoCod = (condo?.codigo || det.condominio?.codigo || det.codigo_inmueble || det.cod_inmueble || '').toLowerCase();
           const cont = (det.contribuyente || p.contribuyente || '').toLowerCase();
           return ref.includes(t) || iden.includes(t) || condoNom.includes(t) || condoCod.includes(t) || cont.includes(t);
         });

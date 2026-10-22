@@ -331,9 +331,45 @@ export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: stri
  * Genera el Estado de Cuenta individual de una Unidad / Local de condominio.
  * Muestra el desglose por mes/período, base, IVA, multas, retenciones y total a pagar.
  */
-export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: number | string, cajero: string) {
+export async function generarPdfEstadoCuentaUnidad(
+  c: any, 
+  r: RenglonEstado, 
+  tasa: number | string, 
+  cajero: string,
+  direccionContribuyente?: string
+) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const docNro = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Buscar dirección fiscal del contribuyente si no viene dada
+  let dirFinal = (direccionContribuyente || (r as any)?.direccion || '').trim();
+  if (!dirFinal && (r.inmueble || r.identidad)) {
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      if (r.inmueble) {
+        const { data: inm } = await supabase
+          .from('inmuebles')
+          .select('direccion')
+          .eq('inmueble', r.inmueble)
+          .maybeSingle();
+        if (inm?.direccion && inm.direccion.trim().length > 3) {
+          dirFinal = inm.direccion.trim();
+        }
+      }
+      if (!dirFinal && r.identidad) {
+        const { data: cont } = await supabase
+          .from('contribuyentes')
+          .select('direccion')
+          .eq('identidad', r.identidad)
+          .maybeSingle();
+        if (cont?.direccion && cont.direccion.trim().length > 3) {
+          dirFinal = cont.direccion.trim();
+        }
+      }
+    } catch (e) {
+      console.warn('[PDF] No se pudo obtener dirección del usuario:', e);
+    }
+  }
 
   const drawHeader = (pageNumber: number, totalPages: number) => {
     try {
@@ -377,10 +413,22 @@ export function generarPdfEstadoCuentaUnidad(c: any, r: RenglonEstado, tasa: num
   y += 5;
   doc.setFont('helvetica', 'bold');
   doc.text(`Condominio Matriz: ${c.nombre} (${c.codigo})`, 14, y);
-  y += 5;
+  y += 4.5;
   doc.setFont('helvetica', 'normal');
-  doc.text(`Dirección: ${c.direccion || 'Municipio Naguanagua, Estado Carabobo'}`, 14, y);
-  y += 5;
+  if (dirFinal) {
+    const splitDir = doc.splitTextToSize(`Dirección Fiscal Contribuyente: ${dirFinal}`, 182);
+    doc.text(splitDir, 14, y);
+    y += (splitDir.length * 4) + 1;
+    if (c.direccion && c.direccion.trim().toLowerCase() !== dirFinal.trim().toLowerCase()) {
+      const splitMatriz = doc.splitTextToSize(`Ubicación Local / Condominio: ${c.direccion}`, 182);
+      doc.text(splitMatriz, 14, y);
+      y += (splitMatriz.length * 4) + 1;
+    }
+  } else {
+    const splitMatriz = doc.splitTextToSize(`Dirección: ${c.direccion || 'Municipio Naguanagua, Estado Carabobo'}`, 182);
+    doc.text(splitMatriz, 14, y);
+    y += (splitMatriz.length * 4) + 1;
+  }
 
   doc.setDrawColor(210, 210, 210);
   doc.line(14, y, 196, y);

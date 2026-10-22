@@ -275,7 +275,7 @@ function Ficha() {
     ev.stopPropagation();
     const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
     const cajero = usuarioActual() || 'Administrador';
-    generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero);
+    await generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero);
   };
 
   /** Renglón del estado de cuenta de una unidad */
@@ -290,7 +290,7 @@ function Ficha() {
     if (!r) { alert('Esta unidad no tiene renglones de deuda calculados.'); return; }
     const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
     const cajero = usuarioActual() || 'Administrador';
-    generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero);
+    await generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero);
   };
 
   const exportarMultas = async () => {

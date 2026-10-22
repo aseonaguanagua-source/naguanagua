@@ -283,6 +283,7 @@ export default function ConveniosPagoPage() {
           .from('convenios_pago')
           .select('id, numero, monto_total, cuotas, estado')
           .eq('identidad', identidad)
+          .neq('estado', 'Anulado')
           .limit(1);
 
         let convExistenteId: string | null = null;
@@ -386,9 +387,9 @@ export default function ConveniosPagoPage() {
       const inmueblesUpdates = [];
       for (const inm of foundUser.inmuebles) {
         const mmv = parseFloat(inm.DeudaMMV || inm.deuda_mmv || '0') || ((parseInt(inm.meses_deuda || '0') || 0) * (parseFloat(inm.mmv_mes || '0') || 0));
-        if (mmv > 0) {
-          const bsToFreeze = mmv * tasaAplicada;
-          const currentFrozen = parseFloat(inm.deuda_congelada_bs || inm.DeudaCongelada || '0');
+        const currentFrozen = parseFloat(inm.deuda_congelada_bs || inm.DeudaCongelada || '0');
+        if (mmv > 0 || currentFrozen > 0) {
+          const bsToFreeze = mmv > 0 ? (mmv * tasaAplicada) : 0;
           inmueblesUpdates.push({
             id: inm.id,
             deuda_congelada_bs: currentFrozen + bsToFreeze

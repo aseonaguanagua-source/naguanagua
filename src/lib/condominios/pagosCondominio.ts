@@ -62,7 +62,7 @@ export function infoCondominioPago(p: any, mapa: Map<string, CondoLigero>): Info
   const isRes = tipo ? String(tipo).toUpperCase().includes('RESIDENCIAL') : false;
   const g = d.grupo_pago;
   return {
-    codigo: c.codigo || porRif?.codigo || d.cod_inmueble || null,
+    codigo: c.codigo || porRif?.codigo || d.cod_inmueble || d.codigo_inmueble || null,
     nombre: c.nombre || porRif?.nombre || d.contribuyente || 'Condominio',
     tipo, residencial: isRes,
     facturaA: d.modo === 'CONTRIBUYENTE' ? 'CONTRIBUYENTE' : 'CONDOMINIO',

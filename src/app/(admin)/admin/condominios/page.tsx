@@ -181,7 +181,7 @@ export default function CondominiosPage() {
       const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
       const r = (data.estado?.renglones || []).find((x: any) => x.clave === u.id || x.inmueble === u.inmueble);
       if (!r) throw new Error('No se encontró el renglón de cálculo para esta unidad.');
-      generarPdfEstadoCuentaUnidad(data.condo, r, data.estado.tasa, 'Administrador');
+      await generarPdfEstadoCuentaUnidad(data.condo, r, data.estado.tasa, 'Administrador');
     } catch (e: any) {
       alert('Error al generar estado de cuenta de la unidad: ' + e.message);
     }

@@ -98,16 +98,6 @@ export async function GET(request: Request) {
         return true;
       }
 
-      // Si hay un término de búsqueda específico, mostrarlo para permitir auditar o emitir
-      if (query) {
-        return true;
-      }
-
-      // Si es un pago con retención de agente, debe salir para gestión de retención
-      if (d?.es_retencion === true || d?.conRetencion === true || Boolean(d?.pago_retencion_id)) {
-        return true;
-      }
-
       // REGLA: Los abonos o pagos parciales ordinarios que no han completado el pago total del mes no deben salir para emisión
       if (
         d?.es_abono === true ||
@@ -118,6 +108,17 @@ export async function GET(request: Request) {
       ) {
         return false;
       }
+
+      // Si hay un término de búsqueda específico, mostrarlo para permitir auditar o emitir
+      if (query) {
+        return true;
+      }
+
+      // Si es un pago con retención de agente, debe salir para gestión de retención
+      if (d?.es_retencion === true || d?.conRetencion === true || Boolean(d?.pago_retencion_id)) {
+        return true;
+      }
+
       return true;
     });
 
