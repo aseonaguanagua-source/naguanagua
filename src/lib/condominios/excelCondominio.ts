@@ -1,6 +1,7 @@
 import { saveAs } from 'file-saver';
 import { EstadoCuenta } from './servicio';
 import { valorUCD } from '@/lib/tasaHistorica';
+import { cleanClasificacionActividad } from '@/lib/calculos';
 
 /**
  * Estado de cuenta de condominio en Excel (modelos "ESTADO DE CUENTA DE CONDOMINIOS.xls" y "ESTADO DE CUENTA UCD.xls").
@@ -137,10 +138,54 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     if (i >= 2) cell.numFmt = numFmt;
   });
 
-  // ── Hoja 3: Detalle por unidad ──
+  // ── Mapeo de Jerarquía y Agrupación de N/A ──
+  const hijosPorPadre = new Map<string, typeof renglones>();
+  const idSet = new Set(renglones.map(r => r.clave));
+
+  // 1. Relacionar hijos con sus padres explícitos
+  renglones.forEach(r => {
+    if (r.padreId && idSet.has(r.padreId)) {
+      if (!hijosPorPadre.has(r.padreId)) hijosPorPadre.set(r.padreId, []);
+      hijosPorPadre.get(r.padreId)!.push(r);
+    }
+  });
+
+  // 2. Agrupar unidades sin padre explícito que comparten mismo número de local y RIF (ej: N/A comerciales)
+  const byLocalRif = new Map<string, typeof renglones>();
+  renglones.forEach(r => {
+    if (!r.padreId || !idSet.has(r.padreId)) {
+      const num = String(r.numero || '').trim().toUpperCase();
+      const rif = String(r.identidad || '').trim().toUpperCase();
+      if (num && rif && num !== 'N/A' && num !== '—') {
+        const key = `${rif}__${num}`;
+        if (!byLocalRif.has(key)) byLocalRif.set(key, []);
+        byLocalRif.get(key)!.push(r);
+      }
+    }
+  });
+
+  byLocalRif.forEach(grupo => {
+    if (grupo.length > 1) {
+      const parent = grupo.find(g => g.esGrupo || /^N\/?A$/i.test(String(g.actividad || ''))) || grupo[0];
+      const children = grupo.filter(g => g.clave !== parent.clave);
+      if (children.length > 0 && !hijosPorPadre.has(parent.clave)) {
+        hijosPorPadre.set(parent.clave, children);
+      }
+    }
+  });
+
+  // Identificar qué renglones son hijos para no duplicarlos como filas raíz en Hoja 3
+  const childClaves = new Set<string>();
+  hijosPorPadre.forEach(children => {
+    children.forEach(c => childClaves.add(c.clave));
+  });
+
+  const raices = renglones.filter(r => !childClaves.has(r.clave));
+
+  // ── Hoja 3: Detalle por unidad (Consolidado por Local / N/A agrupados) ──
   const ws3 = wb.addWorksheet('Detalle por unidad');
   ws3.columns = [
-    { width: 14 }, { width: 14 }, { width: 34 }, { width: 15 }, { width: 40 }, { width: 12 }, { width: 18 },
+    { width: 14 }, { width: 14 }, { width: 34 }, { width: 15 }, { width: 44 }, { width: 12 }, { width: 18 },
     { width: 11 }, { width: 11 }, { width: 15 }, { width: 15 }, { width: 14 }, { width: 16 }, { width: 16 },
   ] as any;
   encabezado(ws3, 'DETALLE POR UNIDAD', 14);
@@ -149,20 +194,58 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     'Meses Aseo', 'Meses Multa', `Serv. Aseo (${mon})`, `Multa (${mon})`, `IVA (${mon})`, `Multas Manuales (${mon})`, `Total (${mon})`,
   ]);
   let f3 = 8;
-  for (const r of renglones) {
+  for (const r of raices) {
+    const hijos = hijosPorPadre.get(r.clave) || [];
     const sinReg = r.clave === '__SIN_REGISTRAR__';
-    const { cleanClasificacionActividad } = await import('@/lib/calculos');
     const cleanAct = cleanClasificacionActividad(r.actividad);
-    const actividad = r.esGrupo ? `${cleanAct || 'N/A'} (no cobra: cobran sus actividades)`
-      : cleanAct;
+
+    let actividadStr = cleanAct || 'N/A';
+    let mensualBs = r.mensualBs * (r.residencial ? 1 : 1.16);
+    let mesesAseo = r.deuda.meses;
+    let mesesMulta = r.multaMeses;
+    let baseBs = r.deuda.baseBs;
+    let multaBs = r.deuda.multaBs + r.multaExtraBs;
+    let ivaBs = r.deuda.ivaBs;
+    let manualesBs = r.multasManualesBs || 0;
+    let totalBs = r.totalBs;
+
+    if (hijos.length > 0) {
+      // Consolidar la suma completa de todas las sub-actividades en las columnas de la unidad/local
+      const actsHijos = [...new Set(hijos.map(h => cleanClasificacionActividad(h.actividad)).filter(Boolean))];
+      actividadStr = actsHijos.length > 0 ? actsHijos.join(' / ') : (cleanAct || 'Múltiples Actividades');
+
+      mensualBs += hijos.reduce((acc, h) => acc + (h.mensualBs * (h.residencial ? 1 : 1.16)), 0);
+      mesesAseo = Math.max(mesesAseo, ...hijos.map(h => h.deuda.meses));
+      mesesMulta = Math.max(mesesMulta, ...hijos.map(h => h.multaMeses));
+      baseBs += hijos.reduce((acc, h) => acc + h.deuda.baseBs, 0);
+      multaBs += hijos.reduce((acc, h) => acc + (h.deuda.multaBs + h.multaExtraBs), 0);
+      ivaBs += hijos.reduce((acc, h) => acc + h.deuda.ivaBs, 0);
+      manualesBs += hijos.reduce((acc, h) => acc + (h.multasManualesBs || 0), 0);
+      totalBs += hijos.reduce((acc, h) => acc + h.totalBs, 0);
+    }
+
     const row = ws3.getRow(f3++);
     const vals: any[] = [
-      sinReg ? 'Declaradas sin registrar' : (r.inmueble || r.clave), r.numero || '', r.propietario || '', r.identidad || '', actividad, r.estado,
-      conv(r.mensualBs * (r.residencial ? 1 : 1.16)), r.deuda.meses, r.multaMeses,
-      conv(r.deuda.baseBs), conv(r.deuda.multaBs + r.multaExtraBs), conv(r.deuda.ivaBs), conv(r.multasManualesBs), conv(r.totalBs),
+      sinReg ? 'Declaradas sin registrar' : (r.inmueble || r.clave),
+      r.numero || (hijos.map(h => h.numero).find(Boolean) || ''),
+      r.propietario || '',
+      r.identidad || '',
+      actividadStr,
+      r.estado,
+      conv(mensualBs),
+      mesesAseo,
+      mesesMulta,
+      conv(baseBs),
+      conv(multaBs),
+      conv(ivaBs),
+      conv(manualesBs),
+      conv(totalBs),
     ];
     vals.forEach((v, i) => {
-      const cell = row.getCell(i + 1); cell.value = v; cell.border = borde; cell.font = { size: 9, italic: r.esGrupo };
+      const cell = row.getCell(i + 1);
+      cell.value = v;
+      cell.border = borde;
+      cell.font = { size: 9, bold: hijos.length > 0 };
       if ([6, 9, 10, 11, 12, 13].includes(i)) cell.numFmt = numFmt;
     });
   }
@@ -176,6 +259,52 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
   }
   ws3.views = [{ state: 'frozen', ySplit: 7 }];
+
+  // ── Hoja 4: Desglose de actividades (N/A) si existen grupos ──
+  if (childClaves.size > 0) {
+    const ws4 = wb.addWorksheet('Desglose actividades N/A');
+    ws4.columns = [
+      { width: 14 }, { width: 14 }, { width: 16 }, { width: 34 }, { width: 15 }, { width: 40 }, { width: 12 },
+      { width: 18 }, { width: 11 }, { width: 11 }, { width: 15 }, { width: 15 }, { width: 14 }, { width: 16 }
+    ] as any;
+    encabezado(ws4, 'DESGLOSE DE SUB-ACTIVIDADES (N/A)', 14);
+    cabecera(ws4, 7, [
+      'Número Local', 'Inmueble Padre', 'Inmueble Actividad', 'Propietario / Razón Social', 'Cédula/RIF', 'Actividad', 'Estado',
+      `Mensualidad con IVA (${mon})`, 'Meses Aseo', 'Meses Multa', `Serv. Aseo (${mon})`, `Multa (${mon})`, `IVA (${mon})`, `Total (${mon})`
+    ]);
+    let f4 = 8;
+    for (const [padreClave, hijos] of hijosPorPadre.entries()) {
+      const padre = renglones.find(r => r.clave === padreClave);
+      const numLocal = padre?.numero || hijos.map(h => h.numero).find(Boolean) || '';
+      for (const h of hijos) {
+        const row = ws4.getRow(f4++);
+        const vals: any[] = [
+          numLocal,
+          padre?.inmueble || padre?.clave || '—',
+          h.inmueble || h.clave,
+          h.propietario || padre?.propietario || '',
+          h.identidad || padre?.identidad || '',
+          cleanClasificacionActividad(h.actividad) || 'Actividad Comercial',
+          h.estado,
+          conv(h.mensualBs * (h.residencial ? 1 : 1.16)),
+          h.deuda.meses,
+          h.multaMeses,
+          conv(h.deuda.baseBs),
+          conv(h.deuda.multaBs + h.multaExtraBs),
+          conv(h.deuda.ivaBs),
+          conv(h.totalBs)
+        ];
+        vals.forEach((v, i) => {
+          const cell = row.getCell(i + 1);
+          cell.value = v;
+          cell.border = borde;
+          cell.font = { size: 9 };
+          if ([7, 10, 11, 12, 13].includes(i)) cell.numFmt = numFmt;
+        });
+      }
+    }
+    ws4.views = [{ state: 'frozen', ySplit: 7 }];
+  }
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

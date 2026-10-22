@@ -250,9 +250,15 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     }
 
     const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes);
-    const multaMeses = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
+    const multaMesesRaw = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
+    const mesesMultaEnAseo = (r.montoBs > 0 && deuda.meses > 0) ? (deuda.porMes || []).filter(m => m.multaBs > 0).length : 0;
+    const multaMeses = Math.max(mesesMultaEnAseo, multaMesesRaw);
+
     const baseParaMultaExtra = Array.isArray(basesPorMes) ? (basesPorMes[basesPorMes.length - 1] || r.montoBs) : r.montoBs;
-    const multaExtraBs = r2((baseParaMultaExtra * tMulta * multaMeses) + (Number(u?.multa_bs) || 0));
+    // Si la unidad es un grupo contenedor (mu?.es_grupo), no genera multas directas: cobran sus actividades
+    // multaExtraBs solo cobra meses de multa remanentes no cubiertos por el aseo dinámico
+    const mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - mesesMultaEnAseo) : 0;
+    const multaExtraBs = (!mu?.es_grupo && u) ? r2(baseParaMultaExtra * tMulta * mesesMultaRemanente) : 0;
     const manuales = multasPend.filter(m => (u ? m.unidad_id === u.id : !m.unidad_id))
       .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
     const multasManualesBs = r2(manuales.reduce((a, m) => a + m.montoBs, 0));

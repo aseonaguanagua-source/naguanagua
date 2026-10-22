@@ -280,8 +280,11 @@ function Ficha() {
 
   /** Renglón del estado de cuenta de una unidad */
   const renglonDe = (id: string) => e?.renglones?.find((x: any) => x.clave === id);
-  /** Meses con multa = meses en mora del aseo pendiente + meses de multa pendientes de meses ya pagados */
-  const mesesMultaDe = (r: any) => (r?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length + (Number(r?.multaMeses) || 0);
+  /** Meses con multa: toma los meses con recargo en mora (o multaMeses si es remanente) sin duplicar */
+  const mesesMultaDe = (r: any) => {
+    const enAseo = (r?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
+    return Math.max(enAseo, Number(r?.multaMeses) || 0);
+  };
 
   /** Estado de cuenta individual desde la pestaña Unidades */
   const exportarUnidadTree = async (u: any, ev: any) => {
