@@ -862,38 +862,34 @@ export default function CajaPage() {
       if (isCodeFormat && (user.CodCont || user.cod_cont)) {
         const specificCode = String(user.CodCont || user.cod_cont).trim().toUpperCase();
         // REQUISITO: Cuando se busca por código, debe salir la información de ese código y de su local/unidad.
-        // Si el código buscado pertenece a un local unificado (tiene padre_id o es una matriz N/A),
-        // traer tanto la matriz como todas sus actividades hijas unificadas para no romper la tarifa del local.
-        let parentToInclude = (user.padre_id || user.condominio_padre_id);
-        if (!parentToInclude) {
+        // Si el código buscado pertenece a un local unificado (tiene padre_id hacia una matriz N/A del mismo local),
+        // traer tanto la matriz como todas sus actividades hijas unificadas.
+        // IMPORTANTE: NUNCA usar condominio_padre_id aquí, porque cargaría todas las demás unidades/locales de otros propietarios del edificio/centro comercial.
+        let parentPadreId = user.padre_id;
+        if (!parentPadreId) {
           const mInmLocal = (inmuebles || []).find((i: any) => String(i.inmueble || '').toUpperCase() === specificCode);
-          if (mInmLocal?.padre_id || mInmLocal?.condominio_padre_id) {
-            parentToInclude = mInmLocal.padre_id || mInmLocal.condominio_padre_id;
+          if (mInmLocal?.padre_id) {
+            parentPadreId = mInmLocal.padre_id;
           }
         }
-        if (!parentToInclude) {
-          const { data: codeInmDb } = await supabase.from('inmuebles').select('padre_id, condominio_padre_id').eq('inmueble', specificCode).maybeSingle();
-          if (codeInmDb?.padre_id || codeInmDb?.condominio_padre_id) {
-            parentToInclude = codeInmDb.padre_id || codeInmDb.condominio_padre_id;
+        if (!parentPadreId) {
+          const { data: codeInmDb } = await supabase.from('inmuebles').select('padre_id').eq('inmueble', specificCode).maybeSingle();
+          if (codeInmDb?.padre_id) {
+            parentPadreId = codeInmDb.padre_id;
           }
         }
 
         const codesArray = [specificCode];
-        if (parentToInclude) codesArray.push(parentToInclude);
+        if (parentPadreId) codesArray.push(parentPadreId);
 
         orFilterInms = [
           ...codesArray.map(c => `inmueble.eq.${c}`),
-          ...codesArray.map(c => `padre_id.eq.${c}`),
-          ...codesArray.map(c => `condominio_padre_id.eq.${c}`)
+          ...codesArray.map(c => `padre_id.eq.${c}`)
         ].join(',');
       } else {
-        // Búsqueda por Cédula o RIF: "si busco por cedula o rif que salga todo"
-        orFilterInms = [
-          ...userIdentVariants.map(v => `identidad.eq.${v}`),
-          `condominio_padre_id.eq.${user.CodCont || user.cod_cont}`,
-          `condominio_padre_id.eq.${user.Identidad}`,
-          ...(user.CodCont || user.cod_cont ? [`padre_id.eq.${user.CodCont || user.cod_cont}`] : [])
-        ].filter(Boolean).join(',');
+        // Búsqueda por Cédula o RIF: solo inmuebles que pertenezcan a esta identidad
+        // NUNCA traer condominios o filiales ajenas de otros propietarios
+        orFilterInms = userIdentVariants.map(v => `identidad.eq.${v}`).join(',');
       }
 
       const { data: inmFresh } = await supabase
@@ -1060,13 +1056,12 @@ export default function CajaPage() {
       );
       const deudaTotalFresh = billableActiveInms.reduce(
         (sum: number, i: any) => {
-          // Si el inmueble es de condominio: ninguna información de condominios sale por sistema,
+          // Si el inmueble es de condominio centralizado: ninguna información de condominios sale por sistema,
           // solo la multa del usuario si la tiene (todo lo demás lo hace condominio por oficina).
           const isCondoInm = (i.condominio_padre_id || i.es_condominio) && !naParentCodesFresh.includes(i.condominio_padre_id);
-          if (isCondoInm) {
+          if (isCondoInm && !isCondominioPagoIndividual(i)) {
             const multa = parseFloat(i.multa_bs || '0') || 0;
-            const congelada = parseFloat(i.deuda_congelada_bs || '0') || 0;
-            return sum + multa + congelada;
+            return sum + multa;
           }
 
           const currentBcvRate = (customBcvRate && !isNaN(parseFloat(customBcvRate))) ? parseFloat(customBcvRate) : tcmmv;
@@ -1242,34 +1237,38 @@ export default function CajaPage() {
 
             const isParentContainerNA = inm.condominio_padre_id && naParentCodes.includes(inm.condominio_padre_id);
 
-            // Si el inmueble pertenece a un condominio (o es filial de condominio):
-            // Ninguna información de los condominios sale por sistema, solo la multa de los usuarios.
-            // Todo lo demás lo hace condominio por oficina.
-            if ((inm.condominio_padre_id || inm.es_condominio) && !isParentContainerNA) {
-              const multa = parseFloat(inm.multa_bs || '0');
-              const congelada = parseFloat(inm.deuda_congelada_bs || '0');
-              if (multa > 0 || congelada > 0) {
-                const totalMulta = (multa + congelada).toFixed(2);
-                const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
-                combined.push({
-                  id: `multa-${inm.inmueble}`,
-                  referencia: `MULTA-${inm.inmueble}`,
-                  inmueble: inm.inmueble,
-                  identidad: user.Identidad,
-                  contribuyente: user.Contribuyente,
-                  emision: fechaMora.toISOString(),
-                  vencimiento: fechaMora.toISOString(),
-                  estado: 'Pendiente',
-                  monto: totalMulta,
-                  descripcion: `Multa Municipal - ${isResidencialInm(inm) ? 'Residencial' : 'Comercial'} (${inm.inmueble})`,
-                  descripcion_periodo: `MULTA POR MORA (HASTA ${formatMonthYear(fechaMora.toISOString())})`
-                });
+            // Si el inmueble pertenece a un condominio centralizado (donde el aseo lo paga el condominio matriz):
+            // Solo se le cobran las multas de esta unidad filial, pero DEBEN SALIR POR MESES (no todas juntas).
+            const esCondoCentralizado = Boolean(inm.condominio_padre_id || inm.es_condominio) && !isParentContainerNA && !esCondoPagoInd;
+            if (esCondoCentralizado) {
+              const multaTotal = parseFloat(inm.multa_bs || '0');
+              if (multaTotal > 0) {
+                const numMesesMulta = Math.max(1, parseInt(inm.meses_deuda || '0') || parseInt(inm.multa_meses || '0') || 1);
+                const baseCuotaMulta = Math.round((multaTotal / numMesesMulta) * 100) / 100;
+                for (let i = 1; i <= numMesesMulta; i++) {
+                  const targetDate = new Date(now.getFullYear(), now.getMonth() - numMesesMulta + i - 1, 1, 12, 0, 0);
+                  const isUltimo = i === numMesesMulta;
+                  const montoMes = isUltimo ? Math.max(0, Math.round((multaTotal - baseCuotaMulta * (numMesesMulta - 1)) * 100) / 100) : baseCuotaMulta;
+                  combined.push({
+                    id: `multa-${inm.inmueble}-${i}`,
+                    referencia: numMesesMulta > 1 ? `MULTA-${inm.inmueble}-M${i}` : `MULTA-${inm.inmueble}`,
+                    inmueble: inm.inmueble,
+                    identidad: user.Identidad,
+                    contribuyente: user.Contribuyente,
+                    emision: targetDate.toISOString(),
+                    vencimiento: targetDate.toISOString(),
+                    estado: 'Pendiente',
+                    monto: montoMes.toFixed(2),
+                    descripcion: `Multa Municipal - ${isResidencialInm(inm) ? 'Residencial' : 'Comercial'} (${inm.inmueble})`,
+                    descripcion_periodo: `MULTA POR MORA (${formatMonthYear(targetDate.toISOString())})`
+                  });
+                }
               }
-              return; // NO genera meses de aseo para condominios
+              return; // En condominios centralizados, el aseo corriente lo paga la matriz
             }
 
-            // Para inmuebles directos (no condominios):
-            // 2. Generar sus meses de aseo (RECIB-HIST-)
+            // Para contribuyentes directos (o filiales de condominio con pago individual habilitado):
+            // Generar sus meses de aseo (RECIB-HIST-) con su base + IVA + mora correspondiente a cada mes
             const isTerreno = isTerrenoInm(inm);
             const deudaMMV = isTerreno ? 0 : parseFloat(inm.deuda_mmv || '0');
             const meses = isTerreno ? 0 : parseInt(inm.meses_deuda || 0);
@@ -1282,26 +1281,29 @@ export default function CajaPage() {
             
             const numMeses = isTerreno ? 0 : Math.max(0, (meses > 0 ? meses : (deudaMMV > 0 ? 1 : 0)) - recibosFormales);
 
-            // 1. Si NO tiene meses de aseo pendientes pero sí tiene multa acumulada aislada, generar recibo MULTA-
-            // (La mora de los meses adeudados va distribuida dentro de cada RECIB-HIST-, idéntico a recibosContribuyente.ts)
+            // Si NO tiene meses de aseo pendientes pero sí tiene multa acumulada aislada, generar recibo MULTA- por meses
             const multa = parseFloat(inm.multa_bs || '0');
-            const congelada = parseFloat(inm.deuda_congelada_bs || '0');
-            if (numMeses === 0 && (multa > 0 || congelada > 0)) {
-              const totalMulta = (multa + congelada).toFixed(2);
-              const fechaMora = new Date(now.getFullYear(), now.getMonth() - 2, 1, 12, 0, 0);
-              combined.push({
-                id: `multa-${inm.inmueble}`,
-                referencia: `MULTA-${inm.inmueble}`,
-                inmueble: inm.inmueble,
-                identidad: user.Identidad,
-                contribuyente: user.Contribuyente,
-                emision: fechaMora.toISOString(),
-                vencimiento: fechaMora.toISOString(),
-                estado: 'Pendiente',
-                monto: totalMulta,
-                descripcion: `Multa Municipal (${inm.inmueble})`,
-                descripcion_periodo: `MULTA POR MORA (HASTA ${formatMonthYear(fechaMora.toISOString())})`
-              });
+            if (numMeses === 0 && multa > 0) {
+              const numMesesMulta = Math.max(1, parseInt(inm.multa_meses || '0') || 1);
+              const baseCuotaMulta = Math.round((multa / numMesesMulta) * 100) / 100;
+              for (let i = 1; i <= numMesesMulta; i++) {
+                const targetDate = new Date(now.getFullYear(), now.getMonth() - numMesesMulta + i - 1, 1, 12, 0, 0);
+                const isUltimo = i === numMesesMulta;
+                const montoMes = isUltimo ? Math.max(0, Math.round((multa - baseCuotaMulta * (numMesesMulta - 1)) * 100) / 100) : baseCuotaMulta;
+                combined.push({
+                  id: `multa-${inm.inmueble}-${i}`,
+                  referencia: numMesesMulta > 1 ? `MULTA-${inm.inmueble}-M${i}` : `MULTA-${inm.inmueble}`,
+                  inmueble: inm.inmueble,
+                  identidad: user.Identidad,
+                  contribuyente: user.Contribuyente,
+                  emision: targetDate.toISOString(),
+                  vencimiento: targetDate.toISOString(),
+                  estado: 'Pendiente',
+                  monto: montoMes.toFixed(2),
+                  descripcion: `Multa Municipal (${inm.inmueble})`,
+                  descripcion_periodo: `MULTA POR MORA (${formatMonthYear(targetDate.toISOString())})`
+                });
+              }
             }
 
             if (numMeses > 0) {
@@ -1338,19 +1340,26 @@ export default function CajaPage() {
       setRecibos(combined);
 
       
-      // Load Convenios Cuotas (fresco desde base de datos o fallback a memoria)
+      // Load Convenios Cuotas (fresco desde API segura con service role)
       const userConvenioVariants = new Set(userIdentVariants.map(v => v.replace(/-/g, '').toUpperCase()));
       let convListToUse = convenios;
       try {
-        const { data: dbConvFresh } = await supabase
-          .from('convenios_pago')
-          .select('*, convenios_cuotas(*)')
-          .or(userIdentVariants.map(v => `identidad.eq.${v}`).join(','));
-        if (dbConvFresh && dbConvFresh.length > 0) {
-          convListToUse = dbConvFresh.map((c: any) => ({
+        const resConv = await fetch(`/api/admin/convenios?identidad=${encodeURIComponent(user.Identidad)}&codigo=${encodeURIComponent(user.CodCont || user.cod_cont || '')}`, { cache: 'no-store' });
+        const jConv = await resConv.json();
+        if (jConv.ok && Array.isArray(jConv.data) && jConv.data.length > 0) {
+          convListToUse = jConv.data.map((c: any) => ({
             ...c,
             detalle_cuotas: JSON.stringify(c.convenios_cuotas || [])
           }));
+        } else {
+          const resAllConv = await fetch('/api/admin/convenios', { cache: 'no-store' });
+          const jAllConv = await resAllConv.json();
+          if (jAllConv.ok && Array.isArray(jAllConv.data)) {
+            convListToUse = jAllConv.data.map((c: any) => ({
+              ...c,
+              detalle_cuotas: JSON.stringify(c.convenios_cuotas || [])
+            }));
+          }
         }
       } catch (e) {
         console.warn('Error fetching fresh convenios_pago in caja:', e);
@@ -1358,18 +1367,27 @@ export default function CajaPage() {
 
       const userConvenios = (convListToUse || []).filter((c: any) => {
         const idCleanConv = (c.identidad || '').replace(/-/g, '').toUpperCase();
-        const matchesUser = userConvenioVariants.has(idCleanConv) && (c.estado === 'Al Día' || c.estado === 'Activo');
-        if (!matchesUser) return false;
-        const allowedInmCodes = new Set((activeInmFresh || []).map((i: any) => String(i.inmueble || '').toUpperCase()));
-        if (c.inmueble && allowedInmCodes.size > 0 && !allowedInmCodes.has(c.inmueble.toUpperCase())) return false;
+        const numCleanConv = (c.numero || '').toUpperCase().replace(/\D/g, '');
+        const matchesUser = userConvenioVariants.has(idCleanConv);
+        const matchesNum = (activeInmFresh || []).some((i: any) => {
+          const numCode = String(i.inmueble || '').replace(/\D/g, '');
+          return numCode.length >= 3 && numCleanConv.includes(numCode);
+        });
+        if (!matchesUser && !matchesNum) return false;
+        if (c.estado && c.estado !== 'Al Día' && c.estado !== 'Activo') return false;
         return true;
       });
       const pendingCuotas: any[] = [];
       userConvenios.forEach((conv: any) => {
-        let parsed = [];
-        try { parsed = JSON.parse(conv.detalle_cuotas || '[]'); } catch(e){}
-        parsed.forEach((c: any) => {
-          if (c.estado === 'Pendiente') {
+        let cuotasList: any[] = [];
+        if (Array.isArray(conv.convenios_cuotas) && conv.convenios_cuotas.length > 0) {
+          cuotasList = conv.convenios_cuotas;
+        } else {
+          try { cuotasList = JSON.parse(conv.detalle_cuotas || '[]'); } catch(e){}
+        }
+        cuotasList.forEach((c: any) => {
+          const cEst = (c.estado || (c.pagado ? 'Pagada' : 'Pendiente')).toLowerCase();
+          if (cEst.includes('pend')) {
             pendingCuotas.push({
               convId: conv.id,
               numeroConv: conv.numero,
