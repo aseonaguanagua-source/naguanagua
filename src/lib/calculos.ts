@@ -10,11 +10,25 @@ const todasLasActividades = [...ordenanzaData.actividadesComerciales, ...(ordena
  */
 export const isTerrenoInm = (itemOrAct: any): boolean => {
   if (!itemOrAct) return false;
-  const str = typeof itemOrAct === 'string'
-    ? itemOrAct
-    : String(itemOrAct.actividad_principal || itemOrAct.actividad || itemOrAct['Actividad Principal'] || itemOrAct.Actividad || itemOrAct.label || '');
-  const u = str.toUpperCase();
-  return u.includes('TERRENO') || u.includes('EXTRAORDINARIO');
+  if (typeof itemOrAct === 'string') {
+    const u = itemOrAct.toUpperCase();
+    return u.includes('TERRENO') || u.includes('EXTRAORDINARIO');
+  }
+  const combined = [
+    itemOrAct.actividad_principal,
+    itemOrAct.actividad,
+    itemOrAct['Actividad Principal'],
+    itemOrAct.Actividad,
+    itemOrAct.tipo,
+    itemOrAct.Tipo,
+    itemOrAct.uso,
+    itemOrAct.Uso,
+    itemOrAct.clasificacion,
+    itemOrAct.Clasificacion,
+    itemOrAct.label,
+    itemOrAct.nombre
+  ].filter(Boolean).join(' ').toUpperCase();
+  return combined.includes('TERRENO') || combined.includes('EXTRAORDINARIO');
 };
 
 export const isServicioExtraordinarioInm = (itemOrAct: any): boolean => {

@@ -251,6 +251,7 @@ export async function POST(request: Request) {
     let exento = 0;
     let totalFactura = montoTotal;
     let retencionIva = 0;
+    let simPayload: any = null;
     if (pagoData) {
       try {
         let det: any = pagoData.detalles || {};
@@ -265,6 +266,7 @@ export async function POST(request: Request) {
           }),
         });
         const sim = await r.json();
+        simPayload = sim;
         const t = sim?.payload?.documentoElectronico?.Encabezado?.Totales;
         if (t && sim.totalAPagar > 0) {
           baseImponible = parseFloat(t.MontoGravadoTotal || '0') || 0;
@@ -291,10 +293,10 @@ export async function POST(request: Request) {
         tipo: tipoId,
         numero: numId,
         razonSocial: nombreContrib,
-        direccion: sanitizarDireccionFiscal(
+        direccion: simPayload?.payload?.documentoElectronico?.Comprador?.Direccion || sanitizarDireccionFiscal(
           prop?.direccion || detPagoObj?.recibo_caja?.[0]?.domicilioFiscal || contribuyenteDb?.direccion,
           {
-            unidadNumero: detPagoObj?.condominio?.lineas?.[0]?.numero,
+            unidadNumero: detPagoObj?.modo === 'CONDOMINIO' ? null : (detPagoObj?.condominio?.lineas?.[0]?.numero || (prop as any)?.numero_local),
             nombreCondo: detPagoObj?.condominio?.nombre,
             parentDir: detPagoObj?.condominio?.direccion
           }

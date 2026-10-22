@@ -168,17 +168,29 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   const numeroDoc = pago?.numeroDocumento || det.numero_documento || '00000XXX';
   const numeroCtrl = pago?.numeroControl || det.numero_control || '00-00000XXX';
 
-  const rawCod = 
-    det.condominio?.lineas?.[0]?.inmueble ||
-    det.lineas?.[0]?.inmueble ||
-    det.condominio_hijos_pagados?.[0]?.inmueble ||
-    det.inmueble ||
-    (det.codigo_inmueble && !String(det.codigo_inmueble).startsWith('CONDO-') ? det.codigo_inmueble : '') ||
-    (det.cod_inmueble && !String(det.cod_inmueble).startsWith('CONDO-') ? det.cod_inmueble : '') ||
-    (det.recibos && det.recibos[0]) ||
-    (pago?.inmuebles && pago.inmuebles[0]?.inmueble) ||
-    '';
-  const inmuebleCod = rawCod.startsWith('RECIB-HIST-') ? rawCod.replace('RECIB-HIST-', '').split('-')[0] : (rawCod.startsWith('CONDO-') ? '' : rawCod);
+  const esCondoGlobal = (det.modo === 'CONDOMINIO' || (!det.modo && (det.isCondominio || det.es_condominio) && !det.condominio_hijos_pagados?.length));
+
+  const rawCod = esCondoGlobal
+    ? (det.condominio?.codigo || (det.codigo_inmueble && !String(det.codigo_inmueble).startsWith('CONDO-') ? det.codigo_inmueble : '') || (det.cod_inmueble && !String(det.cod_inmueble).startsWith('CONDO-') ? det.cod_inmueble : '') || (det.recibos && det.recibos[0]) || '')
+    : (
+        det.condominio?.lineas?.[0]?.inmueble ||
+        det.lineas?.[0]?.inmueble ||
+        det.condominio_hijos_pagados?.[0]?.inmueble ||
+        det.inmueble ||
+        (det.codigo_inmueble && !String(det.codigo_inmueble).startsWith('CONDO-') ? det.codigo_inmueble : '') ||
+        (det.cod_inmueble && !String(det.cod_inmueble).startsWith('CONDO-') ? det.cod_inmueble : '') ||
+        (det.condominio?.codigo ? det.condominio.codigo : '') ||
+        (det.recibos && det.recibos[0]) ||
+        (pago?.inmuebles && pago.inmuebles[0]?.inmueble) ||
+        ''
+      );
+  const inmuebleCod = (() => {
+    if (!rawCod) return '';
+    if (rawCod.startsWith('RECIB-HIST-')) return rawCod.replace('RECIB-HIST-', '').split('-')[0];
+    if (rawCod.startsWith('CONDO-')) return rawCod.split('-')[1] || '';
+    if (rawCod.startsWith('MULTA-')) return rawCod.replace('MULTA-', '').split('-')[0];
+    return rawCod;
+  })();
   const mesAseo = periodoRecibo || det.mes_aseo || (pago?.mesesServicio && pago.mesesServicio[0]) || 'Mes en Curso';
   const nombreReceptor = pago?.contribuyente || det.contribuyente || det.contribuyente_nombre || 'Contribuyente';
   const rifReceptor = pago?.identidad || det.identidad || '';
@@ -206,7 +218,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
         }
 
         // Si no se encontró por código directo pero hay identidad y condominio
-        if (!inm && rifReceptor && det.condominio?.codigo) {
+        if ((!inm || !inm.direccion || inm.direccion.trim() === '0 0') && rifReceptor && det.condominio?.codigo) {
           const { data: list } = await supabase
             .from('inmuebles')
             .select('direccion, licencia, condominio_padre_id')
@@ -216,8 +228,40 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
           if (list && list.length > 0) inm = list[0];
         }
 
+        // Si es un servicio especial / extraordinario (referencia SRV-)
+        const srvRefs = Array.isArray(det.servicios) ? det.servicios : [];
+        const esSrv = srvRefs.length > 0 || String(pago?.referencia || '').startsWith('SRV-');
+        if ((!inm || !inm.direccion || inm.direccion.trim() === '0 0') && esSrv) {
+          const srvRef = srvRefs[0] || pago?.referencia;
+          if (srvRef) {
+            const cleanRef = String(srvRef).trim();
+            const { data: srvData } = await supabase
+              .from('servicios_especiales')
+              .select('direccion_evento, descripcion')
+              .eq('referencia', cleanRef)
+              .maybeSingle();
+            if (srvData?.direccion_evento) {
+              if (!cancel) setInmuebleDireccion(srvData.direccion_evento);
+              return;
+            }
+          }
+        }
+
+        // Fallback a tabla contribuyentes si no tiene dirección válida de inmueble
+        if ((!inm || !inm.direccion || inm.direccion.trim() === '0 0') && rifReceptor) {
+          const { data: contData } = await supabase
+            .from('contribuyentes')
+            .select('direccion')
+            .eq('identidad', rifReceptor)
+            .maybeSingle();
+          if (contData?.direccion && contData.direccion.trim() !== '0 0' && contData.direccion.trim().length > 3) {
+            if (!cancel) setInmuebleDireccion(contData.direccion);
+            return;
+          }
+        }
+
         if (!cancel && inm) {
-          if (inm.direccion) setInmuebleDireccion(inm.direccion);
+          if (inm.direccion && inm.direccion.trim() !== '0 0') setInmuebleDireccion(inm.direccion);
           if (inm.licencia) setInmuebleLicencia(inm.licencia);
         }
       } catch (e) {
@@ -231,10 +275,14 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
 
   if (!isOpen || !pago) return null;
 
+  const uNumFinal = esCondoGlobal
+    ? null
+    : (det.condominio?.lineas?.[0]?.numero || det.condominio_hijos_pagados?.[0]?.numero || null);
+
   const direccionFinal = sanitizarDireccionFiscal(
     inmuebleDireccion || det.direccion || det.recibo_caja?.[0]?.domicilioFiscal,
     {
-      unidadNumero: det.condominio?.lineas?.[0]?.numero,
+      unidadNumero: uNumFinal,
       nombreCondo: det.condominio?.nombre,
       parentDir: det.condominio?.direccion
     }

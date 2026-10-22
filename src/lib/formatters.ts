@@ -425,63 +425,99 @@ export function sanitizarDireccionFiscal(
   // Si está vacía o es solo ceros/puntos, intentar construir desde la dirección del padre o nombre del condominio
   const esVaciaOInvalida = !s || /^[0\s.-]+$/i.test(s) || s.toUpperCase() === 'N/A';
   if (esVaciaOInvalida) {
-    if (opts.parentDir && typeof opts.parentDir === 'string' && opts.parentDir.trim().length > 3) {
+    if (opts.parentDir && typeof opts.parentDir === 'string' && opts.parentDir.trim().length > 3 && !/^[0\s.-]+$/i.test(opts.parentDir.trim())) {
       s = opts.parentDir.trim();
     } else if (opts.nombreCondo && typeof opts.nombreCondo === 'string') {
-      s = `${opts.nombreCondo}, NAGUANAGUA, EDO. CARABOBO`;
+      s = opts.nombreCondo.trim();
     } else {
       return 'NAGUANAGUA, EDO. CARABOBO';
     }
   }
 
-  // 1. Eliminar prefijos catastrales numéricos iniciales antes de palabras de dirección
-  const match = s.match(/\b(URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON)\b/i);
-  if (match && match.index !== undefined && match.index > 0) {
-    s = s.slice(match.index);
-  } else {
-    s = s.replace(/^[0-9\s.-]+(\bS\/N\b\s*)?/i, '');
+  // 1. Eliminar prefijos catastrales numéricos iniciales solo si la cadena comienza con dígitos
+  if (/^[0-9\s.-]+[A-Z0-9-]*\s+/i.test(s)) {
+    const match = s.match(/\b(URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON|Bo|BARRIO|COMUNIDAD)\b/i);
+    if (match && match.index !== undefined && match.index > 0) {
+      s = s.slice(match.index);
+    } else {
+      s = s.replace(/^[0-9\s.-]+(\bS\/N\b\s*)?/i, '');
+    }
   }
 
-  // 2. Limpiar secuencias defectuosas como 'NRO. .', 'NRO .', 'APTO NRO. .', 'LOCAL .'
-  s = s.replace(/\b(NRO|APTO|LOCAL|OFICINA)\.?\s*\./gi, '');
-  s = s.replace(/\s+/g, ' ').trim();
+  // 2. Limpiar secuencias defectuosas como 'NRO. .', 'CASA .', 'APTO .'
+  s = s
+    .replace(/\b(NRO|APTO|LOCAL|OFICINA)\.?\s*\./gi, '$1')
+    .replace(/\bCASA \.\s*/gi, '')
+    .replace(/\bAPTO \.\s*/gi, '')
+    .replace(/\bLOCAL \.\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  // 3. Integrar el número de unidad si fue provisto y no está ya presente
+  // 3. Integrar el número de unidad si fue provisto y no está ya presente en la dirección
   const uNum = (opts.unidadNumero || '').trim();
   if (uNum) {
-    const cleanUNum = uNum.replace(/^(LOCAL|APTO|NRO\.?|OFICINA)\s*/i, '');
-    const regexUnit = new RegExp(`\\b(LOCAL|APTO|OFICINA|NRO\\.?)\\s*${cleanUNum.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
-    if (!regexUnit.test(s)) {
-      if (/C\.C\.|CENTRO COMERCIAL|CONJ\.|EDIF\./i.test(s)) {
-        s = s.replace(/(C\.C\.[^,]+|CENTRO COMERCIAL[^,]+|CONJ\.[^,]+|EDIF\.[^,]+)/i, `$1 LOCAL ${cleanUNum}`);
-      } else {
-        s = `LOCAL ${cleanUNum}, ${s}`;
+    const cleanUNum = uNum.replace(/^(LOCAL|APTO|NRO\.?|OFICINA|MODULO|PUESTO)\s*/i, '').trim();
+    if (cleanUNum) {
+      const escaped = cleanUNum.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const yaPresente = new RegExp(`(^|[^A-Z0-9])${escaped}([^A-Z0-9]|$)`, 'i').test(s);
+      if (!yaPresente) {
+        if (/C\.C\.|CENTRO COMERCIAL|CONJ\.|EDIF\./i.test(s)) {
+          s = s.replace(/(C\.C\.[^,]+|CENTRO COMERCIAL[^,]+|CONJ\.[^,]+|EDIF\.[^,]+)/i, `$1 LOCAL ${cleanUNum}`);
+        } else {
+          s = `LOCAL ${cleanUNum}, ${s}`;
+        }
       }
     }
   }
 
-  // 4. Asegurar mención de Naguanagua y Carabobo
-  if (!/NAGUANAGUA/i.test(s)) {
-    s += ', NAGUANAGUA';
-  }
-  if (!/CARABOBO/i.test(s)) {
-    s += ', EDO. CARABOBO';
-  }
-
+  // 4. Normalizar Naguanagua y Carabobo sin repeticiones intermedias
+  s = s.replace(/,?\s*(?:SECTOR\s+)?NAGUANAGUA(?:\s+(?:EDO\.?|ESTADO)?\s*CARABOBO)?/gi, '');
+  s = s.replace(/,?\s*(?:EDO\.?|ESTADO)\s*CARABOBO/gi, '');
+  s = s.replace(/,?\s*CARABOBO/gi, '');
+  s = s.replace(/,?\s*ZONA POSTAL\s*\d+/gi, '');
   s = s.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim();
   s = s.replace(/^,\s*|,\s*$/g, '');
 
-  // 5. Ajustar a límite SENIAT (100 caracteres)
+  const suffix = ', NAGUANAGUA, EDO. CARABOBO';
+  s += suffix;
+
+  // 5. Ajustar a límite SENIAT (100 caracteres) aplicando abreviaturas formales
   if (s.length > 100) {
     s = s
+      .replace(/PARCELA DE TERRENO NRO\.?/gi, 'PARCELA')
+      .replace(/PARCELA NRO\.?/gi, 'PARCELA')
+      .replace(/LOCAL COMERCIAL NRO\.?/gi, 'LOCAL')
+      .replace(/LOCAL\/OFICINA NRO\.?/gi, 'LOCAL')
+      .replace(/INMUEBLE NRO\.?/gi, 'INM.')
+      .replace(/CASA NRO[\.,]?/gi, 'CASA')
+      .replace(/APARTAMENTO/gi, 'APTO.')
       .replace(/CENTRO COMERCIAL/gi, 'C.C.')
       .replace(/CONJUNTO RESIDENCIAL/gi, 'CONJ. RESD.')
+      .replace(/CONJUNTO RESID\./gi, 'CONJ. RESD.')
+      .replace(/CONJ\. RES\./gi, 'CONJ. RESD.')
       .replace(/URBANIZACION/gi, 'URB.')
       .replace(/AVENIDA/gi, 'AV.')
-      .replace(/ESTADO CARABOBO/gi, 'EDO. CARABOBO');
+      .replace(/EDIFICIO/gi, 'EDIF.')
+      .replace(/SECTOR/gi, 'SEC.')
+      .replace(/,\s*,/g, ',')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
-  return s.slice(0, 100).trim();
+  // Si aún supera 100 caracteres, recortar de forma limpia en el cuerpo antes del sufijo
+  if (s.length > 100) {
+    const idxSuffix = s.lastIndexOf(suffix);
+    const body = idxSuffix > 0 ? s.slice(0, idxSuffix).trim() : s;
+    const maxBodyLen = 100 - suffix.length; // 74 caracteres
+    if (body.length > maxBodyLen) {
+      const sliceBody = body.slice(0, maxBodyLen);
+      const lastSpace = sliceBody.lastIndexOf(' ');
+      const cutBody = (lastSpace > 15 ? sliceBody.slice(0, lastSpace) : sliceBody).replace(/[,.\s]+$/, '');
+      s = cutBody + suffix;
+    }
+  }
+
+  return s;
 }
 
 

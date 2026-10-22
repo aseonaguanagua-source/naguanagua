@@ -84,6 +84,56 @@ function formatearFecha(isoString: string): string {
   return `${get('day')}/${get('month')}/${get('year')}`;
 }
 
+async function restaurarDeudaPreviaAnulacion(detPago: any, recibos: string[]) {
+  try {
+    const previa: any[] = Array.isArray(detPago?.deuda_previa) ? detPago.deuda_previa : [];
+    if (previa.length > 0) {
+      for (const dp of previa) {
+        if (!dp) continue;
+        // Si es condominio (tiene aseo_pendiente_desde)
+        if (dp.aseo_pendiente_desde) {
+          const updCondo: any = {
+            aseo_pendiente_desde: dp.aseo_pendiente_desde,
+            multa_meses: dp.multa_meses ?? 0,
+            abono_bs: dp.abono_bs ?? 0
+          };
+          if (dp.multa_exonerada_hasta !== undefined) updCondo.multa_exonerada_hasta = dp.multa_exonerada_hasta;
+          if (dp.id) {
+            await supabase.from('condominios').update(updCondo).eq('id', dp.id);
+          } else if (dp.inmueble || dp.codigo) {
+            await supabase.from('condominios').update(updCondo).eq('codigo', dp.inmueble || dp.codigo);
+          }
+        } else {
+          // Si es inmueble ordinario
+          const updInm: any = {};
+          if (dp.meses_deuda !== undefined) updInm.meses_deuda = dp.meses_deuda;
+          if (dp.deuda_mmv !== undefined) updInm.deuda_mmv = dp.deuda_mmv;
+          if (dp.multa_bs !== undefined) updInm.multa_bs = dp.multa_bs;
+          if (dp.saldo_favor_bs !== undefined) updInm.saldo_favor_bs = dp.saldo_favor_bs;
+          if (dp.deuda_congelada_bs !== undefined) updInm.deuda_congelada_bs = dp.deuda_congelada_bs;
+          if (Object.keys(updInm).length > 0) {
+            if (dp.id) {
+              await supabase.from('inmuebles').update(updInm).eq('id', dp.id);
+            } else if (dp.inmueble) {
+              await supabase.from('inmuebles').update(updInm).eq('inmueble', dp.inmueble);
+            }
+          }
+        }
+      }
+    }
+
+    // Reabrir facturas internas si existen
+    if (recibos && recibos.length > 0) {
+      const formalRecibos = recibos.filter((r: string) => !r.startsWith('RECIB-HIST-') && !r.startsWith('MULTA-') && r !== 'RECIB-DEUDA');
+      if (formalRecibos.length > 0) {
+        await supabase.from('facturas').update({ estado: 'Pendiente' }).in('referencia', formalRecibos);
+      }
+    }
+  } catch (eRest) {
+    console.error('Error restaurando deuda previa en anulación:', eRest);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { 
@@ -170,7 +220,8 @@ export async function POST(request: Request) {
         }
       }
 
-      await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
+      await restaurarDeudaPreviaAnulacion(dm, recibosBody || dm.recibos || []);
+      await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
       await supabase.from('auditoria').insert({
         accion: 'Factura marcada como anulada manualmente',
         usuario: cleanUser || 'Sistema',
@@ -1190,7 +1241,8 @@ export async function POST(request: Request) {
             fecha_emision: new Date().toISOString(),
             raw_response: { error: errMsg }
           };
-          await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
+          await restaurarDeudaPreviaAnulacion(detPago, recibos || []);
+          await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
           return NextResponse.json({ success: true, yaAnuladaEnTfhka: true, message: 'La factura ya estaba anulada en The Factory HKA y fue sincronizada en el sistema.' });
         }
         nuevosDetalles.factura_digital_error = 'Error anulando en TFHKA: ' + err.message;
@@ -1211,7 +1263,8 @@ export async function POST(request: Request) {
       };
     }
 
-    await supabase.from('pagos_reportados').update({ detalles: nuevosDetalles }).eq('id', pagoId);
+    await restaurarDeudaPreviaAnulacion(detPago, recibos || []);
+    await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
 
     return NextResponse.json({
       success: true,

@@ -155,7 +155,8 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text(t, L + 2, y); y += 9;
   };
 
-  campo('FECHA DE EMISIÓN:', fechaVE(d.fechaEmision), L, 80);
+  const fEmisionDef = fechaVE(d.fechaEmision) || fechaVE(new Date().toISOString().slice(0, 10));
+  campo('FECHA DE EMISIÓN:', fEmisionDef, L, 80);
   campo('CÓDIGO DE PLANILLA / CAJA:', d.referencia, L + 85, R - L - 85);
   y += 10;
 

@@ -1069,8 +1069,8 @@ export default function CajaPage() {
           let subtotalInm = 0;
           let jNotas: any = null;
           try { if (i.notas) jNotas = typeof i.notas === 'string' ? JSON.parse(i.notas) : i.notas; } catch {}
-          if (jNotas?.periodos_custom && Object.keys(jNotas.periodos_custom).length > 0) {
-            const keys = Object.keys(jNotas.periodos_custom).sort();
+          if (meses > 0 && jNotas?.periodos_custom && Object.keys(jNotas.periodos_custom).length > 0) {
+            const keys = Object.keys(jNotas.periodos_custom).sort().slice(0, meses);
             const esRes = isResidencialInm(i);
             let s = 0;
             keys.forEach((p, idx) => {
@@ -1092,7 +1092,7 @@ export default function CajaPage() {
             const mesesConMulta = Math.max(0, meses - 1);
             subtotalInm = ((baseMes + ivaMes) * meses) + (multaMes * mesesConMulta);
           } else {
-            subtotalInm = (parseFloat(i.deuda_mmv || '0') * currentBcvRate) + parseFloat(i.deuda_congelada_bs || '0');
+            subtotalInm = parseFloat(i.deuda_mmv || '0') * currentBcvRate;
           }
           const abonoInm = parseFloat(i.saldo_favor_bs || '0') || 0;
           return sum + Math.max(0, subtotalInm - abonoInm);
@@ -2802,7 +2802,7 @@ export default function CajaPage() {
           } : {})
         };
 
-        const { error: insertErr } = await supabase.from('pagos_reportados').insert({
+        let { error: insertErr } = await supabase.from('pagos_reportados').insert({
           id: pagoId,
           identidad: foundUser.Identidad,
           monto: montoReal,
@@ -2813,6 +2813,21 @@ export default function CajaPage() {
           created_at: fechaUTC,
           detalles: JSON.stringify(fullDetalles)
         });
+        if (insertErr && (insertErr.code === '23505' || String(insertErr.message).includes('referencia_key') || String(insertErr.message).includes('duplicate'))) {
+          const refUnica = `${(reqRef ? referencia : referenciaDebito)}-${Date.now().toString().slice(-4)}`;
+          const r2 = await supabase.from('pagos_reportados').insert({
+            id: pagoId,
+            identidad: foundUser.Identidad,
+            monto: montoReal,
+            banco: paymentMethod === 'TMD' ? 'PUNTO TMD (MASTER)' : paymentMethod === 'TVD' ? 'PUNTO TVD (VISA)' : paymentMethod === 'Credito' ? 'PUNTO CRÉDITO' : paymentMethod,
+            referencia: refUnica,
+            tipo: paymentMethod,
+            estado: 'Aprobado',
+            created_at: fechaUTC,
+            detalles: JSON.stringify(fullDetalles)
+          });
+          insertErr = r2.error;
+        }
         if (insertErr) {
           console.error('Error insertando pago:', insertErr);
           throw new Error('No se pudo registrar el pago: ' + insertErr.message);
@@ -3397,7 +3412,7 @@ export default function CajaPage() {
         const fechaUTC = fechaCorteCaja === hoyStr 
           ? new Date().toISOString() 
           : new Date(`${fechaCorteCaja}T12:00:00-04:00`).toISOString();
-        const { error: pErr } = await supabase.from('pagos_reportados').insert({
+        let { error: pErr } = await supabase.from('pagos_reportados').insert({
           id: pagoIdT,
           identidad: foundUser.Identidad,
           monto: montoReal,
@@ -3443,6 +3458,57 @@ export default function CajaPage() {
             nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined
           })
         });
+
+        if (pErr && (pErr.code === '23505' || String(pErr.message).includes('referencia_key') || String(pErr.message).includes('duplicate'))) {
+          const refUnica = `${referencia}-${Date.now().toString().slice(-4)}`;
+          const r2 = await supabase.from('pagos_reportados').insert({
+            id: pagoIdT,
+            identidad: foundUser.Identidad,
+            monto: montoReal,
+            banco: banco,
+            referencia: refUnica,
+            tipo: paymentMethod,
+            estado: 'Por Verificar',
+            created_at: fechaUTC,
+            detalles: JSON.stringify({
+              contribuyente: foundUser.Contribuyente,
+              contribuyente_nombre: foundUser.Contribuyente,
+              recibos: selectedRecibos,
+              cuotas: selectedCuotas,
+              servicios: selectedServicios,
+              tala_poda: selectedTalaPoda,
+              cajero: cajero_id,
+              banco_destino: bancoDestino,
+              saldo_favor: saldoAFavorNuevo,
+              saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+              monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+              monto_factura: totalFacturaBruto,
+              monto_neto_factura: finalTotal,
+              monto_retencion_iva: esAbono ? 0 : realMontoRetencionIVA,
+              es_retencion: esAbono ? false : (realMontoRetencionIVA > 0),
+              agente_retencion: esAbono ? false : (realMontoRetencionIVA > 0),
+              iva_percent: ivaPercent,
+              es_abono: esAbono,
+              monto_abonado: esAbono ? montoReal : undefined,
+              total_seleccionado: totalBs,
+              saldo_usado: descuentoSaldoFavor,
+              abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
+              tasa_bcv: currentBcvRate,
+              deuda_total_sistema: foundUser.DeudaTotal,
+              deuda_previa: deudaPreviaT,
+              comprobante_nombre: comprobante?.name || '',
+              comprobante_url: comprobanteUrl,
+              comprobante_b64: comprobanteB64 || undefined,
+              comprobante_retencion_nombre: comprobanteRetencionFile?.name || undefined,
+              comprobante_retencion_url: compRetUrlT || undefined,
+              comprobante_retencion_b64: compRetB64T || undefined,
+              fecha_transaccion: fechaTransaccion,
+              tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
+              nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined
+            })
+          });
+          pErr = r2.error;
+        }
         
         if (pErr) throw pErr;
         ultimoPagoIdRef.current = pagoIdT;

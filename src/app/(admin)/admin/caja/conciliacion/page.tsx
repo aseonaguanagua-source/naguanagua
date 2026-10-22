@@ -1151,9 +1151,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         // Recolectar códigos de inmuebles de referencias, detalles y del propio pago
         const propertyCodesFromRefs = new Set<string>();
         recibos.forEach((r: string) => {
-          const mHist = r.match(/(?:RECIB-HIST|dummy-hist)-([A-Z0-9_-]+)-\d+/i);
+          const mHist = r.match(/(?:RECIB-HIST|dummy-hist)-([A-Z0-9_-]+?)(?:-M?\d+)?$/i);
           if (mHist && mHist[1]) propertyCodesFromRefs.add(mHist[1].toUpperCase());
-          const mMulta = r.match(/MULTA-([A-Z0-9_-]+)/i);
+          const mMulta = r.match(/MULTA-([A-Z0-9_-]+?)(?:-M?\d+)?$/i);
           if (mMulta && mMulta[1]) propertyCodesFromRefs.add(mMulta[1].toUpperCase());
         });
         if (det.cod_inmueble) propertyCodesFromRefs.add(String(det.cod_inmueble).toUpperCase());

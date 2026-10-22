@@ -410,7 +410,7 @@ export default function ServiciosEspecialesPage() {
     const tExt = TARIFAS_EXTRAORDINARIO.find(x => x.vehiculo === s.vehiculo);
     const valorUcd = s.valor_ucd != null ? Number(s.valor_ucd) : null;
     const tasa = s.tasa_euro != null ? Number(s.tasa_euro) : null;
-    const contacto = String(s.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '';
+    const contacto = s.contacto || s.persona_contacto || String(s.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '';
     generarPlanillaServicio({
       categoria: cat,
       fechaEmision: s.fecha || s.created_at,

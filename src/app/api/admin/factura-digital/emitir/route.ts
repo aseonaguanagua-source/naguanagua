@@ -887,29 +887,38 @@ export async function POST(request: Request) {
 
     // Detección precisa del inmueble facturado para contribuyentes con múltiples sedes/inmuebles (ej. Banco Activo)
     const condoRecibo = (recibos || []).find((r: string) => /^CONDO-/i.test(String(r)));
+    const esCondoGlobal = detPago?.modo === 'CONDOMINIO' || (!detPago?.modo && (detPago?.isCondominio || detPago?.es_condominio) && !detPago?.condominio_hijos_pagados?.length);
     const condoCode = condoRecibo ? condoRecibo.split('-')[1] : (condoDet?.codigo || null);
     const codRc = detPago.recibo_caja?.[0]?.codContribuyente || detPago.recibo_caja?.[0]?.inmueble || null;
     const codHist = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
 
     const lineaCom = lineasCondo?.find((l: any) => !l.residencial) || lineasCondo?.[0];
-    const codInmEspecifico = 
-      lineaCom?.inmueble ||
-      lineasCondo?.[0]?.inmueble ||
-      detPago?.condominio?.lineas?.[0]?.inmueble ||
-      detPago?.condominio_hijos_pagados?.[0]?.inmueble ||
-      (detPago.cod_inmueble && !String(detPago.cod_inmueble).startsWith('CONDO-') ? detPago.cod_inmueble : null) ||
-      (detPago.codigo_inmueble && !String(detPago.codigo_inmueble).startsWith('CONDO-') ? detPago.codigo_inmueble : null) ||
-      detPago.inmueble ||
-      (codRc && /^[A-Z]{3,4}\d{4,8}$/i.test(codRc) ? codRc : null) ||
-      codHist;
+    const codInmEspecifico = esCondoGlobal
+      ? ((condoDet?.codigo) || (condoCode) || (detPago.cod_inmueble && !String(detPago.cod_inmueble).startsWith('CONDO-') ? detPago.cod_inmueble : null) || (detPago.codigo_inmueble && !String(detPago.codigo_inmueble).startsWith('CONDO-') ? detPago.codigo_inmueble : null) || detPago.inmueble || (recibos || []).map(extraerCodigoInmueble).find(Boolean) || codHist)
+      : (
+          lineaCom?.inmueble ||
+          lineasCondo?.[0]?.inmueble ||
+          detPago?.condominio?.lineas?.[0]?.inmueble ||
+          detPago?.condominio_hijos_pagados?.[0]?.inmueble ||
+          (detPago.cod_inmueble && !String(detPago.cod_inmueble).startsWith('CONDO-') ? detPago.cod_inmueble : null) ||
+          (detPago.codigo_inmueble && !String(detPago.codigo_inmueble).startsWith('CONDO-') ? detPago.codigo_inmueble : null) ||
+          detPago.inmueble ||
+          (codRc && /^[A-Z]{3,4}\d{4,8}$/i.test(codRc) ? codRc : null) ||
+          codHist ||
+          (condoCode && /^[A-Z]{3,4}\d{4,8}$/i.test(condoCode) ? condoCode : null) ||
+          (recibos || []).map(extraerCodigoInmueble).find(Boolean)
+        );
 
-    let matchedPropEspecifico = (activeProps || []).find((p: any) => 
-      (codInmEspecifico && p.inmueble === codInmEspecifico) ||
-      (condoCode && (p.condominio_padre_id === condoCode || p.padre_id === condoCode))
-    ) || (userProps || []).find((p: any) =>
-      (codInmEspecifico && p.inmueble === codInmEspecifico) ||
-      (condoCode && (p.condominio_padre_id === condoCode || p.padre_id === condoCode))
-    );
+    // 1° Prioridad: Inmueble con coincidencia EXACTA de código
+    let matchedPropEspecifico = codInmEspecifico
+      ? ((activeProps || []).find((p: any) => p.inmueble === codInmEspecifico) || (userProps || []).find((p: any) => p.inmueble === codInmEspecifico))
+      : null;
+
+    // 2° Prioridad: Si no coincidió por código pero hay condoCode, buscar dentro de ese condominio padre
+    if (!matchedPropEspecifico && condoCode) {
+      matchedPropEspecifico = (activeProps || []).find((p: any) => p.condominio_padre_id === condoCode || p.padre_id === condoCode) ||
+        (userProps || []).find((p: any) => p.condominio_padre_id === condoCode || p.padre_id === condoCode);
+    }
 
     if (!matchedPropEspecifico && codInmEspecifico) {
       const { data: dbInm } = await supabase
@@ -920,9 +929,26 @@ export async function POST(request: Request) {
       if (dbInm) matchedPropEspecifico = dbInm;
     }
 
+    // Consulta de información de servicios especiales si el pago contiene SRV-
+    let srvDet: any = null;
+    const srvRefs = Array.isArray(detPago?.servicios) ? detPago.servicios : [];
+    if (srvRefs.length > 0 || String(pagoRow?.referencia || '').startsWith('SRV-')) {
+      const srvRef = srvRefs[0] || pagoRow?.referencia;
+      if (srvRef) {
+        const { data: srvData } = await supabase
+          .from('servicios_especiales')
+          .select('direccion_evento, descripcion')
+          .eq('referencia', String(srvRef).trim())
+          .maybeSingle();
+        srvDet = srvData;
+      }
+    }
+
     // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
     const comRef: any = matchedPropEspecifico || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
-    const codigoContribuyente = lineasCondo ? (lineaCom?.inmueble || condoDet?.codigo || '') : (matchedPropEspecifico?.inmueble || codHist || comRef?.inmueble || '');
+    const codigoContribuyente = esCondoGlobal
+      ? ((condoDet?.codigo) || (condoCode) || (matchedPropEspecifico?.inmueble) || codHist || comRef?.inmueble || '')
+      : ((matchedPropEspecifico?.inmueble) || (lineaCom?.inmueble) || (condoDet?.codigo) || (condoCode) || codHist || comRef?.inmueble || '');
     // N° de Licencia de Actividades Económicas: el NÚMERO registrado en el inmueble (nunca el nombre de la actividad).
     // Si el sistema no lo tiene, el campo no se envía.
     let licenciaAE = '';
@@ -1047,20 +1073,22 @@ export async function POST(request: Request) {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             Direccion:            (() => {
-              const uNum = lineaCom?.numero ||
+              const uNum = esCondoGlobal ? null : (lineaCom?.numero ||
                 lineaCom?.unidadNumero || 
                 lineasCondo?.[0]?.numero ||
                 lineasCondo?.[0]?.unidadNumero || 
                 detPago?.condominio?.lineas?.[0]?.numero ||
                 detPago?.condominio?.lineas?.[0]?.unidadNumero ||
-                null;
+                (matchedPropEspecifico as any)?.numero_local ||
+                null);
               const nombreCondo = condoDet?.nombre || detPago?.condominio?.nombre || null;
               const parentDir = condoDet?.direccion || detPago?.condominio?.direccion || null;
               
               const isValidDir = (d: any) => d && typeof d === 'string' && d.trim().length > 3 && d.trim() !== '0 0' && d.trim() !== '0' && d.trim().toUpperCase() !== 'N/A';
               const dirEspecifica = matchedPropEspecifico?.direccion;
               const dirRecibo = detPago?.recibo_caja?.[0]?.domicilioFiscal;
-              const cand = isValidDir(dirEspecifica) ? dirEspecifica : (isValidDir(dirRecibo) ? dirRecibo : (isValidDir(propRef?.direccion) ? propRef?.direccion : (isValidDir(contribuyente?.direccion) ? contribuyente?.direccion : parentDir)));
+              const dirSrv = srvDet?.direccion_evento;
+              const cand = isValidDir(dirEspecifica) ? dirEspecifica : (isValidDir(dirRecibo) ? dirRecibo : (isValidDir(dirSrv) ? dirSrv : (isValidDir(propRef?.direccion) ? propRef?.direccion : (isValidDir(contribuyente?.direccion) ? contribuyente?.direccion : parentDir))));
               
               return sanitizarDireccionFiscal(cand, {
                 unidadNumero: uNum,

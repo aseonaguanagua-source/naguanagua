@@ -62,23 +62,42 @@ export function resolverConceptoPeriodoPago(pago: any): string {
     try {
       const rc = typeof det.recibo_caja === 'string' ? JSON.parse(det.recibo_caja) : det.recibo_caja;
       const arr = Array.isArray(rc) ? rc : [rc];
-      const primerRc = arr[0];
-      if (primerRc?.periodo) {
-        const periodoFmt = formatearPeriodoParaConcepto(primerRc.periodo);
-        if (periodoFmt) return `Servicio de Aseo Urbano Comercial - ${periodoFmt}`;
-      }
-      if (primerRc?.conceptos && Array.isArray(primerRc.conceptos)) {
-        const textos = primerRc.conceptos.map((c: any) => c.descripcion || c.concepto || '');
-        const meses = extraerMesesDeTextos(textos);
-        if (meses.length === 1) {
-          return `Servicio de Aseo Urbano Comercial - ${meses[0]}`;
-        } else if (meses.length === 2) {
-          return `Servicio de Aseo Urbano Comercial - ${meses[0]} a ${meses[1]}`;
-        } else if (meses.length > 2) {
-          return `Servicio de Aseo Urbano Comercial - ${meses[0]} a ${meses[meses.length - 1]} (${meses.length} meses)`;
+      // Si alguno de los recibos de caja tiene ya el campo periodo explícito
+      for (const item of arr) {
+        if (item?.periodo) {
+          const p = formatearPeriodoParaConcepto(item.periodo);
+          if (p) return `Servicio de Aseo Urbano Comercial - ${p}`;
         }
       }
+
+      // Si no tiene periodo explícito en el encabezado, extraer los meses de los conceptos
+      const mesesList: string[] = [];
+      for (const item of arr) {
+        if (item?.conceptos && Array.isArray(item.conceptos)) {
+          const textos = item.conceptos.map((c: any) => c.descripcion || c.concepto || '');
+          const ms = extraerMesesDeTextos(textos);
+          for (const m of ms) {
+            if (!mesesList.includes(m)) mesesList.push(m);
+          }
+        }
+      }
+      if (mesesList.length === 1) {
+        return `Servicio de Aseo Urbano Comercial - ${mesesList[0]}`;
+      } else if (mesesList.length === 2) {
+        return `Servicio de Aseo Urbano Comercial - ${mesesList[0]} a ${mesesList[1]}`;
+      } else if (mesesList.length > 2) {
+        return `Servicio de Aseo Urbano Comercial - ${mesesList[0]} a ${mesesList[mesesList.length - 1]} (${mesesList.length} meses)`;
+      }
     } catch (_) {}
+  }
+
+  // 1.5 Revisar periodos_pagados explícito en detalles
+  if (det.periodos_pagados) {
+    const pp = String(det.periodos_pagados).trim();
+    if (pp) {
+      const fmt = formatearPeriodoParaConcepto(pp);
+      return `Servicio de Aseo Urbano Comercial - ${fmt || pp}`;
+    }
   }
 
   // 2. Si tiene concepto explícito ya guardado (distinto del genérico default)
