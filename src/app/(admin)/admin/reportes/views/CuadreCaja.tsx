@@ -28,20 +28,27 @@ function parseDet(p: any): any {
   if (typeof p.detalles === 'object') return p.detalles;
   try { return JSON.parse(p.detalles); } catch { return {}; }
 }
+function isSaldoPago(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  const det = parseDet(p);
+  const detTipo = String(det.tipo || '').toUpperCase();
+  return t.includes('SALDO') || t.includes('NOTA DE CREDITO') || t.includes('NOTA DE CRÉDITO') ||
+         detTipo.includes('SALDO') || detTipo.includes('NOTA DE CREDITO') || detTipo.includes('NOTA DE CRÉDITO') ||
+         Boolean(det.es_saldo_a_favor || det.es_nota_credito);
+}
 function isDebitoPago(p: any) {
+  if (isSaldoPago(p)) return false;
   const t = String(p.tipo || '').toUpperCase().trim();
   return (t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD');
 }
 function isCreditoPago(p: any) {
+  if (isSaldoPago(p)) return false;
   const t = String(p.tipo || '').toUpperCase().trim();
-  return t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD');
+  return (t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD')) && !t.includes('NOTA');
 }
 function isDepositoPago(p: any) {
   const t = String(p.tipo || '').toUpperCase().trim();
   return !isCreditoPago(p) && !isDebitoPago(p) && (t.includes('DEPOSITO') || t.includes('DEPÓSITO'));
-}
-function isSaldoPago(p: any) {
-  return String(p.tipo || '').toUpperCase().includes('SALDO');
 }
 function isRetencionPago(p: any) {
   const t = String(p.tipo || '').toUpperCase().trim();
@@ -652,6 +659,46 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                   <tr>
                     <td colSpan={9} style={S.tf}>Total Items: {debitos.length}</td>
                     <td style={{ ...S.tf, textAlign: 'right' }}>Total Debito: {fmtBs(totalDebito)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </>}
+
+          {/* Saldo a Favor / Nota de Crédito (Informativo, no suma a caja) */}
+          {saldosAFavor.length > 0 && <>
+            <div style={{ ...S.secHdr, background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe' }}>
+              SALDO A FAVOR / NOTA DE CRÉDITO (INFORMATIVO)
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>{['#', 'Fecha/Hora', 'Tipo', 'Cajero', 'Contribuyente', 'Recibo / Factura', 'Referencia / Comprobante', 'Estado', 'Monto']
+                    .map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {saldosAFavor.map((p, i) => {
+                    const det = parseDet(p);
+                    const recs: string[] = det.recibos || [];
+                    return (
+                      <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#faf5ff' }}>
+                        <td style={S.td}>{i + 1}</td>
+                        <td style={S.td}>{fmtDT(p.created_at)}</td>
+                        <td style={{ ...S.td, fontWeight: 700, color: '#6d28d9' }}>{p.tipo}</td>
+                        <td style={S.td}>{det.cajero || '-'}</td>
+                        <td style={{ ...S.td, color: '#2a5298' }}>{p.identidad}-{p.contribuyente}</td>
+                        <td style={S.td}>{recs[0] || p.referencia || '-'}</td>
+                        <td style={S.td}>{p.referencia || '-'}</td>
+                        <td style={S.td}><span style={{ color: '#16a34a', fontWeight: 700 }}>{p.estado || 'Aprobado'}</span></td>
+                        <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} />
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={8} style={{ ...S.tf, color: '#6d28d9' }}>Total Saldo a Favor / Nota de Crédito: {saldosAFavor.length}</td>
+                    <td style={{ ...S.tf, textAlign: 'right', color: '#6d28d9', fontWeight: 900 }}>Bs {fmtBs(totalSaldo)}</td>
                   </tr>
                 </tfoot>
               </table>

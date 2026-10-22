@@ -34,13 +34,23 @@ function parseDet(p: any): any {
   if (typeof p.detalles === 'object') return p.detalles;
   try { return JSON.parse(p.detalles); } catch { return {}; }
 }
+function isSaldo(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  const det = parseDet(p);
+  const detTipo = String(det.tipo || '').toUpperCase();
+  return t.includes('SALDO') || t.includes('NOTA DE CREDITO') || t.includes('NOTA DE CRÉDITO') ||
+         detTipo.includes('SALDO') || detTipo.includes('NOTA DE CREDITO') || detTipo.includes('NOTA DE CRÉDITO') ||
+         Boolean(det.es_saldo_a_favor || det.es_nota_credito);
+}
 function isDebito(p: any) { 
+  if (isSaldo(p)) return false;
   const t = String(p.tipo || '').toUpperCase().trim();
   return (t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD');
 }
 function isCredito(p: any) {
+  if (isSaldo(p)) return false;
   const t = String(p.tipo || '').toUpperCase().trim();
-  return t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD');
+  return (t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD')) && !t.includes('NOTA');
 }
 function isTarjeta(p: any) {
   return isDebito(p) || isCredito(p);
@@ -268,7 +278,8 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   };
   const debitos = pagosFiltrados.filter(p => isDebito(p));
   const creditos = pagosFiltrados.filter(p => isCredito(p));
-  const transferencias = pagosFiltrados.filter(p => !isTarjeta(p) && !isRetencion(p));
+  const transferencias = pagosFiltrados.filter(p => !isTarjeta(p) && !isRetencion(p) && !isSaldo(p));
+  const saldosAFavor = pagosFiltrados.filter(p => isSaldo(p));
   const retenciones = pagosFiltrados.filter(p => isRetencion(p));
   const transfBanesco = transferencias.filter(p => clasificarBancoDestino(p) === 'Banesco');
   const transfBancamiga = transferencias.filter(p => clasificarBancoDestino(p) === 'Bancamiga');
@@ -283,6 +294,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   const totalTransfBancamiga = transfBancamiga.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
   const totalTransfOtros = transfOtros.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  const totalSaldoAFavor = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalIngresos = totalDebito + totalCredito + totalTransf;
   const totalUSD = tcmmv > 0 ? totalIngresos / tcmmv : 0;
   const cajeroLabel = !effectiveIsAdmin ? currentUser : selectedCajas.length === 0 ? 'Todos' : selectedCajas.join(', ');
@@ -327,6 +339,12 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           <div style={{ paddingLeft: 12, fontSize: 11, color: '#64748b', marginTop: 1, display: 'flex', justifyContent: 'space-between' }}>
             <span>• Otras Transferencias ({transfOtros.length}):</span>
             <b>Bs. {fmtBs(totalTransfOtros)}</b>
+          </div>
+        )}
+        {totalSaldoAFavor > 0 && (
+          <div style={{ marginTop: 4, color: '#6d28d9' }}>
+            <b>Saldo a Favor / Nota de Crédito (Informativo - No suma):</b>
+            <span style={{ float: 'right', fontWeight: 700 }}>{fmtBs(totalSaldoAFavor)}</span>
           </div>
         )}
         {totalRetenciones > 0 && <div style={{ marginTop: 4, color: '#64748b' }}><b>Retención IVA (Informativo - No suma):</b><span style={{ float: 'right' }}>{fmtBs(totalRetenciones)}</span></div>}
@@ -569,6 +587,30 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} />
           </tr>); })}</tbody>
           <tfoot><tr><td colSpan={7} style={S.tf}>Total Comprobantes: {retenciones.length} (Informativo, no suma a caja)</td><td style={{ ...S.tf, textAlign: 'right', color: '#475569' }}>Total Retención: {fmtBs(totalRetenciones)}</td></tr></tfoot>
+        </table>
+      </div>
+    </>}
+  </>);
+
+  const SaldoAFavorTable = ({ showDT }: { showDT?: boolean }) => (<>
+    {saldosAFavor.length > 0 && <>
+      <div style={{ ...S.secHdr, background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe' }}>SALDO A FAVOR / NOTA DE CRÉDITO (INFORMATIVO - NO SUMA EN CAJA)</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr>{(showDT ? ['#','Fecha/Hora','Tipo','Operador','Contribuyente','Recibo','Referencia / Comprobante','Estado','Monto Aplicado'] : ['#','Fecha','Tipo','Operador','Contribuyente','Recibo','Referencia / Comprobante','Estado','Monto Aplicado']).map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <tbody>{saldosAFavor.map((p, i) => { const det = parseDet(p); const recs: string[] = det.recibos || []; return (<tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#faf5ff' }}>
+            <td style={S.td}>{i + 1}</td><td style={S.td}>{showDT ? fmtDT(p.created_at) : fmtDate(p.created_at)}</td>
+            <td style={{ ...S.td, fontWeight: 700, color: '#6d28d9' }}>{p.tipo}</td><td style={S.td}>{det.cajero || '-'}</td>
+            <td style={{ ...S.td, color: '#2a5298' }}>
+              <div style={{ fontWeight: 600 }}>{p.identidad}</div>
+              <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribuyentes)}</div>
+            </td>
+            <td style={S.td}>{recs[0] || '-'}</td>
+            <td style={S.td}>{p.referencia || '-'}</td>
+            <td style={S.td}><span style={getEstadoStyle(p.estado)}>{p.estado || 'Aprobado'}</span></td>
+            <CeldaMonto p={p} valor={parseFloat(p.monto) || 0} style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: '#6d28d9' }} />
+          </tr>); })}</tbody>
+          <tfoot><tr><td colSpan={8} style={{ ...S.tf, color: '#6d28d9' }}>Total Saldo a Favor / Notas de Crédito: {saldosAFavor.length} (Informativo, no suma a caja)</td><td style={{ ...S.tf, textAlign: 'right', color: '#6d28d9', fontWeight: 900 }}>Bs {fmtBs(totalSaldoAFavor)}</td></tr></tfoot>
         </table>
       </div>
     </>}
@@ -823,7 +865,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>REPORTE GENERAL DE INGRESOS<IconsTop showExcel /></div>
           <SummaryBox title="Total Ingresos" isUSD />
-          <DebitoTable /><CreditoTable /><TransfTable /><RetencionesTable />
+          <DebitoTable /><CreditoTable /><TransfTable /><RetencionesTable /><SaldoAFavorTable />
           <div style={S.secHdr}>RESUMEN FISCAL POR PERIODOS</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead><tr><th style={{ ...S.th, width: '80%' }}>Concepto / Agrupacion por Anos</th><th style={{ ...S.th, textAlign: 'right' }}>Monto Distribuido Bs.</th></tr></thead>
@@ -844,7 +886,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>RESUMEN DE CAJA<IconsTop /></div>
           <SummaryBox title="Total Caja" />
-          <DebitoTable showDT /><CreditoTable showDT /><TransfTable showDT /><RetencionesTable showDT />
+          <DebitoTable showDT /><CreditoTable showDT /><TransfTable showDT /><RetencionesTable showDT /><SaldoAFavorTable showDT />
           {pagosFiltrados.length === 0 && <EmptyMsg />}
         </div>
       )}
@@ -853,7 +895,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div style={S.rptBox}>
           <div style={{ ...S.secHdr, fontSize: 15, padding: '10px 0' }}>REPORTE GENERAL DE INGRESOS<IconsTop /></div>
           <SummaryBox title="Total Ingresos" isUSD />
-          <DebitoTable /><CreditoTable /><TransfTable /><RetencionesTable />
+          <DebitoTable /><CreditoTable /><TransfTable /><RetencionesTable /><SaldoAFavorTable />
           {pagosFiltrados.length === 0 && <EmptyMsg />}
         </div>
       )}

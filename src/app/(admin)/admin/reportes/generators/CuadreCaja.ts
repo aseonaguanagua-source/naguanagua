@@ -55,24 +55,31 @@ export const generarCuadreCajaPDF = (
   doc.setLineWidth(0.5);
   doc.line(40, 105, pageWidth - 40, 105);
 
+  const isSaldoPago = (p: any) => {
+    const t = String(p.tipo || '').toUpperCase().trim();
+    let det: any = {};
+    try { det = (typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles) || {}; } catch(e) {}
+    const detTipo = String(det.tipo || '').toUpperCase();
+    return t.includes('SALDO') || t.includes('NOTA DE CREDITO') || t.includes('NOTA DE CRÉDITO') ||
+           detTipo.includes('SALDO') || detTipo.includes('NOTA DE CREDITO') || detTipo.includes('NOTA DE CRÉDITO') ||
+           Boolean(det.es_saldo_a_favor || det.es_nota_credito);
+  };
+
   const isDebitoPago = (p: any) => {
+    if (isSaldoPago(p)) return false;
     const t = String(p.tipo || '').toUpperCase().trim();
     return (t.includes('DEBITO') || t.includes('DÉBITO') || t === 'REC' || t === 'PUNTO DE VENTA') && !t.includes('CREDITO') && !t.includes('CRÉDITO') && !t.includes('TMD') && !t.includes('TVD');
   };
 
   const isCreditoPago = (p: any) => {
+    if (isSaldoPago(p)) return false;
     const t = String(p.tipo || '').toUpperCase().trim();
-    return t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD');
+    return (t.includes('CREDITO') || t.includes('CRÉDITO') || t.includes('TMD') || t.includes('TVD')) && !t.includes('NOTA');
   };
 
   const isDepositoPago = (p: any) => {
     const t = String(p.tipo || '').toUpperCase().trim();
     return !isCreditoPago(p) && !isDebitoPago(p) && (t.includes('DEPOSITO') || t.includes('DEPÓSITO'));
-  };
-
-  const isSaldoPago = (p: any) => {
-    const t = String(p.tipo || '').toUpperCase().trim();
-    return t.includes('SALDO');
   };
 
   const isRetencionPago = (p: any) => {

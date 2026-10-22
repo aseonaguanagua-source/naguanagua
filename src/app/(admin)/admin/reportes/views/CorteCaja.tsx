@@ -24,8 +24,19 @@ function parseDet(p: any): any {
   try { return JSON.parse(p.detalles); } catch { return {}; }
 }
 
+function isSaldo(p: any) {
+  const t = String(p.tipo || '').toUpperCase().trim();
+  const det = parseDet(p);
+  const detTipo = String(det.tipo || '').toUpperCase();
+  return t.includes('SALDO') || t.includes('NOTA DE CREDITO') || t.includes('NOTA DE CRÉDITO') ||
+         detTipo.includes('SALDO') || detTipo.includes('NOTA DE CREDITO') || detTipo.includes('NOTA DE CRÉDITO') ||
+         Boolean(det.es_saldo_a_favor || det.es_nota_credito);
+}
+
 function isDebito(p: any) {
-  return p.tipo === 'Debito' || p.tipo === 'REC' || p.tipo === 'Punto de Venta';
+  if (isSaldo(p)) return false;
+  const t = String(p.tipo || '').toUpperCase().trim();
+  return t === 'DEBITO' || t === 'REC' || t === 'PUNTO DE VENTA';
 }
 
 export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack, onExportPDF }: Props) {
@@ -61,8 +72,8 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
         if (!matches) return false;
       }
       if (isAdmin && selectedCajas.length > 0 && !selectedCajas.includes(cajero)) return false;
-      // Corte de caja: solo pagos conciliados o debito (auto-aprobado)
-      if (isDebito(p)) return true;
+      // Corte de caja: solo pagos conciliados, debito o saldo a favor / nota de credito
+      if (isDebito(p) || isSaldo(p)) return true;
       return p.estado === 'Aprobado' || p.estado === 'Con Diferencia';
     });
   }, [showReport, pagos, fechaInicio, fechaFin, selectedCajas, isAdmin, currentUser]);
@@ -72,8 +83,9 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
     return t.includes('RETENCION') || t.includes('RETENCIÓN');
   };
 
-  const debitos = pagosFiltrados.filter(p => isDebito(p));
-  const transferencias = pagosFiltrados.filter(p => !isDebito(p) && !isRetencion(p));
+  const debitos = pagosFiltrados.filter(p => isDebito(p) && !isSaldo(p));
+  const saldosAFavor = pagosFiltrados.filter(p => isSaldo(p));
+  const transferencias = pagosFiltrados.filter(p => !isDebito(p) && !isRetencion(p) && !isSaldo(p));
   const transfBanesco = transferencias.filter(p => clasificarBancoDestino(p) === 'Banesco');
   const transfBancamiga = transferencias.filter(p => clasificarBancoDestino(p) === 'Bancamiga');
   const transfOtros = transferencias.filter(p => clasificarBancoDestino(p) === 'Otros');
@@ -98,6 +110,7 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
   }, 0);
 
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  const totalSaldoAFavor = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCaja = totalDebito + totalTransf;
   const cajeroLabel = !isAdmin ? currentUser : selectedCajas.length === 0 ? 'Todos' : selectedCajas.join(', ');
 
@@ -194,6 +207,16 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                     </div>
                   )}
                 </div>
+                {totalSaldoAFavor > 0 && (
+                  <div className="pt-1 text-purple-700 text-xs">
+                    <span className="font-semibold">Saldo a Favor / Nota de Crédito (Informativo):</span> <span className="font-bold">Bs. {fmtBs(totalSaldoAFavor)}</span>
+                  </div>
+                )}
+                {totalRetenciones > 0 && (
+                  <div className="pt-0.5 text-slate-500 text-xs">
+                    <span className="font-semibold">Retención IVA (Informativo):</span> <span className="font-bold">Bs. {fmtBs(totalRetenciones)}</span>
+                  </div>
+                )}
               </div>
               <div className="flex-1 text-center px-4">
                 <div className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-1">Total Caja:</div>
@@ -414,6 +437,39 @@ export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack
                     })}
                   </tbody>
                   <tfoot><tr className="bg-slate-100 font-bold"><td colSpan={9} className={`${tdCls} text-right`}>Total Debito: {debitos.length} items</td><td className={`${tdCls} text-right`}>Bs. {fmtBs(totalDebito)}</td></tr></tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {saldosAFavor.length > 0 && (
+            <div className="p-4 border-t border-purple-100 bg-purple-50/20">
+              <h3 className="font-bold text-sm text-purple-900 mb-3 uppercase tracking-wide border-b border-purple-200 pb-1 flex items-center justify-between">
+                <span>Saldo a Favor / Nota de Crédito (Informativo - No suma en caja)</span>
+                <span className="text-xs font-semibold text-purple-700">Total: Bs. {fmtBs(totalSaldoAFavor)}</span>
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead><tr>{['#','Fecha/Hora','Tipo','Cajero','Contribuyente','Recibo','Referencia / Comprobante','Monto'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {saldosAFavor.map((p, i) => {
+                      const det = parseDet(p);
+                      const recibos: string[] = det.recibos || [];
+                      return (
+                        <tr key={p.id} className="hover:bg-purple-50/50">
+                          <td className={tdCls}>{i+1}</td>
+                          <td className={tdCls}>{fmtDateTime(p.created_at)}</td>
+                          <td className={`${tdCls} font-bold text-purple-800`}>{p.tipo}</td>
+                          <td className={tdCls}>{det.cajero || '-'}</td>
+                          <td className={tdCls}>{p.identidad} - {p.contribuyente}</td>
+                          <td className={tdCls}>{recibos[0] || '-'}</td>
+                          <td className={tdCls}>{p.referencia || '-'}</td>
+                          <td className={`${tdCls} text-right font-bold text-purple-900`}>Bs. {fmtBs(parseFloat(p.monto)||0)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot><tr className="bg-purple-100/60 font-bold"><td colSpan={7} className={`${tdCls} text-right text-purple-900`}>Total Saldo a Favor / Nota de Crédito ({saldosAFavor.length} items):</td><td className={`${tdCls} text-right text-purple-900 font-black`}>Bs. {fmtBs(totalSaldoAFavor)}</td></tr></tfoot>
                 </table>
               </div>
             </div>
