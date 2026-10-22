@@ -71,7 +71,12 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
   const raw = String(cont?.email || det.correo || correoInm || '').trim().toLowerCase();
   const correoCliente = raw.length > 4 && raw.includes('@') && raw !== fallback && raw !== backup ? raw : null;
 
-  const contribuyente = det.contribuyente || cont?.nombre || codigos.map(c => inmMap.get(c)?.contribuyente).find(Boolean) || pago.identidad;
+  const codsInm = [...codigos];
+  if (det.codigo_inmueble) codsInm.push(String(det.codigo_inmueble).trim().toUpperCase());
+  if (det.cod_inmueble) codsInm.push(String(det.cod_inmueble).trim().toUpperCase());
+  const nombreInmMail = codsInm.map(c => inmMap.get(c)?.contribuyente).find((n: any) => n && String(n).trim() && !String(n).trim().startsWith('V-') && !String(n).trim().startsWith('J-'));
+  const rcRazon = Array.isArray(det.recibo_caja) && det.recibo_caja[0]?.razonSocial ? String(det.recibo_caja[0].razonSocial).trim() : null;
+  const contribuyente = nombreInmMail || rcRazon || det.contribuyente || cont?.nombre || pago.identidad;
 
   return {
     pago, det, contribuyente, identidad: pago.identidad, correoCliente, clasif, lineas,

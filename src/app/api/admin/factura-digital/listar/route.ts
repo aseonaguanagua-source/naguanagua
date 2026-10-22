@@ -237,6 +237,8 @@ export async function GET(request: Request) {
       const det = parseDetalles(p.detalles);
       detallesPorPago.set(p.id, det);
       (det.recibos || []).forEach((r: string) => { const c = extraerCodigoInmueble(r); if (c) codigos.add(c); });
+      if (det.codigo_inmueble) codigos.add(String(det.codigo_inmueble).trim().toUpperCase());
+      if (det.cod_inmueble) codigos.add(String(det.cod_inmueble).trim().toUpperCase());
     });
     const inmMap = new Map<string, any>();
     const listaCodigos = [...codigos];
@@ -296,14 +298,26 @@ export async function GET(request: Request) {
           }
         }
       }
+      if (!nombreInm && det.codigo_inmueble && inmMap.get(det.codigo_inmueble)?.contribuyente) {
+        const cand = String(inmMap.get(det.codigo_inmueble).contribuyente).trim();
+        if (!esPlaceholderNombre(cand)) nombreInm = cand;
+      }
+      if (!nombreInm && det.cod_inmueble && inmMap.get(det.cod_inmueble)?.contribuyente) {
+        const cand = String(inmMap.get(det.cod_inmueble).contribuyente).trim();
+        if (!esPlaceholderNombre(cand)) nombreInm = cand;
+      }
+
+      const rcRazon = det.recibo_caja?.[0]?.razonSocial && !esPlaceholderNombre(det.recibo_caja[0].razonSocial) ? String(det.recibo_caja[0].razonSocial).trim() : null;
 
       let nombreResuelto = '';
-      if (!esPlaceholderNombre(det.contribuyente)) {
+      if (nombreInm && !esPlaceholderNombre(nombreInm)) {
+        nombreResuelto = nombreInm;
+      } else if (rcRazon) {
+        nombreResuelto = rcRazon;
+      } else if (!esPlaceholderNombre(det.contribuyente)) {
         nombreResuelto = det.contribuyente;
       } else if (cont?.nombre && !esPlaceholderNombre(cont.nombre)) {
         nombreResuelto = cont.nombre;
-      } else if (nombreInm) {
-        nombreResuelto = nombreInm;
       } else if (condo?.nombre && !esPlaceholderNombre(condo.nombre)) {
         nombreResuelto = condo.nombre;
       } else {

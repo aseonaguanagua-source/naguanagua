@@ -1030,7 +1030,15 @@ export async function POST(request: Request) {
       .limit(1);
     const contribData = contDb?.[0];
 
+    const codsPago = (Array.isArray(recibos) ? recibos : []).map(r => extraerCodigoInmueble(r)).filter(Boolean) as string[];
+    if (detPago?.codigo_inmueble) codsPago.push(String(detPago.codigo_inmueble).trim().toUpperCase());
+    if (detPago?.cod_inmueble) codsPago.push(String(detPago.cod_inmueble).trim().toUpperCase());
+    const propDelPago = (userProps || []).find((p: any) => codsPago.includes(String(p.inmueble || '').toUpperCase()) && !esPlaceholderNombre(p.contribuyente));
+    const rcRazon = detPago?.recibo_caja?.[0]?.razonSocial && !esPlaceholderNombre(detPago.recibo_caja[0].razonSocial) ? String(detPago.recibo_caja[0].razonSocial).trim() : null;
+
     let razonSocialFinal = String(
+      propDelPago?.contribuyente ||
+      rcRazon ||
       contribuyente ||
       detPago?.contribuyente ||
       detPago?.contribuyente_nombre ||

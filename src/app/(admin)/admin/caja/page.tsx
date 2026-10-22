@@ -43,6 +43,27 @@ const updateServiciosEspecialesEstado = async (referencias: string[], estado: st
   }
 };
 
+const esPlaceholderNombre = (name: any) => {
+  const s = String(name || '').trim().toUpperCase();
+  if (!s || s.length < 3) return true;
+  if (/^(N\/A|SIN NOMBRE|NO APLICA|DESCONOCIDO|CONTRIBUYENTE)$/i.test(s)) return true;
+  if (/^[VJEPG]-?\d+$/i.test(s)) return true;
+  return false;
+};
+
+const extraerCodigoInmuebleRef = (ref: string): string | null => {
+  if (!ref) return null;
+  const mHist = ref.match(/^RECIB-HIST-(.+)-M\d+$/i);
+  if (mHist) return mHist[1].trim().toUpperCase();
+  const mMulta = ref.match(/^MULTA-(.+?)(?:-M\d+)?$/i);
+  if (mMulta) return mMulta[1].trim().toUpperCase();
+  const mCm = ref.match(/^CM-([A-Z0-9_-]+)/i);
+  if (mCm) return mCm[1].trim().toUpperCase();
+  const p = ref.split('-');
+  if (p.length >= 3 && p[0] === 'RECIB') return p[2].trim().toUpperCase();
+  return null;
+};
+
 /**
  * Foto de la deuda de los inmuebles ANTES del cobro (se guarda en detalles.deuda_previa del pago).
  * Permite revertir un pago sin depender del respaldo de SIGYR. Nunca bloquea el cobro.
@@ -2749,9 +2770,27 @@ export default function CajaPage() {
           });
         }
 
+        let inmPagoSeleccionado: any = null;
+        if (selectedRecibos && selectedRecibos.length > 0) {
+          const cod = extraerCodigoInmuebleRef(selectedRecibos[0]);
+          if (cod) {
+            inmPagoSeleccionado = (freshInmuebles || []).find((i: any) => String(i?.inmueble || '').toUpperCase() === cod || String(i?.cod_cont || '').toUpperCase() === cod)
+              || (inmuebles as any[] || []).find((i: any) => String(i?.inmueble || '').toUpperCase() === cod || String(i?.cod_cont || '').toUpperCase() === cod);
+          }
+        }
+        if (!inmPagoSeleccionado && freshInmuebles && freshInmuebles.length > 0) {
+          inmPagoSeleccionado = freshInmuebles[0];
+        }
+        const contribuyenteFinalPago = (inmPagoSeleccionado?.contribuyente && !isCondominio && !esPlaceholderNombre(inmPagoSeleccionado.contribuyente))
+          ? inmPagoSeleccionado.contribuyente
+          : foundUser.Contribuyente;
+        const codInmuebleFinal = inmPagoSeleccionado?.inmueble || inmPagoSeleccionado?.cod_cont || undefined;
+
         const fullDetalles: any = {
-          contribuyente: foundUser.Contribuyente,
-          contribuyente_nombre: foundUser.Contribuyente,
+          contribuyente: contribuyenteFinalPago,
+          contribuyente_nombre: contribuyenteFinalPago,
+          codigo_inmueble: codInmuebleFinal,
+          cod_inmueble: codInmuebleFinal,
           recibos: digitalRecibos,
           montos: digitalMontos,
           cuotas: selectedCuotas,
@@ -3412,6 +3451,22 @@ export default function CajaPage() {
         const fechaUTC = fechaCorteCaja === hoyStr 
           ? new Date().toISOString() 
           : new Date(`${fechaCorteCaja}T12:00:00-04:00`).toISOString();
+        let inmPagoT: any = null;
+        if (selectedRecibos && selectedRecibos.length > 0) {
+          const cod = extraerCodigoInmuebleRef(selectedRecibos[0]);
+          if (cod) {
+            inmPagoT = (freshInmuebles || []).find((i: any) => String(i?.inmueble || '').toUpperCase() === cod || String(i?.cod_cont || '').toUpperCase() === cod)
+              || (inmuebles as any[] || []).find((i: any) => String(i?.inmueble || '').toUpperCase() === cod || String(i?.cod_cont || '').toUpperCase() === cod);
+          }
+        }
+        if (!inmPagoT && freshInmuebles && freshInmuebles.length > 0) {
+          inmPagoT = freshInmuebles[0];
+        }
+        const contribuyenteFinalT = (inmPagoT?.contribuyente && !isCondominio && !esPlaceholderNombre(inmPagoT.contribuyente))
+          ? inmPagoT.contribuyente
+          : foundUser.Contribuyente;
+        const codInmuebleT = inmPagoT?.inmueble || inmPagoT?.cod_cont || undefined;
+
         let { error: pErr } = await supabase.from('pagos_reportados').insert({
           id: pagoIdT,
           identidad: foundUser.Identidad,
@@ -3422,8 +3477,10 @@ export default function CajaPage() {
           estado: 'Por Verificar',
           created_at: fechaUTC,
           detalles: JSON.stringify({ 
-            contribuyente: foundUser.Contribuyente,
-            contribuyente_nombre: foundUser.Contribuyente,
+            contribuyente: contribuyenteFinalT,
+            contribuyente_nombre: contribuyenteFinalT,
+            codigo_inmueble: codInmuebleT,
+            cod_inmueble: codInmuebleT,
             recibos: selectedRecibos, 
             cuotas: selectedCuotas,
             servicios: selectedServicios,

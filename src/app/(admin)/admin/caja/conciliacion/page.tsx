@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   CheckCheck, RefreshCw, Filter, Landmark, Eye, Download, X,
   Pencil, Mail, Building2, Receipt
@@ -1950,10 +1950,20 @@ export default function ConciliacionPage() {
     hasta: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()),
     estatus: 'Todos', bancoDestino: 'Todos', formaPago: 'Todos', referencia: '', monto: '', modulo: 'Todos',
   });
+  const [busquedaInput, setBusquedaInput] = useState('');
+  const reqIdRef = useRef(0);
   const [pagoSel, setPagoSel] = useState<Pago | null>(null);
   const [mode, setMode] = useState<'conciliar'|'comprobante'|'edoCuenta'|null>(null);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFiltros(f => (f.referencia === busquedaInput ? f : { ...f, referencia: busquedaInput }));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [busquedaInput]);
+
   const fetchPagos = useCallback(async () => {
+    const currentReqId = ++reqIdRef.current;
     setLoading(true);
     try {
       const tieneTermino = Boolean(filtros.referencia && filtros.referencia.trim());
@@ -1973,6 +1983,13 @@ export default function ConciliacionPage() {
                                 (c.identidad || '').toLowerCase().includes(term.toLowerCase()))
             .map((c: any) => c.identidad)
             .filter(Boolean);
+          const inmsMatching = (inmuebles || [])
+            .filter((i: any) => (i.inmueble || '').toLowerCase().includes(term.toLowerCase()) || 
+                                (i.cod_cont || '').toLowerCase().includes(term.toLowerCase()))
+            .map((i: any) => i.identidad)
+            .filter(Boolean);
+          const allMatchingIds = Array.from(new Set([...rifsMatching, ...inmsMatching]));
+
           const orParts = [
             `referencia.ilike.%${term}%`,
             `identidad.ilike.%${term}%`,
@@ -1980,11 +1997,13 @@ export default function ConciliacionPage() {
             `detalles->condominio->>codigo.ilike.%${term}%`,
             `detalles->>condominio_nombre.ilike.%${term}%`,
             `detalles->>contribuyente.ilike.%${term}%`,
+            `detalles->>contribuyente_nombre.ilike.%${term}%`,
             `detalles->>codigo_inmueble.ilike.%${term}%`,
-            `detalles->>cod_inmueble.ilike.%${term}%`
+            `detalles->>cod_inmueble.ilike.%${term}%`,
+            `detalles->>inmueble.ilike.%${term}%`
           ];
-          if (rifsMatching.length > 0) {
-            orParts.push(`identidad.in.(${rifsMatching.slice(0, 50).join(',')})`);
+          if (allMatchingIds.length > 0) {
+            orParts.push(`identidad.in.(${allMatchingIds.slice(0, 50).join(',')})`);
           }
           q = q.or(orParts.join(','));
         }
@@ -1992,8 +2011,14 @@ export default function ConciliacionPage() {
         return q;
       };
       let result: any[] = [];
-      if (filtros.modulo.startsWith('Condominios')) {
-        // Pagos de condominios: del módulo / marcados, y por RIF del condominio (en lotes)
+      if (tieneTermino) {
+        // Con término de búsqueda específica, se ejecuta una consulta ultrarrápida indexada
+        let q = armar();
+        if (filtros.modulo === 'Contribuyentes') q = q.neq('modulo', 'condominios');
+        const { data } = await q;
+        result = data || [];
+      } else if (filtros.modulo.startsWith('Condominios')) {
+        // Pagos generales de condominios: del módulo / marcados, y por RIF del condominio (en lotes)
         const lotes = [armar().or(OR_CONDOMINIOS)];
         const rifs = rifsCondominios(condos);
         for (let i = 0; i < rifs.length; i += 150) lotes.push(armar().in('identidad', rifs.slice(i, i + 150)));
@@ -2024,9 +2049,10 @@ export default function ConciliacionPage() {
           const det = parseDetalles(p.detalles);
           const condo = infoCondominioPago(p, condos);
           const condoNom = (condo?.nombre || det.condominio?.nombre || det.condominio_nombre || '').toLowerCase();
-          const condoCod = (condo?.codigo || det.condominio?.codigo || det.codigo_inmueble || det.cod_inmueble || '').toLowerCase();
-          const cont = (det.contribuyente || p.contribuyente || '').toLowerCase();
-          return ref.includes(t) || iden.includes(t) || condoNom.includes(t) || condoCod.includes(t) || cont.includes(t);
+          const condoCod = (condo?.codigo || det.condominio?.codigo || det.codigo_inmueble || det.cod_inmueble || det.inmueble || '').toLowerCase();
+          const cont = (det.contribuyente || det.contribuyente_nombre || p.contribuyente || '').toLowerCase();
+          const recibosStr = Array.isArray(det.recibos) ? det.recibos.join(' ').toLowerCase() : '';
+          return ref.includes(t) || iden.includes(t) || condoNom.includes(t) || condoCod.includes(t) || cont.includes(t) || recibosStr.includes(t);
         });
       }
       if (filtros.bancoDestino !== 'Todos') {
@@ -2035,10 +2061,14 @@ export default function ConciliacionPage() {
           return (p.banco_destino || det.banco_destino || '').includes(filtros.bancoDestino.split(' - ')[0]);
         });
       }
+      if (currentReqId !== reqIdRef.current) return;
       setPagos(result);
-    } catch(e) { console.error(e); }
-    setLoading(false);
-  }, [filtros, condos]);
+    } catch(e) {
+      if (currentReqId !== reqIdRef.current) return;
+      console.error(e);
+    }
+    if (currentReqId === reqIdRef.current) setLoading(false);
+  }, [filtros, condos, inmuebles]);
 
   useEffect(() => { fetchPagos(); }, [fetchPagos]);
 
@@ -2225,7 +2255,32 @@ export default function ConciliacionPage() {
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Estatus</label><select value={filtros.estatus} onChange={e=>setFiltros(f=>({...f,estatus:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{ESTATUS_LIST.map(s=><option key={s}>{s}</option>)}</select></div>
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Banco Destino</label><select value={filtros.bancoDestino} onChange={e=>setFiltros(f=>({...f,bancoDestino:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{BANCOS_DESTINO.map(b=><option key={b}>{b}</option>)}</select></div>
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Forma de pago</label><select value={filtros.formaPago} onChange={e=>setFiltros(f=>({...f,formaPago:e.target.value}))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400">{FORMAS_PAGO.map(fp=><option key={fp}>{fp}</option>)}</select></div>
-              <div><label className="block text-xs font-semibold text-slate-500 mb-1">Ref / RIF / Condominio</label><input value={filtros.referencia} onChange={e=>setFiltros(f=>({...f,referencia:e.target.value}))} placeholder="Buscar ref, RIF o nombre..." className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Código / Ref / RIF / Nombre</label>
+                <div className="relative">
+                  <input
+                    value={busquedaInput}
+                    onChange={e => setBusquedaInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        setFiltros(f => ({ ...f, referencia: busquedaInput }));
+                      }
+                    }}
+                    placeholder="Ej: URB016491, 16816427..."
+                    className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs pr-6 focus:outline-none focus:ring-1 focus:ring-cyan-400"
+                  />
+                  {busquedaInput && (
+                    <button
+                      type="button"
+                      onClick={() => { setBusquedaInput(''); setFiltros(f => ({ ...f, referencia: '' })); }}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold w-4 h-4 flex items-center justify-center rounded-full hover:bg-slate-200"
+                      title="Limpiar búsqueda"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
               <div><label className="block text-xs font-semibold text-slate-500 mb-1">Monto</label><input value={filtros.monto} onChange={e=>setFiltros(f=>({...f,monto:e.target.value}))} placeholder="Monto exacto" type="number" className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-400" /></div>
               <div><label className="block text-xs font-semibold text-emerald-700 mb-1">Módulo</label><select id="filtro-modulo-conciliacion" value={filtros.modulo} onChange={e=>setFiltros(f=>({...f,modulo:e.target.value as FiltroModulo}))} className="w-full border border-emerald-300 bg-emerald-50/40 rounded px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400">{FILTROS_MODULO.map(x=><option key={x}>{x}</option>)}</select></div>
             </div>
