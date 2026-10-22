@@ -469,7 +469,7 @@ function Caja() {
   }, [claves, conDeuda, porContrib, identidad, visiblesU]);
 
   const mesesMax = base?.totales?.mesesMax || 0;
-  const multasMax = Math.max(1, ...(unidadesParaMax || []).map((r: any) => (r.multaMeses || 0) + (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length + (r.multasManuales || []).length));
+  const multasMax = Math.max(1, ...(unidadesParaMax || []).map((r: any) => Math.max(r.multaMeses || 0, (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length) + (r.multasManuales || []).length));
   const maxOpciones = soloMultas ? multasMax : mesesMax;
   const listaMultasInfo = useMemo(() => {
     if (!soloMultas || !unidadesParaMax || unidadesParaMax.length === 0) return [];

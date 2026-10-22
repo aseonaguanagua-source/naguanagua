@@ -149,7 +149,8 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const multaPorMesBs = Math.round(mensualBs * pctMulta * 100) / 100;
   const multaMesesN = Math.max(0, parseInt(f.multa_meses) || 0);
   const mesesMoraAuto = (renglon?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
-  const totalBadgeMeses = mesesMoraAuto + multaMesesN;
+  const mesesAdicionales = Math.max(0, multaMesesN - mesesMoraAuto);
+  const totalBadgeMeses = Math.max(mesesMoraAuto, multaMesesN);
 
   const esNA = actCom.trim().toUpperCase() === 'N/A' || actCom.trim() === '';
   const actividad = clase === 'RES' ? actRes : (actCom.trim() ? actividadConNivel(actCom.trim().toUpperCase(), nivel) : '');
@@ -522,7 +523,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                   <div>Cada mes de multa = {esRes ? '10' : '12'}% de la mensualidad de la unidad.</div>
                 )}
                 <div className="p-2 rounded-lg bg-amber-100/80 border border-amber-300 text-[11px] text-amber-950">
-                  <span className="font-bold">Total reflejado en la ficha:</span> {mesesMoraAuto} mora automática de aseo + {multaMesesN} adicionales = <b className="text-red-700 font-extrabold">{totalBadgeMeses} meses de multa</b>
+                  <span className="font-bold">Total reflejado en la ficha:</span> <b className="text-red-700 font-extrabold">{totalBadgeMeses} meses de multa</b> ({mesesMoraAuto} por mora de aseo{mesesAdicionales > 0 ? ` + ${mesesAdicionales} remanente(s)` : ''})
                 </div>
               </div>
             </div>
