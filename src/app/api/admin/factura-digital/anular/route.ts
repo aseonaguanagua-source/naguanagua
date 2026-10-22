@@ -757,8 +757,22 @@ export async function POST(request: Request) {
     const montoFacturaGuardado = parseFloat(String(detPago.monto_factura || 0)) || 0;
     const montoRetencionGuardada = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
 
+    const totalEfectivoPagado = (() => {
+      if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
+        return detPago.pagos_agregados
+          .filter((p: any) => !String(p?.metodo || p?.tipo || '').toLowerCase().includes('saldo a favor') && !String(p?.metodo || p?.tipo || '').toLowerCase().includes('nota de credito'))
+          .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+      }
+      if (Array.isArray(detPago?.formasPago) && detPago.formasPago.length > 0) {
+        return detPago.formasPago
+          .filter((p: any) => !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('saldo a favor') && !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('nota de credito'))
+          .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+      }
+      return parseFloat(String(pagoRow?.monto || 0)) || 0;
+    })();
+
     const sfReal = (conRetencion && Math.abs(saldoFavorGenerado - montoRetencionGuardada) < 0.05) ? 0 : saldoFavorGenerado;
-    let montoCobrado = (parseFloat(String(pagoRow?.monto || 0)) || 0) + montoRetencionGuardada - sfReal;
+    let montoCobrado = totalEfectivoPagado + montoRetencionGuardada - sfReal;
     if (montoFacturaGuardado > 0) {
       montoCobrado = montoFacturaGuardado;
     }
@@ -1136,7 +1150,27 @@ export async function POST(request: Request) {
     } else {
       const retCalculada = r2(totalIVA * 0.75);
       const montoRet = conRetencion ? (retCalculada || parseFloat(String(detPago?.monto_retencion_iva || detPago?.retencion_iva || 0))) : 0;
-      const montoCobradoNeto = (parseFloat(String(pagoRow?.monto || 0)) || 0) - saldoFavorGenerado;
+      const efectivoTotal = (() => {
+        if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
+          const sumPagos = detPago.pagos_agregados.reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+          return Math.max(0, sumPagos - saldoFavorGenerado);
+        }
+        if (Array.isArray(detPago?.formasPago) && detPago.formasPago.length > 0) {
+          const sumFormas = detPago.formasPago.reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+          return Math.max(0, sumFormas - saldoFavorGenerado);
+        }
+        if (montoFacturaGuardado > 0) {
+          return montoFacturaGuardado - (conRetencion ? montoRet : 0);
+        }
+        if (parseFloat(String(detPago?.monto_neto_factura || 0)) > 0) {
+          return parseFloat(String(detPago.monto_neto_factura));
+        }
+        if (parseFloat(String(detPago?.total_seleccionado || 0)) > 0) {
+          return parseFloat(String(detPago.total_seleccionado)) - (conRetencion ? montoRet : 0);
+        }
+        return totalEfectivoPagado - saldoFavorGenerado;
+      })();
+      const montoCobradoNeto = Math.max(efectivoTotal, (montoCobrado > 0 ? (conRetencion ? montoCobrado - montoRet : montoCobrado) : 0));
       const cobradoTotal = montoCobradoNeto + montoRet;
       if (montoCobradoNeto > 0 && !conRetencion && totalAPagar > montoCobradoNeto + tol)
         erroresFiscales.push(`Total factura (${totalAPagar.toFixed(2)}) MAYOR a lo cobrado en caja (${montoCobradoNeto.toFixed(2)}).`);
