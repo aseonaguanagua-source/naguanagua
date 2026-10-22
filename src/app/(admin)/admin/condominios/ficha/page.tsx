@@ -57,6 +57,7 @@ function Ficha() {
   const [guardandoNota, setGuardandoNota] = useState(false);
   const [ajusteMesesTarget, setAjusteMesesTarget] = useState<{ unidad: any; renglon: any } | null>(null);
   const [conveniosUnidades, setConveniosUnidades] = useState<Record<string, any>>({});
+  const [descargandoExcel, setDescargandoExcel] = useState(false);
 
   const handleGuardarNota = async () => {
     if (!c?.codigo) return;
@@ -516,25 +517,43 @@ function Ficha() {
 
               <div className="flex flex-wrap items-center gap-2">
                 <button 
+                  disabled={descargandoExcel}
                   onClick={async () => {
-                    const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
-                    exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador');
+                    setDescargandoExcel(true);
+                    try {
+                      const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
+                      await exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador');
+                    } catch (err: any) {
+                      console.error('Error al descargar Excel:', err);
+                      alert('Error al descargar Excel: ' + (err?.message || 'Error desconocido'));
+                    } finally {
+                      setDescargandoExcel(false);
+                    }
                   }} 
-                  className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
                 >
-                  <FileText className="w-3.5 h-3.5" /> Excel
+                  <FileText className="w-3.5 h-3.5" /> {descargandoExcel ? 'Descargando...' : 'Excel'}
                 </button>
                 {admin && (
                   <button 
                     id="btn-excel-ucd-condominio" 
+                    disabled={descargandoExcel}
                     onClick={async () => {
-                      const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
-                      exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador', 'UCD');
+                      setDescargandoExcel(true);
+                      try {
+                        const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
+                        await exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador', 'UCD');
+                      } catch (err: any) {
+                        console.error('Error al descargar Excel UCD:', err);
+                        alert('Error al descargar Excel UCD: ' + (err?.message || 'Error desconocido'));
+                      } finally {
+                        setDescargandoExcel(false);
+                      }
                     }} 
-                    className="px-3.5 py-2 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs" 
+                    className="px-3.5 py-2 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs disabled:opacity-50" 
                     title="Estado de cuenta expresado en UCD (Euro × 57) — sólo administradores"
                   >
-                    <FileText className="w-3.5 h-3.5" /> Excel UCD
+                    <FileText className="w-3.5 h-3.5" /> {descargandoExcel ? 'Descargando...' : 'Excel UCD'}
                   </button>
                 )}
                 <button 

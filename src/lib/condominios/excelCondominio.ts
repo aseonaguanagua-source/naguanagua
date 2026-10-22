@@ -13,9 +13,16 @@ const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'O
 const fmtPeriodo = (p: string) => { const [y, m] = String(p || '').split('-'); return m ? `${MESES[parseInt(m) - 1]} ${y}` : p; };
 
 export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero: string, moneda: 'BS' | 'UCD' = 'BS') {
-  const ExcelJS = (await import('exceljs')).default;
+  const exceljsModule = await import('exceljs');
+  const ExcelJS = (exceljsModule as any).default || exceljsModule;
+  const WorkbookClass = ExcelJS.Workbook || (exceljsModule as any).Workbook;
+  if (!WorkbookClass) {
+    throw new Error('No se pudo inicializar el generador de Excel (ExcelJS).');
+  }
+
   const { logos } = await import('@/lib/logosBase64');
-  const ucd = valorUCD(e.tasa);
+  const tasaNum = Number(e?.tasa) || 0;
+  const ucd = valorUCD(tasaNum);
   const enUCD = moneda === 'UCD' && ucd > 0;
   const conv = (bs: number) => {
     const v = Number(bs) || 0;
@@ -24,7 +31,7 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   const numFmt = enUCD ? '#,##0.0000' : '#,##0.00';
   const mon = enUCD ? 'UCD' : 'Bs';
 
-  const wb = new ExcelJS.Workbook();
+  const wb = new WorkbookClass();
   const borde = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } } as any;
   const cabecera = (ws: any, fila: number, valores: string[]) => {
     const r = ws.getRow(fila);
@@ -41,10 +48,14 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   };
   const logosEn = (ws: any) => {
     try {
-      const al = wb.addImage({ base64: logos.alcaldia, extension: 'jpeg' });
-      ws.addImage(al, { tl: { col: 0, row: 0 }, ext: { width: 80, height: 80 } });
-      const ia = wb.addImage({ base64: logos.iamec, extension: 'jpeg' });
-      ws.addImage(ia, { tl: { col: 2.4, row: 0 }, ext: { width: 80, height: 80 } });
+      if (logos.alcaldia) {
+        const al = wb.addImage({ base64: logos.alcaldia, extension: 'jpeg' });
+        ws.addImage(al, { tl: { col: 0, row: 0 }, ext: { width: 80, height: 80 } });
+      }
+      if (logos.iamec) {
+        const ia = wb.addImage({ base64: logos.iamec, extension: 'jpeg' });
+        ws.addImage(ia, { tl: { col: 2.4, row: 0 }, ext: { width: 80, height: 80 } });
+      }
     } catch { /* sin logos */ }
   };
   const encabezado = (ws: any, titulo: string, ancho: number) => {
@@ -53,14 +64,14 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     ws.getCell(1, 4).font = { bold: true, size: 12 };
     ws.mergeCells(2, 4, 2, ancho); ws.getCell(2, 4).value = titulo + (enUCD ? ' (EXPRESADO EN UCD)' : ' (EXPRESADO EN BOLÍVARES)');
     ws.getCell(2, 4).font = { bold: true, size: 11 };
-    ws.mergeCells(3, 4, 3, ancho); ws.getCell(3, 4).value = `CONDOMINIO: ${c.nombre || ''} (${c.codigo || ''})${c.identidad ? ' · RIF ' + c.identidad : ''}`;
+    ws.mergeCells(3, 4, 3, ancho); ws.getCell(3, 4).value = `CONDOMINIO: ${c?.nombre || ''} (${c?.codigo || ''})${c?.identidad ? ' · RIF ' + c.identidad : ''}`;
     ws.getCell(3, 4).font = { bold: true, size: 10 };
     ws.mergeCells(4, 4, 4, ancho);
-    ws.getCell(4, 4).value = `Fecha: ${new Date().toLocaleString('es-VE')} · Tasa Euro BCV: ${e.tasa.toLocaleString('es-VE', { minimumFractionDigits: 2 })} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero}`;
+    ws.getCell(4, 4).value = `Fecha: ${new Date().toLocaleString('es-VE')} · Tasa Euro BCV: ${tasaNum.toLocaleString('es-VE', { minimumFractionDigits: 2 })} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
     ws.getCell(4, 4).font = { size: 9 };
   };
 
-  const renglones = e.renglones || [];
+  const renglones = e?.renglones || [];
   const cobran = renglones.filter(r => !r.esGrupo);
 
   // ── Hoja 1: Resumen ──
@@ -69,15 +80,16 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   encabezado(ws1, 'ESTADO DE CUENTA DE CONDOMINIO - RESUMEN', 5);
   const multasManuales = renglones.reduce((s, r) => s + (r.multasManualesBs || 0), 0);
   const multaExtra = renglones.reduce((s, r) => s + (r.multaExtraBs || 0), 0);
+  const totales = e?.totales || { baseBs: 0, multaBs: 0, ivaBs: 0, retencionBs: 0, totalBs: 0, mesesMax: 0, unidadesConDeuda: 0 };
   const filasRes: [string, number | string][] = [
     ['Unidades registradas', renglones.filter(r => r.clave !== '__SIN_REGISTRAR__').length],
-    ['Unidades con deuda', e.totales.unidadesConDeuda],
-    ['Meses máximos adeudados', e.totales.mesesMax],
-    [`Servicio de aseo (${mon})`, conv(e.totales.baseBs)],
-    [`Multas por mora (${mon})`, conv(e.totales.multaBs)],
-    [`IVA 16% (${mon})`, conv(e.totales.ivaBs)],
-    ...(e.totales.retencionBs ? [[`IVA retenido 75% (${mon})`, -conv(e.totales.retencionBs)] as [string, number]] : []),
-    [`TOTAL A PAGAR (${mon})`, conv(e.totales.totalBs)],
+    ['Unidades con deuda', totales.unidadesConDeuda || 0],
+    ['Meses máximos adeudados', totales.mesesMax || 0],
+    [`Servicio de aseo (${mon})`, conv(totales.baseBs || 0)],
+    [`Multas por mora (${mon})`, conv(totales.multaBs || 0)],
+    [`IVA 16% (${mon})`, conv(totales.ivaBs || 0)],
+    ...(totales.retencionBs ? [[`IVA retenido 75% (${mon})`, -conv(totales.retencionBs)] as [string, number]] : []),
+    [`TOTAL A PAGAR (${mon})`, conv(totales.totalBs || 0)],
   ];
   let f = 7;
   cabecera(ws1, f++, ['', '', '', 'CONCEPTO', mon === 'UCD' ? 'MONTO (UCD)' : 'MONTO (Bs)']);
@@ -108,10 +120,14 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   cobran.forEach(r => {
     const pm = r.deuda?.porMes || [];
     pm.forEach((m, i) => {
-      const per = r.periodos?.[i] || `#${m.n}`;
+      const per = r.periodos?.[i] || `#${m?.n ?? i + 1}`;
       if (!porPeriodo.has(per)) porPeriodo.set(per, { unidades: 0, base: 0, multa: 0, iva: 0, total: 0 });
       const p = porPeriodo.get(per)!;
-      p.unidades++; p.base += m.baseBs; p.multa += m.multaBs; p.iva += m.ivaBs; p.total += m.baseBs + m.multaBs + m.ivaBs;
+      p.unidades++;
+      p.base += Number(m?.baseBs) || 0;
+      p.multa += Number(m?.multaBs) || 0;
+      p.iva += Number(m?.ivaBs) || 0;
+      p.total += (Number(m?.baseBs) || 0) + (Number(m?.multaBs) || 0) + (Number(m?.ivaBs) || 0);
     });
   });
   cabecera(ws2, 7, ['', '', '', 'PERÍODO', 'UNIDADES', `SERV. ASEO (${mon})`, `MULTA (${mon})`, `IVA (${mon})`, `TOTAL (${mon})`]);
@@ -200,28 +216,28 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     const cleanAct = cleanClasificacionActividad(r.actividad);
 
     let actividadStr = cleanAct || 'N/A';
-    let mensualBs = r.mensualBs * (r.residencial ? 1 : 1.16);
-    let mesesAseo = r.deuda.meses;
-    let mesesMulta = r.multaMeses;
-    let baseBs = r.deuda.baseBs;
-    let multaBs = r.deuda.multaBs + r.multaExtraBs;
-    let ivaBs = r.deuda.ivaBs;
-    let manualesBs = r.multasManualesBs || 0;
-    let totalBs = r.totalBs;
+    let mensualBs = (Number(r.mensualBs) || 0) * (r.residencial ? 1 : 1.16);
+    let mesesAseo = Number(r.deuda?.meses) || 0;
+    let mesesMulta = Number(r.multaMeses) || 0;
+    let baseBs = Number(r.deuda?.baseBs) || 0;
+    let multaBs = (Number(r.deuda?.multaBs) || 0) + (Number(r.multaExtraBs) || 0);
+    let ivaBs = Number(r.deuda?.ivaBs) || 0;
+    let manualesBs = Number(r.multasManualesBs) || 0;
+    let totalBs = Number(r.totalBs) || 0;
 
     if (hijos.length > 0) {
       // Consolidar la suma completa de todas las sub-actividades en las columnas de la unidad/local
       const actsHijos = [...new Set(hijos.map(h => cleanClasificacionActividad(h.actividad)).filter(Boolean))];
       actividadStr = actsHijos.length > 0 ? actsHijos.join(' / ') : (cleanAct || 'Múltiples Actividades');
 
-      mensualBs += hijos.reduce((acc, h) => acc + (h.mensualBs * (h.residencial ? 1 : 1.16)), 0);
-      mesesAseo = Math.max(mesesAseo, ...hijos.map(h => h.deuda.meses));
-      mesesMulta = Math.max(mesesMulta, ...hijos.map(h => h.multaMeses));
-      baseBs += hijos.reduce((acc, h) => acc + h.deuda.baseBs, 0);
-      multaBs += hijos.reduce((acc, h) => acc + (h.deuda.multaBs + h.multaExtraBs), 0);
-      ivaBs += hijos.reduce((acc, h) => acc + h.deuda.ivaBs, 0);
-      manualesBs += hijos.reduce((acc, h) => acc + (h.multasManualesBs || 0), 0);
-      totalBs += hijos.reduce((acc, h) => acc + h.totalBs, 0);
+      mensualBs += hijos.reduce((acc, h) => acc + ((Number(h.mensualBs) || 0) * (h.residencial ? 1 : 1.16)), 0);
+      mesesAseo = Math.max(mesesAseo, ...hijos.map(h => Number(h.deuda?.meses) || 0));
+      mesesMulta = Math.max(mesesMulta, ...hijos.map(h => Number(h.multaMeses) || 0));
+      baseBs += hijos.reduce((acc, h) => acc + (Number(h.deuda?.baseBs) || 0), 0);
+      multaBs += hijos.reduce((acc, h) => acc + ((Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0)), 0);
+      ivaBs += hijos.reduce((acc, h) => acc + (Number(h.deuda?.ivaBs) || 0), 0);
+      manualesBs += hijos.reduce((acc, h) => acc + (Number(h.multasManualesBs) || 0), 0);
+      totalBs += hijos.reduce((acc, h) => acc + (Number(h.totalBs) || 0), 0);
     }
 
     const row = ws3.getRow(f3++);
@@ -251,7 +267,7 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   }
   const rt3 = ws3.getRow(f3);
   rt3.getCell(1).value = 'TOTALES';
-  const tv: Record<number, number> = { 10: e.totales.baseBs, 11: e.totales.multaBs, 12: e.totales.ivaBs, 14: e.totales.totalBs };
+  const tv: Record<number, number> = { 10: totales.baseBs, 11: totales.multaBs, 12: totales.ivaBs, 14: totales.totalBs };
   for (let k = 1; k <= 14; k++) {
     const cell = rt3.getCell(k);
     if (tv[k] !== undefined) { cell.value = conv(tv[k]); cell.numFmt = numFmt; }
@@ -286,13 +302,13 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
           h.identidad || padre?.identidad || '',
           cleanClasificacionActividad(h.actividad) || 'Actividad Comercial',
           h.estado,
-          conv(h.mensualBs * (h.residencial ? 1 : 1.16)),
-          h.deuda.meses,
-          h.multaMeses,
-          conv(h.deuda.baseBs),
-          conv(h.deuda.multaBs + h.multaExtraBs),
-          conv(h.deuda.ivaBs),
-          conv(h.totalBs)
+          conv((Number(h.mensualBs) || 0) * (h.residencial ? 1 : 1.16)),
+          Number(h.deuda?.meses) || 0,
+          Number(h.multaMeses) || 0,
+          conv(Number(h.deuda?.baseBs) || 0),
+          conv((Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0)),
+          conv(Number(h.deuda?.ivaBs) || 0),
+          conv(Number(h.totalBs) || 0)
         ];
         vals.forEach((v, i) => {
           const cell = row.getCell(i + 1);
@@ -308,5 +324,17 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  saveAs(blob, `Estado_Cuenta_${c.codigo}${enUCD ? '_UCD' : ''}.xlsx`);
+  const nombreArchivo = `Estado_Cuenta_${c?.codigo || 'Condominio'}${enUCD ? '_UCD' : ''}.xlsx`;
+  try {
+    saveAs(blob, nombreArchivo);
+  } catch {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombreArchivo;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }
