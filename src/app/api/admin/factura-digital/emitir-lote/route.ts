@@ -88,7 +88,16 @@ export async function POST(request: Request) {
         } else if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
           montoFactura = parseFloat(det.monto_factura);
         } else {
-          montoFactura = (parseFloat(pago.monto || '0') + (esRet ? montoRet : 0));
+          const totalPagadoLote = (() => {
+            if (Array.isArray(det?.pagos_agregados) && det.pagos_agregados.length > 0) {
+              return det.pagos_agregados
+                .filter((p: any) => !String(p?.metodo || p?.tipo || '').toLowerCase().includes('saldo a favor') && !String(p?.metodo || p?.tipo || '').toLowerCase().includes('nota de credito'))
+                .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+            }
+            return parseFloat(pago.monto || '0');
+          })();
+          const sFavorGen = parseFloat(String(det?.saldo_a_favor_nuevo || det?.monto_sobrante || det?.saldo_favor || 0)) || 0;
+          montoFactura = Math.max(0, totalPagadoLote + (esRet ? montoRet : 0) - sFavorGen);
         }
 
         // Ejecutar emisión individual llamando al endpoint interno de emisión

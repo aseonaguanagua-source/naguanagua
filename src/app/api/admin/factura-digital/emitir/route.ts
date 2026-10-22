@@ -93,8 +93,9 @@ export async function POST(request: Request) {
       correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
       esRetencion, referencia, modulo, fechaEmisionOverride, fecha, reemitir = false
     } = await request.json();
+    const r2 = (n: number) => Math.round(n * 100) / 100;
     // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
-    const totalManualNum = Math.round((parseFloat(String(totalManual ?? 0)) || 0) * 100) / 100;
+    const totalManualNum = r2(parseFloat(String(totalManual ?? 0)) || 0);
 
     if (!pagoId) {
       return NextResponse.json({ error: 'Faltan datos obligatorios (pagoId requerido)' }, { status: 400 });
@@ -338,7 +339,7 @@ export async function POST(request: Request) {
       const montoRecibo = parseFloat(String(fac.monto || '0').replace(/[^0-9.]/g, ''));
       const montoTotalLinea = parseFloat((montoRecibo * porcionComercial).toFixed(2));
       const montoItem = isRes ? montoTotalLinea : parseFloat((montoTotalLinea / 1.16).toFixed(2));
-      const valorIVA  = isRes ? 0 : parseFloat((montoTotalLinea - montoItem).toFixed(2));
+      const valorIVA  = isRes ? 0 : r2(montoItem * 0.16);
       if (isRes) {
         totalExento += montoItem;
       } else {
@@ -392,7 +393,7 @@ export async function POST(request: Request) {
       lineaNum++;
       const isRes = h.esRes;
       const baseFinal = isRes ? h.montoBase : parseFloat((h.montoBase / 1.16).toFixed(2));
-      const valorIVAHist = isRes ? 0 : parseFloat((h.montoBase - baseFinal).toFixed(2));
+      const valorIVAHist = isRes ? 0 : r2(baseFinal * 0.16);
       if (isRes) {
         totalExento += baseFinal;
       } else {
@@ -530,8 +531,8 @@ export async function POST(request: Request) {
     if (!lineasCondo && (isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && excluidosResidenciales === 0) {
       lineaNum++;
       const totalNum = parseFloat(String(montoTotal || 0));
-      const base = parseFloat((totalNum / 1.16).toFixed(2));
-      const iva = parseFloat((totalNum - base).toFixed(2));
+      const base = r2(totalNum / 1.16);
+      const iva = r2(base * 0.16);
       totalGravado += base;
       totalIVA += iva;
 
@@ -566,8 +567,8 @@ export async function POST(request: Request) {
       const totalNum = parseFloat(String(montoTotal || 0));
       const multaNum = parseFloat(String(montoMulta || montos?.multa || 0));
       const baseServicio = montoServicio ? parseFloat(String(montoServicio)) : (totalNum - multaNum) / 1.16;
-      const base = parseFloat(baseServicio.toFixed(2));
-      const iva = parseFloat(((totalNum - multaNum) - base).toFixed(2));
+      const base = r2(baseServicio);
+      const iva = r2(base * 0.16);
 
       totalGravado += base;
       totalIVA += iva;
@@ -632,7 +633,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, skipped: true, message: excluidosResidenciales > 0 ? 'Emisión omitida: los conceptos pagados son residenciales.' : 'Sin items para facturar.' });
     }
 
-    const r2 = (n: number) => Math.round(n * 100) / 100;
+
 
     // Desglose exacto de recibos emitidos en caja si existen
     let rcSubTotal = 0, rcIva = 0, rcExento = 0, rcTotal = 0, periodoRecibo = '';
@@ -1029,7 +1030,13 @@ export async function POST(request: Request) {
       .limit(1);
     const contribData = contDb?.[0];
 
-    let razonSocialFinal = String(contribuyente || '').trim();
+    let razonSocialFinal = String(
+      contribuyente ||
+      detPago?.contribuyente ||
+      detPago?.contribuyente_nombre ||
+      ''
+    ).trim();
+
     if (esPlaceholderNombre(razonSocialFinal)) {
       if (contribData?.nombre && !esPlaceholderNombre(contribData.nombre)) {
         razonSocialFinal = contribData.nombre;
@@ -1045,13 +1052,21 @@ export async function POST(request: Request) {
             .limit(1);
           if (condoDb?.[0]?.nombre && !esPlaceholderNombre(condoDb[0].nombre)) {
             razonSocialFinal = condoDb[0].nombre;
-          } else if (propRef?.contribuyente) {
+          } else if (propRef?.contribuyente && !esPlaceholderNombre(propRef.contribuyente)) {
             razonSocialFinal = propRef.contribuyente;
+          } else if (detPago?.contribuyente && !esPlaceholderNombre(detPago.contribuyente)) {
+            razonSocialFinal = detPago.contribuyente;
+          } else if (detPago?.contribuyente_nombre && !esPlaceholderNombre(detPago.contribuyente_nombre)) {
+            razonSocialFinal = detPago.contribuyente_nombre;
           } else {
-            razonSocialFinal = contribuyente || "CONTRIBUYENTE";
+            razonSocialFinal = contribuyente || `Contribuyente ${numId}`;
           }
         }
       }
+    }
+
+    if (!razonSocialFinal || !razonSocialFinal.trim()) {
+      razonSocialFinal = String(detPago?.contribuyente || detPago?.contribuyente_nombre || propRef?.contribuyente || contribuyente || `Contribuyente ${numId}`).trim();
     }
 
     const jsonTFHKA = {
@@ -1542,6 +1557,33 @@ export async function POST(request: Request) {
     if (totalManualNum > 0) updatePayload.monto = totalManualNum;
 
     await supabase.from('pagos_reportados').update(updatePayload).eq('id', pagoId);
+
+    // Sincronizar pagos adicionales vinculados a esta transacción múltiple
+    try {
+      const { data: pagosHijos } = await supabase
+        .from('pagos_reportados')
+        .select('id, detalles')
+        .contains('detalles', { pago_principal_id: pagoId });
+
+      if (pagosHijos && pagosHijos.length > 0) {
+        for (const ph of pagosHijos) {
+          const dHijo = ph.detalles || {};
+          dHijo.factura_digital = {
+            emitida: true,
+            es_pago_adicional: true,
+            pago_principal_id: pagoId,
+            url: nuevosDetalles.factura_digital?.url || null,
+            numero_control: nuevosDetalles.factura_digital?.numero_control || null,
+            numero_documento: nuevosDetalles.factura_digital?.numero_documento || null,
+            fecha_emision: nuevosDetalles.factura_digital?.fecha_emision || new Date().toISOString()
+          };
+          delete dHijo.factura_digital_error;
+          await supabase.from('pagos_reportados').update({ detalles: dHijo }).eq('id', ph.id);
+        }
+      }
+    } catch (syncErr: any) {
+      console.warn('Aviso sincronizando pagos hijos:', syncErr.message);
+    }
 
     // Correo con los DATOS de la factura (no la factura) para que el agente llene su comprobante de retención
     let retencionInfo: any = null;

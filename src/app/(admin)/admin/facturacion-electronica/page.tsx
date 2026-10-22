@@ -609,7 +609,14 @@ export default function FacturacionElectronicaPage() {
     }
 
     // Si pagaron por encima, el monto de la factura NO debe incluir el saldo a favor / sobrante
-    const netoTransferido = parseFloat(String(pago.montoPagado || pago.monto || 0)) || 0;
+    const netoTransferido = (() => {
+      if (Array.isArray(pago.detalles?.pagos_agregados) && pago.detalles.pagos_agregados.length > 0) {
+        return pago.detalles.pagos_agregados
+          .filter((p: any) => !String(p?.metodo || p?.tipo || '').toLowerCase().includes('saldo a favor') && !String(p?.metodo || p?.tipo || '').toLowerCase().includes('nota de credito'))
+          .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+      }
+      return parseFloat(String(pago.montoPagado || pago.monto || 0)) || 0;
+    })();
     const montoPagoNeto = Math.max(0, netoTransferido - saldoFavor);
     let ref = totalRef && totalRef > 0 ? totalRef : 0;
     if (!ref) {
@@ -632,8 +639,8 @@ export default function FacturacionElectronicaPage() {
         }
       } else if (montoFacturaDet > 0) {
         ref = montoFacturaDet;
-      } else if (pago.monto && parseFloat(pago.monto) > 0) {
-        ref = Math.max(0, parseFloat(pago.monto) - saldoFavor);
+      } else if (netoTransferido > 0) {
+        ref = Math.max(0, netoTransferido - saldoFavor);
       }
     }
     ref = Math.round(ref * 100) / 100;
@@ -2009,9 +2016,19 @@ export default function FacturacionElectronicaPage() {
                         <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                         <span>Pago con Excedente acreditado a Nota de Crédito</span>
                       </div>
-                      <p className="text-[11px] text-blue-800 leading-snug">
-                        El contribuyente canceló <strong>Bs. {fmtBs(selectedPagoForEmit.monto)}</strong>. De ese monto, <strong>Bs. {fmtBs(sFavor)}</strong> están por encima del servicio facturado y se registraron en su <strong>Nota de Crédito / Saldo a Favor</strong>. La Factura Electrónica se emite estrictamente por el servicio real: <strong>Bs. {fmtBs(totalReferencia)}</strong>.
-                      </p>
+                      {(() => {
+                        const totalCanceladoReal = (() => {
+                          if (Array.isArray(selectedPagoForEmit.detalles?.pagos_agregados) && selectedPagoForEmit.detalles.pagos_agregados.length > 0) {
+                            return selectedPagoForEmit.detalles.pagos_agregados.reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+                          }
+                          return parseFloat(String(selectedPagoForEmit.monto || 0)) || 0;
+                        })();
+                        return (
+                          <p className="text-[11px] text-blue-800 leading-snug">
+                            El contribuyente canceló <strong>Bs. {fmtBs(totalCanceladoReal)}</strong>. De ese monto, <strong>Bs. {fmtBs(sFavor)}</strong> están por encima del servicio facturado y se registraron en su <strong>Nota de Crédito / Saldo a Favor</strong>. La Factura Electrónica se emite estrictamente por el servicio real: <strong>Bs. {fmtBs(totalReferencia)}</strong>.
+                          </p>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
