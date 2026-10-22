@@ -469,15 +469,17 @@ function Caja() {
   }, [claves, conDeuda, porContrib, identidad, visiblesU]);
 
   const mesesMax = base?.totales?.mesesMax || 0;
-  const multasMax = Math.max(1, ...(unidadesParaMax || []).map((r: any) => Math.max(r.multaMeses || 0, (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length) + (r.multasManuales || []).length));
+  const multasMax = Math.max(1, ...(unidadesParaMax || []).map((r: any) => (r.multaMeses || 0) + (r.multasManuales || []).length));
   const maxOpciones = soloMultas ? multasMax : mesesMax;
   const listaMultasInfo = useMemo(() => {
     if (!soloMultas || !unidadesParaMax || unidadesParaMax.length === 0) return [];
     const u = unidadesParaMax[0];
     const items: { label: string; periodo?: string }[] = [];
-    if (u.multaMeses > 0) {
-      const persPrev = periodosMultasPrevias(u.pendienteDesde, u.multaMeses);
-      for (let i = 0; i < u.multaMeses; i++) {
+    const mesesMultaEnAseo = (u.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
+    const mesesRemanentes = Math.max(0, (u.multaMeses || 0) - mesesMultaEnAseo);
+    if (mesesRemanentes > 0) {
+      const persPrev = periodosMultasPrevias(u.pendienteDesde, mesesRemanentes);
+      for (let i = 0; i < mesesRemanentes; i++) {
         const per = persPrev[i];
         items.push({ label: per ? fmtPeriodo(per) : `Mes ${i + 1}`, periodo: per });
       }
@@ -1400,14 +1402,14 @@ function Caja() {
                         const lc = mapLineas.get(r.clave) as any;
                         const mismoDueno = porContrib && identidad && normId(r.identidad) === normId(identidad);
                         const maxMesesFila = soloMultas
-                          ? (lc?.mesesDeuda ?? (r.multaMeses || r.deuda?.meses || 0))
+                          ? (lc?.mesesDeuda ?? ((r.multaMeses || 0) + (r.multasManuales || []).length))
                           : (lc?.mesesDeuda ?? (r.deuda?.meses || 0));
                         const mesActualFila = typeof mesesPorUnidad[r.clave] === 'number'
                           ? mesesPorUnidad[r.clave]
                           : (meses !== '' ? Math.min(Number(meses), maxMesesFila) : maxMesesFila);
                         const dMeses = lc ? lc.meses : mesActualFila;
                         const dMultas = lc ? (lc.multaBs + lc.multasAparteBs) : multasDe(r);
-                        const dTotal = lc ? lc.totalBs : r.totalBs;
+                        const dTotal = lc ? lc.totalBs : (soloMultas ? multasDe(r) : r.totalBs);
                         const seleccionada = porContrib
                           ? (claves.includes(r.clave) || !!mismoDueno)
                           : abonoLocales
@@ -1549,7 +1551,19 @@ function Caja() {
                             <td className="px-2 text-xs text-slate-600">
                               {lc && lc.periodos?.length > 0 ? (
                                 soloMultas ? lc.periodos.map(fmtPeriodo).join(', ') : fmtPeriodo(lc.periodos[0])
-                              ) : (r.periodos[0] ? fmtPeriodo(r.periodos[0]) : '—')}
+                              ) : (
+                                soloMultas ? (() => {
+                                  const mEnAseo = (r.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
+                                  const mRem = Math.max(0, (r.multaMeses || 0) - mEnAseo);
+                                  if (mRem > 0) {
+                                    const prevs = periodosMultasPrevias(r.pendienteDesde, mRem);
+                                    if (prevs[0]) return fmtPeriodo(prevs[0]);
+                                  }
+                                  const prim = (r.deuda?.porMes || []).find((m: any) => m.multaBs > 0);
+                                  if (prim && r.periodos?.[prim.n - 1]) return fmtPeriodo(r.periodos[prim.n - 1]);
+                                  return r.periodos?.[0] ? fmtPeriodo(r.periodos[0]) : '—';
+                                })() : (r.periodos?.[0] ? fmtPeriodo(r.periodos[0]) : '—')
+                              )}
                             </td>
                             <td className="px-2 text-right text-xs tabular-nums text-red-600">{dMultas > 0 ? fmtBs(dMultas) : '—'}</td>
                             <td className={`px-4 text-right font-bold tabular-nums ${seleccionada ? 'text-red-700' : 'text-slate-400'}`}>Bs {fmtBs(dTotal)}</td>

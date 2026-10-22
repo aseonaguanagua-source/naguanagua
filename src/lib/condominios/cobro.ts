@@ -137,14 +137,20 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     if (sol.soloMultas) {
       // Lista estructurada de todas las multas disponibles para esta unidad
       const tMulta = r.residencial ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
-      const cuotaMultaBs = r2(r.mensualBs * tMulta);
+      const mesesMultaEnAseo = (r.deuda?.porMes || []).filter(m => m.multaBs > 0).length;
+      const mesesRemanentes = Math.max(0, (r.multaMeses || 0) - mesesMultaEnAseo);
+      const cuotaMultaBs = (mesesRemanentes > 0 && r.multaExtraBs > 0)
+        ? r2(r.multaExtraBs / mesesRemanentes)
+        : r2(r.mensualBs * tMulta);
       
       const itemsMulta: { tipo: 'PREVIA' | 'DEUDA' | 'MANUAL'; periodo: string; montoBs: number; id?: string }[] = [];
       
-      // 1) Multas acumuladas de meses anteriores cuyo aseo ya fue pagado
-      const prevPeriodos = M.periodosMultasPrevias(r.pendienteDesde, r.multaMeses, fecha);
-      for (const p of prevPeriodos) {
-        itemsMulta.push({ tipo: 'PREVIA', periodo: p, montoBs: cuotaMultaBs });
+      // 1) Multas acumuladas de meses anteriores cuyo aseo ya fue pagado (remanentes no cubiertos por meses de deuda de aseo)
+      if (mesesRemanentes > 0) {
+        const prevPeriodos = M.periodosMultasPrevias(r.pendienteDesde, mesesRemanentes, fecha);
+        for (const p of prevPeriodos) {
+          itemsMulta.push({ tipo: 'PREVIA', periodo: p, montoBs: cuotaMultaBs });
+        }
       }
       
       // 2) Multas de mora de los meses de deuda actuales (todos los meses excepto el último)
@@ -191,7 +197,7 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     const condoPorActividad = modo === 'CONDOMINIO' && porAct;
     const permitirMultas = sol.soloMultas || sol.incluirMultas === true;
     const multaMora = (condoPorActividad || !permitirMultas) ? 0 : s('multaBs');
-    const multaMesesQueQuedan = condoPorActividad ? meses.filter(m => m.multaBs > 0).length : 0;
+    const multaMesesQueQuedan = !permitirMultas ? r.multaMeses : 0;
     const incluirAparte = permitirMultas && !condoPorActividad && (modo === 'CONTRIBUYENTE' || !porAct);
     const aparte = incluirAparte ? r2((nMeses === r.deuda.meses ? r.multaExtraBs : 0) + r.multasManualesBs) : 0;
     const base = s('baseBs'), iva = s('ivaBs'), ret = s('retencionBs');
@@ -649,22 +655,26 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     if (u) {
       const upd: any = {};
       if (l.meses > 0 && !sol.soloMultas) upd.aseo_pendiente_desde = M.avanzarPendiente(u.aseo_pendiente_desde || c.aseo_pendiente_desde, l.meses, hoy);
-      if (l.multaMesesQueQuedan > 0) upd.multa_meses = (Number(u.multa_meses) || 0) + l.multaMesesQueQuedan;
-      else if (sol.soloMultas) {
+      if (sol.soloMultas) {
         const multasDet = l._multasDetalle || [];
-        const nPrevias = multasDet.filter((m: any) => m.tipo === 'PREVIA').length;
         const deudaPagada = multasDet.filter((m: any) => m.tipo === 'DEUDA');
-        if (nPrevias > 0) {
-          upd.multa_meses = Math.max(0, (Number(u.multa_meses) || 0) - nPrevias);
-        } else if (l.meses === l.mesesDeuda) {
+        const nPagados = multasDet.filter((m: any) => m.tipo === 'PREVIA' || m.tipo === 'DEUDA').length;
+        if (l.meses >= l.mesesDeuda) {
           upd.multa_meses = 0;
+        } else if (nPagados > 0) {
+          upd.multa_meses = Math.max(0, (Number(u.multa_meses) || 0) - nPagados);
         }
         if (deudaPagada.length > 0) {
           const ultimoPer = deudaPagada[deudaPagada.length - 1].periodo;
           upd.multa_exonerada_hasta = `${ultimoPer}-01`;
         }
-      } else if (l.multasAparteBs > 0 && l.meses === l.mesesDeuda) {
-        upd.multa_meses = 0;
+      } else {
+        const permitirMultas = sol.incluirMultas === true;
+        if (permitirMultas && l.meses >= l.mesesDeuda) {
+          upd.multa_meses = 0;
+        } else if (!permitirMultas && l.multaMesesQueQuedan > 0) {
+          upd.multa_meses = l.multaMesesQueQuedan;
+        }
       }
       if (Object.keys(upd).length) {
         antes.push({ unidad: u.id, inmueble: u.inmueble, aseo_pendiente_desde: u.aseo_pendiente_desde, multa_meses: u.multa_meses, multa_exonerada_hasta: u.multa_exonerada_hasta });
@@ -684,7 +694,14 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
       const upd: any = {};
       if (l.meses > 0 && !sol.soloMultas) upd.aseo_pendiente_desde = M.avanzarPendiente(c.aseo_pendiente_desde, l.meses, hoy);
-      if (l.multasAparteBs > 0) upd.multa_meses = 0;
+      if (sol.soloMultas) {
+        if (l.meses >= l.mesesDeuda) upd.multa_meses = 0;
+        else upd.multa_meses = Math.max(0, (Number(c.multa_meses) || 0) - l.meses);
+      } else {
+        const permitirMultas = sol.incluirMultas === true;
+        if (permitirMultas && l.meses >= l.mesesDeuda) upd.multa_meses = 0;
+        else if (!permitirMultas && l.multaMesesQueQuedan > 0) upd.multa_meses = l.multaMesesQueQuedan;
+      }
       if (Object.keys(upd).length) { antes.push({ condominio: c.id, aseo_pendiente_desde: c.aseo_pendiente_desde, multa_meses: c.multa_meses }); await sb.from('condominios').update(upd).eq('id', c.id); }
       // Sincronizar condominio en inmuebles
       if (c.codigo && l.meses > 0 && !sol.soloMultas) {
