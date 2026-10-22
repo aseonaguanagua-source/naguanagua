@@ -239,6 +239,11 @@ export async function GET(request: Request) {
       (det.recibos || []).forEach((r: string) => { const c = extraerCodigoInmueble(r); if (c) codigos.add(c); });
       if (det.codigo_inmueble) codigos.add(String(det.codigo_inmueble).trim().toUpperCase());
       if (det.cod_inmueble) codigos.add(String(det.cod_inmueble).trim().toUpperCase());
+      if (Array.isArray(det.condominio?.lineas)) {
+        det.condominio.lineas.forEach((l: any) => {
+          if (l?.inmueble) codigos.add(String(l.inmueble).trim().toUpperCase());
+        });
+      }
     });
     const inmMap = new Map<string, any>();
     const listaCodigos = [...codigos];
@@ -287,41 +292,72 @@ export async function GET(request: Request) {
 
       // Rescatar nombre real del contribuyente evitando mostrar el RIF como nombre
       const condo = infoCondo(pago, det);
+      const esCondo = pago.modulo === 'condominios' || det.modulo === 'condominios' || det.isCondominio || det.es_condominio;
+      const condoMod = String(det.condominio?.modalidad || '').toUpperCase();
+      const esPagoPorLocal = Boolean(
+        esCondo && (
+          condoMod === 'INDIVIDUAL' ||
+          det.modo === 'CONTRIBUYENTE' ||
+          (Array.isArray(det.condominio?.lineas) && det.condominio.lineas.length > 0 && det.condominio.lineas.some((l: any) => l.inmueble && l.inmueble !== (det.condominio?.codigo || det.codigo_inmueble)))
+        )
+      );
+
+      const codLocalInm = esPagoPorLocal ? (det.condominio?.lineas?.[0]?.inmueble || (det.cod_inmueble && !String(det.cod_inmueble).startsWith('CONDO-') ? det.cod_inmueble : null)) : null;
+      const localProp = codLocalInm ? inmMap.get(codLocalInm) : null;
+
       let nombreInm = '';
-      for (const r of (det.recibos || [])) {
-        const c = extraerCodigoInmueble(r);
-        if (c && inmMap.get(c)?.contribuyente) {
-          const cand = String(inmMap.get(c).contribuyente).trim();
-          if (!esPlaceholderNombre(cand)) {
-            nombreInm = cand;
-            break;
+      if (localProp?.contribuyente && !esPlaceholderNombre(localProp.contribuyente)) {
+        nombreInm = String(localProp.contribuyente).trim();
+      } else {
+        for (const r of (det.recibos || [])) {
+          const c = extraerCodigoInmueble(r);
+          if (c && inmMap.get(c)?.contribuyente) {
+            const cand = String(inmMap.get(c).contribuyente).trim();
+            if (!esPlaceholderNombre(cand) && (!esPagoPorLocal || !cand.toUpperCase().includes('CONDOMINIO'))) {
+              nombreInm = cand;
+              break;
+            }
           }
         }
-      }
-      if (!nombreInm && det.codigo_inmueble && inmMap.get(det.codigo_inmueble)?.contribuyente) {
-        const cand = String(inmMap.get(det.codigo_inmueble).contribuyente).trim();
-        if (!esPlaceholderNombre(cand)) nombreInm = cand;
-      }
-      if (!nombreInm && det.cod_inmueble && inmMap.get(det.cod_inmueble)?.contribuyente) {
-        const cand = String(inmMap.get(det.cod_inmueble).contribuyente).trim();
-        if (!esPlaceholderNombre(cand)) nombreInm = cand;
+        if (!nombreInm && det.codigo_inmueble && inmMap.get(det.codigo_inmueble)?.contribuyente) {
+          const cand = String(inmMap.get(det.codigo_inmueble).contribuyente).trim();
+          if (!esPlaceholderNombre(cand) && (!esPagoPorLocal || !cand.toUpperCase().includes('CONDOMINIO'))) nombreInm = cand;
+        }
+        if (!nombreInm && det.cod_inmueble && inmMap.get(det.cod_inmueble)?.contribuyente) {
+          const cand = String(inmMap.get(det.cod_inmueble).contribuyente).trim();
+          if (!esPlaceholderNombre(cand) && (!esPagoPorLocal || !cand.toUpperCase().includes('CONDOMINIO'))) nombreInm = cand;
+        }
       }
 
       const rcRazon = det.recibo_caja?.[0]?.razonSocial && !esPlaceholderNombre(det.recibo_caja[0].razonSocial) ? String(det.recibo_caja[0].razonSocial).trim() : null;
 
       let nombreResuelto = '';
-      if (nombreInm && !esPlaceholderNombre(nombreInm)) {
-        nombreResuelto = nombreInm;
-      } else if (rcRazon) {
-        nombreResuelto = rcRazon;
-      } else if (!esPlaceholderNombre(det.contribuyente)) {
-        nombreResuelto = det.contribuyente;
-      } else if (cont?.nombre && !esPlaceholderNombre(cont.nombre)) {
-        nombreResuelto = cont.nombre;
-      } else if (condo?.nombre && !esPlaceholderNombre(condo.nombre)) {
-        nombreResuelto = condo.nombre;
+      if (esPagoPorLocal) {
+        if (nombreInm && !esPlaceholderNombre(nombreInm) && !nombreInm.toUpperCase().includes('CONDOMINIO')) {
+          nombreResuelto = nombreInm;
+        } else if (rcRazon && !rcRazon.toUpperCase().includes('CONDOMINIO')) {
+          nombreResuelto = rcRazon;
+        } else if (cont?.nombre && !esPlaceholderNombre(cont.nombre) && !cont.nombre.toUpperCase().includes('CONDOMINIO')) {
+          nombreResuelto = cont.nombre;
+        } else if (!esPlaceholderNombre(det.contribuyente) && !String(det.contribuyente).toUpperCase().includes('CONDOMINIO')) {
+          nombreResuelto = det.contribuyente;
+        } else {
+          nombreResuelto = rcRazon || cont?.nombre || 'Contribuyente ' + pago.identidad;
+        }
       } else {
-        nombreResuelto = det.contribuyente || cont?.nombre || 'Contribuyente ' + pago.identidad;
+        if (nombreInm && !esPlaceholderNombre(nombreInm)) {
+          nombreResuelto = nombreInm;
+        } else if (rcRazon) {
+          nombreResuelto = rcRazon;
+        } else if (!esPlaceholderNombre(det.contribuyente)) {
+          nombreResuelto = det.contribuyente;
+        } else if (cont?.nombre && !esPlaceholderNombre(cont.nombre)) {
+          nombreResuelto = cont.nombre;
+        } else if (condo?.nombre && !esPlaceholderNombre(condo.nombre)) {
+          nombreResuelto = condo.nombre;
+        } else {
+          nombreResuelto = det.contribuyente || cont?.nombre || 'Contribuyente ' + pago.identidad;
+        }
       }
 
       const vincRet = retencionPorPagoVinculado.get(String(pago.id));

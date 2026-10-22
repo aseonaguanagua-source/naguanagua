@@ -211,7 +211,7 @@ export async function POST(request: Request) {
     // Datos reales del pago registrado en caja (leídos temprano para fechas y snapshots de deuda)
     const { data: pagoRow } = await supabase
       .from('pagos_reportados')
-      .select('monto, banco, referencia, tipo, detalles, created_at')
+      .select('monto, banco, referencia, tipo, detalles, created_at, modulo')
       .eq('id', pagoId)
       .maybeSingle();
     let detPago: any = pagoRow?.detalles || {};
@@ -902,7 +902,29 @@ export async function POST(request: Request) {
 
     // Detección precisa del inmueble facturado para contribuyentes con múltiples sedes/inmuebles (ej. Banco Activo)
     const condoRecibo = (recibos || []).find((r: string) => /^CONDO-/i.test(String(r)));
-    const esCondoGlobal = detPago?.modo === 'CONDOMINIO' || (!detPago?.modo && (detPago?.isCondominio || detPago?.es_condominio) && !detPago?.condominio_hijos_pagados?.length);
+    const esCondominioPago = Boolean(
+      pagoRow?.modulo === 'condominios' ||
+      detPago?.modulo === 'condominios' ||
+      detPago?.isCondominio ||
+      detPago?.es_condominio ||
+      condoDet ||
+      lineasCondo
+    );
+    const condoModalidad = String(condoDet?.modalidad || detPago?.condominio?.modalidad || '').toUpperCase();
+    const esPagoPorLocal = Boolean(
+      esCondominioPago && (
+        condoModalidad === 'INDIVIDUAL' ||
+        detPago?.modo === 'CONTRIBUYENTE' ||
+        (lineasCondo && lineasCondo.length > 0 && lineasCondo.some((l: any) => l.inmueble && l.inmueble !== (condoDet?.codigo || detPago?.codigo_inmueble))) ||
+        Boolean(detPago?.condominio_hijos_pagados?.length) ||
+        Boolean(lineasCondo?.[0]?.numero || lineasCondo?.[0]?.unidadNumero)
+      )
+    );
+    const esCondoGlobal = esCondominioPago && !esPagoPorLocal && (
+      detPago?.modo === 'CONDOMINIO' ||
+      condoModalidad === 'CENTRALIZADO' ||
+      (!lineasCondo?.length && !detPago?.condominio_hijos_pagados?.length)
+    );
     const condoCode = condoRecibo ? condoRecibo.split('-')[1] : (condoDet?.codigo || null);
     const codRc = detPago.recibo_caja?.[0]?.codContribuyente || detPago.recibo_caja?.[0]?.inmueble || null;
     const codHist = histRecibos.length > 0 ? histRecibos[0].split('-').slice(2, -1).join('-') : '';
@@ -938,7 +960,7 @@ export async function POST(request: Request) {
     if (!matchedPropEspecifico && codInmEspecifico) {
       const { data: dbInm } = await supabase
         .from('inmuebles')
-        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion')
+        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion, identidad')
         .eq('inmueble', codInmEspecifico)
         .maybeSingle();
       if (dbInm) matchedPropEspecifico = dbInm;
@@ -982,7 +1004,14 @@ export async function POST(request: Request) {
     const refPago = String(referencia || pagoRow?.referencia || fp0.referencia || '').trim();
     const fechaPago = detPago.fecha_transaccion || pagoRow?.created_at || fechaActual.toISOString();
 
-    const docIdentificacion = identidad.replace(/[^A-Z0-9-]/gi, '');
+    let docIdentParaEmision = identidad;
+    if (esPagoPorLocal) {
+      const idLocal = (matchedPropEspecifico as any)?.identidad || detPago?.recibo_caja?.[0]?.rifCi || (identidad && identidad !== condoDet?.identidad ? identidad : null);
+      if (idLocal && idLocal !== condoDet?.identidad) {
+        docIdentParaEmision = idLocal;
+      }
+    }
+    const docIdentificacion = docIdentParaEmision.replace(/[^A-Z0-9-]/gi, '');
     const primeraLetra = docIdentificacion.charAt(0).toUpperCase();
 
     let tipoId: string;
@@ -1022,33 +1051,77 @@ export async function POST(request: Request) {
       return false;
     };
 
-    // Consultar datos maestros del contribuyente en tabla oficial
+    const esNombreCondominio = (str: any) => {
+      if (!str) return false;
+      const s = String(str).toUpperCase().trim();
+      if (condoDet?.nombre && s === String(condoDet.nombre).toUpperCase().trim()) return true;
+      if (detPago?.condominio?.nombre && s === String(detPago.condominio.nombre).toUpperCase().trim()) return true;
+      if (/\bCONDOMINIO\b/i.test(s)) return true;
+      return false;
+    };
+
+    // Consultar datos maestros del contribuyente en tabla oficial (con idVariants actualizadas)
+    const idVariantsEmision = [docIdentParaEmision, docIdentificacion, numId, `V-${numId}`, `J-${numId}`, `E-${numId}`];
     const { data: contDb } = await supabase
       .from('contribuyentes')
       .select('nombre, direccion, email, telefono')
-      .in('identidad', idVariants)
+      .in('identidad', idVariantsEmision)
       .limit(1);
     const contribData = contDb?.[0];
 
     const codsPago = (Array.isArray(recibos) ? recibos : []).map(r => extraerCodigoInmueble(r)).filter(Boolean) as string[];
+    if (codInmEspecifico) codsPago.push(String(codInmEspecifico).trim().toUpperCase());
     if (detPago?.codigo_inmueble) codsPago.push(String(detPago.codigo_inmueble).trim().toUpperCase());
     if (detPago?.cod_inmueble) codsPago.push(String(detPago.cod_inmueble).trim().toUpperCase());
     const propDelPago = (userProps || []).find((p: any) => codsPago.includes(String(p.inmueble || '').toUpperCase()) && !esPlaceholderNombre(p.contribuyente));
     const rcRazon = detPago?.recibo_caja?.[0]?.razonSocial && !esPlaceholderNombre(detPago.recibo_caja[0].razonSocial) ? String(detPago.recibo_caja[0].razonSocial).trim() : null;
 
-    let razonSocialFinal = String(
-      propDelPago?.contribuyente ||
-      rcRazon ||
-      contribuyente ||
-      detPago?.contribuyente ||
-      detPago?.contribuyente_nombre ||
-      ''
-    ).trim();
+    let razonSocialFinal = '';
 
-    if (esPlaceholderNombre(razonSocialFinal)) {
-      if (contribData?.nombre && !esPlaceholderNombre(contribData.nombre)) {
+    if (esPagoPorLocal) {
+      // 1. Pago por local individual: la factura va SIEMPRE a nombre del local / propietario individual
+      const candLocal = [
+        matchedPropEspecifico?.contribuyente,
+        rcRazon,
+        contribData?.nombre,
+        propDelPago?.contribuyente,
+        contribuyente && !esNombreCondominio(contribuyente) ? contribuyente : null,
+        detPago?.contribuyente && !esNombreCondominio(detPago.contribuyente) ? detPago.contribuyente : null,
+        detPago?.contribuyente_nombre && !esNombreCondominio(detPago.contribuyente_nombre) ? detPago.contribuyente_nombre : null,
+        propRef?.contribuyente && !esNombreCondominio(propRef.contribuyente) ? propRef.contribuyente : null
+      ].find(cand => cand && !esPlaceholderNombre(cand) && !esNombreCondominio(cand));
+
+      razonSocialFinal = candLocal ? String(candLocal).trim() : '';
+      if (!razonSocialFinal || esPlaceholderNombre(razonSocialFinal)) {
+        if (matchedPropEspecifico?.contribuyente && !esPlaceholderNombre(matchedPropEspecifico.contribuyente)) {
+          razonSocialFinal = matchedPropEspecifico.contribuyente;
+        } else if (rcRazon && !esPlaceholderNombre(rcRazon)) {
+          razonSocialFinal = rcRazon;
+        } else if (contribData?.nombre && !esPlaceholderNombre(contribData.nombre)) {
+          razonSocialFinal = contribData.nombre;
+        }
+      }
+    } else {
+      // 2. Pago centralizado del condominio o contribuyente general
+      razonSocialFinal = String(
+        (esCondoGlobal ? (condoDet?.nombre || detPago?.condominio?.nombre) : null) ||
+        propDelPago?.contribuyente ||
+        rcRazon ||
+        contribuyente ||
+        detPago?.contribuyente ||
+        detPago?.contribuyente_nombre ||
+        ''
+      ).trim();
+    }
+
+    if (esPlaceholderNombre(razonSocialFinal) || (esPagoPorLocal && esNombreCondominio(razonSocialFinal))) {
+      if (matchedPropEspecifico?.contribuyente && !esPlaceholderNombre(matchedPropEspecifico.contribuyente)) {
+        razonSocialFinal = matchedPropEspecifico.contribuyente;
+      } else if (rcRazon && !esPlaceholderNombre(rcRazon)) {
+        razonSocialFinal = rcRazon;
+      } else if (contribData?.nombre && !esPlaceholderNombre(contribData.nombre) && (!esPagoPorLocal || !esNombreCondominio(contribData.nombre))) {
         razonSocialFinal = contribData.nombre;
-      } else {
+      } else if (!esPagoPorLocal) {
         const candProp = (userProps || []).find((p: any) => !esPlaceholderNombre(p.contribuyente));
         if (candProp?.contribuyente) {
           razonSocialFinal = candProp.contribuyente;
@@ -1074,7 +1147,15 @@ export async function POST(request: Request) {
     }
 
     if (!razonSocialFinal || !razonSocialFinal.trim()) {
-      razonSocialFinal = String(detPago?.contribuyente || detPago?.contribuyente_nombre || propRef?.contribuyente || contribuyente || `Contribuyente ${numId}`).trim();
+      razonSocialFinal = String(
+        matchedPropEspecifico?.contribuyente ||
+        rcRazon ||
+        detPago?.contribuyente || 
+        detPago?.contribuyente_nombre || 
+        propRef?.contribuyente || 
+        contribuyente || 
+        `Contribuyente ${numId}`
+      ).trim();
     }
 
     const jsonTFHKA = {
@@ -1151,7 +1232,7 @@ export async function POST(request: Request) {
               const fallback = TheFactoryHKA.getFallbackEmail();
               // Con retención: TFHKA notifica solo al archivo interno (la factura se envía al aprobar la planilla)
               if (conRetencion) return [TheFactoryHKA.getBackupEmail()];
-              const cand = (correoDestino || contribData?.email || propRef?.correo_electronico || '').trim();
+              const cand = (correoDestino || (esPagoPorLocal ? (matchedPropEspecifico?.correo_electronico || contribData?.email) : null) || contribData?.email || propRef?.correo_electronico || '').trim();
               if (!cand) return [fallback];
               const list = cand.split(/[,;\s]+/).map((s: string) => s.trim()).filter((s: string) => s && s.includes('@') && !isFictitiousEmail(s));
               return list.length > 0 ? list : [fallback];
@@ -1546,6 +1627,10 @@ export async function POST(request: Request) {
     if (!esPlaceholderNombre(razonSocialFinal)) {
       nuevosDetalles.contribuyente = razonSocialFinal;
       nuevosDetalles.contribuyente_nombre = razonSocialFinal;
+    }
+    if (esPagoPorLocal && matchedPropEspecifico?.inmueble) {
+      nuevosDetalles.codigo_inmueble = matchedPropEspecifico.inmueble;
+      nuevosDetalles.cod_inmueble = matchedPropEspecifico.inmueble;
     }
     if (esRetencion !== undefined) {
       nuevosDetalles.agente_retencion = !!esRetencion;

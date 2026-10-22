@@ -365,8 +365,10 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         id = crypto.randomUUID();
       }
     }
-    const reciboRef = `CONDO-${c.codigo}-${Date.now().toString().slice(-6)}${cobro.facturas.length > 1 ? `-${i + 1}` : ''}`;
     const ls = f.lineas.map(k => lineaPor.get(k)!).filter(Boolean);
+    const esIndividualUnidad = cobro.modo === 'CONTRIBUYENTE' || c.modalidad === 'INDIVIDUAL' || (ls.length > 0 && ls[0]?.inmueble && ls[0]?.inmueble !== c.codigo);
+    const codInmuebleFila = esIndividualUnidad ? (ls[0]?.inmueble || c.codigo) : c.codigo;
+    const reciboRef = `CONDO-${codInmuebleFila}-${Date.now().toString().slice(-6)}${cobro.facturas.length > 1 ? `-${i + 1}` : ''}`;
     const ret = r2(ls.reduce((a, l) => a + l.retencionBs, 0));
     let formasPago = [{ descripcion: pago.metodo, fecha: new Date().toISOString(), forma: formaPagoCodigo(pago.metodo), banco: pago.banco || undefined, bancoDestino: pago.bancoDestino || undefined, referencia: ref || undefined, monto: f.totalBs }];
     if (pago.pagosAgregados && pago.pagosAgregados.length > 0) {
@@ -397,13 +399,13 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     const conceptos = [];
     if (fSubtotal > 0) {
       conceptos.push({
-        descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${c.codigo}`,
+        descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${codInmuebleFila}`,
         precioUnit: fSubtotal,
         total: fSubtotal,
       });
     } else {
       conceptos.push({
-        descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${c.codigo}`,
+        descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${codInmuebleFila}`,
         precioUnit: f.totalBs,
         total: f.totalBs,
       });
@@ -461,9 +463,10 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       conRetencion: fRet > 0,
       agente_retencion: fRet > 0,
       contribuyente: f.nombre,
+      contribuyente_nombre: f.nombre,
       identidad: f.identidad,
-      cod_inmueble: c.codigo,
-      codigo_inmueble: c.codigo,
+      cod_inmueble: codInmuebleFila,
+      codigo_inmueble: codInmuebleFila,
       correo: c.correo || undefined,
       telefono: c.telefono || undefined,
       factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },

@@ -185,7 +185,7 @@ export async function POST(request: Request) {
     if (codInmEspecifico) {
       const { data: matchedInm } = await supabase
         .from('inmuebles')
-        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, telefono, condominio_padre_id')
+        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, telefono, condominio_padre_id, contribuyente')
         .eq('inmueble', codInmEspecifico)
         .maybeSingle();
       if (matchedInm) prop = matchedInm;
@@ -197,7 +197,7 @@ export async function POST(request: Request) {
     if (!prop) {
       const { data: inmuebleDb } = await supabase
         .from('inmuebles')
-        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, telefono, condominio_padre_id')
+        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, telefono, condominio_padre_id, contribuyente')
         .in('identidad', idVariants)
         .not('estado', 'ilike', 'eliminado%')
         .limit(10);
@@ -216,7 +216,41 @@ export async function POST(request: Request) {
       .in('identidad', idVariants)
       .maybeSingle();
 
-    const emailReal = contribuyenteDb?.email || prop?.correo_electronico || pagoData?.detalles?.correo || null;
+    const esCondo = Boolean(pagoData?.modulo === 'condominios' || detPagoObj?.modulo === 'condominios' || detPagoObj?.isCondominio || detPagoObj?.es_condominio);
+    const condoMod = String(detPagoObj?.condominio?.modalidad || '').toUpperCase();
+    const esPagoPorLocal = Boolean(
+      esCondo && (
+        condoMod === 'INDIVIDUAL' ||
+        detPagoObj?.modo === 'CONTRIBUYENTE' ||
+        (Array.isArray(detPagoObj?.condominio?.lineas) && detPagoObj.condominio.lineas.length > 0 && detPagoObj.condominio.lineas.some((l: any) => l.inmueble && l.inmueble !== (detPagoObj.condominio?.codigo || detPagoObj.codigo_inmueble)))
+      )
+    );
+
+    const rcRazon = detPagoObj?.recibo_caja?.[0]?.razonSocial ? String(detPagoObj.recibo_caja[0].razonSocial).trim() : null;
+
+    let nombreContribFinal = '';
+    if (esPagoPorLocal) {
+      nombreContribFinal = String(
+        prop?.contribuyente ||
+        rcRazon ||
+        contribuyenteDb?.nombre ||
+        (contribuyente && !contribuyente.toUpperCase().includes('CONDOMINIO') ? contribuyente : null) ||
+        (detPagoObj?.contribuyente && !String(detPagoObj.contribuyente).toUpperCase().includes('CONDOMINIO') ? detPagoObj.contribuyente : null) ||
+        'CONTRIBUYENTE'
+      ).trim();
+    } else {
+      nombreContribFinal = String(
+        (esCondo ? detPagoObj?.condominio?.nombre : null) ||
+        contribuyente ||
+        pagoData?.detalles?.contribuyente ||
+        prop?.contribuyente ||
+        rcRazon ||
+        contribuyenteDb?.nombre ||
+        'CONTRIBUYENTE'
+      ).trim();
+    }
+
+    const emailReal = (esPagoPorLocal ? (prop?.correo_electronico || contribuyenteDb?.email) : null) || contribuyenteDb?.email || prop?.correo_electronico || pagoData?.detalles?.correo || null;
     const fallbackEmail = TheFactoryHKA.getFallbackEmail();
     const backupEmail = TheFactoryHKA.getBackupEmail();
 
@@ -272,7 +306,7 @@ export async function POST(request: Request) {
         const r = await fetch(`${origin}/api/admin/factura-digital/emitir`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            pagoId, identidad: docIdentidad, contribuyente: nombreContrib,
+            pagoId, identidad: docIdentidad, contribuyente: nombreContribFinal,
             recibos: Array.isArray(det.recibos) ? det.recibos : (recibos || []), montos: det.montos,
             montoTotal: montoTotal, dryRun: true, enviarCorreo: false,
           }),
@@ -300,11 +334,11 @@ export async function POST(request: Request) {
       ok: errores.length === 0,
       pagoId,
       identidad: `${tipoId}-${numId}`,
-      contribuyente: nombreContrib,
+      contribuyente: nombreContribFinal,
       comprador: {
         tipo: tipoId,
         numero: numId,
-        razonSocial: nombreContrib,
+        razonSocial: nombreContribFinal,
         direccion: simPayload?.payload?.documentoElectronico?.Comprador?.Direccion || sanitizarDireccionFiscal(
           prop?.direccion || detPagoObj?.recibo_caja?.[0]?.domicilioFiscal || contribuyenteDb?.direccion,
           {
