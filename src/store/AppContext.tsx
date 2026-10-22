@@ -472,7 +472,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
           const rawTel = row.contribuyentes?.telefono || row.telefono;
           const cleanTel = formatPhoneNumber(rawTel);
-          const rawEmail = row.contribuyentes?.email || row.email || row.correo_electronico || row.correo;
+          const rawEmail = (row.contribuyentes?.email && !isFictitiousEmail(row.contribuyentes.email))
+            ? row.contribuyentes.email
+            : (row.correo_electronico || row.email || row.correo);
           const cleanEmail = isFictitiousEmail(rawEmail) ? '' : (rawEmail || '').trim();
 
           map.set(groupKey, {
@@ -494,7 +496,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   }
                 }
               }
-              return row.direccion || row.contribuyentes?.direccion || '';
+              const dirFiscal = row.contribuyentes?.direccion;
+              if (dirFiscal && dirFiscal.trim().length > 3 && !dirFiscal.startsWith('0 0') && !dirFiscal.startsWith('2 000')) {
+                return dirFiscal;
+              }
+              return dirFiscal || row.direccion || '';
             })(),
             Observaciones: row.contribuyentes?.observaciones || '',
             Actividad: act || 'No aplica',
@@ -752,6 +758,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               Correo: freshContrib.email || freshContrib.correo_electronico || c.Correo,
               Telefono: freshContrib.telefono || c.Telefono,
               Contribuyente: freshContrib.nombre || c.Contribuyente,
+              Direccion: freshContrib.direccion || c.Direccion,
               esAgenteRetencion: freshInms ? freshInms.some((i: any) => i.agente_retencion === true) : false
             };
           }

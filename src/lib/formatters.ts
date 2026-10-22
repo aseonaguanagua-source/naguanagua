@@ -489,15 +489,49 @@ export function sanitizarDireccionFiscal(
     }
   }
 
-  // 4. Normalizar Naguanagua y Carabobo sin repeticiones intermedias
-  s = s.replace(/,?\s*(?:SECTOR\s+)?NAGUANAGUA(?:\s+(?:EDO\.?|ESTADO)?\s*CARABOBO)?/gi, '');
-  s = s.replace(/,?\s*(?:EDO\.?|ESTADO)\s*CARABOBO/gi, '');
-  s = s.replace(/,?\s*CARABOBO/gi, '');
+  // 4. Detectar si el domicilio fiscal corresponde a otra ciudad, municipio o estado fuera de Naguanagua
+  const esCarreteraOAvValencia = /\b(?:AV(?:ENIDA)?\.?|CARRETERA|CTRA\.?|AUTOPISTA)\s+VALENCIA\b/i.test(s);
+  const esCarreteraPuertoCabello = /\b(?:CARRETERA|CTRA\.?|AUTOPISTA)\s+.*PUERTO\s+CABELLO\b/i.test(s);
+  const esCalleMiranda = /\b(?:CALLE|AV(?:ENIDA)?\.?)\s+(?:FRANCISCO\s+DE\s+)?MIRANDA\b/i.test(s);
+
+  let suffix = ', NAGUANAGUA, EDO. CARABOBO';
+
+  if (/\b(?:MARACAY|ARAGUA)\b/i.test(s)) {
+    suffix = ', EDO. ARAGUA';
+    s = s.replace(/,?\s*(?:EDO\.?|ESTADO)?\s*ARAGUA/gi, '');
+  } else if (/\b(?:CARACAS|DISTRITO CAPITAL)\b/i.test(s) || (/\b(?:CHACAO|BARUTA)\b/i.test(s) && !esCalleMiranda)) {
+    suffix = ', DISTRITO CAPITAL';
+    s = s.replace(/,?\s*(?:EDO\.?|ESTADO)?\s*DISTRITO CAPITAL/gi, '');
+  } else if (/\b(?:LARA|BARQUISIMETO)\b/i.test(s)) {
+    suffix = ', EDO. LARA';
+    s = s.replace(/,?\s*(?:EDO\.?|ESTADO)?\s*LARA/gi, '');
+  } else if (/\b(?:ZULIA|MARACAIBO)\b/i.test(s)) {
+    suffix = ', EDO. ZULIA';
+    s = s.replace(/,?\s*(?:EDO\.?|ESTADO)?\s*ZULIA/gi, '');
+  } else if (
+    (/\bVALENCIA\b/i.test(s) && !esCarreteraOAvValencia) ||
+    /\bSAN DIEGO\b/i.test(s) ||
+    /\bSAN JOAQUIN\b/i.test(s) ||
+    /\bGUACARA\b/i.test(s) ||
+    /\bLOS GUAYOS\b/i.test(s) ||
+    (/\bPUERTO CABELLO\b/i.test(s) && !esCarreteraPuertoCabello) ||
+    /\bBEJUMA\b/i.test(s) ||
+    /\bMONTALBAN\b/i.test(s)
+  ) {
+    suffix = ', EDO. CARABOBO';
+    s = s.replace(/,?\s*(?:EDO\.?|ESTADO)\s*CARABOBO/gi, '');
+    s = s.replace(/,?\s*CARABOBO/gi, '');
+  } else {
+    // Domicilio de Naguanagua
+    s = s.replace(/,?\s*(?:SECTOR\s+)?NAGUANAGUA(?:\s+(?:EDO\.?|ESTADO)?\s*CARABOBO)?/gi, '');
+    s = s.replace(/,?\s*(?:EDO\.?|ESTADO)\s*CARABOBO/gi, '');
+    s = s.replace(/,?\s*CARABOBO/gi, '');
+  }
+
   s = s.replace(/,?\s*ZONA POSTAL\s*\d+/gi, '');
   s = s.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim();
   s = s.replace(/^,\s*|,\s*$/g, '');
 
-  const suffix = ', NAGUANAGUA, EDO. CARABOBO';
   s += suffix;
 
   // 5. Ajustar a límite SENIAT (100 caracteres) aplicando abreviaturas formales

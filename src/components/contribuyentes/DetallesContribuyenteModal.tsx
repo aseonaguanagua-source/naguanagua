@@ -155,6 +155,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   const [claveWeb, setClaveWeb] = useState<string>('');
   const [editandoClave, setEditandoClave] = useState<boolean>(false);
   const [guardandoClave, setGuardandoClave] = useState<boolean>(false);
+  const [liveContrib, setLiveContrib] = useState<any>(null);
 
   const toggleExpandNA = (code: string) => {
     setExpandedNAs(prev => ({ ...prev, [code]: !prev[code] }));
@@ -166,6 +167,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
     let isMounted = true;
     setLoading(true);
+    setLiveContrib(null);
 
     const ident = viewData.Identidad || '';
     const idVariants = getIdentidadVariantsExact(ident);
@@ -173,6 +175,19 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       .split(/\s+/)
       .map(c => c.trim().toUpperCase())
       .filter(Boolean);
+
+    // Cargar datos oficiales del contribuyente en tiempo real desde Supabase
+    if (idVariants.length > 0) {
+      supabase
+        .from('contribuyentes')
+        .select('nombre, email, telefono, direccion')
+        .in('identidad', idVariants)
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data && isMounted) setLiveContrib(data);
+        });
+    }
 
     // 1. Cargar el inmueble seleccionado y sus vínculos jerárquicos (padres / hijos N/A). NUNCA unificar por cédula.
     const fetchInmuebles = async () => {
@@ -1111,21 +1126,21 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Teléfono</span>
                       <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                        📞 {viewData.Telefono && viewData.Telefono !== 'No registrado' ? viewData.Telefono : <span className="text-amber-600 font-normal">Sin teléfono registrado</span>}
+                        📞 {liveContrib?.telefono || (viewData.Telefono && viewData.Telefono !== 'No registrado' ? viewData.Telefono : <span className="text-amber-600 font-normal">Sin teléfono registrado</span>)}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Correo Electrónico</span>
                       <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                        ✉️ {viewData.Correo && viewData.Correo !== 'No registrado' ? viewData.Correo : <span className="text-amber-600 font-normal">Sin correo registrado</span>}
+                        ✉️ {liveContrib?.email || (viewData.Correo && viewData.Correo !== 'No registrado' ? viewData.Correo : <span className="text-amber-600 font-normal">Sin correo registrado</span>)}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Dirección Fiscal / Ubicación</span>
                       <p className="font-medium text-slate-700 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                        {viewData.Direccion || 'No especificada'}
+                        {liveContrib?.direccion || viewData.Direccion || 'No especificada'}
                       </p>
                     </div>
 
