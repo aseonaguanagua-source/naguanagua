@@ -465,7 +465,7 @@ export function sanitizarDireccionFiscal(
   // 2. Limpiar secuencias defectuosas como 'NRO. .', 'CASA .', 'APTO .', 'N?'
   s = s
     .replace(/\s*N\?\s*/gi, ' NRO. ')
-    .replace(/\b(NRO|APTO|LOCAL|OFICINA)\.?\s*\./gi, '$1')
+    .replace(/\b(NRO|APTO|LOCAL|OFICINA)\.\s*\./gi, '$1.')
     .replace(/\bCASA \.\s*/gi, '')
     .replace(/\bAPTO \.\s*/gi, '')
     .replace(/\bLOCAL \.\s*/gi, '')
@@ -489,12 +489,17 @@ export function sanitizarDireccionFiscal(
     }
   }
 
-  // 4. Detectar si el domicilio fiscal corresponde a otra ciudad, municipio o estado fuera de Naguanagua
+  // 4. Tratamiento del sufijo municipal y estatal:
+  // Regla estricta: NO colocar ", NAGUANAGUA, EDO. CARABOBO" por defecto "sí o sí".
+  // Solo se coloca o normaliza si el domicilio original explícitamente lo lleva,
+  // respetando el domicilio fiscal exacto del contribuyente para evitar rechazos o inconsistencias fiscales.
+  const teniaNaguanagua = /\bNAGUANAGUA\b/i.test(s);
+  const teniaCarabobo = /\bCARABOBO\b/i.test(s);
   const esCarreteraOAvValencia = /\b(?:AV(?:ENIDA)?\.?|CARRETERA|CTRA\.?|AUTOPISTA)\s+VALENCIA\b/i.test(s);
   const esCarreteraPuertoCabello = /\b(?:CARRETERA|CTRA\.?|AUTOPISTA)\s+.*PUERTO\s+CABELLO\b/i.test(s);
   const esCalleMiranda = /\b(?:CALLE|AV(?:ENIDA)?\.?)\s+(?:FRANCISCO\s+DE\s+)?MIRANDA\b/i.test(s);
 
-  let suffix = ', NAGUANAGUA, EDO. CARABOBO';
+  let suffix = '';
 
   if (/\b(?:MARACAY|ARAGUA)\b/i.test(s)) {
     suffix = ', EDO. ARAGUA';
@@ -518,12 +523,19 @@ export function sanitizarDireccionFiscal(
     /\bBEJUMA\b/i.test(s) ||
     /\bMONTALBAN\b/i.test(s)
   ) {
+    // Si tenía Carabobo o es un municipio de Carabobo fuera de Naguanagua
     suffix = ', EDO. CARABOBO';
     s = s.replace(/,?\s*(?:EDO\.?|ESTADO)\s*CARABOBO/gi, '');
     s = s.replace(/,?\s*CARABOBO/gi, '');
-  } else {
-    // Domicilio de Naguanagua
+  } else if (teniaNaguanagua) {
+    // Solo si explícitamente lleva Naguanagua en el texto original
+    suffix = ', NAGUANAGUA, EDO. CARABOBO';
     s = s.replace(/,?\s*(?:SECTOR\s+)?NAGUANAGUA(?:\s+(?:EDO\.?|ESTADO)?\s*CARABOBO)?/gi, '');
+    s = s.replace(/,?\s*(?:EDO\.?|ESTADO)\s*CARABOBO/gi, '');
+    s = s.replace(/,?\s*CARABOBO/gi, '');
+  } else if (teniaCarabobo) {
+    // Llevaba Carabobo pero no Naguanagua
+    suffix = ', EDO. CARABOBO';
     s = s.replace(/,?\s*(?:EDO\.?|ESTADO)\s*CARABOBO/gi, '');
     s = s.replace(/,?\s*CARABOBO/gi, '');
   }
@@ -532,7 +544,9 @@ export function sanitizarDireccionFiscal(
   s = s.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim();
   s = s.replace(/^,\s*|,\s*$/g, '');
 
-  s += suffix;
+  if (suffix) {
+    s += suffix;
+  }
 
   // 5. Ajustar a límite SENIAT (100 caracteres) aplicando abreviaturas formales
   if (s.length > 100) {
@@ -559,14 +573,20 @@ export function sanitizarDireccionFiscal(
 
   // Si aún supera 100 caracteres, recortar de forma limpia en el cuerpo antes del sufijo
   if (s.length > 100) {
-    const idxSuffix = s.lastIndexOf(suffix);
-    const body = idxSuffix > 0 ? s.slice(0, idxSuffix).trim() : s;
-    const maxBodyLen = 100 - suffix.length; // 74 caracteres
-    if (body.length > maxBodyLen) {
-      const sliceBody = body.slice(0, maxBodyLen);
+    if (suffix) {
+      const idxSuffix = s.lastIndexOf(suffix);
+      const body = idxSuffix > 0 ? s.slice(0, idxSuffix).trim() : s;
+      const maxBodyLen = 100 - suffix.length;
+      if (body.length > maxBodyLen) {
+        const sliceBody = body.slice(0, maxBodyLen);
+        const lastSpace = sliceBody.lastIndexOf(' ');
+        const cutBody = (lastSpace > 15 ? sliceBody.slice(0, lastSpace) : sliceBody).replace(/[,.\s]+$/, '');
+        s = cutBody + suffix;
+      }
+    } else {
+      const sliceBody = s.slice(0, 100);
       const lastSpace = sliceBody.lastIndexOf(' ');
-      const cutBody = (lastSpace > 15 ? sliceBody.slice(0, lastSpace) : sliceBody).replace(/[,.\s]+$/, '');
-      s = cutBody + suffix;
+      s = (lastSpace > 15 ? sliceBody.slice(0, lastSpace) : sliceBody).replace(/[,.\s]+$/, '');
     }
   }
 
