@@ -320,7 +320,8 @@ function ModalEstadoCuenta({ pago, onClose }: { pago: Pago; onClose: () => void 
           } catch(e) {}
           const saldoFavor = inms.reduce((a: number, i: any) => a + (parseFloat(i.saldo_favor_bs || '0') || 0), 0);
           const esCondo = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || !!det.es_condominio || !!det.condominio;
-          const codInmDet = det.condominio?.codigo || det.codigo_condominio || det.cod_inmueble || pago.cod_inmueble;
+          const unidadCod = det.condominio?.lineas?.[0]?.inmueble || det.inmueble || det.cod_inmueble || det.codigo_inmueble;
+          const codInmDet = unidadCod || det.condominio?.codigo || det.codigo_condominio || pago.cod_inmueble;
           const inmPrincipal = codInmDet
             ? (inms.find((i: any) => i.inmueble === codInmDet || i.cod_cont === codInmDet || i.cod_cont === codInmDet.replace(/-/g,'')) || inms[0])
             : inms[0];
@@ -620,13 +621,17 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         // Detectar si el pago corresponde a un local/unidad individual dentro del condominio
         const unidadCod = det.condominio?.lineas?.[0]?.inmueble 
           || det.deuda_previa?.[0]?.inmueble
+          || (det.inmueble && det.inmueble !== condoCod ? det.inmueble : null)
           || (det.cod_inmueble && det.cod_inmueble !== condoCod ? det.cod_inmueble : null)
-          || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null)
-          || (det.inmueble && det.inmueble !== condoCod ? det.inmueble : null);
+          || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null);
 
         const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
         const idCondoLimpio = (det.condominio?.identidad || '').replace(/-/g, '').trim().toUpperCase();
-        const esPagoUnidadIndividual = (!!unidadCod && unidadCod !== condoCod) || (idCondoLimpio && idPagoLimpio && idPagoLimpio !== idCondoLimpio);
+        const esPagoUnidadIndividual = 
+          det.modo === 'CONTRIBUYENTE' ||
+          String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
+          (!!unidadCod && unidadCod !== condoCod) || 
+          (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
 
         if (esCondo && condoCod && !esPagoUnidadIndividual) {
           const { data: condoRecord } = await supabase
@@ -667,7 +672,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
         const idLimpio = (pago.identidad || '').replace(/-/g, '').trim();
         const idConGuion = idLimpio.length > 1 ? idLimpio.charAt(0) + '-' + idLimpio.slice(1) : idLimpio;
-        const detCod = unidadCod || (det.cod_inmueble !== condoCod ? det.cod_inmueble : null) || (det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null) || pago.cod_inmueble;
+        const detCod = unidadCod || (det.inmueble !== condoCod ? det.inmueble : null) || (det.cod_inmueble !== condoCod ? det.cod_inmueble : null) || (det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null) || pago.cod_inmueble;
 
         let orFilter = `identidad.eq.${pago.identidad},identidad.eq.${idLimpio},identidad.eq.${idConGuion}`;
         if (detCod) orFilter += `,inmueble.eq.${detCod}`;
@@ -1409,11 +1414,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 })
               }).eq('id', yaExiste.id);
             } else {
+              const esPagoUnidadNC = 
+                updatedDet.modo === 'CONTRIBUYENTE' || 
+                det.modo === 'CONTRIBUYENTE' ||
+                String(updatedDet.condominio?.modalidad || det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
+                (det.condominio?.lineas?.length === 1 && det.condominio?.lineas?.[0]?.inmueble && det.condominio?.lineas?.[0]?.inmueble !== (det.condominio?.codigo || det.codigo_condominio));
               await supabase.from('documentos').insert([{
                 identidad: pago.identidad,
-                contribuyente: (updatedDet.modulo === 'condominios' || det.modulo === 'condominios')
+                contribuyente: ((updatedDet.modulo === 'condominios' || det.modulo === 'condominios') && !esPagoUnidadNC)
                   ? (det.condominio?.nombre || det.contribuyente || pago.identidad)
-                  : (contribInfo?.contribuyente || contribInfo?.nombre || pago.contribuyente || pago.identidad),
+                  : (contribInfo?.contribuyente || contribInfo?.nombre || det.contribuyente || pago.contribuyente || pago.identidad),
                 tipo: 'Nota de Credito',
                 estado: 'Vigente',
                 detalles: JSON.stringify({
@@ -1444,13 +1454,21 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           curDet.recibos = recibos;
           // Pagos de la Caja de Condominios o con saldo a favor: NO alterar montos originales de la factura
           const esCondo = curDet.modulo === 'condominios' || det.modulo === 'condominios';
+          const esPagoUnidadFac = 
+            curDet.modo === 'CONTRIBUYENTE' || 
+            det.modo === 'CONTRIBUYENTE' ||
+            String(curDet.condominio?.modalidad || det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
+            (curDet.condominio?.lineas?.length === 1 && curDet.condominio?.lineas?.[0]?.inmueble && curDet.condominio?.lineas?.[0]?.inmueble !== (curDet.condominio?.codigo || det.condominio?.codigo));
+
           if (!esCondo && excedenteCaja <= 0.01) {
             curDet.montos = { total: montoConciliadoNum };
             curDet.montoTotal = montoConciliadoNum;
           }
-          curDet.contribuyente = esCondo
-            ? (curDet.condominio?.nombre || curDet.contribuyente || det.condominio?.nombre || det.contribuyente || pago.identidad)
-            : (curDet.contribuyente || contribInfo?.contribuyente || contribInfo?.Contribuyente || contribInfo?.nombre || pago.identidad);
+          if (esCondo && !esPagoUnidadFac) {
+            curDet.contribuyente = curDet.condominio?.nombre || det.condominio?.nombre || curDet.contribuyente || det.contribuyente || pago.identidad;
+          } else {
+            curDet.contribuyente = curDet.contribuyente || det.contribuyente || det.recibo_caja?.[0]?.razonSocial || contribInfo?.contribuyente || contribInfo?.Contribuyente || contribInfo?.nombre || pago.contribuyente || pago.identidad;
+          }
           curDet.identidad = pago.identidad;
           const fechaFacturaFinal = fechaBanco || fechaTransaccion;
           if (!esCondo || !Array.isArray(curDet.formasPago) || curDet.formasPago.length === 0) {
@@ -1511,22 +1529,44 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
   // Campos reales en la tabla inmuebles: contribuyente (min), cod_cont, direccion, clasificacion, etc.
   const esCondoModal = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || !!det.es_condominio || !!det.condominio;
-  const nombreContrib = esCondoModal
+  const condoCodModal = det.condominio?.codigo || det.codigo_condominio;
+  const unidadCodModal = det.condominio?.lineas?.[0]?.inmueble 
+    || det.deuda_previa?.[0]?.inmueble
+    || (det.inmueble && det.inmueble !== condoCodModal ? det.inmueble : null)
+    || (det.cod_inmueble && det.cod_inmueble !== condoCodModal ? det.cod_inmueble : null)
+    || (det.codigo_inmueble && det.codigo_inmueble !== condoCodModal ? det.codigo_inmueble : null);
+
+  const idPagoLimpioModal = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
+  const idCondoLimpioModal = (det.condominio?.identidad || '').replace(/-/g, '').trim().toUpperCase();
+
+  const esPagoUnidadIndividualModal = 
+    det.modo === 'CONTRIBUYENTE' ||
+    String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
+    (!!unidadCodModal && unidadCodModal !== condoCodModal) ||
+    (!!idCondoLimpioModal && !!idPagoLimpioModal && idPagoLimpioModal !== idCondoLimpioModal);
+
+  const esCondoGlobal = esCondoModal && !esPagoUnidadIndividualModal;
+
+  const nombreContrib = esCondoGlobal
     ? (det.condominio?.nombre || contribInfo?.contribuyente || det.contribuyente || '---')
-    : (contribInfo?.contribuyente || contribInfo?.Contribuyente || pago.contribuyente || '---');
-  const codInmueble = esCondoModal
+    : (contribInfo?.contribuyente || contribInfo?.Contribuyente || det.contribuyente || det.recibo_caja?.[0]?.razonSocial || pago.contribuyente || '---');
+
+  const codInmueble = esCondoGlobal
     ? (det.condominio?.codigo || contribInfo?.inmueble || det.cod_inmueble || '---')
-    : (det.cod_inmueble || pago.cod_inmueble || contribInfo?.inmueble || contribInfo?.cod_cont || contribInfo?.CodCont || '---');
-  const direccion = contribInfo?.direccion || contribInfo?.Direccion || '---';
+    : (contribInfo?.inmueble || contribInfo?.cod_cont || unidadCodModal || det.cod_inmueble || det.codigo_inmueble || det.inmueble || pago.cod_inmueble || '---');
+
+  const direccion = contribInfo?.direccion || contribInfo?.Direccion || det.recibo_caja?.[0]?.domicilioFiscal || '---';
   const clasificacion = contribInfo?.clasificacion || contribInfo?.Clasificacion || '---';
-  const identidad = (esCondoModal && (det.condominio?.identidad || contribInfo?.identidad))
-    ? (det.condominio?.identidad || contribInfo?.identidad)
-    : (pago.identidad || '---');
-  const telefono = contribInfo?.telefono || '---';
-  const correo = contribInfo?.correo_electronico || contribInfo?.correo || '---';
-  const actividadPrincipal = esCondoModal
+  const identidad = esCondoGlobal
+    ? (det.condominio?.identidad || contribInfo?.identidad || pago.identidad || '---')
+    : (contribInfo?.identidad || pago.identidad || det.identidad || det.recibo_caja?.[0]?.rifCi || '---');
+
+  const telefono = contribInfo?.telefono || det.telefono || '---';
+  const correo = contribInfo?.correo_electronico || contribInfo?.correo || det.correo || '---';
+
+  const actividadPrincipal = esCondoGlobal
     ? `Condominio ${det.condominio?.tipo || 'Comercial'}`
-    : (cleanClasificacionActividad(contribInfo?.actividad_principal || contribInfo?.Actividad || '') || 'Servicio de Aseo Urbano');
+    : (cleanClasificacionActividad(contribInfo?.actividad_principal || contribInfo?.Actividad || det.condominio?.lineas?.[0]?.actividad || det.actividad || '') || 'Servicio de Aseo Urbano');
   const saldoFavor = (contribInfo?._saldoFavor || 0).toFixed(2);
   const deudaTotal = (contribInfo?._deudaTotal || 0).toFixed(2);
   const totalInmuebles = contribInfo?._totalInmuebles || 1;
@@ -2147,18 +2187,43 @@ export default function ConciliacionPage() {
           {(() => {
             const esCondo = Boolean(condo || det.modulo === 'condominios' || det.es_condominio || det.condominio);
             const condoNom = det.condominio?.nombre || condo?.nombre;
+            const condoCod = det.condominio?.codigo || condo?.codigo;
             const condoRif = det.condominio?.identidad || (condo as any)?.identidad;
+            const unidadCod = det.condominio?.lineas?.[0]?.inmueble 
+              || det.deuda_previa?.[0]?.inmueble
+              || (det.inmueble && det.inmueble !== condoCod ? det.inmueble : null)
+              || (det.cod_inmueble && det.cod_inmueble !== condoCod ? det.cod_inmueble : null)
+              || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null);
+
+            const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
+            const idCondoLimpio = (condoRif || '').replace(/-/g, '').trim().toUpperCase();
+
+            const esPagoUnidadIndividual = 
+              det.modo === 'CONTRIBUYENTE' ||
+              String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
+              (!!unidadCod && unidadCod !== condoCod) ||
+              (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
+
             const idKey = (pago.identidad || '').replace(/-/g, '').toUpperCase();
-            const nombreNormal = pago.contribuyente || det.contribuyente || nombresPorId.get(idKey) || '---';
-            const nombrePrincipal = esCondo && condoNom ? condoNom : nombreNormal;
-            const subInfo = esCondo && condoNom && (pago.contribuyente || det.contribuyente) && (pago.contribuyente !== condoNom && det.contribuyente !== condoNom)
-              ? (pago.contribuyente || det.contribuyente)
-              : null;
+            const nombreNormal = pago.contribuyente || det.contribuyente || det.recibo_caja?.[0]?.razonSocial || nombresPorId.get(idKey) || '---';
+
+            if (esCondo && !esPagoUnidadIndividual) {
+              return (
+                <div>
+                  <div className="font-bold font-sans text-[11px] truncate max-w-[170px]" title={condoNom || nombreNormal}>{condoNom || nombreNormal}</div>
+                  <div className="text-[10px] text-slate-500">{condoRif || pago.identidad}</div>
+                </div>
+              );
+            }
+
+            // Pago individual / por local
+            const subLocal = det.condominio?.lineas?.[0]?.numero ? `Local ${det.condominio.lineas[0].numero}` : (unidadCod || null);
+            const subCondo = condoNom ? (subLocal ? `${condoNom} · ${subLocal}` : condoNom) : null;
             return (
               <div>
-                <div className="font-bold font-sans text-[11px] truncate max-w-[170px]" title={nombrePrincipal}>{nombrePrincipal}</div>
-                {subInfo && <div className="text-[10px] text-slate-600 truncate max-w-[170px]" title={`Local: ${subInfo}`}>Local: {subInfo}</div>}
-                <div className="text-[10px] text-slate-500">{esCondo && condoRif ? condoRif : pago.identidad}</div>
+                <div className="font-bold font-sans text-[11px] truncate max-w-[170px]" title={nombreNormal}>{nombreNormal}</div>
+                {subCondo && <div className="text-[10px] text-slate-600 truncate max-w-[170px]" title={subCondo}>{subCondo}</div>}
+                <div className="text-[10px] text-slate-500">{pago.identidad || det.identidad}</div>
               </div>
             );
           })()}
@@ -2167,8 +2232,23 @@ export default function ConciliacionPage() {
           {(() => {
             const esCondo = Boolean(condo || det.modulo === 'condominios' || det.es_condominio || det.condominio);
             const condoCod = det.condominio?.codigo || condo?.codigo;
-            const lineasCod = condo?.lineas?.length ? condo.lineas.slice(0, 3).map(l => l.inmueble || l.numero).filter(Boolean).join(', ') + (condo.lineas.length > 3 ? ` +${condo.lineas.length - 3}` : '') : null;
-            if (esCondo && condoCod) {
+            const unidadCod = det.condominio?.lineas?.[0]?.inmueble 
+              || det.deuda_previa?.[0]?.inmueble
+              || (det.inmueble && det.inmueble !== condoCod ? det.inmueble : null)
+              || (det.cod_inmueble && det.cod_inmueble !== condoCod ? det.cod_inmueble : null)
+              || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null);
+
+            const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
+            const idCondoLimpio = ((det.condominio?.identidad || (condo as any)?.identidad) || '').replace(/-/g, '').trim().toUpperCase();
+
+            const esPagoUnidadIndividual = 
+              det.modo === 'CONTRIBUYENTE' ||
+              String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
+              (!!unidadCod && unidadCod !== condoCod) ||
+              (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
+
+            if (esCondo && !esPagoUnidadIndividual && condoCod) {
+              const lineasCod = condo?.lineas?.length ? condo.lineas.slice(0, 3).map(l => l.inmueble || l.numero).filter(Boolean).join(', ') + (condo.lineas.length > 3 ? ` +${condo.lineas.length - 3}` : '') : null;
               return (
                 <div>
                   <div className="font-bold text-[11px] text-slate-800">{condoCod}</div>
@@ -2176,7 +2256,17 @@ export default function ConciliacionPage() {
                 </div>
               );
             }
-            return det.cod_inmueble || pago.cod_inmueble || (condo?.lineas?.length ? condo.lineas.slice(0, 3).map(l => l.inmueble).filter(Boolean).join(', ') + (condo.lineas.length > 3 ? ` +${condo.lineas.length - 3}` : '') : condo?.codigo) || '---';
+
+            // Pago individual / por unidad
+            const codMostrar = unidadCod || det.cod_inmueble || det.codigo_inmueble || det.inmueble || pago.cod_inmueble || '---';
+            return (
+              <div>
+                <div className="font-bold text-[11px] text-slate-800">{codMostrar}</div>
+                {condoCod && condoCod !== codMostrar && (
+                  <div className="text-[10px] text-slate-500">{condoCod}</div>
+                )}
+              </div>
+            );
           })()}
         </td>
         <td className="px-3 py-2 text-xs font-mono text-slate-600">
