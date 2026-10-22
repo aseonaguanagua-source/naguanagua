@@ -462,8 +462,9 @@ export function sanitizarDireccionFiscal(
     }
   }
 
-  // 2. Limpiar secuencias defectuosas como 'NRO. .', 'CASA .', 'APTO .'
+  // 2. Limpiar secuencias defectuosas como 'NRO. .', 'CASA .', 'APTO .', 'N?'
   s = s
+    .replace(/\s*N\?\s*/gi, ' NRO. ')
     .replace(/\b(NRO|APTO|LOCAL|OFICINA)\.?\s*\./gi, '$1')
     .replace(/\bCASA \.\s*/gi, '')
     .replace(/\bAPTO \.\s*/gi, '')

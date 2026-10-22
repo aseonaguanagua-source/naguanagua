@@ -247,15 +247,18 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
           }
         }
 
-        // Fallback a tabla contribuyentes si no tiene dirección válida de inmueble
-        if ((!inm || !inm.direccion || inm.direccion.trim() === '0 0') && rifReceptor) {
+        // Prioridad 1 SENIAT: Domicilio fiscal del contribuyente
+        if (rifReceptor) {
           const { data: contData } = await supabase
             .from('contribuyentes')
             .select('direccion')
             .eq('identidad', rifReceptor)
             .maybeSingle();
           if (contData?.direccion && contData.direccion.trim() !== '0 0' && contData.direccion.trim().length > 3) {
-            if (!cancel) setInmuebleDireccion(contData.direccion);
+            if (!cancel) {
+              setInmuebleDireccion(contData.direccion);
+              if (inm?.licencia) setInmuebleLicencia(inm.licencia);
+            }
             return;
           }
         }

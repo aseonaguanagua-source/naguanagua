@@ -1007,23 +1007,23 @@ export async function POST(request: Request) {
       return false;
     };
 
+    // Consultar datos maestros del contribuyente en tabla oficial
+    const { data: contDb } = await supabase
+      .from('contribuyentes')
+      .select('nombre, direccion, email, telefono')
+      .in('identidad', idVariants)
+      .limit(1);
+    const contribData = contDb?.[0];
+
     let razonSocialFinal = String(contribuyente || '').trim();
     if (esPlaceholderNombre(razonSocialFinal)) {
-      // 1. Inmuebles del usuario ya cargados
-      const candProp = (userProps || []).find((p: any) => !esPlaceholderNombre(p.contribuyente));
-      if (candProp?.contribuyente) {
-        razonSocialFinal = candProp.contribuyente;
+      if (contribData?.nombre && !esPlaceholderNombre(contribData.nombre)) {
+        razonSocialFinal = contribData.nombre;
       } else {
-        // 2. Buscar en tabla contribuyentes
-        const { data: contDb } = await supabase
-          .from('contribuyentes')
-          .select('nombre')
-          .in('identidad', idVariants)
-          .limit(1);
-        if (contDb?.[0]?.nombre && !esPlaceholderNombre(contDb[0].nombre)) {
-          razonSocialFinal = contDb[0].nombre;
+        const candProp = (userProps || []).find((p: any) => !esPlaceholderNombre(p.contribuyente));
+        if (candProp?.contribuyente) {
+          razonSocialFinal = candProp.contribuyente;
         } else {
-          // 3. Buscar en tabla condominios
           const { data: condoDb } = await supabase
             .from('condominios')
             .select('nombre')
@@ -1085,10 +1085,21 @@ export async function POST(request: Request) {
               const parentDir = condoDet?.direccion || detPago?.condominio?.direccion || null;
               
               const isValidDir = (d: any) => d && typeof d === 'string' && d.trim().length > 3 && d.trim() !== '0 0' && d.trim() !== '0' && d.trim().toUpperCase() !== 'N/A';
+              const dirFiscal = contribData?.direccion;
               const dirEspecifica = matchedPropEspecifico?.direccion;
               const dirRecibo = detPago?.recibo_caja?.[0]?.domicilioFiscal;
               const dirSrv = srvDet?.direccion_evento;
-              const cand = isValidDir(dirEspecifica) ? dirEspecifica : (isValidDir(dirRecibo) ? dirRecibo : (isValidDir(dirSrv) ? dirSrv : (isValidDir(propRef?.direccion) ? propRef?.direccion : (isValidDir(contribuyente?.direccion) ? contribuyente?.direccion : parentDir))));
+              
+              // Prioridad legal SENIAT: Domicilio Fiscal del contribuyente sobre la parcela catastral
+              const cand = isValidDir(dirFiscal)
+                ? dirFiscal
+                : (isValidDir(dirEspecifica)
+                  ? dirEspecifica
+                  : (isValidDir(dirRecibo)
+                    ? dirRecibo
+                    : (isValidDir(dirSrv)
+                      ? dirSrv
+                      : (isValidDir(propRef?.direccion) ? propRef?.direccion : parentDir))));
               
               return sanitizarDireccionFiscal(cand, {
                 unidadNumero: uNum,
@@ -1103,7 +1114,7 @@ export async function POST(request: Request) {
               const fallback = TheFactoryHKA.getFallbackEmail();
               // Con retención: TFHKA notifica solo al archivo interno (la factura se envía al aprobar la planilla)
               if (conRetencion) return [TheFactoryHKA.getBackupEmail()];
-              const cand = (correoDestino || propRef?.correo_electronico || '').trim();
+              const cand = (correoDestino || contribData?.email || propRef?.correo_electronico || '').trim();
               if (!cand) return [fallback];
               const list = cand.split(/[,;\s]+/).map((s: string) => s.trim()).filter((s: string) => s && s.includes('@') && !isFictitiousEmail(s));
               return list.length > 0 ? list : [fallback];
