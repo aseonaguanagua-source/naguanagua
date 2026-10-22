@@ -377,65 +377,98 @@ export async function generarPdfEstadoCuentaUnidad(
       if (logos.instituto) doc.addImage(logos.instituto, 'PNG', 174, 10, 22, 22, undefined, 'FAST');
     } catch (err) {}
 
-    doc.setFontSize(15);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('ESTADO DE CUENTA INDIVIDUAL', 105, 18, { align: 'center' });
+    doc.text('ESTADO DE CUENTA', 105, 18, { align: 'center' });
     
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
-    doc.text(`TASA VIGENTE HASTA: ${tasa}`, 105, 23, { align: 'center' });
+    doc.text(`TASA VIGENTE HASTA: ${new Date().toLocaleDateString('es-VE')}`, 105, 23, { align: 'center' });
     doc.setTextColor(0, 0, 0);
 
     doc.setLineWidth(0.3);
-    doc.line(14, 32, 196, 32);
+    doc.line(14, 28, 196, 28);
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'italic');
-    doc.text(`Generado por: ${cajero} · Fecha: ${new Date().toLocaleDateString('es-VE')}`, 14, 36);
+    doc.text(`Generado por: ${cajero}`, 14, 32);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Página ${pageNumber} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
-    doc.line(14, 38, 196, 38);
+    doc.text(`Página ${pageNumber} de ${totalPages}   |   Nro.: ${docNro}`, 196, 32, { align: 'right' });
+    doc.line(14, 34, 196, 34);
   };
 
   drawHeader(1, 1);
-  let y = 43;
+  let y = 39;
 
-  // ── DATOS DEL CONTRIBUYENTE Y UNIDAD ──
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
+  // ── DATOS DEL CONTRIBUYENTE Y LOCAL ──
   const prop = r.propietario && r.propietario !== '' ? r.propietario : 'SIN PROPIETARIO REGISTRADO';
-  doc.text(prop, 14, y);
-  y += 5;
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`Cédula / RIF: ${r.identidad || 'N/A'}    |    Inmueble: ${r.inmueble || 'N/A'}    |    Nro / Local: ${r.numero || 'N/A'}`, 14, y);
-  y += 5;
-  doc.text(`Actividad: ${cleanClasificacionActividad(r.actividad) || 'N/A'}    |    Condición Fiscal: ${r.deuda.retencionBs > 0 ? 'Agente de Retención (75% Deducible IVA)' : 'Contribuyente Ordinario'}`, 14, y);
-  y += 5;
+  doc.text('Contribuyente:', 14, y);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Condominio Matriz: ${c.nombre} (${c.codigo})`, 14, y);
-  y += 4.5;
+  doc.text(String(prop).slice(0, 48), 38, y);
+
   doc.setFont('helvetica', 'normal');
-  if (dirFinal) {
-    const splitDir = doc.splitTextToSize(`Dirección Fiscal Contribuyente: ${dirFinal}`, 182);
-    doc.text(splitDir, 14, y);
-    y += (splitDir.length * 4) + 1;
-    if (c.direccion && c.direccion.trim().toLowerCase() !== dirFinal.trim().toLowerCase()) {
-      const splitMatriz = doc.splitTextToSize(`Ubicación Local / Condominio: ${c.direccion}`, 182);
-      doc.text(splitMatriz, 14, y);
-      y += (splitMatriz.length * 4) + 1;
-    }
-  } else {
-    const splitMatriz = doc.splitTextToSize(`Dirección: ${c.direccion || 'Municipio Naguanagua, Estado Carabobo'}`, 182);
-    doc.text(splitMatriz, 14, y);
-    y += (splitMatriz.length * 4) + 1;
-  }
+  doc.text('R.I.F. / C.I.:', 145, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text(r.identidad || 'N/A', 165, y);
+  y += 5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.text('Código Inmueble:', 14, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text(r.inmueble || 'Principal', 40, y);
+
+  const actLabel = cleanClasificacionActividad(r.actividad) || 'Servicio de Aseo Urbano';
+  doc.setFont('helvetica', 'normal');
+  doc.text('Actividad / Inmueble:', 95, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text(String(actLabel).slice(0, 36), 130, y);
+  y += 5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Condominio Matriz: ${c.nombre} (${c.codigo})  |  Local / Unidad: ${r.numero || 'N/A'}`, 14, y);
+  y += 4.5;
+
+  doc.setFont('helvetica', 'normal');
+  const dirShow = dirFinal || c.direccion || 'Municipio Naguanagua, Estado Carabobo';
+  const splitDir = doc.splitTextToSize(`Dirección Local/Inmueble: ${dirShow}`, 182);
+  doc.text(splitDir, 14, y);
+  y += (splitDir.length * 4) + 2;
+
+  const tasaNum = parseFloat(String(tasa || 0)) || 993.21;
+  const ucdValor = tasaNum * 57;
+  const periodos = r.periodos || [];
+  const porMes = r.deuda?.porMes || [];
+  const mesesVencidos = periodos.length > 0 ? periodos.length : (r.deuda?.meses || 0);
+  const periodoDesde = periodos.length > 0 ? fmtPeriodo(periodos[0]).toUpperCase() : '---';
+  const periodoHasta = periodos.length > 0 ? fmtPeriodo(periodos[periodos.length - 1]).toUpperCase() : '---';
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Meses vencidos:', 14, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text(String(mesesVencidos), 40, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Período:', 60, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text(mesesVencidos > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Al día', 74, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Valor del UCD (Bs):', 135, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text(fmtBs(ucdValor), 196, y, { align: 'right' });
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.text('Tasa Euro BCV:', 135, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text(fmtBs(tasaNum), 196, y, { align: 'right' });
+  y += 3;
 
   doc.setDrawColor(210, 210, 210);
   doc.line(14, y, 196, y);
   doc.setDrawColor(0, 0, 0);
-  y += 6;
+  y += 5;
 
-  // ── RESUMEN TOTALES DE LA UNIDAD ──
+  // ── RESUMEN OFICIAL DE LIQUIDACIÓN ──
   const sumMultas = (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
   const baseAseo = r.deuda?.baseBs || 0;
   const ivaBs = r.deuda?.ivaBs || 0;
@@ -444,144 +477,147 @@ export async function generarPdfEstadoCuentaUnidad(
   const totalNetoBs = r.totalBs || (totalBrutoBs - retencionBs);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('RESUMEN DE LIQUIDACIÓN DE LA UNIDAD', 105, y, { align: 'center' });
-  y += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Aseo: Bs. ${fmtBs(baseAseo)}`, 14, y);
-  doc.text(`Multas: Bs. ${fmtBs(sumMultas)}`, 60, y);
-  doc.text(`IVA: Bs. ${fmtBs(ivaBs)}`, 105, y);
+  doc.setFontSize(9);
+  doc.text('ESTADO DE CUENTA RESUMIDO', 105, y, { align: 'center' });
+  y += 2;
+  doc.line(14, y, 196, y);
+  y += 4;
+
+  const resumenRows: Array<[string, string]> = [
+    ['Períodos Calculados:', mesesVencidos > 0 ? `${periodoDesde} a ${periodoHasta} (${mesesVencidos} meses)` : 'Solvente / Al Día'],
+    ['Monto Recolección Aseo Urbano Bs.:', `Bs. ${fmtBs(baseAseo)}`],
+    ['Total Exento Bs.:', 'Bs. 0,00'],
+    ['Base Imponible Bs.:', `Bs. ${fmtBs(baseAseo)}`],
+    ['IVA (16.00%) Bs.:', `Bs. ${fmtBs(ivaBs)}`],
+    ['Multas (Último mes sin multa) Bs.:', `Bs. ${fmtBs(sumMultas)}`],
+    ['Total Estado de Cuenta Bs.:', `Bs. ${fmtBs(totalBrutoBs)}`],
+    ['Total Estado de Cuenta UCD:', `${(totalBrutoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} UCD`]
+  ];
+
   if (retencionBs > 0) {
-    doc.text(`Retención IVA (75%): − Bs. ${fmtBs(retencionBs)}`, 145, y);
+    resumenRows.push(
+      ['IVA Retenido 75% (Agente de Retención) Bs.:', `- Bs. ${fmtBs(retencionBs)}`],
+      ['IVA a Cancelar (25%) Bs.:', `Bs. ${fmtBs(ivaBs - retencionBs)}`]
+    );
   }
+
+  doc.setFontSize(8);
+  resumenRows.forEach(([lbl, val]) => {
+    doc.setFont('helvetica', 'normal');
+    doc.text(lbl, 14, y);
+    doc.setFont('helvetica', 'bold');
+    doc.text(val, 196, y, { align: 'right' });
+    y += 4.5;
+  });
+
+  doc.line(14, y, 196, y);
   y += 5;
+
+  // ── TOTAL A PAGAR HIGHLIGHT ──
+  doc.setFontSize(10.5);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  if (retencionBs > 0) {
-    doc.setTextColor(71, 85, 105);
-    doc.text(`TOTAL FACTURA BRUTO: Bs. ${fmtBs(totalBrutoBs)}`, 14, y);
-    doc.setTextColor(2, 132, 199);
-    doc.text(`TOTAL NETO A PAGAR: Bs. ${fmtBs(totalNetoBs)}`, 196, y, { align: 'right' });
-  } else {
-    doc.setTextColor(2, 132, 199);
-    doc.text(`TOTAL A PAGAR: Bs. ${fmtBs(totalNetoBs)}`, 196, y, { align: 'right' });
-  }
+  doc.setTextColor(220, 38, 38);
+  doc.text(retencionBs > 0 ? 'TOTAL A CANCELAR (con retención de IVA)' : 'TOTAL A PAGAR', 14, y);
+  doc.text(`Bs. ${fmtBs(totalNetoBs)}`, 196, y, { align: 'right' });
   doc.setTextColor(0, 0, 0);
-  y += 6;
+  y += 2;
+  doc.line(14, y, 196, y);
+  y += 5;
 
-  // ── TABLA DE PERÍODOS DETALLADA ──
-  const rows: any[] = [];
-  const porMes = r.deuda?.porMes || [];
-  const periodos = r.periodos || [];
-
-  // 1. Renglones de Aseo Urbano desglosados mes a mes
+  // ── TABLA OFICIAL DETALLADA MES A MES ──
+  const oficialRows: any[] = [];
   if (porMes.length > 0) {
-    porMes.forEach((m, idx) => {
-      const perLabel = periodos[idx] ? fmtPeriodo(periodos[idx]) : `Mes ${m.n}`;
-      rows.push([
-        perLabel,
-        `Bs. ${fmtBs(m.baseBs)}`,
-        `Bs. ${fmtBs(m.multaBs)}`,
-        `Bs. ${fmtBs(m.ivaBs)}`,
-        m.retencionBs > 0 ? `- Bs. ${fmtBs(m.retencionBs)}` : 'Bs. 0,00',
-        `Bs. ${fmtBs(m.totalBs)}`
+    porMes.forEach((m: any, idx: number) => {
+      const p = periodos[idx] || '';
+      const [py, pm] = p.split('-');
+      const mesFmt = pm && py ? `${pm}/${py}` : `Mes ${m.n}`;
+      const totM = m.baseBs + m.multaBs + m.ivaBs;
+      const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+      oficialRows.push([
+        { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
+        mesFmt,
+        fmtBs(m.baseBs),
+        '-',
+        m.multaBs > 0 ? fmtBs(m.multaBs) : '-',
+        fmtBs(m.ivaBs),
+        fmtBs(totM),
+        ucdM
       ]);
     });
-  } else if ((r.deuda?.baseBs || 0) > 0.01) {
-    rows.push([
-      r.periodos.map(fmtPeriodo).join(', ') || 'Aseo Urbano',
-      `Bs. ${fmtBs(r.deuda?.baseBs || 0)}`,
-      `Bs. ${fmtBs(r.deuda?.multaBs || 0)}`,
-      `Bs. ${fmtBs(r.deuda?.ivaBs || 0)}`,
-      r.deuda?.retencionBs > 0 ? `- Bs. ${fmtBs(r.deuda.retencionBs)}` : 'Bs. 0,00',
-      `Bs. ${fmtBs(r.deuda?.totalBs || 0)}`
+  } else if (baseAseo > 0) {
+    const totM = totalBrutoBs;
+    const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+    oficialRows.push([
+      { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
+      mesesVencidos > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Aseo Urbano',
+      fmtBs(baseAseo),
+      '-',
+      sumMultas > 0 ? fmtBs(sumMultas) : '-',
+      fmtBs(ivaBs),
+      fmtBs(totM),
+      ucdM
     ]);
-  } else if (sumMultas <= 0.01) {
-    rows.push([
-      'Al día (Sin deuda)',
-      'Bs. 0,00',
-      'Bs. 0,00',
-      'Bs. 0,00',
-      'Bs. 0,00',
-      'Bs. 0,00'
-    ]);
+  } else {
+    oficialRows.push([{ content: 'Solvente — No posee períodos pendientes', colSpan: 8, styles: { halign: 'center' } }]);
   }
 
-  // 2. Multas asignadas a períodos específicos o manuales
+  // Multas manuales si existen
   if (Array.isArray(r.multasManuales) && r.multasManuales.length > 0) {
     r.multasManuales.forEach((man: any) => {
-      const perText = man.periodo ? fmtPeriodo(man.periodo) : '';
-      const label = perText ? `Multa por mora ${perText}` : (man.concepto || 'Multa administrativa');
-      rows.push([
-        label,
-        'Bs. 0,00',
-        `Bs. ${fmtBs(man.montoBs)}`,
-        'Bs. 0,00',
-        'Bs. 0,00',
-        `Bs. ${fmtBs(man.montoBs)}`
+      const ucdM = ucdValor > 0 ? (man.montoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+      oficialRows.push([
+        { content: r.inmueble || 'Multa', styles: { fontStyle: 'bold' } },
+        man.periodo ? fmtPeriodo(man.periodo) : 'Manual',
+        '0,00',
+        '-',
+        fmtBs(man.montoBs),
+        '0,00',
+        fmtBs(man.montoBs),
+        ucdM
       ]);
     });
-  }
-
-  // 3. Multas acumuladas previas (desglose por período)
-  if ((r.multaExtraBs || 0) > 0.01) {
-    const prevPers = M.periodosMultasPrevias(r.pendienteDesde, r.multaMeses, new Date());
-    const cuotaMulta = r.multaMeses > 0 ? (r.multaExtraBs / r.multaMeses) : r.multaExtraBs;
-
-    if (prevPers.length > 0 && prevPers.length <= 12) {
-      prevPers.forEach((p: string) => {
-        rows.push([
-          `Multa por mora ${fmtPeriodo(p)}`,
-          'Bs. 0,00',
-          `Bs. ${fmtBs(cuotaMulta)}`,
-          'Bs. 0,00',
-          'Bs. 0,00',
-          `Bs. ${fmtBs(cuotaMulta)}`
-        ]);
-      });
-    } else if (prevPers.length > 12) {
-      rows.push([
-        `Multas por mora (${r.multaMeses} meses: ${fmtPeriodo(prevPers[0])} – ${fmtPeriodo(prevPers[prevPers.length - 1])})`,
-        'Bs. 0,00',
-        `Bs. ${fmtBs(r.multaExtraBs)}`,
-        'Bs. 0,00',
-        'Bs. 0,00',
-        `Bs. ${fmtBs(r.multaExtraBs)}`
-      ]);
-    } else {
-      rows.push([
-        `Multas acumuladas (${r.multaMeses || 1} mes${r.multaMeses === 1 ? '' : 'es'})`,
-        'Bs. 0,00',
-        `Bs. ${fmtBs(r.multaExtraBs)}`,
-        'Bs. 0,00',
-        'Bs. 0,00',
-        `Bs. ${fmtBs(r.multaExtraBs)}`
-      ]);
-    }
   }
 
   autoTable(doc, {
     startY: y,
-    margin: { top: 43, bottom: 20 },
-    head: [['Período / Mes', 'Base Aseo', 'Multa', 'IVA (16%)', 'Retención IVA', 'Total']],
-    body: rows,
+    margin: { top: 38, bottom: 20 },
+    head: [['PROPIEDAD', 'MESES', 'SERV. ASEO', 'INT. MORA SERV. ASEO', 'MULTA IMPAGO', 'IVA', 'TOTAL BS', 'UCD']],
+    body: oficialRows,
+    foot: [
+      [
+        'TOTALES',
+        `${mesesVencidos} mes(es)`,
+        fmtBs(baseAseo),
+        '-',
+        fmtBs(sumMultas),
+        fmtBs(ivaBs),
+        fmtBs(totalBrutoBs),
+        ucdValor > 0 ? (totalBrutoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-'
+      ],
+      ...(retencionBs > 0 ? [
+        ['', 'IVA RETENIDO 75%', '', '', '', `- ${fmtBs(retencionBs)}`, `- ${fmtBs(retencionBs)}`, ucdValor > 0 ? `- ${(retencionBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : ''],
+        ['', 'TOTAL A CANCELAR', '', '', '', fmtBs(ivaBs - retencionBs), fmtBs(totalNetoBs), ucdValor > 0 ? (totalNetoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '']
+      ] : [])
+    ],
     theme: 'grid',
     headStyles: {
-      fillColor: [241, 245, 249],
-      textColor: [30, 41, 59],
-      fontStyle: 'bold',
-      lineColor: [203, 213, 225],
-      lineWidth: 0.2,
-      halign: 'center',
-      fontSize: 8
+      fillColor: [248, 250, 252], textColor: [15, 23, 42],
+      fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, halign: 'center', fontSize: 7
     },
-    styles: { fontSize: 7.5, cellPadding: 2 },
+    footStyles: {
+      fillColor: [241, 245, 249], textColor: [15, 23, 42],
+      fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, fontSize: 7, halign: 'right'
+    },
+    styles: { fontSize: 7, cellPadding: 1.3 },
     columnStyles: {
-      0: { cellWidth: 46 },
-      1: { cellWidth: 26, halign: 'right' },
-      2: { cellWidth: 26, halign: 'right' },
-      3: { cellWidth: 26, halign: 'right' },
-      4: { cellWidth: 28, halign: 'right', textColor: [180, 83, 9] },
-      5: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+      0: { cellWidth: 24 },
+      1: { cellWidth: 18, halign: 'center' },
+      2: { halign: 'right' },
+      3: { halign: 'right' },
+      4: { halign: 'right' },
+      5: { halign: 'right' },
+      6: { halign: 'right', fontStyle: 'bold' },
+      7: { halign: 'right' }
     },
     didDrawPage: (data) => {
       if (data.pageNumber > 1) {
@@ -590,20 +626,42 @@ export async function generarPdfEstadoCuentaUnidad(
     }
   });
 
-  const finalY = (doc as any).lastAutoTable.finalY + 8;
+  y = (doc as any).lastAutoTable.finalY + 5;
+
+  // ── INFORMACIÓN OFICIAL PARA PAGOS Y TRANSFERENCIAS ──
   doc.setFont('helvetica', 'bold');
-  if (retencionBs > 0) {
-    doc.setFontSize(8.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text(`Total Factura Fiscal (Bruto): Bs. ${fmtBs(totalBrutoBs)}   |   Retención IVA (75%): − Bs. ${fmtBs(retencionBs)}`, 14, finalY);
-    doc.setFontSize(10.5);
-    doc.setTextColor(2, 132, 199);
-    doc.text(`TOTAL NETO A PAGAR: Bs. ${fmtBs(totalNetoBs)}`, 196, finalY + 5, { align: 'right' });
-  } else {
-    doc.setFontSize(10.5);
-    doc.setTextColor(2, 132, 199);
-    doc.text(`TOTAL A PAGAR: Bs. ${fmtBs(totalNetoBs)}`, 196, finalY, { align: 'right' });
-  }
+  doc.setFontSize(8);
+  doc.text('INFORMACIÓN PARA PAGOS Y TRANSFERENCIAS', 105, y, { align: 'center' });
+  y += 2;
+  doc.line(14, y, 196, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text('1) Banco: BANCAMIGA (0172)  |  Cta: 01720110711101340717  |  Beneficiario: IAMEC BANCAMIGA  |  RIF: G-20008614-9', 14, y);
+  y += 3.5;
+  doc.text('2) Banco: BANESCO (0134)    |  Cta: 01341089590001008636  |  Beneficiario: IAMEC BANESCO    |  RIF: G-20008614-9', 14, y);
+  y += 4;
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(6.5);
+  const notaUCD = doc.splitTextToSize('UCD: Unidad de Cuenta Dinámica, equivalente a la tasa oficial del Euro publicada por el Banco Central de Venezuela multiplicada por 57 (Ordenanza de Aseo Urbano y Gestión Integral de Residuos del Municipio Naguanagua). El monto en bolívares se calcula con el valor del UCD vigente a la fecha de pago.', 182);
+  doc.text(notaUCD, 14, y);
+  y += notaUCD.length * 3 + 1;
+  doc.setFont('helvetica', 'normal');
+
+  // ── AVISO DE VIGENCIA DE TASA ──
+  doc.setLineWidth(0.2);
+  doc.setDrawColor(220, 38, 38);
+  doc.line(14, y, 196, y);
+  y += 3.5;
+  doc.setDrawColor(0, 0, 0);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bolditalic');
+  doc.setTextColor(220, 38, 38);
+  doc.text('IMPORTANTE: Los montos indicados en este estado de cuenta son válidos ÚNICAMENTE para la fecha de emisión del presente documento.', 105, y, { align: 'center' });
+  y += 3.5;
+  doc.text('La tasa de cambio oficial BCV varía periódicamente. Para cancelar en fecha posterior, solicite un nuevo estado de cuenta actualizado.', 105, y, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
 
   const totalPages = (doc.internal as any).getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
@@ -611,9 +669,9 @@ export async function generarPdfEstadoCuentaUnidad(
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setFillColor(255, 255, 255);
-    doc.rect(170, 34, 30, 4, 'F');
+    doc.rect(170, 30, 30, 4, 'F');
     doc.setTextColor(0, 0, 0);
-    doc.text(`Página ${i} de ${totalPages}   |   Nro.: ${docNro}`, 196, 36, { align: 'right' });
+    doc.text(`Página ${i} de ${totalPages}   |   Nro.: ${docNro}`, 196, 32, { align: 'right' });
     dibujarLogosPie(doc);
   }
 

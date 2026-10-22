@@ -151,9 +151,10 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   let f3 = 8;
   for (const r of renglones) {
     const sinReg = r.clave === '__SIN_REGISTRAR__';
-    const actividad = r.esGrupo ? `${r.actividad || 'N/A'} (no cobra: cobran sus actividades)`
-      : r.residencial ? String(r.actividad || '').replace(/\s*\((ALTA|MEDIA|BAJA)\)/gi, '').replace(/\s*\(?\s*ZONA\s+[A-Z]\s*\)?/gi, '').trim()
-      : (r.actividad || '');
+    const { cleanClasificacionActividad } = await import('@/lib/calculos');
+    const cleanAct = cleanClasificacionActividad(r.actividad);
+    const actividad = r.esGrupo ? `${cleanAct || 'N/A'} (no cobra: cobran sus actividades)`
+      : cleanAct;
     const row = ws3.getRow(f3++);
     const vals: any[] = [
       sinReg ? 'Declaradas sin registrar' : (r.inmueble || r.clave), r.numero || '', r.propietario || '', r.identidad || '', actividad, r.estado,
