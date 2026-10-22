@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatBs, getIdentidadVariantsExact, parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
+import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
 import {
   calcularMensualidad, isResidencialInm, isTerrenoInm, isExoneradoTotalMultas,
   isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad,
@@ -98,6 +99,21 @@ function formatPeriodosPagados(det: any, p?: any): string {
   if (Array.isArray(det?.recibos) && det.recibos.some((r: string) => /^MULTA-/i.test(r))) {
     return 'Multa Administrativa';
   }
+
+  // 7. Resolver por concepto canónico de período (pagos web, RECIB-HIST, comprobante bancario, etc.)
+  try {
+    const concepto = resolverConceptoPeriodoPago({ ...p, detalles: det });
+    if (concepto) {
+      const limpio = concepto
+        .replace(/^Servicio de Aseo Urbano Comercial\s*[-–]\s*/i, '')
+        .replace(/^Servicio de Aseo Urbano Residencial\s*[-–]\s*/i, '')
+        .replace(/^Servicio de Aseo Urbano\s*[-–]\s*/i, '')
+        .trim();
+      if (limpio && !limpio.toLowerCase().startsWith('servicio')) {
+        return limpio;
+      }
+    }
+  } catch (_) {}
 
   return '—';
 }
