@@ -276,9 +276,9 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   }
   ws3.views = [{ state: 'frozen', ySplit: 7 }];
 
-  // ── Hoja 4: Desglose de actividades (N/A) si existen grupos ──
+  // ── Hoja 4: Desglose de actividades si existen grupos ──
   if (childClaves.size > 0) {
-    const ws4 = wb.addWorksheet('Desglose actividades N/A');
+    const ws4 = wb.addWorksheet('Desglose sub-actividades');
     ws4.columns = [
       { width: 14 }, { width: 14 }, { width: 16 }, { width: 34 }, { width: 15 }, { width: 40 }, { width: 12 },
       { width: 18 }, { width: 11 }, { width: 11 }, { width: 15 }, { width: 15 }, { width: 14 }, { width: 16 }
