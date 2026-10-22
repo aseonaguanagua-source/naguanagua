@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, Printer, ArrowLeft, Pencil, Search, X } from 'lucide-react';
 import { generarCuadreCajaPDF } from '../generators/CuadreCaja';
+import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 
 interface Props {
   pagos: any[];
@@ -130,7 +131,7 @@ function coincideBusqueda(p: any, term: string, contribuyentes: any[] = []): boo
   return false;
 }
 
-const FORMAS = ['Todas', 'Tarjetas (Débito y Crédito)', 'Debito', 'Credito (TMD / TVD)', 'Transferencia', 'Deposito', 'Saldo a Favor', 'Retenciones IVA'];
+const FORMAS = ['Todas', 'Tarjetas (Débito y Crédito)', 'Debito', 'Credito (TMD / TVD)', 'Transferencia', 'Transferencia - Banesco', 'Transferencia - Bancamiga', 'Deposito', 'Saldo a Favor', 'Retenciones IVA'];
 
 export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contribuyentes = [], onBack, onPagoActualizado }: Props) {
   const today = new Date().toISOString().slice(0, 10);
@@ -235,6 +236,8 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
         if (forma === 'Debito' && !isDebitoPago(p)) return false;
         if (forma === 'Credito (TMD / TVD)' && !isCreditoPago(p)) return false;
         if (forma === 'Transferencia' && !isTransfPago(p)) return false;
+        if (forma === 'Transferencia - Banesco' && (!isTransfPago(p) || clasificarBancoDestino(p) !== 'Banesco')) return false;
+        if (forma === 'Transferencia - Bancamiga' && (!isTransfPago(p) || clasificarBancoDestino(p) !== 'Bancamiga')) return false;
         if (forma === 'Deposito' && !isDepositoPago(p)) return false;
         if (forma === 'Saldo a Favor' && !isSaldoPago(p)) return false;
         if (forma === 'Retenciones IVA' && !isRetencionPago(p)) return false;
@@ -261,9 +264,19 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
   const saldosAFavor = pagosFiltrados.filter(p => isSaldoPago(p));
   const retenciones = pagosFiltrados.filter(p => isRetencionPago(p));
 
+  const transfBanesco = transferencias.filter(p => clasificarBancoDestino(p) === 'Banesco');
+  const transfBancamiga = transferencias.filter(p => clasificarBancoDestino(p) === 'Bancamiga');
+  const transfOtros = transferencias.filter(p => {
+    const b = clasificarBancoDestino(p);
+    return b !== 'Banesco' && b !== 'Bancamiga';
+  });
+
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCredito = creditos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
+  const totalTransfBanesco = transfBanesco.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
+  const totalTransfBancamiga = transfBancamiga.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
+  const totalTransfOtros = transfOtros.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
   const totalDeposito = depositos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalSaldo = saldosAFavor.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
@@ -425,7 +438,24 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
             <div style={{ padding: '10px 14px', borderRight: '1px solid #ccc', fontSize: 13 }}>
               <div><b>Débito (POS) Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDebito)}</span></div>
               <div style={{ marginTop: 4 }}><b>Crédito (TMD / TVD) Bs.:</b><span style={{ float: 'right', color: '#1e40af', fontWeight: 600 }}>{fmtBs(totalCredito)}</span></div>
-              <div style={{ marginTop: 4 }}><b>Transferencia Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalTransf)}</span></div>
+              <div style={{ marginTop: 4 }}>
+                <b>Transferencia Bs.:</b>
+                <span style={{ float: 'right', fontWeight: 700 }}>{fmtBs(totalTransf)}</span>
+              </div>
+              <div style={{ marginLeft: 12, marginTop: 2, fontSize: 11, color: '#047857', display: 'flex', justifyContent: 'space-between' }}>
+                <span>• Banesco ({transfBanesco.length}):</span>
+                <b>Bs {fmtBs(totalTransfBanesco)}</b>
+              </div>
+              <div style={{ marginLeft: 12, marginTop: 1, fontSize: 11, color: '#0284c7', display: 'flex', justifyContent: 'space-between' }}>
+                <span>• Bancamiga ({transfBancamiga.length}):</span>
+                <b>Bs {fmtBs(totalTransfBancamiga)}</b>
+              </div>
+              {transfOtros.length > 0 && (
+                <div style={{ marginLeft: 12, marginTop: 1, fontSize: 11, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>• Otros ({transfOtros.length}):</span>
+                  <b>Bs {fmtBs(totalTransfOtros)}</b>
+                </div>
+              )}
               {totalDeposito > 0 && <div style={{ marginTop: 4 }}><b>Depósito Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDeposito)}</span></div>}
               {totalSaldo > 0 && <div style={{ marginTop: 4 }}><b>Saldo a Favor Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalSaldo)}</span></div>}
               {totalRetenciones > 0 && <div style={{ marginTop: 4, color: '#64748b' }}><b>Retención IVA (Informativo - No suma):</b><span style={{ float: 'right' }}>{fmtBs(totalRetenciones)}</span></div>}
@@ -480,17 +510,29 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
 
           {/* Transferencias */}
           {transferencias.length > 0 && <>
-            <div style={S.secHdr}>TRANSFERENCIA</div>
+            <div style={{ ...S.secHdr, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>TRANSFERENCIA</span>
+              <div style={{ display: 'flex', gap: 8, fontSize: 11, fontWeight: 700 }}>
+                <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#065f46', padding: '2px 8px', borderRadius: 4 }}>
+                  Banesco: Bs {fmtBs(totalTransfBanesco)} ({transfBanesco.length})
+                </span>
+                <span style={{ background: 'rgba(14, 165, 233, 0.2)', color: '#0369a1', padding: '2px 8px', borderRadius: 4 }}>
+                  Bancamiga: Bs {fmtBs(totalTransfBancamiga)} ({transfBancamiga.length})
+                </span>
+              </div>
+            </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr>{['#', 'Fecha/Hora', 'Fecha Bco', 'Tipo', 'Fecha Libro', 'Cajero', 'Contribuyente', 'Recibo', 'Banco', 'Referencia', 'Banco Destino', 'Referencia', 'Monto']
+                  <tr>{['#', 'Fecha/Hora', 'Fecha Bco', 'Tipo', 'Fecha Libro', 'Cajero', 'Contribuyente', 'Recibo', 'Banco Emisor', 'Referencia', 'Banco Destino', 'Monto']
                     .map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {transferencias.map((p, i) => {
                     const det = parseDet(p); const recs: string[] = det.recibos || [];
                     const mC = parseFloat(det.monto_conciliado || p.monto) || 0;
+                    const bancoDestClass = clasificarBancoDestino(p);
+                    const bDestTexto = det.banco_destino || det.banco_receptor || p.banco || '-';
                     return (
                       <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#f9fafe' }}>
                         <td style={S.td}>{i + 1}</td>
@@ -503,17 +545,41 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
                         <td style={S.td}>{recs[0] || '-'}</td>
                         <td style={S.td}>{p.banco || '-'}</td>
                         <td style={S.td}>{p.referencia || '-'}</td>
-                        <td style={S.td}>{det.banco_destino || det.banco_receptor || '-'}</td>
-                        <td style={S.td}>{p.referencia || '-'}</td>
+                        <td style={S.td}>
+                          {bancoDestClass === 'Banesco' ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 11 }} title={bDestTexto}>
+                              🏦 Banesco
+                            </span>
+                          ) : bancoDestClass === 'Bancamiga' ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 11 }} title={bDestTexto}>
+                              🏦 Bancamiga
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 11, color: '#475569' }}>{bDestTexto}</span>
+                          )}
+                        </td>
                         <CeldaMonto p={p} valor={mC} />
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
-                  <tr>
-                    <td colSpan={12} style={S.tf}>Total Items: {transferencias.length}</td>
-                    <td style={{ ...S.tf, textAlign: 'right' }}>Total Transferencia: {fmtBs(totalTransf)}</td>
+                  <tr style={{ background: '#f1f5f9' }}>
+                    <td colSpan={11} style={{ ...S.tf, fontSize: 11 }}>
+                      <b>Subtotales:</b>
+                      <span style={{ marginLeft: 10, color: '#047857', fontWeight: 700 }}>
+                        Banesco ({transfBanesco.length}): Bs {fmtBs(totalTransfBanesco)}
+                      </span>
+                      <span style={{ marginLeft: 16, color: '#0284c7', fontWeight: 700 }}>
+                        Bancamiga ({transfBancamiga.length}): Bs {fmtBs(totalTransfBancamiga)}
+                      </span>
+                      {transfOtros.length > 0 && (
+                        <span style={{ marginLeft: 16, color: '#64748b' }}>
+                          Otros ({transfOtros.length}): Bs {fmtBs(totalTransfOtros)}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ ...S.tf, textAlign: 'right', fontWeight: 900 }}>Total: {fmtBs(totalTransf)}</td>
                   </tr>
                 </tfoot>
               </table>

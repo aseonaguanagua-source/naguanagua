@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
 import { descargarPdfBlob } from './PdfReports';
+import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 
 const formatBs = (num: number) => {
   return 'Bs. ' + (num || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -90,9 +91,19 @@ export const generarCuadreCajaPDF = (
   const saldosAFavor = pagosFiltrados.filter(p => isSaldoPago(p));
   const retenciones = pagosFiltrados.filter(p => isRetencionPago(p));
 
+  const transfBanesco = transferencias.filter(p => clasificarBancoDestino(p) === 'Banesco');
+  const transfBancamiga = transferencias.filter(p => clasificarBancoDestino(p) === 'Bancamiga');
+  const transfOtros = transferencias.filter(p => {
+    const b = clasificarBancoDestino(p);
+    return b !== 'Banesco' && b !== 'Bancamiga';
+  });
+
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalCredito = creditos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
+  const totalTransfBanesco = transfBanesco.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
+  const totalTransfBancamiga = transfBancamiga.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
+  const totalTransfOtros = transfOtros.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalDeposito = depositos.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalRetenciones = retenciones.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
@@ -107,15 +118,37 @@ export const generarCuadreCajaPDF = (
   doc.setFontSize(9);
   doc.text("Tarjeta de Débito (POS)", 40, curResY);
   doc.text(formatBs(totalDebito), pageWidth - 40, curResY, { align: 'right' });
-  curResY += 15;
+  curResY += 14;
 
   doc.text("Tarjeta de Crédito (POS - TMD / TVD)", 40, curResY);
   doc.text(formatBs(totalCredito), pageWidth - 40, curResY, { align: 'right' });
-  curResY += 15;
+  curResY += 14;
 
+  doc.setFont('helvetica', 'bold');
   doc.text("Transferencias Conciliadas", 40, curResY);
   doc.text(formatBs(totalTransf), pageWidth - 40, curResY, { align: 'right' });
-  curResY += 15;
+  curResY += 12;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(4, 120, 87);
+  doc.text(`   • Banesco (${transfBanesco.length})`, 48, curResY);
+  doc.text(formatBs(totalTransfBanesco), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 12;
+
+  doc.setTextColor(2, 132, 199);
+  doc.text(`   • Bancamiga (${transfBancamiga.length})`, 48, curResY);
+  doc.text(formatBs(totalTransfBancamiga), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 12;
+
+  if (transfOtros.length > 0) {
+    doc.setTextColor(100, 116, 139);
+    doc.text(`   • Otros Bancos (${transfOtros.length})`, 48, curResY);
+    doc.text(formatBs(totalTransfOtros), pageWidth - 40, curResY, { align: 'right' });
+    curResY += 12;
+  }
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(9);
 
   if (totalDeposito > 0 || depositos.length > 0) {
     doc.text("Depósitos Bancarios", 40, curResY);
@@ -239,20 +272,26 @@ export const generarCuadreCajaPDF = (
     "TRANSFERENCIAS CONCILIADAS", 
     transferencias, 
     ["FECHA/HORA", "FECHA BCO", "TIPO", "FECHA LIBRO", "DOCUMENTO", "BANCO ORIGEN", "REFERENCIA", "BANCO DESTINO", "REF. DESTINO", "MONTO"],
-    (p, c) => [
-      new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
-      new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
-      String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
-      ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO"),
-      p.referencia_bancaria || p.referencia || 'N/A',
-      String(p.banco_origen || 'N/A').substring(0,15),
-      p.referencia || 'N/A',
-      String(p.banco_destino || 'N/A').substring(0,15),
-      p.referencia || 'N/A',
-      (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    ],
+    (p, c) => {
+      const bClass = clasificarBancoDestino(p);
+      const det = p.detalles ? (typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles) : {};
+      const bDestRaw = det.banco_destino || det.banco_receptor || p.banco_destino || 'N/A';
+      const bDestLabel = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(bDestRaw).substring(0, 15);
+      return [
+        new Date(p.created_at).toLocaleString('es-VE', {hour12: false, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+        new Date(p.fecha_pago || p.created_at).toLocaleDateString('es-VE', {day:'2-digit', month:'2-digit', year:'numeric'}),
+        String(p.tipo || 'TRF').substring(0,3).toUpperCase(),
+        ((p.identidad?.startsWith('V-') || p.identidad?.startsWith('V') || p.identidad?.startsWith('E-') || (c?.tipo && String(c.tipo).toLowerCase().includes('residencial'))) ? "RECIBO" : "NO FACTURADO"),
+        p.referencia_bancaria || p.referencia || 'N/A',
+        String(p.banco_origen || 'N/A').substring(0,15),
+        p.referencia || 'N/A',
+        bDestLabel,
+        p.referencia || 'N/A',
+        (parseFloat(p.monto) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ];
+    },
     totalTransf,
-    "Total Transferencias:"
+    `Banesco: ${formatBs(totalTransfBanesco)}  |  Bancamiga: ${formatBs(totalTransfBancamiga)}  |  Total:`
   );
 
   drawSubTable(

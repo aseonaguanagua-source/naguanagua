@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { parseDet, montosPago, cargarInmMapPagos, codigosDePago } from './LibroVentas';
+import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 
 /**
  * Reportes de Caja con el formato del IAMEC (carpeta REPORTES):
@@ -152,19 +153,21 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   const wsPto = wb.addWorksheet('CONCILIACION DEL PUNTO DE VENTA');
 
   // Conciliación bancaria
-  const cols = ['Fecha Pago', 'Banco Emisor', 'Referencia', 'Forma de Pago', 'Monto Pagado', 'Fecha Factura', 'Nro Serie', 'Código Cliente', 'Razón Social', 'Cajero / Operador', 'Aseo Urbano', '% IVA', 'Monto IVA', 'Retención IVA', 'Nota de Crédito', 'Exento'];
-  [12, 18, 14, 14, 15, 12, 12, 14, 34, 20, 15, 7, 13, 13, 13, 13].forEach((w, i) => { wsBan.getColumn(i + 2).width = w; });
+  const cols = ['Fecha Pago', 'Banco Emisor', 'Banco Destino', 'Referencia', 'Forma de Pago', 'Monto Pagado', 'Fecha Factura', 'Nro Serie', 'Código Cliente', 'Razón Social', 'Cajero / Operador', 'Aseo Urbano', '% IVA', 'Monto IVA', 'Retención IVA', 'Nota de Crédito', 'Exento'];
+  [12, 18, 15, 14, 14, 15, 12, 12, 14, 34, 20, 15, 7, 13, 13, 13, 13].forEach((w, i) => { wsBan.getColumn(i + 2).width = w; });
   wsBan.getColumn(1).width = 3;
   let f = 1;
-  const totalesMes: [string, number][] = [];
+  const totalesMes: [string, number, number, number][] = [];
   [...porMes.keys()].sort().forEach(key => {
     const [y, m] = key.split('-');
-    wsBan.mergeCells(f, 2, f, 17);
+    wsBan.mergeCells(f, 2, f, 18);
     wsBan.getCell(f, 2).value = `CONCILIACION BANCARIA DE PAGOS (TRANSFERENCIAS) REPORTADAS LUEGO DEL CIERRE DE MES: MES ${MESES[parseInt(m) - 1]} ${y}`;
     wsBan.getCell(f, 2).font = { bold: true }; wsBan.getCell(f, 2).alignment = { horizontal: 'center' };
     f++;
     cab(wsBan, f++, cols, 2);
     let sub = 0;
+    let subBanesco = 0;
+    let subBancamiga = 0;
     porMes.get(key)!.sort((a, b) => a.fPago.localeCompare(b.fPago)).forEach(({ p, det, fPago, esSubPago, montoTotalReportado }) => {
       const ret = retPorPago.get(String(p.id)) ?? Number(det.monto_retencion_iva || 0);
       const mtTotal = montosPago(p, det, inmMap, ret);
@@ -179,21 +182,26 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       const ncTotal = Number(det.saldo_favor || 0) > 0 ? Number(det.saldo_favor) : 0;
       const nc = esSubPago ? r2(ncTotal * factor) : ncTotal;
       const cajero = det.cajero || det.usuario || p.usuario || '';
+      const bClass = clasificarBancoDestino(p);
+      const bDestLabel = bClass === 'Banesco' ? 'Banesco' : bClass === 'Bancamiga' ? 'Bancamiga' : (det.banco_destino || det.banco_receptor || 'Otro');
       const row = wsBan.getRow(f++);
       const vals: any[] = [
-        dmy(fPago), p.banco || '', p.referencia || '', p.tipo || 'Transferencia', r2(Number(p.monto) || 0), dmy(fechaVE(p.created_at)),
+        dmy(fPago), p.banco || '', bDestLabel, p.referencia || '', p.tipo || 'Transferencia', r2(Number(p.monto) || 0), dmy(fechaVE(p.created_at)),
         fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || '', codigosDePago(det, p).join(', '), nombreDe(p.identidad, det),
         cajero,
         mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
       ];
-      vals.forEach((v, i) => { const c = row.getCell(i + 2); c.value = v; c.border = BORDE; c.font = { size: 9 }; if ([4, 10, 12, 13, 14, 15].includes(i)) c.numFmt = '#,##0.00'; });
-      sub += Number(p.monto) || 0;
+      vals.forEach((v, i) => { const c = row.getCell(i + 2); c.value = v; c.border = BORDE; c.font = { size: 9 }; if ([5, 11, 13, 14, 15, 16].includes(i)) c.numFmt = '#,##0.00'; });
+      const mPagado = Number(p.monto) || 0;
+      sub += mPagado;
+      if (bClass === 'Banesco') subBanesco += mPagado;
+      else if (bClass === 'Bancamiga') subBancamiga += mPagado;
     });
     const t = wsBan.getRow(f++);
-    t.getCell(5).value = 'TOTAL'; t.getCell(6).value = r2(sub); t.getCell(6).numFmt = '#,##0.00';
-    t.getCell(5).font = { bold: true }; t.getCell(6).font = { bold: true };
+    t.getCell(6).value = 'TOTAL'; t.getCell(7).value = r2(sub); t.getCell(7).numFmt = '#,##0.00';
+    t.getCell(6).font = { bold: true }; t.getCell(7).font = { bold: true };
     f++;
-    totalesMes.push([`${MESES[parseInt(m) - 1]} ${y}`, sub]);
+    totalesMes.push([`${MESES[parseInt(m) - 1]} ${y}`, sub, subBanesco, subBancamiga]);
   });
 
   // Conciliación del punto: total del sistema por caja y día (cierre de lote lo completa el analista)
@@ -226,7 +234,27 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   wsRes.getCell('A1').value = 'RESUMEN DE CONCILIACIONES'; wsRes.getCell('A1').font = { bold: true, size: 12 };
   wsRes.getCell('A2').value = `Período de registro: ${dmy(fechaInicio)} al ${dmy(fechaFin)}`;
   let fr = 4; let totalMes = 0;
-  totalesMes.forEach(([k, v]) => { wsRes.getCell(fr, 1).value = k; wsRes.getCell(fr, 2).value = r2(v); wsRes.getCell(fr, 2).numFmt = '#,##0.00'; totalMes += v; fr++; });
+  totalesMes.forEach(([k, v, vBan, vBga]) => {
+    wsRes.getCell(fr, 1).value = k;
+    wsRes.getCell(fr, 2).value = r2(v);
+    wsRes.getCell(fr, 2).numFmt = '#,##0.00';
+    fr++;
+    if (vBan > 0 || vBga > 0) {
+      wsRes.getCell(fr, 1).value = `   • Banesco`;
+      wsRes.getCell(fr, 2).value = r2(vBan || 0);
+      wsRes.getCell(fr, 2).numFmt = '#,##0.00';
+      wsRes.getCell(fr, 1).font = { italic: true, size: 9, color: { argb: 'FF047857' } };
+      wsRes.getCell(fr, 2).font = { size: 9, color: { argb: 'FF047857' } };
+      fr++;
+      wsRes.getCell(fr, 1).value = `   • Bancamiga`;
+      wsRes.getCell(fr, 2).value = r2(vBga || 0);
+      wsRes.getCell(fr, 2).numFmt = '#,##0.00';
+      wsRes.getCell(fr, 1).font = { italic: true, size: 9, color: { argb: 'FF0284C7' } };
+      wsRes.getCell(fr, 2).font = { size: 9, color: { argb: 'FF0284C7' } };
+      fr++;
+    }
+    totalMes += v;
+  });
   wsRes.getCell(fr, 1).value = 'VENTAS POR PUNTO'; wsRes.getCell(fr, 2).value = r2(totalPunto); wsRes.getCell(fr, 2).numFmt = '#,##0.00'; fr++;
   wsRes.getCell(fr, 1).value = 'TOTAL DEL MES'; wsRes.getCell(fr, 2).value = r2(totalMes + totalPunto); wsRes.getCell(fr, 2).numFmt = '#,##0.00';
   wsRes.getCell(fr, 1).font = { bold: true }; wsRes.getCell(fr, 2).font = { bold: true };

@@ -1204,20 +1204,27 @@ export async function POST(request: Request) {
               
               const isValidDir = (d: any) => d && typeof d === 'string' && d.trim().length > 3 && d.trim() !== '0 0' && d.trim() !== '0' && d.trim().toUpperCase() !== 'N/A';
               const dirFiscal = contribData?.direccion;
-              const dirEspecifica = matchedPropEspecifico?.direccion;
+              let dirEspecifica = matchedPropEspecifico?.direccion;
+              if (dirEspecifica && dirEspecifica.includes('  URB.')) {
+                dirEspecifica = 'URB.' + dirEspecifica.split('  URB.')[1];
+              }
               const dirRecibo = detPago?.recibo_caja?.[0]?.domicilioFiscal;
               const dirSrv = srvDet?.direccion_evento;
               
-              // Prioridad legal SENIAT: Domicilio Fiscal del contribuyente sobre la parcela catastral
-              const cand = isValidDir(dirFiscal)
-                ? dirFiscal
-                : (isValidDir(dirEspecifica)
-                  ? dirEspecifica
-                  : (isValidDir(dirRecibo)
-                    ? dirRecibo
-                    : (isValidDir(dirSrv)
-                      ? dirSrv
-                      : (isValidDir(propRef?.direccion) ? propRef?.direccion : parentDir))));
+              // Prioridad legal SENIAT: Domicilio Fiscal del contribuyente sobre la parcela catastral.
+              // EXCEPCIÓN VITAL: Si es pago por local individual (esPagoPorLocal) y se cuenta con la dirección del local específico (dirEspecifica),
+              // se prioriza dirEspecifica para evitar asignar la dirección de OTRO local/inmueble del mismo RIF (ej. PB-B25 vs PN-24).
+              const cand = (esPagoPorLocal && isValidDir(dirEspecifica))
+                ? dirEspecifica
+                : (isValidDir(dirFiscal)
+                  ? dirFiscal
+                  : (isValidDir(dirEspecifica)
+                    ? dirEspecifica
+                    : (isValidDir(dirRecibo)
+                      ? dirRecibo
+                      : (isValidDir(dirSrv)
+                        ? dirSrv
+                        : (isValidDir(propRef?.direccion) ? propRef?.direccion : parentDir)))));
               
               return sanitizarDireccionFiscal(cand, {
                 unidadNumero: uNum,

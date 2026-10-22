@@ -90,15 +90,26 @@ async function restaurarDeudaPreviaAnulacion(detPago: any, recibos: string[]) {
     if (previa.length > 0) {
       for (const dp of previa) {
         if (!dp) continue;
-        // Si es condominio (tiene aseo_pendiente_desde)
-        if (dp.aseo_pendiente_desde) {
+        // Si es una unidad individual de condominio
+        if (dp.unidad) {
+          const updUnidad: any = {
+            aseo_pendiente_desde: dp.aseo_pendiente_desde ?? null,
+            multa_meses: dp.multa_meses ?? 0,
+            abono_bs: dp.abono_bs ?? 0
+          };
+          if (dp.multa_exonerada_hasta !== undefined) updUnidad.multa_exonerada_hasta = dp.multa_exonerada_hasta;
+          await supabase.from('condominio_unidades').update(updUnidad).eq('id', dp.unidad);
+        } else if (dp.condominio || dp.aseo_pendiente_desde) {
+          // Si es condominio matriz
           const updCondo: any = {
             aseo_pendiente_desde: dp.aseo_pendiente_desde,
             multa_meses: dp.multa_meses ?? 0,
             abono_bs: dp.abono_bs ?? 0
           };
           if (dp.multa_exonerada_hasta !== undefined) updCondo.multa_exonerada_hasta = dp.multa_exonerada_hasta;
-          if (dp.id) {
+          if (dp.condominio) {
+            await supabase.from('condominios').update(updCondo).eq('id', dp.condominio);
+          } else if (dp.id) {
             await supabase.from('condominios').update(updCondo).eq('id', dp.id);
           } else if (dp.inmueble || dp.codigo) {
             await supabase.from('condominios').update(updCondo).eq('codigo', dp.inmueble || dp.codigo);

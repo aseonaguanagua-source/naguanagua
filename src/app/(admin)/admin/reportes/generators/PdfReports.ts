@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
+import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 
 // Helper para descarga confiable de PDF en todos los navegadores
 export function descargarPdfBlob(doc: jsPDF, filename: string) {
@@ -123,9 +124,19 @@ export const generarCorteCajaPDF = (
   const saldosAFavor = pagosFiltrados.filter(p => isSaldoPago(p));
   const retenciones = pagosFiltrados.filter(p => isRetencionPago(p));
 
+  const transfBanesco = transferencias.filter(p => clasificarBancoDestino(p) === 'Banesco');
+  const transfBancamiga = transferencias.filter(p => clasificarBancoDestino(p) === 'Bancamiga');
+  const transfOtros = transferencias.filter(p => {
+    const b = clasificarBancoDestino(p);
+    return b !== 'Banesco' && b !== 'Bancamiga';
+  });
+
   const totalDebito = debitos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalCredito = creditos.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalTransf = transferencias.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const totalTransfBanesco = transfBanesco.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const totalTransfBancamiga = transfBancamiga.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
+  const totalTransfOtros = transfOtros.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalSaldo = saldosAFavor.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalRetenciones = retenciones.reduce((acc: number, p: any) => acc + parseFloat(p.monto || '0'), 0);
   const totalGeneral = totalDebito + totalCredito + totalTransf + totalSaldo;
@@ -139,15 +150,37 @@ export const generarCorteCajaPDF = (
   doc.setFontSize(9);
   doc.text("Tarjeta de Débito (POS)", 40, curResY);
   doc.text(formatBs(totalDebito), pageWidth - 40, curResY, { align: 'right' });
-  curResY += 15;
+  curResY += 14;
 
   doc.text("Tarjeta de Crédito (POS - TMD / TVD)", 40, curResY);
   doc.text(formatBs(totalCredito), pageWidth - 40, curResY, { align: 'right' });
-  curResY += 15;
+  curResY += 14;
 
+  doc.setFont('helvetica', 'bold');
   doc.text("TRANSFERENCIAS REGISTRADAS POR EL CAJERO", 40, curResY);
   doc.text(formatBs(totalTransf), pageWidth - 40, curResY, { align: 'right' });
-  curResY += 15;
+  curResY += 12;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(4, 120, 87);
+  doc.text(`   • Banesco (${transfBanesco.length})`, 48, curResY);
+  doc.text(formatBs(totalTransfBanesco), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 12;
+
+  doc.setTextColor(2, 132, 199);
+  doc.text(`   • Bancamiga (${transfBancamiga.length})`, 48, curResY);
+  doc.text(formatBs(totalTransfBancamiga), pageWidth - 40, curResY, { align: 'right' });
+  curResY += 12;
+
+  if (transfOtros.length > 0) {
+    doc.setTextColor(100, 116, 139);
+    doc.text(`   • Otros Bancos (${transfOtros.length})`, 48, curResY);
+    doc.text(formatBs(totalTransfOtros), pageWidth - 40, curResY, { align: 'right' });
+    curResY += 12;
+  }
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(9);
 
   if (totalSaldo > 0 || saldosAFavor.length > 0) {
     doc.text("Saldo a Favor", 40, curResY);
@@ -275,7 +308,8 @@ export const generarCorteCajaPDF = (
       let det: any = {};
       try { det = (typeof p.detalles === 'string' ? JSON.parse(p.detalles) : p.detalles) || {}; } catch(e) {}
       const bancoOrigen = String(p.banco || det.banco_origen || det.banco_emisor || 'N/A').substring(0,22);
-      const bancoDestino = String(det.banco_destino || det.banco_receptor || 'N/A').substring(0,22);
+      const bClass = clasificarBancoDestino(p);
+      const bancoDestino = bClass === 'Banesco' ? 'BANESCO' : bClass === 'Bancamiga' ? 'BANCAMIGA' : String(det.banco_destino || det.banco_receptor || 'N/A').substring(0,22);
       const montoNum = parseFloat(det.monto_conciliado || p.monto || '0');
       const tasaPagoEuro = det.tasa_euro || det.tasa_bcv_conciliacion || tasaEuro || 0;
       const montoEur = tasaPagoEuro > 0 ? (montoNum / tasaPagoEuro).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
@@ -289,7 +323,7 @@ export const generarCorteCajaPDF = (
       ];
     },
     totalTransf,
-    "Total Transferencias:"
+    `Banesco: ${formatBs(totalTransfBanesco)}  |  Bancamiga: ${formatBs(totalTransfBancamiga)}  |  Total:`
   );
 
   // 3. Saldo a Favor

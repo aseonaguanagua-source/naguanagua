@@ -6,6 +6,7 @@ import { generarLibroVentas } from '../generators/LibroVentas';
 import { generarTotalPuntosVenta, generarConciliacionTransferencias } from '../generators/ReportesCaja';
 import { useEditarMontoReporte } from './EditarMontoReporte';
 import DevPagosCajaModal from './DevPagosCajaModal';
+import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 
 interface Props {
   pagos: any[];
@@ -254,9 +255,18 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   const creditos = pagosFiltrados.filter(p => isCredito(p));
   const transferencias = pagosFiltrados.filter(p => !isTarjeta(p) && !isRetencion(p));
   const retenciones = pagosFiltrados.filter(p => isRetencion(p));
+  const transfBanesco = transferencias.filter(p => clasificarBancoDestino(p) === 'Banesco');
+  const transfBancamiga = transferencias.filter(p => clasificarBancoDestino(p) === 'Bancamiga');
+  const transfOtros = transferencias.filter(p => {
+    const b = clasificarBancoDestino(p);
+    return b !== 'Banesco' && b !== 'Bancamiga';
+  });
   const totalDebito = debitos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalCredito = creditos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalTransf = transferencias.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
+  const totalTransfBanesco = transfBanesco.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
+  const totalTransfBancamiga = transfBancamiga.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
+  const totalTransfOtros = transfOtros.reduce((s, p) => { const d = parseDet(p); return s + (parseFloat(d.monto_conciliado || p.monto) || 0); }, 0);
   const totalRetenciones = retenciones.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
   const totalIngresos = totalDebito + totalCredito + totalTransf;
   const totalUSD = tcmmv > 0 ? totalIngresos / tcmmv : 0;
@@ -289,7 +299,21 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       <div style={{ padding: '10px 14px', borderRight: '1px solid #ccc', fontSize: 13 }}>
         <div><b>Débito (POS) Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalDebito)}</span></div>
         <div style={{ marginTop: 4 }}><b>Crédito (TMD / TVD) Bs.:</b><span style={{ float: 'right', color: '#1e40af', fontWeight: 600 }}>{fmtBs(totalCredito)}</span></div>
-        <div style={{ marginTop: 4 }}><b>Transferencia Bs.:</b><span style={{ float: 'right' }}>{fmtBs(totalTransf)}</span></div>
+        <div style={{ marginTop: 4 }}><b>Transferencia Bs.:</b><span style={{ float: 'right', fontWeight: 700 }}>{fmtBs(totalTransf)}</span></div>
+        <div style={{ paddingLeft: 12, fontSize: 11, color: '#047857', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
+          <span>• Transferencias Banesco ({transfBanesco.length}):</span>
+          <b>Bs. {fmtBs(totalTransfBanesco)}</b>
+        </div>
+        <div style={{ paddingLeft: 12, fontSize: 11, color: '#0284c7', marginTop: 1, display: 'flex', justifyContent: 'space-between' }}>
+          <span>• Transferencias Bancamiga ({transfBancamiga.length}):</span>
+          <b>Bs. {fmtBs(totalTransfBancamiga)}</b>
+        </div>
+        {totalTransfOtros > 0 && (
+          <div style={{ paddingLeft: 12, fontSize: 11, color: '#64748b', marginTop: 1, display: 'flex', justifyContent: 'space-between' }}>
+            <span>• Otras Transferencias ({transfOtros.length}):</span>
+            <b>Bs. {fmtBs(totalTransfOtros)}</b>
+          </div>
+        )}
         {totalRetenciones > 0 && <div style={{ marginTop: 4, color: '#64748b' }}><b>Retención IVA (Informativo - No suma):</b><span style={{ float: 'right' }}>{fmtBs(totalRetenciones)}</span></div>}
       </div>
       <div style={{ padding: '10px 14px', borderRight: '1px solid #ccc', fontSize: 12 }}>
@@ -425,13 +449,50 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
                 <div style={{ fontSize: '0.78em', color: '#555' }}>{getNombre(p, contribuyentes)}</div>
               </td>
               <td style={S.td}>{recs[0] || '-'}</td><td style={S.td}>{p.banco || '-'}</td><td style={S.td}>{p.referencia || '-'}</td>
-              <td style={S.td}>{det.banco_destino || det.banco_receptor || '-'}</td><td style={S.td}>{p.referencia || '-'}</td>
+              <td style={S.td}>
+                {(() => {
+                  const bDest = clasificarBancoDestino(p);
+                  if (bDest === 'Banesco') {
+                    return (
+                      <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 10 }}>
+                        BANESCO
+                      </span>
+                    );
+                  }
+                  if (bDest === 'Bancamiga') {
+                    return (
+                      <span style={{ background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 10 }}>
+                        BANCAMIGA
+                      </span>
+                    );
+                  }
+                  return det.banco_destino || det.banco_receptor || '-';
+                })()}
+              </td><td style={S.td}>{p.referencia || '-'}</td>
               {!showDT && <td style={S.td}>{p.estado || '-'}</td>}
               {showDT ? <CeldaMonto p={p} valor={mC} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} />
                 : <><td style={{ ...S.td, textAlign: 'right' }}>{fmtBs(parseFloat(p.monto) || 0)}</td><CeldaMonto p={p} valor={mC} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }} /></>}
             </tr>);
           })}</tbody>
-          <tfoot><tr><td colSpan={12} style={S.tf}>Total Items: {transferencias.length}</td><td style={{ ...S.tf, textAlign: 'right' }}>Total Transferencia: {fmtBs(totalTransf)}</td></tr></tfoot>
+          <tfoot>
+            <tr>
+              <td colSpan={showDT ? 13 : 13} style={S.tf}>
+                Total Items: {transferencias.length}
+                <span style={{ marginLeft: 16, color: '#047857' }}>
+                  <b>Banesco:</b> {fmtBs(totalTransfBanesco)} ({transfBanesco.length})
+                </span>
+                <span style={{ marginLeft: 12, color: '#0284c7' }}>
+                  <b>Bancamiga:</b> {fmtBs(totalTransfBancamiga)} ({transfBancamiga.length})
+                </span>
+                {totalTransfOtros > 0 && (
+                  <span style={{ marginLeft: 12, color: '#64748b' }}>
+                    <b>Otros:</b> {fmtBs(totalTransfOtros)} ({transfOtros.length})
+                  </span>
+                )}
+              </td>
+              <td style={{ ...S.tf, textAlign: 'right' }}>Total Transferencia: {fmtBs(totalTransf)}</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </>}
