@@ -617,12 +617,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     || c.nombre;
 
   if (montoSaldoFavor > 0 && pagadorIdentidad) {
-    const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor);
+    const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor, c?.codigo);
     if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
   }
 
   if (pago.saldoFavorGenerado && pago.saldoFavorGenerado > 0 && pagadorIdentidad) {
-    const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, r2(pago.saldoFavorGenerado));
+    const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, r2(pago.saldoFavorGenerado), c?.codigo);
     if (!resAcreditar.ok) throw new Error('Error al acreditar Saldo a Favor generado por exceso: ' + resAcreditar.error);
     // Nota de crédito visible en Caja / Conciliación
     await sb.from('documentos').insert([{

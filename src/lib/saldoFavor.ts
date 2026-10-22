@@ -125,25 +125,34 @@ export async function descontarSaldoFavor(
   dbClient?: any
 ): Promise<SaldoUpdateResult> {
   const client = dbClient || supabase;
-  let pendiente = Math.round((Number(monto) || 0) * 100) / 100;
+  const montoNum = Math.round((Number(monto) || 0) * 100) / 100;
+  if (montoNum <= 0) return { ok: true, nuevoSaldo: 0 };
 
-  // Si hay abono en condominios, descontar primero de allí
-  if (codigoCondominio) {
+  // 1. Si es condominio, descontar de tabla condominios
+  let targetCondoCod = codigoCondominio ? String(codigoCondominio).trim().toUpperCase() : undefined;
+  if (!targetCondoCod && identidad) {
+    const { data: cByCod } = await client.from('condominios').select('codigo').eq('codigo', String(identidad).trim().toUpperCase()).maybeSingle();
+    if (cByCod) targetCondoCod = cByCod.codigo;
+  }
+
+  let condoActualizado = false;
+  if (targetCondoCod) {
     const { data: cRow } = await client
       .from('condominios')
       .select('id, abono_bs')
-      .eq('codigo', codigoCondominio.toUpperCase())
+      .eq('codigo', targetCondoCod)
       .maybeSingle();
 
-    if (cRow && (parseFloat(cRow.abono_bs || '0') || 0) > 0) {
+    if (cRow) {
       const abonoAct = parseFloat(cRow.abono_bs || '0') || 0;
-      const desc = Math.min(abonoAct, pendiente);
-      await client.from('condominios').update({ abono_bs: Math.round((abonoAct - desc) * 100) / 100 }).eq('id', cRow.id);
-      pendiente = Math.round((pendiente - desc) * 100) / 100;
+      const nuevoAbono = Math.max(0, Math.round((abonoAct - montoNum) * 100) / 100);
+      await client.from('condominios').update({ abono_bs: nuevoAbono }).eq('id', cRow.id);
+      condoActualizado = true;
     }
   }
 
-  if (pendiente <= 0.009) return { ok: true, nuevoSaldo: 0 };
+  // 2. Descontar también de inmuebles para mantener la sincronía exacta
+  let pendiente = montoNum;
 
   const id = String(identidad || '').trim().toUpperCase();
   const sinGuion = id.replace(/-/g, '');
@@ -162,7 +171,7 @@ export async function descontarSaldoFavor(
   const { data: inms, error: e1 } = await q.order('id', { ascending: true });
   if (e1) return { ok: false, error: e1.message };
   if (!inms || inms.length === 0) {
-    if (codigoCondominio) return { ok: true, nuevoSaldo: 0 };
+    if (condoActualizado || targetCondoCod) return { ok: true, nuevoSaldo: 0 };
     return { ok: false, error: 'No se encontraron inmuebles para el contribuyente' };
   }
 
