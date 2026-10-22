@@ -14,6 +14,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 });
     }
 
+    const rawId = String(identidad || '').trim().toUpperCase();
+    const cleanIdentidad = /^[JVGE]\d+$/.test(rawId) ? `${rawId[0]}-${rawId.slice(1)}` : rawId;
+
     const fechaPago = fecha || new Date().toISOString().split('T')[0];
 
     // PUNTO DE VENTA: aprobación automática
@@ -97,7 +100,7 @@ export async function POST(request: Request) {
       const finalRecibos = Array.from(new Set([...(reciboRefs || []), ...dbRefs]));
       
       await supabase.from('pagos_reportados').insert({
-        identidad: identidad,
+        identidad: cleanIdentidad,
         monto: monto,
         banco: banco || metodo,
         referencia: referencia || '',

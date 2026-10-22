@@ -369,12 +369,30 @@ export function getIdentidadVariants(rawInput: string, defaultPrefix = 'V'): str
 export function getIdentidadVariantsExact(identidad: string): string[] {
   if (!identidad || !identidad.trim()) return [];
   const raw = identidad.trim().toUpperCase();
+  
+  // Si son solo dígitos numéricos (ej. el contribuyente escribe su cédula "12345678" sin la V)
+  if (/^\d+$/.test(raw)) {
+    const n = raw.replace(/^0+/, '') || '0';
+    const forms = new Set<string>([n, n.padStart(8, '0'), n.padStart(9, '0'), raw]);
+    const out = new Set<string>([raw]);
+    forms.forEach(f => {
+      out.add(`V-${f}`);
+      out.add(`V${f}`);
+      out.add(`E-${f}`);
+      out.add(`E${f}`);
+      out.add(`J-${f}`);
+      out.add(`J${f}`);
+      out.add(f);
+    });
+    return Array.from(out);
+  }
+
   const m = raw.match(/^([VEJPG])[-_\s]?0*(\d+)$/);
   if (!m) return [raw];
   const [, p, n] = m;
   const forms = new Set<string>([n, n.padStart(8, '0'), n.padStart(9, '0')]);
   const out = new Set<string>([raw]);
-  forms.forEach(f => { out.add(`${p}-${f}`); out.add(`${p}${f}`); });
+  forms.forEach(f => { out.add(`${p}-${f}`); out.add(`${p}${f}`); out.add(f); });
   return Array.from(out);
 }
 
