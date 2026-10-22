@@ -65,6 +65,13 @@ export async function POST(request: Request) {
 
     // TRANSFERENCIA: queda en revisión
     if (metodo === 'transferencia') {
+      const cleanRef = String(referencia || '').trim().replace(/\D/g, '');
+      if (!cleanRef || cleanRef.length !== 8) {
+        return NextResponse.json({ 
+          error: 'El número de referencia de la transferencia debe contener exactamente 8 dígitos numéricos (mínimo y máximo 8 dígitos).' 
+        }, { status: 400 });
+      }
+
       const comprobanteUrl = body.comprobanteUrl || body.comprobante_url;
       if (!comprobanteUrl) {
         return NextResponse.json({ error: 'Es obligatorio adjuntar el comprobante de pago bancario.' }, { status: 400 });
@@ -76,7 +83,7 @@ export async function POST(request: Request) {
           .update({
             estado: 'En Revisión',
             metodo_pago: banco || metodo,
-            referencia_pago: referencia || '',
+            referencia_pago: cleanRef,
             fecha_pago: fechaPago
           })
           .in('id', facturaIds);
@@ -88,7 +95,7 @@ export async function POST(request: Request) {
           .update({
             estado: 'En Revisión',
             metodo_pago: banco || metodo,
-            referencia_pago: referencia || '',
+            referencia_pago: cleanRef,
             fecha_pago: fechaPago
           })
           .in('id', convenioIds);
@@ -103,7 +110,7 @@ export async function POST(request: Request) {
         identidad: cleanIdentidad,
         monto: monto,
         banco: banco || metodo,
-        referencia: referencia || '',
+        referencia: cleanRef,
         tipo: 'Transferencia (Web)',
         estado: 'Por Verificar',
         detalles: JSON.stringify({

@@ -848,7 +848,12 @@ export default function DondePagarPage() {
 
     if (metodo === 'transferencia') {
       if (!formData.bancoOrigen) { alert('Seleccione el banco origen.'); return; }
-      if (!formData.referencia) { alert('Ingrese el número de referencia.'); return; }
+      const refLimpia = String(formData.referencia || '').trim().replace(/\D/g, '');
+      if (!refLimpia) { alert('Ingrese el número de referencia.'); return; }
+      if (refLimpia.length !== 8) {
+        alert('El número de referencia debe contener exactamente 8 dígitos numéricos (mínimo 8 y máximo 8).');
+        return;
+      }
       if (!formData.comprobante) { alert('Debe adjuntar obligatoriamente el comprobante de pago.'); return; }
     }
 
@@ -1641,17 +1646,37 @@ export default function DondePagarPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                        Nro. de Referencia <span className="text-red-500">*</span>
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase">
+                          Nro. de Referencia (8 dígitos) <span className="text-red-500">*</span>
+                        </label>
+                        <span className={`text-[10px] font-mono font-semibold ${formData.referencia.length === 8 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {formData.referencia.length}/8
+                        </span>
+                      </div>
                       <input 
                         type="text"
+                        inputMode="numeric"
+                        maxLength={8}
                         placeholder="Ej. 12345678"
                         value={formData.referencia}
-                        onChange={(e) => setFormData({...formData, referencia: e.target.value.replace(/\D/g, '')})}
-                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:border-emerald-500 font-mono"
+                        onChange={(e) => setFormData({...formData, referencia: e.target.value.replace(/\D/g, '').slice(0, 8)})}
+                        className={`w-full border rounded-lg px-3 py-2 text-xs text-slate-800 outline-none font-mono ${
+                          formData.referencia.length > 0 && formData.referencia.length !== 8
+                            ? 'border-amber-400 focus:border-amber-500 bg-amber-50/30'
+                            : 'border-slate-300 focus:border-emerald-500'
+                        }`}
                         required
                       />
+                      {formData.referencia.length > 0 && formData.referencia.length !== 8 ? (
+                        <p className="text-[10px] text-amber-600 mt-1 font-medium">
+                          Debe contener exactamente 8 dígitos numéricos (faltan {8 - formData.referencia.length})
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Ingrese los 8 dígitos del comprobante bancario
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
@@ -1705,11 +1730,17 @@ export default function DondePagarPage() {
                   <div className="pt-2">
                     <button 
                       type="submit"
-                      disabled={isSubmitting || montoTotal === 0 || (metodo === 'transferencia' && !formData.comprobante)}
+                      disabled={
+                        isSubmitting || 
+                        montoTotal === 0 || 
+                        (metodo === 'transferencia' && (!formData.comprobante || formData.referencia.length !== 8))
+                      }
                       className="w-full py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm transition-all text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99]"
                     >
                       {isSubmitting ? (
                         'Procesando reporte...'
+                      ) : (metodo === 'transferencia' && formData.referencia.length !== 8) ? (
+                        'Ingrese la referencia de 8 dígitos para enviar'
                       ) : (metodo === 'transferencia' && !formData.comprobante) ? (
                         'Adjunte el comprobante para enviar'
                       ) : (
@@ -1719,7 +1750,12 @@ export default function DondePagarPage() {
                         </>
                       )}
                     </button>
-                    {metodo === 'transferencia' && !formData.comprobante && (
+                    {metodo === 'transferencia' && formData.referencia.length !== 8 && (
+                      <p className="text-[11px] text-amber-600 font-semibold text-center mt-1.5">
+                        * La referencia debe tener exactamente 8 dígitos numéricos ({formData.referencia.length}/8)
+                      </p>
+                    )}
+                    {metodo === 'transferencia' && formData.referencia.length === 8 && !formData.comprobante && (
                       <p className="text-[11px] text-amber-600 font-semibold text-center mt-1.5">
                         * Es obligatorio adjuntar el archivo o foto del comprobante de transferencia para enviar
                       </p>
