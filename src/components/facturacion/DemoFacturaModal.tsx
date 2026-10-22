@@ -78,31 +78,41 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   let baseImponible = 0;
   let iva = 0;
   let retencionIva = 0;
-  let exento = parseFloat(String(det.multa_bs || 0)) || 0;
-  if (exento === 0 && Array.isArray(det.deuda_previa)) {
-    exento = det.deuda_previa.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
-  }
 
   // Desglose exacto de los recibos emitidos en caja si existen
-  let rcSubTotal = 0, rcIva = 0, rcTotal = 0, periodoRecibo = '';
+  let rcSubTotal = 0, rcIva = 0, rcExento = 0, rcTotal = 0, periodoRecibo = '';
+  let tieneReciboCaja = false;
   if (det.recibo_caja) {
     try {
       const rc = typeof det.recibo_caja === 'string' ? JSON.parse(det.recibo_caja) : det.recibo_caja;
       if (Array.isArray(rc) && rc.length > 0) {
+        tieneReciboCaja = true;
         rcSubTotal = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.subTotal || 0)) || 0), 0).toFixed(2));
         rcIva = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.iva || 0)) || 0), 0).toFixed(2));
+        rcExento = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0).toFixed(2));
         rcTotal = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0).toFixed(2));
         periodoRecibo = rc[0]?.periodo || '';
       }
     } catch(e) {}
   }
 
+  let exento = 0;
+  if (tieneReciboCaja) {
+    exento = rcExento;
+  } else {
+    exento = parseFloat(String(det.multa_bs || 0)) || 0;
+    if (exento === 0 && Array.isArray(det.deuda_previa)) {
+      exento = det.deuda_previa.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+    }
+  }
+
   if (pago?.totalManual && parseFloat(String(pago.totalManual)) > 0) {
     totalFactura = parseFloat(String(pago.totalManual));
   } else if (rcTotal > 0) {
     totalFactura = rcTotal;
-    baseImponible = rcSubTotal;
-    iva = rcIva;
+    baseImponible = rcSubTotal > 0 && rcSubTotal !== rcTotal ? (rcExento > 0 && rcSubTotal > rcExento ? rcSubTotal - rcExento : rcSubTotal) : parseFloat(((rcTotal - rcExento) / 1.16).toFixed(2));
+    iva = rcIva > 0 ? rcIva : parseFloat((rcTotal - rcExento - baseImponible).toFixed(2));
+    exento = rcExento;
   } else if (esRetencion) {
     // Para pagos con retención de IVA:
     // El total fiscal de la factura es el monto BRUTO con IVA (antes de deducir la retención)

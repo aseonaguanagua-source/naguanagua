@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
-import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
+import { isResidencialInm, cleanClasificacionActividad, isExoneradoTotalMultas, isMesExoneradoMulta } from '@/lib/calculos';
 import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
 import { isFictitiousEmail, sanitizarDireccionFiscal } from '@/lib/formatters';
 import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, portalRetencionesUrl } from '@/lib/retencionFlujo';
@@ -258,53 +258,81 @@ export async function POST(request: Request) {
       const codigosInm = [...new Set(histRecibos.map((r: string) => r.split('-').slice(2, -1).join('-')))];
       const { data: inmsHist } = await supabase
         .from('inmuebles')
-        .select('inmueble, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, tipo, actividad_principal')
+        .select('inmueble, meses_deuda, deuda_mmv, deuda_congelada_bs, multa_bs, tipo, actividad_principal, notas')
         .in('inmueble', codigosInm);
 
       histRecibos.forEach((ref: string) => {
         const codInm = ref.split('-').slice(2, -1).join('-');
         const inm = (inmsHist || []).find((i: any) => i.inmueble === codInm);
-        
-        // Prioridad de montos:
-        // 1. montos[ref] del payload de la caja (precalculado, más confiable)
-        // 2. deuda_mmv del inmueble (si no se ha limpiado aún)
-        // 3. montoTotal como fallback
-        const montoCaja = montos && typeof montos === 'object' && montos[ref] ? parseFloat(String(montos[ref])) : 0;
-        let montoBase = montoCaja > 0
-          ? montoCaja
-          : parseFloat(String(inm?.deuda_mmv || inm?.deuda_congelada_bs || '0'));
-
-        // Fallback: si deuda ya fue limpiada y no hay monto de caja por ítem individual
-        if (montoBase <= 0) {
-          const subTotalRc = parseFloat(String(detPago?.recibo_caja?.[0]?.subTotal || detPago?.recibo_caja?.[0]?.baseImponible || detPago?.base_imponible || '0'));
-          const totalRc = parseFloat(String(detPago?.recibo_caja?.[0]?.total || detPago?.monto_factura || detPago?.total_seleccionado || montoTotal || pagoRow?.monto || '0'));
-          if (subTotalRc > 0) {
-            montoBase = parseFloat((subTotalRc / histRecibos.length).toFixed(2));
-          } else if (totalRc > 0) {
-            montoBase = parseFloat(((totalRc / 1.16) / histRecibos.length).toFixed(2));
-          }
-        }
-
-        // MULTA: calcular como % del base (NO usar multa_bs que es el total histórico acumulado)
-        // Residencial: 10%, Comercial/Industrial: 12%
-        // REGLA OFICIAL: El último mes facturado (septiembre pagado en octubre) es SIN multa
         const esResidencial = isResidencialInm(inm);
         const pctMulta = esResidencial ? 0.10 : 0.12;
         const parts = ref.split('-');
         const mesNum = parseInt(parts[parts.length - 1]?.replace('M', '') || '1');
 
-        // Calcular período real cancelado (mes y año en español)
         const previa = Array.isArray(detPago?.deuda_previa)
           ? detPago.deuda_previa.find((d: any) => d?.inmueble === codInm)
           : null;
-        const countHistThisInm = histRecibos.filter((r: string) => r.split('-').slice(2, -1).join('-') === codInm).length;
+        const countHistThisInm = Math.max(1, histRecibos.filter((r: string) => r.split('-').slice(2, -1).join('-') === codInm).length);
         const totalMeses = Math.max(1, parseInt(previa?.meses_deuda || inm?.meses_deuda || countHistThisInm || '1'));
         const isUltimoMes = mesNum >= totalMeses;
-        const montoMulta = (!detPago?.recibo_caja && !isUltimoMes && totalMeses > 1) ? parseFloat((montoBase * pctMulta).toFixed(2)) : 0;
 
         const fechaPagoBase = new Date(detPago?.fecha_transaccion || pagoRow?.created_at || fechaActual);
         const dPer = new Date(Date.UTC(fechaPagoBase.getUTCFullYear(), fechaPagoBase.getUTCMonth() - totalMeses + mesNum - 1, 1));
         const periodoNombre = `${MESES_NOMBRES[dPer.getUTCMonth()]} ${dPer.getUTCFullYear()}`;
+
+        // 1. MONTO BASE (Bolívares):
+        // NUNCA usar inm?.deuda_mmv directamente como Bolívares (es MMV, no Bs).
+        const montoCaja = montos && typeof montos === 'object' && montos[ref] ? parseFloat(String(montos[ref])) : 0;
+        let montoBase = 0;
+        if (montoCaja > 0) {
+          montoBase = montoCaja;
+        } else if (detPago?.recibo_caja) {
+          try {
+            const rc = typeof detPago.recibo_caja === 'string' ? JSON.parse(detPago.recibo_caja) : detPago.recibo_caja;
+            if (Array.isArray(rc) && rc.length > 0) {
+              const subTotalRc = parseFloat(String(rc[0]?.subTotal || rc[0]?.baseImponible || '0')) || 0;
+              const exentoRc = parseFloat(String(rc[0]?.exento || '0')) || 0;
+              const totalRc = parseFloat(String(rc[0]?.total || '0')) || 0;
+              if (subTotalRc > 0 && subTotalRc !== totalRc) {
+                montoBase = parseFloat(((subTotalRc - exentoRc) / histRecibos.length).toFixed(2));
+              } else if (totalRc > 0) {
+                montoBase = parseFloat((((totalRc - exentoRc) / 1.16) / histRecibos.length).toFixed(2));
+              }
+            }
+          } catch (_) {}
+        } else if (inm?.deuda_congelada_bs && parseFloat(String(inm.deuda_congelada_bs)) > 0) {
+          montoBase = parseFloat(String(inm.deuda_congelada_bs));
+        }
+
+        // Fallback si aún no se determinó
+        if (montoBase <= 0) {
+          const totalRc = parseFloat(String(detPago?.monto_factura || detPago?.total_seleccionado || montoTotal || pagoRow?.monto || '0'));
+          if (totalRc > 0) {
+            montoBase = parseFloat(((totalRc / 1.16) / histRecibos.length).toFixed(2));
+          }
+        }
+
+        // 2. MONTO MULTA (Bolívares):
+        // Si hay recibo_caja: manda lo registrado en caja (si exento es 0, no hubo multa).
+        // Si hay deuda_previa: manda si previa.multa_bs es 0 (exonerado / sin multa).
+        // Si notas indica exoneración total o por mes: no hay multa.
+        let montoMulta = 0;
+        if (detPago?.recibo_caja) {
+          try {
+            const rc = typeof detPago.recibo_caja === 'string' ? JSON.parse(detPago.recibo_caja) : detPago.recibo_caja;
+            if (Array.isArray(rc) && rc.length > 0) {
+              const exentoRc = parseFloat(String(rc[0]?.exento || '0')) || 0;
+              montoMulta = exentoRc > 0 ? parseFloat((exentoRc / histRecibos.length).toFixed(2)) : 0;
+            }
+          } catch (_) {}
+        } else if (previa && previa.multa_bs !== undefined) {
+          const multaPrevia = parseFloat(String(previa.multa_bs || 0));
+          montoMulta = multaPrevia > 0 ? parseFloat((multaPrevia / countHistThisInm).toFixed(2)) : 0;
+        } else if (inm?.multa_bs === 0 || isExoneradoTotalMultas(inm?.notas) || isMesExoneradoMulta(inm?.notas, dPer)) {
+          montoMulta = 0;
+        } else if (!isUltimoMes && totalMeses > 1) {
+          montoMulta = parseFloat((montoBase * pctMulta).toFixed(2));
+        }
 
         // REGLA: nada residencial se factura (ni como exento)
         if (esResidencial) { excluidosResidenciales++; return; }
@@ -663,6 +691,8 @@ export async function POST(request: Request) {
     const explicitBase = parseFloat(String(montoServicio ?? montos?.servicio ?? 0)) || 0;
     const explicitMulta = parseFloat(String(montoMulta ?? montos?.multa ?? 0)) || 0;
     const explicitTotal = parseFloat(String(montoTotal ?? montos?.total ?? totalManualNum ?? 0)) || 0;
+    const tieneMontoMultaExplicito = (montoMulta !== undefined && montoMulta !== null && String(montoMulta).trim() !== '') ||
+      (montos?.multa !== undefined && montos?.multa !== null && String(montos.multa).trim() !== '');
 
     const detallesItems: any[] = [];
     let numLinea = 1;
@@ -670,29 +700,42 @@ export async function POST(request: Request) {
     totalIVA = 0;
     totalExento = 0;
 
-    if (itemsGravados.length > 0 || explicitBase > 0) {
+    // 1. DETERMINAR MONTO DE MULTA (BASE EXENTA)
+    let baseExenta = 0;
+    if (tieneMontoMultaExplicito) {
+      // Si el operador o payload indicó explícitamente el monto de multa (incluso 0)
+      baseExenta = explicitMulta > 0 ? r2(explicitMulta) : 0;
+    } else if (detPago.recibo_caja) {
+      // Si hay recibo de caja emitido, manda el exento cobrado en caja (si es 0, no hay multa)
+      baseExenta = rcExento > 0 ? rcExento : 0;
+    } else if (Array.isArray(detPago.deuda_previa) && detPago.deuda_previa.some((dp: any) => dp.multa_bs !== undefined)) {
+      const dpMulta = detPago.deuda_previa.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp.multa_bs || 0)) || 0), 0);
+      baseExenta = dpMulta > 0 ? r2(dpMulta) : 0;
+    } else if (itemsExentos.length > 0) {
+      baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
+    }
+
+    // 2. DETERMINAR BASE GRAVADA E IVA
+    if (itemsGravados.length > 0 || explicitBase > 0 || explicitTotal > 0 || rcTotal > 0) {
       let baseGravada = 0;
       let ivaGravado = 0;
 
       if (explicitBase > 0) {
         baseGravada = r2(explicitBase);
         ivaGravado = r2(baseGravada * 0.16);
-      } else if (explicitTotal > 0 && explicitMulta >= 0) {
-        const gravadoConIva = r2(Math.max(0, explicitTotal - explicitMulta));
+      } else if (explicitTotal > 0) {
+        const gravadoConIva = r2(Math.max(0, explicitTotal - baseExenta));
         baseGravada = r2(gravadoConIva / 1.16);
         ivaGravado = r2(gravadoConIva - baseGravada);
-      } else if (rcTotal > 0 && rcExento > 0) {
-        // En recibo_caja con exento (multa), la base gravada se calcula sobre la porción no exenta
-        const gravadoConIva = r2(Math.max(0, rcTotal - rcExento));
-        baseGravada = r2(gravadoConIva / 1.16);
-        ivaGravado = r2(gravadoConIva - baseGravada);
-      } else if (rcTotal > 0 && itemsExentos.length === 0) {
-        baseGravada = r2(rcTotal / 1.16);
-        ivaGravado = r2(rcTotal - baseGravada);
-      } else if (rcSubTotal > 0) {
-        const baseReal = rcExento > 0 ? r2(rcSubTotal - rcExento) : rcSubTotal;
-        baseGravada = baseReal;
-        ivaGravado = r2(baseGravada * 0.16);
+      } else if (rcTotal > 0) {
+        const gravadoConIva = r2(Math.max(0, rcTotal - baseExenta));
+        if (rcSubTotal > 0 && rcSubTotal !== rcTotal && Math.abs((rcSubTotal + (rcIva || r2(rcSubTotal * 0.16)) + baseExenta) - rcTotal) <= 0.05) {
+          baseGravada = rcSubTotal;
+          ivaGravado = rcIva > 0 ? rcIva : r2(baseGravada * 0.16);
+        } else {
+          baseGravada = r2(gravadoConIva / 1.16);
+          ivaGravado = r2(gravadoConIva - baseGravada);
+        }
       } else {
         baseGravada = r2(itemsGravados.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
         ivaGravado = r2(baseGravada * 0.16);
@@ -725,41 +768,32 @@ export async function POST(request: Request) {
       });
     }
 
-    if (itemsExentos.length > 0 || explicitMulta > 0 || rcExento > 0) {
-      let baseExenta = 0;
-      if (explicitMulta > 0) {
-        baseExenta = r2(explicitMulta);
-      } else if (rcExento > 0) {
-        baseExenta = rcExento;
-      } else {
-        baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
-      }
-      if (baseExenta > 0) {
-        totalExento = baseExenta;
-        detallesItems.push({
-          NumeroLinea:             String(numLinea++),
-          CodigoCIIU:              "0198",
-          CodigoPLU:               "MULT001",
-          IndicadorBienoServicio:  "2",
-          Descripcion:             `Multa por Mora - Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`.slice(0, 250),
-          Cantidad:                "1",
-          UnidadMedida:            "NIU",
-          PrecioUnitario:          baseExenta.toFixed(2),
-          PrecioUnitarioDescuento: null,
-          MontoBonificacion:       null,
-          DescripcionBonificacion: null,
-          DescuentoMonto:          "0.00",
-          RecargoMonto:            "0",
-          PrecioItem:              baseExenta.toFixed(2),
-          PrecioAntesDescuento:    baseExenta.toFixed(2),
-          CodigoImpuesto:          "E",
-          TasaIVA:                 "0",
-          ValorIVA:                "0.00",
-          ValorTotalItem:          baseExenta.toFixed(2),
-          InfoAdicionalItem:       [],
-          ListaItemOTI:            null,
-        });
-      }
+    // 3. AGREGAR LÍNEA DE MULTA SOLO SI EXISTE MULTA REAL (baseExenta > 0)
+    if (baseExenta > 0) {
+      totalExento = baseExenta;
+      detallesItems.push({
+        NumeroLinea:             String(numLinea++),
+        CodigoCIIU:              "0198",
+        CodigoPLU:               "MULT001",
+        IndicadorBienoServicio:  "2",
+        Descripcion:             `Multa por Mora - Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`.slice(0, 250),
+        Cantidad:                "1",
+        UnidadMedida:            "NIU",
+        PrecioUnitario:          baseExenta.toFixed(2),
+        PrecioUnitarioDescuento: null,
+        MontoBonificacion:       null,
+        DescripcionBonificacion: null,
+        DescuentoMonto:          "0.00",
+        RecargoMonto:            "0",
+        PrecioItem:              baseExenta.toFixed(2),
+        PrecioAntesDescuento:    baseExenta.toFixed(2),
+        CodigoImpuesto:          "E",
+        TasaIVA:                 "0",
+        ValorIVA:                "0.00",
+        ValorTotalItem:          baseExenta.toFixed(2),
+        InfoAdicionalItem:       [],
+        ListaItemOTI:            null,
+      });
     }
 
     // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
