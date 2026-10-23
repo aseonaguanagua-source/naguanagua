@@ -16,16 +16,26 @@ export interface TFHKAConfig {
 export class TheFactoryHKA {
   public static isDemoMode(): boolean {
     if (process.env.TFHKA_FORCE_PRODUCTION === 'true') return false;
-    if (process.env.TFHKA_FORCE_DEMO === 'true') return true;
-    if (process.env.TFHKA_DEMO === 'true') return true;
+    if (process.env.TFHKA_FORCE_DEMO === 'true' || process.env.TFHKA_DEMO === 'true') return true;
 
-    // Si existen credenciales explícitas configuradas en TFHKA_USER, siempre es PRODUCCIÓN
+    // Cualquier despliegue de Preview, Development o Branch en Vercel trabaja estrictamente en DEMO / Sandbox
+    if (process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development') return true;
+    if (process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview') return true;
+    if (process.env.NEXT_PUBLIC_APP_ENV === 'test' || process.env.NEXT_PUBLIC_APP_ENV === 'demo') return true;
+
+    const vUrl = (process.env.VERCEL_URL || '').toLowerCase();
+    if (vUrl && !vUrl.includes('naguanagua.globalgreenrec.com')) {
+      if (vUrl.includes('git-') || vUrl.includes('vercel.app')) {
+        return true;
+      }
+    }
+
+    // Si existen credenciales explícitas configuradas en TFHKA_USER en entorno de producción
     if (process.env.TFHKA_USER && process.env.TFHKA_USER.trim().length > 0) {
       return false;
     }
 
-    if (process.env.NEXT_PUBLIC_APP_ENV === 'test' || process.env.NEXT_PUBLIC_APP_ENV === 'demo') return true;
-    return false;
+    return true;
   }
 
   public static getBaseUrl(): string {
