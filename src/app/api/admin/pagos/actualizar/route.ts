@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
+import { descontarSaldoFavor } from '@/lib/saldoFavor';
 
 export const dynamic = 'force-dynamic';
 
@@ -178,13 +179,49 @@ export async function POST(req: Request) {
           // Rechazar comprobantes de retención vinculados
           await sb.from('pagos_reportados').update({ estado: 'Rechazado' }).filter('detalles->>pago_vinculado', 'eq', pagoId);
 
-          // Revertir notas de crédito creadas por exceso o saldo a favor
+          // Revertir y borrar/anular notas de crédito creadas por exceso o saldo a favor
           try {
-            const ors = [];
-            if (actualP.referencia) ors.push(`detalles->>origen_referencia.ilike.%${actualP.referencia}%`);
-            if (pagoId) ors.push(`detalles->>origen_referencia.ilike.%${pagoId}%`);
-            if (ors.length > 0) {
-              await sb.from('documentos').update({ estado: 'Anulada' }).eq('tipo', 'Nota de Credito').or(ors.join(','));
+            const ident = String(actualP.identidad || detMerged.identidad || '').trim().toUpperCase();
+            const codCondo = String(detMerged.codigo_condominio || detMerged.condominio?.codigo || detMerged.cod_inmueble || '').trim().toUpperCase() || undefined;
+            const refsToCheck = new Set<string>();
+            if (pagoId) refsToCheck.add(String(pagoId));
+            if (actualP.referencia) refsToCheck.add(String(actualP.referencia).trim());
+            if (detMerged.referencia) refsToCheck.add(String(detMerged.referencia).trim());
+            if (detMerged.referencia_original) refsToCheck.add(String(detMerged.referencia_original).trim());
+            if (Array.isArray(detMerged.formasPago)) {
+              detMerged.formasPago.forEach((fp: any) => fp?.referencia && refsToCheck.add(String(fp.referencia).trim()));
+            }
+            if (Array.isArray(detMerged.pagos_agregados)) {
+              detMerged.pagos_agregados.forEach((pa: any) => pa?.referencia && refsToCheck.add(String(pa.referencia).trim()));
+            }
+
+            if (ident) {
+              const { data: docsNC } = await sb
+                .from('documentos')
+                .select('*')
+                .eq('tipo', 'Nota de Credito')
+                .eq('identidad', ident);
+
+              const matchingDocs = (docsNC || []).filter((d: any) => {
+                const raw = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
+                return [...refsToCheck].some(r => r.length >= 4 && raw.includes(r));
+              });
+
+              for (const dNC of matchingDocs) {
+                let dDet: any = {};
+                try {
+                  dDet = typeof dNC.detalles === 'string' ? JSON.parse(dNC.detalles) : (dNC.detalles || {});
+                } catch {}
+                const mNC = parseFloat(String(dDet.monto_bs ?? dDet.monto ?? 0).replace(/[^\d.]/g, '')) || 0;
+                if (mNC > 0 && ident) {
+                  try {
+                    await descontarSaldoFavor(ident, mNC, codCondo, sb);
+                  } catch (eDesc) {
+                    console.warn('Error descontando saldo a favor en pagos/actualizar:', eDesc);
+                  }
+                }
+                await sb.from('documentos').delete().eq('id', dNC.id);
+              }
             }
           } catch(e) {}
         }

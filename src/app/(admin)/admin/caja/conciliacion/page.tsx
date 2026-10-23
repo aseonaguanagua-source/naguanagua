@@ -1111,16 +1111,36 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           if (montoFinal > 0.009) {
             await descontarSaldoFavor(pago.identidad, montoFinal, det.codigo_condominio || det.condominio?.codigo);
           }
-          // Anular Notas de Crédito emitidas en documentos para este pago
+          // Anular o eliminar Notas de Crédito emitidas en documentos para este pago
           try {
-            const ors = [];
-            if (pago.referencia) ors.push(`detalles->>origen_referencia.ilike.%${pago.referencia}%`);
-            if (pago.id) ors.push(`detalles->>origen_referencia.ilike.%${pago.id}%`);
-            if (ors.length > 0) {
-              await supabase.from('documentos')
-                .update({ estado: 'Anulada' })
+            const ident = String(pago.identidad || '').trim().toUpperCase();
+            const refsToCheck = new Set<string>();
+            if (pago.id) refsToCheck.add(String(pago.id));
+            if (pago.referencia) refsToCheck.add(String(pago.referencia).trim());
+            if (det.referencia) refsToCheck.add(String(det.referencia).trim());
+            if (det.referencia_original) refsToCheck.add(String(det.referencia_original).trim());
+            if (Array.isArray(det.formasPago)) {
+              det.formasPago.forEach((fp: any) => fp?.referencia && refsToCheck.add(String(fp.referencia).trim()));
+            }
+            if (Array.isArray(det.pagos_agregados)) {
+              det.pagos_agregados.forEach((pa: any) => pa?.referencia && refsToCheck.add(String(pa.referencia).trim()));
+            }
+
+            if (ident) {
+              const { data: docsNC } = await supabase
+                .from('documentos')
+                .select('*')
                 .eq('tipo', 'Nota de Credito')
-                .or(ors.join(','));
+                .eq('identidad', ident);
+
+              const matchingDocs = (docsNC || []).filter((d: any) => {
+                const raw = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
+                return [...refsToCheck].some(r => r.length >= 4 && raw.includes(r));
+              });
+
+              if (matchingDocs.length > 0) {
+                await supabase.from('documentos').delete().in('id', matchingDocs.map((d: any) => d.id));
+              }
             }
           } catch (e) {
             console.error('Error anulando nota de credito por rechazo:', e);

@@ -6,6 +6,7 @@ import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
 import { isFictitiousEmail } from '@/lib/formatters';
 import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, portalRetencionesUrl } from '@/lib/retencionFlujo';
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
+import { descontarSaldoFavor } from '@/lib/saldoFavor';
 
 /** Siguiente N° de Nota de Crédito (correlativo propio Tipo 03, serie vacía). */
 async function siguienteNumeroNotaCredito(sb: any): Promise<number> {
@@ -140,6 +141,67 @@ async function restaurarDeudaPreviaAnulacion(detPago: any, recibos: string[]) {
         await supabase.from('facturas').update({ estado: 'Pendiente' }).in('referencia', formalRecibos);
       }
     }
+
+    // Revertir y borrar/anular Notas de Crédito de saldo a favor generadas por este pago
+    const pId = String(detPago?.id || detPago?.pago_id || '');
+    const ident = String(detPago?.identidad || '').trim().toUpperCase();
+    const codCondo = String(detPago?.codigo_condominio || detPago?.condominio?.codigo || detPago?.cod_inmueble || '').trim().toUpperCase() || undefined;
+
+    const refsToCheck = new Set<string>();
+    if (pId) refsToCheck.add(pId);
+    if (detPago?.referencia) refsToCheck.add(String(detPago.referencia).trim());
+    if (detPago?.referencia_original) refsToCheck.add(String(detPago.referencia_original).trim());
+    if (Array.isArray(detPago?.formasPago)) {
+      detPago.formasPago.forEach((fp: any) => fp?.referencia && refsToCheck.add(String(fp.referencia).trim()));
+    }
+    if (Array.isArray(detPago?.pagos_agregados)) {
+      detPago.pagos_agregados.forEach((pa: any) => pa?.referencia && refsToCheck.add(String(pa.referencia).trim()));
+    }
+
+    // Buscar notas de crédito vinculadas en la tabla documentos
+    let docsParaAnular: any[] = [];
+    if (ident) {
+      const { data: docsContrib } = await supabase
+        .from('documentos')
+        .select('*')
+        .eq('tipo', 'Nota de Credito')
+        .eq('identidad', ident);
+
+      if (docsContrib && docsContrib.length > 0) {
+        docsParaAnular = docsContrib.filter((d: any) => {
+          const raw = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
+          return [...refsToCheck].some(r => r.length >= 4 && raw.includes(r));
+        });
+      }
+    }
+
+    if (docsParaAnular.length > 0) {
+      for (const docNC of docsParaAnular) {
+        let detNC: any = {};
+        try {
+          detNC = typeof docNC.detalles === 'string' ? JSON.parse(docNC.detalles) : (docNC.detalles || {});
+        } catch {}
+        const montoNC = parseFloat(String(detNC.monto_bs ?? detNC.monto ?? 0).replace(/[^\d.]/g, '')) || 0;
+        if (montoNC > 0 && ident) {
+          try {
+            await descontarSaldoFavor(ident, montoNC, codCondo, supabase);
+          } catch (eDesc) {
+            console.warn('Error descontando saldo a favor de NC eliminada:', eDesc);
+          }
+        }
+        await supabase.from('documentos').delete().eq('id', docNC.id);
+      }
+    } else {
+      // Si no hubo documento pero el pago tenía saldo a favor generado registrado
+      const excedenteGenerado = parseFloat(String(detPago?.saldo_favor || detPago?.saldo_favor_bs || detPago?.monto_saldo_favor || 0)) || 0;
+      if (excedenteGenerado > 0 && ident) {
+        try {
+          await descontarSaldoFavor(ident, excedenteGenerado, codCondo, supabase);
+        } catch (eDesc) {
+          console.warn('Error descontando excedente en anulación:', eDesc);
+        }
+      }
+    }
   } catch (eRest) {
     console.error('Error restaurando deuda previa en anulación:', eRest);
   }
@@ -231,6 +293,10 @@ export async function POST(request: Request) {
         }
       }
 
+      dm.id = dm.id || pagoId;
+      dm.pago_id = dm.pago_id || pagoId;
+      dm.identidad = dm.identidad || pagoRow.identidad;
+      dm.referencia = dm.referencia || pagoRow.referencia;
       await restaurarDeudaPreviaAnulacion(dm, recibosBody || dm.recibos || []);
       await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
       await supabase.from('auditoria').insert({
@@ -1308,6 +1374,10 @@ export async function POST(request: Request) {
       };
     }
 
+    detPago.id = detPago.id || pagoId;
+    detPago.pago_id = detPago.pago_id || pagoId;
+    detPago.identidad = detPago.identidad || pagoRow.identidad;
+    detPago.referencia = detPago.referencia || pagoRow.referencia;
     await restaurarDeudaPreviaAnulacion(detPago, recibos || []);
     await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
 
