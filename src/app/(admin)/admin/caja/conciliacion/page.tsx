@@ -2127,11 +2127,14 @@ export default function ConciliacionPage() {
         const { data } = await q;
         result = data || [];
       }
-      // Filtrar estrictamente: solo pagos bancarios (sin comprobantes puros de retención de IVA, que se gestionan en su propio módulo)
+      // Filtrar estrictamente: solo pagos bancarios activos/conciliables
+      // (sin anulados ni comprobantes puros de retención de IVA, que se gestionan en su propio módulo)
       result = result.filter((p: any) => {
+        if (p.estado === 'Anulado') return false;
         if (p.tipo === 'Retencion de IVA') return false;
         if (String(p.referencia || '').startsWith('RET-')) return false;
         const det = parseDetalles(p.detalles);
+        if (det.factura_digital?.anulada) return false;
         if (det.pago_vinculado && p.banco === 'N/A') return false;
         return pasaFiltroModulo(p, filtros.modulo, condos);
       });
