@@ -345,9 +345,19 @@ export function buildAnulacionEmailTemplate(data: {
                 <span style="font-size:13px;color:#64748b;">R.I.F. / Cédula: <strong>${data.identidad}</strong></span>
               </p>
 
-              <div style="margin:0 0 22px;padding:14px 18px;background:#fef2f2;border-left:4px solid #ef4444;border-radius:6px;">
-                <p style="margin:0;font-size:14px;color:#991b1b;line-height:1.5;font-weight:600;">
-                  Le notificamos que la Factura Digital N° <strong>${data.numeroFactura}</strong>${data.numeroControlFactura ? ` (Control: ${data.numeroControlFactura})` : ''} ha sido <strong>ANULADA</strong> formalmente ante la administración tributaria.
+              <div style="margin:0 0 22px;padding:16px 18px;background:#fef2f2;border-left:4px solid #ef4444;border-radius:8px;">
+                <p style="margin:0 0 8px;font-size:14px;color:#991b1b;line-height:1.5;font-weight:700;">
+                  🚫 Factura Anulada Formalmente ante la Administración Tributaria
+                </p>
+                <p style="margin:0;font-size:13px;color:#7f1d1d;line-height:1.5;">
+                  Le notificamos que la Factura Digital N° <strong>${data.numeroFactura}</strong>${data.numeroControlFactura ? ` (Control: ${data.numeroControlFactura})` : ''} ha sido <strong>ANULADA</strong> formalmente.
+                </p>
+              </div>
+
+              <!-- AVISO DE REEMISIÓN CON AJUSTES -->
+              <div style="margin:0 0 24px;padding:14px 18px;background:#f0fdf4;border-left:4px solid #16a34a;border-radius:8px;">
+                <p style="margin:0;font-size:13px;color:#166534;line-height:1.5;">
+                  ℹ️ <strong>Importante:</strong> Se ha procedido con la anulación de dicho comprobante y, posteriormente, le será enviada a este mismo correo su <strong>nueva factura con sus respectivos ajustes</strong> aplicados.
                 </p>
               </div>
 
@@ -361,7 +371,7 @@ export function buildAnulacionEmailTemplate(data: {
                 </tr>
                 ${data.numeroNotaCredito ? `
                 <tr>
-                  <td style="color:#64748b;border-bottom:1px solid #e2e8f0;">Nota de Crédito TFHKA:</td>
+                  <td style="color:#64748b;border-bottom:1px solid #e2e8f0;">Nota de Crédito / Débito TFHKA:</td>
                   <td style="color:#dc2626;font-weight:bold;text-align:right;border-bottom:1px solid #e2e8f0;font-family:monospace;font-size:14px;">
                     ${data.numeroNotaCredito}${data.numeroControlNC ? ` (Control: ${data.numeroControlNC})` : ''}
                   </td>
@@ -380,7 +390,7 @@ export function buildAnulacionEmailTemplate(data: {
                 </tr>
                 ${data.motivo ? `
                 <tr>
-                  <td style="color:#64748b;border-top:1px solid #e2e8f0;">Motivo:</td>
+                  <td style="color:#64748b;border-top:1px solid #e2e8f0;">Motivo de Anulación:</td>
                   <td style="color:#0f172a;text-align:right;border-top:1px solid #e2e8f0;font-style:italic;">
                     ${data.motivo}
                   </td>
@@ -390,12 +400,12 @@ export function buildAnulacionEmailTemplate(data: {
               ${data.urlNotaCredito && data.urlNotaCredito !== '#' ? `
               <div style="text-align:center;margin:24px 0 16px;">
                 <a href="${data.urlNotaCredito}" target="_blank" style="display:inline-block;padding:12px 24px;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;border-radius:8px;">
-                  Consultar Nota de Crédito en The Factory HKA
+                  Consultar Comprobante en The Factory HKA
                 </a>
               </div>` : ''}
 
               <p style="margin:22px 0 0;font-size:11px;color:#94a3b8;line-height:1.5;text-align:center;">
-                Comprobante electrónico de anulación certificado conforme a las providencias del SENIAT.
+                Comprobante electrónico emitido y certificado conforme a las providencias administrativas del SENIAT.
               </p>
             </td>
           </tr>
