@@ -101,7 +101,7 @@ export function extraerArchivosComprobante(pago: any): { name: string; url: stri
     }
   };
 
-  // 1. Directos en detalles
+  // 1. Directos en detalles del registro específico
   if (det.comprobante_url) add(det.comprobante_nombre || 'Comprobante de Pago', det.comprobante_url, 'Pago');
   if (det.comprobante_b64) add(det.comprobante_nombre || 'Comprobante de Pago (Base64)', det.comprobante_b64, 'Pago');
   if (det.soporte_url) add('Soporte de Pago', det.soporte_url, 'Pago');
@@ -116,19 +116,40 @@ export function extraerArchivosComprobante(pago: any): { name: string; url: stri
   if (pago.comprobante_url) add('Comprobante de Pago', pago.comprobante_url, 'Pago');
   if (pago.comprobante_b64) add('Comprobante de Pago', pago.comprobante_b64, 'Pago');
 
-  // 4. Pagos agregados (Caja de Condominios y pagos múltiples)
-  if (Array.isArray(det.pagos_agregados)) {
-    for (const pa of det.pagos_agregados) {
-      if (pa?.comprobante_url) add(pa.comprobante_nombre || pa.referencia || 'Comprobante Condominio', pa.comprobante_url, 'Condominio');
-      if (pa?.comprobante_b64) add(pa.comprobante_nombre || 'Comprobante Condominio (Base64)', pa.comprobante_b64, 'Condominio');
+  // 4. Pagos agregados (Caja de Condominios y pagos múltiples):
+  // Si ya tenemos el comprobante propio específico de esta fila, NO agregamos los comprobantes de otros pagos.
+  // Si no tenemos ninguno aún, buscamos EXCLUSIVAMENTE el pago agregado que coincida con la referencia o monto de esta conciliación.
+  if (urls.length === 0 && Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 0) {
+    const refPago = String(pago.referencia || det.referencia || '').trim().toLowerCase();
+    const montoPago = Number(pago.monto || det.montoTotal || 0);
+
+    const paExacto = det.pagos_agregados.find((pa: any) => {
+      const paRef = String(pa?.referencia || '').trim().toLowerCase();
+      if (refPago && paRef && (paRef === refPago || refPago.includes(paRef) || paRef.includes(refPago))) return true;
+      if (montoPago > 0 && Math.abs(Number(pa?.monto) - montoPago) < 0.01) return true;
+      return false;
+    });
+
+    if (paExacto) {
+      if (paExacto.comprobante_url) add(paExacto.comprobante_nombre || paExacto.referencia || 'Comprobante Condominio', paExacto.comprobante_url, 'Condominio');
+      if (paExacto.comprobante_b64) add(paExacto.comprobante_nombre || 'Comprobante Condominio (Base64)', paExacto.comprobante_b64, 'Condominio');
+    } else if (det.pagos_agregados.length === 1) {
+      const paUnico = det.pagos_agregados[0];
+      if (paUnico?.comprobante_url) add(paUnico.comprobante_nombre || paUnico.referencia || 'Comprobante Condominio', paUnico.comprobante_url, 'Condominio');
+      if (paUnico?.comprobante_b64) add(paUnico.comprobante_nombre || 'Comprobante Condominio (Base64)', paUnico.comprobante_b64, 'Condominio');
     }
   }
 
-  // 5. Formas de pago
-  if (Array.isArray(det.formasPago)) {
+  // 5. Formas de pago (solo si aún no hay comprobante y coincide la referencia)
+  if (urls.length === 0 && Array.isArray(det.formasPago)) {
+    const refPago = String(pago.referencia || det.referencia || '').trim().toLowerCase();
     for (const fp of det.formasPago) {
-      if (fp?.comprobante_url) add(fp.comprobante_nombre || fp.referencia || 'Comprobante Forma Pago', fp.comprobante_url, 'Pago');
-      if (fp?.comprobante_b64) add(fp.comprobante_nombre || 'Comprobante Forma Pago (Base64)', fp.comprobante_b64, 'Pago');
+      const fpRef = String(fp?.referencia || '').trim().toLowerCase();
+      const coincide = !refPago || !fpRef || fpRef === refPago || refPago.includes(fpRef) || fpRef.includes(refPago);
+      if (coincide) {
+        if (fp?.comprobante_url) add(fp.comprobante_nombre || fp.referencia || 'Comprobante Forma Pago', fp.comprobante_url, 'Pago');
+        if (fp?.comprobante_b64) add(fp.comprobante_nombre || 'Comprobante Forma Pago (Base64)', fp.comprobante_b64, 'Pago');
+      }
     }
   }
 

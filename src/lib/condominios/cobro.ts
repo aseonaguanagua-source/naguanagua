@@ -417,6 +417,24 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       });
     }
 
+    const fechaRegistro = new Date();
+    const pagosReales = (pago.pagosAgregados || []).filter((pa: any) => pa && pa.metodo !== 'Saldo a Favor');
+    const primerReal = pagosReales[0] || (pago.pagosAgregados && pago.pagosAgregados[0]);
+
+    if (primerReal && refFinal.toLowerCase().includes('saldo favor') && primerReal.referencia && !primerReal.referencia.toLowerCase().includes('saldo favor')) {
+      refFinal = primerReal.referencia;
+    }
+    const metodoFila = (primerReal && pago.metodo === 'Saldo a Favor') ? primerReal.metodo : pago.metodo;
+    const bancoFila = (primerReal && (!pago.banco || pago.banco === 'Saldo a Favor')) ? (primerReal.banco || primerReal.metodo) : (pago.banco || pago.metodo);
+
+    const pagoAgregadoCoincidente = pagosReales.find((pa: any) => pa.referencia === refFinal) || primerReal;
+    const montoReportadoReal = (pagoAgregadoCoincidente && Number(pagoAgregadoCoincidente.monto) > 0)
+      ? Number(pagoAgregadoCoincidente.monto)
+      : (pago.montoRecibido && cobro.facturas.length === 1 ? pago.montoRecibido : f.totalBs);
+
+    const esMultiPago = cobro.facturas.length > 1 || pagosReales.length > 1;
+    const grupoId = grupo || (esMultiPago ? (pago.pagoId || id) : null);
+
     const reciboCajaItem = {
       reciboNo: refFinal.slice(-7).padStart(7, '0'),
       controlWeb: `WEB-${refFinal.slice(-7).padStart(7, '0')}`,
@@ -479,8 +497,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       formasPago,
       pagos_agregados: pago.pagosAgregados,
       banco_destino: pago.bancoDestino || (pago.pagosAgregados?.[0]?.bancoDestino) || undefined,
-      comprobante_url: (pago.pagosAgregados || []).find((p: any) => p.comprobante_url)?.comprobante_url || undefined,
-      comprobante_nombre: (pago.pagosAgregados || []).find((p: any) => p.comprobante_nombre)?.comprobante_nombre || undefined,
+      comprobante_url: (pagoAgregadoCoincidente || primerReal)?.comprobante_url || (pago.pagosAgregados || []).find((p: any) => p.comprobante_url)?.comprobante_url || undefined,
+      comprobante_nombre: (pagoAgregadoCoincidente || primerReal)?.comprobante_nombre || (pago.pagosAgregados || []).find((p: any) => p.comprobante_nombre)?.comprobante_nombre || undefined,
       fecha_transaccion: fechaTransaccion,
       fecha_banco: fechaTransaccion,
       fecha_ingreso_caja: new Date().toISOString().slice(0, 10),
@@ -489,23 +507,6 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       deuda_previa: antes,
       ...(i === 0 && (pago.saldoFavorGenerado || 0) > 0.01 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
     };
-    const fechaRegistro = new Date();
-    const pagosReales = (pago.pagosAgregados || []).filter((pa: any) => pa && pa.metodo !== 'Saldo a Favor');
-    const primerReal = pagosReales[0] || (pago.pagosAgregados && pago.pagosAgregados[0]);
-
-    if (primerReal && refFinal.toLowerCase().includes('saldo favor') && primerReal.referencia && !primerReal.referencia.toLowerCase().includes('saldo favor')) {
-      refFinal = primerReal.referencia;
-    }
-    const metodoFila = (primerReal && pago.metodo === 'Saldo a Favor') ? primerReal.metodo : pago.metodo;
-    const bancoFila = (primerReal && (!pago.banco || pago.banco === 'Saldo a Favor')) ? (primerReal.banco || primerReal.metodo) : (pago.banco || pago.metodo);
-
-    const pagoAgregadoCoincidente = pagosReales.find((pa: any) => pa.referencia === refFinal) || primerReal;
-    const montoReportadoReal = (pagoAgregadoCoincidente && Number(pagoAgregadoCoincidente.monto) > 0)
-      ? Number(pagoAgregadoCoincidente.monto)
-      : (pago.montoRecibido && cobro.facturas.length === 1 ? pago.montoRecibido : f.totalBs);
-
-    const esMultiPago = cobro.facturas.length > 1 || pagosReales.length > 1;
-    const grupoId = grupo || (esMultiPago ? (pago.pagoId || id) : null);
 
     const fila: any = { 
       id, 

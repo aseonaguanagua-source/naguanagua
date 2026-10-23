@@ -35,10 +35,11 @@ export const codigosDePago = (det: any, p?: any): string[] => {
   if (d.inmueble) s.add(String(d.inmueble).trim().toUpperCase());
   if (p?.inmueble) s.add(String(p.inmueble).trim().toUpperCase());
 
-  // 2. Condominios y sus líneas
+  // 2. Condominios
   if (d.condominio?.codigo) s.add(String(d.condominio.codigo).trim().toUpperCase());
   if (d.condominio_codigo) s.add(String(d.condominio_codigo).trim().toUpperCase());
-  if (Array.isArray(d.condominio?.lineas)) {
+  // Solo incluir lineas hijas si no se ha detectado ningún código de inmueble o condominio
+  if (s.size === 0 && Array.isArray(d.condominio?.lineas)) {
     d.condominio.lineas.forEach((l: any) => {
       if (l?.inmueble) s.add(String(l.inmueble).trim().toUpperCase());
     });

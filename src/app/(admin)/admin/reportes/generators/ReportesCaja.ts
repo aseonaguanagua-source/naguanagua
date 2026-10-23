@@ -115,11 +115,20 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   const porMes = new Map<string, any[]>();
   transf.forEach(p => {
     const det = parseDet(p);
+    // Si la lista de pagos ya contiene las filas individuales de cada pago adicional,
+    // NO debemos re-expandir pagos_agregados en el padre porque duplicaría las filas y sumaría varias veces el mismo pago.
     const pagsAgregados = Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1
       ? det.pagos_agregados.filter((pa: any) => pa && Number(pa.monto) > 0 && pa.metodo !== 'Saldo a Favor')
       : null;
 
-    if (pagsAgregados && pagsAgregados.length > 1) {
+    // Solo se expande si ninguna de las referencias de pagos_agregados existe ya como otra fila en transf
+    const yaExistenComoFilasSeparadas = det.es_pago_adicional || (pagsAgregados && pagsAgregados.length > 1 && pagsAgregados.some((pa: any) => {
+      const paRef = String(pa?.referencia || '').trim().toLowerCase();
+      const pRef = String(p?.referencia || '').trim().toLowerCase();
+      return paRef && paRef !== pRef && transf.some((otro: any) => String(otro?.referencia || '').trim().toLowerCase() === paRef);
+    }));
+
+    if (pagsAgregados && pagsAgregados.length > 1 && !yaExistenComoFilasSeparadas) {
       const totalBase = pagsAgregados.reduce((acc: number, x: any) => acc + (Number(x.monto) || 0), 0) || Number(p.monto) || 1;
       pagsAgregados.forEach((pa: any) => {
         const fPagoSub = String(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fechaVE(p.created_at)).slice(0, 10);
