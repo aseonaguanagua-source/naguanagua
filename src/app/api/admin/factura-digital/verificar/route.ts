@@ -218,11 +218,12 @@ export async function POST(request: Request) {
 
     const esCondo = Boolean(pagoData?.modulo === 'condominios' || detPagoObj?.modulo === 'condominios' || detPagoObj?.isCondominio || detPagoObj?.es_condominio);
     const condoMod = String(detPagoObj?.condominio?.modalidad || '').toUpperCase();
+    const esModoCondominio = detPagoObj?.modo === 'CONDOMINIO';
+    const esModoContribuyente = detPagoObj?.modo === 'CONTRIBUYENTE';
     const esPagoPorLocal = Boolean(
-      esCondo && (
-        condoMod === 'INDIVIDUAL' ||
-        detPagoObj?.modo === 'CONTRIBUYENTE' ||
-        (Array.isArray(detPagoObj?.condominio?.lineas) && detPagoObj.condominio.lineas.length > 0 && detPagoObj.condominio.lineas.some((l: any) => l.inmueble && l.inmueble !== (detPagoObj.condominio?.codigo || detPagoObj.codigo_inmueble)))
+      esCondo && !esModoCondominio && (
+        esModoContribuyente ||
+        condoMod === 'INDIVIDUAL'
       )
     );
 

@@ -358,11 +358,12 @@ export async function GET(request: Request) {
       const condo = infoCondo(pago, det);
       const esCondo = pago.modulo === 'condominios' || det.modulo === 'condominios' || det.isCondominio || det.es_condominio;
       const condoMod = String(det.condominio?.modalidad || '').toUpperCase();
+      const esModoCondominio = det.modo === 'CONDOMINIO';
+      const esModoContribuyente = det.modo === 'CONTRIBUYENTE';
       const esPagoPorLocal = Boolean(
-        esCondo && (
-          condoMod === 'INDIVIDUAL' ||
-          det.modo === 'CONTRIBUYENTE' ||
-          (Array.isArray(det.condominio?.lineas) && det.condominio.lineas.length > 0 && det.condominio.lineas.some((l: any) => l.inmueble && l.inmueble !== (det.condominio?.codigo || det.codigo_inmueble)))
+        esCondo && !esModoCondominio && (
+          esModoContribuyente ||
+          condoMod === 'INDIVIDUAL'
         )
       );
 

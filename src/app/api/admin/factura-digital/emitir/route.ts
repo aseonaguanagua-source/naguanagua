@@ -954,19 +954,20 @@ export async function POST(request: Request) {
       lineasCondo
     );
     const condoModalidad = String(condoDet?.modalidad || detPago?.condominio?.modalidad || '').toUpperCase();
+    const esModoCondominio = detPago?.modo === 'CONDOMINIO' || dm?.modo === 'CONDOMINIO';
+    const esModoContribuyente = detPago?.modo === 'CONTRIBUYENTE' || dm?.modo === 'CONTRIBUYENTE';
     const esPagoPorLocal = Boolean(
-      esCondominioPago && (
+      esCondominioPago && !esModoCondominio && (
+        esModoContribuyente ||
         condoModalidad === 'INDIVIDUAL' ||
-        detPago?.modo === 'CONTRIBUYENTE' ||
-        (lineasCondo && lineasCondo.length > 0 && lineasCondo.some((l: any) => l.inmueble && l.inmueble !== (condoDet?.codigo || detPago?.codigo_inmueble))) ||
-        Boolean(detPago?.condominio_hijos_pagados?.length) ||
-        Boolean(lineasCondo?.[0]?.numero || lineasCondo?.[0]?.unidadNumero)
+        Boolean(detPago?.condominio_hijos_pagados?.length)
       )
     );
-    const esCondoGlobal = esCondominioPago && !esPagoPorLocal && (
-      detPago?.modo === 'CONDOMINIO' ||
-      condoModalidad === 'CENTRALIZADO' ||
-      (!lineasCondo?.length && !detPago?.condominio_hijos_pagados?.length)
+    const esCondoGlobal = Boolean(
+      esCondominioPago && (
+        esModoCondominio ||
+        (!esPagoPorLocal && (condoModalidad === 'CENTRALIZADO' || !esModoContribuyente))
+      )
     );
     const condoCode = condoRecibo ? condoRecibo.split('-')[1] : (condoDet?.codigo || null);
     const codRc = detPago.recibo_caja?.[0]?.codContribuyente || detPago.recibo_caja?.[0]?.inmueble || null;
@@ -1052,6 +1053,11 @@ export async function POST(request: Request) {
       const idLocal = (matchedPropEspecifico as any)?.identidad || detPago?.recibo_caja?.[0]?.rifCi || (finalIdentidad && finalIdentidad !== condoDet?.identidad ? finalIdentidad : null);
       if (idLocal && idLocal !== condoDet?.identidad) {
         docIdentParaEmision = idLocal;
+      }
+    } else if (esCondoGlobal) {
+      const idCondo = condoDet?.identidad || detPago?.condominio?.identidad;
+      if (idCondo) {
+        docIdentParaEmision = idCondo;
       }
     }
     const docIdentificacion = docIdentParaEmision.replace(/[^A-Z0-9-]/gi, '');
@@ -1148,17 +1154,26 @@ export async function POST(request: Request) {
       // 2. Pago centralizado del condominio o contribuyente general
       razonSocialFinal = String(
         (esCondoGlobal ? (condoDet?.nombre || detPago?.condominio?.nombre) : null) ||
-        propDelPago?.contribuyente ||
+        (!esCondoGlobal ? propDelPago?.contribuyente : null) ||
         rcRazon ||
         contribuyente ||
         detPago?.contribuyente ||
         detPago?.contribuyente_nombre ||
+        (esCondoGlobal ? null : propDelPago?.contribuyente) ||
         ''
       ).trim();
     }
 
     if (esPlaceholderNombre(razonSocialFinal) || (esPagoPorLocal && esNombreCondominio(razonSocialFinal))) {
-      if (matchedPropEspecifico?.contribuyente && !esPlaceholderNombre(matchedPropEspecifico.contribuyente)) {
+      if (esCondoGlobal) {
+        if (condoDet?.nombre && !esPlaceholderNombre(condoDet.nombre)) {
+          razonSocialFinal = condoDet.nombre;
+        } else if (detPago?.condominio?.nombre && !esPlaceholderNombre(detPago.condominio.nombre)) {
+          razonSocialFinal = detPago.condominio.nombre;
+        } else if (contribData?.nombre && !esPlaceholderNombre(contribData.nombre)) {
+          razonSocialFinal = contribData.nombre;
+        }
+      } else if (matchedPropEspecifico?.contribuyente && !esPlaceholderNombre(matchedPropEspecifico.contribuyente)) {
         razonSocialFinal = matchedPropEspecifico.contribuyente;
       } else if (rcRazon && !esPlaceholderNombre(rcRazon)) {
         razonSocialFinal = rcRazon;
@@ -1191,13 +1206,14 @@ export async function POST(request: Request) {
 
     if (!razonSocialFinal || !razonSocialFinal.trim()) {
       razonSocialFinal = String(
+        (esCondoGlobal ? (condoDet?.nombre || detPago?.condominio?.nombre) : null) ||
         matchedPropEspecifico?.contribuyente ||
         rcRazon ||
         detPago?.contribuyente || 
         detPago?.contribuyente_nombre || 
         propRef?.contribuyente || 
         contribuyente || 
-        `Contribuyente ${numId}`
+        (esCondoGlobal ? 'Condominio' : `Contribuyente ${numId}`)
       ).trim();
     }
 
@@ -1257,17 +1273,19 @@ export async function POST(request: Request) {
               // Prioridad legal SENIAT: Domicilio Fiscal del contribuyente sobre la parcela catastral.
               // EXCEPCIÓN VITAL: Si es pago por local individual (esPagoPorLocal) y se cuenta con la dirección del local específico (dirEspecifica),
               // se prioriza dirEspecifica para evitar asignar la dirección de OTRO local/inmueble del mismo RIF (ej. PB-B25 vs PN-24).
-              const cand = (esPagoPorLocal && isValidDir(dirEspecifica))
-                ? dirEspecifica
-                : (isValidDir(dirFiscal)
-                  ? dirFiscal
-                  : (isValidDir(dirEspecifica)
-                    ? dirEspecifica
-                    : (isValidDir(dirRecibo)
-                      ? dirRecibo
-                      : (isValidDir(dirSrv)
-                        ? dirSrv
-                        : (isValidDir(propRef?.direccion) ? propRef?.direccion : parentDir)))));
+              const cand = esCondoGlobal
+                ? (isValidDir(parentDir) ? parentDir : (isValidDir(dirFiscal) ? dirFiscal : dirEspecifica))
+                : ((esPagoPorLocal && isValidDir(dirEspecifica))
+                  ? dirEspecifica
+                  : (isValidDir(dirFiscal)
+                    ? dirFiscal
+                    : (isValidDir(dirEspecifica)
+                      ? dirEspecifica
+                      : (isValidDir(dirRecibo)
+                        ? dirRecibo
+                        : (isValidDir(dirSrv)
+                          ? dirSrv
+                          : (isValidDir(propRef?.direccion) ? propRef?.direccion : parentDir))))));
               
               return sanitizarDireccionFiscal(cand, {
                 unidadNumero: uNum,
@@ -1282,7 +1300,7 @@ export async function POST(request: Request) {
               const fallback = TheFactoryHKA.getFallbackEmail();
               // Con retención: TFHKA notifica solo al archivo interno (la factura se envía al aprobar la planilla)
               if (conRetencion) return [TheFactoryHKA.getBackupEmail()];
-              const cand = (correoDestino || (esPagoPorLocal ? (matchedPropEspecifico?.correo_electronico || contribData?.email) : null) || contribData?.email || propRef?.correo_electronico || '').trim();
+              const cand = (correoDestino || (esCondoGlobal ? (condoDet?.correo || detPago?.condominio?.correo || contribData?.email) : null) || (esPagoPorLocal ? (matchedPropEspecifico?.correo_electronico || contribData?.email) : null) || contribData?.email || propRef?.correo_electronico || '').trim();
               if (!cand) return [fallback];
               const list = cand.split(/[,;\s]+/).map((s: string) => s.trim()).filter((s: string) => s && s.includes('@') && !isFictitiousEmail(s));
               return list.length > 0 ? list : [fallback];
