@@ -120,45 +120,44 @@ export async function POST(request: Request) {
     // Los montos salen de los renglones guardados en el pago (no de Contribuyentes: los datos no se cruzan).
     let lineasCondo: any[] | null = null;
     let condoDet: any = null;
-    {
-      const { data: pm }: any = await supabase.from('pagos_reportados').select('modulo, detalles, estado, tipo').eq('id', pagoId).maybeSingle();
-      if (pm && pm.estado !== 'Aprobado') {
-        return NextResponse.json({ 
-          error: `No se puede emitir factura fiscal: el pago aún no ha sido conciliado (estado actual: "${pm.estado || 'Pendiente'}"). Debe ser aprobado en Conciliación Bancaria antes de facturar.` 
-        }, { status: 400 });
-      }
-      let dm: any = pm?.detalles || {};
-      if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
-      const esPagoConRetencion = Boolean(
-        esRetencion || 
-        dm?.es_retencion || 
-        dm?.conRetencion ||
-        dm?.agente_retencion || 
-        pm?.tipo === 'Retencion de IVA' || 
-        (parseFloat(String(dm?.monto_retencion_iva || dm?.retencion_iva || 0)) > 0)
-      );
+    const { data: pm }: any = await supabase.from('pagos_reportados').select('id, identidad, modulo, detalles, estado, tipo').eq('id', pagoId).maybeSingle();
+    if (pm && pm.estado !== 'Aprobado') {
+      return NextResponse.json({ 
+        error: `No se puede emitir factura fiscal: el pago aún no ha sido conciliado (estado actual: "${pm.estado || 'Pendiente'}"). Debe ser aprobado en Conciliación Bancaria antes de facturar.` 
+      }, { status: 400 });
+    }
+    let dm: any = pm?.detalles || {};
+    if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
+    const esPagoConRetencion = Boolean(
+      esRetencion || 
+      dm?.es_retencion || 
+      dm?.conRetencion ||
+      dm?.agente_retencion || 
+      pm?.tipo === 'Retencion de IVA' || 
+      (parseFloat(String(dm?.monto_retencion_iva || dm?.retencion_iva || 0)) > 0)
+    );
 
-      // Si el operador está emitiendo manualmente la factura desde el modal (con montos de servicio/total),
-      // o si es un pago con retención de IVA, se permite emitir la factura fiscal del mes.
-      const esEmisionManualConMontos = Boolean((montoServicio > 0 || montoTotal > 0 || totalManualNum > 0) && !dryRun);
+    // Si el operador está emitiendo manualmente la factura desde el modal (con montos de servicio/total),
+    // o si es un pago con retención de IVA, se permite emitir la factura fiscal del mes.
+    const esEmisionManualConMontos = Boolean((montoServicio > 0 || montoTotal > 0 || totalManualNum > 0) && !dryRun);
 
-      if (!esPagoConRetencion && !esEmisionManualConMontos && (
-        dm?.es_abono === true ||
-        dm?.abono === true ||
-        pm?.tipo === 'Abono' ||
-        dm?.pago_parcial === true ||
-        (dm?.monto_pendiente !== undefined && parseFloat(String(dm.monto_pendiente)) > 0.05)
-      )) {
-        return NextResponse.json({ error: 'No se puede emitir factura electrónica para un abono o pago parcial. La factura solo se emite cuando se completa el pago total del mes.' }, { status: 400 });
-      }
-      if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
-        lineasCondo = dm.condominio.lineas; condoDet = dm.condominio;
-      }
+    if (!esPagoConRetencion && !esEmisionManualConMontos && (
+      dm?.es_abono === true ||
+      dm?.abono === true ||
+      pm?.tipo === 'Abono' ||
+      dm?.pago_parcial === true ||
+      (dm?.monto_pendiente !== undefined && parseFloat(String(dm.monto_pendiente)) > 0.05)
+    )) {
+      return NextResponse.json({ error: 'No se puede emitir factura electrónica para un abono o pago parcial. La factura solo se emite cuando se completa el pago total del mes.' }, { status: 400 });
+    }
+    if ((pm?.modulo === 'condominios' || dm?.modulo === 'condominios') && Array.isArray(dm?.condominio?.lineas)) {
+      lineasCondo = dm.condominio.lineas; condoDet = dm.condominio;
     }
 
     // --- BUSINESS RULE: Only emit invoices for Commercial properties ---
-    const idNaked = identidad.replace(/^[VJGEP]-?/i, '');
-    const idVariants = [identidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`];
+    const finalIdentidad = (identidad || pm?.identidad || '').trim().toUpperCase();
+    const idNaked = finalIdentidad.replace(/^[VJGEP]-?/i, '');
+    const idVariants = [finalIdentidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`, `G-${idNaked}`];
     const { data: userProps, error: propsErr } = await supabase
       .from('inmuebles')
       .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion')
@@ -185,8 +184,8 @@ export async function POST(request: Request) {
       activeProps.length === 0 &&
       (isCondominio ||
         (contribuyente || '').toUpperCase().includes('CENTRO COMERCIAL') ||
-        identidad.startsWith('J') ||
-        identidad.startsWith('G'))
+        finalIdentidad.startsWith('J') ||
+        finalIdentidad.startsWith('G'))
     ) {
       isComercial = true;
     }
@@ -1048,9 +1047,9 @@ export async function POST(request: Request) {
     const refPago = String(referencia || pagoRow?.referencia || fp0.referencia || '').trim();
     const fechaPago = detPago.fecha_transaccion || pagoRow?.created_at || fechaActual.toISOString();
 
-    let docIdentParaEmision = identidad;
+    let docIdentParaEmision = finalIdentidad;
     if (esPagoPorLocal) {
-      const idLocal = (matchedPropEspecifico as any)?.identidad || detPago?.recibo_caja?.[0]?.rifCi || (identidad && identidad !== condoDet?.identidad ? identidad : null);
+      const idLocal = (matchedPropEspecifico as any)?.identidad || detPago?.recibo_caja?.[0]?.rifCi || (finalIdentidad && finalIdentidad !== condoDet?.identidad ? finalIdentidad : null);
       if (idLocal && idLocal !== condoDet?.identidad) {
         docIdentParaEmision = idLocal;
       }

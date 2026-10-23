@@ -321,6 +321,10 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             pagoId: pago.id,
             dryRun: true,
             enviarCorreo: false,
+            identidad: pago.identidad || det.identidad,
+            contribuyente: pago.contribuyente || det.contribuyente,
+            referencia: pago.referencia || det.referencia,
+            modulo: pago.modulo || det.modulo,
             montoTotal: pago.monto || pago.montoTotal || det.montoTotal
           })
         });
