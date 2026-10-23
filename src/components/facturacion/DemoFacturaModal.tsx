@@ -5,6 +5,7 @@ import { formatBs } from '@/lib/formatCurrency';
 import { supabase } from '@/lib/supabase';
 import { sanitizarDireccionFiscal } from '@/lib/formatters';
 import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
+import { extraerCodigoInmueble } from '@/lib/documentoPago';
 
 interface DemoFacturaProps {
   isOpen: boolean;
@@ -102,7 +103,17 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   } else {
     exento = parseFloat(String(det.multa_bs || 0)) || 0;
     if (exento === 0 && Array.isArray(det.deuda_previa)) {
-      exento = det.deuda_previa.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+      const inmsPagados = [...new Set([
+        ...(Array.isArray(det?.recibos) ? det.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
+        det.codigo_inmueble,
+        det.cod_inmueble
+      ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
+
+      const dpFiltrada = inmsPagados.length > 0
+        ? det.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
+        : det.deuda_previa;
+
+      exento = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
     }
   }
 

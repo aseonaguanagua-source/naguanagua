@@ -28,6 +28,8 @@ export function extraerCodigoInmueble(ref: string): string | null {
   if (m) return m[1];
   m = s.match(/^CM-(?:C-)?([A-Z]+\d+)-/);
   if (m) return m[1];
+  m = s.match(/^CONDO-(.+?)(?:-\d+)?$/);
+  if (m) return m[1];
   return null;
 }
 

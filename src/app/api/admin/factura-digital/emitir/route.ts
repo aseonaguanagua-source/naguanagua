@@ -709,7 +709,17 @@ export async function POST(request: Request) {
       // Si hay recibo de caja emitido, manda el exento cobrado en caja (si es 0, no hay multa)
       baseExenta = rcExento > 0 ? rcExento : 0;
     } else if (Array.isArray(detPago.deuda_previa) && detPago.deuda_previa.some((dp: any) => dp.multa_bs !== undefined)) {
-      const dpMulta = detPago.deuda_previa.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp.multa_bs || 0)) || 0), 0);
+      const inmsPagados = [...new Set([
+        ...recibos.map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
+        detPago.codigo_inmueble,
+        detPago.cod_inmueble
+      ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
+
+      const dpFiltrada = inmsPagados.length > 0
+        ? detPago.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
+        : detPago.deuda_previa;
+
+      const dpMulta = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp.multa_bs || 0)) || 0), 0);
       baseExenta = dpMulta > 0 ? r2(dpMulta) : 0;
     } else if (itemsExentos.length > 0) {
       baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));

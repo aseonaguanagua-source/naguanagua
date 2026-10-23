@@ -12,6 +12,7 @@ import {
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { DemoFacturaModal } from '@/components/facturacion/DemoFacturaModal';
 import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
+import { extraerCodigoInmueble } from '@/lib/documentoPago';
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -688,9 +689,19 @@ export default function FacturacionElectronicaPage() {
         exentoRecibo = pago.detalles.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
       }
 
-      // 2c. Revisar deuda_previa (donde se guarda la multa_bs exacta del inmueble en el momento de liquidar)
+      // 2c. Revisar deuda_previa (filtrada por los inmuebles que realmente se están pagando)
       if (exentoRecibo === 0 && Array.isArray(pago.detalles?.deuda_previa)) {
-        exentoRecibo = pago.detalles.deuda_previa.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+        const inmsPagados = [...new Set([
+          ...(Array.isArray(pago.detalles?.recibos) ? pago.detalles.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
+          pago.detalles?.codigo_inmueble,
+          pago.detalles?.cod_inmueble
+        ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
+
+        const dpFiltrada = inmsPagados.length > 0
+          ? pago.detalles.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
+          : pago.detalles.deuda_previa;
+
+        exentoRecibo = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
       }
 
       // 2d. Revisar multa_bs / monto_multa directo
