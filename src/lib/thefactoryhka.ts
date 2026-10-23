@@ -15,24 +15,29 @@ export interface TFHKAConfig {
 
 export class TheFactoryHKA {
   public static isDemoMode(): boolean {
+    // 1. Forzar explícitamente por variable de entorno
     if (process.env.TFHKA_FORCE_PRODUCTION === 'true') return false;
     if (process.env.TFHKA_FORCE_DEMO === 'true' || process.env.TFHKA_DEMO === 'true') return true;
 
-    // Cualquier despliegue de Preview, Development o Branch en Vercel trabaja estrictamente en DEMO / Sandbox
+    // 2. Si estamos en el entorno oficial de PRODUCCIÓN en Vercel (VERCEL_ENV === 'production')
+    const isVercelProd = process.env.VERCEL_ENV === 'production';
+    if (isVercelProd && process.env.TFHKA_USER && process.env.TFHKA_USER.trim().length > 0) {
+      return false; // PRODUCCIÓN FISCAL REAL
+    }
+
+    // 3. Entornos de prueba en Vercel (Preview, ramas de desarrollo o testing)
     if (process.env.VERCEL_ENV === 'preview' || process.env.VERCEL_ENV === 'development') return true;
     if (process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview') return true;
     if (process.env.NEXT_PUBLIC_APP_ENV === 'test' || process.env.NEXT_PUBLIC_APP_ENV === 'demo') return true;
 
     const vUrl = (process.env.VERCEL_URL || '').toLowerCase();
-    if (vUrl && !vUrl.includes('naguanagua.globalgreenrec.com')) {
-      if (vUrl.includes('git-') || vUrl.includes('vercel.app')) {
-        return true;
-      }
+    if (!isVercelProd && (vUrl.includes('git-') || vUrl.includes('verceldeploy') || vUrl.includes('preview'))) {
+      return true; // MODO DEMO / SANDBOX
     }
 
-    // Si existen credenciales explícitas configuradas en TFHKA_USER en entorno de producción
+    // 4. Servidor estándar con credenciales de producción configuradas
     if (process.env.TFHKA_USER && process.env.TFHKA_USER.trim().length > 0) {
-      return false;
+      return false; // PRODUCCIÓN FISCAL REAL
     }
 
     return true;
