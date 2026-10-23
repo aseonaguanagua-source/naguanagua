@@ -73,6 +73,58 @@ export async function GET(request: Request) {
       }
     });
 
+    // 1.1) Detectar abonos parciales previos que fueron absorbidos por un pago posterior que liquidó el mismo recibo o incorporó saldo_favor_bs
+    const abonosAbsorbidosIds = new Set<string>();
+    const abonosInfoPorPagoPrincipal = new Map<string, { montoTotal: number; referencias: string[]; formasPago: any[] }>();
+
+    (rawPagos || []).forEach(pPrincipal => {
+      if (pPrincipal.tipo === 'Retencion de IVA') return;
+      const dP = parseDetalles(pPrincipal.detalles);
+      const saldoPrevio = parseFloat(String(dP?.deuda_previa?.[0]?.saldo_favor_bs || dP?.abono_previo_descontado || 0)) || 0;
+      const recibosP = (dP?.recibos || []).map((r: any) => String(r).toUpperCase());
+
+      (rawPagos || []).forEach(pAbono => {
+        if (pAbono.id === pPrincipal.id || pAbono.tipo === 'Retencion de IVA') return;
+        if (pAbono.estado !== 'Aprobado') return;
+        if (String(pAbono.referencia || '').startsWith('RECH-')) return;
+        if (normId(pAbono.identidad) !== normId(pPrincipal.identidad)) return;
+
+        const dA = parseDetalles(pAbono.detalles);
+        const yaEmitidoA = Boolean(dA?.factura_digital?.emitida || dA?.factura_digital?.numero_documento || dA?.factura_digital?.url);
+        if (yaEmitidoA) return;
+
+        const esAbonoA = dA?.es_abono === true || dA?.abono === true || pAbono.tipo === 'Abono' || dA?.pago_parcial === true;
+        if (!esAbonoA) return;
+
+        const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
+        const recibosA = (dA?.recibos || []).map((r: any) => String(r).toUpperCase());
+        const comparteRecibo = recibosP.length > 0 && recibosA.length > 0 && recibosP.some((r: string) => recibosA.includes(r));
+        const coincideSaldo = saldoPrevio > 0 && Math.abs(saldoPrevio - montoSoloA) < 0.05;
+
+        // Si el abono ocurrió antes o igual que el pago principal y comparte recibo o su monto fue abonado previamente
+        if ((comparteRecibo || coincideSaldo) && new Date(pAbono.created_at) <= new Date(pPrincipal.created_at)) {
+          abonosAbsorbidosIds.add(pAbono.id);
+          const current = abonosInfoPorPagoPrincipal.get(pPrincipal.id) || { montoTotal: 0, referencias: [], formasPago: [] };
+          if (!current.referencias.includes(pAbono.referencia)) {
+            current.montoTotal += montoSoloA;
+            if (pAbono.referencia) current.referencias.push(pAbono.referencia);
+            if (Array.isArray(dA?.formasPago) && dA.formasPago.length > 0) {
+              current.formasPago.push(...dA.formasPago);
+            } else {
+              current.formasPago.push({
+                forma: '03',
+                descripcion: `${pAbono.tipo || 'Transferencia'} ${pAbono.banco || ''} ${pAbono.referencia || ''}`.trim(),
+                monto: montoSoloA,
+                banco: pAbono.banco,
+                referencia: pAbono.referencia
+              });
+            }
+          }
+          abonosInfoPorPagoPrincipal.set(pPrincipal.id, current);
+        }
+      });
+    });
+
     const pagos = (rawPagos || []).filter(p => {
       if (p.tipo === 'Retencion de IVA') return false;
       const d = parseDetalles(p.detalles);
@@ -96,6 +148,11 @@ export async function GET(request: Request) {
       );
       if (yaEmitidaOAnulada) {
         return true;
+      }
+
+      // Si fue absorbido por otro pago principal que completó la factura, no duplicar en facturación
+      if (abonosAbsorbidosIds.has(p.id)) {
+        return false;
       }
 
       // Si hay un término de búsqueda específico, SIEMPRE mostrarlo para permitir auditar o emitir
@@ -255,7 +312,7 @@ export async function GET(request: Request) {
     for (let i = 0; i < listaCodigos.length; i += 300) {
       const { data: inms } = await supabase
         .from('inmuebles')
-        .select('inmueble, tipo, clasificacion, actividad_principal, direccion, correo_electronico, contribuyente, identidad')
+        .select('inmueble, tipo, clasificacion, actividad_principal, direccion, correo_electronico, contribuyente, identidad, agente_retencion')
         .in('inmueble', listaCodigos.slice(i, i + 300));
       (inms || []).forEach((inm: any) => inmMap.set(inm.inmueble, inm));
     }
@@ -263,7 +320,7 @@ export async function GET(request: Request) {
     const fallbackEmail = process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.comercial@globalgreenca.com';
 
     // Condominios (para reconocer pagos viejos de condominios por su RIF)
-    const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo').limit(5000);
+    const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo,agente_retencion').limit(5000);
     const condoPorRif = new Map<string, any>();
     (condosRows || []).forEach((c: any) => { if (c.identidad) condoPorRif.set(normId(c.identidad), c); });
     const infoCondo = (pago: any, det: any) => {
@@ -367,8 +424,31 @@ export async function GET(request: Request) {
 
       const vincRet = retencionPorPagoVinculado.get(String(pago.id));
       const montoRetGuardada = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || 0)) || 0;
-      const montoRetNum = montoRetGuardada > 0 ? montoRetGuardada : (vincRet ? vincRet.monto : 0);
-      const tieneRetencion = montoRetNum > 0 || !!det.es_retencion || !!det.agente_retencion || !!vincRet;
+      let montoRetNum = montoRetGuardada > 0 ? montoRetGuardada : (vincRet ? vincRet.monto : 0);
+
+      // Detección de Agente de Retención por catálogo de inmuebles / condominios
+      let esAgenteEnCatalogo = false;
+      for (const r of (det.recibos || [])) {
+        const c = extraerCodigoInmueble(r);
+        if (c && inmMap.get(c)?.agente_retencion) {
+          esAgenteEnCatalogo = true;
+          break;
+        }
+      }
+      if (!esAgenteEnCatalogo && det.codigo_inmueble && inmMap.get(det.codigo_inmueble)?.agente_retencion) {
+        esAgenteEnCatalogo = true;
+      }
+      if (!esAgenteEnCatalogo && det.cod_inmueble && inmMap.get(det.cod_inmueble)?.agente_retencion) {
+        esAgenteEnCatalogo = true;
+      }
+      if (!esAgenteEnCatalogo && condo?.agente_retencion) {
+        esAgenteEnCatalogo = true;
+      }
+
+      const tieneRetencion = montoRetNum > 0 || !!det.es_retencion || !!det.agente_retencion || !!vincRet || (esAgenteEnCatalogo && clasif.documento === 'factura');
+      if (tieneRetencion && montoRetNum === 0 && montoFacturaReal > 0) {
+        montoRetNum = Math.round((montoFacturaReal - (montoFacturaReal / 1.16)) * 0.75 * 100) / 100;
+      }
 
       // Si el pago tiene retención y se guardó saldo_favor igual a la retención, se limpia para no mostrarlo como Nota de Crédito
       const sFavorGuardado = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
@@ -491,6 +571,12 @@ export async function GET(request: Request) {
         ? 'aprobada'
         : (fd?.retencion?.estado || (retRow ? (retRow.estado === 'Pendiente' ? 'planilla_recibida' : String(retRow.estado).toLowerCase()) : null));
 
+      const infoAbonos = abonosInfoPorPagoPrincipal.get(pago.id);
+      const montoPagadoEfectivo = parseFloat(pago.monto || '0') + (infoAbonos?.montoTotal || 0);
+      const refFinal = infoAbonos && infoAbonos.referencias.length > 0
+        ? `${pago.referencia || 'N/A'} (+ ${infoAbonos.referencias.join(', ')})`
+        : (pago.referencia || 'N/A');
+
       return {
         id: pago.id,
         pagoId: pago.id,
@@ -501,11 +587,11 @@ export async function GET(request: Request) {
           esCorreoComodin,
           requiereActualizacionCorreo: esCorreoComodin,
           monto: montoFacturaReal,
-          montoPagado: parseFloat(pago.monto || '0'),
+          montoPagado: montoPagadoEfectivo,
           saldoAFavor: sFavorGuardado,
           saldoFavorUsado: sfUsado,
           banco: pago.banco || 'N/A',
-          referencia: pago.referencia || 'N/A',
+          referencia: refFinal,
           tipo: pago.tipo || 'Transferencia',
           estado: pago.estado || 'Aprobado',
           created_at: pago.created_at,
