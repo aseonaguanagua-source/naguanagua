@@ -4,6 +4,9 @@ import { clasificarPago, extraerCodigoInmueble, parseDetalles, rangoDiaCaracas }
 
 export const dynamic = 'force-dynamic';
 
+// Normalizador de identidades (sin guiones ni símbolos)
+const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -195,8 +198,6 @@ export async function GET(request: Request) {
       if (ctrl) controlesFacturas.push(ctrl);
     });
 
-    // Normalizador de identidades (sin guiones ni símbolos)
-    const normId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
     const retencionesIvaMap = new Map<string, any>();
     const retencionesPorControlMap = new Map<string, any>();
