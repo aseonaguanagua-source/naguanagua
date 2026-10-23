@@ -332,6 +332,7 @@ export async function GET(request: Request) {
       return {
         codigo: c.codigo || porRif?.codigo || null, nombre: c.nombre || porRif?.nombre || det.contribuyente || 'Condominio', tipo,
         residencial: tipo ? String(tipo).toUpperCase() === 'RESIDENCIAL' : null,
+        agente_retencion: Boolean(c.agente_retencion ?? porRif?.agente_retencion),
         facturaA: det.modo === 'CONTRIBUYENTE' ? 'CONTRIBUYENTE' : 'CONDOMINIO',
         grupo: det.grupo_pago ? { id: det.grupo_pago.id, parte: det.grupo_pago.parte, partes: det.grupo_pago.partes, montoTotal: Number(det.grupo_pago.monto_total) || 0 } : null,
       };
@@ -438,17 +439,11 @@ export async function GET(request: Request) {
       if (!esAgenteEnCatalogo && det.codigo_inmueble && inmMap.get(det.codigo_inmueble)?.agente_retencion) {
         esAgenteEnCatalogo = true;
       }
-      if (!esAgenteEnCatalogo && det.cod_inmueble && inmMap.get(det.cod_inmueble)?.agente_retencion) {
-        esAgenteEnCatalogo = true;
-      }
-      if (!esAgenteEnCatalogo && condo?.agente_retencion) {
+      if (!esAgenteEnCatalogo && (condo as any)?.agente_retencion) {
         esAgenteEnCatalogo = true;
       }
 
       const tieneRetencion = montoRetNum > 0 || !!det.es_retencion || !!det.agente_retencion || !!vincRet || (esAgenteEnCatalogo && clasif.documento === 'factura');
-      if (tieneRetencion && montoRetNum === 0 && montoFacturaReal > 0) {
-        montoRetNum = Math.round((montoFacturaReal - (montoFacturaReal / 1.16)) * 0.75 * 100) / 100;
-      }
 
       // Si el pago tiene retención y se guardó saldo_favor igual a la retención, se limpia para no mostrarlo como Nota de Crédito
       const sFavorGuardado = parseFloat(String(det.saldo_a_favor_nuevo || det.monto_sobrante || det.saldo_favor || det.saldo_favor_generado || 0)) || 0;
@@ -546,6 +541,12 @@ export async function GET(request: Request) {
         montoFacturaReal = montoFacturaReal + sfUsado;
       }
       montoFacturaReal = Math.round(montoFacturaReal * 100) / 100;
+
+      if (tieneRetencion && montoRetNum === 0 && montoFacturaReal > 0) {
+        montoRetNum = Math.round((montoFacturaReal - (montoFacturaReal / 1.16)) * 0.75 * 100) / 100;
+        det.monto_retencion_iva = montoRetNum;
+        det.retencion_iva = montoRetNum;
+      }
 
       // Los pagos con retención comercial siempre corresponden a factura fiscal
       const docFinal = tieneRetencion ? 'factura' : clasif.documento;
