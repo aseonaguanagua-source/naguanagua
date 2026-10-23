@@ -57,6 +57,16 @@ export function resolverConceptoPeriodoPago(pago: any): string {
   if (!pago) return 'Servicio de Aseo Urbano Comercial';
   const det = pago.detalles || {};
 
+  // 0. Si es un pago de Servicio Especial / Extraordinario
+  const srvs = Array.isArray(det.servicios) ? det.servicios : [];
+  if (srvs.length > 0 || String(pago.referencia || '').startsWith('SRV-')) {
+    const srvRef = srvs[0] || pago.referencia;
+    return `Servicio Especial - ${srvRef || 'Extraordinario'}`;
+  }
+  if (String(det.tipo_pago || '').toUpperCase().includes('SERVICIO') || String(det.concepto || '').toUpperCase().includes('SERVICIO ESPECIAL') || String(det.concepto || '').toUpperCase().includes('SERVICIO EXTRAORDINARIO')) {
+    return det.concepto || 'Servicio Especial';
+  }
+
   // 1. Revisar recibo_caja (máxima fidelidad con lo liquidado en caja)
   if (det.recibo_caja) {
     try {

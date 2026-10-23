@@ -40,6 +40,25 @@ interface DetallesContribuyenteModalProps {
 function formatPeriodosPagados(det: any, p?: any): string {
   if (!det && !p) return '—';
 
+  // 0. Si es un pago de Servicio Especial / Extraordinario
+  const srvs = Array.isArray(det?.servicios) ? det.servicios : [];
+  const esSrvEsp = srvs.length > 0 ||
+    String(p?.referencia || '').startsWith('SRV-') ||
+    String(det?.tipo_pago || '').toUpperCase().includes('SERVICIO') ||
+    String(det?.concepto || '').toUpperCase().includes('SERVICIO ESPECIAL') ||
+    String(det?.concepto || '').toUpperCase().includes('SERVICIO EXTRAORDINARIO');
+
+  if (esSrvEsp) {
+    if (srvs.length > 0) {
+      const ref = typeof srvs[0] === 'string' ? srvs[0] : srvs[0]?.referencia;
+      return `Servicio Especial (${ref || 'SRV'})`;
+    }
+    if (String(p?.referencia || '').startsWith('SRV-')) {
+      return `Servicio Especial (${p.referencia})`;
+    }
+    return 'Servicio Especial';
+  }
+
   // 1. Si viene explícito en periodos_pagados
   if (det?.periodos_pagados && typeof det.periodos_pagados === 'string' && det.periodos_pagados.trim()) {
     return det.periodos_pagados.trim();
@@ -1926,7 +1945,9 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                               </td>
                               <td className="px-4 py-2.5">
                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${
-                                  periodoTexto.includes('Retención')
+                                  periodoTexto.includes('Servicio Especial')
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
+                                    : periodoTexto.includes('Retención')
                                     ? 'bg-purple-50 text-purple-800 border-purple-200/80'
                                     : periodoTexto.includes('Multa')
                                     ? 'bg-amber-50 text-amber-800 border-amber-200/80'

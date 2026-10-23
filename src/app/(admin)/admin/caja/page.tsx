@@ -26,18 +26,17 @@ const BANCOS_VENEZUELA = LISTA_BANCOS;
 const updateServiciosEspecialesEstado = async (referencias: string[], estado: string) => {
   if (!referencias || referencias.length === 0) return;
   try {
-    const { error } = await supabase
+    // Usar la API Admin para garantizar persistencia con permisos de servicio (bypass RLS)
+    await fetch('/api/admin/servicios-especiales', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ referencias, estado })
+    });
+    // Fallback supabase client directo
+    await supabase
       .from('servicios_especiales')
       .update({ estado })
       .in('referencia', referencias);
-
-    if (error) {
-      await fetch('/api/admin/servicios-especiales', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ referencias, estado })
-      });
-    }
   } catch (err) {
     console.error('Error actualizando servicios_especiales:', err);
   }
