@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { TheFactoryHKA } from '@/lib/thefactoryhka';
 import { isResidencialInm, cleanClasificacionActividad } from '@/lib/calculos';
-import { enviarFacturaConCopiaInterna } from '@/lib/facturaMailer';
+import { enviarFacturaConCopiaInterna, enviarNotificacionAnulacionFactura } from '@/lib/facturaMailer';
 import { isFictitiousEmail } from '@/lib/formatters';
 import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, portalRetencionesUrl } from '@/lib/retencionFlujo';
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
@@ -299,6 +299,26 @@ export async function POST(request: Request) {
       dm.referencia = dm.referencia || pagoRow.referencia;
       await restaurarDeudaPreviaAnulacion(dm, recibosBody || dm.recibos || []);
       await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
+
+      // Notificar por correo al contribuyente y copia a archivo fiscal
+      const emailDestinoManual = (correoDestino || dm.factura_digital?.correo_utilizado || dm.correo || '').trim();
+      if (emailDestinoManual) {
+        try {
+          await enviarNotificacionAnulacionFactura({
+            contribuyente: dm.contribuyente || dm.contribuyente_nombre || 'Contribuyente',
+            identidad: pagoRow.identidad || '',
+            numeroFactura: String(facturaAfectadaNum || ''),
+            numeroControlFactura: dm.factura_digital?.numero_control,
+            monto: parseFloat(String(dm.factura_digital?.montoTotal || dm.monto_factura || pagoRow.monto || 0)) || 0,
+            fecha: new Date().toISOString(),
+            motivo: motivoAjuste || 'Anulación administrativa de factura',
+            correoContribuyente: emailDestinoManual,
+          });
+        } catch (eMail) {
+          console.warn('Aviso enviando correo de anulación manual:', eMail);
+        }
+      }
+
       await supabase.from('auditoria').insert({
         accion: 'Factura marcada como anulada manualmente',
         usuario: cleanUser || 'Sistema',
@@ -1380,6 +1400,29 @@ export async function POST(request: Request) {
     detPago.referencia = detPago.referencia || pagoRow.referencia;
     await restaurarDeudaPreviaAnulacion(detPago, recibos || []);
     await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
+
+    // Enviar notificación de anulación por correo al contribuyente y copia al archivo fiscal
+    if (enviarCorreo) {
+      const emailFinal = (correoDestino || detPago.factura_digital?.correo_utilizado || detPago.correo || propRef?.correo_electronico || '').trim();
+      try {
+        const ncInfo = nuevosDetalles.factura_digital.nota_credito;
+        await enviarNotificacionAnulacionFactura({
+          contribuyente: razonSocialFinal || detPago.contribuyente || 'Contribuyente',
+          identidad: docIdentificacion || pagoRow.identidad || '',
+          numeroFactura: String(facturaAfectada || ''),
+          numeroControlFactura: dm.factura_digital?.numero_control,
+          numeroNotaCredito: ncInfo?.numero_documento,
+          numeroControlNC: ncInfo?.numero_control,
+          monto: totalAPagar,
+          fecha: ncInfo?.fecha_emision || new Date().toISOString(),
+          motivo: motivoAjuste || 'Anulación de Factura Electrónica vía Nota de Crédito',
+          urlNotaCredito: ncInfo?.url,
+          correoContribuyente: emailFinal,
+        });
+      } catch (mailErr: any) {
+        console.warn('Aviso enviando correo de anulación:', mailErr.message);
+      }
+    }
 
     return NextResponse.json({
       success: true,

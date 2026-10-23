@@ -279,3 +279,231 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
     error: lastError,
   };
 }
+
+export interface EnviarAnulacionEmailParams {
+  contribuyente: string;
+  identidad: string;
+  numeroFactura: string;
+  numeroControlFactura?: string;
+  numeroNotaCredito?: string;
+  numeroControlNC?: string;
+  monto: number;
+  fecha: string;
+  motivo?: string;
+  urlNotaCredito?: string;
+  correoContribuyente?: string;
+}
+
+export function buildAnulacionEmailTemplate(data: {
+  contribuyente: string;
+  identidad: string;
+  numeroFactura: string;
+  numeroControlFactura?: string;
+  numeroNotaCredito?: string;
+  numeroControlNC?: string;
+  monto: number;
+  fecha: string;
+  motivo?: string;
+  urlNotaCredito?: string;
+  esCopiaInterna?: boolean;
+}): string {
+  const montoFormateado = data.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Notificación de Anulación de Factura - IAMEC Naguanagua</title>
+</head>
+<body style="margin:0;padding:0;background:#0d1f17;font-family:Arial,Helvetica,sans-serif;color:#1e293b;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0b1912;padding:35px 0;">
+    <tr>
+      <td align="center">
+        <table width="620" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.3);max-width:620px;border:1px solid #ef444433;">
+          
+          <!-- BANNER HEADER -->
+          <tr>
+            <td style="background:linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%);padding:26px 28px;text-align:center;border-bottom:3px solid #ef4444;">
+              <div style="color:#fca5a5;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">
+                ALCALDÍA BOLIVARIANA DE NAGUANAGUA &bull; IAMEC
+              </div>
+              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:800;letter-spacing:0.5px;">
+                ${data.esCopiaInterna ? 'COPIA DE ARCHIVO FISCAL - ANULACIÓN' : 'NOTIFICACIÓN DE ANULACIÓN DE FACTURA'}
+              </h1>
+              <p style="margin:6px 0 0;color:#fee2e2;font-size:12px;">
+                SISTEMA INTEGRAL DE RECAUDACIÓN TRIBUTARIA &bull; THE FACTORY HKA (SENIAT)
+              </p>
+            </td>
+          </tr>
+
+          <!-- CUERPO PRINCIPAL -->
+          <tr>
+            <td style="padding:32px 30px;">
+              <p style="margin:0 0 16px;font-size:15px;color:#0f172a;line-height:1.5;">
+                Estimado(a) <strong>${data.contribuyente}</strong><br>
+                <span style="font-size:13px;color:#64748b;">R.I.F. / Cédula: <strong>${data.identidad}</strong></span>
+              </p>
+
+              <div style="margin:0 0 22px;padding:14px 18px;background:#fef2f2;border-left:4px solid #ef4444;border-radius:6px;">
+                <p style="margin:0;font-size:14px;color:#991b1b;line-height:1.5;font-weight:600;">
+                  Le notificamos que la Factura Digital N° <strong>${data.numeroFactura}</strong>${data.numeroControlFactura ? ` (Control: ${data.numeroControlFactura})` : ''} ha sido <strong>ANULADA</strong> formalmente ante la administración tributaria.
+                </p>
+              </div>
+
+              <!-- DETALLES DE ANULACIÓN -->
+              <table width="100%" cellpadding="10" cellspacing="0" style="background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;margin-bottom:24px;font-size:13px;">
+                <tr>
+                  <td style="color:#64748b;border-bottom:1px solid #e2e8f0;">Factura Anulada:</td>
+                  <td style="color:#0f172a;font-weight:bold;text-align:right;border-bottom:1px solid #e2e8f0;font-family:monospace;font-size:14px;">
+                    ${data.numeroFactura}
+                  </td>
+                </tr>
+                ${data.numeroNotaCredito ? `
+                <tr>
+                  <td style="color:#64748b;border-bottom:1px solid #e2e8f0;">Nota de Crédito TFHKA:</td>
+                  <td style="color:#dc2626;font-weight:bold;text-align:right;border-bottom:1px solid #e2e8f0;font-family:monospace;font-size:14px;">
+                    ${data.numeroNotaCredito}${data.numeroControlNC ? ` (Control: ${data.numeroControlNC})` : ''}
+                  </td>
+                </tr>` : ''}
+                <tr>
+                  <td style="color:#64748b;border-bottom:1px solid #e2e8f0;">Fecha de Anulación:</td>
+                  <td style="color:#0f172a;text-align:right;border-bottom:1px solid #e2e8f0;">
+                    ${data.fecha}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#64748b;font-size:14px;font-weight:bold;">Monto de la Factura:</td>
+                  <td style="color:#b91c1c;font-size:17px;font-weight:800;text-align:right;">
+                    Bs ${montoFormateado}
+                  </td>
+                </tr>
+                ${data.motivo ? `
+                <tr>
+                  <td style="color:#64748b;border-top:1px solid #e2e8f0;">Motivo:</td>
+                  <td style="color:#0f172a;text-align:right;border-top:1px solid #e2e8f0;font-style:italic;">
+                    ${data.motivo}
+                  </td>
+                </tr>` : ''}
+              </table>
+
+              ${data.urlNotaCredito && data.urlNotaCredito !== '#' ? `
+              <div style="text-align:center;margin:24px 0 16px;">
+                <a href="${data.urlNotaCredito}" target="_blank" style="display:inline-block;padding:12px 24px;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;border-radius:8px;">
+                  Consultar Nota de Crédito en The Factory HKA
+                </a>
+              </div>` : ''}
+
+              <p style="margin:22px 0 0;font-size:11px;color:#94a3b8;line-height:1.5;text-align:center;">
+                Comprobante electrónico de anulación certificado conforme a las providencias del SENIAT.
+              </p>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background:#f1f5f9;padding:16px 24px;text-align:center;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;">
+              Instituto Autónomo Municipal de Ecosocialismo Naguanagua (IAMEC) &bull; R.I.F. G-20008614-9<br>
+              Naguanagua, Estado Carabobo &bull; República Bolivariana de Venezuela
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
+/**
+ * Envía la notificación de anulación al contribuyente y copia interna al archivo fiscal.
+ */
+export async function enviarNotificacionAnulacionFactura(params: EnviarAnulacionEmailParams): Promise<{
+  success: boolean;
+  clienteEnviado: boolean;
+  copiaInternaEnviada: boolean;
+  backupEmail: string;
+  error?: string;
+}> {
+  const backupEmail = TheFactoryHKA.getBackupEmail();
+  const fallbackEmail = TheFactoryHKA.getFallbackEmail();
+
+  if (TheFactoryHKA.isDemoMode() && process.env.RESEND_FORCE_ENABLE !== 'true') {
+    console.log('[facturaMailer] Entorno DEMO: Notificación de anulación por correo omitida.');
+    return { success: true, clienteEnviado: false, copiaInternaEnviada: false, backupEmail };
+  }
+
+  const resend = getResendClient();
+  const fromEmail = process.env.RESEND_FROM || DEFAULT_RESEND_FROM;
+  const clienteEmail = (params.correoContribuyente?.trim() || fallbackEmail).toLowerCase();
+  const esComodin = !params.correoContribuyente || params.correoContribuyente.trim() === '' || clienteEmail === fallbackEmail.toLowerCase() || clienteEmail === backupEmail.toLowerCase();
+
+  let clienteEnviado = false;
+  let copiaInternaEnviada = false;
+  let lastError: string | undefined;
+
+  const fechaStr = params.fecha ? new Date(params.fecha).toLocaleDateString('es-VE') : new Date().toLocaleDateString('es-VE');
+
+  // 1. Envío al contribuyente
+  if (!esComodin) {
+    try {
+      const htmlCliente = buildAnulacionEmailTemplate({
+        ...params,
+        fecha: fechaStr,
+        esCopiaInterna: false,
+      });
+
+      const resCliente = await resend.emails.send({
+        from: fromEmail,
+        to: [clienteEmail],
+        subject: `Factura N° ${params.numeroFactura} ANULADA - IAMEC Naguanagua`,
+        html: htmlCliente,
+      });
+
+      if (!resCliente.error) {
+        clienteEnviado = true;
+      } else {
+        console.warn('[Resend] Error enviando anulación a cliente:', resCliente.error);
+        lastError = resCliente.error.message;
+      }
+    } catch (err: any) {
+      console.warn('[Mailer] Error envío anulación cliente:', err.message);
+      lastError = err.message;
+    }
+  }
+
+  // 2. Copia interna
+  if (backupEmail && backupEmail.length > 3) {
+    try {
+      const htmlCopia = buildAnulacionEmailTemplate({
+        ...params,
+        fecha: fechaStr,
+        esCopiaInterna: true,
+      });
+
+      const resCopia = await resend.emails.send({
+        from: fromEmail,
+        to: [backupEmail],
+        subject: `[ARCHIVO FISCAL] Factura ${params.numeroFactura} ANULADA - ${params.contribuyente} (${params.identidad})`,
+        html: htmlCopia,
+      });
+
+      if (!resCopia.error) {
+        copiaInternaEnviada = true;
+      }
+    } catch (err: any) {
+      console.warn('[Mailer] Error envío anulación copia interna:', err.message);
+    }
+  }
+
+  return {
+    success: clienteEnviado || copiaInternaEnviada,
+    clienteEnviado,
+    copiaInternaEnviada,
+    backupEmail,
+    error: lastError,
+  };
+}
+

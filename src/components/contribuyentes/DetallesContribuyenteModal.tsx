@@ -109,8 +109,8 @@ function formatPeriodosPagados(det: any, p?: any): string {
     return det.periodo;
   }
 
-  // 5. Si es comprobante de retención
-  if (det?.es_retencion || p?.tipo === 'RETENCION_75' || /^RET-/i.test(p?.referencia || '')) {
+  // 5. Si es comprobante de retención puro (no el pago principal de transferencia)
+  if (p?.tipo === 'Retencion de IVA' || p?.tipo === 'RETENCION_75' || /^RET-/i.test(p?.referencia || '') || det?.es_comprobante_retencion) {
     return 'Retención IVA 75%';
   }
 
@@ -1980,6 +1980,10 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                     <ExternalLink className="w-3 h-3" />
                                     <span>Ver Factura TFHKA</span>
                                   </a>
+                                ) : (p.estado === 'Rechazado' || p.estado === 'Anulado' || facturaDigital?.anulada) ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200" title={p.estado === 'Rechazado' ? 'Pago rechazado / no emitido' : 'Factura o pago anulado'}>
+                                    <span>{p.estado === 'Rechazado' ? '🚫 Pago Rechazado' : '🚫 Anulado'}</span>
+                                  </span>
                                 ) : (facturaDigital?.pendiente || facturaDigital?.emitida === false || (!facturaDigital && (p.estado === 'Aprobado' || p.estado === 'Conciliado') && p.tipo !== 'Retencion de IVA' && !String(p.referencia || '').startsWith('RET-'))) ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200" title="Pago conciliado en banco. Listo para emitir en Facturación Electrónica.">
                                     <span>⏳ Pendiente Emisión</span>
