@@ -164,10 +164,21 @@ export async function enviarFacturaConCopiaInterna(params: EnviarFacturaEmailPar
   backupEmail: string;
   error?: string;
 }> {
-  const resend = getResendClient();
   const backupEmail = TheFactoryHKA.getBackupEmail();
   const fallbackEmail = TheFactoryHKA.getFallbackEmail();
 
+  // MODO DE PRUEBA: Bloquear envíos de correos de facturas
+  if (TheFactoryHKA.isDemoMode() && process.env.RESEND_FORCE_ENABLE !== 'true') {
+    console.log('[facturaMailer] Entorno de prueba / DEMO: Envío de correos de factura omitido por seguridad.');
+    return {
+      success: true,
+      clienteEnviado: false,
+      copiaInternaEnviada: false,
+      backupEmail,
+    };
+  }
+
+  const resend = getResendClient();
   const numDoc = params.numeroDocumento || 'DOC-' + params.numeroControl.slice(-6);
   const fechaStr = params.fecha ? new Date(params.fecha).toLocaleDateString('es-VE') : new Date().toLocaleDateString('es-VE');
 

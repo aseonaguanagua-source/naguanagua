@@ -162,6 +162,16 @@ export async function enviarDatosFacturaRetencion(pagoId: string, portalUrl?: st
 
   const correo = await correoContribuyente(pago.identidad, det);
   const contribuyente = det.contribuyente || pago.identidad;
+
+  // MODO DE PRUEBA: Bloquear envíos de correos de retención
+  if (TheFactoryHKA.isDemoMode() && process.env.RESEND_FORCE_ENABLE !== 'true') {
+    console.log('[retencionFlujo] Entorno de prueba / DEMO: Notificación por correo a agente de retención omitida.');
+    fd.retencion = { ...ret, datos_enviados_at: new Date().toISOString(), datos_enviados_a: correo || 'simulado@modo-prueba.local' };
+    det.factura_digital = fd;
+    await supabase.from('pagos_reportados').update({ detalles: det }).eq('id', pagoId);
+    return { ok: true, correo, error: undefined };
+  }
+
   const base = { contribuyente, identidad: pago.identidad, numeroDocumento: fd.numero_documento || '', numeroControl: fd.numero_control || '', fechaEmision: fd.fecha_emision || new Date().toISOString(), ret, portalUrl: portalUrl || portalRetencionesUrl() };
   const resend = getResendClient();
   const backup = TheFactoryHKA.getBackupEmail();

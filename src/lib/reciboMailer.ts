@@ -166,6 +166,12 @@ export async function enviarRecibo(pagoId: string): Promise<{ ok: boolean; clien
   const backup = TheFactoryHKA.getBackupEmail();
   const asunto = `Recibo de pago ${d.numeroRecibo} - IAMEC Naguanagua`;
 
+  // MODO DE PRUEBA: Bloquear envíos de correos de recibos
+  if (TheFactoryHKA.isDemoMode() && process.env.RESEND_FORCE_ENABLE !== 'true') {
+    console.log('[reciboMailer] Entorno de prueba / DEMO: Envío de correos de recibos omitido por seguridad.');
+    return { ok: true, clienteEnviado: false, copiaInternaEnviada: false, correo: d.correoCliente || null, omitido: 'Modo prueba activo' };
+  }
+
   let clienteEnviado = false;
   let copiaInternaEnviada = false;
   let error: string | undefined;
