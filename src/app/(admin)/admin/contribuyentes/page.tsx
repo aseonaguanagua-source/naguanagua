@@ -306,22 +306,24 @@ function ContribuyentesPageContent() {
   };
 
   const handleReactivate = async (row: any) => {
-    if (!confirm(`¿Está seguro de reactivar y pasar a 'Activo' al contribuyente ${row.Contribuyente} (${row.Identidad})?`)) return;
+    const rawCodes = String(row.CodCont || row.cod_cont || row.inmueble || '').trim().split(/\s+/).filter(Boolean);
+    const mainCode = rawCodes[0];
+    const descItem = mainCode ? `el inmueble ${mainCode} de ${row.Contribuyente}` : `al contribuyente ${row.Contribuyente} (${row.Identidad})`;
+    if (!confirm(`¿Está seguro de reactivar y pasar a 'Activo' ${descItem}?`)) return;
     try {
-      const vars = getIdentidadVariants(row.Identidad || '');
-      const { error: err1 } = await supabase
-        .from('inmuebles')
-        .update({ estado: 'Activo' })
-        .in('identidad', vars.length > 0 ? vars : [row.Identidad]);
-      if (err1) throw err1;
-
-      // Si tiene código de inmueble específico
-      const cods = String(row.CodCont || row.cod_cont || row.inmueble || '').split(/\s+/).filter(Boolean);
-      if (cods.length > 0) {
+      if (mainCode) {
+        // Reactivar específicamente este inmueble (y sus actividades hijas si es matriz)
         await supabase
           .from('inmuebles')
           .update({ estado: 'Activo' })
-          .in('inmueble', cods);
+          .or(`inmueble.eq.${mainCode},padre_id.eq.${mainCode}`);
+      } else {
+        const vars = getIdentidadVariants(row.Identidad || '');
+        const { error: err1 } = await supabase
+          .from('inmuebles')
+          .update({ estado: 'Activo' })
+          .in('identidad', vars.length > 0 ? vars : [row.Identidad]);
+        if (err1) throw err1;
       }
 
       await logAudit(
@@ -329,13 +331,14 @@ function ContribuyentesPageContent() {
         {
           identidad: row.Identidad,
           contribuyente: row.Contribuyente,
+          codigo: mainCode || 'TODOS',
           nuevo_estado: 'Activo'
         },
         'CONTRIBUYENTE',
         'ALTA'
       );
 
-      alert(`Contribuyente ${row.Contribuyente} activado exitosamente.`);
+      alert(`Registro activado exitosamente.`);
       await refreshData();
     } catch (err: any) {
       alert(`Error al activar contribuyente: ${err.message}`);
@@ -356,12 +359,22 @@ function ContribuyentesPageContent() {
       const { type, row } = statusModal;
       const nuevoEstado = type === 'Eliminar' ? 'Eliminado' : 'Inactivo';
       
-      const vars = getIdentidadVariants(row.Identidad || '');
-      const { error } = await supabase.from('inmuebles').update({ estado: nuevoEstado }).in('identidad', vars.length > 0 ? vars : [row.Identidad]);
-      if (error) throw error;
-      const cods = String(row.CodCont || row.cod_cont || row.inmueble || '').split(/\s+/).filter(Boolean);
-      if (cods.length > 0) {
-        await supabase.from('inmuebles').update({ estado: nuevoEstado }).in('inmueble', cods);
+      const rawCodes = String(row.CodCont || row.cod_cont || row.inmueble || '').trim().split(/\s+/).filter(Boolean);
+      const mainCode = rawCodes[0];
+
+      if (mainCode) {
+        // Operación quirúrgica: sólo se elimina/desactiva este inmueble específico
+        // (y sus actividades hijas directas por padre_id si es una matriz con sucursales/actividades hijas)
+        const { error } = await supabase
+          .from('inmuebles')
+          .update({ estado: nuevoEstado })
+          .or(`inmueble.eq.${mainCode},padre_id.eq.${mainCode}`);
+        if (error) throw error;
+      } else {
+        // Si no tiene código de inmueble, se aplica a la identidad
+        const vars = getIdentidadVariants(row.Identidad || '');
+        const { error } = await supabase.from('inmuebles').update({ estado: nuevoEstado }).in('identidad', vars.length > 0 ? vars : [row.Identidad]);
+        if (error) throw error;
       }
       
       await addAuditLog(
@@ -369,11 +382,12 @@ function ContribuyentesPageContent() {
         JSON.stringify({
           identidad: row.Identidad,
           contribuyente: row.Contribuyente,
+          codigo: mainCode || 'TODOS',
           motivo: statusNota.trim()
         })
       );
       
-      alert(`Contribuyente ${type === 'Eliminar' ? 'eliminado' : 'desactivado'} exitosamente.`);
+      alert(`${mainCode ? `Inmueble ${mainCode}` : `Contribuyente`} ${type === 'Eliminar' ? 'eliminado' : 'desactivado'} exitosamente.`);
       await refreshData();
     } catch (err: any) {
       alert(`Error procesando acción: ${err.message}`);
@@ -3545,25 +3559,30 @@ function ContribuyentesPageContent() {
         const clase = row.Clasificacion || 'Residencial';
         const isChild = Boolean(row.isCondoChild);
         
-        // Extraer todas las actividades de los inmuebles vinculados
-        const ident = row.Identidad || row.identidad;
-        const linkedInms = (inmuebles || []).filter((i: any) => i.identidad === ident && i.estado !== 'Eliminado');
+        // Extraer las actividades correspondientes específicamente a ESTA fila/inmueble (y sus hijas si es matriz)
+        const rowCodes = String(row.CodCont || row.cod_cont || row.inmueble || '').trim().split(/\s+/).filter(Boolean);
         const actividades = new Set<string>();
         
-        if (linkedInms.length > 0) {
-          linkedInms.forEach((i: any) => {
-             const act = i.actividad_principal || i.Actividad || i.ActividadComercial;
-             if (act && act !== 'No asignado') actividades.add(act);
+        if (rowCodes.length > 0 && inmuebles && inmuebles.length > 0) {
+          const directInms = inmuebles.filter((i: any) => 
+            rowCodes.includes(i.inmueble) && i.estado !== 'Eliminado'
+          );
+          // Incluir también inmuebles hijos cuyo padre_id coincida con los códigos de esta fila
+          const childInms = inmuebles.filter((i: any) => 
+            rowCodes.includes(i.padre_id) && i.estado !== 'Eliminado'
+          );
+          [...directInms, ...childInms].forEach((i: any) => {
+            const act = i.actividad_principal || i.Actividad || i.ActividadComercial;
+            if (act && act !== 'No asignado' && act !== 'N/A') actividades.add(act);
           });
         }
         
-        // Fallback al detalle original si no hay inmuebles
-        const originalDetalle = clase.includes('Comercial') 
-          ? (row.ActividadComercial || row.Actividad || row.actividad_principal || 'No asignado') 
-          : (row.TipoResidencia || row.Actividad || row.actividad_principal || 'No asignado');
-          
-        if (actividades.size === 0 && originalDetalle && originalDetalle !== 'No asignado') {
-          actividades.add(originalDetalle);
+        // Fallback a la actividad propia de la fila si no se encontraron en el array global
+        if (actividades.size === 0) {
+          const rowAct = row.ActividadComercial || row.Actividad || row.actividad_principal;
+          if (rowAct && rowAct !== 'No asignado' && rowAct !== 'N/A') {
+            actividades.add(rowAct);
+          }
         }
 
         const actividadesArr = Array.from(actividades);
@@ -3585,7 +3604,7 @@ function ContribuyentesPageContent() {
                 )}
               </div>
             ) : (
-              <span className="text-[10px] text-slate-500">No asignado</span>
+              <span className="text-[10px] text-slate-500">{row.Actividad || 'No asignado'}</span>
             )}
             {isChild && (
               <div className="text-[9px] text-slate-500 mt-0.5">
@@ -4127,7 +4146,13 @@ function ContribuyentesPageContent() {
             </div>
             <div className="p-6">
               <p className="text-sm text-slate-600 mb-4">
-                Está a punto de <strong>{statusModal.type.toLowerCase()}</strong> al contribuyente <span className="font-bold">{statusModal.row.Contribuyente}</span>. 
+                Está a punto de <strong>{statusModal.type.toLowerCase()}</strong>{' '}
+                {statusModal.row.CodCont || statusModal.row.cod_cont || statusModal.row.inmueble ? (
+                  <>el inmueble <span className="font-bold text-slate-800">{String(statusModal.row.CodCont || statusModal.row.cod_cont || statusModal.row.inmueble).trim().split(/\s+/)[0]}</span> del contribuyente </>
+                ) : (
+                  <>al contribuyente </>
+                )}
+                <span className="font-bold">{statusModal.row.Contribuyente}</span>. 
                 Por favor, indique el motivo detallado de esta acción. <span className="text-red-600 font-bold">* Obligatorio</span>
               </p>
               
