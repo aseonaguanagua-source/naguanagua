@@ -8,6 +8,8 @@ import { mesesPendientes } from '@/lib/condominios/motor';
 import ModalAjusteMeses from './ModalAjusteMeses';
 import { parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
 
+import actividadesCompletas from '@/data/actividades_comerciales_completas.json';
+
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES_NOMBRES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MESES_COMPLETOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -34,7 +36,9 @@ function generarMesesCondo(): { key: string; label: string }[] {
 }
 const NIVELES = ['Baja', 'Media', 'Alta'];
 const RESIDENCIALES = ordenanzaData.tiposResidenciales.map(t => ({ label: t.label.toUpperCase(), factor: t.factor }));
-const COMERCIALES: string[] = ordenanzaData.actividadesComerciales.map((a: any) => a.label);
+const COMERCIALES: string[] = (actividadesCompletas && actividadesCompletas.length > 0)
+  ? (actividadesCompletas as string[])
+  : ordenanzaData.actividadesComerciales.map((a: any) => a.label);
 
 const esActRes = (a: string) => RESIDENCIALES.some(r => r.label === String(a || '').toUpperCase().trim());
 
@@ -77,41 +81,82 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   const [guardando, setGuardando] = useState(false);
   const [modalMeses, setModalMeses] = useState(false);
 
-  // Formulario para asignar multa a un período específico
+  // Formulario para asignar multas a períodos específicos (uno o varios a la vez)
   const [mostrarAgregarMulta, setMostrarAgregarMulta] = useState(false);
-  const [multaPeriodo, setMultaPeriodo] = useState('');
+  const [multaPeriodosSeleccionados, setMultaPeriodosSeleccionados] = useState<string[]>([]);
   const [multaConcepto, setMultaConcepto] = useState('');
   const [multaMontoBs, setMultaMontoBs] = useState('');
   const [multaMotivo, setMultaMotivo] = useState('');
   const [guardandoMulta, setGuardandoMulta] = useState(false);
-  const [modoMesCustom, setModoMesCustom] = useState(false);
   const [multaReemplazaAcumulados, setMultaReemplazaAcumulados] = useState(true);
   const listaMesesCondo = useMemo(() => generarMesesCondo(), []);
 
+  // Lista local reactiva de multas pendientes para reflejar inmediatamente adiciones/anulaciones
+  const [multasLocales, setMultasLocales] = useState<any[]>(multas || []);
+  React.useEffect(() => {
+    setMultasLocales(multas || []);
+  }, [multas]);
+
+  const togglePeriodoSeleccionado = (key: string) => {
+    setMultaPeriodosSeleccionados(prev => {
+      const yaEsta = prev.includes(key);
+      const nuevaLista = yaEsta ? prev.filter(p => p !== key) : [...prev, key].sort();
+      if (nuevaLista.length === 1) {
+        setMultaConcepto(`Multa por mora ${fmtPeriodo(nuevaLista[0])}`);
+      } else if (nuevaLista.length > 1) {
+        setMultaConcepto(`Multa por mora (${nuevaLista.length} meses: ${nuevaLista.map(fmtPeriodo).join(', ')})`);
+      } else {
+        setMultaConcepto('');
+      }
+      return nuevaLista;
+    });
+  };
+
   const agregarMultaPeriodo = async () => {
     if (!unidad?.id) return;
-    if (multaMotivo.trim().length < 5) { alert('Escriba el motivo (mínimo 5 caracteres).'); return; }
-    const bs = parseLocalFloat(multaMontoBs);
-    if (!bs || bs <= 0) { alert('Indique un monto válido en Bs.'); return; }
+    if (multaPeriodosSeleccionados.length === 0) {
+      alert('Seleccione al menos un período para asignar la multa.');
+      return;
+    }
+    if (multaMotivo.trim().length < 5) {
+      alert('Escriba el motivo (mínimo 5 caracteres).');
+      return;
+    }
+    const bsPorMes = parseLocalFloat(multaMontoBs);
+    if (!bsPorMes || bsPorMes <= 0) {
+      alert('Indique un monto válido en Bs por mes.');
+      return;
+    }
     setGuardandoMulta(true);
     try {
-      const perTexto = multaPeriodo ? fmtPeriodo(multaPeriodo) : '';
-      const conceptoFinal = multaConcepto.trim() || `Multa por mora ${perTexto}`.trim();
-      const r = await fetch('/api/admin/condominios/multas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          codigo: condo.codigo,
-          unidad_id: unidad.id,
-          periodo: multaPeriodo || null,
-          concepto: conceptoFinal,
-          monto_bs: bs,
-          usuario,
-          motivo: multaMotivo
-        })
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'No se pudo agregar la multa');
+      const uActual = usuario || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('admin_user_data') || '{}').usuario : '') || 'Administrador';
+      const multasCreadas: any[] = [];
+
+      for (const per of multaPeriodosSeleccionados) {
+        const perTexto = fmtPeriodo(per);
+        const conceptoFinal = `Multa por mora ${perTexto}`.trim();
+        const r = await fetch('/api/admin/condominios/multas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            codigo: condo.codigo,
+            unidad_id: unidad.id,
+            periodo: per,
+            concepto: conceptoFinal,
+            monto_bs: bsPorMes,
+            usuario: uActual,
+            motivo: multaMotivo
+          })
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || `No se pudo agregar la multa para ${perTexto}`);
+        if (j.multa) multasCreadas.push(j.multa);
+      }
+
+      // Actualizar estado local inmediato de multas
+      if (multasCreadas.length > 0) {
+        setMultasLocales(prev => [...prev, ...multasCreadas]);
+      }
 
       if (multaReemplazaAcumulados && Number(f.multa_meses) > 0) {
         await fetch('/api/admin/condominios/unidades', {
@@ -120,19 +165,20 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           body: JSON.stringify({
             id: unidad.id,
             cambios: { multa_meses: 0 },
-            usuario,
-            motivo: `Ajuste a 0 meses acumulados al fijar multa específica de período ${perTexto || multaPeriodo}: ${multaMotivo}`
+            usuario: uActual,
+            motivo: `Ajuste a 0 meses acumulados al fijar multas específicas para ${multaPeriodosSeleccionados.map(fmtPeriodo).join(', ')}: ${multaMotivo}`
           })
         });
         setF((prev: any) => ({ ...prev, multa_meses: 0 }));
       }
 
-      alert('¡Multa asignada exitosamente!');
+      alert(`¡${multaPeriodosSeleccionados.length} multa(s) asignada(s) exitosamente!`);
       setMostrarAgregarMulta(false);
-      setMultaPeriodo('');
+      setMultaPeriodosSeleccionados([]);
       setMultaConcepto('');
       setMultaMontoBs('');
       setMultaMotivo('');
+      // Notificar a la vista padre para refrescar la ficha sin cerrar este editor
       onSaved(false);
     } catch (e: any) {
       alert(e.message);
@@ -142,7 +188,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
   };
 
   // Multas: siempre por meses — 10% (residencial) o 12% (comercial) de la mensualidad por cada mes
-  const multasPend = useMemo(() => (unidad ? multas.filter(m => m.unidad_id === unidad.id && m.estado === 'Pendiente') : []), [multas, unidad]);
+  const multasPend = useMemo(() => (unidad ? multasLocales.filter(m => m.unidad_id === unidad.id && m.estado === 'Pendiente') : []), [multasLocales, unidad]);
   const esRes = renglon ? !!renglon.residencial : clase === 'RES';
   const pctMulta = esRes ? 0.10 : 0.12;
   const mensualBs = Number(renglon?.mensualBs) || 0;
@@ -259,9 +305,11 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     if (!mot || mot.trim().length < 5) return;
     setGuardando(true);
     try {
-      const r = await fetch('/api/admin/condominios/multas', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, usuario, motivo: mot }) });
+      const uActual = usuario || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('admin_user_data') || '{}').usuario : '') || 'Administrador';
+      const r = await fetch('/api/admin/condominios/multas', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id, usuario: uActual, motivo: mot }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'No se pudo anular');
+      setMultasLocales(prev => prev.filter(x => x.id !== m.id));
       onSaved(false);
     } catch (e: any) { setErr(e.message); } finally { setGuardando(false); }
   };
@@ -538,15 +586,20 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                     onClick={() => {
                       setMostrarAgregarMulta(true);
                       if (multaPorMesBs > 0) setMultaMontoBs(fmtBs(multaPorMesBs));
-                      if (!multaPeriodo && listaMesesCondo.length > 0) {
+                      // Por defecto seleccionar los periodos que tienen deuda si existen, o el último mes
+                      const periodosRenglon: string[] = (renglon?.periodos || []).slice(0, -1); // El último mes corriente no lleva multa
+                      if (periodosRenglon.length > 0) {
+                        setMultaPeriodosSeleccionados(periodosRenglon);
+                        setMultaConcepto(`Multa por mora (${periodosRenglon.length} meses: ${periodosRenglon.map(fmtPeriodo).join(', ')})`);
+                      } else if (listaMesesCondo.length > 0) {
                         const def = listaMesesCondo[1]?.key || listaMesesCondo[0]?.key || '';
-                        setMultaPeriodo(def);
+                        setMultaPeriodosSeleccionados([def]);
                         setMultaConcepto(`Multa por mora ${fmtPeriodo(def)}`);
                       }
                     }}
                     className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Asignar multa a período específico (ej. Marzo 2026)
+                    <Plus className="w-3.5 h-3.5" /> Asignar multas por período (selección múltiple / por mes)
                   </button>
                 ) : (
                   <div className="p-3 bg-white border border-amber-300 rounded-xl space-y-3 shadow-xs">
@@ -555,50 +608,77 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                       <button type="button" onClick={() => setMostrarAgregarMulta(false)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={lbl + " mb-0"}>Mes de la multa</span>
-                          <button
-                            type="button"
-                            onClick={() => setModoMesCustom(!modoMesCustom)}
-                            className="text-[10px] text-amber-800 font-bold hover:underline"
-                          >
-                            {modoMesCustom ? '← Lista de meses' : 'Otro mes / manual'}
-                          </button>
+                      <div className="sm:col-span-2">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={lbl + " mb-0"}>
+                            Períodos para aplicar la multa ({multaPeriodosSeleccionados.length} seleccionado{multaPeriodosSeleccionados.length === 1 ? '' : 's'})
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {renglon?.periodos && renglon.periodos.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const periodosDeuda = (renglon.periodos as string[]).slice(0, -1);
+                                  setMultaPeriodosSeleccionados(periodosDeuda);
+                                  if (periodosDeuda.length > 0) {
+                                    setMultaConcepto(`Multa por mora (${periodosDeuda.length} meses: ${periodosDeuda.map(fmtPeriodo).join(', ')})`);
+                                  }
+                                }}
+                                className="text-[11px] font-bold text-amber-800 hover:text-amber-900 bg-amber-100/70 hover:bg-amber-100 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                              >
+                                Seleccionar todos los meses vencidos
+                              </button>
+                            )}
+                            {multaPeriodosSeleccionados.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMultaPeriodosSeleccionados([]);
+                                  setMultaConcepto('');
+                                }}
+                                className="text-[11px] font-bold text-slate-500 hover:text-slate-700 underline cursor-pointer"
+                              >
+                                Limpiar selección
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        {!modoMesCustom ? (
-                          <select
-                            value={multaPeriodo}
-                            onChange={e => {
-                              const v = e.target.value;
-                              setMultaPeriodo(v);
-                              if (v) setMultaConcepto(`Multa por mora ${fmtPeriodo(v)}`);
-                            }}
-                            className={inp + " font-bold text-slate-800 mt-0"}
-                          >
-                            <option value="">-- Seleccionar Mes --</option>
-                            {listaMesesCondo.map(m => (
-                              <option key={m.key} value={m.key}>
-                                {m.label} ({m.key})
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="month"
-                            value={multaPeriodo}
-                            onChange={e => {
-                              const v = e.target.value;
-                              setMultaPeriodo(v);
-                              if (v) setMultaConcepto(`Multa por mora ${fmtPeriodo(v)}`);
-                            }}
-                            className={inp + " mt-0"}
-                            placeholder="YYYY-MM (ej: 2026-03)"
-                          />
-                        )}
+
+                        {/* Chips seleccionables para meses */}
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl max-h-36 overflow-y-auto flex flex-wrap gap-1.5">
+                          {listaMesesCondo.slice(0, 24).map(m => {
+                            const sel = multaPeriodosSeleccionados.includes(m.key);
+                            const esDeuda = (renglon?.periodos || []).includes(m.key);
+                            return (
+                              <button
+                                key={m.key}
+                                type="button"
+                                onClick={() => togglePeriodoSeleccionado(m.key)}
+                                className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer ${
+                                  sel
+                                    ? 'bg-amber-600 border-amber-700 text-white shadow-xs'
+                                    : esDeuda
+                                    ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                                }`}
+                              >
+                                {sel && <span>✓</span>}
+                                <span>{m.label}</span>
+                                {esDeuda && !sel && <span className="text-[9px] text-amber-700 opacity-75">(deuda)</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                       <label className="block">
-                        <span className={lbl}>Monto de la multa (Bs)</span>
+                        <span className={lbl}>
+                          Monto por cada mes (Bs)
+                          {multaPeriodosSeleccionados.length > 1 && parseLocalFloat(multaMontoBs) > 0 && (
+                            <span className="text-amber-800 font-extrabold ml-1">
+                              (Total: Bs {fmtBs(parseLocalFloat(multaMontoBs) * multaPeriodosSeleccionados.length)})
+                            </span>
+                          )}
+                        </span>
                         <div className="flex items-center gap-2 mt-1">
                           <input
                             type="text"
