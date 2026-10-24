@@ -149,7 +149,8 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         });
       });
     } else {
-      const fPago = String(det.fecha_transaccion || det.fecha_banco || fechaVE(p.created_at)).slice(0, 10);
+      const fPagoBancaria = det.fecha_banco || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? String(det.formasPago[0].fecha).slice(0, 10) : '');
+      const fPago = String(fPagoBancaria || det.fecha_transaccion || fechaVE(p.created_at)).slice(0, 10);
       const key = fPago.slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
       porMes.get(key)!.push({ p, det, fPago, esSubPago: false, montoTotalReportado: Number(p.monto) || 1 });
@@ -193,15 +194,25 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       const cajero = det.cajero || det.usuario || p.usuario || '';
       const bClass = clasificarBancoDestino(p);
       const bDestLabel = bClass === 'Banesco' ? 'Banesco' : bClass === 'Bancamiga' ? 'Bancamiga' : (det.banco_destino || det.banco_receptor || 'Otro');
+      
+      // Concatenar referencias si el registro consolidado tiene múltiples comprobantes/referencias
+      let refTexto = String(p.referencia || '').trim();
+      if (!esSubPago && Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
+        const todasRefs = [...new Set(det.pagos_agregados.map((pa: any) => String(pa.referencia || '').trim()).filter(Boolean))];
+        if (todasRefs.length > 1) {
+          refTexto = todasRefs.join(' / ');
+        }
+      }
+
+      const mPagado = r2(Number(p.monto) || 0);
       const row = wsBan.getRow(f++);
       const vals: any[] = [
-        dmy(fPago), p.banco || '', bDestLabel, p.referencia || '', p.tipo || 'Transferencia', r2(Number(p.monto) || 0), dmy(fechaVE(p.created_at)),
+        dmy(fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fechaVE(p.created_at)),
         fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || '', codigosDePago(det, p).join(', '), nombreDe(p.identidad, det),
         cajero,
         mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
       ];
       vals.forEach((v, i) => { const c = row.getCell(i + 2); c.value = v; c.border = BORDE; c.font = { size: 9 }; if ([5, 11, 13, 14, 15, 16].includes(i)) c.numFmt = '#,##0.00'; });
-      const mPagado = Number(p.monto) || 0;
       sub += mPagado;
       if (bClass === 'Banesco') subBanesco += mPagado;
       else if (bClass === 'Bancamiga') subBancamiga += mPagado;

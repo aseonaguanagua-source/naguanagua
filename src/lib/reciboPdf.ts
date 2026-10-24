@@ -145,6 +145,29 @@ export function construirReciboPdf(d: DatosRecibo): Buffer {
     }
   }
 
+  // ── Desglose de múltiples pagos / transferencias (anticipo + diferencia, etc.) ──
+  const fps = Array.isArray(d.det?.formasPago) && d.det.formasPago.length > 1
+    ? d.det.formasPago
+    : (Array.isArray(d.det?.pagos_agregados) && d.det.pagos_agregados.length > 1 ? d.det.pagos_agregados : null);
+  if (fps && fps.length > 1) {
+    if (y + 25 > H - 30) { doc.addPage(); y = 20; }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
+    doc.text('DESGLOSE DE PAGOS / TRANSFERENCIAS REALIZADAS', M, y); y += 4.5;
+    const wFp = [24, ancho - 24 - 38 - 30, 38, 30];
+    tabla(
+      ['Fecha', 'Método / Banco', 'Referencia', 'Monto'],
+      wFp,
+      ['left', 'left', 'left', 'right'],
+      fps.map((fp: any, idx: number) => {
+        const fFecha = String(fp.fecha ? (fp.fecha.length === 10 ? fp.fecha : fp.fecha.slice(0, 10)) : d.fechaPago);
+        const fMetodo = [fp.descripcion || fp.metodo || 'Transferencia', (fp.banco && fp.banco !== fp.descripcion) ? fp.banco.split(' - ')[0] : ''].filter(Boolean).join(' - ');
+        const fRef = String(fp.referencia || `Parte ${idx + 1}`);
+        const fMonto = `Bs ${fmtBs(Number(fp.monto) || 0)}`;
+        return { cells: [fFecha, fMetodo, fRef, fMonto] };
+      })
+    );
+  }
+
   // ── Total ──
   if (y + 20 > H - 30) { doc.addPage(); y = 20; }
   doc.setFillColor(236, 253, 245);

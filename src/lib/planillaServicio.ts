@@ -214,8 +214,8 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   const vals = hayCalc
     ? [
         fmt(d.valorUcd, insp ? 2 : 0),
-        insp ? (d.factor ? `${d.factor} m²` : '1') : fmt(d.nve, 0),
-        fmt(d.factor, d.factor != null ? (d.factor % 1 ? 1 : 0) : 0),
+        insp ? (d.factor && d.valorUcd ? `${d.factor} m²` : (d.nve ? fmt(d.nve, 0) : '1')) : fmt(d.nve, 0),
+        insp ? (d.valorUcd ? fmt(d.factor, 0) : '—') : fmt(d.factor, d.factor != null ? (d.factor % 1 ? 1 : 0) : 0),
         fmt(totalUcd, 2),
         fmt(montoBsFinal, 2)
       ]
@@ -231,15 +231,15 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   y += 24;
 
   doc.setFontSize(7.5); doc.setTextColor(80);
-  if (insp) {
-    doc.text('Tasa administrativa de Inspección Técnica Ambiental según Ordenanza del IAMEC (0,10 UCD/m² o tarifa fijada).', L, y);
-  } else if (esp) {
-    doc.text('TSE = F.O.Es × NVE × FAEs.  F.O.Es: Factor Ordenanza Especial (en UCD).  NVE: Número de viajes estimados.  FAEs = 1.', L, y);
-  } else {
-    doc.text('TSEX = C.E.V × NVE × F. llenado.  C.E.V: Costo especializado por viaje (UCD).  NVE: Número de viajes estimados.  F. llenado: Factor de llenado según capacidad.', L, y);
+  if (!insp) {
+    if (esp) {
+      doc.text('TSE = F.O.Es × NVE × FAEs.  F.O.Es: Factor Ordenanza Especial (en UCD).  NVE: Número de viajes estimados.  FAEs = 1.', L, y);
+    } else {
+      doc.text('TSEX = C.E.V × NVE × F. llenado.  C.E.V: Costo especializado por viaje (UCD).  NVE: Número de viajes estimados.  F. llenado: Factor de llenado según capacidad.', L, y);
+    }
+    y += 4;
+    doc.text('Monto (Bs) = Total (UCD) × Tasa Euro BCV vigente a la fecha de emisión.', L, y);
   }
-  y += 4;
-  doc.text('Monto (Bs) = Total (UCD) × Tasa Euro BCV vigente a la fecha de emisión.', L, y);
   doc.setTextColor(0);
 
   // Firmas

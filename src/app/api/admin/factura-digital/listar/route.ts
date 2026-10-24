@@ -409,6 +409,20 @@ export async function GET(request: Request) {
         } else {
           nombreResuelto = rcRazon || cont?.nombre || 'Contribuyente ' + pago.identidad;
         }
+      } else if (esModoCondominio) {
+        if (condo?.nombre && !esPlaceholderNombre(condo.nombre)) {
+          nombreResuelto = condo.nombre;
+        } else if (rcRazon) {
+          nombreResuelto = rcRazon;
+        } else if (!esPlaceholderNombre(det.contribuyente)) {
+          nombreResuelto = det.contribuyente;
+        } else if (cont?.nombre && !esPlaceholderNombre(cont.nombre)) {
+          nombreResuelto = cont.nombre;
+        } else if (nombreInm && !esPlaceholderNombre(nombreInm)) {
+          nombreResuelto = nombreInm;
+        } else {
+          nombreResuelto = det.contribuyente || cont?.nombre || 'Contribuyente ' + pago.identidad;
+        }
       } else {
         if (nombreInm && !esPlaceholderNombre(nombreInm)) {
           nombreResuelto = nombreInm;

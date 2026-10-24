@@ -802,6 +802,46 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
               <button
                 type="button"
                 onClick={async () => {
+                  const nuevoCondoCod = prompt('Ingrese el CÓDIGO del nuevo condominio destino (Ej: AURI001234):');
+                  if (!nuevoCondoCod || !nuevoCondoCod.trim()) return;
+                  const mot = prompt('Motivo del traslado a otro condominio (mínimo 5 caracteres):', 'Reasignación de local a su condominio correspondiente');
+                  if (!mot || mot.trim().length < 5) return alert('Debe ingresar un motivo válido.');
+
+                  setGuardando(true);
+                  try {
+                    const uActual = usuario || 'Administrador';
+                    const res = await fetch('/api/admin/condominios/mover-unidad', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        unidad_id: unidad.id,
+                        inmueble: unidad.inmueble || f.inmueble,
+                        nuevo_condominio_codigo: nuevoCondoCod.trim().toUpperCase(),
+                        usuario: uActual,
+                        motivo: mot.trim()
+                      })
+                    });
+                    const j = await res.json();
+                    if (!res.ok || !j.ok) throw new Error(j.error || 'Error al mover unidad');
+                    alert(`✅ La unidad ${unidad.inmueble || f.inmueble} ha sido transferida exitosamente al condominio ${nuevoCondoCod.trim().toUpperCase()}.`);
+                    onSaved(true);
+                  } catch (err: any) {
+                    alert('Error: ' + err.message);
+                  } finally {
+                    setGuardando(false);
+                  }
+                }}
+                disabled={guardando}
+                className="px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 cursor-pointer disabled:opacity-50"
+                title="Mover esta unidad a otro condominio"
+              >
+                <Store className="w-4 h-4 text-indigo-600" /> Mover a Otro Condominio
+              </button>
+            )}
+            {!nueva && (
+              <button
+                type="button"
+                onClick={async () => {
                   const deuda = renglon ? renglon.totalBs : (f.meses > 0 ? 100 : 0);
                   const { emitirSolvenciaUnidad } = await import('@/lib/condominios/pdfSolvenciaCondominio');
                   await emitirSolvenciaUnidad(condo, { ...unidad, ...f }, deuda);

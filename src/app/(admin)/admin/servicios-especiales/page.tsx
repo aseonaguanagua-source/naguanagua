@@ -207,9 +207,11 @@ export default function ServiciosEspecialesPage() {
       setForm(prev => ({
         ...prev,
         monto: bs.toFixed(2),
-        descripcion: (!prev.descripcion.trim() || /^(Camión|Servicio|Tala|Poda|Permiso|Multa|Inspección|Visto|Variable)/.test(prev.descripcion))
-          ? tarifa.label
-          : prev.descripcion
+        descripcion: (prev.tipo === 'inspeccion' && prev.descripcion.trim() && !prev.descripcion.startsWith('Inspección técnica —'))
+          ? prev.descripcion
+          : (!prev.descripcion.trim() || /^(Camión|Servicio|Tala|Poda|Permiso|Multa|Inspección técnica —|Visto|Variable)/.test(prev.descripcion))
+            ? tarifa.label
+            : prev.descripcion
       }));
     }
   }, [
@@ -305,6 +307,23 @@ export default function ServiciosEspecialesPage() {
           ...(inmuebleSel ? { inmueble: inmuebleSel } : {}),
           ...(() => {
             const p = calcPlanilla();
+            if (form.tipo === 'inspeccion') {
+              const mBs = parseFloat(form.monto) || 0;
+              const ucdVal = p ? p.valorUcd : (tcmmv > 0 && mBs > 0 ? Math.round((mBs / tcmmv) * 10000) / 10000 : null);
+              const factorVal = p ? p.factor : (parseFloat(form.area || '0') || 1);
+              return {
+                categoria: 'INSPECCION',
+                valor_ucd: ucdVal,
+                nve: 1,
+                factor: factorVal,
+                tasa_euro: tcmmv || null,
+                nombre_evento: form.descripcion || form.nombreEvento || 'Inspección Técnica Ambiental',
+                fecha_evento: form.fechaEvento || form.fecha || null,
+                direccion_evento: form.lugar || form.direccion || null,
+                telefono: form.telefono || null,
+                correo: form.correo || null,
+              };
+            }
             if (!p || (form.tipo !== 'especial' && form.tipo !== 'extraordinario')) return {};
             return {
               categoria: form.tipo === 'especial' ? 'ESPECIAL' : 'EXTRAORDINARIO',
@@ -328,22 +347,28 @@ export default function ServiciosEspecialesPage() {
         // Descargar la planilla automáticamente con el código único generado
         if (form.tipo === 'especial' || form.tipo === 'extraordinario' || form.tipo === 'inspeccion') {
           const p = calcPlanilla();
+          const montoBs = parseFloat(form.monto) || 0;
+          const ucdFinal = p ? p.valorUcd : (tcmmv > 0 && montoBs > 0 ? Math.round((montoBs / tcmmv) * 10000) / 10000 : null);
+          const factorFinal = p ? p.factor : (parseFloat(form.area || '0') || 1);
+
           descargarPlanilla(form.tipo, {
+            tipo: form.tipo,
             vehiculo: form.vehiculo,
             referencia: codigoUnico,
             contribuyente: form.contribuyenteNombre,
             identidad: finalIdentidad || codigoUnico,
             contacto: form.contacto || form.contribuyenteNombre,
             telefono: form.telefono,
-            nombre_evento: form.nombreEvento,
-            fecha_evento: form.fechaEvento,
+            nombre_evento: form.descripcion || form.nombreEvento || 'Inspección Técnica Ambiental',
+            fecha_evento: form.fechaEvento || form.fecha,
             direccion_evento: form.lugar || form.direccion,
             hora_evento: form.horario,
             aforo: form.aforo,
-            valor_ucd: p?.valorUcd,
-            nve: p?.nve,
-            factor: p?.factor || (form.tipo === 'inspeccion' ? parseFloat(form.area || '0') : null),
-            tasa_euro: tcmmv,
+            valor_ucd: ucdFinal,
+            nve: p?.nve || 1,
+            factor: factorFinal,
+            tasa_euro: tcmmv || null,
+            monto: montoBs,
           });
         }
 
@@ -408,8 +433,19 @@ export default function ServiciosEspecialesPage() {
     if (!s) { generarPlanillaServicio({ categoria: cat }); return; }
     const tEsp = TARIFAS_ESPECIAL.find(x => x.vehiculo === s.vehiculo);
     const tExt = TARIFAS_EXTRAORDINARIO.find(x => x.vehiculo === s.vehiculo);
-    const valorUcd = s.valor_ucd != null ? Number(s.valor_ucd) : null;
-    const tasa = s.tasa_euro != null ? Number(s.tasa_euro) : null;
+    const tasa = s.tasa_euro != null ? Number(s.tasa_euro) : (tcmmv || null);
+    const montoBs = s.monto != null ? Number(s.monto) : null;
+    let valorUcd = s.valor_ucd != null ? Number(s.valor_ucd) : null;
+    let factor = s.factor != null ? Number(s.factor) : null;
+    let nve = s.nve != null ? Number(s.nve) : 1;
+
+    // Si es inspección y no tenía valor_ucd grabado pero tiene monto en Bs y tasa Euro
+    if (cat === 'inspeccion' && valorUcd == null && montoBs != null && montoBs > 0 && tasa && tasa > 0) {
+      valorUcd = Math.round((montoBs / tasa) * 10000) / 10000;
+      factor = factor || 1;
+      nve = 1;
+    }
+
     const contacto = s.contacto || s.persona_contacto || String(s.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '';
     generarPlanillaServicio({
       categoria: cat,
@@ -419,7 +455,7 @@ export default function ServiciosEspecialesPage() {
       identidad: s.identidad,
       contacto,
       telefono: s.telefono || '',
-      nombreEvento: s.nombre_evento || (categoria === 'especial' ? s.descripcion : ''),
+      nombreEvento: s.nombre_evento || s.descripcion || (cat === 'inspeccion' ? 'Inspección Técnica Ambiental' : ''),
       fechaEvento: s.fecha_evento || '',
       lugar: s.direccion_evento || '',
       horario: s.hora_evento || '',
@@ -428,10 +464,10 @@ export default function ServiciosEspecialesPage() {
       vehiculoLabel: tEsp?.label || tExt?.label || s.descripcion,
       nivel: s.nivel || '',
       valorUcd,
-      nve: valorUcd != null ? Number(s.nve ?? 1) : null,
-      factor: valorUcd != null ? Number(s.factor ?? 1) : null,
+      nve: valorUcd != null ? nve : null,
+      factor: valorUcd != null ? factor : null,
       tasaEuro: tasa,
-      montoBs: s.monto != null ? Number(s.monto) : null,
+      montoBs,
     });
   };
 
@@ -1020,10 +1056,35 @@ export default function ServiciosEspecialesPage() {
                 const lbl = "block text-xs font-bold text-slate-600 uppercase mb-1";
                 const C = CONCEPTOS_IAMEC;
                 if (form.tipo === 'inspeccion') return (
-                  <div>
-                    <label className={lbl}>Cantidad de m² del inmueble ({C.inspeccionUcdPorM2} UCD por m²)</label>
-                    <input type="number" min="0" placeholder="Metros cuadrados" value={form.area}
-                      onChange={e => setForm(prev => ({ ...prev, area: e.target.value }))} className={inp} />
+                  <div className="space-y-3">
+                    <div>
+                      <label className={lbl}>Motivo / Solicitud de la Inspección *</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Inspección TERRENO, Verificación Ambiental, etc."
+                        value={form.descripcion}
+                        onChange={e => setForm(prev => ({ ...prev, descripcion: e.target.value, nombreEvento: e.target.value }))}
+                        className={inp}
+                        required
+                      />
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {['Inspección TERRENO', 'Inspección Técnica Ambiental', 'Verificación de Linderos', 'Inspección de Local Comercial'].map(sug => (
+                          <button
+                            key={sug}
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, descripcion: sug, nombreEvento: sug }))}
+                            className="text-[10px] bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium transition-colors"
+                          >
+                            + {sug}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className={lbl}>Cantidad de m² del inmueble (Opcional, {C.inspeccionUcdPorM2} UCD por m²)</label>
+                      <input type="number" min="0" placeholder="Metros cuadrados (deje vacío si el monto es fijo)" value={form.area}
+                        onChange={e => setForm(prev => ({ ...prev, area: e.target.value }))} className={inp} />
+                    </div>
                   </div>
                 );
                 if (form.tipo === 'visto_bueno') return (
@@ -1095,18 +1156,20 @@ export default function ServiciosEspecialesPage() {
                 </div>
               )}
 
-              {/* Descripción */}
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Descripción del Servicio *</label>
-                <textarea
-                  rows={2}
-                  placeholder="Ej: Recolección especial de escombros en Av. Principal..."
-                  value={form.descripcion}
-                  onChange={e => setForm(prev => ({ ...prev, descripcion: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500"
-                  required
-                />
-              </div>
+              {/* Descripción (para tipos distintos a inspección que ya lo incluye arriba) */}
+              {form.tipo !== 'inspeccion' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Descripción del Servicio *</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ej: Recolección especial de escombros en Av. Principal..."
+                    value={form.descripcion}
+                    onChange={e => setForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+              )}
 
               {/* Monto y Fecha */}
               <div className="grid grid-cols-2 gap-3">

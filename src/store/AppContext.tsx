@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from "@/lib/economicActivitiesBase.json";
 
 import { ordenanzaData } from '@/data/ordenanza';
-import { isResidencialInm, isTerrenoInm, calcularMensualidad, actividadConNivel, quitarNivelActividad } from '@/lib/calculos';
+import { isResidencialInm, isTerrenoInm, calcularMensualidad, actividadConNivel, quitarNivelActividad, resolverFOComercial } from '@/lib/calculos';
 import { getFromIndexedDB, saveToIndexedDB, clearAllIndexedDB, CURRENT_CACHE_VERSION } from '@/lib/indexedDbCache';
 import { formatPhoneNumber, isFictitiousEmail, getIdentidadVariants } from '@/lib/formatters';
 import { logAudit, AuditCategoria, AuditCriticidad } from '@/lib/audit';
@@ -1229,6 +1229,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (tarifa && tarifa.factores) {
         mmv += (tarifa.factores[safeIndex] ?? tarifa.factores[0]);
+      } else {
+        // Fallback inteligente mediante el resolvedor oficial de la Ordenanza
+        const fo = resolverFOComercial(localOrData.actividad || localOrData.ActividadComercial || localOrData.actividad_principal || '', localOrData.mmvActual || localOrData.mmv_mes);
+        if (fo > 0) mmv += fo;
       }
 
       // Sumar MMV de las actividades adicionales (Nietos)

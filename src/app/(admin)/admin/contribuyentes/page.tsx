@@ -1784,11 +1784,19 @@ function ContribuyentesPageContent() {
         (inmsList || []).forEach((i: any) => { if (i.identidad) identsSet.add(i.identidad); });
         (contsData || []).forEach((c: any) => { if (c.identidad) identsSet.add(c.identidad); });
 
+        // Si la búsqueda incluye dígitos numéricos (como un RIF o cédula), expandir variantes
+        if (rawDigits.length >= 4) {
+          ['V-', 'E-', 'J-', 'G-', 'V', 'E', 'J', 'G'].forEach(pre => {
+            identsSet.add(`${pre}${rawDigits}`);
+          });
+          identsSet.add(rawDigits);
+        }
+
         allFoundInmuebles = (inmsList || []).filter((i: any) => {
           const st = String(i.estado || '').trim().toLowerCase();
           return st !== 'eliminado' && st !== 'inactivo' && st !== 'desactivado';
         });
-        if (identsSet.size > 0 && identsSet.size <= 25) {
+        if (identsSet.size > 0 && identsSet.size <= 50) {
           const { data: siblings } = await supabase
             .from('inmuebles')
             .select('*')

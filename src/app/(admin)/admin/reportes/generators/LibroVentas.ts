@@ -53,6 +53,8 @@ export const codigosDePago = (det: any, p?: any): string[] => {
       s.add(m[1] || m[2] || m[3] || m[4]);
     } else if (/^[A-Z]{3,4}\d{4,8}$/.test(str)) {
       s.add(str);
+    } else if (/^(?:SRV|SERV)[-_]/i.test(str)) {
+      s.add(str);
     }
   });
 
@@ -61,12 +63,42 @@ export const codigosDePago = (det: any, p?: any): string[] => {
     if (rc?.inmueble) s.add(String(rc.inmueble).trim().toUpperCase());
     if (rc?.codigo_inmueble) s.add(String(rc.codigo_inmueble).trim().toUpperCase());
     if (rc?.cod_inmueble) s.add(String(rc.cod_inmueble).trim().toUpperCase());
+    if (rc?.codContribuyente) s.add(String(rc.codContribuyente).trim().toUpperCase());
   });
 
   // 5. Deuda previa
   (Array.isArray(d.deuda_previa) ? d.deuda_previa : []).forEach((dp: any) => {
     if (dp?.inmueble) s.add(String(dp.inmueble).trim().toUpperCase());
     if (dp?.codigo) s.add(String(dp.codigo).trim().toUpperCase());
+  });
+
+  // 6. Servicios especiales o tala y poda
+  (Array.isArray(d.servicios) ? d.servicios : []).forEach((srv: any) => {
+    if (typeof srv === 'object') {
+      if (srv?.inmueble) s.add(String(srv.inmueble).trim().toUpperCase());
+      else if (srv?.referencia) s.add(String(srv.referencia).trim().toUpperCase());
+    } else if (typeof srv === 'string' && srv.trim()) {
+      s.add(srv.trim().toUpperCase());
+    }
+  });
+  (Array.isArray(d.tala_poda) ? d.tala_poda : []).forEach((srv: any) => {
+    if (typeof srv === 'object') {
+      if (srv?.inmueble) s.add(String(srv.inmueble).trim().toUpperCase());
+      else if (srv?.referencia) s.add(String(srv.referencia).trim().toUpperCase());
+    } else if (typeof srv === 'string' && srv.trim()) {
+      s.add(srv.trim().toUpperCase());
+    }
+  });
+
+  // 7. Convenios
+  (Array.isArray(d.cuotas) ? d.cuotas : []).forEach((cuo: any) => {
+    if (typeof cuo === 'object') {
+      if (cuo?.inmueble) s.add(String(cuo.inmueble).trim().toUpperCase());
+      else if (cuo?.numeroConv) s.add(String(cuo.numeroConv).trim().toUpperCase());
+      else if (cuo?.convId) s.add(`CONV-${String(cuo.convId).slice(0, 8).toUpperCase()}`);
+    } else if (typeof cuo === 'string' && cuo.trim()) {
+      s.add(cuo.trim().toUpperCase());
+    }
   });
 
   return [...s].filter(Boolean);

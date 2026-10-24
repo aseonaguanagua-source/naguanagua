@@ -283,6 +283,7 @@ export async function POST(request: Request) {
         // NUNCA usar inm?.deuda_mmv directamente como Bolívares (es MMV, no Bs).
         const montoCaja = montos && typeof montos === 'object' && montos[ref] ? parseFloat(String(montos[ref])) : 0;
         let montoBase = 0;
+        let multaDeRc = 0;
         if (montoCaja > 0) {
           montoBase = montoCaja;
         } else if (detPago?.recibo_caja) {
@@ -290,8 +291,32 @@ export async function POST(request: Request) {
             const rc = typeof detPago.recibo_caja === 'string' ? JSON.parse(detPago.recibo_caja) : detPago.recibo_caja;
             if (Array.isArray(rc) && rc.length > 0) {
               const subTotalRc = parseFloat(String(rc[0]?.subTotal || rc[0]?.baseImponible || '0')) || 0;
-              const exentoRc = parseFloat(String(rc[0]?.exento || '0')) || 0;
               const totalRc = parseFloat(String(rc[0]?.total || '0')) || 0;
+
+              let sumaMultaConceptos = 0;
+              let tieneConceptoAseo = false;
+              if (Array.isArray(rc[0]?.conceptos)) {
+                for (const c of rc[0].conceptos) {
+                  const desc = String(c.descripcion || c.concepto || '').toLowerCase();
+                  if (/multa|mora|sanci[oó]n/i.test(desc)) {
+                    sumaMultaConceptos += (parseFloat(String(c.total || c.precioUnit || 0)) || 0);
+                  } else if (/aseo|servicio|abono|recolecci[oó]n/i.test(desc)) {
+                    tieneConceptoAseo = true;
+                  }
+                }
+              }
+
+              let exentoRc = 0;
+              if (sumaMultaConceptos > 0) {
+                exentoRc = sumaMultaConceptos;
+              } else if (!tieneConceptoAseo) {
+                const exDir = parseFloat(String(rc[0]?.exento || '0')) || 0;
+                if (exDir > 0 && Math.abs(exDir - totalRc) > 0.05) {
+                  exentoRc = exDir;
+                }
+              }
+              multaDeRc = exentoRc;
+
               if (subTotalRc > 0 && subTotalRc !== totalRc) {
                 montoBase = parseFloat(((subTotalRc - exentoRc) / histRecibos.length).toFixed(2));
               } else if (totalRc > 0) {
@@ -317,13 +342,7 @@ export async function POST(request: Request) {
         // Si notas indica exoneración total o por mes: no hay multa.
         let montoMulta = 0;
         if (detPago?.recibo_caja) {
-          try {
-            const rc = typeof detPago.recibo_caja === 'string' ? JSON.parse(detPago.recibo_caja) : detPago.recibo_caja;
-            if (Array.isArray(rc) && rc.length > 0) {
-              const exentoRc = parseFloat(String(rc[0]?.exento || '0')) || 0;
-              montoMulta = exentoRc > 0 ? parseFloat((exentoRc / histRecibos.length).toFixed(2)) : 0;
-            }
-          } catch (_) {}
+          montoMulta = multaDeRc > 0 ? parseFloat((multaDeRc / histRecibos.length).toFixed(2)) : 0;
         } else if (previa && previa.multa_bs !== undefined) {
           const multaPrevia = parseFloat(String(previa.multa_bs || 0));
           montoMulta = multaPrevia > 0 ? parseFloat((multaPrevia / countHistThisInm).toFixed(2)) : 0;
@@ -670,9 +689,36 @@ export async function POST(request: Request) {
         if (Array.isArray(rc) && rc.length > 0) {
           rcSubTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.subTotal || 0)) || 0), 0));
           rcIva = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.iva || 0)) || 0), 0));
-          rcExento = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0));
           rcTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0));
           periodoRecibo = rc[0]?.periodo || '';
+
+          // Solo considerar como exento/multa conceptos que explícitamente sean multas
+          // Evitar que abonos comerciales provisionales (donde exento == total) se clasifiquen erróneamente como multa
+          let sumaMultaConceptos = 0;
+          let tieneConceptoAseo = false;
+          for (const r of rc) {
+            if (Array.isArray(r.conceptos)) {
+              for (const c of r.conceptos) {
+                const desc = String(c.descripcion || c.concepto || '').toLowerCase();
+                if (/multa|mora|sanci[oó]n/i.test(desc)) {
+                  sumaMultaConceptos += (parseFloat(String(c.total || c.precioUnit || 0)) || 0);
+                } else if (/aseo|servicio|abono|recolecci[oó]n/i.test(desc)) {
+                  tieneConceptoAseo = true;
+                }
+              }
+            }
+          }
+
+          if (sumaMultaConceptos > 0) {
+            rcExento = r2(sumaMultaConceptos);
+          } else if (!tieneConceptoAseo) {
+            // Si no hay conceptos de aseo identificados, tomar el exento directo si existe
+            const exDirecto = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0));
+            // Salvaguarda: si es comercial y el exento es igual o casi igual al total, NO es multa
+            if (exDirecto > 0 && Math.abs(exDirecto - rcTotal) > 0.05) {
+              rcExento = exDirecto;
+            }
+          }
         }
       } catch (e) {}
     }

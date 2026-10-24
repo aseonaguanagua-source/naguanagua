@@ -372,7 +372,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       }
     }
     const ls = f.lineas.map(k => lineaPor.get(k)!).filter(Boolean);
-    const esIndividualUnidad = cobro.modo === 'CONTRIBUYENTE' || c.modalidad === 'INDIVIDUAL' || (ls.length > 0 && ls[0]?.inmueble && ls[0]?.inmueble !== c.codigo);
+    const esIndividualUnidad = cobro.modo === 'CONTRIBUYENTE' || (cobro.modo !== 'CONDOMINIO' && (c.modalidad === 'INDIVIDUAL' || (ls.length > 0 && ls[0]?.inmueble && ls[0]?.inmueble !== c.codigo)));
     const codInmuebleFila = esIndividualUnidad ? (ls[0]?.inmueble || c.codigo) : c.codigo;
     const reciboRef = `CONDO-${codInmuebleFila}-${Date.now().toString().slice(-6)}${cobro.facturas.length > 1 ? `-${i + 1}` : ''}`;
     const ret = r2(ls.reduce((a, l) => a + l.retencionBs, 0));
@@ -467,6 +467,15 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         ? pago.pagosAgregados.map((pa: any) => pa.referencia).filter(Boolean).join(' / ')
         : refFinal,
       tasaBcv: tasa,
+      historialPagos: (pago.pagosAgregados && pago.pagosAgregados.length > 1)
+        ? pago.pagosAgregados.map((pa: any, pidx: number) => ({
+            fecha: pa.fecha || fechaTransaccion,
+            formaPago: pa.metodo || 'Transferencia',
+            banco: pa.banco || 'Banco',
+            referencia: pa.referencia || `Ref-${pidx + 1}`,
+            monto: Number(pa.monto) || 0,
+          }))
+        : undefined,
     };
 
     const detalles = {

@@ -237,16 +237,27 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
         <div className="overflow-y-auto flex-1 p-6">
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <p className="text-xs font-bold text-slate-500 uppercase mb-1">Monto Reportado</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-bold text-slate-500 uppercase">Monto Reportado</p>
+                {(det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${det.es_pago_adicional ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`}>
+                    {det.es_pago_adicional ? 'Diferencia' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? 'Anticipo' : 'Transferencia')}
+                  </span>
+                )}
+              </div>
               <p className="text-lg font-black text-slate-800">
                 Bs. {parseFloat(String(pago.monto || '0').replace(/[^0-9.]/g, '')).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}
               </p>
+              <p className="text-[11px] font-mono text-slate-500 mt-1">Ref: {pago.referencia || 'N/A'}</p>
             </div>
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
               <p className="text-xs font-bold text-slate-500 uppercase mb-1">Tasa Utilizada</p>
               <p className="text-lg font-black text-slate-800">
                 {det.tasa_bcv ? 'Bs. ' + Number(det.tasa_bcv).toFixed(2) : '---'}
               </p>
+              {det.total_seleccionado && Number(det.total_seleccionado) !== Number(pago.monto) && (
+                <p className="text-[11px] text-slate-500 mt-1">Deuda total: Bs. {parseFloat(String(det.total_seleccionado)).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}</p>
+              )}
             </div>
           </div>
           <h3 className="text-sm font-bold text-slate-800 uppercase mb-3">Archivos Adjuntos ({label})</h3>
@@ -1454,9 +1465,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
 
-        // Excedente de una transacción (registrado en Caja como saldo a favor): se acredita al aprobar.
-        const excedenteCaja = parseFloat(String(det.saldo_favor || 0)) || 0;
+        // Excedente de una transacción (registrado en Caja como saldo a favor o pago por encima de la deuda): se acredita al aprobar.
+        const excedenteCaja = Math.max(
+          parseFloat(String(det.saldo_favor || det.saldo_a_favor_nuevo || det.monto_sobrante || 0)) || 0,
+          (montoReportadoNum > totalAPagarCalc + 0.05) ? Math.round((montoReportadoNum - totalAPagarCalc) * 100) / 100 : 0
+        );
         if (excedenteCaja > 0.01 && !det.saldo_favor_acreditado) {
+          updatedDet.saldo_favor = excedenteCaja;
+          updatedDet.saldo_a_favor_nuevo = excedenteCaja;
+          updatedDet.monto_sobrante = excedenteCaja;
           const condoCod = (updatedDet.modulo === 'condominios' || det.modulo === 'condominios')
             ? (det.condominio?.codigo || det.codigo_condominio || updatedDet?.condominio?.codigo)
             : undefined;
@@ -2237,18 +2254,25 @@ export default function ConciliacionPage() {
       <tr key={'doc'+idx} className={`${condo ? 'bg-emerald-50' : 'bg-slate-100'} border-t ${mismoGrupoQueAnterior ? 'border-dashed border-sky-300' : 'border-slate-200'}`}>
         <td colSpan={10} className="px-3 py-1 text-xs text-slate-600 font-mono truncate">
           {condo && (
-            <span className="inline-flex items-center gap-1.5 mr-2 font-sans align-middle">
+            <span className="inline-flex items-center gap-1.5 mr-2 font-sans align-middle flex-wrap">
               <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-black">CONDOMINIO{condo.residencial === true ? ' · RESIDENCIAL' : condo.residencial === false ? ' · COMERCIAL' : ''}</span>
               <span className="text-[11px] font-bold text-emerald-900">{condo.nombre}{condo.codigo ? ` (${condo.codigo})` : ''}</span>
               <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${condo.facturaA === 'CONTRIBUYENTE' ? 'bg-sky-100 text-sky-800 border border-sky-300' : 'bg-white text-emerald-800 border border-emerald-300'}`}>
                 Factura a: {condo.facturaA === 'CONTRIBUYENTE' ? 'el contribuyente' : 'el condominio'}
               </span>
               {condo.grupo && <span className="px-1.5 py-0.5 rounded bg-sky-600 text-white text-[10px] font-black">Pago repartido · parte {condo.grupo.parte} de {condo.grupo.partes} · total Bs {fmt(condo.grupo.montoTotal)}</span>}
+              {(det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
+                <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">
+                  🔗 MULTI-TRANSFERENCIA {det.es_pago_adicional ? '· DIFERENCIA' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? '· ANTICIPO' : '')}
+                </span>
+              )}
             </span>
           )}
-          {!condo && (det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago) && (
+          {!condo && (det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
             <span className="inline-flex items-center gap-1.5 mr-2 font-sans align-middle">
-              <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">🔗 MULTI-TRANSFERENCIA</span>
+              <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">
+                🔗 MULTI-TRANSFERENCIA {det.es_pago_adicional ? '· DIFERENCIA' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? '· ANTICIPO' : '')}
+              </span>
               {det.es_pago_adicional && (
                 <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-300 text-[10px] font-bold">Transferencia Adicional</span>
               )}
@@ -2345,10 +2369,12 @@ export default function ConciliacionPage() {
           })()}
         </td>
         <td className="px-3 py-2 text-xs font-mono text-slate-600">
-          <div className="flex items-center gap-1.5">
-            <span>{pago.referencia || '---'}</span>
-            {(det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago) && (
-              <span className="px-1 py-0.2 rounded bg-indigo-100 text-indigo-700 font-sans text-[9px] font-bold" title="Parte de un pago con múltiples transferencias">🔗 Multi</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-bold text-slate-800">{pago.referencia || '---'}</span>
+            {(det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
+              <span className={`px-1 py-0.2 rounded font-sans text-[9px] font-bold ${det.es_pago_adicional ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`} title="Parte de un pago con múltiples transferencias">
+                {det.es_pago_adicional ? 'Diferencia' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? 'Anticipo' : '🔗 Multi')}
+              </span>
             )}
           </div>
         </td>

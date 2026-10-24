@@ -16,6 +16,7 @@ import {
   isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad,
   extractNivelZona
 } from '@/lib/calculos';
+import { codigosDePago } from '@/app/(admin)/admin/reportes/generators/LibroVentas';
 
 interface DetallesContribuyenteModalProps {
   isOpen: boolean;
@@ -184,9 +185,11 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   const [serviciosEspDb, setServiciosEspDb] = useState<any[]>([]);
   const [conveniosDb, setConveniosDb] = useState<any[]>([]);
   const [selectedInmSolvencia, setSelectedInmSolvencia] = useState('');
+  const [filtroInmueblePago, setFiltroInmueblePago] = useState<string>('todos');
   const [expandedNAs, setExpandedNAs] = useState<Record<string, boolean>>({});
   const [selectedInmCode, setSelectedInmCode] = useState<string | null>(null);
   const [otrosInmuebles, setOtrosInmuebles] = useState<any[]>([]);
+  const [todosInmueblesRif, setTodosInmueblesRif] = useState<any[]>([]);
   const [claveWeb, setClaveWeb] = useState<string>('');
   const [editandoClave, setEditandoClave] = useState<boolean>(false);
   const [guardandoClave, setGuardandoClave] = useState<boolean>(false);
@@ -282,18 +285,30 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           }
         }
 
-        // Consultar otros inmuebles independientes que tenga el titular (para aviso informativo, sin unificar deudas)
-        if (idVariants.length > 0 && codes.length > 0) {
+        // Consultar todos los inmuebles y actividades asociados a este RIF/Cédula en el municipio
+        if (idVariants.length > 0) {
           try {
-            const { data: otros } = await supabase
+            const rawDigits = ident.replace(/\D/g, '');
+            const allIdVariants = new Set<string>(idVariants);
+            if (rawDigits.length >= 4) {
+              ['V-', 'E-', 'J-', 'G-', 'V', 'E', 'J', 'G'].forEach(pre => {
+                allIdVariants.add(`${pre}${rawDigits}`);
+              });
+              allIdVariants.add(rawDigits);
+            }
+
+            const { data: todosRif } = await supabase
               .from('inmuebles')
-              .select('inmueble, tipo, actividad_principal, direccion')
+              .select('inmueble, tipo, actividad_principal, direccion, identidad, estado, meses_deuda, deuda_mmv, padre_id, numero_local')
               .neq('estado', 'Eliminado')
               .neq('estado', 'Inactivo')
-              .is('padre_id', null)
-              .in('identidad', idVariants);
-            const otrosFiltrados = (otros || []).filter((o: any) => !codes.includes(o.inmueble));
-            if (isMounted) setOtrosInmuebles(otrosFiltrados);
+              .or(Array.from(allIdVariants).map(v => `identidad.eq.${v}`).join(','));
+
+            if (isMounted && todosRif) {
+              setTodosInmueblesRif(todosRif);
+              const otrosFiltrados = todosRif.filter((o: any) => !codes.includes(o.inmueble) && !o.padre_id);
+              setOtrosInmuebles(otrosFiltrados);
+            }
           } catch (_) {}
         }
 
@@ -1064,23 +1079,130 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
              ══════════════════════════════════════════════════════ */}
           {activeTab === 'perfil' && (
             <div className="space-y-5 animate-in fade-in duration-150">
-              {otrosInmuebles.length > 0 && (
-                <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 text-xs text-amber-950 flex items-start gap-3 shadow-2xs">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="space-y-1.5 flex-1">
-                    <span className="font-bold text-slate-800 block text-xs">
-                      Este titular posee {otrosInmuebles.length} otro(s) inmueble(s) independiente(s) registrado(s):
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {otrosInmuebles.map((o: any) => (
-                        <span key={o.inmueble} className="bg-white border border-amber-300 text-amber-950 px-2.5 py-1 rounded-lg font-mono font-bold text-[11px] shadow-2xs">
-                          {o.inmueble} · {cleanClasificacionActividad(o.actividad_principal) || o.actividad_principal || o.tipo || 'Inmueble'}
-                        </span>
-                      ))}
+              {/* ══ BLOQUE ALUSIVO DESTACADO: TODAS LAS PROPIEDADES Y ACTIVIDADES ASOCIADAS A ESTE RIF ══ */}
+              {todosInmueblesRif.length > 0 && (
+                <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 rounded-2xl p-5 text-white shadow-lg border border-indigo-500/30 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-800/60 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-indigo-500/20 border border-indigo-400/30 rounded-xl text-indigo-300">
+                        <Layers className="w-5 h-5 text-indigo-300" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-black text-sm text-white tracking-wide uppercase">
+                            Patrimonio Inmobiliario y Actividades del RIF
+                          </h4>
+                          <span className="bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 text-[10px] font-black px-2 py-0.5 rounded-full">
+                            {todosInmueblesRif.length} {todosInmueblesRif.length === 1 ? 'registro municipal' : 'registros vinculados'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-indigo-200/80">
+                          Todo lo registrado bajo el RIF / Cédula <span className="font-mono font-bold text-amber-300">{viewData.Identidad}</span> en el Municipio
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-[11px] text-amber-800 block">
-                      📌 Cada inmueble se gestiona por separado con su propio estado de cuenta, facturación y solvencia individual.
-                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('inmuebles')}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>Ver Ficha Detallada</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Tabla alusiva con todos los inmuebles y actividades del RIF */}
+                  <div className="bg-slate-950/60 rounded-xl border border-indigo-500/20 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-indigo-950/80 text-indigo-200 text-[10px] uppercase font-bold tracking-wider border-b border-indigo-800/40">
+                          <tr>
+                            <th className="px-3.5 py-2.5">Código</th>
+                            <th className="px-3.5 py-2.5">Actividad / Ramo</th>
+                            <th className="px-3.5 py-2.5">Dirección / Ubicación</th>
+                            <th className="px-3.5 py-2.5 text-center">Estado Deuda</th>
+                            <th className="px-3.5 py-2.5 text-center">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-indigo-900/30">
+                          {todosInmueblesRif.map((inmRif: any, iIdx: number) => {
+                            const currentCodes = userInms.map((u: any) => u.inmueble).concat([viewData.inmueble, viewData.CodCont, viewData.cod_cont]).filter(Boolean);
+                            const isCurrentSelected = currentCodes.includes(inmRif.inmueble);
+                            const meses = parseInt(inmRif.meses_deuda || '0');
+                            const actClean = cleanClasificacionActividad(inmRif.actividad_principal) || inmRif.actividad_principal || 'No especificada';
+                            
+                            return (
+                              <tr 
+                                key={iIdx} 
+                                className={`transition-colors ${
+                                  isCurrentSelected ? 'bg-indigo-600/20' : 'hover:bg-indigo-900/20'
+                                }`}
+                              >
+                                <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-bold text-white bg-indigo-950 px-2 py-0.5 rounded border border-indigo-700/60 text-xs">
+                                      {inmRif.inmueble}
+                                    </span>
+                                    {isCurrentSelected && (
+                                      <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded uppercase">
+                                        Actual
+                                      </span>
+                                    )}
+                                    {inmRif.numero_local && (
+                                      <span className="text-[10px] text-indigo-300">
+                                        Loc. {inmRif.numero_local}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5">
+                                  <span className="font-bold text-slate-100 block">
+                                    {actClean}
+                                  </span>
+                                  {inmRif.padre_id && (
+                                    <span className="text-[10px] text-indigo-300 block">
+                                      Filial de matriz {inmRif.padre_id}
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="px-3.5 py-2.5 max-w-[280px]">
+                                  <p className="text-[11px] text-indigo-200/90 truncate" title={inmRif.direccion}>
+                                    {inmRif.direccion || 'Dirección no especificada'}
+                                  </p>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                                  {meses > 0 ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                      {meses} meses
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                      Al día
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => onImprimirEstadoDeCuenta(inmRif.inmueble, 'separados')}
+                                    className="p-1 hover:bg-white/10 rounded text-indigo-300 hover:text-white transition-colors"
+                                    title={`Descargar Estado de Cuenta PDF para ${inmRif.inmueble}`}
+                                  >
+                                    <Printer className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1523,14 +1645,39 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
                                             <td className="px-3 py-2.5 text-center whitespace-nowrap">
                                               <div className="inline-flex items-center gap-1.5">
-                                                <button
+                                                                               <button
                                                   type="button"
-                                                  onClick={() => onImprimirEstadoDeCuenta(hijo.inmueble, 'separados')}
-                                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
-                                                  title={`Estado de Cuenta individual de ${hijo.inmueble}`}
+                                                  onClick={async () => {
+                                                    const condoCod = prompt(`Indique el CÓDIGO del Condominio al cual desea transferir el local ${hijo.inmueble}:`);
+                                                    if (!condoCod || !condoCod.trim()) return;
+                                                    const mot = prompt('Motivo del traslado a condominio (mínimo 5 caracteres):', 'Separación de local de matriz y asignación a condominio');
+                                                    if (!mot || mot.trim().length < 5) return alert('Debe ingresar un motivo válido.');
+
+                                                    try {
+                                                      const res = await fetch('/api/admin/condominios/mover-unidad', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                          inmueble: hijo.inmueble,
+                                                          nuevo_condominio_codigo: condoCod.trim().toUpperCase(),
+                                                          usuario: 'Administrador',
+                                                          motivo: mot.trim()
+                                                        })
+                                                      });
+                                                      const j = await res.json();
+                                                      if (!res.ok || !j.ok) throw new Error(j.error || 'Error al mover local a condominio');
+                                                      alert(`✅ El local ${hijo.inmueble} ha sido transferido al condominio ${condoCod.trim().toUpperCase()} con éxito.`);
+                                                      setRefreshKey(prev => prev + 1);
+                                                      if (onRefresh) onRefresh();
+                                                    } catch (err: any) {
+                                                      alert('Error: ' + err.message);
+                                                    }
+                                                  }}
+                                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                                  title={`Separar local ${hijo.inmueble} y asignarlo a un Condominio`}
                                                 >
-                                                  <Printer className="w-3 h-3" />
-                                                  <span>PDF Local</span>
+                                                  <Store className="w-3 h-3" />
+                                                  <span>A Condominio</span>
                                                 </button>
                                                 <button
                                                   type="button"
@@ -1898,47 +2045,96 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
              ══════════════════════════════════════════════════════ */}
           {activeTab === 'pagos' && (
             <div className="space-y-4 animate-in fade-in duration-150">
-              <div className="flex items-center justify-between pb-1">
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm">Historial de Pagos y Transacciones Reportadas</h3>
-                  <p className="text-xs text-slate-500">Transacciones procesadas en Caja y reportes bancarios registrados.</p>
-                </div>
-              </div>
+              {(() => {
+                const inmsDelRif = Array.from(new Set([
+                  ...inmueblesList.map(i => i.inmueble),
+                  ...todosInmueblesRif.map(i => i.inmueble),
+                  ...otrosInmuebles.map(i => i.inmueble),
+                  viewData.CodCont || viewData.cod_cont
+                ].filter(Boolean))).sort();
 
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-                {pagosDb.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 text-xs">
-                    No se registran pagos previos en el sistema para este contribuyente.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                    <table className="w-full text-xs text-left">
-                      <thead className="bg-slate-100 text-slate-600 uppercase font-bold text-[10px] sticky top-0 z-10 border-b border-slate-200">
-                        <tr>
-                          <th className="px-4 py-2.5">Fecha</th>
-                          <th className="px-4 py-2.5">Referencia</th>
-                          <th className="px-4 py-2.5">Método / Banco</th>
-                          <th className="px-4 py-2.5">Período(s) Pagado(s)</th>
-                          <th className="px-4 py-2.5 text-right">Monto (Bs)</th>
-                          <th className="px-4 py-2.5 text-center">Estado</th>
-                          <th className="px-4 py-2.5 text-center">Comprobante Fiscal</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {pagosDb.map((p, idx) => {
-                          let det: any = {};
-                          try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
-                          const facturaDigital = det.factura_digital;
-                          const periodoTexto = formatPeriodosPagados(det, p);
+                const pagosFiltrados = pagosDb.filter((p: any) => {
+                  if (filtroInmueblePago === 'todos') return true;
+                  let det: any = {};
+                  try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
+                  const cods = codigosDePago(det, p);
+                  if (cods.length === 0) return true; // Mostrar si es un pago general
+                  return cods.includes(filtroInmueblePago.toUpperCase());
+                });
 
-                          return (
-                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">
-                                {p.created_at ? new Date(p.created_at).toLocaleDateString('es-VE') : '---'}
-                              </td>
-                              <td className="px-4 py-2.5 font-mono font-bold text-slate-800">
-                                {p.referencia || p.id}
-                              </td>
+                return (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-sm">Historial de Pagos y Transacciones Reportadas</h3>
+                        <p className="text-xs text-slate-500">
+                          {inmsDelRif.length > 1
+                            ? `Transacciones registradas. Filtradas por local específico o globales (${pagosFiltrados.length} de ${pagosDb.length} pagos).`
+                            : 'Transacciones procesadas en Caja y reportes bancarios registrados.'}
+                        </p>
+                      </div>
+
+                      {inmsDelRif.length > 1 && (
+                        <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                          <span className="text-[11px] font-bold text-slate-600 pl-1">Filtrar Inmueble:</span>
+                          <select
+                            value={filtroInmueblePago}
+                            onChange={(e) => setFiltroInmueblePago(e.target.value)}
+                            className="bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 px-2.5 py-1 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                          >
+                            <option value="todos">Todos los Inmuebles ({inmsDelRif.length})</option>
+                            {inmsDelRif.map((cod) => (
+                              <option key={cod} value={cod}>{cod}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                      {pagosFiltrados.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500 text-xs">
+                          {filtroInmueblePago === 'todos'
+                            ? 'No se registran pagos previos en el sistema para este contribuyente.'
+                            : `No se registran pagos previos asociados específicamente a ${filtroInmueblePago}.`}
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                          <table className="w-full text-xs text-left">
+                            <thead className="bg-slate-100 text-slate-600 uppercase font-bold text-[10px] sticky top-0 z-10 border-b border-slate-200">
+                              <tr>
+                                <th className="px-4 py-2.5">Fecha</th>
+                                <th className="px-4 py-2.5">Inmueble</th>
+                                <th className="px-4 py-2.5">Referencia</th>
+                                <th className="px-4 py-2.5">Método / Banco</th>
+                                <th className="px-4 py-2.5">Período(s) Pagado(s)</th>
+                                <th className="px-4 py-2.5 text-right">Monto (Bs)</th>
+                                <th className="px-4 py-2.5 text-center">Estado</th>
+                                <th className="px-4 py-2.5 text-center">Comprobante Fiscal</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {pagosFiltrados.map((p, idx) => {
+                                let det: any = {};
+                                try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
+                                const facturaDigital = det.factura_digital;
+                                const periodoTexto = formatPeriodosPagados(det, p);
+                                const codsPago = codigosDePago(det, p);
+                                const codsTexto = codsPago.length > 0 ? codsPago.join(', ') : (p.inmueble || '---');
+
+                                return (
+                                  <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="px-4 py-2.5 text-slate-600 font-medium whitespace-nowrap">
+                                      {p.created_at ? new Date(p.created_at).toLocaleDateString('es-VE') : '---'}
+                                    </td>
+                                    <td className="px-4 py-2.5 font-mono font-bold text-slate-800 whitespace-nowrap">
+                                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 text-[11px]">
+                                        {codsTexto}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2.5 font-mono font-bold text-slate-800">
+                                      {p.referencia || p.id}
+                                    </td>
                               <td className="px-4 py-2.5 text-slate-700">
                                 <span className="font-semibold">{p.metodo || p.tipo || 'Pago'}</span>
                                 {p.banco && <span className="text-slate-400 block text-[10px]">{p.banco}</span>}
@@ -2001,9 +2197,12 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                         })}
                       </tbody>
                     </table>
-                  </div>
-                )}
-              </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+              })()}
             </div>
           )}
 

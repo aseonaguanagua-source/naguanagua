@@ -71,12 +71,22 @@ export async function cargarDatosRecibo(pagoId: string): Promise<DatosRecibo> {
   const raw = String(cont?.email || det.correo || correoInm || '').trim().toLowerCase();
   const correoCliente = raw.length > 4 && raw.includes('@') && raw !== fallback && raw !== backup ? raw : null;
 
+  const esCondo = pago.modulo === 'condominios' || det.modulo === 'condominios' || det.isCondominio || det.es_condominio;
+  const esCondoGlobal = Boolean(esCondo && det.modo === 'CONDOMINIO');
+
   const codsInm = [...codigos];
   if (det.codigo_inmueble) codsInm.push(String(det.codigo_inmueble).trim().toUpperCase());
   if (det.cod_inmueble) codsInm.push(String(det.cod_inmueble).trim().toUpperCase());
   const nombreInmMail = codsInm.map(c => inmMap.get(c)?.contribuyente).find((n: any) => n && String(n).trim() && !String(n).trim().startsWith('V-') && !String(n).trim().startsWith('J-'));
   const rcRazon = Array.isArray(det.recibo_caja) && det.recibo_caja[0]?.razonSocial ? String(det.recibo_caja[0].razonSocial).trim() : null;
-  const contribuyente = nombreInmMail || rcRazon || det.contribuyente || cont?.nombre || pago.identidad;
+  
+  const contribuyente = (esCondoGlobal ? (det.condominio?.nombre || rcRazon || det.contribuyente) : null)
+    || (esCondo && det.modo === 'CONTRIBUYENTE' ? (nombreInmMail || rcRazon || det.contribuyente) : null)
+    || rcRazon
+    || nombreInmMail
+    || det.contribuyente
+    || cont?.nombre
+    || pago.identidad;
 
   return {
     pago, det, contribuyente, identidad: pago.identidad, correoCliente, clasif, lineas,
@@ -142,6 +152,39 @@ export function construirReciboHtml(d: DatosRecibo, opts: { esCopiaInterna?: boo
           ${filas}
         </table>` : ''}
         ${detallePeriodos}
+        ${(() => {
+          const fps = Array.isArray(d.det?.formasPago) && d.det.formasPago.length > 1
+            ? d.det.formasPago
+            : (Array.isArray(d.det?.pagos_agregados) && d.det.pagos_agregados.length > 1 ? d.det.pagos_agregados : null);
+          if (!fps) return '';
+          return `
+            <div style="margin-bottom:20px;">
+              <p style="margin:0 0 8px;font-size:12px;font-weight:bold;color:#0f172a;text-transform:uppercase;">Desglose de Pagos / Transferencias Realizadas</p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;border:1px solid #e2e8f0;border-radius:8px;">
+                <tr style="background:#f1f5f9;">
+                  <th style="padding:7px 8px;text-align:left;color:#475569;">Fecha</th>
+                  <th style="padding:7px 8px;text-align:left;color:#475569;">Forma / Banco</th>
+                  <th style="padding:7px 8px;text-align:left;color:#475569;">Referencia</th>
+                  <th style="padding:7px 8px;text-align:right;color:#475569;">Monto</th>
+                </tr>
+                ${fps.map((fp: any, idx: number) => {
+                  const fFecha = fp.fecha ? fechaCaracas(fp.fecha) : d.fechaPago;
+                  const fDesc = [fp.descripcion || fp.metodo || 'Transferencia', (fp.banco && fp.banco !== fp.descripcion) ? fp.banco.split(' - ')[0] : ''].filter(Boolean).join(' - ');
+                  const fRef = fp.referencia || `Parte ${idx + 1}`;
+                  const fMonto = Number(fp.monto) || 0;
+                  return `
+                    <tr>
+                      <td style="${td}color:#0f172a;font-family:monospace;font-size:11px;">${esc(fFecha)}</td>
+                      <td style="${td}color:#334155;">${esc(fDesc)}</td>
+                      <td style="${td}font-family:monospace;color:#0f172a;font-weight:bold;">${esc(fRef)}</td>
+                      <td style="${td}text-align:right;font-weight:bold;color:#166534;">Bs ${fmtBs(fMonto)}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </table>
+            </div>
+          `;
+        })()}
         <table width="100%" cellpadding="10" cellspacing="0" style="background:#ecfdf5;border-radius:8px;border:1px solid #a7f3d0;font-size:15px;">
           <tr><td style="color:#065f46;font-weight:bold;">TOTAL PAGADO</td><td style="text-align:right;color:#166534;font-size:18px;font-weight:800;">Bs ${fmtBs(d.pago.monto)}</td></tr>
         </table>

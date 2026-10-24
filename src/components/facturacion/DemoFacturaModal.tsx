@@ -90,9 +90,32 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
         tieneReciboCaja = true;
         rcSubTotal = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.subTotal || 0)) || 0), 0).toFixed(2));
         rcIva = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.iva || 0)) || 0), 0).toFixed(2));
-        rcExento = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0).toFixed(2));
         rcTotal = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0).toFixed(2));
         periodoRecibo = rc[0]?.periodo || '';
+
+        let sumaMultaConceptos = 0;
+        let tieneConceptoAseo = false;
+        for (const r of rc) {
+          if (Array.isArray(r.conceptos)) {
+            for (const c of r.conceptos) {
+              const desc = String(c.descripcion || c.concepto || '').toLowerCase();
+              if (/multa|mora|sanci[oó]n/i.test(desc)) {
+                sumaMultaConceptos += (parseFloat(String(c.total || c.precioUnit || 0)) || 0);
+              } else if (/aseo|servicio|abono|recolecci[oó]n/i.test(desc)) {
+                tieneConceptoAseo = true;
+              }
+            }
+          }
+        }
+
+        if (sumaMultaConceptos > 0) {
+          rcExento = parseFloat(sumaMultaConceptos.toFixed(2));
+        } else if (!tieneConceptoAseo) {
+          const exDirecto = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0).toFixed(2));
+          if (exDirecto > 0 && Math.abs(exDirecto - rcTotal) > 0.05) {
+            rcExento = exDirecto;
+          }
+        }
       }
     } catch(e) {}
   }

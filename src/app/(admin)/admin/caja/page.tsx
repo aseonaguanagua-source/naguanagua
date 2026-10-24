@@ -26,17 +26,18 @@ const BANCOS_VENEZUELA = LISTA_BANCOS;
 const updateServiciosEspecialesEstado = async (referencias: string[], estado: string) => {
   if (!referencias || referencias.length === 0) return;
   try {
-    // Usar la API Admin para garantizar persistencia con permisos de servicio (bypass RLS)
-    await fetch('/api/admin/servicios-especiales', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ referencias, estado })
-    });
-    // Fallback supabase client directo
-    await supabase
-      .from('servicios_especiales')
-      .update({ estado })
-      .in('referencia', referencias);
+    // Ejecutar en paralelo API Admin y Supabase directo para asegurar persistencia inmediata sin cuellos de botella
+    await Promise.allSettled([
+      fetch('/api/admin/servicios-especiales', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referencias, estado })
+      }),
+      supabase
+        .from('servicios_especiales')
+        .update({ estado })
+        .in('referencia', referencias)
+    ]);
   } catch (err) {
     console.error('Error actualizando servicios_especiales:', err);
   }
@@ -652,6 +653,8 @@ export default function CajaPage() {
         Estado: matchedInm.estado || 'Activo',
         condominio_padre_id: matchedInm.condominio_padre_id,
         es_condominio: matchedInm.es_condominio,
+        agente_retencion: matchedInm.agente_retencion,
+        esAgenteRetencion: matchedInm.agente_retencion,
         isSearchByCode: true
       };
       
@@ -691,6 +694,8 @@ export default function CajaPage() {
           Estado: inmDirect.estado || 'Activo',
           condominio_padre_id: inmDirect.condominio_padre_id,
           es_condominio: inmDirect.es_condominio,
+          agente_retencion: inmDirect.agente_retencion,
+          esAgenteRetencion: inmDirect.agente_retencion,
           isSearchByCode: true
         };
         
@@ -770,7 +775,9 @@ export default function CajaPage() {
             SaldoFavor: parseFloat(inmFallback.saldo_favor_bs || '0'),
             Estado: inmFallback.estado || 'Activo',
             condominio_padre_id: inmFallback.condominio_padre_id,
-            es_condominio: inmFallback.es_condominio
+            es_condominio: inmFallback.es_condominio,
+            agente_retencion: inmFallback.agente_retencion,
+            esAgenteRetencion: inmFallback.agente_retencion
           };
           // Eliminado el bloqueo estricto aquí: si es una búsqueda por cédula/nombre,
           // no bloqueamos. Simplemente el filtro más abajo ocultará los inmuebles de condominio.
@@ -907,9 +914,19 @@ export default function CajaPage() {
           ...codesArray.map(c => `padre_id.eq.${c}`)
         ].join(',');
       } else {
-        // Búsqueda por Cédula o RIF: solo inmuebles que pertenezcan a esta identidad
-        // NUNCA traer condominios o filiales ajenas de otros propietarios
-        orFilterInms = userIdentVariants.map(v => `identidad.eq.${v}`).join(',');
+        // Búsqueda por Cédula o RIF: inmuebles propios de la identidad Y actividades unificadas hijas de sus matrices
+        const initialIdentConditions = userIdentVariants.map(v => `identidad.eq.${v}`).join(',');
+        const { data: ownInmList } = await supabase
+          .from('inmuebles')
+          .select('inmueble')
+          .or(initialIdentConditions);
+
+        const ownCodes = (ownInmList || []).map((i: any) => i.inmueble).filter(Boolean);
+        if (ownCodes.length > 0) {
+          orFilterInms = `${initialIdentConditions},${ownCodes.map((c: string) => `padre_id.eq.${c}`).join(',')}`;
+        } else {
+          orFilterInms = initialIdentConditions;
+        }
       }
 
       const { data: inmFresh } = await supabase
@@ -1119,7 +1136,15 @@ export default function CajaPage() {
         }, 0
       );
       
-      setFoundUser({ ...user, SaldoFavor: saldoFavorFresh, AbonoPrevio: abonoPrevioInmuebles, DeudaTotal: deudaTotalFresh });
+      const isAgenteDetected = (activeInmFresh || []).some((i: any) => i.agente_retencion === true) || Boolean(primaryInm?.agente_retencion) || Boolean(user.agente_retencion);
+      setFoundUser({
+        ...user,
+        agente_retencion: isAgenteDetected,
+        esAgenteRetencion: isAgenteDetected,
+        SaldoFavor: saldoFavorFresh,
+        AbonoPrevio: abonoPrevioInmuebles,
+        DeudaTotal: deudaTotalFresh
+      });
 
       // Auditoría: Registro de consulta de contribuyente
       logAudit('Consulta de Contribuyente en Caja', {
@@ -1594,7 +1619,7 @@ export default function CajaPage() {
       } else {
         setIvaPercent(0.16); // 16% para comerciales
         // Detectar si es agente de retención
-        const esAgente = !!(inmuebles as any[]).find(
+        const esAgente = Boolean(user.agente_retencion) || (activeInmFresh || []).some((i: any) => i.agente_retencion === true) || !!(inmuebles as any[]).find(
           (inm: any) => (
             inm.identidad === user.Identidad ||
             inm.identidad === user.Identidad?.replace(/-/g, '')
@@ -2447,9 +2472,9 @@ export default function CajaPage() {
         }
 
         const refNum = grupos.length > 1 ? `${refNumBase}-${idx + 1}` : refNumBase;
-        const subTotalCalculado = esResInm ? totalGrupo : (sumaBase > 0 ? parseFloat((sumaBase + sumaMulta).toFixed(2)) : parseFloat((totalGrupo / 1.16).toFixed(2)));
-        const ivaCalculado = esResInm ? 0 : (sumaIva > 0 ? sumaIva : parseFloat((totalGrupo - subTotalCalculado).toFixed(2)));
-        const exentoCalculado = esResInm ? totalGrupo : (sumaMulta > 0 ? sumaMulta : 0);
+        const subTotalCalculado = esResInm ? totalGrupo : (esAbono ? parseFloat((totalGrupo / 1.16).toFixed(2)) : (sumaBase > 0 ? parseFloat((sumaBase + sumaMulta).toFixed(2)) : parseFloat((totalGrupo / 1.16).toFixed(2))));
+        const ivaCalculado = esResInm ? 0 : (esAbono ? parseFloat((totalGrupo - subTotalCalculado).toFixed(2)) : (sumaIva > 0 ? sumaIva : parseFloat((totalGrupo - subTotalCalculado).toFixed(2))));
+        const exentoCalculado = esResInm ? totalGrupo : (esAbono ? 0 : (sumaMulta > 0 ? sumaMulta : 0));
 
         return {
           reciboNo: refNum,

@@ -655,18 +655,28 @@ export default function FacturacionElectronicaPage() {
         const rc = typeof pago.detalles.recibo_caja === 'string' ? JSON.parse(pago.detalles.recibo_caja) : pago.detalles.recibo_caja;
         if (Array.isArray(rc) && rc.length > 0) {
           tieneReciboCaja = true;
-          const exDirecto = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0);
-          if (exDirecto > 0) {
-            exentoRecibo = exDirecto;
-          } else {
-            for (const r of rc) {
-              if (Array.isArray(r.conceptos)) {
-                for (const c of r.conceptos) {
-                  if (/multa/i.test(String(c.descripcion || c.concepto || ''))) {
-                    exentoRecibo += parseFloat(String(c.total || c.precioUnit || 0)) || 0;
-                  }
+          let sumaMultaConceptos = 0;
+          let tieneConceptoAseo = false;
+          for (const r of rc) {
+            if (Array.isArray(r.conceptos)) {
+              for (const c of r.conceptos) {
+                const desc = String(c.descripcion || c.concepto || '').toLowerCase();
+                if (/multa|mora|sanci[oó]n/i.test(desc)) {
+                  sumaMultaConceptos += (parseFloat(String(c.total || c.precioUnit || 0)) || 0);
+                } else if (/aseo|servicio|abono|recolecci[oó]n/i.test(desc)) {
+                  tieneConceptoAseo = true;
                 }
               }
+            }
+          }
+
+          if (sumaMultaConceptos > 0) {
+            exentoRecibo = sumaMultaConceptos;
+          } else if (!tieneConceptoAseo) {
+            const exDirecto = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0);
+            const totalRc = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0);
+            if (exDirecto > 0 && Math.abs(exDirecto - totalRc) > 0.05) {
+              exentoRecibo = exDirecto;
             }
           }
         }
@@ -1353,7 +1363,32 @@ export default function FacturacionElectronicaPage() {
                             Retención IVA (75%): Bs {fmtBs(pago.montoRetencion || pago.detalles?.monto_retencion_iva || 0)}
                           </div>
                         )}
-                        {pago.montoPagado !== undefined && Math.abs(pago.montoPagado - pago.monto) > 0.05 && (
+                        {/* Desglose de múltiples pagos (ej: anticipo + diferencia) */}
+                        {(() => {
+                          const fps = Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago.length > 1
+                            ? pago.detalles.formasPago
+                            : (Array.isArray(pago.detalles?.pagos_agregados) && pago.detalles.pagos_agregados.length > 1 ? pago.detalles.pagos_agregados : null);
+                          if (!fps) return null;
+                          return (
+                            <div className="mt-1 space-y-0.5 bg-slate-50 p-1.5 rounded border border-slate-200">
+                              <span className="text-[9px] font-bold text-slate-500 uppercase block tracking-wider font-sans">Desglose de transferencias:</span>
+                              {fps.map((fp: any, fidx: number) => {
+                                const m = Number(fp.monto) || 0;
+                                const r = fp.referencia || `Parte ${fidx + 1}`;
+                                const f = fp.fecha ? String(fp.fecha).slice(0, 10) : '';
+                                return (
+                                  <div key={fidx} className="flex items-center justify-between gap-1 text-[10px] text-slate-700">
+                                    <span className="truncate max-w-[110px]" title={`Ref: ${r} (${f})`}>
+                                      {fidx === 0 ? 'Anticipo' : 'Diferencia'} <span className="font-mono text-[9px] text-slate-500">({r})</span>:
+                                    </span>
+                                    <span className="font-bold text-emerald-800 shrink-0">Bs {fmtBs(m)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                        {pago.montoPagado !== undefined && Math.abs(pago.montoPagado - pago.monto) > 0.05 && (!pago.detalles?.formasPago || pago.detalles.formasPago.length <= 1) && (
                           <div className="text-[10px] text-slate-500 font-semibold mt-0.5">
                             Transferido: Bs {fmtBs(pago.montoPagado)}
                           </div>
@@ -2099,6 +2134,32 @@ export default function FacturacionElectronicaPage() {
                           </p>
                         );
                       })()}
+                    </div>
+                  );
+                })()}
+
+                {/* Desglose de formas de pago / múltiples transferencias si existen */}
+                {(() => {
+                  const fps = Array.isArray(selectedPagoForEmit.detalles?.formasPago) && selectedPagoForEmit.detalles.formasPago.length > 1
+                    ? selectedPagoForEmit.detalles.formasPago
+                    : (Array.isArray(selectedPagoForEmit.detalles?.pagos_agregados) && selectedPagoForEmit.detalles.pagos_agregados.length > 1 ? selectedPagoForEmit.detalles.pagos_agregados : null);
+                  if (!fps) return null;
+                  return (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+                      <div className="font-bold text-slate-800 flex items-center justify-between">
+                        <span>💳 Desglose de Pagos Registrados ({fps.length} transferencias)</span>
+                        <span className="text-[11px] font-mono text-slate-500">Total: Bs {fmtBs(fps.reduce((acc: number, item: any) => acc + (Number(item.monto) || 0), 0))}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {fps.map((fp: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between p-1.5 rounded bg-white border border-slate-200 font-mono text-[11px]">
+                            <span className="text-slate-700">
+                              <b className="font-sans text-slate-900">{idx === 0 ? 'Anticipo' : 'Diferencia'}:</b> Ref {fp.referencia || 'N/A'} {fp.banco ? `· ${fp.banco.split(' - ')[0]}` : ''}
+                            </span>
+                            <span className="font-bold text-emerald-700">Bs {fmtBs(Number(fp.monto) || 0)}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   );
                 })()}
