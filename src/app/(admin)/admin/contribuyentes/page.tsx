@@ -2142,9 +2142,21 @@ function ContribuyentesPageContent() {
           nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
           mmvActual: inm.mmv_mes,
           direccion: inm.direccion || '',
+          telefono: inm.telefono || '',
+          correo_electronico: inm.correo_electronico || '',
           agente_retencion: inm.agente_retencion === true || String(inm.agente_retencion) === 'true'
         };
-        loc.__orig = { uso: loc.uso, actividad: loc.actividad, nivel: loc.nivel, tipoResidencia: loc.tipoResidencia, estatus: loc.estatus, agente_retencion: loc.agente_retencion };
+        loc.__orig = { 
+          uso: loc.uso, 
+          actividad: loc.actividad, 
+          nivel: loc.nivel, 
+          tipoResidencia: loc.tipoResidencia, 
+          estatus: loc.estatus, 
+          agente_retencion: loc.agente_retencion,
+          direccion: loc.direccion,
+          telefono: loc.telefono,
+          correo_electronico: loc.correo_electronico
+        };
         return loc;
       });
       ActividadComercial = locales[0]?.actividad || '';
@@ -3076,146 +3088,163 @@ function ContribuyentesPageContent() {
 
                 <div className="max-h-[400px] overflow-y-auto p-4 space-y-4 bg-white">
                   {formData.locales?.map((local: any, index: number) => (
-                    <div key={local.id || index} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1.5fr_auto] gap-3 p-3 border border-slate-100 bg-slate-50 rounded items-start md:items-end">
-                       <div>
-                         <div className="flex items-center justify-between gap-1 mb-1">
-                           <label className="block text-[10px] font-medium text-slate-500">Numeración / Identificador</label>
-                           {local.codigo ? (
-                             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-blue-100 text-blue-800">
-                               {local.codigo}
-                             </span>
-                           ) : (
-                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                               ✨ Nuevo
-                             </span>
-                           )}
-                         </div>
-                         <input type="text" value={local.numeracion} onChange={e => {
-                            const newLocales = [...formData.locales];
-                            newLocales[index].numeracion = e.target.value;
-                            setFormData({...formData, locales: newLocales});
-                         }} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none" />
-                       </div>
-                       <div>
-                         <label className="block text-[10px] font-medium text-slate-500 mb-1">Uso</label>
-                         <select 
-                           value={local.uso} 
-                           onChange={e => {
-                              const newLocales = [...formData.locales];
-                              const nuevoUso = e.target.value;
-                              newLocales[index].uso = nuevoUso;
-                              if(nuevoUso === 'Residencial') {
-                                newLocales[index].actividad = '';
-                                if(!newLocales[index].tipoResidencia) newLocales[index].tipoResidencia = ordenanzaData.tiposResidenciales[0]?.label;
-                              } else {
-                                if(!newLocales[index].actividad) newLocales[index].actividad = todasLasActividades[0]?.label;
-                              }
-                              const hasCom = newLocales.some((l: any) => l.uso === 'Comercial');
-                              const hasRes = newLocales.some((l: any) => l.uso === 'Residencial');
-                              const newClasif = (hasCom && hasRes) ? 'Mixto' : (hasCom ? 'Comercial' : 'Residencial');
-                              setFormData({...formData, locales: newLocales, Clasificacion: newClasif});
-                           }} 
-                           className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none text-slate-700 bg-white"
-                         >
-                           <option value="Residencial">Residencial</option>
-                           <option value="Comercial">Comercial</option>
-                         </select>
-                       </div>
-                       <div>
-                         <label className="block text-[10px] font-medium text-slate-500 mb-1">Estatus</label>
-                         <select value={local.estatus} onChange={e => {
-                            const newLocales = [...formData.locales];
-                            newLocales[index].estatus = e.target.value;
-                            if(e.target.value === 'Desocupado') newLocales[index].actividad = '';
-                            setFormData({...formData, locales: newLocales});
-                         }} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none mb-2">
-                           <option value="Desocupado">Desocupado</option>
-                           <option value="Ocupado">Ocupado</option>
-                         </select>
-                         <label className="flex items-center gap-1.5 mt-1 cursor-pointer hover:bg-blue-50 p-1 -ml-1 rounded">
-                           <input type="checkbox" checked={local.agente_retencion === true} onChange={e => {
+                    <div key={local.id || index} className="p-3 border border-slate-200 bg-slate-50/80 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1.5fr_auto] gap-3 items-start md:items-end">
+                        <div>
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <label className="block text-[10px] font-medium text-slate-500">Numeración / Identificador</label>
+                            {local.codigo ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-blue-100 text-blue-800">
+                                {local.codigo}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                ✨ Nuevo
+                              </span>
+                            )}
+                          </div>
+                          <input type="text" value={local.numeracion} onChange={e => {
                              const newLocales = [...formData.locales];
-                             newLocales[index].agente_retencion = e.target.checked;
+                             newLocales[index].numeracion = e.target.value;
                              setFormData({...formData, locales: newLocales});
-                           }} className="w-3.5 h-3.5 accent-blue-600" />
-                           <span className="text-[10px] font-bold text-blue-900 leading-tight">Agente Retención (75% IVA)</span>
-                         </label>
-                       </div>
-                       <div className="min-w-[150px]">
-                         {local.uso === 'Comercial' ? (
-                           <>
-                             {local.estatus === 'Ocupado' ? (
-                               <div className="mb-2">
-                                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Actividad Comercial</label>
-                                 <Select
-                                   options={todasLasActividades.map(a => ({ value: a.label, label: a.label }))}
-                                   value={local.actividad ? { value: local.actividad, label: local.actividad } : null}
-                                   onChange={(selected: any) => {
+                          }} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-medium text-slate-500 mb-1">Uso</label>
+                          <select 
+                            value={local.uso} 
+                            onChange={e => {
+                               const newLocales = [...formData.locales];
+                               const nuevoUso = e.target.value;
+                               newLocales[index].uso = nuevoUso;
+                               if(nuevoUso === 'Residencial') {
+                                 newLocales[index].actividad = '';
+                                 if(!newLocales[index].tipoResidencia) newLocales[index].tipoResidencia = ordenanzaData.tiposResidenciales[0]?.label;
+                               } else {
+                                 if(!newLocales[index].actividad) newLocales[index].actividad = todasLasActividades[0]?.label;
+                               }
+                               const hasCom = newLocales.some((l: any) => l.uso === 'Comercial');
+                               const hasRes = newLocales.some((l: any) => l.uso === 'Residencial');
+                               const newClasif = (hasCom && hasRes) ? 'Mixto' : (hasCom ? 'Comercial' : 'Residencial');
+                               setFormData({...formData, locales: newLocales, Clasificacion: newClasif});
+                            }} 
+                            className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none text-slate-700 bg-white"
+                          >
+                            <option value="Residencial">Residencial</option>
+                            <option value="Comercial">Comercial</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-medium text-slate-500 mb-1">Estatus</label>
+                          <select value={local.estatus} onChange={e => {
+                             const newLocales = [...formData.locales];
+                             newLocales[index].estatus = e.target.value;
+                             if(e.target.value === 'Desocupado') newLocales[index].actividad = '';
+                             setFormData({...formData, locales: newLocales});
+                          }} className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none mb-2">
+                            <option value="Desocupado">Desocupado</option>
+                            <option value="Ocupado">Ocupado</option>
+                          </select>
+                          <label className="flex items-center gap-1.5 mt-1 cursor-pointer hover:bg-blue-50 p-1 -ml-1 rounded">
+                            <input type="checkbox" checked={local.agente_retencion === true} onChange={e => {
+                              const newLocales = [...formData.locales];
+                              newLocales[index].agente_retencion = e.target.checked;
+                              setFormData({...formData, locales: newLocales});
+                            }} className="w-3.5 h-3.5 accent-blue-600" />
+                            <span className="text-[10px] font-bold text-blue-900 leading-tight">Agente Retención (75% IVA)</span>
+                          </label>
+                        </div>
+                        <div className="min-w-[150px]">
+                          {local.uso === 'Comercial' ? (
+                            <>
+                              {local.estatus === 'Ocupado' ? (
+                                <div className="mb-2">
+                                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Actividad Comercial</label>
+                                  <Select
+                                    options={todasLasActividades.map(a => ({ value: a.label, label: a.label }))}
+                                    value={local.actividad ? { value: local.actividad, label: local.actividad } : null}
+                                    onChange={(selected: any) => {
+                                      const newLocales = [...formData.locales];
+                                      newLocales[index].actividad = selected?.value || '';
+                                      setFormData({...formData, locales: newLocales});
+                                    }}
+                                    placeholder="Actividad..."
+                                    className="text-xs"
+                                    styles={{
+                                      control: (base) => ({...base, minHeight: '30px', fontSize: '0.75rem'}),
+                                      menuList: (base) => ({...base, maxHeight: '150px'})
+                                    }}
+                                    menuPosition="fixed"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="mb-2">
+                                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Actividad Comercial</label>
+                                  <div className="h-[30px] flex items-center px-2 text-[10px] bg-slate-100 text-slate-500 rounded border border-slate-200">
+                                    Inmueble desocupado (vacío)
+                                  </div>
+                                </div>
+                              )}
+                              <div>
+                                <label className="block text-[10px] font-medium text-slate-500 mb-1">Nivel (Metraje)</label>
+                                <select 
+                                  value={local.nivel || ordenanzaData.nivelesMetraje[0]} 
+                                  onChange={e => {
                                      const newLocales = [...formData.locales];
-                                     newLocales[index].actividad = selected?.value || '';
+                                     newLocales[index].nivel = e.target.value;
                                      setFormData({...formData, locales: newLocales});
-                                   }}
-                                   placeholder="Actividad..."
-                                   className="text-xs"
-                                   styles={{
-                                     control: (base) => ({...base, minHeight: '30px', fontSize: '0.75rem'}),
-                                     menuList: (base) => ({...base, maxHeight: '150px'})
-                                   }}
-                                   menuPosition="fixed"
-                                 />
-                               </div>
-                             ) : (
-                               <div className="mb-2">
-                                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Actividad Comercial</label>
-                                 <div className="h-[30px] flex items-center px-2 text-[10px] bg-slate-100 text-slate-500 rounded border border-slate-200">
-                                   Inmueble desocupado (vacío)
-                                 </div>
-                               </div>
-                             )}
-                             <div>
-                               <label className="block text-[10px] font-medium text-slate-500 mb-1">Nivel (Metraje)</label>
-                               <select 
-                                 value={local.nivel || ordenanzaData.nivelesMetraje[0]} 
-                                 onChange={e => {
-                                    const newLocales = [...formData.locales];
-                                    newLocales[index].nivel = e.target.value;
-                                    setFormData({...formData, locales: newLocales});
-                                 }}
-                                 className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none"
-                               >
-                                 {ordenanzaData.nivelesMetraje.map(n => <option key={n} value={n}>{n}</option>)}
-                               </select>
-                             </div>
-                           </>
-                         ) : (
-                           <div className="h-full flex flex-col items-start justify-center pt-2">
-                             <label className="block text-[10px] font-medium text-slate-500 mb-1">Tipo de Residencia</label>
-                             <select 
-                               value={local.tipoResidencia || ordenanzaData.tiposResidenciales[0].label} 
-                               onChange={e => {
-                                  const newLocales = [...formData.locales];
-                                  newLocales[index].tipoResidencia = e.target.value;
-                                  setFormData({...formData, locales: newLocales});
-                               }}
-                               className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none"
-                             >
-                               {ordenanzaData.tiposResidenciales.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
-                             </select>
-                           </div>
-                         )}
-                       </div>
-                       
-                       {/* Botón de Eliminar Actividad/Inmueble */}
-                       <div className="flex items-center justify-center pb-1">
-                         <button
-                           type="button"
-                           onClick={() => handleEliminarActividad(index)}
-                           className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-sm transition-all w-full md:w-auto justify-center mt-2 md:mt-0 cursor-pointer"
-                           title="Eliminar esta actividad del contribuyente"
-                         >
-                           <Trash2 className="w-4 h-4" /> <span>Eliminar Actividad</span>
-                         </button>
-                       </div>
+                                  }}
+                                  className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none"
+                                >
+                                  {ordenanzaData.nivelesMetraje.map(n => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="h-full flex flex-col items-start justify-center pt-2">
+                              <label className="block text-[10px] font-medium text-slate-500 mb-1">Tipo de Residencia</label>
+                              <select 
+                                value={local.tipoResidencia || ordenanzaData.tiposResidenciales[0].label} 
+                                onChange={e => {
+                                   const newLocales = [...formData.locales];
+                                   newLocales[index].tipoResidencia = e.target.value;
+                                   setFormData({...formData, locales: newLocales});
+                                }}
+                                className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs outline-none"
+                              >
+                                {ordenanzaData.tiposResidenciales.map(t => <option key={t.label} value={t.label}>{t.label}</option>)}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Botón de Eliminar Actividad/Inmueble */}
+                        <div className="flex items-center justify-center pb-1">
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarActividad(index)}
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-sm transition-all w-full md:w-auto justify-center mt-2 md:mt-0 cursor-pointer"
+                            title="Eliminar esta actividad del contribuyente"
+                          >
+                            <Trash2 className="w-4 h-4" /> <span>Eliminar Actividad</span>
+                          </button>
+                        </div>
+                      </div>
+                      {/* Dirección específica de este local / inmueble (Caso 18) */}
+                      <div className="mt-2.5 pt-2 border-t border-slate-200 flex items-center gap-2">
+                        <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Dirección de este local:</label>
+                        <input
+                          type="text"
+                          value={local.direccion || ''}
+                          onChange={e => {
+                            const newLocales = [...formData.locales];
+                            newLocales[index].direccion = e.target.value;
+                            setFormData({...formData, locales: newLocales});
+                          }}
+                          placeholder="Dejar vacío para usar la dirección principal..."
+                          className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-blue-500 bg-white"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -3607,7 +3636,9 @@ function ContribuyentesPageContent() {
           return s === 'eliminado' || s === 'inactivo' || s === 'desactivado' || s === 'baja';
         };
 
-        if (rowCodes.length > 0 && inmuebles && inmuebles.length > 0) {
+        if (isExcludedState(row.Estado || row.estado)) {
+          // Si la fila completa está eliminada/inactiva, no mostrar actividades
+        } else if (rowCodes.length > 0 && inmuebles && inmuebles.length > 0) {
           const directInms = inmuebles.filter((i: any) => 
             rowCodes.includes(i.inmueble) && !isExcludedState(i.estado)
           );
@@ -3619,10 +3650,18 @@ function ContribuyentesPageContent() {
             const act = i.actividad_principal || i.Actividad || i.ActividadComercial;
             if (act && act !== 'No asignado' && act !== 'N/A') actividades.add(act);
           });
-        }
-        
-        // Fallback a la actividad propia de la fila si no se encontraron en el array global
-        if (actividades.size === 0 && !isExcludedState(row.Estado || row.estado)) {
+
+          // Solo hacer fallback si no se encontraron registros en el array global pero la fila no tiene ningún inmueble marcado como eliminado
+          if (actividades.size === 0) {
+            const anyEliminated = inmuebles.some((i: any) => rowCodes.includes(i.inmueble) && isExcludedState(i.estado));
+            if (!anyEliminated) {
+              const rowAct = row.ActividadComercial || row.Actividad || row.actividad_principal;
+              if (rowAct && rowAct !== 'No asignado' && rowAct !== 'N/A') {
+                actividades.add(rowAct);
+              }
+            }
+          }
+        } else if (!isExcludedState(row.Estado || row.estado)) {
           const rowAct = row.ActividadComercial || row.Actividad || row.actividad_principal;
           if (rowAct && rowAct !== 'No asignado' && rowAct !== 'N/A') {
             actividades.add(rowAct);

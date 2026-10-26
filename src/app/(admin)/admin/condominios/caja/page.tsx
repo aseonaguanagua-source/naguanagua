@@ -1130,18 +1130,167 @@ function Caja() {
               </div>
             </div>
 
-            {/* ══ MODO DE PAGO ══ */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <button id="modo-condominio-completo" onClick={() => cambiarModo('CONDOMINIO')}
-                className={`text-left rounded-2xl border-2 p-4 cursor-pointer transition ${!porContrib ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                <div className="font-black text-slate-900 flex items-center gap-2"><Building2 className="w-4 h-4 text-emerald-600" /> Paga el condominio completo</div>
-                <div className="text-xs text-slate-600 mt-1">Una sola factura digital <b>al condominio</b> ({c.identidad}). Permite cobro completo o <b>abono sumando local por local</b>.{cobro.estado?.porActividad ? ' Las multas no van: las paga cada contribuyente.' : ''}</div>
-              </button>
-              <button id="modo-por-contribuyente" onClick={() => cambiarModo('CONTRIBUYENTE')}
-                className={`text-left rounded-2xl border-2 p-4 cursor-pointer transition ${porContrib ? 'border-sky-500 bg-sky-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                <div className="font-black text-slate-900 flex items-center gap-2"><Users className="w-4 h-4 text-sky-600" /> Paga por contribuyente / local</div>
-                <div className="text-xs text-slate-600 mt-1">Una factura digital <b>a cada dueño</b>. Incluye sus multas.</div>
-              </button>
+            {/* ══ 4 MODALIDADES DE COBRO INTUITIVAS ══ */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">¿Cómo desea realizar el cobro hoy?</span>
+                  <h3 className="text-sm font-black text-slate-900">Seleccione la Modalidad de Pago</h3>
+                </div>
+                <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                  Facturación: {modo === 'CONDOMINIO' ? `A nombre del Condominio (${c.identidad})` : 'A nombre de cada Propietario individual'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                {/* Modalidad 1: Pago Completo del Condominio */}
+                <button
+                  type="button"
+                  id="modo-1-condominio-completo"
+                  onClick={() => {
+                    setModo('CONDOMINIO');
+                    setAbonoLocales(false);
+                    setSoloMultas(false);
+                    setClaves([]);
+                    setIdentidad('');
+                  }}
+                  className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${
+                    modo === 'CONDOMINIO' && !abonoLocales && !soloMultas
+                      ? 'border-emerald-600 bg-emerald-50/80 shadow-xs ring-2 ring-emerald-400/40'
+                      : 'border-slate-200 bg-white hover:border-emerald-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        Opción 1 · Global
+                      </span>
+                      {modo === 'CONDOMINIO' && !abonoLocales && !soloMultas && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse" />
+                      )}
+                    </div>
+                    <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-emerald-600 shrink-0" /> Pago Completo
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">
+                      Cancela <b>todas las unidades</b> en una sola transacción.
+                    </p>
+                  </div>
+                  <div className="mt-2.5 pt-2 border-t border-emerald-200/60 text-[10px] font-bold text-emerald-900">
+                    📄 Factura al Condominio ({c.identidad})
+                  </div>
+                </button>
+
+                {/* Modalidad 2: Pago por Abono al Condominio */}
+                <button
+                  type="button"
+                  id="modo-2-abono-condominio"
+                  onClick={() => {
+                    setModo('CONDOMINIO');
+                    setAbonoLocales(true);
+                    setSoloMultas(false);
+                    setIdentidad('');
+                  }}
+                  className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${
+                    modo === 'CONDOMINIO' && abonoLocales && !soloMultas
+                      ? 'border-teal-600 bg-teal-50/80 shadow-xs ring-2 ring-teal-400/40'
+                      : 'border-slate-200 bg-white hover:border-teal-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-300">
+                        Opción 2 · Abono
+                      </span>
+                      {modo === 'CONDOMINIO' && abonoLocales && !soloMultas && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-pulse" />
+                      )}
+                    </div>
+                    <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-teal-600 shrink-0" /> Abono por Locales
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">
+                      Suma y cancela <b>locales seleccionados</b> como cuota parcial.
+                    </p>
+                  </div>
+                  <div className="mt-2.5 pt-2 border-t border-teal-200/60 text-[10px] font-bold text-teal-900">
+                    📄 Factura al Condominio ({claves.length > 0 ? `${claves.length} unid.` : 'Marque unidades'})
+                  </div>
+                </button>
+
+                {/* Modalidad 3: Pago Individual por Contribuyente / Local */}
+                <button
+                  type="button"
+                  id="modo-3-individual-contribuyente"
+                  onClick={() => {
+                    setModo('CONTRIBUYENTE');
+                    setSoloMultas(false);
+                    setAbonoLocales(false);
+                  }}
+                  className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${
+                    modo === 'CONTRIBUYENTE' && !soloMultas
+                      ? 'border-sky-600 bg-sky-50/80 shadow-xs ring-2 ring-sky-400/40'
+                      : 'border-slate-200 bg-white hover:border-sky-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300">
+                        Opción 3 · Individual
+                      </span>
+                      {modo === 'CONTRIBUYENTE' && !soloMultas && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-sky-600 animate-pulse" />
+                      )}
+                    </div>
+                    <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-sky-600 shrink-0" /> Dueño Individual
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">
+                      Paga el local de un usuario. Permite <b>Aseo + Multa</b> en un pago.
+                    </p>
+                  </div>
+                  <div className="mt-2.5 pt-2 border-t border-sky-200/60 text-[10px] font-bold text-sky-900">
+                    👤 Factura a nombre del Propietario
+                  </div>
+                </button>
+
+                {/* Modalidad 4: Pago de Multas por Contribuyente (Cobro Separado) */}
+                <button
+                  type="button"
+                  id="modo-4-multas-separadas"
+                  onClick={() => {
+                    setModo('CONTRIBUYENTE');
+                    setSoloMultas(true);
+                    setIncluirMultas(false);
+                    setAbonoLocales(false);
+                  }}
+                  className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${
+                    modo === 'CONTRIBUYENTE' && soloMultas
+                      ? 'border-rose-600 bg-rose-50/80 shadow-xs ring-2 ring-rose-400/40'
+                      : 'border-slate-200 bg-white hover:border-rose-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                        Opción 4 · Sanción
+                      </span>
+                      {modo === 'CONTRIBUYENTE' && soloMultas && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse" />
+                      )}
+                    </div>
+                    <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" /> Multas Separadas
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">
+                      Cobro <b>independiente de multas</b> de un local (cronológico).
+                    </p>
+                  </div>
+                  <div className="mt-2.5 pt-2 border-t border-rose-200/60 text-[10px] font-bold text-rose-900">
+                    ⚖️ Recibo de Multas al Contribuyente
+                  </div>
+                </button>
+              </div>
             </div>
 
             {cobro.avisos?.map((a: string, i: number) => <div key={i} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 text-xs font-bold">{a}</div>)}
@@ -1150,26 +1299,38 @@ function Caja() {
               <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-8 text-center text-emerald-800 font-bold"><CheckCircle2 className="w-8 h-8 mx-auto mb-2" /> Este condominio está al día.</div>
             ) : (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
-                  <div className="font-extrabold text-slate-800 text-sm">
-                    {porContrib
-                      ? 'Escriba la cédula del contribuyente o escoja sus locales'
-                      : abonoLocales
-                        ? 'Abono al Condominio: Seleccione los locales a sumar'
-                        : 'Todo lo que debe el condominio (Cobro Completo)'}
+                {/* Header dinámico e intuitivo según la modalidad elegida */}
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/70">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${
+                        modo === 'CONDOMINIO' && !abonoLocales && !soloMultas ? 'bg-emerald-600' :
+                        modo === 'CONDOMINIO' && abonoLocales ? 'bg-teal-600' :
+                        modo === 'CONTRIBUYENTE' && !soloMultas ? 'bg-sky-600' : 'bg-rose-600'
+                      }`} />
+                      <div className="font-extrabold text-slate-900 text-sm">
+                        {modo === 'CONDOMINIO' && !abonoLocales && !soloMultas && 'Modalidad 1: Cobro Completo del Condominio'}
+                        {modo === 'CONDOMINIO' && abonoLocales && 'Modalidad 2: Abono al Condominio (Suma de Locales)'}
+                        {modo === 'CONTRIBUYENTE' && !soloMultas && 'Modalidad 3: Cobro Individual al Contribuyente'}
+                        {modo === 'CONTRIBUYENTE' && soloMultas && 'Modalidad 4: Cobro Exclusivo de Multas por Mora'}
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      {modo === 'CONDOMINIO' && !abonoLocales && `Se liquidan las ${conDeuda.length} unidades activas a nombre del condominio.`}
+                      {modo === 'CONDOMINIO' && abonoLocales && 'Haga clic en los locales que van a sumar este abono. Se factura al condominio.'}
+                      {modo === 'CONTRIBUYENTE' && !soloMultas && 'Busque por cédula o elija el local del propietario. Factura individual.'}
+                      {modo === 'CONTRIBUYENTE' && soloMultas && 'Cobro de sanciones en estricto orden cronológico mes a mes.'}
+                    </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-red-100 transition-colors">
-                      <input id="solo-multas-condominio" type="checkbox" checked={soloMultas} onChange={e => { setSoloMultas(e.target.checked); if (e.target.checked) setIncluirMultas(false); }} className="w-4 h-4 accent-red-600" />
-                      <span>Solo multas</span>
-                    </label>
 
-                    {!soloMultas && (
-                      <label className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Switch de Multa por Mora (solo activo para Pago Individual de Contribuyente) */}
+                    {modo === 'CONTRIBUYENTE' && !soloMultas && (
+                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${
                         incluirMultas
-                          ? 'bg-amber-100 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-300'
-                          : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
-                      }`} title="Solo se agrega la multa si marca esta casilla">
+                          ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-1 ring-amber-300'
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                      }`} title="Incluye o no las multas acumuladas de este contribuyente">
                         <input
                           id="incluir-multas-condominio"
                           type="checkbox"
@@ -1177,21 +1338,21 @@ function Caja() {
                           onChange={e => setIncluirMultas(e.target.checked)}
                           className="w-4 h-4 accent-amber-600 rounded"
                         />
-                        <span>Cobrar multas por mora</span>
+                        <span>Cobrar Aseo + Multas</span>
                       </label>
                     )}
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <label className="text-xs font-bold text-slate-600">
-                        {soloMultas ? 'Multas a pagar (global):' : 'Meses a pagar (global):'}
+                        {soloMultas ? 'Multas:' : 'Meses:'}
                       </label>
-                      <select id="meses-a-pagar" value={meses} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1.5 px-2 rounded-lg border border-slate-300 text-sm bg-white font-medium cursor-pointer">
-                        <option value="">{soloMultas ? 'Todas las multas acumuladas' : 'Todos (ponerse al día)'}</option>
+                      <select id="meses-a-pagar" value={meses} onChange={e => setMeses(e.target.value ? Number(e.target.value) : '')} className="py-1 px-2.5 rounded-lg border border-slate-300 text-xs bg-white font-bold cursor-pointer text-slate-800 shadow-2xs">
+                        <option value="">{soloMultas ? 'Todas las multas' : 'Todos (al día)'}</option>
                         {Array.from({ length: maxOpciones }, (_, i) => i + 1).map(n => (
                           <option key={n} value={n}>
                             {soloMultas
-                              ? (n === 1 ? '1er mes de multa (el más viejo obligatorio)' : `Hasta ${n} meses de multas (desde el más viejo)`)
-                              : (n === 1 ? '1 mes de aseo (el más viejo)' : `${n} meses de aseo (más viejos)`)}
+                              ? (n === 1 ? '1 mes de multa' : `Hasta ${n} meses de multas`)
+                              : (n === 1 ? '1 mes de aseo' : `${n} meses de aseo`)}
                           </option>
                         ))}
                       </select>
@@ -1199,10 +1360,10 @@ function Caja() {
                         <button
                           type="button"
                           onClick={() => setMesesPorUnidad({})}
-                          className="text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-md border border-amber-300 transition-colors cursor-pointer shadow-xs"
+                          className="text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-md border border-amber-300 transition-colors cursor-pointer shadow-2xs"
                           title="Restablecer todos los locales al valor global de meses"
                         >
-                          ↺ Restablecer meses por local ({Object.keys(mesesPorUnidad).length} personalizados)
+                          ↺ Reset meses
                         </button>
                       )}
                     </div>
@@ -1210,20 +1371,20 @@ function Caja() {
                 </div>
 
                 {soloMultas && maxOpciones > 0 && (
-                  <div className="bg-amber-50/90 border-b border-amber-200 p-3.5 space-y-2">
+                  <div className="bg-rose-50/90 border-b border-rose-200 p-3.5 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm">🔒</span>
-                        <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
-                          Pago de Multas Mes a Mes (Orden Cronológico Estricto)
+                        <ShieldAlert className="w-4 h-4 text-rose-700" />
+                        <span className="text-xs font-black text-rose-950 uppercase tracking-wide">
+                          Cobro de Multas Mes a Mes (Cronológico Estricto)
                         </span>
                       </div>
-                      <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                      <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-rose-200 text-rose-900 border border-rose-300">
                         {meses ? `${meses} de ${maxOpciones} mes(es) de multa` : `Todas las multas (${maxOpciones})`}
                       </span>
                     </div>
-                    <p className="text-[11px] text-amber-900 font-medium">
-                      El sistema exige cobrar las multas en orden <b>desde la más antigua hacia la más reciente</b>. No se permite adelantar meses si existen multas anteriores pendientes.
+                    <p className="text-[11px] text-rose-900 font-medium">
+                      Las multas se cobran en orden desde la más antigua. La factura o recibo sale a nombre del propietario individual.
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       <span className="text-[11px] font-bold text-slate-600 mr-1">Seleccionar:</span>
@@ -1245,10 +1406,10 @@ function Caja() {
                                 setMeses(num);
                               }
                             }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                               isSelected
-                                ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-300'
-                                : 'bg-white text-slate-700 border-slate-300 hover:border-amber-400 hover:bg-amber-50'
+                                ? 'bg-rose-600 text-white border-rose-700 shadow-xs ring-2 ring-rose-300'
+                                : 'bg-white text-slate-700 border-slate-300 hover:border-rose-400 hover:bg-rose-50'
                             }`}
                           >
                             {labelBoton}
@@ -1258,10 +1419,10 @@ function Caja() {
                       <button
                         type="button"
                         onClick={() => setMeses('')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                           meses === ''
-                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-300'
-                            : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-400'
+                            ? 'bg-rose-700 text-white border-rose-800 shadow-xs ring-2 ring-rose-300'
+                            : 'bg-white text-slate-700 border-slate-300 hover:border-rose-400'
                         }`}
                       >
                         Todas las multas
@@ -1270,96 +1431,75 @@ function Caja() {
                   </div>
                 )}
 
+                {/* Filtro de búsqueda específico para modo contribuyente o individual */}
                 {porContrib && (
-                  <div className="px-4 py-3 flex flex-wrap items-center gap-3 border-b border-slate-100 bg-sky-50/50">
-                    <div className="relative">
-                      <UserSearch className="w-4 h-4 text-sky-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                      <input id="cedula-contribuyente-condominio" value={identidad} onChange={e => { setIdentidad(e.target.value.toUpperCase()); setClaves([]); }} placeholder="Cédula / RIF del contribuyente"
-                        className="pl-8 pr-3 py-1.5 rounded-lg border border-sky-300 text-sm w-60 font-mono bg-white" />
+                  <div className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-sky-50/50">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="relative">
+                        <UserSearch className="w-4 h-4 text-sky-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input id="cedula-contribuyente-condominio" value={identidad} onChange={e => { setIdentidad(e.target.value.toUpperCase()); setClaves([]); }} placeholder="Cédula / RIF del contribuyente"
+                          className="pl-8 pr-3 py-1.5 rounded-lg border border-sky-300 text-xs w-60 font-mono bg-white font-bold" />
+                      </div>
+                      <input value={filtroU} onChange={e => setFiltroU(e.target.value)} placeholder="Filtrar por local o nombre…" className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs w-52 bg-white" />
+                      {(claves.length > 0 || identidad) && (
+                        <button onClick={() => { setClaves([]); setIdentidad(''); }} className="text-xs font-bold text-sky-700 hover:underline cursor-pointer">
+                          Limpiar selección
+                        </button>
+                      )}
                     </div>
-                    <input value={filtroU} onChange={e => setFiltroU(e.target.value)} placeholder="Filtrar local, dueño o actividad…" className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm w-56" />
-                    {(claves.length > 0 || identidad) && <button onClick={() => { setClaves([]); setIdentidad(''); }} className="text-xs font-bold text-slate-500 hover:underline cursor-pointer">Limpiar</button>}
+                    <div className="text-xs text-sky-900 font-bold">
+                      {claves.length > 0 ? `${claves.length} local(es) marcado(s)` : (identidad.trim() ? `Filtrando RIF: ${identidad}` : 'Haga clic en un local para seleccionarlo')}
+                    </div>
                   </div>
                 )}
 
-                {!porContrib && (
-                  <div className="px-4 py-3 border-b border-slate-100 bg-emerald-50/40 space-y-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-black text-slate-700">Modalidad de pago:</span>
-                        <div className="inline-flex rounded-lg border border-emerald-300 bg-white p-0.5 shadow-2xs">
-                          <button
-                            type="button"
-                            onClick={() => { setAbonoLocales(false); setClaves([]); }}
-                            className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                              !abonoLocales
-                                ? 'bg-emerald-600 text-white shadow-xs'
-                                : 'text-slate-600 hover:text-emerald-800'
-                            }`}
-                          >
-                            🏢 Cobro Completo ({conDeuda.length} locales)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setAbonoLocales(true); }}
-                            className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                              abonoLocales
-                                ? 'bg-emerald-600 text-white shadow-xs'
-                                : 'text-slate-600 hover:text-emerald-800'
-                            }`}
-                          >
-                            ➕ Abono: Sumar local por local {abonoLocales && claves.length > 0 ? `(${claves.length})` : ''}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          value={filtroU}
-                          onChange={e => setFiltroU(e.target.value)}
-                          placeholder="Buscar local, piso, dueño…"
-                          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs w-48 bg-white"
-                        />
-                        {abonoLocales && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => setClaves(visiblesU.map((r: any) => r.clave))}
-                              className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
-                            >
-                              Seleccionar todos
-                            </button>
-                            {claves.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => setClaves([])}
-                                className="text-xs font-bold text-slate-500 hover:underline cursor-pointer"
-                              >
-                                Limpiar
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
+                {/* Barra contextual cuando es Abono al Condominio */}
+                {!porContrib && abonoLocales && (
+                  <div className="px-4 py-2.5 border-b border-slate-100 bg-teal-50/70 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-black text-teal-950">Abono por Locales:</span>
+                      <button
+                        type="button"
+                        onClick={() => setClaves(visiblesU.map((r: any) => r.clave))}
+                        className="text-xs font-bold text-teal-800 bg-white border border-teal-300 px-2.5 py-1 rounded-md hover:bg-teal-100 cursor-pointer shadow-2xs"
+                      >
+                        Seleccionar todos los visibles
+                      </button>
+                      {claves.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setClaves([])}
+                          className="text-xs font-bold text-slate-600 hover:text-red-700 underline cursor-pointer"
+                        >
+                          Deseleccionar todos
+                        </button>
+                      )}
                     </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <input
+                        value={filtroU}
+                        onChange={e => setFiltroU(e.target.value)}
+                        placeholder="Buscar local o piso…"
+                        className="px-2.5 py-1 rounded-lg border border-teal-300 text-xs w-44 bg-white"
+                      />
+                      <span className="bg-teal-200/80 text-teal-900 px-2.5 py-0.5 rounded-full font-black text-xs border border-teal-300">
+                        {claves.length} seleccionados (Abono: Bs {fmtBs(cobro?.totales?.totalBs || 0)})
+                      </span>
+                    </div>
+                  </div>
+                )}
 
-                    {abonoLocales && (
-                      <div className="text-xs text-emerald-950 font-medium flex flex-wrap items-center justify-between gap-2 bg-emerald-100/70 px-3 py-2 rounded-lg border border-emerald-200">
-                        <span>
-                          💡 <b>Abono al Condominio:</b> Marque los locales que van a pagar. La factura digital saldrá <b>a nombre del condominio ({c?.identidad})</b> sumando exactamente los locales seleccionados.
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                          <span className="font-bold text-emerald-900">
-                            {claves.length} de {conDeuda.length} locales ({claves.length === 0 ? 'Ninguno seleccionado' : `Abono: Bs ${fmtBs(cobro?.totales?.totalBs || 0)}`})
-                          </span>
-                          {claves.length > 0 && (
-                            <span className="bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded font-black text-xs">
-                              🔴 FALTA POR PAGAR: Bs {fmtBs(Math.max(0, (base?.totales?.totalBs || 0) - (cobro?.totales?.totalBs || 0)))}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                {!porContrib && !abonoLocales && (
+                  <div className="px-4 py-2 border-b border-slate-100 bg-emerald-50/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="text-emerald-900 font-bold">
+                      🏢 Cobro Completo Activado: Todas las {conDeuda.length} unidades activas están calculadas a nombre de {c?.nombre}.
+                    </div>
+                    <input
+                      value={filtroU}
+                      onChange={e => setFiltroU(e.target.value)}
+                      placeholder="Filtrar vista de unidades…"
+                      className="px-2.5 py-1 rounded-lg border border-slate-300 text-xs w-48 bg-white"
+                    />
                   </div>
                 )}
 

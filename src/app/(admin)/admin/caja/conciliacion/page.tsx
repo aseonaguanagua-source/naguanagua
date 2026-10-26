@@ -586,7 +586,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     String(det.monto_conciliado || montoReportadoNum.toFixed(2))
   );
   const [bancoEmisor, setBancoEmisor] = useState(pago.banco || '');
-    const [bancoReceptor, setBancoReceptor] = useState(pago.banco_destino || det.banco_destino || 'BANCAMIGA - 0172 - 0717');
+  const [bancoReceptor, setBancoReceptor] = useState(pago.banco_destino || det.banco_destino || det.banco_receptor || '');
   const [referenciaOrigen, setReferenciaOrigen] = useState(pago.referencia || '');
   const [correoResponsable, setCorreoResponsable] = useState(det.correo || '');
   const [telefonoResponsable, setTelefonoResponsable] = useState(det.telefono || '');
@@ -658,18 +658,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null);
 
         const lineasCondo = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
-        const esModoCondo = det.modo === 'CONDOMINIO' || det.isCondominio === true || det.es_condominio === true;
         const tieneMultiplesLineas = lineasCondo.length > 1;
+        const esModoCondo = (det.modo === 'CONDOMINIO') || (!det.modo && (det.isCondominio === true || det.es_condominio === true) && !unidadCod);
 
         const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
         const idCondoLimpio = (det.condominio?.identidad || '').replace(/-/g, '').trim().toUpperCase();
 
-        const esPagoUnidadIndividual = !esModoCondo && !tieneMultiplesLineas && (
-          det.modo === 'CONTRIBUYENTE' ||
+        const esPagoUnidadIndividual = det.modo === 'CONTRIBUYENTE' ||
           String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
           (!!unidadCod && unidadCod !== condoCod) || 
-          (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio)
-        );
+          (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
 
         if (esCondo && condoCod && !esPagoUnidadIndividual) {
           const { data: condoRecord } = await supabase
@@ -1635,15 +1633,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const idCondoLimpioModal = (det.condominio?.identidad || '').replace(/-/g, '').trim().toUpperCase();
 
   const lineasCondoModal = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
-  const esModoCondoModal = det.modo === 'CONDOMINIO' || det.isCondominio === true || det.es_condominio === true;
   const tieneMultiplesLineasModal = lineasCondoModal.length > 1;
+  const esModoCondoModal = (det.modo === 'CONDOMINIO') || (!det.modo && (det.isCondominio === true || det.es_condominio === true) && !unidadCodModal);
 
-  const esPagoUnidadIndividualModal = !esModoCondoModal && !tieneMultiplesLineasModal && (
-    det.modo === 'CONTRIBUYENTE' ||
+  const esPagoUnidadIndividualModal = det.modo === 'CONTRIBUYENTE' ||
     String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
     (!!unidadCodModal && unidadCodModal !== condoCodModal) ||
-    (!!idCondoLimpioModal && !!idPagoLimpioModal && idPagoLimpioModal !== idCondoLimpioModal)
-  );
+    (!!idCondoLimpioModal && !!idPagoLimpioModal && idPagoLimpioModal !== idCondoLimpioModal);
 
   const esCondoGlobal = esCondoModal && !esPagoUnidadIndividualModal;
 
@@ -1835,9 +1831,12 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             </div>
 
             {/* DATOS DEL PAGO */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div><label className={lc}>Forma de Pago</label>
                 <input value={pago.tipo || '---'} readOnly className={icRO}/>
+              </div>
+              <div><label className={lc}>Cajero / Operador</label>
+                <input value={det.cajero || det.caja || det.usuario || 'Sistema'} readOnly className={icRO}/>
               </div>
               <div><label className={lc}>Banco Emisor</label>
                 <select value={bancoEmisor} onChange={e=>setBancoEmisor(e.target.value)} className={ic}>
@@ -1852,7 +1851,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             <div className="grid grid-cols-3 gap-4">
               <div><label className={lc}>Banco Receptor</label>
                 <select value={bancoReceptor} onChange={e=>setBancoReceptor(e.target.value)} className={ic}>
-                  {BANCOS_DESTINO.filter(b=>b!=='Todos').map(b=><option key={b}>{b}</option>)}
+                  <option value="">-- Seleccionar Banco Receptor --</option>
+                  {BANCOS_DESTINO.filter(b=>b!=='Todos').map(b=><option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
               <div><label className={lc}>Fecha Transacci�n</label>
@@ -2255,7 +2255,9 @@ export default function ConciliacionPage() {
   pagos.forEach((pago, idx) => {
     const det = parseDetalles(pago.detalles);
     const condo = infoCondominioPago(pago, condos);
-    const docInfo = 'id pago => ' + pago.id + ' Documento Nro. => ' + (det.doc_nro || '') + ' Responsable => ' + (det.responsable || '') + ' Analista => ' + (det.analista || '');
+    const cajeroStr = det.cajero || det.caja || det.usuario || '';
+    const cajeroInfo = cajeroStr ? ' Cajero => ' + cajeroStr : '';
+    const docInfo = 'id pago => ' + pago.id + ' Documento Nro. => ' + (det.doc_nro || '') + cajeroInfo + ' Responsable => ' + (det.responsable || '') + ' Analista => ' + (det.analista || '');
     const esPendiente = pago.estado === 'Por Verificar' || pago.estado === 'Pendiente';
     const esAprobado = pago.estado === 'Aprobado';
     const m = parseFloat(String(pago.monto||'0').replace(/[^0-9.]/g,''));
@@ -2390,6 +2392,7 @@ export default function ConciliacionPage() {
           </div>
         </td>
         <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtFecha(pago.created_at)}</td>
+        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fechaTransaccionDe(det) || '---'}</td>
         <td className="px-3 py-2 text-xs text-slate-600">
           {pago.tipo === 'Retencion de IVA' ? (
             <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-2 py-0.5 rounded border border-purple-200 inline-block">
@@ -2399,7 +2402,8 @@ export default function ConciliacionPage() {
             pago.tipo || '---'
           )}
         </td>
-        <td className="px-3 py-2 text-xs text-slate-600">{pago.banco_destino || det.banco_destino || 'BANESCO - 0134 - 8636'}</td>
+        <td className="px-3 py-2 text-xs text-slate-600">{pago.banco || det.banco || '---'}</td>
+        <td className="px-3 py-2 text-xs text-slate-600">{pago.banco_destino || det.banco_destino || det.banco_receptor || '---'}</td>
         <td className={'px-3 py-2 text-xs '+estatusCls(pago.estado||'')}>{pago.estado || '---'}</td>
         <td className="px-3 py-2 text-sm font-bold text-right text-slate-800">
           {(() => {
@@ -2520,7 +2524,12 @@ export default function ConciliacionPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-slate-100 border-b border-slate-300">
-                    <tr>{['Contribuyente','Inmueble','Referencia','Reportado','Transaccion','Tipo','Banco Orig','Banco Dest','Estatus','Monto'].map(h=><th key={h} className="px-3 py-2 text-[11px] font-bold text-slate-600 uppercase tracking-wide">{h}</th>)}</tr>
+                    <tr>
+                      {['Contribuyente','Inmueble','Referencia','Reportado','Transaccion','Tipo','Banco Orig','Banco Dest','Estatus'].map(h => (
+                        <th key={h} className="px-3 py-2 text-[11px] font-bold text-slate-600 uppercase tracking-wide">{h}</th>
+                      ))}
+                      <th className="px-3 py-2 text-[11px] font-bold text-slate-600 uppercase tracking-wide text-right">Monto</th>
+                    </tr>
                   </thead>
                   <tbody>{filas}</tbody>
                 </table>

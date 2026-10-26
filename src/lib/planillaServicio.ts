@@ -264,7 +264,13 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   } catch {}
 
   if (descargar) {
-    const base = esp ? 'Planilla_Servicio_Especial' : 'Planilla_Servicio_Extraordinario';
+    const base = insp 
+      ? 'Planilla_Inspeccion_Tecnica' 
+      : (esp 
+          ? 'Planilla_Servicio_Especial' 
+          : (vb 
+              ? 'Planilla_Visto_Bueno' 
+              : (tp ? 'Planilla_Tala_Poda' : 'Planilla_Servicio_Extraordinario')));
     doc.save(`${base}${d.identidad ? '_' + d.identidad.replace(/[^\w-]/g, '') : '_en_blanco'}${d.referencia ? '_' + d.referencia : ''}.pdf`);
   }
   return doc;

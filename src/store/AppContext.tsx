@@ -1002,22 +1002,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { error: errC } = await supabase.from('contribuyentes').upsert([contribRecord], { onConflict: 'identidad' });
       if (errC) throw new Error('No se pudo guardar el contribuyente: ' + errC.message);
 
-      // 2. Datos de contacto, dirección y nombre en todos sus inmuebles (sincronización integral)
-      const contacto: any = { contribuyente: data.Contribuyente, telefono: data.Telefono, correo_electronico: data.Correo };
-      if (data.Direccion !== undefined && data.Direccion !== null && String(data.Direccion).trim() !== '') {
-        contacto.direccion = data.Direccion;
-      }
-      if (data.clave_portal !== undefined) {
-        contacto.clave_portal = String(data.clave_portal || '').trim() || null;
-      }
-      if (notaToSave) contacto.notas = notaToSave;
-      
+      // 2. Sincronización de datos en inmuebles:
+      // NOTA CRÍTICA (Caso 18): Un contribuyente puede tener múltiples locales independientes con direcciones y teléfonos propios.
+      // NUNCA sobreescribir la dirección de todos los locales indiscriminadamente por RIF.
       const idClean = identidadExacta.replace(/-/g, '').toUpperCase();
-      await supabase.from('inmuebles').update(contacto).or(`identidad.eq.${identidadExacta},identidad.eq.${idClean}`);
-      if (codigosPropios.length > 0) {
-        const { error: errCont } = await supabase.from('inmuebles').update(contacto).in('inmueble', codigosPropios);
-        if (errCont) throw errCont;
+      const baseNombre = { contribuyente: data.Contribuyente };
+      if (data.clave_portal !== undefined) {
+        (baseNombre as any).clave_portal = String(data.clave_portal || '').trim() || null;
       }
+      if (notaToSave) (baseNombre as any).notas = notaToSave;
+
+      // Actualizar razón social / nombre del titular en sus inmuebles
+      await supabase.from('inmuebles').update(baseNombre).or(`identidad.eq.${identidadExacta},identidad.eq.${idClean}`);
 
       const nuevaClasificacion = data.Clasificacion || 'Residencial';
       let nuevaActividad = '';
@@ -1053,15 +1049,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (local.codigo) {
             const o = local.__orig || {};
             const cambio = o.uso !== local.uso || o.actividad !== local.actividad || o.nivel !== local.nivel ||
-              o.tipoResidencia !== local.tipoResidencia || o.estatus !== local.estatus || o.agente_retencion !== local.agente_retencion;
-            if (!cambio) continue;
-            const mmv = isTerrenoInm(act) ? 0 : calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
-            if (local.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}" (${local.codigo}).`);
-            const { error: eU } = await supabase.from('inmuebles')
-              .update({ actividad_principal: act, tipo: tipoDeUso(local.uso), mmv_mes: mmv, agente_retencion: local.agente_retencion === true })
-              .eq('inmueble', local.codigo);
-            if (eU) throw eU;
-            cambios.push(`${local.codigo}: ${o.actividad || o.tipoResidencia || '-'} → ${act} (${mmv} MMV)`);
+              o.tipoResidencia !== local.tipoResidencia || o.estatus !== local.estatus || o.agente_retencion !== local.agente_retencion ||
+              (local.direccion && local.direccion !== o.direccion);
+            
+            const updatePayload: any = {};
+            if (local.direccion && String(local.direccion).trim() !== '') {
+              updatePayload.direccion = local.direccion;
+            } else if (data.locales.length === 1 && data.Direccion) {
+              updatePayload.direccion = data.Direccion;
+            }
+            if (local.telefono) {
+              updatePayload.telefono = local.telefono;
+            } else if (data.locales.length === 1 && data.Telefono) {
+              updatePayload.telefono = data.Telefono;
+            }
+            if (local.correo_electronico) {
+              updatePayload.correo_electronico = local.correo_electronico;
+            } else if (data.locales.length === 1 && data.Correo) {
+              updatePayload.correo_electronico = data.Correo;
+            }
+
+            if (cambio) {
+              const mmv = isTerrenoInm(act) ? 0 : calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
+              if (local.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}" (${local.codigo}).`);
+              updatePayload.actividad_principal = act;
+              updatePayload.tipo = tipoDeUso(local.uso);
+              updatePayload.mmv_mes = mmv;
+              updatePayload.agente_retencion = local.agente_retencion === true;
+              cambios.push(`${local.codigo}: ${o.actividad || o.tipoResidencia || '-'} → ${act} (${mmv} MMV)`);
+            }
+
+            if (Object.keys(updatePayload).length > 0) {
+              const { error: eU } = await supabase.from('inmuebles')
+                .update(updatePayload)
+                .eq('inmueble', local.codigo);
+              if (eU) throw eU;
+            }
           } else {
             let mmv = isTerrenoInm(act) ? 0 : calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
             if (local.uso === 'Residencial' && !(mmv > 0)) {

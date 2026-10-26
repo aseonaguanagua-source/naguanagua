@@ -87,16 +87,21 @@ export const getUserInmuebles = (
   return source.filter((i) => {
     if (!isActivo(i)) return false;
     if (isTrueCondo) return true;
-    const itemFid = (i.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
-    // Coincidencia por RIF / Cédula del contribuyente
-    if (fid && itemFid === fid) return true;
-    // O coincidencia por código directo o sus actividades / contenedores
+
+    // Si la búsqueda fue por un código específico (isCodeFormat o sCode especificado):
+    // Prioridad estricta al código buscado y a sus actividades unificadas (padre_id / matriz).
+    // NO arrastrar otros inmuebles del mismo titular con códigos diferentes.
     if (sCode) {
       const iCode = String(i.inmueble || '').toUpperCase();
       const pCode = String((i as any).condominio_padre_id || '').toUpperCase();
       const nCode = String((i as any).padre_id || '').toUpperCase();
       if (iCode === sCode || pCode === sCode || nCode === sCode) return true;
+      return false;
     }
+
+    const itemFid = (i.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
+    // Coincidencia por RIF / Cédula del contribuyente
+    if (fid && itemFid === fid) return true;
     // O si este inmueble es hijo vinculado (padre_id) de un inmueble que pertenece a este contribuyente (lookup O(1))
     const pCode = (i as any).padre_id;
     if (pCode && fidInmueblesSet.has(String(pCode).toUpperCase())) {
