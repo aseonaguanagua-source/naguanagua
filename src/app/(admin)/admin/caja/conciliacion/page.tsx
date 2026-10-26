@@ -1634,11 +1634,16 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const idPagoLimpioModal = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
   const idCondoLimpioModal = (det.condominio?.identidad || '').replace(/-/g, '').trim().toUpperCase();
 
-  const esPagoUnidadIndividualModal = 
+  const lineasCondoModal = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
+  const esModoCondoModal = det.modo === 'CONDOMINIO' || det.isCondominio === true || det.es_condominio === true;
+  const tieneMultiplesLineasModal = lineasCondoModal.length > 1;
+
+  const esPagoUnidadIndividualModal = !esModoCondoModal && !tieneMultiplesLineasModal && (
     det.modo === 'CONTRIBUYENTE' ||
     String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
     (!!unidadCodModal && unidadCodModal !== condoCodModal) ||
-    (!!idCondoLimpioModal && !!idPagoLimpioModal && idPagoLimpioModal !== idCondoLimpioModal);
+    (!!idCondoLimpioModal && !!idPagoLimpioModal && idPagoLimpioModal !== idCondoLimpioModal)
+  );
 
   const esCondoGlobal = esCondoModal && !esPagoUnidadIndividualModal;
 

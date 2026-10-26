@@ -149,11 +149,14 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         });
       });
     } else {
+      const fpExacto = (Array.isArray(det.formasPago) ? det.formasPago : []).find((f: any) => String(f?.referencia || '').trim() === String(p.referencia || '').trim());
+      const paExacto = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : []).find((a: any) => String(a?.referencia || '').trim() === String(p.referencia || '').trim());
+      const fPagoPropia = String(fpExacto?.fecha || paExacto?.fecha || paExacto?.fechaTransaccion || '').slice(0, 10);
       const fPagoBancaria = det.fecha_banco || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? String(det.formasPago[0].fecha).slice(0, 10) : '');
-      const fPago = String(fPagoBancaria || det.fecha_transaccion || fechaVE(p.created_at)).slice(0, 10);
+      const fPago = fPagoPropia || String(fPagoBancaria || det.fecha_transaccion || fechaVE(p.created_at)).slice(0, 10);
       const key = fPago.slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
-      porMes.get(key)!.push({ p, det, fPago, esSubPago: false, montoTotalReportado: Number(p.monto) || 1 });
+      porMes.get(key)!.push({ p, det, fPago, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
     }
   });
 
@@ -178,7 +181,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     let sub = 0;
     let subBanesco = 0;
     let subBancamiga = 0;
-    porMes.get(key)!.sort((a, b) => a.fPago.localeCompare(b.fPago)).forEach(({ p, det, fPago, esSubPago, montoTotalReportado }) => {
+    porMes.get(key)!.sort((a, b) => a.fPago.localeCompare(b.fPago)).forEach(({ p, det, fPago, esSubPago, montoTotalReportado, yaExistenComoFilasSeparadas }) => {
       const ret = retPorPago.get(String(p.id)) ?? Number(det.monto_retencion_iva || 0);
       const mtTotal = montosPago(p, det, inmMap, ret);
       const factor = esSubPago && montoTotalReportado > 0 ? (Number(p.monto) || 0) / montoTotalReportado : 1;
@@ -195,9 +198,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       const bClass = clasificarBancoDestino(p);
       const bDestLabel = bClass === 'Banesco' ? 'Banesco' : bClass === 'Bancamiga' ? 'Bancamiga' : (det.banco_destino || det.banco_receptor || 'Otro');
       
-      // Concatenar referencias si el registro consolidado tiene múltiples comprobantes/referencias
+      // Concatenar referencias SOLO si el pago es verdaderamente un único registro consolidado que no existe como filas separadas
       let refTexto = String(p.referencia || '').trim();
-      if (!esSubPago && Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
+      if (!esSubPago && !yaExistenComoFilasSeparadas && Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
         const todasRefs = [...new Set(det.pagos_agregados.map((pa: any) => String(pa.referencia || '').trim()).filter(Boolean))];
         if (todasRefs.length > 1) {
           refTexto = todasRefs.join(' / ');
