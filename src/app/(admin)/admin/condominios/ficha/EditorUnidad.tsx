@@ -141,7 +141,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
           body: JSON.stringify({
             codigo: condo.codigo,
             unidad_id: unidad.id,
-            periodo: per,
+            periodo: /^\d{4}-\d{2}$/.test(per) ? `${per}-01` : per,
             concepto: conceptoFinal,
             monto_bs: bsPorMes,
             usuario: uActual,

@@ -152,10 +152,19 @@ function Ficha() {
     const ids = new Set(us.map(u => u.id));
     const byRif = new Map<string, any[]>();
     
-    // Agrupar unidades sin padre que comparten el mismo RIF (ej: N/A de Sambil)
+    // Helper para detectar RIF genérico/placeholder (evitar agrupar locales diferentes con 00000000 o N/A)
+    const esRifGenerico = (idStr: string) => {
+      const clean = String(idStr || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const digitsOnly = clean.replace(/^[VEJPG]/, '');
+      if (!clean || clean === 'NA' || clean === 'UNDEFINED' || clean === 'NULL') return true;
+      if (/^0+$/.test(digitsOnly) || /^0+$/.test(clean)) return true;
+      return false;
+    };
+
+    // Agrupar unidades sin padre que comparten el mismo RIF real (ej: varias actividades de un mismo contribuyente en Sambil)
     us.forEach(u => {
       if (!u.padre_unidad_id || !ids.has(u.padre_unidad_id)) {
-        if (u.identidad && u.identidad.trim() !== '') {
+        if (u.identidad && u.identidad.trim() !== '' && !esRifGenerico(u.identidad)) {
           if (!byRif.has(u.identidad)) byRif.set(u.identidad, []);
           byRif.get(u.identidad)!.push(u);
         }

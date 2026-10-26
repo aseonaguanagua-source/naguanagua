@@ -648,7 +648,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       setLoadingContrib(true);
       try {
         const esCondo = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || !!det.es_condominio || !!det.condominio;
-        const condoCod = det.condominio?.codigo || det.codigo_condominio || pago.cod_inmueble;
+        const condoCod = det.condominio?.codigo || det.codigo_condominio || det.codigo_inmueble || det.cod_inmueble || pago.cod_inmueble;
 
         // Detectar si el pago corresponde a un local/unidad individual dentro del condominio
         const unidadCod = det.condominio?.lineas?.[0]?.inmueble 
@@ -780,7 +780,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       } catch(e) { console.error('[Conciliacion] Error cargando contribuyente:', e); }
       setLoadingContrib(false);
     })();
-  }, [pago.identidad]);
+  }, [pago.id, pago.identidad, det.condominio?.codigo]);
 
   // Cargar recibos de los recibos seleccionados para recalculo con nueva tasa
   const recibosParaCalc: string[] = det.recibos || [];
