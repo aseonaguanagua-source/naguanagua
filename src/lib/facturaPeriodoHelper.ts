@@ -136,12 +136,29 @@ export function resolverConceptoPeriodoPago(pago: any): string {
     if (fmt) return `Servicio de Aseo Urbano Comercial - ${fmt}`;
   }
 
-  // 6. Detectar cantidad de meses pagados
+  // 6. Detectar cantidad de meses pagados (respetando múltiples inmuebles del mismo contribuyente)
+  let maxMesesPorInmueble = 0;
+  if (Array.isArray(det.recibos)) {
+    const mesesPorInm: Record<string, number> = {};
+    for (const r of det.recibos) {
+      const match = String(r).match(/^(?:RECIB-HIST|CM)-([A-Za-z0-9]+)-M(\d+)$/i);
+      if (match) {
+        const cod = match[1].toUpperCase();
+        const mIdx = parseInt(match[2], 10) || 1;
+        mesesPorInm[cod] = Math.max(mesesPorInm[cod] || 0, mIdx);
+      }
+    }
+    const vals = Object.values(mesesPorInm);
+    if (vals.length > 0) {
+      maxMesesPorInmueble = Math.max(...vals);
+    }
+  }
+
   const numMeses =
     (typeof pago.mesesServicio === 'number' && pago.mesesServicio > 0 ? pago.mesesServicio : 0) ||
+    maxMesesPorInmueble ||
     (parseInt(String(det.meses_deuda || 0)) || 0) ||
     (Array.isArray(det.deuda_previa) ? Math.max(0, ...det.deuda_previa.map((dp: any) => parseInt(String(dp?.meses_deuda || 0)) || 0)) : 0) ||
-    (Array.isArray(det.recibos) ? det.recibos.filter((r: string) => /^(RECIB-HIST|CM)-/i.test(r)).length : 0) ||
     (Array.isArray(det.condominio?.lineas) ? Math.max(0, ...det.condominio.lineas.map((l: any) => Number(l.meses) || 0)) : 0) ||
     1;
 

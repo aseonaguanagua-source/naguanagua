@@ -657,13 +657,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           || (det.cod_inmueble && det.cod_inmueble !== condoCod ? det.cod_inmueble : null)
           || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null);
 
+        const lineasCondo = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
+        const esModoCondo = det.modo === 'CONDOMINIO' || det.isCondominio === true || det.es_condominio === true;
+        const tieneMultiplesLineas = lineasCondo.length > 1;
+
         const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
         const idCondoLimpio = (det.condominio?.identidad || '').replace(/-/g, '').trim().toUpperCase();
-        const esPagoUnidadIndividual = 
+
+        const esPagoUnidadIndividual = !esModoCondo && !tieneMultiplesLineas && (
           det.modo === 'CONTRIBUYENTE' ||
           String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
           (!!unidadCod && unidadCod !== condoCod) || 
-          (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
+          (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio)
+        );
 
         if (esCondo && condoCod && !esPagoUnidadIndividual) {
           const { data: condoRecord } = await supabase
