@@ -69,12 +69,22 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
   let mesesServicio = 0;
   let tieneMulta = false;
   const inmuebles = new Set<string>();
+  const mesesPorInmueble: Record<string, number> = {};
 
   for (const r of recibos || []) {
     const ref = String(r || '');
     const esMulta = /^MULTA-/i.test(ref);
     if (esMulta) tieneMulta = true;
-    else if (/^(RECIB-HIST|CM)-/i.test(ref)) mesesServicio++;
+
+    const mMatch = ref.match(/^(?:RECIB-HIST|CM)-([A-Za-z0-9]+)-M(\d+)$/i);
+    if (mMatch) {
+      const c = mMatch[1].toUpperCase();
+      const idx = parseInt(mMatch[2], 10) || 1;
+      mesesPorInmueble[c] = Math.max(mesesPorInmueble[c] || 0, idx);
+    } else if (/^(RECIB-HIST|CM)-/i.test(ref)) {
+      const c = extraerCodigoInmueble(ref) || 'GEN';
+      mesesPorInmueble[c] = (mesesPorInmueble[c] || 0) + 1;
+    }
 
     const cod = extraerCodigoInmueble(ref);
     if (cod) inmuebles.add(cod);
@@ -84,6 +94,11 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
     if (isResidencialInm(inm)) residencial = true;
     else if (esMulta) multaComercial = true;
     else servicioComercial = true;
+  }
+
+  const valoresMeses = Object.values(mesesPorInmueble);
+  if (valoresMeses.length > 0) {
+    mesesServicio = Math.max(...valoresMeses);
   }
 
   // Referencias sin inmueble identificable: si caja cobró IVA, es servicio comercial.

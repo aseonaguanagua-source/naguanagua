@@ -155,8 +155,8 @@ export function resolverConceptoPeriodoPago(pago: any): string {
   }
 
   const numMeses =
+    (maxMesesPorInmueble > 0 ? maxMesesPorInmueble : 0) ||
     (typeof pago.mesesServicio === 'number' && pago.mesesServicio > 0 ? pago.mesesServicio : 0) ||
-    maxMesesPorInmueble ||
     (parseInt(String(det.meses_deuda || 0)) || 0) ||
     (Array.isArray(det.deuda_previa) ? Math.max(0, ...det.deuda_previa.map((dp: any) => parseInt(String(dp?.meses_deuda || 0)) || 0)) : 0) ||
     (Array.isArray(det.condominio?.lineas) ? Math.max(0, ...det.condominio.lineas.map((l: any) => Number(l.meses) || 0)) : 0) ||
