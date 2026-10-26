@@ -578,7 +578,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
           }
           existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
-          if (cod && !existing.CodCont.includes(cod)) {
+          const rowIsEliminado = ['eliminado', 'inactivo', 'desactivado', 'baja'].includes(String(row.estado || '').trim().toLowerCase());
+          if (cod && !rowIsEliminado && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
           }
           map.set(groupKey, existing);

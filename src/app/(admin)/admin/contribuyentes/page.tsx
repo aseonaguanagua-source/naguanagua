@@ -1887,7 +1887,8 @@ function ContribuyentesPageContent() {
           if (!row.condominio_padre_id && !row.es_condominio) {
             existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
           }
-          if (!isCodeFormat && cod && !existing.CodCont.includes(cod)) {
+          const rowIsElim = ['eliminado', 'inactivo', 'desactivado', 'baja'].includes(String(row.estado || '').trim().toLowerCase());
+          if (!isCodeFormat && cod && !rowIsElim && !existing.CodCont.includes(cod)) {
             existing.CodCont += " " + cod;
           }
           mapResults.set(groupKey, existing);
@@ -3597,17 +3598,22 @@ function ContribuyentesPageContent() {
         const clase = row.Clasificacion || 'Residencial';
         const isChild = Boolean(row.isCondoChild);
         
-        // Extraer las actividades correspondientes específicamente a ESTA fila/inmueble (y sus hijas si es matriz)
+        // Extraer las actividades correspondientes específicamente a ESTA fila/inmueble (y sus hijas activas si es matriz)
         const rowCodes = String(row.CodCont || row.cod_cont || row.inmueble || '').trim().split(/\s+/).filter(Boolean);
         const actividades = new Set<string>();
         
+        const isExcludedState = (st: any) => {
+          const s = String(st || '').toLowerCase().trim();
+          return s === 'eliminado' || s === 'inactivo' || s === 'desactivado' || s === 'baja';
+        };
+
         if (rowCodes.length > 0 && inmuebles && inmuebles.length > 0) {
           const directInms = inmuebles.filter((i: any) => 
-            rowCodes.includes(i.inmueble) && i.estado !== 'Eliminado'
+            rowCodes.includes(i.inmueble) && !isExcludedState(i.estado)
           );
-          // Incluir también inmuebles hijos cuyo padre_id coincida con los códigos de esta fila
+          // Incluir también inmuebles hijos cuyo padre_id coincida con los códigos de esta fila y estén activos
           const childInms = inmuebles.filter((i: any) => 
-            rowCodes.includes(i.padre_id) && i.estado !== 'Eliminado'
+            rowCodes.includes(i.padre_id) && !isExcludedState(i.estado)
           );
           [...directInms, ...childInms].forEach((i: any) => {
             const act = i.actividad_principal || i.Actividad || i.ActividadComercial;
@@ -3616,7 +3622,7 @@ function ContribuyentesPageContent() {
         }
         
         // Fallback a la actividad propia de la fila si no se encontraron en el array global
-        if (actividades.size === 0) {
+        if (actividades.size === 0 && !isExcludedState(row.Estado || row.estado)) {
           const rowAct = row.ActividadComercial || row.Actividad || row.actividad_principal;
           if (rowAct && rowAct !== 'No asignado' && rowAct !== 'N/A') {
             actividades.add(rowAct);
