@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/DataTable';
 import HuerfanosPanel from '@/components/HuerfanosPanel';
 import { useAppContext } from '@/store/AppContext';
-import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent, Printer, ShieldAlert, Lock } from 'lucide-react';
+import { Users, Save, ArrowLeft, Plus, Building, Building2, Store, Home as HomeIcon, MapPin, Edit, DollarSign, Handshake, Eye, X, CheckCircle, Calculator, AlertCircle, AlertTriangle, Download, FileText, Trash2, Power, RefreshCw, Search, Percent, Printer, ShieldAlert, Lock, Layers } from 'lucide-react';
 import { generarSolvenciaPDF } from '@/lib/pdfGenerator';
 import { inmuebleTieneDeuda } from '@/lib/solvencia';
 import { ordenanzaData } from '@/data/ordenanza';
@@ -24,6 +24,7 @@ import { DebtAdjustmentModal } from '@/components/DebtAdjustmentModal';
 import { EliminarMultaModal } from '@/components/EliminarMultaModal';
 import { AsignarMultaModal } from '@/components/AsignarMultaModal';
 import { DetallesContribuyenteModal } from '@/components/contribuyentes/DetallesContribuyenteModal';
+import { GestionCodigosModal } from '@/components/contribuyentes/GestionCodigosModal';
 
 import { logos } from '@/lib/logosBase64';
 import { exportToExcelWithLogos } from '@/lib/excelExport';
@@ -88,6 +89,8 @@ function ContribuyentesPageContent() {
   const [selectedExonerarRow, setSelectedExonerarRow] = useState<any>(null);
   const [asignarMultaModalOpen, setAsignarMultaModalOpen] = useState(false);
   const [selectedMultaRow, setSelectedMultaRow] = useState<any>(null);
+  const [gestionCodigosModalOpen, setGestionCodigosModalOpen] = useState(false);
+  const [selectedGestionCodigosRow, setSelectedGestionCodigosRow] = useState<any>(null);
   
   // Calculadora state
   const [bcvRate, setBcvRate] = useState<string | null>(null);
@@ -3465,7 +3468,22 @@ function ContribuyentesPageContent() {
 
         return (
           <div className="flex flex-col">
-            <span className="font-bold text-slate-800 tracking-tight">{mainCode}</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-slate-800 tracking-tight">{mainCode}</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedGestionCodigosRow(row);
+                  setGestionCodigosModalOpen(true);
+                }}
+                className="text-[10px] font-bold text-slate-500 hover:text-emerald-700 bg-slate-100 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 px-1.5 py-0.2 rounded transition-all inline-flex items-center gap-1 shadow-2xs"
+                title="Ver y Gestionar todos los códigos / Quitar códigos a mano"
+              >
+                <Layers className="w-3 h-3 text-emerald-600" />
+                <span>Gestionar</span>
+              </button>
+            </div>
             {isCondo && (
               <span 
                 className="text-[10px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded border border-purple-200 mt-0.5 inline-flex items-center gap-1 w-fit shadow-2xs"
@@ -3483,12 +3501,18 @@ function ContribuyentesPageContent() {
               </span>
             )}
             {row.isParentNormal && (
-              <span 
-                className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-200 mt-0.5 inline-flex items-center gap-1 w-fit shadow-2xs"
-                title={`Matriz de ${row.childNormalCount || 1} actividades vinculadas`}
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedGestionCodigosRow(row);
+                  setGestionCodigosModalOpen(true);
+                }}
+                className="text-[10px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold px-1.5 py-0.5 rounded border border-emerald-200 mt-0.5 inline-flex items-center gap-1 w-fit shadow-2xs transition-colors cursor-pointer text-left"
+                title={`Matriz de ${row.childNormalCount || 1} actividades vinculadas. Clic para gestionar códigos.`}
               >
-                🏢 Matriz de {row.childNormalCount || 1} actividades
-              </span>
+                🏢 Matriz de {row.childNormalCount || 1} actividades ⚙️
+              </button>
             )}
             {row.isChildNormal && (
               <span 
@@ -3499,12 +3523,18 @@ function ContribuyentesPageContent() {
               </span>
             )}
             {!isCondo && !row.isParentNormal && otherCount > 0 && (
-              <span 
-                className="text-[10px] bg-blue-50 text-blue-700 font-semibold px-1.5 py-0.5 rounded border border-blue-200 mt-0.5 inline-block w-fit cursor-help shadow-2xs"
-                title={`Inmuebles vinculados: ${rawCodes.join(', ')}`}
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedGestionCodigosRow(row);
+                  setGestionCodigosModalOpen(true);
+                }}
+                className="text-[10px] bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold px-1.5 py-0.5 rounded border border-blue-200 mt-0.5 inline-block w-fit cursor-pointer shadow-2xs transition-colors text-left"
+                title={`Inmuebles vinculados: ${rawCodes.join(', ')}. Clic para gestionar o quitar.`}
               >
-                +{otherCount} {otherCount === 1 ? 'inmueble' : 'inmuebles'} ({rawCodes.slice(1, 3).join(', ')}{otherCount > 2 ? '...' : ''})
-              </span>
+                +{otherCount} {otherCount === 1 ? 'inmueble' : 'inmuebles'} ({rawCodes.slice(1, 3).join(', ')}{otherCount > 2 ? '...' : ''}) ⚙️
+              </button>
             )}
           </div>
         );
@@ -3701,6 +3731,13 @@ function ContribuyentesPageContent() {
               title="Ver Detalles"
             >
               <Eye className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={() => { setSelectedGestionCodigosRow(row); setGestionCodigosModalOpen(true); }}
+              className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-1.5 rounded transition-colors"
+              title="Gestionar Códigos / Inmuebles (Ver o quitar a mano)"
+            >
+              <Layers className="w-4 h-4" />
             </button>
             {row.isCondoChild || row.condominio_padre_id ? (
               <button 
@@ -4047,6 +4084,25 @@ function ContribuyentesPageContent() {
             await refreshUserData(viewData.Identidad);
           }
           await refreshData();
+        }}
+      />
+
+      {/* Modal para Gestión de Códigos e Inmuebles (Ver y Quitar a Mano) */}
+      <GestionCodigosModal
+        isOpen={gestionCodigosModalOpen}
+        onClose={() => {
+          setGestionCodigosModalOpen(false);
+          setSelectedGestionCodigosRow(null);
+        }}
+        contribuyente={selectedGestionCodigosRow}
+        inmueblesGlobal={inmuebles}
+        tcmmv={tcmmv || 1}
+        onRefresh={async () => {
+          const rawId = selectedGestionCodigosRow?.Identidad || selectedGestionCodigosRow?.identidad;
+          if (rawId && refreshUserData) {
+            await refreshUserData(rawId);
+          }
+          await refreshData(true);
         }}
       />
 

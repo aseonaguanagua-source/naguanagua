@@ -572,6 +572,97 @@ export default function CajaPage() {
     setIsAuthorizing(false);
   };
 
+  const [eliminandoInmCode, setEliminandoInmCode] = useState<string | null>(null);
+
+  const handleQuitarActividadCaja = async (inm: any, cluster: any) => {
+    const cod = inm.inmueble;
+    const actDesc = cleanClasificacionActividad(inm.actividad_principal) || inm.actividad_principal || 'Actividad Comercial';
+
+    if (!window.confirm(`¿Está seguro de que desea QUITAR la actividad "${actDesc}" (${cod}) de este local?\n\nAl confirmar, este código será desvinculado y dado de baja en el sistema.`)) {
+      return;
+    }
+
+    setEliminandoInmCode(cod);
+    try {
+      // 1. Dar de baja en la tabla inmuebles
+      const { error: errInm } = await supabase
+        .from('inmuebles')
+        .update({
+          estado: 'Eliminado',
+          mmv_mes: 0,
+          deuda_mmv: 0,
+          cant_inmuebles: 0,
+          padre_id: null
+        })
+        .eq('inmueble', cod);
+
+      if (errInm) throw new Error('Error al actualizar inmueble: ' + errInm.message);
+
+      // 2. Si tenía padre o era parte de un grupo de códigos, reajustar el padre
+      const targetPadre = inm.padre_id || cluster?.inms?.find((i: any) => i.inmueble !== cod)?.inmueble;
+      if (targetPadre && targetPadre !== cod) {
+        const { data: remainingHijos } = await supabase
+          .from('inmuebles')
+          .select('*')
+          .neq('estado', 'Eliminado')
+          .neq('inmueble', cod)
+          .eq('padre_id', targetPadre);
+
+        const hijos = remainingHijos || [];
+        if (hijos.length > 0) {
+          const newMMV = hijos.reduce((acc: number, h: any) => acc + (parseFloat(h.mmv_mes) || 0), 0);
+          await supabase
+            .from('inmuebles')
+            .update({
+              cant_inmuebles: hijos.length,
+              mmv_mes: newMMV > 0 ? newMMV : 0.91
+            })
+            .eq('inmueble', targetPadre);
+        } else {
+          await supabase
+            .from('inmuebles')
+            .update({
+              cant_inmuebles: 1
+            })
+            .eq('inmueble', targetPadre);
+        }
+      }
+
+      // 3. Auditoría
+      try {
+        const u = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('usuario') || '{}') : {};
+        await supabase.from('auditoria').insert([{
+          accion: 'Actividad Comercial Eliminada desde Caja',
+          usuario: u.nombre || u.usuario || 'cajero',
+          modulo: '/admin/caja',
+          detalles: {
+            inmueble: cod,
+            actividad: actDesc,
+            padre_id: inm.padre_id || null,
+            contribuyente: foundUser?.Contribuyente,
+            identidad: foundUser?.Identidad,
+            criticidad: 'ALTA'
+          }
+        }]);
+      } catch (_) {}
+
+      // 4. Refrescar datos
+      const identExacta = foundUser?.Identidad;
+      if (identExacta && refreshUserData) {
+        await refreshUserData(identExacta);
+      }
+      await refreshData();
+      await handleSearch();
+
+      alert(`La actividad "${actDesc}" (${cod}) fue quitada exitosamente.`);
+    } catch (e: any) {
+      console.error(e);
+      alert('No se pudo quitar la actividad: ' + (e?.message || 'Error desconocido'));
+    } finally {
+      setEliminandoInmCode(null);
+    }
+  };
+
   const handleSearch = async () => {
     setIsSearching(true);
     setFoundUser(null);
