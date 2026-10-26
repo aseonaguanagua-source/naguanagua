@@ -233,8 +233,15 @@ export default function CuadreCaja({ pagos, cajeros, isAdmin, currentUser, contr
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
       const det = parseDet(p);
       const d = new Date(p.created_at);
-      const fTx = det.fecha_transaccion || det.fecha_banco || '';
-      const fechaCoincide = (d >= s && d <= e) || (fTx && fTx === fecha);
+      // En el Cuadre de Caja se audita lo cobrado por el cajero en ese turno/día específico.
+      // Se evalúa la fecha de corte en hora de Caracas (America/Caracas).
+      let fechaCorteCaracas = '';
+      try {
+        fechaCorteCaracas = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(d);
+      } catch {
+        fechaCorteCaracas = p.created_at ? p.created_at.slice(0, 10) : '';
+      }
+      const fechaCoincide = fechaCorteCaracas === fecha || (d >= s && d <= e);
       if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
 
       const pCajero = det.cajero || det.analista || '';
