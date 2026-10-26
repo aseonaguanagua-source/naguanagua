@@ -33,9 +33,19 @@ export async function POST(req: Request) {
       if (!u || u.condominio_id !== c.id) return NextResponse.json({ error: 'La unidad no pertenece a este condominio.' }, { status: 400 });
       identidad = u.identidad;
     }
+    let periodoDate: string | null = null;
+    if (periodo && String(periodo).trim()) {
+      const pStr = String(periodo).trim();
+      if (/^\d{4}-\d{2}$/.test(pStr)) {
+        periodoDate = `${pStr}-01`;
+      } else {
+        periodoDate = pStr;
+      }
+    }
+
     const fila = {
       condominio_id: c.id, unidad_id: unidad_id || null, identidad, concepto: String(concepto).trim().toUpperCase(),
-      monto_bs: bs > 0 ? bs : null, monto_mmv: bs > 0 ? null : mmv, periodo: periodo ? String(periodo).trim() : null, estado: 'Pendiente', creada_por: t.usuario,
+      monto_bs: bs > 0 ? bs : null, monto_mmv: bs > 0 ? null : mmv, periodo: periodoDate, estado: 'Pendiente', creada_por: t.usuario,
     };
     const { data: m, error } = await sb.from('condominio_multas').insert(fila).select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

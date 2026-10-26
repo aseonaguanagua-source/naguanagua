@@ -224,13 +224,17 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
               .eq('inmueble', freshInm.inmueble)
               .maybeSingle();
 
+            const perDate = /^\d{4}-\d{2}$/.test(String(periodoFinal).trim())
+              ? `${String(periodoFinal).trim()}-01`
+              : periodoFinal;
+
             await supabase.from('condominio_multas').insert({
               condominio_id: condoData.id,
               unidad_id: unidadData?.id || null,
               identidad: identProp,
               concepto: conceptoFinal.toUpperCase(),
               monto_bs: montoNum,
-              periodo: periodoFinal,
+              periodo: perDate,
               estado: 'Pendiente',
               creada_por: claveLimpia
             });
