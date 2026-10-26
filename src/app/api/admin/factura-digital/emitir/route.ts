@@ -1327,8 +1327,8 @@ export async function POST(request: Request) {
               const isValidDir = (d: any) => d && typeof d === 'string' && d.trim().length > 3 && d.trim() !== '0 0' && d.trim() !== '0' && d.trim().toUpperCase() !== 'N/A';
               const dirFiscal = contribData?.direccion;
               let dirEspecifica = matchedPropEspecifico?.direccion;
-              if (dirEspecifica && dirEspecifica.includes('  URB.')) {
-                dirEspecifica = 'URB.' + dirEspecifica.split('  URB.')[1];
+              if (dirEspecifica) {
+                dirEspecifica = dirEspecifica.replace(/^[0-9\s.-]+(?:[A-Z0-9-]+\s+)*(?=(?:URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON|Bo|BARRIO|COMUNIDAD)\b)/i, '');
               }
               const dirRecibo = detPago?.recibo_caja?.[0]?.domicilioFiscal;
               const dirSrv = srvDet?.direccion_evento;

@@ -454,11 +454,17 @@ export function sanitizarDireccionFiscal(
 
   // 1. Eliminar prefijos catastrales numéricos iniciales solo si la cadena comienza con dígitos
   if (/^[0-9\s.-]+[A-Z0-9-]*\s+/i.test(s)) {
-    const match = s.match(/\b(URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON|Bo|BARRIO|COMUNIDAD)\b/i);
-    if (match && match.index !== undefined && match.index > 0) {
-      s = s.slice(match.index);
+    // Si contiene un identificador geográfico/vial conocido, eliminar todo el prefijo numérico previo
+    const stripped = s.replace(/^[0-9\s.-]+(?:[A-Z0-9-]+\s+)*(?=(?:URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON|Bo|BARRIO|COMUNIDAD)\b)/i, '');
+    if (stripped && stripped !== s) {
+      s = stripped;
     } else {
-      s = s.replace(/^[0-9\s.-]+(\bS\/N\b\s*)?/i, '');
+      const match = s.match(/\b(URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON|Bo|BARRIO|COMUNIDAD)\b/i);
+      if (match && match.index !== undefined && match.index > 0) {
+        s = s.slice(match.index);
+      } else {
+        s = s.replace(/^[0-9\s.-]+(\bS\/N\b\s*)?/i, '');
+      }
     }
   }
 
@@ -553,8 +559,9 @@ export function sanitizarDireccionFiscal(
     s = s
       .replace(/PARCELA DE TERRENO NRO\.?/gi, 'PARCELA')
       .replace(/PARCELA NRO\.?/gi, 'PARCELA')
-      .replace(/LOCAL COMERCIAL NRO\.?/gi, 'LOCAL')
-      .replace(/LOCAL\/OFICINA NRO\.?/gi, 'LOCAL')
+      .replace(/LOCAL COMERCIAL NRO\.?/gi, 'LOC.')
+      .replace(/LOCAL\/OFICINA NRO\.?/gi, 'LOC.')
+      .replace(/LOCAL NRO\.?/gi, 'LOC.')
       .replace(/INMUEBLE NRO\.?/gi, 'INM.')
       .replace(/CASA NRO[\.,]?/gi, 'CASA')
       .replace(/APARTAMENTO/gi, 'APTO.')
@@ -565,10 +572,17 @@ export function sanitizarDireccionFiscal(
       .replace(/URBANIZACION/gi, 'URB.')
       .replace(/AVENIDA/gi, 'AV.')
       .replace(/EDIFICIO/gi, 'EDIF.')
+      .replace(/PISO MEZZANINA/gi, 'MZNA.')
+      .replace(/MEZZANINA/gi, 'MZNA.')
       .replace(/SECTOR/gi, 'SEC.')
       .replace(/,\s*,/g, ',')
       .replace(/\s+/g, ' ')
       .trim();
+
+    // Redundancia frecuente: si la dirección ya cita la urbanización y repite "SEC. ..."
+    if (s.length > 100 && /URB\.\s*LAS\s*QUINTAS/i.test(s) && /SEC\.\s*LAS\s*QUINTAS/i.test(s)) {
+      s = s.replace(/,?\s*SEC\.\s*LAS\s*QUINTAS/gi, '');
+    }
   }
 
   // Si aún supera 100 caracteres, recortar de forma limpia en el cuerpo antes del sufijo

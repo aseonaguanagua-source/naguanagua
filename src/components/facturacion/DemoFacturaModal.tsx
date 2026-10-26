@@ -320,7 +320,23 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
           }
         }
 
-        // Prioridad 1 SENIAT: Domicilio fiscal del contribuyente
+        const esPagoPorLocal = Boolean(
+          (det.modo === 'CONTRIBUYENTE' || det.condominio?.modalidad === 'INDIVIDUAL' || det.condominio_hijos_pagados?.length) &&
+          det.modo !== 'CONDOMINIO'
+        );
+
+        // Si es pago por local individual y tenemos el inmueble específico con dirección válida,
+        // priorizamos la dirección del local para no asignarle la dirección de otro local del mismo titular
+        const isValidInmDir = inm?.direccion && inm.direccion.trim() !== '0 0' && inm.direccion.trim().length > 3;
+        if (esPagoPorLocal && isValidInmDir) {
+          if (!cancel) {
+            setInmuebleDireccion(inm.direccion);
+            if (inm.licencia) setInmuebleLicencia(inm.licencia);
+          }
+          return;
+        }
+
+        // Prioridad 1 SENIAT general: Domicilio fiscal del contribuyente
         if (rifReceptor) {
           const { data: contData } = await supabase
             .from('contribuyentes')
