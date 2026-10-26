@@ -649,6 +649,11 @@ export default function FacturacionElectronicaPage() {
     const montoTotal = totalOverride && totalOverride > 0 ? totalOverride : ref;
     let exentoRecibo = 0;
     let tieneReciboCaja = false;
+    let multaCondo = 0;
+    if (Array.isArray(pago.detalles?.condominio?.lineas)) {
+      multaCondo = pago.detalles.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
+    }
+
     // 1. Revisar si recibo_caja existe en el pago
     if (pago.detalles?.recibo_caja) {
       try {
@@ -670,7 +675,9 @@ export default function FacturacionElectronicaPage() {
             }
           }
 
-          if (sumaMultaConceptos > 0) {
+          if (multaCondo > 0) {
+            exentoRecibo = multaCondo;
+          } else if (sumaMultaConceptos > 0) {
             exentoRecibo = sumaMultaConceptos;
           } else if (!tieneConceptoAseo) {
             const exDirecto = rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0);
@@ -683,46 +690,46 @@ export default function FacturacionElectronicaPage() {
       } catch (_) {}
     }
 
-    // 2. Solo si NO hay recibo_caja, revisar fuentes secundarias de multa:
-    if (!tieneReciboCaja) {
-      // 2a. Revisar montos de recibos MULTA-
-      if (pago.detalles?.montos && typeof pago.detalles.montos === 'object') {
-        for (const [k, v] of Object.entries(pago.detalles.montos)) {
-          if (/^MULTA-/i.test(k)) {
-            exentoRecibo += parseFloat(String(v || 0)) || 0;
+    // 2. Solo si NO hay recibo_caja (o recibo no tenía desglose claro), revisar fuentes secundarias de multa:
+    if (exentoRecibo === 0) {
+      if (multaCondo > 0) {
+        exentoRecibo = multaCondo;
+      } else {
+        // 2a. Revisar montos de recibos MULTA-
+        if (pago.detalles?.montos && typeof pago.detalles.montos === 'object') {
+          for (const [k, v] of Object.entries(pago.detalles.montos)) {
+            if (/^MULTA-/i.test(k)) {
+              exentoRecibo += parseFloat(String(v || 0)) || 0;
+            }
           }
         }
-      }
 
-      // 2b. Revisar multas en condominio
-      if (exentoRecibo === 0 && Array.isArray(pago.detalles?.condominio?.lineas)) {
-        exentoRecibo = pago.detalles.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
-      }
+        // 2b. Revisar deuda_previa (filtrada por los inmuebles que realmente se están pagando)
+        if (exentoRecibo === 0 && Array.isArray(pago.detalles?.deuda_previa)) {
+          const inmsPagados = [...new Set([
+            ...(Array.isArray(pago.detalles?.recibos) ? pago.detalles.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
+            pago.detalles?.codigo_inmueble,
+            pago.detalles?.cod_inmueble
+          ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
 
-      // 2c. Revisar deuda_previa (filtrada por los inmuebles que realmente se están pagando)
-      if (exentoRecibo === 0 && Array.isArray(pago.detalles?.deuda_previa)) {
-        const inmsPagados = [...new Set([
-          ...(Array.isArray(pago.detalles?.recibos) ? pago.detalles.recibos : []).map((r: string) => extraerCodigoInmueble(r)).filter(Boolean),
-          pago.detalles?.codigo_inmueble,
-          pago.detalles?.cod_inmueble
-        ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
+          const dpFiltrada = inmsPagados.length > 0
+            ? pago.detalles.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
+            : pago.detalles.deuda_previa;
 
-        const dpFiltrada = inmsPagados.length > 0
-          ? pago.detalles.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
-          : pago.detalles.deuda_previa;
+          exentoRecibo = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
+        }
 
-        exentoRecibo = dpFiltrada.reduce((acc: number, dp: any) => acc + (parseFloat(String(dp?.multa_bs || 0)) || 0), 0);
-      }
-
-      // 2d. Revisar multa_bs / monto_multa directo
-      if (exentoRecibo === 0) {
-        exentoRecibo = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.montos?.multa || pago.detalles?.monto_multa || 0)) || 0;
+        // 2c. Revisar multa_bs / monto_multa directo
+        if (exentoRecibo === 0) {
+          exentoRecibo = parseFloat(String(pago.detalles?.multa_bs || pago.detalles?.montos?.multa || pago.detalles?.monto_multa || 0)) || 0;
+        }
       }
     }
 
-    // Salvaguarda: si exentoRecibo es igual o mayor a montoTotal y el pago liquida servicio (mesesServicio > 0 o recibos ordinarios),
-    // NO puede ser que el 100% sea multa. En ese caso la multa es 0 y todo es servicio gravado.
-    if (exentoRecibo >= montoTotal && ((pago.mesesServicio && pago.mesesServicio > 0) || (Array.isArray(pago.detalles?.recibos) && pago.detalles.recibos.some((r: string) => !/^MULTA-/i.test(r))))) {
+    // Salvaguarda: si no hay multa comprobada en lineas de condominio o conceptos,
+    // y exentoRecibo es igual o mayor a montoTotal y el pago liquida servicio ordinario, evitar falso positivo de abono provisional.
+    const tieneMultaComprobada = multaCondo > 0 || (Array.isArray(pago.detalles?.condominio?.lineas) && pago.detalles.condominio.lineas.some((l: any) => (parseFloat(String(l?.multaBs || 0)) || 0) > 0));
+    if (!tieneMultaComprobada && exentoRecibo >= montoTotal && ((pago.mesesServicio && pago.mesesServicio > 0) || (Array.isArray(pago.detalles?.recibos) && pago.detalles.recibos.some((r: string) => !/^MULTA-/i.test(r))))) {
       exentoRecibo = 0;
     }
 

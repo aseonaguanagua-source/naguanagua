@@ -692,8 +692,12 @@ export async function POST(request: Request) {
           rcTotal = r2(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0));
           periodoRecibo = rc[0]?.periodo || '';
 
-          // Solo considerar como exento/multa conceptos que explícitamente sean multas
-          // Evitar que abonos comerciales provisionales (donde exento == total) se clasifiquen erróneamente como multa
+          // 1. Revisar si el desglose de condominio indica explícitamente multas
+          let multaCondo = 0;
+          if (Array.isArray(detPago.condominio?.lineas)) {
+            multaCondo = detPago.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
+          }
+
           let sumaMultaConceptos = 0;
           let tieneConceptoAseo = false;
           for (const r of rc) {
@@ -709,7 +713,9 @@ export async function POST(request: Request) {
             }
           }
 
-          if (sumaMultaConceptos > 0) {
+          if (multaCondo > 0) {
+            rcExento = r2(multaCondo);
+          } else if (sumaMultaConceptos > 0) {
             rcExento = r2(sumaMultaConceptos);
           } else if (!tieneConceptoAseo) {
             // Si no hay conceptos de aseo identificados, tomar el exento directo si existe
@@ -747,9 +753,16 @@ export async function POST(request: Request) {
 
     // 1. DETERMINAR MONTO DE MULTA (BASE EXENTA)
     let baseExenta = 0;
+    let multaCondoDirecta = 0;
+    if (Array.isArray(detPago.condominio?.lineas)) {
+      multaCondoDirecta = r2(detPago.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0));
+    }
+
     if (tieneMontoMultaExplicito) {
       // Si el operador o payload indicó explícitamente el monto de multa (incluso 0)
       baseExenta = explicitMulta > 0 ? r2(explicitMulta) : 0;
+    } else if (multaCondoDirecta > 0) {
+      baseExenta = multaCondoDirecta;
     } else if (detPago.recibo_caja) {
       // Si hay recibo de caja emitido, manda el exento cobrado en caja (si es 0, no hay multa)
       baseExenta = rcExento > 0 ? rcExento : 0;
@@ -771,19 +784,21 @@ export async function POST(request: Request) {
     }
 
     // 2. DETERMINAR BASE GRAVADA E IVA
-    if (itemsGravados.length > 0 || explicitBase > 0 || explicitTotal > 0 || rcTotal > 0) {
-      let baseGravada = 0;
-      let ivaGravado = 0;
+    let baseGravada = 0;
+    let ivaGravado = 0;
 
-      if (explicitBase > 0) {
-        baseGravada = r2(explicitBase);
-        ivaGravado = r2(baseGravada * 0.16);
-      } else if (explicitTotal > 0) {
-        const gravadoConIva = r2(Math.max(0, explicitTotal - baseExenta));
+    if (explicitBase > 0) {
+      baseGravada = r2(explicitBase);
+      ivaGravado = r2(baseGravada * 0.16);
+    } else if (explicitTotal > 0) {
+      const gravadoConIva = r2(Math.max(0, explicitTotal - baseExenta));
+      if (gravadoConIva > 0.001) {
         baseGravada = r2(gravadoConIva / 1.16);
         ivaGravado = r2(gravadoConIva - baseGravada);
-      } else if (rcTotal > 0) {
-        const gravadoConIva = r2(Math.max(0, rcTotal - baseExenta));
+      }
+    } else if (rcTotal > 0) {
+      const gravadoConIva = r2(Math.max(0, rcTotal - baseExenta));
+      if (gravadoConIva > 0.001) {
         if (rcSubTotal > 0 && rcSubTotal !== rcTotal && Math.abs((rcSubTotal + (rcIva || r2(rcSubTotal * 0.16)) + baseExenta) - rcTotal) <= 0.05) {
           baseGravada = rcSubTotal;
           ivaGravado = rcIva > 0 ? rcIva : r2(baseGravada * 0.16);
@@ -791,11 +806,13 @@ export async function POST(request: Request) {
           baseGravada = r2(gravadoConIva / 1.16);
           ivaGravado = r2(gravadoConIva - baseGravada);
         }
-      } else {
-        baseGravada = r2(itemsGravados.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
-        ivaGravado = r2(baseGravada * 0.16);
       }
+    } else if (itemsGravados.length > 0) {
+      baseGravada = r2(itemsGravados.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
+      ivaGravado = r2(baseGravada * 0.16);
+    }
 
+    if (baseGravada > 0.001) {
       totalGravado = baseGravada;
       totalIVA = ivaGravado;
       detallesItems.push({

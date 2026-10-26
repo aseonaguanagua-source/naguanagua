@@ -93,6 +93,12 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
         rcTotal = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0).toFixed(2));
         periodoRecibo = rc[0]?.periodo || '';
 
+        // 1. Revisar si el desglose de condominio indica explícitamente multas
+        let multaCondo = 0;
+        if (Array.isArray(det.condominio?.lineas)) {
+          multaCondo = det.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
+        }
+
         let sumaMultaConceptos = 0;
         let tieneConceptoAseo = false;
         for (const r of rc) {
@@ -108,7 +114,9 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
           }
         }
 
-        if (sumaMultaConceptos > 0) {
+        if (multaCondo > 0) {
+          rcExento = parseFloat(multaCondo.toFixed(2));
+        } else if (sumaMultaConceptos > 0) {
           rcExento = parseFloat(sumaMultaConceptos.toFixed(2));
         } else if (!tieneConceptoAseo) {
           const exDirecto = parseFloat(rc.reduce((acc: number, r: any) => acc + (parseFloat(String(r.exento || 0)) || 0), 0).toFixed(2));
@@ -121,7 +129,14 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   }
 
   let exento = 0;
-  if (tieneReciboCaja) {
+  let multaCondoDirecta = 0;
+  if (Array.isArray(det.condominio?.lineas)) {
+    multaCondoDirecta = parseFloat(det.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0).toFixed(2));
+  }
+
+  if (multaCondoDirecta > 0) {
+    exento = multaCondoDirecta;
+  } else if (tieneReciboCaja) {
     exento = rcExento;
   } else {
     exento = parseFloat(String(det.multa_bs || 0)) || 0;
@@ -144,9 +159,17 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     totalFactura = parseFloat(String(pago.totalManual));
   } else if (rcTotal > 0) {
     totalFactura = rcTotal;
-    baseImponible = rcSubTotal > 0 && rcSubTotal !== rcTotal ? (rcExento > 0 && rcSubTotal > rcExento ? rcSubTotal - rcExento : rcSubTotal) : parseFloat(((rcTotal - rcExento) / 1.16).toFixed(2));
-    iva = rcIva > 0 ? rcIva : parseFloat((rcTotal - rcExento - baseImponible).toFixed(2));
-    exento = rcExento;
+    const remGravado = Math.max(0, rcTotal - exento);
+    if (remGravado <= 0.01) {
+      baseImponible = 0;
+      iva = 0;
+    } else {
+      baseImponible = rcSubTotal > 0 && rcSubTotal !== rcTotal && Math.abs((rcSubTotal + (rcIva || parseFloat((rcSubTotal * 0.16).toFixed(2))) + exento) - rcTotal) <= 0.05
+        ? rcSubTotal
+        : parseFloat((remGravado / 1.16).toFixed(2));
+      iva = rcIva > 0 ? rcIva : parseFloat((remGravado - baseImponible).toFixed(2));
+    }
+    exento = exento > 0 ? exento : rcExento;
   } else if (esRetencion) {
     // Para pagos con retención de IVA:
     // El total fiscal de la factura es el monto BRUTO con IVA (antes de deducir la retención)
@@ -604,21 +627,23 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                     })
                   ) : (
                     <>
-                      <tr className="align-top">
-                        <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
-                        <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
-                          {conceptoGeneralFinal}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                          {formatBs(baseImponibleFinal)}
-                        </td>
-                        <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
-                          G
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
-                          {formatBs(baseImponibleFinal)}
-                        </td>
-                      </tr>
+                      {baseImponibleFinal > 0 && (
+                        <tr className="align-top">
+                          <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
+                          <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
+                            {conceptoGeneralFinal}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                            {formatBs(baseImponibleFinal)}
+                          </td>
+                          <td className="py-2.5 px-2 text-center font-mono font-black text-slate-800">
+                            G
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">
+                            {formatBs(baseImponibleFinal)}
+                          </td>
+                        </tr>
+                      )}
 
                       {exentoFinal > 0 && (
                         <tr className="align-top bg-slate-50/60">

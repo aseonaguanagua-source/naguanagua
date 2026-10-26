@@ -403,13 +403,21 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     }
 
     const conceptos = [];
-    if (fSubtotal > 0) {
+    if (fBase > 0) {
       conceptos.push({
         descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${codInmuebleFila}`,
-        precioUnit: fSubtotal,
-        total: fSubtotal,
+        precioUnit: fBase,
+        total: fBase,
       });
-    } else {
+    }
+    if (fMulta > 0) {
+      conceptos.push({
+        descripcion: `Multa por Mora - Aseo Urbano (Período: ${periodoTexto}) · ${codInmuebleFila}`,
+        precioUnit: fMulta,
+        total: fMulta,
+      });
+    }
+    if (conceptos.length === 0) {
       conceptos.push({
         descripcion: `Servicio de Aseo Urbano (Período: ${periodoTexto}) · ${codInmuebleFila}`,
         precioUnit: f.totalBs,
@@ -452,8 +460,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       periodo: periodoTexto,
       conceptos,
       subTotal: fSubtotal,
-      exento: fIva > 0 ? 0 : fSubtotal,
-      baseImponible: fIva > 0 ? fSubtotal : 0,
+      exento: fIva > 0 ? fMulta : fSubtotal,
+      baseImponible: fIva > 0 ? fBase : 0,
       iva: fIva,
       retencion: fRet,
       total: fTotalBruto,
