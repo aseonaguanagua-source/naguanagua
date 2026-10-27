@@ -36,16 +36,17 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Actualizar todos los inmuebles que coincidan con la cédula/RIF
+    // 2. Actualizar todos los inmuebles y condominios que coincidan con la cédula/RIF
     if (variants.length > 0) {
       const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
       const updatePayload: any = { correo_electronico: cleanEmail };
       if (cleanPhone) updatePayload.telefono = cleanPhone;
 
-      await supabaseAdmin
-        .from('inmuebles')
-        .update(updatePayload)
-        .or(orFilter);
+      await Promise.allSettled([
+        supabaseAdmin.from('inmuebles').update(updatePayload).or(orFilter),
+        supabaseAdmin.from('condominios').update({ correo: cleanEmail, ...(cleanPhone ? { telefono: cleanPhone } : {}) }).or(orFilter),
+        supabaseAdmin.from('condominio_unidades').update({ correo: cleanEmail, ...(cleanPhone ? { telefono: cleanPhone } : {}) }).or(orFilter)
+      ]);
     }
 
     // 3. Actualizar o insertar en tabla contribuyentes

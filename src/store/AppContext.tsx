@@ -1002,7 +1002,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { error: errC } = await supabase.from('contribuyentes').upsert([contribRecord], { onConflict: 'identidad' });
       if (errC) throw new Error('No se pudo guardar el contribuyente: ' + errC.message);
 
-      // 2. Sincronización de datos en inmuebles:
+      // 2. Sincronización de datos en inmuebles y tablas del sistema (en CASCADA total):
       // NOTA CRÍTICA (Caso 18): Un contribuyente puede tener múltiples locales independientes con direcciones y teléfonos propios.
       // NUNCA sobreescribir la dirección de todos los locales indiscriminadamente por RIF.
       const idClean = identidadExacta.replace(/-/g, '').toUpperCase();
@@ -1014,6 +1014,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Actualizar razón social / nombre del titular en sus inmuebles
       await supabase.from('inmuebles').update(baseNombre).or(`identidad.eq.${identidadExacta},identidad.eq.${idClean}`);
+
+      // Actualizar en cascada para todos los módulos (Facturación, Cobro Móvil, Portal, Servicios Especiales, Documentos, Retenciones, Condominios)
+      if (data.Contribuyente && String(data.Contribuyente).trim() !== '') {
+        const nuevoNom = String(data.Contribuyente).trim().toUpperCase();
+        const orIdent = `identidad.eq.${identidadExacta},identidad.eq.${idClean}`;
+        await Promise.allSettled([
+          supabase.from('facturas').update({ contribuyente: nuevoNom }).or(orIdent),
+          supabase.from('servicios_especiales').update({ contribuyente: nuevoNom }).or(orIdent),
+          supabase.from('documentos').update({ contribuyente: nuevoNom }).or(orIdent),
+          supabase.from('retenciones_iva').update({ contribuyente: nuevoNom }).or(orIdent),
+          supabase.from('condominio_unidades').update({ propietario: nuevoNom }).or(orIdent),
+          supabase.from('condominios').update({ nombre: nuevoNom }).or(orIdent),
+        ]);
+      }
 
       const nuevaClasificacion = data.Clasificacion || 'Residencial';
       let nuevaActividad = '';

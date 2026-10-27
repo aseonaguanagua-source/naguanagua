@@ -6,6 +6,8 @@ export const dynamic = 'force-dynamic';
 /** Tablas que guardan la cédula/RIF del contribuyente. */
 const TABLAS_HIJAS: { tabla: string; col: string }[] = [
   { tabla: 'inmuebles', col: 'identidad' },
+  { tabla: 'condominios', col: 'identidad' },
+  { tabla: 'condominio_unidades', col: 'identidad' },
   { tabla: 'facturas', col: 'identidad' },
   { tabla: 'pagos_reportados', col: 'identidad' },
   { tabla: 'convenios_pago', col: 'identidad' },

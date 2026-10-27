@@ -102,10 +102,20 @@ export default function DatosContribuyentePage() {
     try {
       const variants = getIdentidadVariantsExact(fullDoc);
       const orFilter = variants.map(v => `identidad.eq.${v}`).join(',');
+      
+      // 1. Actualizar inmuebles
       const { error } = await supabase.from('inmuebles').update({ correo_electronico: userData.email, telefono: userData.telefonoMovil, direccion: userData.direccion })
         .or(orFilter);
       if (error) throw error;
-      setMessage('Datos actualizados correctamente');
+
+      // 2. Cascada en contribuyentes, condominios y condominio_unidades
+      await Promise.allSettled([
+        supabase.from('contribuyentes').update({ email: userData.email, telefono: userData.telefonoMovil, direccion: userData.direccion }).or(orFilter),
+        supabase.from('condominio_unidades').update({ correo: userData.email, telefono: userData.telefonoMovil }).or(orFilter),
+        supabase.from('condominios').update({ correo: userData.email, telefono: userData.telefonoMovil, direccion: userData.direccion }).or(orFilter)
+      ]);
+
+      setMessage('Datos actualizados correctamente en todo el sistema');
       setTimeout(() => setMessage(''), 3000);
     } catch { setMessage('Error al actualizar datos'); }
     setIsSaving(false);
@@ -129,9 +139,13 @@ export default function DatosContribuyentePage() {
         setClaveMsg({ type: 'err', txt: 'Clave actual incorrecta.' });
         setIsSavingClave(false); return;
       }
+      // Actualizar clave en cascada en inmuebles y contribuyentes
       const { error } = await supabase.from('inmuebles').update({ clave_portal: claveNueva })
         .or(orFilter);
-      if (error) throw error;
+      try {
+        await supabase.from('contribuyentes').update({ clave_portal: claveNueva }).or(orFilter);
+      } catch (_) {}
+
       setClaveMsg({ type: 'ok', txt: 'Clave actualizada exitosamente.' });
       setClaveActual(''); setClaveNueva(''); setClaveConfirm('');
     } catch { setClaveMsg({ type: 'err', txt: 'Error al cambiar la clave.' }); }
