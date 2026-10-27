@@ -47,6 +47,9 @@ export default function ConveniosPagoPage() {
     setSearchDoc('');
     setListaCuotas([]);
     setCuotas(1);
+    setMesesPorCuota(1);
+    setIntervaloMeses(1);
+    setModalidadCalculo('meses_por_cuota');
     setDocumento(null);
     setIsProcessing(false);
   };
@@ -56,6 +59,9 @@ export default function ConveniosPagoPage() {
     setSearchDoc('');
     setListaCuotas([]);
     setCuotas(1);
+    setMesesPorCuota(1);
+    setIntervaloMeses(1);
+    setModalidadCalculo('meses_por_cuota');
     setDocumento(null);
     setIsProcessing(false);
     setIsModalOpen(true);
@@ -94,8 +100,11 @@ export default function ConveniosPagoPage() {
     fetchFreshConvenios();
   }, [inmuebles]);
   
+  const [modalidadCalculo, setModalidadCalculo] = useState<'meses_por_cuota' | 'division_total'>('meses_por_cuota');
+  const [mesesPorCuota, setMesesPorCuota] = useState(1);
   const [cuotas, setCuotas] = useState(1);
   const [frecuencia, setFrecuencia] = useState('Mensual');
+  const [intervaloMeses, setIntervaloMeses] = useState(1);
   const [fechaInicio, setFechaInicio] = useState(new Date().toISOString().split('T')[0]);
   const [mantenerDia, setMantenerDia] = useState(true);
   const [documento, setDocumento] = useState<File | null>(null);
@@ -113,52 +122,112 @@ export default function ConveniosPagoPage() {
     const totalBs = parseFloat(foundUser.montoACongelar);
     if (isNaN(totalBs) || totalBs <= 0) return;
     
-    const montoPorCuota = (totalBs / cuotas).toFixed(2);
     const nuevasCuotas: any[] = [];
     const [yearStr, monthStr, dayStr] = fechaInicio.split('-');
     const baseYear = parseInt(yearStr);
     const baseMonth = parseInt(monthStr) - 1; // 0-indexed
     const baseDay = parseInt(dayStr);
-    
-    for (let i = 0; i < cuotas; i++) {
-      let currentDate = new Date(baseYear, baseMonth, baseDay);
-      let calcMonth = baseMonth;
 
-      if (frecuencia === 'Quincenal') {
-        currentDate = new Date(baseYear, baseMonth, baseDay + (i * 15));
-      } else {
-        if (frecuencia === 'Mensual') {
-          calcMonth = baseMonth + i;
-        } else if (frecuencia === 'Bimestral') {
-          calcMonth = baseMonth + (i * 2);
-        }
+    // Meses de deuda totales e importe por mes
+    const totalMesesDeuda = Math.max(1, parseInt(String(foundUser.totalMesesDeuda || 1)));
+    const valorMesBs = foundUser.valorMesBs > 0 ? foundUser.valorMesBs : (totalBs / totalMesesDeuda);
 
-        if (mantenerDia) {
-          currentDate = new Date(baseYear, calcMonth, baseDay);
-          // Prevenir salto de mes (ej. 31 feb -> 2 o 3 mar). Ajustar al último día del mes objetivo.
-          if (currentDate.getMonth() !== calcMonth % 12) {
-            currentDate = new Date(baseYear, calcMonth + 1, 0); 
-          }
-        } else {
-          currentDate = new Date(baseYear, baseMonth, baseDay);
-          if (frecuencia === 'Mensual') currentDate.setMonth(currentDate.getMonth() + i);
-          else if (frecuencia === 'Bimestral') currentDate.setMonth(currentDate.getMonth() + (i * 2));
-        }
-      }
+    let numCuotasFinal = cuotas;
 
-      const y = currentDate.getFullYear();
-      const m = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const d = String(currentDate.getDate()).padStart(2, '0');
+    if (modalidadCalculo === 'meses_por_cuota') {
+      const mPorCuota = Math.max(1, mesesPorCuota);
+      // Número de cuotas requeridas para cubrir los meses de deuda
+      numCuotasFinal = Math.ceil(totalMesesDeuda / mPorCuota);
       
-      nuevasCuotas.push({
-        id: i,
-        fecha: `${y}-${m}-${d}`,
-        monto: montoPorCuota,
-        estado: 'Pendiente'
-      });
+      let mesesRestantes = totalMesesDeuda;
+      let totalAcumuladoBs = 0;
+
+      for (let i = 0; i < numCuotasFinal; i++) {
+        const mesesEnEstaCuota = Math.min(mPorCuota, mesesRestantes);
+        mesesRestantes -= mesesEnEstaCuota;
+
+        // Si es la última cuota, ajustar cualquier centavo restante con respecto a totalBs
+        let montoCuota = Math.round((mesesEnEstaCuota * valorMesBs) * 100) / 100;
+        totalAcumuladoBs += montoCuota;
+        if (i === numCuotasFinal - 1) {
+          const diferencia = Math.round((totalBs - totalAcumuladoBs) * 100) / 100;
+          montoCuota = Math.round((montoCuota + diferencia) * 100) / 100;
+        }
+
+        // Cálculo de fecha según intervalo de meses o frecuencia
+        let stepMonths = frecuencia === 'Quincenal' ? 0 : Math.max(1, intervaloMeses);
+        let currentDate: Date;
+
+        if (frecuencia === 'Quincenal') {
+          currentDate = new Date(baseYear, baseMonth, baseDay + (i * 15));
+        } else {
+          const calcMonth = baseMonth + (i * stepMonths);
+          if (mantenerDia) {
+            currentDate = new Date(baseYear, calcMonth, baseDay);
+            if (currentDate.getMonth() !== (calcMonth % 12 + 12) % 12) {
+              currentDate = new Date(baseYear, calcMonth + 1, 0);
+            }
+          } else {
+            currentDate = new Date(baseYear, baseMonth, baseDay);
+            currentDate.setMonth(currentDate.getMonth() + (i * stepMonths));
+          }
+        }
+
+        const y = currentDate.getFullYear();
+        const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const d = String(currentDate.getDate()).padStart(2, '0');
+
+        nuevasCuotas.push({
+          id: i,
+          fecha: `${y}-${m}-${d}`,
+          monto: Math.max(0, montoCuota).toFixed(2),
+          meses_cubiertos: mesesEnEstaCuota,
+          estado: 'Pendiente'
+        });
+      }
+    } else {
+      // Modalidad división libre en N cuotas
+      const numCuotas = Math.max(1, cuotas);
+      const montoBaseCuota = Math.floor((totalBs / numCuotas) * 100) / 100;
+      let acumulado = 0;
+
+      for (let i = 0; i < numCuotas; i++) {
+        let montoCuota = (i === numCuotas - 1) ? Math.round((totalBs - acumulado) * 100) / 100 : montoBaseCuota;
+        acumulado += montoCuota;
+
+        let stepMonths = frecuencia === 'Quincenal' ? 0 : (frecuencia === 'Bimestral' ? 2 : Math.max(1, intervaloMeses));
+        let currentDate: Date;
+
+        if (frecuencia === 'Quincenal') {
+          currentDate = new Date(baseYear, baseMonth, baseDay + (i * 15));
+        } else {
+          const calcMonth = baseMonth + (i * stepMonths);
+          if (mantenerDia) {
+            currentDate = new Date(baseYear, calcMonth, baseDay);
+            if (currentDate.getMonth() !== (calcMonth % 12 + 12) % 12) {
+              currentDate = new Date(baseYear, calcMonth + 1, 0);
+            }
+          } else {
+            currentDate = new Date(baseYear, baseMonth, baseDay);
+            currentDate.setMonth(currentDate.getMonth() + (i * stepMonths));
+          }
+        }
+
+        const y = currentDate.getFullYear();
+        const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const d = String(currentDate.getDate()).padStart(2, '0');
+
+        nuevasCuotas.push({
+          id: i,
+          fecha: `${y}-${m}-${d}`,
+          monto: Math.max(0, montoCuota).toFixed(2),
+          estado: 'Pendiente'
+        });
+      }
     }
+
     setListaCuotas(nuevasCuotas);
-  }, [cuotas, frecuencia, fechaInicio, foundUser, mantenerDia]);
+  }, [modalidadCalculo, mesesPorCuota, cuotas, frecuencia, intervaloMeses, fechaInicio, foundUser, mantenerDia]);
 
   const columns = [
     { key: 'numero', header: 'Nro. Convenio' },
@@ -305,7 +374,17 @@ export default function ConveniosPagoPage() {
           return;
         }
 
+        // Calcular meses de deuda totales
+        let totalMesesDeuda = userInmuebles.reduce((acc, curr) => {
+          const m = parseInt(curr.meses_deuda || '0') || 0;
+          return Math.max(acc, m);
+        }, 0);
+        if (totalMesesDeuda <= 0) {
+          totalMesesDeuda = userFacturas.length > 0 ? userFacturas.length : 1;
+        }
+
         const montoBase = montoACongelarNum > 0 ? montoACongelarNum : (convActivo?.[0]?.monto_total || 0);
+        const valorMesBs = totalMesesDeuda > 0 ? (Number(montoBase) / totalMesesDeuda) : Number(montoBase);
 
         setFoundUser({
           identidad,
@@ -315,6 +394,8 @@ export default function ConveniosPagoPage() {
           totalMMV: Math.round(totalMMV * 100) / 100,
           totalCongelada,
           totalFacturasBs,
+          totalMesesDeuda,
+          valorMesBs: Math.round(valorMesBs * 100) / 100,
           tasaEfectiva,
           montoACongelar: Number(montoBase).toFixed(2),
           convExistenteId,
@@ -411,7 +492,7 @@ export default function ConveniosPagoPage() {
           identidad: foundUser.identidad,
           contribuyente: foundUser.contribuyente,
           montoTotal: totalFijado,
-          cuotas,
+          cuotas: listaCuotas.length > 0 ? listaCuotas.length : cuotas,
           docUrl,
           listaCuotas,
           inmueblesUpdates,
@@ -560,28 +641,136 @@ export default function ConveniosPagoPage() {
 
               {foundUser && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Número de Cuotas</label>
-                      <select value={cuotas} onChange={(e) => setCuotas(parseInt(e.target.value))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                        {[1,2,3,4,5,6,12].map(n => <option key={n} value={n}>{n} {n===1?'cuota':'cuotas'}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Frecuencia (Tiempo)</label>
-                      <select value={frecuencia} onChange={(e) => setFrecuencia(e.target.value)} className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                        <option value="Quincenal">Quincenal</option>
-                        <option value="Mensual">Mensual</option>
-                        <option value="Bimestral">Bimestral</option>
-                      </select>
+                  {/* Selector de Modalidad */}
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                      Modalidad de Cálculo de las Cuotas
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setModalidadCalculo('meses_por_cuota')}
+                        className={`p-2.5 rounded text-left border transition-all cursor-pointer ${
+                          modalidadCalculo === 'meses_por_cuota'
+                            ? 'bg-blue-50/80 border-blue-500 ring-1 ring-blue-500'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="font-semibold text-xs text-blue-900 flex items-center justify-between">
+                          <span>Por Meses de Deuda</span>
+                          {modalidadCalculo === 'meses_por_cuota' && <span className="w-2 h-2 rounded-full bg-blue-600"></span>}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Indica cuántos meses de servicio amortiza cada cuota.
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setModalidadCalculo('division_total')}
+                        className={`p-2.5 rounded text-left border transition-all cursor-pointer ${
+                          modalidadCalculo === 'division_total'
+                            ? 'bg-blue-50/80 border-blue-500 ring-1 ring-blue-500'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="font-semibold text-xs text-blue-900 flex items-center justify-between">
+                          <span>División en Cuotas Fijas</span>
+                          {modalidadCalculo === 'division_total' && <span className="w-2 h-2 rounded-full bg-blue-600"></span>}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Divide la deuda total entre una cantidad fija de cuotas.
+                        </p>
+                      </button>
                     </div>
                   </div>
+
+                  {/* Parámetros de cuotas según modalidad */}
+                  {modalidadCalculo === 'meses_por_cuota' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-blue-50/40 rounded-lg border border-blue-100">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Meses por Cuota:
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max={Math.max(1, foundUser.totalMesesDeuda || 12)}
+                            value={mesesPorCuota}
+                            onChange={(e) => setMesesPorCuota(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-full border border-blue-300 rounded px-3 py-2 text-sm font-bold text-blue-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-500">
+                          Deuda total: <b>{foundUser.totalMesesDeuda || 1} { (foundUser.totalMesesDeuda || 1) === 1 ? 'mes' : 'meses' }</b>
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Cada cuántos meses vence:
+                        </label>
+                        <select
+                          value={intervaloMeses}
+                          onChange={(e) => setIntervaloMeses(parseInt(e.target.value))}
+                          className="w-full border border-slate-200 rounded px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue-500"
+                        >
+                          <option value={1}>Cada 1 mes (Mensual)</option>
+                          <option value={2}>Cada 2 meses (Bimestral)</option>
+                          <option value={3}>Cada 3 meses (Trimestral)</option>
+                          <option value={6}>Cada 6 meses (Semestral)</option>
+                        </select>
+                        <span className="text-[10px] text-slate-500">
+                          Frecuencia entre cuotas
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Cuotas resultantes:
+                        </label>
+                        <div className="px-3 py-2 bg-white rounded border border-blue-200 text-sm font-bold text-blue-900 text-center">
+                          {listaCuotas.length} {listaCuotas.length === 1 ? 'cuota' : 'cuotas'}
+                        </div>
+                        <span className="text-[10px] text-slate-500 text-center block">
+                          ~ Bs. {listaCuotas[0]?.monto || '0.00'} / cuota
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Número de Cuotas</label>
+                        <select
+                          value={cuotas}
+                          onChange={(e) => setCuotas(parseInt(e.target.value))}
+                          className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                        >
+                          {[1,2,3,4,5,6,8,10,12,18,24].map(n => <option key={n} value={n}>{n} {n===1?'cuota':'cuotas'}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Frecuencia de Pago</label>
+                        <select
+                          value={frecuencia}
+                          onChange={(e) => setFrecuencia(e.target.value)}
+                          className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="Quincenal">Quincenal (Cada 15 días)</option>
+                          <option value="Mensual">Mensual (Cada 1 mes)</option>
+                          <option value="Bimestral">Bimestral (Cada 2 meses)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">Fecha de Inicio de Pago</label>
                     <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
                     <label className="flex items-center gap-2 mt-2 cursor-pointer">
                       <input type="checkbox" checked={mantenerDia} onChange={(e) => setMantenerDia(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span className="text-xs text-slate-600">Mantener el mismo día para las cuotas siguientes</span>
+                      <span className="text-xs text-slate-600">Mantener el mismo día del mes para las cuotas siguientes</span>
                     </label>
                   </div>
                   
@@ -605,13 +794,23 @@ export default function ConveniosPagoPage() {
 
                   {/* Tabla de cuotas editable */}
                   <div className="mt-6 pt-6 border-t border-slate-200">
-                    <h4 className="text-sm font-semibold text-slate-800 mb-3">Programación de Cuotas a Pagar</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-slate-800">Programación de Cuotas a Pagar</h4>
+                      {modalidadCalculo === 'meses_por_cuota' && (
+                        <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                          {mesesPorCuota} {mesesPorCuota === 1 ? 'mes' : 'meses'} amortizados por cuota
+                        </span>
+                      )}
+                    </div>
                     <div className="bg-slate-50 border border-slate-200 rounded overflow-hidden">
                       <table className="w-full text-sm text-left">
                         <thead className="bg-slate-100 text-slate-600 text-xs">
                           <tr>
                             <th className="px-4 py-2 w-16 text-center">Nro</th>
                             <th className="px-4 py-2">Fecha de Pago</th>
+                            {modalidadCalculo === 'meses_por_cuota' && (
+                              <th className="px-4 py-2 text-center">Meses que Cubre</th>
+                            )}
                             <th className="px-4 py-2 text-right">Monto (Bs)</th>
                           </tr>
                         </thead>
@@ -627,6 +826,11 @@ export default function ConveniosPagoPage() {
                                   className="w-full border-none bg-transparent focus:ring-1 focus:ring-blue-500 px-1 py-1 rounded"
                                 />
                               </td>
+                              {modalidadCalculo === 'meses_por_cuota' && (
+                                <td className="px-4 py-2 text-center font-semibold text-xs text-slate-700">
+                                  {c.meses_cubiertos || 1} { (c.meses_cubiertos || 1) === 1 ? 'mes' : 'meses' }
+                                </td>
+                              )}
                               <td className="px-4 py-2">
                                 <div className="flex items-center gap-1 justify-end">
                                   <input 
@@ -643,7 +847,9 @@ export default function ConveniosPagoPage() {
                         </tbody>
                         <tfoot className="bg-slate-100 border-t border-slate-300 font-medium">
                           <tr>
-                            <td colSpan={2} className="px-4 py-2 text-right text-slate-700">Suma Total de Cuotas:</td>
+                            <td colSpan={modalidadCalculo === 'meses_por_cuota' ? 3 : 2} className="px-4 py-2 text-right text-slate-700">
+                              Suma Total de Cuotas:
+                            </td>
                             <td className={`px-4 py-2 text-right font-bold ${
                               Math.abs(listaCuotas.reduce((a, b) => a + (parseFloat(b.monto) || 0), 0) - parseFloat(foundUser.montoACongelar)) > 1
                               ? 'text-red-600' : 'text-emerald-700'
