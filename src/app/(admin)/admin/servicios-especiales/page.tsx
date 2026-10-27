@@ -1058,32 +1058,61 @@ export default function ServiciosEspecialesPage() {
                 if (form.tipo === 'inspeccion') return (
                   <div className="space-y-3">
                     <div>
-                      <label className={lbl}>Motivo / Solicitud de la Inspección *</label>
+                      <label className={lbl}>Motivo / Solicitud de la Inspección de Aseo *</label>
                       <input
                         type="text"
-                        placeholder="Ej: Inspección TERRENO, Verificación Ambiental, etc."
+                        placeholder="Ej: Inspección de Aseo Urbano, Verificación de Generación de Desechos, etc."
                         value={form.descripcion}
                         onChange={e => setForm(prev => ({ ...prev, descripcion: e.target.value, nombreEvento: e.target.value }))}
                         className={inp}
                         required
                       />
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {['Inspección TERRENO', 'Inspección Técnica Ambiental', 'Verificación de Linderos', 'Inspección de Local Comercial'].map(sug => (
+                        {['Inspección de Aseo Urbano', 'Inspección Comercial de Aseo', 'Inspección Residencial de Aseo', 'Verificación de Cuarto de Basura'].map(sug => (
                           <button
                             key={sug}
                             type="button"
                             onClick={() => setForm(prev => ({ ...prev, descripcion: sug, nombreEvento: sug }))}
-                            className="text-[10px] bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium transition-colors"
+                            className="text-[10px] bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-medium transition-colors cursor-pointer"
                           >
                             + {sug}
                           </button>
                         ))}
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className={lbl}>Persona que recibe la inspección</label>
+                        <input
+                          type="text"
+                          placeholder="Nombre y apellido de quién atiende"
+                          value={form.contacto}
+                          onChange={e => setForm(prev => ({ ...prev, contacto: e.target.value }))}
+                          className={inp}
+                        />
+                      </div>
+                      <div>
+                        <label className={lbl}>N° Contacto de quién recibe la inspección</label>
+                        <input
+                          type="text"
+                          placeholder="Teléfono móvil / directo"
+                          value={form.telefono}
+                          onChange={e => setForm(prev => ({ ...prev, telefono: e.target.value }))}
+                          className={inp}
+                        />
+                      </div>
+                    </div>
+
                     <div>
-                      <label className={lbl}>Cantidad de m² del inmueble (Opcional, {C.inspeccionUcdPorM2} UCD por m²)</label>
-                      <input type="number" min="0" placeholder="Metros cuadrados (deje vacío si el monto es fijo)" value={form.area}
-                        onChange={e => setForm(prev => ({ ...prev, area: e.target.value }))} className={inp} />
+                      <label className={lbl}>Detalles y Observaciones Técnicas (In Situ)</label>
+                      <textarea
+                        rows={4}
+                        placeholder="Escriba aquí los detalles técnicos observados durante la inspección de aseo in situ..."
+                        value={form.notas || ''}
+                        onChange={e => setForm(prev => ({ ...prev, notas: e.target.value }))}
+                        className={inp}
+                      />
                     </div>
                   </div>
                 );

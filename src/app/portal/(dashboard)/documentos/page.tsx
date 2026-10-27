@@ -9,6 +9,7 @@ interface DocumentoItem {
   id: string;
   tipo: 'factura' | 'pago';
   referencia: string;
+  codigoInmueble?: string;
   fecha: string;
   monto: number;
   concepto: string;
@@ -63,6 +64,7 @@ export default function DocumentosPage() {
             id: `fac_${f.id}`,
             tipo: 'factura',
             referencia: f.referencia || `FAC-${f.id}`,
+            codigoInmueble: f.inmueble || undefined,
             fecha: f.fecha_pago || f.emision || f.created_at?.split('T')[0] || 'N/A',
             monto: parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0,
             concepto: f.contribuyente ? `Factura Servicio Aseo - ${f.contribuyente}` : 'Factura Fiscal de Aseo Urbano',
@@ -80,6 +82,23 @@ export default function DocumentosPage() {
           
           const reciboNum = det.recibo_digital?.numero || det.factura_digital?.numero_factura || p.referencia;
           const fechaTx = det.fecha_transaccion || p.created_at?.split('T')[0] || 'N/A';
+
+          // Extraer código de inmueble pagado
+          let codInm = det.cod_inmueble || det.codigo_inmueble || det.condominio?.codigo || undefined;
+          if (!codInm && det.pago_vinculado && pagosMap.has(det.pago_vinculado)) {
+            const pv = pagosMap.get(det.pago_vinculado);
+            let pvd: any = {};
+            try { pvd = typeof pv.detalles === 'string' ? JSON.parse(pv.detalles) : (pv.detalles || {}); } catch {}
+            codInm = pvd.cod_inmueble || pvd.codigo_inmueble || pvd.condominio?.codigo;
+            if (!codInm && Array.isArray(pvd.recibos) && pvd.recibos.length > 0) {
+              const mMatch = String(pvd.recibos[0]).match(/(?:RECIB-HIST|CM|RECIB|MULTA)-([A-Z0-9_-]+?)(?:-M?\d+)?$/i);
+              if (mMatch && mMatch[1]) codInm = mMatch[1];
+            }
+          }
+          if (!codInm && Array.isArray(det.recibos) && det.recibos.length > 0) {
+            const mMatch = String(det.recibos[0]).match(/(?:RECIB-HIST|CM|RECIB|MULTA)-([A-Z0-9_-]+?)(?:-M?\d+)?$/i);
+            if (mMatch && mMatch[1]) codInm = mMatch[1];
+          }
 
           // Extraer período
           let periodo = det.recibo_caja?.[0]?.periodo || det.periodos_pagados || det.periodo || '';
@@ -114,6 +133,7 @@ export default function DocumentosPage() {
             id: `pago_${p.id}`,
             tipo: 'pago',
             referencia: reciboNum,
+            codigoInmueble: codInm,
             fecha: fechaTx,
             monto: parseFloat(String(p.monto || '0').replace(/[^\d.]/g, '')) || 0,
             concepto: conceptoTxt,
@@ -142,6 +162,7 @@ export default function DocumentosPage() {
     const q = searchTerm.toLowerCase();
     return documentos.filter(d => 
       d.referencia.toLowerCase().includes(q) ||
+      (d.codigoInmueble && d.codigoInmueble.toLowerCase().includes(q)) ||
       d.concepto.toLowerCase().includes(q) ||
       (d.banco && d.banco.toLowerCase().includes(q))
     );
@@ -165,7 +186,7 @@ export default function DocumentosPage() {
             type="text" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nro. recibo o referencia..." 
+            placeholder="Buscar por nro. recibo, código o referencia..." 
             className="w-full pl-9 pr-4 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50"
           />
         </div>
@@ -189,6 +210,7 @@ export default function DocumentosPage() {
             <thead>
               <tr className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider border-b border-slate-200">
                 <th className="px-5 py-3 font-bold">Nro. Recibo / Referencia</th>
+                <th className="px-5 py-3 font-bold text-center">Inmueble / Código</th>
                 <th className="px-5 py-3 font-bold text-center">Fecha Pago</th>
                 <th className="px-5 py-3 font-bold">Concepto / Detalle</th>
                 <th className="px-5 py-3 font-bold text-right">Monto (Bs.)</th>
@@ -199,13 +221,13 @@ export default function DocumentosPage() {
             <tbody className="divide-y divide-slate-100 text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-slate-400">
+                  <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
                     Cargando historial de documentos oficiales...
                   </td>
                 </tr>
               ) : filteredDocs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
                     <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-medium text-slate-600">No se encontraron documentos o recibos pagados para este RIF.</p>
                     <p className="text-[11px] text-slate-400 mt-1">Los pagos confirmados y conciliados aparecerán reflejados aquí automáticamente.</p>
@@ -216,6 +238,15 @@ export default function DocumentosPage() {
                   <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-5 py-3.5 font-mono font-bold text-slate-800">
                       {doc.referencia}
+                    </td>
+                    <td className="px-5 py-3.5 text-center font-mono">
+                      {doc.codigoInmueble ? (
+                        <span className="inline-block bg-slate-100 border border-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded text-[11px]">
+                          {doc.codigoInmueble}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-[11px]">---</span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-center text-slate-600 font-medium">
                       {doc.fecha}

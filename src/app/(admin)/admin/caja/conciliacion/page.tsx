@@ -666,15 +666,37 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
         const esPagoUnidadIndividual = det.modo === 'CONTRIBUYENTE' ||
           String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-          (!!unidadCod && unidadCod !== condoCod) || 
+          (det.modo !== 'CONDOMINIO' && !tieneMultiplesLineas && !!unidadCod && unidadCod !== condoCod) || 
           (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
 
         if (esCondo && condoCod && !esPagoUnidadIndividual) {
-          const { data: condoRecord } = await supabase
+          let { data: condoRecord } = await supabase
             .from('condominios')
             .select('*')
             .eq('codigo', condoCod)
             .maybeSingle();
+
+          // Si no está en la tabla `condominios`, buscar en `inmuebles` donde se gestionan los condominios
+          if (!condoRecord) {
+            const { data: condoInm } = await supabase
+              .from('inmuebles')
+              .select('*')
+              .eq('inmueble', condoCod)
+              .maybeSingle();
+            if (condoInm) {
+              condoRecord = {
+                nombre: condoInm.contribuyente,
+                codigo: condoInm.inmueble,
+                identidad: condoInm.identidad,
+                direccion: condoInm.direccion,
+                telefono: condoInm.telefono,
+                correo: condoInm.correo_electronico,
+                tipo: condoInm.tipo || 'Comercial',
+                estado: condoInm.estado || 'Activo',
+                cant_declarada: condoInm.cant_inmuebles || 1,
+              };
+            }
+          }
 
           const { data: inmsCondo } = await supabase
             .from('inmuebles')
@@ -1411,22 +1433,40 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               }
             }
 
-            // Sincronizar contenedores padre N/A (ej: URB007364) si sus hijos ya no tienen deuda
-            const parentCodesToSync = Array.from(new Set(inmList2.map((i: any) => i.condominio_padre_id || i.padre_id).filter(Boolean)));
-            for (const pCode of parentCodesToSync) {
-              const { data: parentInm } = await supabase.from('inmuebles').select('id, inmueble').eq('inmueble', pCode).maybeSingle();
+            // Sincronizar contenedores padre N/A (ej: URB007364, URB033658) y sus hijos
+            const parentCodesToSync = new Set<string>();
+            inmList2.forEach((i: any) => {
+              if (i.condominio_padre_id) parentCodesToSync.add(i.condominio_padre_id);
+              if (i.padre_id) parentCodesToSync.add(i.padre_id);
+              if ((i.actividad_principal || '').trim().toUpperCase() === 'N/A' && i.inmueble) {
+                parentCodesToSync.add(i.inmueble);
+              }
+            });
+
+            for (const pCode of Array.from(parentCodesToSync)) {
+              const { data: parentInm } = await supabase.from('inmuebles').select('id, inmueble, meses_deuda').eq('inmueble', pCode).maybeSingle();
               if (parentInm) {
-                const { data: currentChildren } = await supabase
-                  .from('inmuebles')
-                  .select('meses_deuda, deuda_mmv')
-                  .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`)
-                  .neq('estado', 'Eliminado');
-                const maxChildMonths = Math.max(0, ...(currentChildren || []).map((c: any) => parseInt(String(c.meses_deuda || 0))));
-                const sumDeudaMmv = Math.round((currentChildren || []).reduce((s: number, c: any) => s + parseFloat(String(c.deuda_mmv || 0)), 0) * 10000) / 10000;
-                if (maxChildMonths === 0 || recibos.includes('RECIB-DEUDA')) {
-                  await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', parentInm.id);
+                const parentMonths = parseInt(String(parentInm.meses_deuda || 0));
+                // Si el padre N/A quedó en 0 meses de deuda, todos sus hijos unificados quedan automáticamente en 0
+                if (parentMonths === 0 || recibos.includes('RECIB-DEUDA')) {
+                  await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 })
+                    .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`);
+                  await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 })
+                    .eq('id', parentInm.id);
                 } else {
-                  await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths, deuda_mmv: sumDeudaMmv }).eq('id', parentInm.id);
+                  // Si el padre tiene deuda, verificar el estado de los hijos
+                  const { data: currentChildren } = await supabase
+                    .from('inmuebles')
+                    .select('meses_deuda, deuda_mmv')
+                    .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`)
+                    .neq('estado', 'Eliminado');
+                  const maxChildMonths = Math.max(0, ...(currentChildren || []).map((c: any) => parseInt(String(c.meses_deuda || 0))));
+                  const sumDeudaMmv = Math.round((currentChildren || []).reduce((s: number, c: any) => s + parseFloat(String(c.deuda_mmv || 0)), 0) * 10000) / 10000;
+                  if (maxChildMonths === 0) {
+                    await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', parentInm.id);
+                  } else {
+                    await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths, deuda_mmv: sumDeudaMmv }).eq('id', parentInm.id);
+                  }
                 }
               }
             }
@@ -1638,7 +1678,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
   const esPagoUnidadIndividualModal = det.modo === 'CONTRIBUYENTE' ||
     String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-    (!!unidadCodModal && unidadCodModal !== condoCodModal) ||
+    (det.modo !== 'CONDOMINIO' && !tieneMultiplesLineasModal && !!unidadCodModal && unidadCodModal !== condoCodModal) ||
     (!!idCondoLimpioModal && !!idPagoLimpioModal && idPagoLimpioModal !== idCondoLimpioModal);
 
   const esCondoGlobal = esCondoModal && !esPagoUnidadIndividualModal;
@@ -2310,10 +2350,13 @@ export default function ConciliacionPage() {
             const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
             const idCondoLimpio = (condoRif || '').replace(/-/g, '').trim().toUpperCase();
 
+            const lineasCondo = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
+            const tieneMultiplesLineas = lineasCondo.length > 1;
+
             const esPagoUnidadIndividual = 
               det.modo === 'CONTRIBUYENTE' ||
               String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-              (!!unidadCod && unidadCod !== condoCod) ||
+              (det.modo !== 'CONDOMINIO' && !tieneMultiplesLineas && !!unidadCod && unidadCod !== condoCod) ||
               (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
 
             const idKey = (pago.identidad || '').replace(/-/g, '').toUpperCase();
@@ -2352,11 +2395,13 @@ export default function ConciliacionPage() {
 
             const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
             const idCondoLimpio = ((det.condominio?.identidad || (condo as any)?.identidad) || '').replace(/-/g, '').trim().toUpperCase();
+            const lineasCondo = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
+            const tieneMultiplesLineas = lineasCondo.length > 1;
 
             const esPagoUnidadIndividual = 
               det.modo === 'CONTRIBUYENTE' ||
               String(det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-              (!!unidadCod && unidadCod !== condoCod) ||
+              (det.modo !== 'CONDOMINIO' && !tieneMultiplesLineas && !!unidadCod && unidadCod !== condoCod) ||
               (!!idCondoLimpio && !!idPagoLimpio && idPagoLimpio !== idCondoLimpio);
 
             if (esCondo && !esPagoUnidadIndividual && condoCod) {

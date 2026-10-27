@@ -128,7 +128,7 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   doc.setTextColor(0);
 
   const tituloBanner = insp
-    ? 'SOLICITUD / ACTA DE INSPECCIÓN TÉCNICA AMBIENTAL'
+    ? 'INSPECCIÓN DE ASEO URBANO'
     : esp
       ? 'SERVICIO ESPECIAL'
       : vb
@@ -163,19 +163,25 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   seccion(insp ? 'DATOS DEL SOLICITANTE / INMUEBLE:' : 'DATOS DEL CLIENTE:');
   campo('NOMBRE / RAZÓN SOCIAL:', d.nombre); y += 8;
   campo('CÉDULA DE IDENTIDAD / RIF:', d.identidad); y += 8;
-  campo('PERSONA DE CONTACTO:', d.contacto); y += 8;
-  campo('NÚMERO DE TELÉFONO:', d.telefono); y += 12;
+  campo(insp ? 'PERSONA / QUIÉN RECIBE LA INSPECCIÓN:' : 'PERSONA DE CONTACTO:', d.contacto); y += 8;
+  campo(insp ? 'NÚMERO DE CONTACTO DE QUIÉN RECIBE:' : 'NÚMERO DE TELÉFONO:', d.telefono); y += 11;
 
   if (insp) {
-    seccion('DETALLES DE LA INSPECCIÓN:');
+    seccion('DETALLES Y ACTA DE LA INSPECCIÓN DE ASEO:');
     campo('DIRECCIÓN DEL INMUEBLE:', d.direccion || d.lugar || 'Municipio Naguanagua'); y += 8;
-    campo('MOTIVO / SOLICITUD:', d.nombreEvento || d.vehiculoLabel || 'Inspección Técnica Ambiental'); y += 8;
-    if (d.factor != null && d.factor > 0) {
-      campo('ÁREA DECLARADA (m²):', `${d.factor} m²`, L, 80);
-      campo('TARIFA ORDENANZA:', '0,10 UCD / m²', L + 85, R - L - 85);
-      y += 8;
+    campo('MOTIVO / SOLICITUD:', d.nombreEvento || d.vehiculoLabel || 'Inspección de Aseo Urbano'); y += 8;
+    
+    // Más líneas para escribir detalles in situ o impresos
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.text('DETALLES / OBSERVACIONES TÉCNICAS IN SITU:', L, y);
+    y += 5;
+    const txtObs = String(d.direccion || d.nombreEvento || '').length > 60 ? '' : '';
+    for (let lineIdx = 0; lineIdx < 4; lineIdx++) {
+      doc.setDrawColor(180);
+      doc.line(L, y, R, y);
+      y += 6.5;
     }
-    y += 4;
+    y += 2;
   } else if (esp) {
     seccion('DATOS DEL EVENTO:');
     campo('NOMBRE DEL EVENTO:', d.nombreEvento); y += 8;
@@ -188,15 +194,19 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
     campo('FECHA:', fechaVE(d.fechaEvento), L, 80); campo('HORARIO:', d.horario, L + 90, R - L - 90); y += 12;
   }
 
-  seccion(insp ? 'LIQUIDACIÓN DE TASA ADMINISTRATIVA' : (esp ? 'COSTO SERVICIO ESPECIAL' : 'COSTO SERVICIO EXTRAORDINARIO'));
-  if (d.vehiculoLabel) {
+  seccion(insp ? 'LIQUIDACIÓN DE TASA DE INSPECCIÓN' : (esp ? 'COSTO SERVICIO ESPECIAL' : 'COSTO SERVICIO EXTRAORDINARIO'));
+  if (d.vehiculoLabel && !insp) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
     doc.text(`Concepto: ${d.vehiculoLabel}${d.tasaEuro ? `  ·  Tasa Euro BCV: Bs. ${fmt(d.tasaEuro)}` : ''}`, L, y - 2);
     y += 3;
   }
+
+  // Si es inspección sin UCD/factor, mostrar tabla simplificada y limpia
+  const tieneUcdInsp = insp && d.valorUcd != null && Number(d.valorUcd) > 0;
   const heads = insp
-    ? ['TARIFA (UCD)', 'CANTIDAD / ÁREA', 'FACTOR', 'TOTAL (UCD)', 'MONTO (Bs)']
+    ? (tieneUcdInsp ? ['CONCEPTO', 'TARIFA (UCD)', 'ÁREA / FACTOR', 'TOTAL (UCD)', 'MONTO (Bs)'] : ['CONCEPTO DE INSPECCIÓN', 'UNIDAD', 'TASA EURO BCV', 'ESTADO', 'MONTO TOTAL (Bs)'])
     : (esp ? ['F.O.Es', 'NVE', 'FAEs', 'TOTAL (UCD)', 'MONTO (Bs)'] : ['C.E.V', 'NVE', 'F. LLENADO', 'TOTAL (UCD)', 'MONTO (Bs)']);
+
   const hayCalc = (d.valorUcd != null && d.nve != null && d.factor != null) || (d.montoBs != null && d.montoBs > 0);
   let totalUcd = d.valorUcd != null && d.nve != null && d.factor != null
     ? Math.round(d.valorUcd * d.nve * d.factor * 10000) / 10000
@@ -205,21 +215,37 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
     ? d.montoBs
     : (d.tasaEuro ? Math.round(totalUcd * d.tasaEuro * 100) / 100 : 0);
 
-  // Si se modificó el monto en Bs manualmente y tenemos tasa Euro, recalculamos totalUcd para que cuadre exactamente
-  if (d.montoBs != null && d.montoBs > 0 && d.tasaEuro && d.tasaEuro > 0) {
+  if (d.montoBs != null && d.montoBs > 0 && d.tasaEuro && d.tasaEuro > 0 && tieneUcdInsp) {
     montoBsFinal = d.montoBs;
     totalUcd = Math.round((montoBsFinal / d.tasaEuro) * 100) / 100;
   }
 
-  const vals = hayCalc
-    ? [
-        fmt(d.valorUcd, insp ? 2 : 0),
-        insp ? (d.factor && d.valorUcd ? `${d.factor} m²` : (d.nve ? fmt(d.nve, 0) : '1')) : fmt(d.nve, 0),
-        insp ? (d.valorUcd ? fmt(d.factor, 0) : '—') : fmt(d.factor, d.factor != null ? (d.factor % 1 ? 1 : 0) : 0),
-        fmt(totalUcd, 2),
-        fmt(montoBsFinal, 2)
-      ]
-    : ['', '', esp ? '1' : '', '', ''];
+  const vals = insp
+    ? (tieneUcdInsp
+        ? [
+            'Inspección de Aseo',
+            fmt(d.valorUcd, 2),
+            d.factor ? `${d.factor} m²` : '1',
+            fmt(totalUcd, 2),
+            fmt(montoBsFinal, 2)
+          ]
+        : [
+            'Inspección de Aseo Urbano In Situ',
+            '1 Servicio',
+            d.tasaEuro ? `Bs. ${fmt(d.tasaEuro)}` : 'Oficial',
+            'Liquidado',
+            fmt(montoBsFinal, 2)
+          ])
+    : (hayCalc
+        ? [
+            fmt(d.valorUcd, 0),
+            fmt(d.nve, 0),
+            fmt(d.factor, d.factor != null ? (d.factor % 1 ? 1 : 0) : 0),
+            fmt(totalUcd, 2),
+            fmt(montoBsFinal, 2)
+          ]
+        : ['', '', esp ? '1' : '', '', '']);
+
   const cw = (R - L) / 5;
   doc.setDrawColor(90); doc.setFontSize(9);
   heads.forEach((h, i) => {
@@ -242,13 +268,38 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   }
   doc.setTextColor(0);
 
-  // Firmas
-  y = Math.max(y + 24, 226);
+  // Firmas: En Inspección son TRES FIRMAS (Inspector, Solicitante y Recaudación)
+  y = Math.max(y + 18, 222);
   doc.setDrawColor(0);
-  doc.line(L + 5, y, L + 70, y); doc.line(R - 70, y, R - 5, y);
-  doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
-  doc.text(insp ? 'Inspector Técnico IAMEC' : 'Firma y Sello IAMEC', L + 37.5, y + 5, { align: 'center' });
-  doc.text('Firma del Solicitante / Contribuyente', R - 37.5, y + 5, { align: 'center' });
+  doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+
+  if (insp) {
+    const fW = (R - L - 10) / 3;
+    // Firma 1: Inspector
+    doc.line(L, y, L + fW, y);
+    doc.text('Inspector Técnico IAMEC', L + fW / 2, y + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+    doc.text('Firma y Cédula', L + fW / 2, y + 8.5, { align: 'center' });
+
+    // Firma 2: Solicitante
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.line(L + fW + 5, y, L + 2 * fW + 5, y);
+    doc.text('Firma del Solicitante', L + 1.5 * fW + 5, y + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+    doc.text('Quién Recibe la Inspección', L + 1.5 * fW + 5, y + 8.5, { align: 'center' });
+
+    // Firma 3: Recaudación
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.line(L + 2 * fW + 10, y, R, y);
+    doc.text('Dpto. de Recaudación IAMEC', L + 2.5 * fW + 10, y + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+    doc.text('Sello y Conformidad de Cobro', L + 2.5 * fW + 10, y + 8.5, { align: 'center' });
+  } else {
+    doc.line(L + 5, y, L + 70, y); doc.line(R - 70, y, R - 5, y);
+    doc.setFontSize(8.5);
+    doc.text('Firma y Sello IAMEC', L + 37.5, y + 5, { align: 'center' });
+    doc.text('Firma del Solicitante / Contribuyente', R - 37.5, y + 5, { align: 'center' });
+  }
 
   // ── LOGOS INSTITUCIONALES EN LA PARTE INFERIOR (SIN ALCALDÍA) ──
   const yLogos = 246;

@@ -149,11 +149,11 @@ export default function DepuracionRifPage() {
   };
 
   const filteredCondoOptions = useMemo(() => {
-    if (!filterCondoSearch.trim()) return condominios.slice(0, 100);
+    if (!filterCondoSearch.trim()) return condominios;
     const q = filterCondoSearch.toLowerCase();
     return condominios.filter(c => 
       c.codigo.toLowerCase().includes(q) || c.nombre.toLowerCase().includes(q)
-    ).slice(0, 100);
+    );
   }, [condominios, filterCondoSearch]);
 
   // Verificar código en tiempo real al escribir
@@ -260,9 +260,12 @@ export default function DepuracionRifPage() {
         message: data.mensaje || 'Registro actualizado con éxito en cascada en todo el sistema.'
       });
 
+      // Recargar la lista en segundo plano para reflejar exactamente la BD
+      fetchItems();
+
       setTimeout(() => {
         closeEditor();
-      }, 1400);
+      }, 1200);
 
     } catch (err: any) {
       setFeedback({
