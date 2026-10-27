@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Building2, RefreshCw, AlertTriangle, Wallet, CalendarClock, Layers, Settings, Search,
-  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink, Handshake
+  ChevronDown, ChevronRight, Save, X, History, Users, Download, Building, Wallet as WalletIcon, Plus, Pencil, FileText, Ban, Trash2, StickyNote, Award, Sliders, CreditCard, Receipt, ExternalLink, Handshake, LogOut
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import EditorUnidad from './EditorUnidad';
@@ -272,6 +272,24 @@ function Ficha() {
       if (!r.ok) throw new Error((await r.json()).error || 'Error');
       await cargar();
     } catch (err: any) { alert(err.message); setCargando(false); }
+  };
+
+  const desvincularUnidad = async (u: any) => {
+    const cod = u.inmueble || u.numero;
+    if (!confirm(`¿Desea sacar la unidad "${cod}" del código padre y dejarla como unidad directa e independiente dentro del condominio "${c?.codigo}"?`)) return;
+    const mot = prompt(`Escriba el motivo para sacar "${cod}" del código padre (obligatorio, mín. 5 letras):`, 'Independizar unidad dentro del mismo condominio');
+    if (!mot || mot.trim().length < 5) return alert('Debe ingresar un motivo válido de al menos 5 caracteres.');
+    setCargando(true);
+    try {
+      const r = await fetch('/api/admin/condominios/unidades', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: u.id, cambios: { padre_unidad_id: null }, usuario: usuarioActual(), motivo: mot.trim() })
+      });
+      if (!r.ok) throw new Error((await r.json()).error || 'Error al desvincular unidad');
+      alert(`✅ La unidad "${cod}" ha sido desvinculada exitosamente y ahora es directa e independiente dentro del condominio.`);
+      await cargar();
+    } catch (err: any) { alert(err.message); } finally { setCargando(false); }
   };
 
   const exportar = async (moneda: 'BS' | 'EUR' = 'BS') => {
@@ -882,6 +900,15 @@ function Ficha() {
                       </td>
                       {admin && <td className="py-2 pr-4 text-right">
                         <div className="flex justify-end gap-1" onClick={ev => ev.stopPropagation()}>
+                          {u.padre_unidad_id && (
+                            <button
+                              onClick={() => desvincularUnidad(u)}
+                              title="Sacar del código padre y dejar como unidad directa en el condominio"
+                              className="p-1.5 rounded-lg border border-amber-200 text-amber-700 hover:text-amber-900 hover:border-amber-300 hover:bg-amber-50 cursor-pointer bg-white shadow-sm"
+                            >
+                              <LogOut className="w-3.5 h-3.5 text-amber-600" />
+                            </button>
+                          )}
                           <button id={`editar-${u.inmueble || u.id}`} onClick={() => setEditorU(u)} title="Editar" className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50 cursor-pointer bg-white shadow-sm"><Pencil className="w-3.5 h-3.5" /></button>
                           {u.estado !== 'Desocupada' && <button onClick={() => desocuparUnidad(u)} title="Marcar desocupada" className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-amber-800 hover:border-amber-300 hover:bg-amber-50 cursor-pointer bg-white shadow-sm"><Ban className="w-3.5 h-3.5" /></button>}
                           <button onClick={() => eliminarUnidad(u)} title="Eliminar" className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-red-800 hover:border-red-300 hover:bg-red-50 cursor-pointer bg-white shadow-sm"><Trash2 className="w-3.5 h-3.5" /></button>

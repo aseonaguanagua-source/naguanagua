@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle, Award, FileText, Sliders } from 'lucide-react';
+import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle, Award, FileText, Sliders, LogOut } from 'lucide-react';
 import { ordenanzaData } from '@/data/ordenanza';
 import { actividadConNivel, nivelActividad, quitarNivelActividad, resolverFOComercial } from '@/lib/calculos';
 import { mesesPendientes } from '@/lib/condominios/motor';
@@ -849,6 +849,45 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                 title="Mover esta unidad a otro condominio"
               >
                 <Store className="w-4 h-4 text-indigo-600" /> Mover a Otro Condominio
+              </button>
+            )}
+            {!nueva && (unidad.padre_unidad_id || f.padre_unidad_id) && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const codActual = unidad.inmueble || f.inmueble;
+                  if (!confirm(`¿Desea sacar la unidad "${codActual}" del código padre y dejarla como unidad directa e independiente dentro del condominio "${condo.codigo}"?`)) return;
+                  const mot = prompt('Motivo de la desvinculación jerárquica (mínimo 5 caracteres):', 'Independizar local dentro del mismo condominio');
+                  if (!mot || mot.trim().length < 5) return alert('Debe ingresar un motivo válido de al menos 5 caracteres.');
+
+                  setGuardando(true);
+                  try {
+                    const uActual = usuario || 'Administrador';
+                    const res = await fetch('/api/admin/condominios/unidades', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        id: unidad.id,
+                        cambios: { padre_unidad_id: null },
+                        usuario: uActual,
+                        motivo: mot.trim()
+                      })
+                    });
+                    const j = await res.json();
+                    if (!res.ok) throw new Error(j.error || 'Error al desvincular unidad');
+                    alert(`✅ La unidad ${codActual} ahora es directa e independiente dentro del condominio ${condo.codigo}.`);
+                    onSaved(true);
+                  } catch (err: any) {
+                    alert('Error: ' + err.message);
+                  } finally {
+                    setGuardando(false);
+                  }
+                }}
+                disabled={guardando}
+                className="px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 cursor-pointer disabled:opacity-50 shadow-2xs"
+                title="Sacar esta unidad de la torre/código contenedor y dejarla directa en el condominio"
+              >
+                <LogOut className="w-4 h-4 text-amber-600" /> Sacar del Código (Dejar Directo)
               </button>
             )}
             {!nueva && (
