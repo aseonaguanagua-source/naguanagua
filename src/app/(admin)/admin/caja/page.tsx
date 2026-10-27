@@ -3251,6 +3251,9 @@ export default function CajaPage() {
               const mesesRestantes = Math.max(0, mesesTotales - mesesPagados);
               if (mesesRestantes === 0) {
                 await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', hijoId);
+                if (hijo?.inmueble) {
+                  await supabase.from('condominio_unidades').update({ multa_meses: 0, aseo_pendiente_desde: null }).ilike('inmueble', hijo.inmueble);
+                }
               } else {
                 await supabase.from('inmuebles').update({ meses_deuda: mesesRestantes }).eq('id', hijoId);
               }
@@ -3259,11 +3262,18 @@ export default function CajaPage() {
             if (!esAbonoDebito) {
               const allHijoIds = condominioHijos.map((h: any) => h.id);
               await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).in('id', allHijoIds);
+              const allInmCodes = condominioHijos.map((h: any) => h.inmueble).filter(Boolean);
+              if (allInmCodes.length > 0) {
+                await supabase.from('condominio_unidades').update({ multa_meses: 0, aseo_pendiente_desde: null }).in('inmueble', allInmCodes);
+              }
               const parentClean = (freshInmuebles.length > 0 ? freshInmuebles : inmuebles).filter((i: any) =>
                 (i.identidad || '').replace(/-/g,'').toUpperCase() === (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
               );
               for (const pi of parentClean) {
                 await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', pi.id);
+                if (pi.inmueble) {
+                  await supabase.from('condominios').update({ multa_meses: 0, aseo_pendiente_desde: null }).eq('codigo', pi.inmueble);
+                }
               }
             } else {
               // Abono total a condominio: descontar mes a mes de los hijos en orden
