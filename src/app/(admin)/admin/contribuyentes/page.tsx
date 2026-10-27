@@ -1852,7 +1852,11 @@ function ContribuyentesPageContent() {
         if (rowIsElim && !isSearchedChild) return;
         // El contenedor local de actividades siempre es padre_id (NO condominio_padre_id)
         const parentKey = isSearchedChild ? null : (row.padre_id || null);
-        const groupKey = isCodeFormat ? (isSearchedChild ? cod : (parentKey || cod)) : (parentKey || cod || row.id || row.identidad);
+        const normIdent = String(row.identidad || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        // Si la búsqueda es por código puntual, agrupar por ese código (o padre_id); si es por RIF/Cédula/Nombre, agrupar por el RIF normalizado
+        const groupKey = isCodeFormat 
+          ? (isSearchedChild ? cod : (parentKey || cod)) 
+          : (normIdent || parentKey || cod || row.id);
 
         if (groupKey && !mapResults.has(groupKey)) {
           const rowEstado = row.estado || 'Activo';
@@ -1903,7 +1907,9 @@ function ContribuyentesPageContent() {
       });
 
       (contsData || []).forEach((c: any) => {
-        if (c.identidad && !identidadesConInmueble.has(c.identidad) && !mapResults.has(c.identidad)) {
+        const normCIdent = String(c.identidad || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const cKey = isCodeFormat ? c.identidad : (normCIdent || c.identidad);
+        if (c.identidad && !identidadesConInmueble.has(c.identidad) && !mapResults.has(cKey)) {
           const idVars = getIdentidadVariantsExact(c.identidad);
           const matchedInm = (allFoundInmuebles || []).find((i: any) => idVars.includes(i.identidad));
           const codigoReal = matchedInm?.inmueble || matchedInm?.cod_cont || (c.cod_cont && c.cod_cont !== c.identidad ? c.cod_cont : null);
