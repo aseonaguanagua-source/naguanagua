@@ -20,6 +20,7 @@ export const MENU_ASEO: MenuItem[] = [
   { icon: Building2, name: 'Condominios (nuevo)', href: '/admin/condominios' },
   { icon: Wallet, name: 'Caja Condominios', href: '/admin/condominios/caja' },
   { icon: Users, name: 'Condominios COB', href: '/admin/condominios-cob' },
+  { icon: ShieldCheck, name: 'Depuración RIF / 0000', href: '/admin/depuracion-rif' },
   { icon: FileText, name: 'Pre-registros WEB', href: '/admin/pre-registros' },
 
   { icon: Map, name: 'Jornadas de Campo', href: '/admin/jornadas' },

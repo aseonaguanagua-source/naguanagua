@@ -8,6 +8,7 @@ export const ROUTE_PERMISSIONS_MAP: Record<string, string[]> = {
   '/admin/condominios/caja': ['ver_caja', 'gestionar_pagos', 'ver_condominios', 'cobro_masivo_condo'],
   '/admin/condominios-cob': ['ver_condominios', 'cobro_masivo_condo'],
   '/admin/condominios': ['ver_condominios', 'cobro_masivo_condo'],
+  '/admin/depuracion-rif': ['ver_contribuyentes', 'ver_condominios', 'solo_administrador'],
   '/admin/pre-registros': ['ver_pre_registros'],
   '/admin/jornadas': ['planificar_jornadas'],
   '/admin/ambiental': ['gestionar_visto_bueno'],

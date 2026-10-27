@@ -1738,7 +1738,11 @@ function ContribuyentesPageContent() {
           const { data: cData } = await supabase
             .from('inmuebles')
             .select('*')
-            .in('padre_id', matchedCodes);
+            .in('padre_id', matchedCodes)
+            .not('estado', 'ilike', 'eliminado%')
+            .not('estado', 'ilike', 'inactivo%')
+            .not('estado', 'ilike', 'desactivado%')
+            .not('estado', 'ilike', 'baja%');
           childInms = cData || [];
         }
 
@@ -1841,8 +1845,11 @@ function ContribuyentesPageContent() {
 
       sortedInms.forEach((row: any) => {
         const cod = row.inmueble || row.cod_cont;
+        const rowIsElim = ['eliminado', 'inactivo', 'desactivado', 'baja'].includes(String(row.estado || '').trim().toLowerCase());
         // Si el usuario buscó por un código que es un local hijo, no subsumirlo bajo el padre
         const isSearchedChild = isCodeFormat && term.toUpperCase() === String(cod).toUpperCase();
+        // Si el inmueble está eliminado y no es el código específicamente buscado, ignorar
+        if (rowIsElim && !isSearchedChild) return;
         // El contenedor local de actividades siempre es padre_id (NO condominio_padre_id)
         const parentKey = isSearchedChild ? null : (row.padre_id || null);
         const groupKey = isCodeFormat ? (isSearchedChild ? cod : (parentKey || cod)) : (parentKey || cod || row.id || row.identidad);
@@ -3653,7 +3660,7 @@ function ContribuyentesPageContent() {
 
           // Solo hacer fallback si no se encontraron registros en el array global pero la fila no tiene ningún inmueble marcado como eliminado
           if (actividades.size === 0) {
-            const anyEliminated = inmuebles.some((i: any) => rowCodes.includes(i.inmueble) && isExcludedState(i.estado));
+            const anyEliminated = (inmuebles || []).some((i: any) => rowCodes.includes(i.inmueble) && isExcludedState(i.estado));
             if (!anyEliminated) {
               const rowAct = row.ActividadComercial || row.Actividad || row.actividad_principal;
               if (rowAct && rowAct !== 'No asignado' && rowAct !== 'N/A') {

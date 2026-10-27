@@ -1051,9 +1051,9 @@ export default function CajaPage() {
       const specificCode = (user.CodCont || user.cod_cont || '').toUpperCase();
       const activeInmFresh = (inmFresh || []).filter((i: any) => {
         const st = String(i.estado || '').trim().toLowerCase();
-        if (st === 'eliminado' || st === 'inactivo' || st === 'desactivado') return false;
+        if (st === 'eliminado' || st === 'inactivo' || st === 'desactivado' || st === 'baja') return false;
         if (i.es_condominio === true) return false;
-        // Si es el código específico buscado se permite (por si vinieron a pagar para reactivarlo),
+        // Si es el código específico buscado se permite (siempre que no esté eliminado),
         // pero todos los demás inmuebles del RIF deben ser estrictamente Activos para no mezclar inactivos
         const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
         if (esEspecifico) return true;
@@ -1670,9 +1670,17 @@ export default function CajaPage() {
         if (searchFilters.length > 0) {
           const { data: hijosById } = await supabase
             .from('inmuebles')
-            .select('id, identidad, inmueble, tipo, clasificacion, mmv_mes, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente, direccion, meses_deuda, cant_inmuebles, notas')
-            .or(searchFilters.join(','));
-          hijosData = (hijosById || []).filter((h: any) => !parentCodes.includes(h.inmueble));
+            .select('id, identidad, inmueble, tipo, clasificacion, mmv_mes, deuda_mmv, deuda_congelada_bs, actividad_principal, contribuyente, direccion, meses_deuda, cant_inmuebles, notas, estado')
+            .or(searchFilters.join(','))
+            .not('estado', 'ilike', 'eliminado%')
+            .not('estado', 'ilike', 'inactivo%')
+            .not('estado', 'ilike', 'desactivado%')
+            .not('estado', 'ilike', 'baja%');
+          hijosData = (hijosById || []).filter((h: any) => {
+            if (parentCodes.includes(h.inmueble)) return false;
+            const st = String(h.estado || '').trim().toLowerCase();
+            return st !== 'eliminado' && st !== 'inactivo' && st !== 'desactivado' && st !== 'baja';
+          });
         }
 
         // Un verdadero condominio tiene locales/apartamentos con diferentes contribuyentes/identidades.
