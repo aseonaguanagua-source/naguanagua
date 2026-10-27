@@ -35,7 +35,10 @@ export default function RecuperarContrasena() {
       const data = await res.json();
       
       if (res.ok) {
-        setSuccess('Si su documento está registrado y tiene un correo asociado, le enviaremos un enlace de recuperación. Por favor revise su bandeja de entrada (y la carpeta de spam).');
+        const msg = data.correo 
+          ? `Hemos enviado el enlace de restablecimiento al correo asociado: ${data.correo}. Por favor revise su bandeja de entrada (y la carpeta de spam).`
+          : 'Hemos enviado un enlace de recuperación a su correo asociado. Por favor revise su bandeja de entrada (y la carpeta de spam).';
+        setSuccess(msg);
         setIsLoading(false);
       } else {
         setError(data.error || 'Error al procesar la solicitud.');
