@@ -173,7 +173,7 @@ export default function ServiciosEspecialesPage() {
     const p = calcPlanilla();
     if (p) {
       const total = p.valorUcd * p.nve * p.factor;
-      return { tcmv: total, label: `${form.tipo === 'especial' ? 'Servicio Especial' : 'Servicio Extraordinario'} — ${p.vehiculoLabel} (${p.nivel}) × ${p.nve} viaje(s)` };
+      return { tcmv: total, label: `${form.tipo === 'especial' ? 'Servicio Especial' : 'Servicio Extraordinario'} — ${p.vehiculoLabel} × ${p.nve} viaje(s)` };
     }
     const C = CONCEPTOS_IAMEC;
     if (form.tipo === 'inspeccion' && parseFloat(form.area || '0') > 0) {

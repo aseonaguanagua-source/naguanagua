@@ -76,6 +76,11 @@ const fechaVE = (s?: string) => {
 
 /** Genera la planilla. Con datos vacíos produce la planilla en blanco para llenar a mano. */
 export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsPDF {
+  // Limpiar etiquetas de categoría interna (BAJA, MEDIA, ALTA) para que no salgan en la planilla impresa/PDF
+  const limpiarCategoria = (str?: string) => (str || '').replace(/\s*\((?:BAJA|MEDIA|ALTA)\)/gi, '').trim();
+  const nombreEventoSanitizado = limpiarCategoria(d.nombreEvento);
+  const vehiculoLabelSanitizado = limpiarCategoria(d.vehiculoLabel);
+
   const esp = d.categoria === 'especial';
   const insp = d.categoria === 'inspeccion';
   const vb = d.categoria === 'visto_bueno';
@@ -169,13 +174,13 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   if (insp) {
     seccion('DETALLES Y ACTA DE LA INSPECCIÓN DE ASEO:');
     campo('DIRECCIÓN DEL INMUEBLE:', d.direccion || d.lugar || 'Municipio Naguanagua'); y += 8;
-    campo('MOTIVO / SOLICITUD:', d.nombreEvento || d.vehiculoLabel || 'Inspección de Aseo Urbano'); y += 8;
+    campo('MOTIVO / SOLICITUD:', nombreEventoSanitizado || vehiculoLabelSanitizado || 'Inspección de Aseo Urbano'); y += 8;
     
     // Más líneas para escribir detalles in situ o impresos
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
     doc.text('DETALLES / OBSERVACIONES TÉCNICAS IN SITU:', L, y);
     y += 5;
-    const txtObs = String(d.direccion || d.nombreEvento || '').length > 60 ? '' : '';
+    const txtObs = String(d.direccion || nombreEventoSanitizado || '').length > 60 ? '' : '';
     for (let lineIdx = 0; lineIdx < 4; lineIdx++) {
       doc.setDrawColor(180);
       doc.line(L, y, R, y);
@@ -184,7 +189,7 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
     y += 2;
   } else if (esp) {
     seccion('DATOS DEL EVENTO:');
-    campo('NOMBRE DEL EVENTO:', d.nombreEvento); y += 8;
+    campo('NOMBRE DEL EVENTO:', nombreEventoSanitizado); y += 8;
     campo('FECHA:', fechaVE(d.fechaEvento), L, 80); campo('HORARIO:', d.horario, L + 90, R - L - 90); y += 8;
     campo('LUGAR:', d.lugar); y += 8;
     campo('AFORO:', d.aforo !== undefined && d.aforo !== null ? String(d.aforo) : '', L, 80); y += 12;
@@ -195,9 +200,9 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   }
 
   seccion(insp ? 'LIQUIDACIÓN DE TASA DE INSPECCIÓN' : (esp ? 'COSTO SERVICIO ESPECIAL' : 'COSTO SERVICIO EXTRAORDINARIO'));
-  if (d.vehiculoLabel && !insp) {
+  if (vehiculoLabelSanitizado && !insp) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    doc.text(`Concepto: ${d.vehiculoLabel}${d.tasaEuro ? `  ·  Tasa Euro BCV: Bs. ${fmt(d.tasaEuro)}` : ''}`, L, y - 2);
+    doc.text(`Concepto: ${vehiculoLabelSanitizado}${d.tasaEuro ? `  ·  Tasa Euro BCV: Bs. ${fmt(d.tasaEuro)}` : ''}`, L, y - 2);
     y += 3;
   }
 
