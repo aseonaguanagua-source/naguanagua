@@ -47,7 +47,6 @@ export default function ConveniosPagoPage() {
     setSearchDoc('');
     setListaCuotas([]);
     setCuotas(1);
-    setMesesPorCuota(1);
     setDocumento(null);
     setIsProcessing(false);
   };
@@ -57,7 +56,6 @@ export default function ConveniosPagoPage() {
     setSearchDoc('');
     setListaCuotas([]);
     setCuotas(1);
-    setMesesPorCuota(1);
     setDocumento(null);
     setIsProcessing(false);
     setIsModalOpen(true);
@@ -98,7 +96,6 @@ export default function ConveniosPagoPage() {
   
   const [cuotas, setCuotas] = useState(1);
   const [frecuencia, setFrecuencia] = useState('Mensual');
-  const [mesesPorCuota, setMesesPorCuota] = useState(1);
   const [fechaInicio, setFechaInicio] = useState(new Date().toISOString().split('T')[0]);
   const [mantenerDia, setMantenerDia] = useState(true);
   const [documento, setDocumento] = useState<File | null>(null);
@@ -106,17 +103,7 @@ export default function ConveniosPagoPage() {
   
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Cuando cambia la cantidad de meses por cuota, calcular automáticamente el número de cuotas
-  const handleMesesPorCuotaChange = (nuevosMeses: number) => {
-    const m = Math.max(1, nuevosMeses);
-    setMesesPorCuota(m);
-    if (foundUser?.totalMesesDeuda) {
-      const calculadas = Math.max(1, Math.ceil(foundUser.totalMesesDeuda / m));
-      setCuotas(calculadas);
-    }
-  };
-
-  // Generar cuotas por defecto cuando cambian los parámetros
+  // Generar cuotas cuando cambian cuotas, frecuencia, fechaInicio o el usuario
   useEffect(() => {
     if (!foundUser) {
       setListaCuotas([]);
@@ -130,16 +117,16 @@ export default function ConveniosPagoPage() {
     const valorMesBs = foundUser.valorMesBs > 0 ? foundUser.valorMesBs : (totalBs / totalMesesDeuda);
     const numCuotas = Math.max(1, cuotas);
 
-    const nuevasCuotas: any[] = [];
     const [yearStr, monthStr, dayStr] = fechaInicio.split('-');
     const baseYear = parseInt(yearStr);
     const baseMonth = parseInt(monthStr) - 1; // 0-indexed
     const baseDay = parseInt(dayStr);
     
-    // Si mesesPorCuota está activo y se alinea con la deuda por mes
-    let mesesRestantes = totalMesesDeuda;
-    let acumulado = 0;
+    // Distribuir meses equitativamente por defecto
+    const baseMesesPorCuota = Math.max(1, Math.floor(totalMesesDeuda / numCuotas));
+    let mesesAsignados = 0;
 
+    const nuevasCuotas: any[] = [];
     for (let i = 0; i < numCuotas; i++) {
       let currentDate = new Date(baseYear, baseMonth, baseDay);
       let calcMonth = baseMonth;
@@ -155,7 +142,6 @@ export default function ConveniosPagoPage() {
 
         if (mantenerDia) {
           currentDate = new Date(baseYear, calcMonth, baseDay);
-          // Prevenir salto de mes (ej. 31 feb -> 2 o 3 mar). Ajustar al último día del mes objetivo.
           if (currentDate.getMonth() !== (calcMonth % 12 + 12) % 12) {
             currentDate = new Date(baseYear, calcMonth + 1, 0); 
           }
@@ -170,26 +156,54 @@ export default function ConveniosPagoPage() {
       const m = String(currentDate.getMonth() + 1).padStart(2, '0');
       const d = String(currentDate.getDate()).padStart(2, '0');
 
-      let montoCuota = 0;
-      if (mesesPorCuota > 1 && foundUser.totalMesesDeuda > 1) {
-        const mesesEnEsta = Math.min(mesesPorCuota, Math.max(1, mesesRestantes));
-        mesesRestantes -= mesesEnEsta;
-        montoCuota = (i === numCuotas - 1) ? Math.round((totalBs - acumulado) * 100) / 100 : Math.round((mesesEnEsta * valorMesBs) * 100) / 100;
+      let mCuota = baseMesesPorCuota;
+      if (i === numCuotas - 1) {
+        // La última cuota absorbe el remanente de meses si hay más meses que cuotas
+        mCuota = Math.max(1, totalMesesDeuda - mesesAsignados);
       } else {
-        const montoBaseCuota = Math.floor((totalBs / numCuotas) * 100) / 100;
-        montoCuota = (i === numCuotas - 1) ? Math.round((totalBs - acumulado) * 100) / 100 : montoBaseCuota;
+        mesesAsignados += mCuota;
       }
-      acumulado += montoCuota;
-      
+
       nuevasCuotas.push({
         id: i,
         fecha: `${y}-${m}-${d}`,
-        monto: Math.max(0, montoCuota).toFixed(2),
+        meses_cubiertos: mCuota,
+        monto: (mCuota * valorMesBs).toFixed(2),
         estado: 'Pendiente'
       });
     }
+
+    // Ajustar última cuota para cuadrar con el total exacto de Bs
+    const sumaParcial = nuevasCuotas.slice(0, numCuotas - 1).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
+    const montoUltima = Math.max(0, Math.round((totalBs - sumaParcial) * 100) / 100);
+    if (nuevasCuotas.length > 0) {
+      nuevasCuotas[nuevasCuotas.length - 1].monto = montoUltima.toFixed(2);
+    }
+
     setListaCuotas(nuevasCuotas);
-  }, [cuotas, mesesPorCuota, frecuencia, fechaInicio, foundUser, mantenerDia]);
+  }, [cuotas, frecuencia, fechaInicio, foundUser?.identidad, foundUser?.montoACongelar, mantenerDia]);
+
+  // Manejar cambio individual de meses en una cuota
+  const handleCuotaMesesChange = (index: number, nuevosMeses: number) => {
+    if (!foundUser) return;
+    const totalBs = parseFloat(foundUser.montoACongelar) || 0;
+    const totalMesesDeuda = Math.max(1, parseInt(String(foundUser.totalMesesDeuda || 1)));
+    const valorMesBs = foundUser.valorMesBs > 0 ? foundUser.valorMesBs : (totalBs / totalMesesDeuda);
+
+    const updated = [...listaCuotas];
+    const val = Math.max(1, nuevosMeses);
+    updated[index].meses_cubiertos = val;
+    updated[index].monto = (val * valorMesBs).toFixed(2);
+
+    // Si es la última cuota, se puede ajustar para cerrar el total de Bs
+    const sumaExceptoUltima = updated.slice(0, updated.length - 1).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
+    if (index !== updated.length - 1 && updated.length > 1) {
+      const restBs = Math.max(0, Math.round((totalBs - sumaExceptoUltima) * 100) / 100);
+      updated[updated.length - 1].monto = restBs.toFixed(2);
+    }
+
+    setListaCuotas(updated);
+  };
 
   const columns = [
     { key: 'numero', header: 'Nro. Convenio' },
@@ -603,7 +617,7 @@ export default function ConveniosPagoPage() {
 
               {foundUser && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">Número de Cuotas</label>
                       <select 
@@ -612,36 +626,23 @@ export default function ConveniosPagoPage() {
                           const n = parseInt(e.target.value);
                           setCuotas(n);
                         }} 
-                        className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                        className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 font-semibold"
                       >
                         {[1,2,3,4,5,6,8,10,12,18,24].map(n => <option key={n} value={n}>{n} {n===1?'cuota':'cuotas'}</option>)}
                       </select>
+                      <span className="text-[10px] text-slate-500 block mt-0.5">
+                        Define la cantidad de cuotas a programar
+                      </span>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">Frecuencia (Tiempo)</label>
-                      <select value={frecuencia} onChange={(e) => setFrecuencia(e.target.value)} className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                        <option value="Quincenal">Quincenal</option>
-                        <option value="Mensual">Mensual</option>
-                        <option value="Bimestral">Bimestral</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Meses por Cuota (Cálculo Auto)
-                      </label>
-                      <select
-                        value={mesesPorCuota}
-                        onChange={(e) => handleMesesPorCuotaChange(parseInt(e.target.value))}
-                        className="w-full border border-blue-300 bg-blue-50/50 rounded px-3 py-2 text-sm font-semibold text-blue-900 focus:outline-none focus:border-blue-500"
-                      >
-                        {Array.from({ length: Math.min(24, Math.max(1, foundUser.totalMesesDeuda || 12)) }, (_, i) => i + 1).map(m => (
-                          <option key={m} value={m}>
-                            {m} {m === 1 ? 'mes de deuda' : 'meses de deuda'}
-                          </option>
-                        ))}
+                      <select value={frecuencia} onChange={(e) => setFrecuencia(e.target.value)} className="w-full border border-slate-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 font-semibold">
+                        <option value="Quincenal">Quincenal (Cada 15 días)</option>
+                        <option value="Mensual">Mensual (Cada 1 mes)</option>
+                        <option value="Bimestral">Bimestral (Cada 2 meses)</option>
                       </select>
                       <span className="text-[10px] text-slate-500 block mt-0.5">
-                        Deuda: {foundUser.totalMesesDeuda || 1} { (foundUser.totalMesesDeuda || 1) === 1 ? 'mes' : 'meses' }
+                        Intervalo de calendario entre pagos
                       </span>
                     </div>
                   </div>
@@ -673,48 +674,108 @@ export default function ConveniosPagoPage() {
                     </div>
                   </div>
 
-                  {/* Tabla de cuotas editable */}
+                  {/* Tabla de cuotas editable con selector de meses por cuota y resta dinámica */}
                   <div className="mt-6 pt-6 border-t border-slate-200">
-                    <h4 className="text-sm font-semibold text-slate-800 mb-3">Programación de Cuotas a Pagar</h4>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-800">Programación de Cuotas a Pagar</h4>
+                        <p className="text-[11px] text-slate-500">
+                          Asigna cuántos meses de deuda cubre cada cuota individualmente.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const totalMeses = Math.max(1, parseInt(String(foundUser.totalMesesDeuda || 1)));
+                          const asignados = listaCuotas.reduce((acc, c) => acc + (parseInt(c.meses_cubiertos) || 0), 0);
+                          const pendientes = totalMeses - asignados;
+                          return (
+                            <div className={`px-2.5 py-1 rounded text-xs font-bold border flex items-center gap-1.5 ${
+                              pendientes === 0
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : pendientes > 0
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                  : 'bg-red-50 text-red-800 border-red-300'
+                            }`}>
+                              <span>Meses Deuda: <b>{totalMeses}</b></span>
+                              <span>•</span>
+                              <span>Cubiertos: <b>{asignados}</b></span>
+                              <span>•</span>
+                              <span>
+                                {pendientes === 0
+                                  ? '✓ Todos cubiertos'
+                                  : pendientes > 0
+                                    ? `Restan por asignar: ${pendientes} ${pendientes === 1 ? 'mes' : 'meses'}`
+                                    : `Exceso de: ${Math.abs(pendientes)} ${Math.abs(pendientes) === 1 ? 'mes' : 'meses'}`}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
                     <div className="bg-slate-50 border border-slate-200 rounded overflow-hidden">
                       <table className="w-full text-sm text-left">
                         <thead className="bg-slate-100 text-slate-600 text-xs">
                           <tr>
-                            <th className="px-4 py-2 w-16 text-center">Nro</th>
-                            <th className="px-4 py-2">Fecha de Pago</th>
-                            <th className="px-4 py-2 text-right">Monto (Bs)</th>
+                            <th className="px-3 py-2 w-12 text-center">Nro</th>
+                            <th className="px-3 py-2">Fecha de Pago</th>
+                            <th className="px-3 py-2 text-center w-36">Meses que Cubre</th>
+                            <th className="px-3 py-2 text-right">Monto (Bs)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                          {listaCuotas.map((c, i) => (
-                            <tr key={i}>
-                              <td className="px-4 py-2 text-center font-medium text-slate-500">{i + 1}</td>
-                              <td className="px-4 py-2">
-                                <input 
-                                  type="date" 
-                                  value={c.fecha}
-                                  onChange={(e) => handleCuotaChange(i, 'fecha', e.target.value)}
-                                  className="w-full border-none bg-transparent focus:ring-1 focus:ring-blue-500 px-1 py-1 rounded"
-                                />
-                              </td>
-                              <td className="px-4 py-2">
-                                <div className="flex items-center gap-1 justify-end">
+                          {listaCuotas.map((c, i) => {
+                            const totalMeses = Math.max(1, parseInt(String(foundUser.totalMesesDeuda || 1)));
+                            return (
+                              <tr key={i} className="hover:bg-blue-50/20">
+                                <td className="px-3 py-2 text-center font-bold text-slate-500 text-xs">{i + 1}</td>
+                                <td className="px-3 py-2">
                                   <input 
-                                    type="number" 
-                                    step="0.01"
-                                    value={c.monto}
-                                    onChange={(e) => handleCuotaChange(i, 'monto', e.target.value)}
-                                    className="w-32 border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-right font-medium text-slate-800"
+                                    type="date" 
+                                    value={c.fecha}
+                                    onChange={(e) => handleCuotaChange(i, 'fecha', e.target.value)}
+                                    className="w-full border border-slate-200 bg-white focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-xs"
                                   />
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <select
+                                      value={c.meses_cubiertos || 1}
+                                      onChange={(e) => handleCuotaMesesChange(i, parseInt(e.target.value) || 1)}
+                                      className="border border-blue-300 bg-white font-bold text-blue-900 text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    >
+                                      {Array.from({ length: Math.min(24, totalMeses) }, (_, mIdx) => mIdx + 1).map((m) => (
+                                        <option key={m} value={m}>
+                                          {m} {m === 1 ? 'mes' : 'meses'}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <input 
+                                      type="number" 
+                                      step="0.01"
+                                      value={c.monto}
+                                      onChange={(e) => handleCuotaChange(i, 'monto', e.target.value)}
+                                      className="w-28 border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-right font-semibold text-slate-800 text-xs"
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
-                        <tfoot className="bg-slate-100 border-t border-slate-300 font-medium">
+                        <tfoot className="bg-slate-100 border-t border-slate-300 font-medium text-xs">
                           <tr>
-                            <td colSpan={2} className="px-4 py-2 text-right text-slate-700">Suma Total de Cuotas:</td>
-                            <td className={`px-4 py-2 text-right font-bold ${
+                            <td colSpan={2} className="px-3 py-2 text-right text-slate-700 font-bold">
+                              Totales:
+                            </td>
+                            <td className="px-3 py-2 text-center font-bold text-slate-800">
+                              {listaCuotas.reduce((acc, c) => acc + (parseInt(c.meses_cubiertos) || 0), 0)} meses
+                            </td>
+                            <td className={`px-3 py-2 text-right font-bold ${
                               Math.abs(listaCuotas.reduce((a, b) => a + (parseFloat(b.monto) || 0), 0) - parseFloat(foundUser.montoACongelar)) > 1
                               ? 'text-red-600' : 'text-emerald-700'
                             }`}>
