@@ -257,6 +257,7 @@ export default function FacturacionPortalPage() {
               <tr className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider border-b border-slate-200">
                 <th className="px-5 py-3 font-bold">N° Factura</th>
                 <th className="px-5 py-3 font-bold">N° Control</th>
+                <th className="px-5 py-3 font-bold text-center">Inmueble / Código</th>
                 <th className="px-5 py-3 font-bold text-center">Fecha Emisión</th>
                 <th className="px-5 py-3 font-bold text-center">Período Facturado</th>
                 <th className="px-5 py-3 font-bold text-right">Total Factura (Bs.)</th>
@@ -267,13 +268,13 @@ export default function FacturacionPortalPage() {
             <tbody className="divide-y divide-slate-100 text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                  <td colSpan={8} className="px-5 py-10 text-center text-slate-400">
                     Cargando facturas oficiales emitidas...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                  <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
                     <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-medium text-slate-600">No se encontraron facturas fiscales emitidas para este RIF.</p>
                     <p className="text-[11px] text-slate-400 mt-1">Las facturas emitidas por la administración tributaria aparecerán reflejadas aquí automáticamente.</p>
