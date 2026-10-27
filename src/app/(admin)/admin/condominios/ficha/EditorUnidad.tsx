@@ -786,17 +786,30 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {!nueva && renglon && (
-              <button
-                type="button"
-                onClick={async () => {
-                  const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
-                  await generarPdfEstadoCuentaUnidad(condo, renglon, condo.tarifa_mmv || 0, usuario);
-                }}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 cursor-pointer shadow-2xs"
-                title="Descargar Estado de Cuenta de esta unidad"
-              >
-                <FileText className="w-4 h-4" /> Estado de Cuenta
-              </button>
+              <div className="inline-flex rounded-xl shadow-2xs border border-sky-300 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
+                    await generarPdfEstadoCuentaUnidad(condo, renglon, condo.tarifa_mmv || 0, usuario, undefined, 'BS');
+                  }}
+                  className="px-3 py-2 text-xs font-bold inline-flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 cursor-pointer border-r border-sky-200"
+                  title="Descargar Estado de Cuenta de esta unidad en Bolívares"
+                >
+                  <FileText className="w-4 h-4" /> Estado de Cuenta (Bs)
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
+                    await generarPdfEstadoCuentaUnidad(condo, renglon, condo.tarifa_mmv || 0, usuario, undefined, 'EUR');
+                  }}
+                  className="px-3 py-2 text-xs font-extrabold inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 cursor-pointer"
+                  title="Descargar Estado de Cuenta de esta unidad en Euros (€)"
+                >
+                  <span>💶</span> En Euros (€)
+                </button>
+              </div>
             )}
             {!nueva && (
               <button

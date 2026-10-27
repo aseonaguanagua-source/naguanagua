@@ -5,6 +5,7 @@ import { cleanClasificacionActividad } from '@/lib/calculos';
 import { EstadoCuenta, RenglonEstado } from './servicio';
 import * as M from './motor';
 const fmtBs = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtEur = (n: number) => (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const fmtPeriodo = (p: string) => { 
   if (!p || p.indexOf('-') === -1) return p;
@@ -31,9 +32,20 @@ function dibujarLogosPie(doc: jsPDF) {
   } catch {}
 }
 
-export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero: string, mostrarNA: boolean = true) {
+export function generarPdfEstadoCuentaCondominio(
+  c: any, 
+  e: EstadoCuenta, 
+  cajero: string, 
+  mostrarNA: boolean = true,
+  moneda: 'BS' | 'EUR' = 'BS'
+) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const docNro = Math.floor(100000 + Math.random() * 900000).toString();
+  const esEur = moneda === 'EUR';
+  const tasaEur = parseFloat(String(e.tasa || 1)) || 1;
+  const toCurr = (montoBs: number) => esEur ? (montoBs / tasaEur) : montoBs;
+  const sym = esEur ? '€ ' : 'Bs. ';
+  const fmtM = (montoBs: number) => `${sym}${fmtBs(toCurr(montoBs))}`;
   
   const drawHeader = (pageNumber: number, totalPages: number) => {
     try {
@@ -96,16 +108,16 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
 
   // ── RESUMEN TOTALES ──
   doc.setFont('helvetica', 'bold');
-  doc.text('RESUMEN DE DEUDA TOTAL', 105, y, { align: 'center' });
+  doc.text(`RESUMEN DE DEUDA TOTAL (${esEur ? 'EUROS €' : 'BOLÍVARES'})`, 105, y, { align: 'center' });
   y += 6;
   doc.setFont('helvetica', 'normal');
-  doc.text(`Aseo: Bs. ${fmtBs(e.totales.baseBs)}`, 14, y);
-  doc.text(`Multas: Bs. ${fmtBs(e.totales.multaBs)}`, 70, y);
-  doc.text(`IVA: Bs. ${fmtBs(e.totales.ivaBs)}`, 130, y);
+  doc.text(`Aseo: ${fmtM(e.totales.baseBs)}`, 14, y);
+  doc.text(`Multas: ${fmtM(e.totales.multaBs)}`, 70, y);
+  doc.text(`IVA: ${fmtM(e.totales.ivaBs)}`, 130, y);
   y += 5;
-  doc.text(`Retenciones: Bs. ${fmtBs(e.totales.retencionBs)}`, 14, y);
+  doc.text(`Retenciones: ${fmtM(e.totales.retencionBs)}`, 14, y);
   doc.setFont('helvetica', 'bold');
-  doc.text(`TOTAL DEUDA: Bs. ${fmtBs(e.totales.totalBs)}`, 130, y);
+  doc.text(`TOTAL DEUDA: ${fmtM(e.totales.totalBs)}`, 130, y);
   y += 6;
   
   // ── PREPARAR LOS DATOS ──
@@ -126,9 +138,9 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
       prop,
       id,
       r.periodos.map(fmtPeriodo).join(', '),
-      `Bs. ${fmtBs(aseoMonto)}`,
-      `Bs. ${fmtBs(multasMonto)}`,
-      `Bs. ${fmtBs(r.totalBs)}`
+      fmtM(aseoMonto),
+      fmtM(multasMonto),
+      fmtM(r.totalBs)
     ]);
   };
 
@@ -168,19 +180,26 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
       '—',
       '—',
       '—',
-      `Bs. ${fmtBs(sumTotalNA)}`
+      fmtM(sumTotalNA)
     ]);
   }
+
+  const colHeadAseo = esEur ? 'Aseo (€)' : 'Aseo (Bs)';
+  const colHeadMultas = esEur ? 'Multas (€)' : 'Multas (Bs)';
+  const colHeadTotal = esEur ? 'Total (€)' : 'Total Bs';
 
   autoTable(doc, {
     startY: y,
     margin: { top: 43, bottom: 20 },
-    head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', 'Aseo (Bs)', 'Multas (Bs)', 'Total Bs']],
+    head: [['Inmueble', 'Nro/Local', 'Propietario', 'Identidad', 'Períodos', colHeadAseo, colHeadMultas, colHeadTotal]],
     body: rows,
     theme: 'grid',
     headStyles: {
-      fillColor: [239, 246, 255], textColor: [30, 64, 175],
-      fontStyle: 'bold', lineColor: [191, 219, 254], lineWidth: 0.2, halign: 'center', fontSize: 6.8
+      fillColor: esEur ? [236, 253, 245] : [239, 246, 255], 
+      textColor: esEur ? [6, 95, 70] : [30, 64, 175],
+      fontStyle: 'bold', 
+      lineColor: esEur ? [167, 243, 208] : [191, 219, 254], 
+      lineWidth: 0.2, halign: 'center', fontSize: 6.8
     },
     styles: { fontSize: 6.5, cellPadding: 1.5 },
     columnStyles: {
@@ -213,7 +232,7 @@ export function generarPdfEstadoCuentaCondominio(c: any, e: EstadoCuenta, cajero
     dibujarLogosPie(doc);
   }
 
-  doc.save(`Estado_Cuenta_Condominio_${c.codigo}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`Estado_Cuenta_Condominio_${c.codigo}_${esEur ? 'EUR_' : ''}${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 export function generarPdfMultasCondominio(c: any, e: EstadoCuenta, cajero: string) {
@@ -336,10 +355,16 @@ export async function generarPdfEstadoCuentaUnidad(
   r: RenglonEstado, 
   tasa: number | string, 
   cajero: string,
-  direccionContribuyente?: string
+  direccionContribuyente?: string,
+  moneda: 'BS' | 'EUR' = 'BS'
 ) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const docNro = Math.floor(100000 + Math.random() * 900000).toString();
+  const esEur = moneda === 'EUR';
+  const tasaEur = parseFloat(String(tasa || 1)) || 1;
+  const toCurr = (montoBs: number) => esEur ? (montoBs / tasaEur) : montoBs;
+  const sym = esEur ? '€ ' : 'Bs. ';
+  const fmtM = (montoBs: number) => `${sym}${fmtBs(toCurr(montoBs))}`;
 
   // Buscar dirección fiscal del contribuyente si no viene dada
   let dirFinal = (direccionContribuyente || (r as any)?.direccion || '').trim();
@@ -379,7 +404,7 @@ export async function generarPdfEstadoCuentaUnidad(
 
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('ESTADO DE CUENTA', 105, 18, { align: 'center' });
+    doc.text(esEur ? 'ESTADO DE CUENTA (EUROS €)' : 'ESTADO DE CUENTA', 105, 18, { align: 'center' });
     
     doc.setFontSize(8);
     doc.setTextColor(220, 38, 38);
@@ -453,14 +478,14 @@ export async function generarPdfEstadoCuentaUnidad(
   doc.setFont('helvetica', 'bold');
   doc.text(mesesVencidos > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Al día', 74, y);
   doc.setFont('helvetica', 'normal');
-  doc.text('Valor del UCD (Bs):', 135, y);
+  doc.text(esEur ? 'Valor del UCD (€):' : 'Valor del UCD (Bs):', 135, y);
   doc.setFont('helvetica', 'bold');
-  doc.text(fmtBs(ucdValor), 196, y, { align: 'right' });
+  doc.text(esEur ? `€ ${fmtBs(57)}` : fmtBs(ucdValor), 196, y, { align: 'right' });
   y += 4;
   doc.setFont('helvetica', 'normal');
   doc.text('Tasa Euro BCV:', 135, y);
   doc.setFont('helvetica', 'bold');
-  doc.text(fmtBs(tasaNum), 196, y, { align: 'right' });
+  doc.text(`Bs. ${fmtBs(tasaNum)}`, 196, y, { align: 'right' });
   y += 3;
 
   doc.setDrawColor(210, 210, 210);
@@ -478,26 +503,26 @@ export async function generarPdfEstadoCuentaUnidad(
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text('ESTADO DE CUENTA RESUMIDO', 105, y, { align: 'center' });
+  doc.text(esEur ? 'ESTADO DE CUENTA RESUMIDO (€)' : 'ESTADO DE CUENTA RESUMIDO', 105, y, { align: 'center' });
   y += 2;
   doc.line(14, y, 196, y);
   y += 4;
 
   const resumenRows: Array<[string, string]> = [
     ['Períodos Calculados:', mesesVencidos > 0 ? `${periodoDesde} a ${periodoHasta} (${mesesVencidos} meses)` : 'Solvente / Al Día'],
-    ['Monto Recolección Aseo Urbano Bs.:', `Bs. ${fmtBs(baseAseo)}`],
-    ['Total Exento Bs.:', 'Bs. 0,00'],
-    ['Base Imponible Bs.:', `Bs. ${fmtBs(baseAseo)}`],
-    ['IVA (16.00%) Bs.:', `Bs. ${fmtBs(ivaBs)}`],
-    ['Multas (Último mes sin multa) Bs.:', `Bs. ${fmtBs(sumMultas)}`],
-    ['Total Estado de Cuenta Bs.:', `Bs. ${fmtBs(totalBrutoBs)}`],
+    [`Monto Recolección Aseo Urbano ${esEur ? '€' : 'Bs.'}:`, fmtM(baseAseo)],
+    [`Total Exento ${esEur ? '€' : 'Bs.'}:`, `${sym}0,00`],
+    [`Base Imponible ${esEur ? '€' : 'Bs.'}:`, fmtM(baseAseo)],
+    [`IVA (16.00%) ${esEur ? '€' : 'Bs.'}:`, fmtM(ivaBs)],
+    [`Multas (Último mes sin multa) ${esEur ? '€' : 'Bs.'}:`, fmtM(sumMultas)],
+    [`Total Estado de Cuenta ${esEur ? '€' : 'Bs.'}:`, fmtM(totalBrutoBs)],
     ['Total Estado de Cuenta UCD:', `${(totalBrutoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} UCD`]
   ];
 
   if (retencionBs > 0) {
     resumenRows.push(
-      ['IVA Retenido 75% (Agente de Retención) Bs.:', `- Bs. ${fmtBs(retencionBs)}`],
-      ['IVA a Cancelar (25%) Bs.:', `Bs. ${fmtBs(ivaBs - retencionBs)}`]
+      [`IVA Retenido 75% (Agente de Retención) ${esEur ? '€' : 'Bs.'}:`, `- ${fmtM(retencionBs)}`],
+      [`IVA a Cancelar (25%) ${esEur ? '€' : 'Bs.'}:`, fmtM(ivaBs - retencionBs)]
     );
   }
 
@@ -517,8 +542,8 @@ export async function generarPdfEstadoCuentaUnidad(
   doc.setFontSize(10.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(220, 38, 38);
-  doc.text(retencionBs > 0 ? 'TOTAL A CANCELAR (con retención de IVA)' : 'TOTAL A PAGAR', 14, y);
-  doc.text(`Bs. ${fmtBs(totalNetoBs)}`, 196, y, { align: 'right' });
+  doc.text(retencionBs > 0 ? `TOTAL A CANCELAR (${esEur ? '€' : 'Bs.'} con retención)` : `TOTAL A PAGAR (${esEur ? 'EUROS €' : 'BOLÍVARES'})`, 14, y);
+  doc.text(fmtM(totalNetoBs), 196, y, { align: 'right' });
   doc.setTextColor(0, 0, 0);
   y += 2;
   doc.line(14, y, 196, y);
@@ -536,11 +561,11 @@ export async function generarPdfEstadoCuentaUnidad(
       oficialRows.push([
         { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
         mesFmt,
-        fmtBs(m.baseBs),
+        fmtBs(toCurr(m.baseBs)),
         '-',
-        m.multaBs > 0 ? fmtBs(m.multaBs) : '-',
-        fmtBs(m.ivaBs),
-        fmtBs(totM),
+        m.multaBs > 0 ? fmtBs(toCurr(m.multaBs)) : '-',
+        fmtBs(toCurr(m.ivaBs)),
+        fmtBs(toCurr(totM)),
         ucdM
       ]);
     });
@@ -550,11 +575,11 @@ export async function generarPdfEstadoCuentaUnidad(
     oficialRows.push([
       { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
       mesesVencidos > 0 ? `${periodoDesde} a ${periodoHasta}` : 'Aseo Urbano',
-      fmtBs(baseAseo),
+      fmtBs(toCurr(baseAseo)),
       '-',
-      sumMultas > 0 ? fmtBs(sumMultas) : '-',
-      fmtBs(ivaBs),
-      fmtBs(totM),
+      sumMultas > 0 ? fmtBs(toCurr(sumMultas)) : '-',
+      fmtBs(toCurr(ivaBs)),
+      fmtBs(toCurr(totM)),
       ucdM
     ]);
   } else {
@@ -570,42 +595,46 @@ export async function generarPdfEstadoCuentaUnidad(
         man.periodo ? fmtPeriodo(man.periodo) : 'Manual',
         '0,00',
         '-',
-        fmtBs(man.montoBs),
+        fmtBs(toCurr(man.montoBs)),
         '0,00',
-        fmtBs(man.montoBs),
+        fmtBs(toCurr(man.montoBs)),
         ucdM
       ]);
     });
   }
 
+  const colTotalLabel = esEur ? 'TOTAL €' : 'TOTAL BS';
+
   autoTable(doc, {
     startY: y,
     margin: { top: 38, bottom: 20 },
-    head: [['PROPIEDAD', 'MESES', 'SERV. ASEO', 'INT. MORA SERV. ASEO', 'MULTA IMPAGO', 'IVA', 'TOTAL BS', 'UCD']],
+    head: [['PROPIEDAD', 'MESES', 'SERV. ASEO', 'INT. MORA SERV. ASEO', 'MULTA IMPAGO', 'IVA', colTotalLabel, 'UCD']],
     body: oficialRows,
     foot: [
       [
         'TOTALES',
         `${mesesVencidos} mes(es)`,
-        fmtBs(baseAseo),
+        fmtBs(toCurr(baseAseo)),
         '-',
-        fmtBs(sumMultas),
-        fmtBs(ivaBs),
-        fmtBs(totalBrutoBs),
+        fmtBs(toCurr(sumMultas)),
+        fmtBs(toCurr(ivaBs)),
+        fmtBs(toCurr(totalBrutoBs)),
         ucdValor > 0 ? (totalBrutoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-'
       ],
       ...(retencionBs > 0 ? [
-        ['', 'IVA RETENIDO 75%', '', '', '', `- ${fmtBs(retencionBs)}`, `- ${fmtBs(retencionBs)}`, ucdValor > 0 ? `- ${(retencionBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : ''],
-        ['', 'TOTAL A CANCELAR', '', '', '', fmtBs(ivaBs - retencionBs), fmtBs(totalNetoBs), ucdValor > 0 ? (totalNetoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '']
+        ['', 'IVA RETENIDO 75%', '', '', '', `- ${fmtBs(toCurr(retencionBs))}`, `- ${fmtBs(toCurr(retencionBs))}`, ucdValor > 0 ? `- ${(retencionBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : ''],
+        ['', 'TOTAL A CANCELAR', '', '', '', fmtBs(toCurr(ivaBs - retencionBs)), fmtBs(toCurr(totalNetoBs)), ucdValor > 0 ? (totalNetoBs / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '']
       ] : [])
     ],
     theme: 'grid',
     headStyles: {
-      fillColor: [248, 250, 252], textColor: [15, 23, 42],
+      fillColor: esEur ? [236, 253, 245] : [248, 250, 252], 
+      textColor: esEur ? [6, 95, 70] : [15, 23, 42],
       fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, halign: 'center', fontSize: 7
     },
     footStyles: {
-      fillColor: [241, 245, 249], textColor: [15, 23, 42],
+      fillColor: esEur ? [209, 250, 229] : [241, 245, 249], 
+      textColor: [15, 23, 42],
       fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.2, fontSize: 7, halign: 'right'
     },
     styles: { fontSize: 7, cellPadding: 1.3 },
@@ -676,6 +705,6 @@ export async function generarPdfEstadoCuentaUnidad(
   }
 
   const codInm = (r.inmueble || r.numero || 'Unidad').replace(/[^a-zA-Z0-9_-]/g, '_');
-  doc.save(`Estado_Cuenta_${codInm}_${c.codigo}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`Estado_Cuenta_${codInm}_${c.codigo}_${esEur ? 'EUR_' : ''}${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 

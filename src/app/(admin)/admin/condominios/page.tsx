@@ -156,14 +156,14 @@ export default function CondominiosPage() {
 
   const [descargandoEdo, setDescargandoEdo] = useState<string | null>(null);
 
-  const handleDescargarEstadoCuentaCondominio = async (condo: any) => {
-    setDescargandoEdo(condo.codigo);
+  const handleDescargarEstadoCuentaCondominio = async (condo: any, moneda: 'BS' | 'EUR' = 'BS') => {
+    setDescargandoEdo(condo.codigo + '_' + moneda);
     try {
       const res = await fetch(`/api/admin/condominios?codigo=${encodeURIComponent(condo.codigo)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'No se pudo cargar la información del condominio.');
       const { generarPdfEstadoCuentaCondominio } = await import('@/lib/condominios/pdfCondominio');
-      generarPdfEstadoCuentaCondominio(data.condo, data.estado, 'Administrador');
+      generarPdfEstadoCuentaCondominio(data.condo, data.estado, 'Administrador', true, moneda);
     } catch (e: any) {
       alert('Error al generar estado de cuenta: ' + e.message);
     } finally {
@@ -452,15 +452,26 @@ export default function CondominiosPage() {
                   </td>
                   <td className="py-3 px-4 text-center" onClick={ev => ev.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1.5">
-                      <button
-                        onClick={() => handleDescargarEstadoCuentaCondominio(f)}
-                        disabled={descargandoEdo === f.codigo}
-                        title="Descargar Estado de Cuenta Consolidado en PDF"
-                        className="px-2.5 py-1 rounded-lg border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
-                      >
-                        {descargandoEdo === f.codigo ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                        Estado de Cuenta
-                      </button>
+                      <div className="inline-flex rounded-lg border border-sky-300 shadow-2xs overflow-hidden">
+                        <button
+                          onClick={() => handleDescargarEstadoCuentaCondominio(f, 'BS')}
+                          disabled={descargandoEdo === f.codigo + '_BS'}
+                          title="Descargar Estado de Cuenta Consolidado en Bolívares (PDF)"
+                          className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer transition-all border-r border-sky-200"
+                        >
+                          {descargandoEdo === f.codigo + '_BS' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                          E/C (Bs)
+                        </button>
+                        <button
+                          onClick={() => handleDescargarEstadoCuentaCondominio(f, 'EUR')}
+                          disabled={descargandoEdo === f.codigo + '_EUR'}
+                          title="Descargar Estado de Cuenta Consolidado en Euros (€)"
+                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[11px] inline-flex items-center gap-0.5 cursor-pointer transition-all"
+                        >
+                          {descargandoEdo === f.codigo + '_EUR' ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+                          €
+                        </button>
+                      </div>
                       {f.deudaBs <= 0.01 ? (
                         <button
                           onClick={() => handleEmitirSolvencia(f)}
