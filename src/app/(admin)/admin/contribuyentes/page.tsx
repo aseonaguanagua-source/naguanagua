@@ -1835,6 +1835,9 @@ function ContribuyentesPageContent() {
       const identidadesConInmueble = new Set((allFoundInmuebles || []).map((i: any) => i.identidad).filter(Boolean));
 
       const sortedInms = [...(allFoundInmuebles || [])].sort((a: any, b: any) => {
+        const aIsNA = a.actividad_principal === 'N/A';
+        const bIsNA = b.actividad_principal === 'N/A';
+        if (aIsNA !== bIsNA) return aIsNA ? -1 : 1;
         const aIsChild = Boolean(a.padre_id);
         const bIsChild = Boolean(b.padre_id);
         if (aIsChild !== bIsChild) return aIsChild ? 1 : -1;
@@ -1852,11 +1855,7 @@ function ContribuyentesPageContent() {
         if (rowIsElim && !isSearchedChild) return;
         // El contenedor local de actividades siempre es padre_id (NO condominio_padre_id)
         const parentKey = isSearchedChild ? null : (row.padre_id || null);
-        const normIdent = String(row.identidad || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-        // Si la búsqueda es por código puntual, agrupar por ese código (o padre_id); si es por RIF/Cédula/Nombre, agrupar por el RIF normalizado
-        const groupKey = isCodeFormat 
-          ? (isSearchedChild ? cod : (parentKey || cod)) 
-          : (normIdent || parentKey || cod || row.id);
+        const groupKey = isCodeFormat ? (isSearchedChild ? cod : (parentKey || cod)) : (parentKey || cod || row.id || row.identidad);
 
         if (groupKey && !mapResults.has(groupKey)) {
           const rowEstado = row.estado || 'Activo';
@@ -1907,9 +1906,7 @@ function ContribuyentesPageContent() {
       });
 
       (contsData || []).forEach((c: any) => {
-        const normCIdent = String(c.identidad || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-        const cKey = isCodeFormat ? c.identidad : (normCIdent || c.identidad);
-        if (c.identidad && !identidadesConInmueble.has(c.identidad) && !mapResults.has(cKey)) {
+        if (c.identidad && !identidadesConInmueble.has(c.identidad) && !mapResults.has(c.identidad)) {
           const idVars = getIdentidadVariantsExact(c.identidad);
           const matchedInm = (allFoundInmuebles || []).find((i: any) => idVars.includes(i.identidad));
           const codigoReal = matchedInm?.inmueble || matchedInm?.cod_cont || (c.cod_cont && c.cod_cont !== c.identidad ? c.cod_cont : null);
