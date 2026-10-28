@@ -1040,12 +1040,14 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             { id: 'deuda', label: `Estado de Cuenta (${facturasDb.length} recibos)`, icon: DollarSign },
             { id: 'pagos', label: `Historial de Pagos (${pagosDb.length})`, icon: Receipt },
             { id: 'servicios', label: `Servicios y Convenios (${serviciosEspDb.length + (conveniosDb.length > 0 ? conveniosDb.filter(c => {
+              if (c.estado === 'Anulado') return false;
               const cIdClean = (c.identidad || '').replace(/\D/g, '');
               const vIdClean = (viewData?.Identidad || '').replace(/\D/g, '');
               const vInms = [viewData?.CodCont, viewData?.inmueble, ...(inmueblesList || []).map((i: any) => i.inmueble)].filter(Boolean);
               return (vIdClean.length >= 4 && (cIdClean === vIdClean || cIdClean.includes(vIdClean) || vIdClean.includes(cIdClean))) ||
                      vInms.some(cd => cd && (c.numero || '').toUpperCase().includes(String(cd).replace(/\D/g, '')));
             }).length : (conveniosGlobal || []).filter(c => {
+              if (c.estado === 'Anulado') return false;
               const cIdClean = (c.identidad || '').replace(/\D/g, '');
               const vIdClean = (viewData?.Identidad || '').replace(/\D/g, '');
               return vIdClean.length >= 4 && cIdClean === vIdClean;
@@ -2288,6 +2290,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                   ].filter(Boolean));
                   const convSource = conveniosDb.length > 0 ? conveniosDb : (conveniosGlobal || []);
                   const userConvenios = convSource.filter((c: any) => {
+                    if (c.estado === 'Anulado') return false;
                     const cIdClean = (c.identidad || '').replace(/\D/g, '');
                     const idMatch = vIdClean.length >= 4 && (cIdClean === vIdClean || cIdClean.includes(vIdClean) || vIdClean.includes(cIdClean));
                     const inmMatch = c.inmueble && vInmCodes.has(String(c.inmueble).toUpperCase());

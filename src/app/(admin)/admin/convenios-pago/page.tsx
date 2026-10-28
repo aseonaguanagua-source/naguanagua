@@ -280,12 +280,18 @@ export default function ConveniosPagoPage() {
         });
       }
 
-      // Buscar facturas pendientes asociadas
+      // Buscar facturas pendientes asociadas (por identidad y variantes)
+      const factOrs: string[] = [
+        `identidad.ilike.%${cleanSearchDoc}%`
+      ];
+      if (idFmt) factOrs.push(`identidad.eq.${idFmt}`);
+      if (soloNum && soloNum.length >= 4) factOrs.push(`identidad.ilike.%${soloNum}%`);
+
       const { data: dbFacturas } = await supabase
         .from('facturas')
         .select('*')
         .eq('estado', 'Pendiente')
-        .or(ors.join(','));
+        .or(factOrs.join(','));
 
       let userFacturas = dbFacturas || [];
       if (!userFacturas.length && Array.isArray(recibos)) {
@@ -294,6 +300,17 @@ export default function ConveniosPagoPage() {
           const belongsToUser = idCleanFactura === cleanSearchDoc || (userInmuebles.length > 0 && f.contribuyente === userInmuebles[0].contribuyente);
           return belongsToUser && f.estado === 'Pendiente';
         });
+      }
+
+      // Buscar también si pertenece a una unidad de condominio individual con meses pendientes
+      const inmsCodes = userInmuebles.map((i: any) => i.inmueble).filter(Boolean);
+      let userCondoUnidades: any[] = [];
+      if (inmsCodes.length > 0) {
+        const { data: cUnidades } = await supabase
+          .from('condominio_unidades')
+          .select('*')
+          .in('inmueble', inmsCodes);
+        userCondoUnidades = cUnidades || [];
       }
 
       // Obtener tasa efectiva si tcmmv está en 0
@@ -307,9 +324,9 @@ export default function ConveniosPagoPage() {
         tasaEfectiva = v('tasa_bcv_manual') || v('tasa_bcv_semanal') || v('tasa_bcv_diaria') || 993.18;
       }
 
-      if (userInmuebles.length > 0 || userFacturas.length > 0) {
-        const identidad = userInmuebles.length > 0 ? userInmuebles[0].identidad : userFacturas[0].identidad;
-        const contribuyente = userInmuebles.length > 0 ? userInmuebles[0].contribuyente : userFacturas[0].contribuyente;
+      if (userInmuebles.length > 0 || userFacturas.length > 0 || userCondoUnidades.length > 0) {
+        const identidad = userInmuebles.length > 0 ? userInmuebles[0].identidad : (userFacturas[0]?.identidad || userCondoUnidades[0]?.identidad);
+        const contribuyente = userInmuebles.length > 0 ? userInmuebles[0].contribuyente : (userFacturas[0]?.contribuyente || userCondoUnidades[0]?.propietario);
 
         // Calcular deuda MMV (directa o por meses_deuda * mmv_mes)
         const totalMMV = userInmuebles.reduce((acc, curr) => {
@@ -322,7 +339,29 @@ export default function ConveniosPagoPage() {
 
         const totalCongelada = userInmuebles.reduce((acc, curr) => acc + (parseFloat(curr.deuda_congelada_bs) || parseFloat(curr.DeudaCongelada) || 0), 0);
         const totalFacturasBs = userFacturas.reduce((acc, curr) => acc + (parseFloat(curr.monto) || 0), 0);
-        const montoACongelarNum = (totalMMV * tasaEfectiva) + totalCongelada + totalFacturasBs;
+        
+        // Deuda de condominio unidades (si aplica)
+        const totalCondoMMV = userCondoUnidades.reduce((acc, curr) => {
+          const meses = parseInt(curr.multa_meses || '0') || 0;
+          const mmv = parseFloat(curr.tarifa_mmv || '0') || 0;
+          return acc + (meses * mmv);
+        }, 0);
+
+        let montoACongelarNum = (totalMMV * tasaEfectiva) + (totalCondoMMV * tasaEfectiva) + totalCongelada + totalFacturasBs;
+
+        // Si la nota del inmueble contiene un monto previo de refinanciamiento (ej. Bs. 567.781,16)
+        if (montoACongelarNum <= 0.01) {
+          for (const inm of userInmuebles) {
+            const m = String(inm.notas || '').match(/refinanciar[^\d]*([\d.,]+)/i);
+            if (m && m[1]) {
+              const parsedNotaMonto = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+              if (parsedNotaMonto > 0) {
+                montoACongelarNum = parsedNotaMonto;
+                break;
+              }
+            }
+          }
+        }
 
         const { data: convActivo } = await supabase
           .from('convenios_pago')
@@ -355,6 +394,9 @@ export default function ConveniosPagoPage() {
           const m = parseInt(curr.meses_deuda || '0') || 0;
           return Math.max(acc, m);
         }, 0);
+        if (totalMesesDeuda <= 0 && userCondoUnidades.length > 0) {
+          totalMesesDeuda = userCondoUnidades.reduce((acc, curr) => Math.max(acc, parseInt(curr.multa_meses || '0') || 0), 0);
+        }
         if (totalMesesDeuda <= 0) {
           totalMesesDeuda = userFacturas.length > 0 ? userFacturas.length : 1;
         }
@@ -367,7 +409,7 @@ export default function ConveniosPagoPage() {
           contribuyente,
           inmuebles: userInmuebles,
           recibos: userFacturas,
-          totalMMV: Math.round(totalMMV * 100) / 100,
+          totalMMV: Math.round((totalMMV + totalCondoMMV) * 100) / 100,
           totalCongelada,
           totalFacturasBs,
           totalMesesDeuda,
