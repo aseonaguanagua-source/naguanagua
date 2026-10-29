@@ -45,9 +45,12 @@ export type DatosPlanilla = {
   // Especial (evento)
   nombreEvento?: string;
   fechaEvento?: string;
+  fechaEventoHasta?: string;
   lugar?: string;
   horario?: string;
   aforo?: string | number;
+  observaciones?: string;
+  descripcion?: string;
   // Extraordinario
   direccion?: string;
   // Cálculo
@@ -72,6 +75,15 @@ const fechaVE = (s?: string) => {
   if (!s) return '';
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
+};
+
+const fechaRangoVE = (desde?: string, hasta?: string) => {
+  const fDesde = fechaVE(desde);
+  const fHasta = fechaVE(hasta);
+  if (fDesde && fHasta && fDesde !== fHasta) {
+    return `Del ${fDesde} al ${fHasta}`;
+  }
+  return fDesde || fHasta || '';
 };
 
 /** Genera la planilla. Con datos vacíos produce la planilla en blanco para llenar a mano. */
@@ -190,13 +202,21 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   } else if (esp) {
     seccion('DATOS DEL EVENTO:');
     campo('NOMBRE DEL EVENTO:', nombreEventoSanitizado); y += 8;
-    campo('FECHA:', fechaVE(d.fechaEvento), L, 80); campo('HORARIO:', d.horario, L + 90, R - L - 90); y += 8;
+    campo('FECHA:', fechaRangoVE(d.fechaEvento, d.fechaEventoHasta), L, 80); campo('HORARIO:', d.horario, L + 90, R - L - 90); y += 8;
     campo('LUGAR:', d.lugar); y += 8;
-    campo('AFORO:', d.aforo !== undefined && d.aforo !== null ? String(d.aforo) : '', L, 80); y += 12;
+    campo('AFORO:', d.aforo !== undefined && d.aforo !== null ? String(d.aforo) : '', L, 80); y += 8;
+    if (d.observaciones || d.descripcion) {
+      campo('OBSERVACIONES:', d.observaciones || d.descripcion); y += 8;
+    }
+    y += 4;
   } else {
     seccion('DATOS DEL SERVICIO:');
     campo('DIRECCIÓN:', d.direccion); y += 8;
-    campo('FECHA:', fechaVE(d.fechaEvento), L, 80); campo('HORARIO:', d.horario, L + 90, R - L - 90); y += 12;
+    campo('FECHA:', fechaRangoVE(d.fechaEvento, d.fechaEventoHasta), L, 80); campo('HORARIO:', d.horario, L + 90, R - L - 90); y += 8;
+    if (d.observaciones || d.descripcion) {
+      campo('OBSERVACIONES:', d.observaciones || d.descripcion); y += 8;
+    }
+    y += 4;
   }
 
   seccion(insp ? 'LIQUIDACIÓN DE TASA DE INSPECCIÓN' : (esp ? 'COSTO SERVICIO ESPECIAL' : 'COSTO SERVICIO EXTRAORDINARIO'));

@@ -87,6 +87,7 @@ export default function ServiciosEspecialesPage() {
     telefono: '',
     nombreEvento: '',
     fechaEvento: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date()),
+    fechaEventoHasta: '',
     lugar: '',
     horario: '',
     aforo: '',
@@ -300,7 +301,7 @@ export default function ServiciosEspecialesPage() {
           telefono: form.telefono || null,
           correo: form.correo || null,
           direccion_evento: form.lugar || form.direccion || null,
-          notas: `${form.notas || ''}${sinRegistro ? ' [SIN_REGISTRO_PREVIO]' : ''}${form.contacto ? ` [CONTACTO:${form.contacto.trim()}]` : ''}`.trim(),
+          notas: `${form.notas || ''}${form.fechaEventoHasta ? ` [FECHA_HASTA:${form.fechaEventoHasta}]` : ''}${sinRegistro ? ' [SIN_REGISTRO_PREVIO]' : ''}${form.contacto ? ` [CONTACTO:${form.contacto.trim()}]` : ''}`.trim(),
           estado: 'Pendiente',
           referencia: codigoUnico,
           origen: sinRegistro ? 'funcionario_sin_registro' : 'funcionario',
@@ -361,6 +362,7 @@ export default function ServiciosEspecialesPage() {
             telefono: form.telefono,
             nombre_evento: form.descripcion || form.nombreEvento || 'Inspección Técnica Ambiental',
             fecha_evento: form.fechaEvento || form.fecha,
+            fecha_evento_hasta: form.fechaEventoHasta || null,
             direccion_evento: form.lugar || form.direccion,
             hora_evento: form.horario,
             aforo: form.aforo,
@@ -369,6 +371,8 @@ export default function ServiciosEspecialesPage() {
             factor: factorFinal,
             tasa_euro: tcmmv || null,
             monto: montoBs,
+            notas: form.notas || '',
+            descripcion: form.descripcion || '',
           });
         }
 
@@ -403,6 +407,7 @@ export default function ServiciosEspecialesPage() {
           telefono: '',
           nombreEvento: '',
           fechaEvento: '',
+          fechaEventoHasta: '',
           lugar: '',
           horario: '',
           aforo: '',
@@ -447,6 +452,14 @@ export default function ServiciosEspecialesPage() {
     }
 
     const contacto = s.contacto || s.persona_contacto || String(s.notas || '').match(/\[CONTACTO:([^\]]*)\]/)?.[1] || '';
+    const fechaHastaDesdeNotas = String(s.notas || '').match(/\[FECHA_HASTA:([^\]]*)\]/)?.[1] || '';
+    const notasLimpias = String(s.notas || '')
+      .replace(/\[FECHA_HASTA:[^\]]*\]/g, '')
+      .replace(/\[CONTACTO:[^\]]*\]/g, '')
+      .replace(/\[ORIGEN:[^\]]*\]/g, '')
+      .replace(/\[SIN_REGISTRO_PREVIO\]/g, '')
+      .trim();
+
     generarPlanillaServicio({
       categoria: cat,
       fechaEmision: s.fecha || s.created_at,
@@ -457,9 +470,12 @@ export default function ServiciosEspecialesPage() {
       telefono: s.telefono || '',
       nombreEvento: s.nombre_evento || s.descripcion || (cat === 'inspeccion' ? 'Inspección Técnica Ambiental' : ''),
       fechaEvento: s.fecha_evento || '',
+      fechaEventoHasta: s.fecha_evento_hasta || fechaHastaDesdeNotas || '',
       lugar: s.direccion_evento || '',
       horario: s.hora_evento || '',
       aforo: s.aforo ?? '',
+      observaciones: notasLimpias || s.descripcion || '',
+      descripcion: s.descripcion || '',
       direccion: s.direccion_evento || '',
       vehiculoLabel: tEsp?.label || tExt?.label || s.descripcion,
       nivel: s.nivel || '',
@@ -954,7 +970,7 @@ export default function ServiciosEspecialesPage() {
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                      Fecha del Servicio / Inspección
+                      Fecha del Servicio / Desde
                     </label>
                     <input
                       type="date"
@@ -962,6 +978,30 @@ export default function ServiciosEspecialesPage() {
                       onChange={e => setForm(prev => ({ ...prev, fechaEvento: e.target.value, fecha: e.target.value }))}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center justify-between">
+                      <span>Fecha Fin (Opcional - Rango)</span>
+                      {form.fechaEventoHasta && (
+                        <button
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, fechaEventoHasta: '' }))}
+                          className="text-[10px] text-purple-600 hover:underline font-normal"
+                        >
+                          Limpiar
+                        </button>
+                      )}
+                    </label>
+                    <input
+                      type="date"
+                      placeholder="Ej: Si dura varios días"
+                      value={form.fechaEventoHasta}
+                      min={form.fechaEvento || form.fecha}
+                      onChange={e => setForm(prev => ({ ...prev, fechaEventoHasta: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">Ej: Para eventos del 7 y 8 de Noviembre</span>
                   </div>
 
                   <div className="sm:col-span-2">

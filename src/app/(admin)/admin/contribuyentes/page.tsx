@@ -2032,6 +2032,60 @@ function ContribuyentesPageContent() {
     }
   };
 
+  const handleDesvincularActividad = async (index: number) => {
+    const local = formData?.locales?.[index];
+    if (!local || !local.codigo) return;
+    const desc = local.actividad || local.tipoResidencia || local.numeracion || local.codigo;
+    const nuevoRif = window.prompt(
+      `DESVINCULAR INMUEBLE / HIJO: ${local.codigo} (${desc})\n\nEste inmueble pertenece a otro titular o fue vinculado por error.\n\nEscriba la Cédula/RIF del verdadero propietario al que se asignará (ej: J-298542780, V-12345678):`,
+      ''
+    );
+    if (!nuevoRif || !nuevoRif.trim()) return;
+    const rifDestino = nuevoRif.trim().toUpperCase();
+
+    if (!window.confirm(`Se reasignará ${local.codigo} al contribuyente ${rifDestino} y se desvinculará de ${formData.Identidad}.\n\n¿Desea continuar?`)) {
+      return;
+    }
+
+    try {
+      // Buscar datos del contribuyente destino
+      const { data: contDest } = await supabase.from('contribuyentes').select('nombre, email, telefono, direccion').eq('identidad', rifDestino).maybeSingle();
+      const nombreDest = contDest?.nombre || null;
+      
+      const updPayload: any = {
+        identidad: rifDestino,
+        padre_id: null,
+      };
+      if (nombreDest) updPayload.contribuyente = nombreDest;
+      if (contDest?.telefono) updPayload.telefono = contDest.telefono;
+      if (contDest?.email) updPayload.correo_electronico = contDest.email;
+
+      const { error } = await supabase
+        .from('inmuebles')
+        .update(updPayload)
+        .eq('inmueble', local.codigo);
+
+      if (error) throw error;
+
+      const newLocales = (formData.locales || []).filter((_: any, i: number) => i !== index);
+      const newCodes = (formData.__inmuebleCodes || []).filter((c: string) => c !== local.codigo);
+
+      setFormData({
+        ...formData,
+        locales: newLocales,
+        cantidadInmuebles: newLocales.length,
+        __inmuebleCodes: newCodes
+      });
+
+      await refreshUserData(formData.Identidad);
+      await refreshUserData(rifDestino).catch(() => {});
+      alert(`Inmueble ${local.codigo} desvinculado exitosamente y reasignado a ${rifDestino}${nombreDest ? ` (${nombreDest})` : ''}.`);
+    } catch (err: any) {
+      console.error(err);
+      alert('Error al desvincular inmueble: ' + err.message);
+    }
+  };
+
   const handleEdit = async (row: any) => {
     if (row.isCondoChild || row.condominio_padre_id) {
       alert(`⚠️ Esta unidad pertenece al Condominio "${row.condominio_padre_nombre || row.condominio_padre_id}".\n\nPor normativa técnica y operativa, las unidades filiales dentro de condominios deben editarse y gestionarse exclusivamente desde el módulo de Condominios.`);
@@ -3230,15 +3284,25 @@ function ContribuyentesPageContent() {
                           )}
                         </div>
                         
-                        {/* Botón de Eliminar Actividad/Inmueble */}
-                        <div className="flex items-center justify-center pb-1">
+                        {/* Botones de Acción: Desvincular y Eliminar */}
+                        <div className="flex flex-col sm:flex-row items-center gap-1.5 pb-1">
+                          {local.codigo && (
+                            <button
+                              type="button"
+                              onClick={() => handleDesvincularActividad(index)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+                              title="Desvincular este inmueble/hijo y reasignarlo a su verdadero titular o RIF"
+                            >
+                              <span>↗ Desvincular</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleEliminarActividad(index)}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-sm transition-all w-full md:w-auto justify-center mt-2 md:mt-0 cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-sm transition-all w-full md:w-auto justify-center mt-2 md:mt-0 cursor-pointer"
                             title="Eliminar esta actividad del contribuyente"
                           >
-                            <Trash2 className="w-4 h-4" /> <span>Eliminar Actividad</span>
+                            <Trash2 className="w-4 h-4" /> <span>Eliminar</span>
                           </button>
                         </div>
                       </div>
