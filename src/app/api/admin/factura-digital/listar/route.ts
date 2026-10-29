@@ -320,8 +320,8 @@ export async function GET(request: Request) {
 
     const fallbackEmail = process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.comercial@globalgreenca.com';
 
-    // Condominios (para reconocer pagos viejos de condominios por su RIF)
-    const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo,agente_retencion').limit(5000);
+    // Condominios (para reconocer pagos viejos de condominios por su RIF y correo actualizado)
+    const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo,agente_retencion,correo').limit(5000);
     const condoPorRif = new Map<string, any>();
     (condosRows || []).forEach((c: any) => { if (c.identidad) condoPorRif.set(normId(c.identidad), c); });
     const infoCondo = (pago: any, det: any) => {
@@ -334,6 +334,7 @@ export async function GET(request: Request) {
         codigo: c.codigo || porRif?.codigo || null, nombre: c.nombre || porRif?.nombre || det.contribuyente || 'Condominio', tipo,
         residencial: tipo ? String(tipo).toUpperCase() === 'RESIDENCIAL' : null,
         agente_retencion: Boolean(c.agente_retencion ?? porRif?.agente_retencion),
+        correo: porRif?.correo || c.correo || null,
         facturaA: det.modo === 'CONTRIBUYENTE' ? 'CONTRIBUYENTE' : 'CONDOMINIO',
         grupo: det.grupo_pago ? { id: det.grupo_pago.id, parte: det.grupo_pago.parte, partes: det.grupo_pago.partes, montoTotal: Number(det.grupo_pago.monto_total) || 0 } : null,
       };
@@ -342,6 +343,9 @@ export async function GET(request: Request) {
     // Mapear cada pago con sus detalles de factura digital
     const items = (pagos || []).map(pago => {
       const det = detallesPorPago.get(pago.id) || {};
+      const condo = infoCondo(pago, det);
+      const esCondo = pago.modulo === 'condominios' || det.modulo === 'condominios' || det.isCondominio || det.es_condominio;
+      const esModoCondominio = det.modo === 'CONDOMINIO' || (!det.modo && esCondo);
 
       const cont = contsMap.get(pago.identidad) || contsMap.get(normId(pago.identidad));
       const fd = det.factura_digital || null;
@@ -349,16 +353,23 @@ export async function GET(request: Request) {
       const emitida = !!(fd && (fd.emitida || fd.url || fd.numero_control));
       const clasif = clasificarPago(det.recibos || [], inmMap, det);
       const correoInm = clasif.inmuebles.map(c => inmMap.get(c)?.correo_electronico).find((e: any) => e && String(e).includes('@'));
-      const rawEmail = (cont?.email || det.correo || fd?.correo_utilizado || correoInm || '').trim();
+      
+      // Si la factura va al CONDOMINIO centralizado, priorizar el correo oficial del condominio
+      const rawEmail = (
+        (esModoCondominio && (condo?.correo || det.correo)) ||
+        cont?.email ||
+        condo?.correo ||
+        det.correo ||
+        fd?.correo_utilizado ||
+        correoInm ||
+        ''
+      ).trim();
       const esCorreoComodin = !rawEmail || rawEmail.length < 4 || rawEmail.toLowerCase() === fallbackEmail.toLowerCase();
       const correoFinal = esCorreoComodin ? fallbackEmail : rawEmail;
       const reciboEnviado = !!(rd && rd.enviado);
 
       // Rescatar nombre real del contribuyente evitando mostrar el RIF como nombre
-      const condo = infoCondo(pago, det);
-      const esCondo = pago.modulo === 'condominios' || det.modulo === 'condominios' || det.isCondominio || det.es_condominio;
       const condoMod = String(det.condominio?.modalidad || '').toUpperCase();
-      const esModoCondominio = det.modo === 'CONDOMINIO';
       const esModoContribuyente = det.modo === 'CONTRIBUYENTE';
       const esPagoPorLocal = Boolean(
         esCondo && !esModoCondominio && (
