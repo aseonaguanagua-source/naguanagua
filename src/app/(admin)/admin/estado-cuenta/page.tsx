@@ -625,18 +625,24 @@ export default function EstadoCuentaPage() {
   };
 
   
-  const exportarAExcel = async () => {
+  const exportarAExcel = async (moneda: 'BS' | 'EUR' = 'BS') => {
     try {
       const { exportToExcelWithLogos } = await import('@/lib/excelExport');
-      const data = filteredFacturas.map((f: any) => ({
-        Referencia: f.referencia,
-        Contribuyente: f.contribuyente,
-        Identidad: f.identidad,
-        Monto: f.monto,
-        Emision: f.emision,
-        Estado: f.estado
-      }));
-      await exportToExcelWithLogos(data, "EstadoDeCuenta_" + new Date().toISOString().split('T')[0] + ".xlsx", "EstadoCuenta");
+      const tasaValida = tcmmv || 1;
+      const esEur = moneda === 'EUR';
+      const data = filteredFacturas.map((f: any) => {
+        const montoNum = parseFloat(String(f.monto || '0')) || 0;
+        return {
+          Referencia: f.referencia,
+          Contribuyente: f.contribuyente,
+          Identidad: f.identidad,
+          [esEur ? "Monto (€)" : "Monto (Bs)"]: esEur ? Number((montoNum / tasaValida).toFixed(2)) : montoNum,
+          Emision: f.emision,
+          Estado: f.estado
+        };
+      });
+      const sufijo = esEur ? '_EUR' : '';
+      await exportToExcelWithLogos(data, `EstadoDeCuenta_${new Date().toISOString().split('T')[0]}${sufijo}.xlsx`, esEur ? "EstadoCuenta_EUR" : "EstadoCuenta");
     } catch(e) {
       alert("Error exportando a Excel");
     }
@@ -949,12 +955,22 @@ export default function EstadoCuentaPage() {
             <Zap className="w-4 h-4" /> 
             {isGenerating ? 'Generando...' : 'Generar Emisión de recibos'}
           </button>
-          <button 
-            onClick={exportarAExcel}
-            className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" /> Exportar a Excel
-          </button>
+          <div className="inline-flex rounded shadow-sm overflow-hidden">
+            <button 
+              onClick={() => exportarAExcel('BS')}
+              className="bg-blue-600 text-white hover:bg-blue-700 px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1.5 border-r border-blue-500"
+              title="Exportar Estado de Cuenta en Bolívares a Excel"
+            >
+              <Download className="w-4 h-4" /> Excel (Bs)
+            </button>
+            <button 
+              onClick={() => exportarAExcel('EUR')}
+              className="bg-emerald-600 text-white hover:bg-emerald-700 px-3 py-2 text-sm font-extrabold transition-colors flex items-center gap-1"
+              title="Exportar Estado de Cuenta expresado en Euros (€) a Excel"
+            >
+              <span>💶</span> Excel (€)
+            </button>
+          </div>
           <button 
             onClick={enviarCorreosMasivos}
             className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded text-sm font-medium transition-colors shadow-sm flex items-center gap-2"

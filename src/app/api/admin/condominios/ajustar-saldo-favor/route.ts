@@ -67,8 +67,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Si se ajustó a 0 (eliminación) y existían notas de crédito directas sin referencia o se pide resetear:
-    if (montoNum === 0) {
+    // 3. Si se ajustó a 0 (eliminación total explícita) y NO se indicó preservar las notas existentes:
+    const noAnularNotas = body.noAnularNotas === true;
+    if (montoNum === 0 && !noAnularNotas && body.anularDocumentos === true) {
       // Buscar notas de crédito vigentes para este condominio/identidad y marcarlas o eliminarlas
       const docQuery = supabase.from('documentos')
         .update({ estado: 'Anulado' })

@@ -160,6 +160,13 @@ export async function PATCH(req: Request) {
         inmUpd.notas = Object.keys(existingNotes).length > 0 ? JSON.stringify(existingNotes) : null;
       }
       if ('actividad' in upd) inmUpd.actividad_principal = upd.actividad;
+      if ('tarifa_mmv' in upd && upd.tarifa_mmv != null) inmUpd.mmv_mes = upd.tarifa_mmv;
+      if ('aseo_pendiente_desde' in upd) {
+        const m = mesesPendientes(upd.aseo_pendiente_desde);
+        inmUpd.meses_deuda = m;
+        const mmvTarifa = upd.tarifa_mmv ?? antes.tarifa_mmv ?? 1.98;
+        inmUpd.deuda_mmv = parseFloat((m * Number(mmvTarifa)).toFixed(5));
+      }
       if (upd.estado === 'Eliminada') {
         inmUpd.estado = 'Eliminado';
         inmUpd.mmv_mes = 0;

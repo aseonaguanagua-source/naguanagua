@@ -31,7 +31,7 @@ import { exportToExcelWithLogos } from '@/lib/excelExport';
 import { supabase } from '@/lib/supabase';
 import economicActivitiesBase from '@/lib/economicActivitiesBase.json';
 import { logAudit } from '@/lib/audit';
-import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad, actividadYNivelDeInmueble } from '@/lib/calculos';
+import { calcularMensualidad, getFO, getFAR, isResidencialInm, isTerrenoInm, isExoneradoTotalMultas, isMesExoneradoMulta, getMesesExoneradosCount, cleanClasificacionActividad, actividadYNivelDeInmueble, isCondominioPagoIndividual } from '@/lib/calculos';
 import { isSameLocal, getShortAddress } from '@/lib/cajaHelpers';
 import { valorUCD } from '@/lib/tasaHistorica';
 
@@ -39,9 +39,10 @@ import { valorUCD } from '@/lib/tasaHistorica';
 // Helper para cálculo canónico de deuda idéntico a Caja
 function calcRowDeudaCanonical(r: any, rate: number): number {
   if (r.estado === 'Eliminado' || r.Estado === 'Eliminado') return 0;
-  // Regla de Condominios: ninguna información de condominios sale por sistema,
-  // solo la multa de los usuarios. Todo lo demás lo hace condominio por oficina.
-  if (r.condominio_padre_id || r.es_condominio) {
+  // Regla de Condominios Centralizados: solo la multa de los usuarios sale por sistema,
+  // salvo que pertenezca a un condominio con modalidad de pago individual (Chirikayen, Centro Cristal, etc.)
+  const esCondoCentralizado = (r.condominio_padre_id || r.es_condominio) && !isCondominioPagoIndividual(r);
+  if (esCondoCentralizado) {
     const multaBs = parseFloat(String(r.multa_bs || 0)) || 0;
     return Math.round(Math.max(0, multaBs) * 100) / 100;
   }
@@ -1874,7 +1875,7 @@ function ContribuyentesPageContent() {
             DeudaMMV: parseFloat(row.deuda_mmv || 0),
             DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
             DeudaBs: calcRowDeudaCanonical(row, tcmmv),
-            MesesDeuda: (row.condominio_padre_id || row.es_condominio) ? 0 : parseInt(row.meses_deuda || '0'),
+            MesesDeuda: ((row.condominio_padre_id || row.es_condominio) && !isCondominioPagoIndividual(row)) ? 0 : parseInt(row.meses_deuda || '0'),
             Estado: rowEstado,
             FechaRegistro: row.created_at || null
           });
@@ -1894,7 +1895,7 @@ function ContribuyentesPageContent() {
           if (rowEstado === 'Activo') {
             existing.Estado = 'Activo';
           }
-          if (!row.condominio_padre_id && !row.es_condominio) {
+          if ((!row.condominio_padre_id && !row.es_condominio) || isCondominioPagoIndividual(row)) {
             existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
           }
           const rowIsElim = ['eliminado', 'inactivo', 'desactivado', 'baja'].includes(String(row.estado || '').trim().toLowerCase());

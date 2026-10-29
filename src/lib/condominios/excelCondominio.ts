@@ -12,7 +12,7 @@ import { cleanClasificacionActividad } from '@/lib/calculos';
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const fmtPeriodo = (p: string) => { const [y, m] = String(p || '').split('-'); return m ? `${MESES[parseInt(m) - 1]} ${y}` : p; };
 
-export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero: string, moneda: 'BS' | 'UCD' = 'BS') {
+export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero: string, moneda: 'BS' | 'EUR' | 'UCD' = 'BS') {
   const exceljsModule = await import('exceljs');
   const ExcelJS = (exceljsModule as any).default || exceljsModule;
   const WorkbookClass = ExcelJS.Workbook || (exceljsModule as any).Workbook;
@@ -24,12 +24,15 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   const tasaNum = Number(e?.tasa) || 0;
   const ucd = valorUCD(tasaNum);
   const enUCD = moneda === 'UCD' && ucd > 0;
+  const enEUR = moneda === 'EUR' && tasaNum > 0;
   const conv = (bs: number) => {
     const v = Number(bs) || 0;
-    return enUCD ? Math.round((v / ucd) * 10000) / 10000 : Math.round(v * 100) / 100;
+    if (enUCD) return Math.round((v / ucd) * 10000) / 10000;
+    if (enEUR) return Math.round((v / tasaNum) * 100) / 100;
+    return Math.round(v * 100) / 100;
   };
-  const numFmt = enUCD ? '#,##0.0000' : '#,##0.00';
-  const mon = enUCD ? 'UCD' : 'Bs';
+  const numFmt = enUCD ? '#,##0.0000' : (enEUR ? '€ #,##0.00' : '#,##0.00');
+  const mon = enUCD ? 'UCD' : (enEUR ? '€' : 'Bs');
 
   const wb = new WorkbookClass();
   const borde = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } } as any;
@@ -62,7 +65,8 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     logosEn(ws);
     ws.mergeCells(1, 4, 1, ancho); ws.getCell(1, 4).value = 'INSTITUTO AUTÓNOMO MUNICIPAL DE ECOSOCIALISMO DE NAGUANAGUA (IAMEC)';
     ws.getCell(1, 4).font = { bold: true, size: 12 };
-    ws.mergeCells(2, 4, 2, ancho); ws.getCell(2, 4).value = titulo + (enUCD ? ' (EXPRESADO EN UCD)' : ' (EXPRESADO EN BOLÍVARES)');
+    const sufijoMon = enUCD ? ' (EXPRESADO EN UCD)' : (enEUR ? ' (EXPRESADO EN EUROS €)' : ' (EXPRESADO EN BOLÍVARES)');
+    ws.mergeCells(2, 4, 2, ancho); ws.getCell(2, 4).value = titulo + sufijoMon;
     ws.getCell(2, 4).font = { bold: true, size: 11 };
     ws.mergeCells(3, 4, 3, ancho); ws.getCell(3, 4).value = `CONDOMINIO: ${c?.nombre || ''} (${c?.codigo || ''})${c?.identidad ? ' · RIF ' + c.identidad : ''}`;
     ws.getCell(3, 4).font = { bold: true, size: 10 };
@@ -324,7 +328,7 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const nombreArchivo = `Estado_Cuenta_${c?.codigo || 'Condominio'}${enUCD ? '_UCD' : ''}.xlsx`;
+  const nombreArchivo = `Estado_Cuenta_${c?.codigo || 'Condominio'}${enUCD ? '_UCD' : (enEUR ? '_EUR' : '')}.xlsx`;
   try {
     saveAs(blob, nombreArchivo);
   } catch {

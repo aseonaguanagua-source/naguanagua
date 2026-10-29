@@ -466,10 +466,32 @@ export default function CondominiosPage() {
                           onClick={() => handleDescargarEstadoCuentaCondominio(f, 'EUR')}
                           disabled={descargandoEdo === f.codigo + '_EUR'}
                           title="Descargar Estado de Cuenta Consolidado en Euros (€)"
-                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[11px] inline-flex items-center gap-0.5 cursor-pointer transition-all"
+                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[11px] inline-flex items-center gap-0.5 cursor-pointer transition-all border-r border-sky-200"
                         >
                           {descargandoEdo === f.codigo + '_EUR' ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
                           €
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setDescargandoEdo(f.codigo + '_XLS_EUR');
+                            try {
+                              const res = await fetch(`/api/admin/condominios?codigo=${encodeURIComponent(f.codigo)}`);
+                              const data = await res.json();
+                              if (!res.ok) throw new Error(data.error || 'No se pudo cargar la información del condominio.');
+                              const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
+                              await exportarExcelEstadoCuenta(data.condo, data.estado, 'Administrador', 'EUR');
+                            } catch (e: any) {
+                              alert('Error al exportar Excel en Euros: ' + e.message);
+                            } finally {
+                              setDescargandoEdo(null);
+                            }
+                          }}
+                          disabled={descargandoEdo === f.codigo + '_XLS_EUR'}
+                          title="Descargar Estado de Cuenta Consolidado en Excel expresado en Euros (€)"
+                          className="px-2 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-950 font-extrabold text-[11px] inline-flex items-center gap-0.5 cursor-pointer transition-all"
+                        >
+                          {descargandoEdo === f.codigo + '_XLS_EUR' ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+                          XLS (€)
                         </button>
                       </div>
                       {f.deudaBs <= 0.01 ? (

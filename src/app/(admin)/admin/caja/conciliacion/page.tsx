@@ -977,6 +977,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const payloadEdicion: any = {
           banco: bancoEmisor,
           referencia: refFinal,
+          ...(montoConciliadoNum > 0 ? { monto: montoConciliadoNum } : {}),
           detalles: updatedDet
         };
         await actualizarPago(pago.id, payloadEdicion);
@@ -991,6 +992,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         banco: bancoEmisor,
         tipo: pago.tipo,
         referencia: refFinal,
+        ...(montoConciliadoNum > 0 ? { monto: montoConciliadoNum } : {}),
         detalles: updatedDet
       };
       if (estatus === 'Rechazado' && pago.referencia && !pago.referencia.startsWith('RECH-')) {
@@ -1509,10 +1511,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
 
-        // Excedente de una transacción (registrado en Caja como saldo a favor o pago por encima de la deuda): se acredita al aprobar.
+        // Excedente de una transacción (transferido por encima de la deuda liquidada):
+        // Se calcula comparando el monto conciliado real con la deuda liquidada
+        const excedenteCalculado = (montoConciliadoNum > totalAPagarCalc + 0.05)
+          ? Math.round((montoConciliadoNum - totalAPagarCalc) * 100) / 100
+          : 0;
         const excedenteCaja = Math.max(
           parseFloat(String(det.saldo_favor || det.saldo_a_favor_nuevo || det.monto_sobrante || 0)) || 0,
-          (montoReportadoNum > totalAPagarCalc + 0.05) ? Math.round((montoReportadoNum - totalAPagarCalc) * 100) / 100 : 0
+          excedenteCalculado
         );
         if (excedenteCaja > 0.01 && !det.saldo_favor_acreditado) {
           updatedDet.saldo_favor = excedenteCaja;
@@ -2006,17 +2012,21 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   {estatus === 'Con Diferencia' ? 'Monto de Diferencia (→ Saldo a Favor)' : 'Monto Conciliado'}
                 </label>
                 <input
-                  value={estatus === 'Aprobado' ? fmt(montoConciliadoNum) : montoConciliado}
+                  value={montoConciliado}
                   onChange={e => setMontoConciliado(formatLocalNumberInput(e.target.value))}
                   onBlur={e => {
                     const p = parseLocalFloat(e.target.value);
                     if (p > 0) setMontoConciliado(formatLocalNumberInput(p.toFixed(2).replace('.', ',')));
                   }}
-                  readOnly={estatus === 'Aprobado'}
-                  className={`${estatus === 'Aprobado' ? icRO + ' font-bold text-green-800' : ic} ${estatus === 'Con Diferencia' ? 'border-amber-400 bg-amber-50' : ''}`}
+                  className={`${ic} ${estatus === 'Aprobado' ? 'font-bold text-green-800' : ''} ${estatus === 'Con Diferencia' ? 'border-amber-400 bg-amber-50' : ''}`}
                   type="text"
                   inputMode="decimal"
                 />
+                {estatus === 'Aprobado' && montoConciliadoNum > totalAPagarCalc + 0.05 && (
+                  <p className="text-[11px] text-emerald-600 mt-1 font-bold">
+                    ✓ Excedente de Bs. {fmt(montoConciliadoNum - totalAPagarCalc)} se acreditará como Saldo a Favor con Nota de Crédito.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -2081,6 +2091,12 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 <span className="font-bold text-slate-800">Total a Pagar</span>
                 <span className="font-bold text-slate-800">{fmt(totalAPagarCalc)}</span>
               </div>
+              {estatus === 'Aprobado' && montoConciliadoNum > totalAPagarCalc + 0.05 && (
+                <div className="flex justify-between text-sm border-t pt-1 mt-1 text-emerald-700 font-bold bg-emerald-50/70 p-2 rounded">
+                  <span>Saldo a Favor Generado (Nota de Crédito)</span>
+                  <span>+ {fmt(montoConciliadoNum - totalAPagarCalc)}</span>
+                </div>
+              )}
               {/* Diferencia pendiente cuando monto conciliado < deuda total */}
               {estatus === 'Aprobado' && montoConciliadoNum > 0 && montoReportadoNum < deudaTotalContrib - 0.05 && (
                 <div className="border-t pt-2 mt-1">

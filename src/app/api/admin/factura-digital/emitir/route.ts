@@ -1333,12 +1333,14 @@ export async function POST(request: Request) {
               const dirRecibo = detPago?.recibo_caja?.[0]?.domicilioFiscal;
               const dirSrv = srvDet?.direccion_evento;
               
-              // Prioridad legal SENIAT: Domicilio Fiscal del contribuyente sobre la parcela catastral.
-              // EXCEPCIÓN VITAL: Si es pago por local individual (esPagoPorLocal) y se cuenta con la dirección del local específico (dirEspecifica),
-              // se prioriza dirEspecifica para evitar asignar la dirección de OTRO local/inmueble del mismo RIF (ej. PB-B25 vs PN-24).
+              // Prioridad legal SENIAT y operativa municipal:
+              // Si el cobro está asociado a un inmueble o local específico (matchedPropEspecifico o esPagoPorLocal) y tiene dirección válida,
+              // se prioriza dirEspecifica para que la factura refleje exactamente el local/inmueble pagado
+              // y no la dirección general de otro establecimiento del mismo contribuyente (ej. Local 01 vs Local 1A).
+              const tieneInmuebleEspecifico = Boolean(matchedPropEspecifico || esPagoPorLocal || codInmEspecifico);
               const cand = esCondoGlobal
                 ? (isValidDir(parentDir) ? parentDir : (isValidDir(dirFiscal) ? dirFiscal : dirEspecifica))
-                : ((esPagoPorLocal && isValidDir(dirEspecifica))
+                : (tieneInmuebleEspecifico && isValidDir(dirEspecifica)
                   ? dirEspecifica
                   : (isValidDir(dirFiscal)
                     ? dirFiscal

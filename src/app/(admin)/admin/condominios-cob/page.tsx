@@ -163,9 +163,72 @@ export default function CondominiosCOBPage() {
               }
             }}
             className="bg-orange-50 text-orange-600 hover:bg-orange-100 p-1.5 rounded transition-colors"
-            title="Estado de Cuenta Global del Condominio (padre + todas las unidades) a Excel"
+            title="Estado de Cuenta Global del Condominio (padre + todas las unidades) a Excel (Bs)"
           >
             <Receipt className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={async () => {
+              try {
+                const tasaValida = tcmmv || 1;
+                const hijos = await fetchHijos(row.codigo);
+                const pendientesPorRif = (rif: string) => (recibos || []).filter((f: any) =>
+                  normId(f.identidad) === normId(rif) && ['Pendiente', 'Abonado', 'Por Verificar'].includes(f.estado)
+                );
+                const unidadesGlobal = [
+                  { ...((inmuebles || []).find((i: any) => i.inmueble === row.codigo) || {}), inmueble: row.codigo, identidad: row.identidad, contribuyente: row.contribuyente || row.nombre, direccion: row.direccion, _padre: true },
+                  ...hijos
+                ];
+                const rifsContados = new Set<string>();
+                let totalRecibos = 0, totalMulta = 0;
+                const data: any[] = unidadesGlobal.map((u: any) => {
+                  const rifKey = normId(u.identidad);
+                  let recibosPend: any[] = [];
+                  if (rifKey && !rifsContados.has(rifKey)) {
+                    rifsContados.add(rifKey);
+                    recibosPend = pendientesPorRif(u.identidad);
+                  }
+                  const montoRecibosBs = recibosPend.reduce((s: number, f: any) => s + (parseFloat(String(f.monto ?? '0')) || 0), 0);
+                  const multaBs = parseFloat(u.multa_bs || '0') || 0;
+                  totalRecibos += montoRecibosBs;
+                  totalMulta += multaBs;
+                  const montoRecibosEur = montoRecibosBs / tasaValida;
+                  const multaEur = multaBs / tasaValida;
+                  return {
+                    "Tipo": u._padre ? 'CONDOMINIO (PADRE)' : 'UNIDAD',
+                    "Código": u.inmueble || '',
+                    "Dirección / Local": u.direccion || '',
+                    "Propietario": u.contribuyente || '',
+                    "RIF / Cédula": u.identidad || '',
+                    "Meses Deuda": parseInt(u.meses_deuda || '0') || 0,
+                    "Recibos Pendientes": recibosPend.length,
+                    "Monto Recibos Pendientes (€)": Number(montoRecibosEur.toFixed(2)),
+                    "Multa (€)": Number(multaEur.toFixed(2)),
+                    "Total (€)": Number((montoRecibosEur + multaEur).toFixed(2)),
+                    "Estado": (montoRecibosBs + multaBs) > 0 || (parseInt(u.meses_deuda || '0') || 0) > 0 ? 'Con Deuda' : 'Solvente'
+                  };
+                });
+                const totalRecibosEur = totalRecibos / tasaValida;
+                const totalMultaEur = totalMulta / tasaValida;
+                data.push({
+                  "Tipo": 'TOTAL GLOBAL', "Código": '', "Dirección / Local": '', "Propietario": `${hijos.length} unidades`, "RIF / Cédula": '',
+                  "Meses Deuda": '', "Recibos Pendientes": '',
+                  "Monto Recibos Pendientes (€)": Number(totalRecibosEur.toFixed(2)),
+                  "Multa (€)": Number(totalMultaEur.toFixed(2)),
+                  "Total (€)": Number((totalRecibosEur + totalMultaEur).toFixed(2)),
+                  "Estado": ''
+                });
+                const { exportToExcelWithLogos } = await import('@/lib/excelExport');
+                await exportToExcelWithLogos(data, `EstadoCuentaGlobal_${row.codigo || row.identidad}_EUR.xlsx`, `Estado de Cuenta Global EUR - ${row.contribuyente || row.nombre}`.slice(0, 31).replace(/[\\/*?:\[\]]/g, ''));
+              } catch (e: any) {
+                console.error(e);
+                alert("Error exportando Estado de Cuenta en Euros a Excel: " + (e?.message || e));
+              }
+            }}
+            className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 p-1.5 rounded transition-colors font-extrabold text-xs"
+            title="Estado de Cuenta Global del Condominio en Excel expresado en Euros (€)"
+          >
+            €
           </button>
           <button 
             onClick={async () => {

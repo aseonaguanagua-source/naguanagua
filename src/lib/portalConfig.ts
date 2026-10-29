@@ -81,13 +81,23 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
 
     const { data: cMatches } = await sb
       .from('condominios')
-      .select('id, codigo, identidad')
+      .select('id, codigo, identidad, tipo, modalidad, permite_pago_por_unidad')
       .or(orCondo)
-      .limit(1);
+      .limit(5);
 
-    if (cMatches && cMatches.length > 0) return true;
+    if (cMatches && cMatches.length > 0) {
+      // Si todos los matches son comerciales con modalidad INDIVIDUAL o con pago por unidad permitido,
+      // no es un edificio o junta de condominio matriz; es un contribuyente comercial unificado.
+      const soloComercialIndividual = cMatches.every(c => 
+        c.tipo === 'COMERCIAL' && (c.modalidad === 'INDIVIDUAL' || c.permite_pago_por_unidad === true)
+      );
 
-    // 2. Verificar en la tabla de inmuebles si es un registro matriz de condominio
+      if (!soloComercialIndividual) {
+        return true;
+      }
+    }
+
+    // 2. Verificar en la tabla de inmuebles si es un registro matriz de condominio residencial
     const orInm = [
       ...variantes.map(v => `identidad.eq.${v}`),
       `inmueble.eq.${rawUpper}`
@@ -101,8 +111,7 @@ export async function esCondominioDoc(doc: string): Promise<boolean> {
 
     if (inms && inms.length > 0) {
       const isC = inms.some(i => 
-        i.es_condominio === true ||
-        String(i.clasificacion || '').toLowerCase() === 'condominio' ||
+        (i.es_condominio === true && String(i.clasificacion || '').toLowerCase() === 'condominio') ||
         String(i.contribuyente || '').toLowerCase().includes('condominio') ||
         String(i.contribuyente || '').toLowerCase().includes('junta de cond') ||
         String(i.contribuyente || '').toLowerCase().includes('asociacion civil')

@@ -214,7 +214,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
   const [statusModal, setStatusModal] = useState<{ type: string, u: any } | null>(null);
   const [statusNota, setStatusNota] = useState('');
   const [isProcessingStatus, setIsProcessingStatus] = useState(false);
-  const { recibos, addAuditLog } = useAppContext();
+  const { recibos, addAuditLog, tcmmv } = useAppContext();
 
   const handleStatusSubmit = async () => {
     if (!statusModal || !statusNota.trim()) {
@@ -981,35 +981,73 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
                                 <span className="text-xs font-bold text-orange-700 uppercase">Estado de Cuenta — Unidad: {u.numero_unidad}</span>
                                 <span className="text-[10px] text-slate-500">({u.propietario || 'Sin propietario'})</span>
                               </div>
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const factCondominio = recibosDeUnidad(u);
-                                    if (factCondominio.length === 0) {
-                                      alert("No hay recibos registradas para emitir estado de cuenta.");
-                                      return;
+                              <div className="inline-flex rounded shadow-2xs border border-orange-200 overflow-hidden">
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const factCondominio = recibosDeUnidad(u);
+                                      if (factCondominio.length === 0) {
+                                        alert("No hay recibos registradas para emitir estado de cuenta.");
+                                        return;
+                                      }
+                                      const { exportToExcelWithLogos } = await import('@/lib/excelExport');
+                                      const data = factCondominio.map((f: any) => ({
+                                        "Referencia": f.referencia,
+                                        "N° Local": u.numero_unidad,
+                                        "Propietario": u.propietario || 'Sin propietario',
+                                        "IVA Aplicable": u.tipo === 'COMERCIAL' ? '16%' : 'Exento (0%)',
+                                        "Multa (Bs)": parseFloat(u.multa_bs || '0').toFixed(2),
+                                        "Emisión": f.emision,
+                                        "Vencimiento": f.vencimiento,
+                                        "Monto (Bs)": parseFloat(f.monto || '0').toFixed(2),
+                                        "Estado": f.estado
+                                      }));
+                                      await exportToExcelWithLogos(data, `EstadoCuenta_Unidad_${u.numero_unidad}.xlsx`, "Estado_de_Cuenta");
+                                    } catch (e) {
+                                      alert("Error exportando a Excel");
                                     }
-                                    const { exportToExcelWithLogos } = await import('@/lib/excelExport');
-                                    const data = factCondominio.map((f: any) => ({
-                                      "Referencia": f.referencia,
-                                      "N° Local": u.numero_unidad,
-                                      "Propietario": u.propietario || 'Sin propietario',
-                                      "IVA Aplicable": u.tipo === 'COMERCIAL' ? '16%' : 'Exento (0%)',
-                                      "Multa (Bs)": parseFloat(u.multa_bs || '0').toFixed(2),
-                                      "Emisión": f.emision,
-                                      "Vencimiento": f.vencimiento,
-                                      "Monto (Bs)": parseFloat(f.monto || '0').toFixed(2),
-                                      "Estado": f.estado
-                                    }));
-                                    await exportToExcelWithLogos(data, `EstadoCuenta_Unidad_${u.numero_unidad}.xlsx`, "Estado_de_Cuenta");
-                                  } catch (e) {
-                                    alert("Error exportando a Excel");
-                                  }
-                                }}
-                                className="px-2 py-1 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded text-xs font-bold flex items-center gap-1 transition-colors"
-                              >
-                                <Download size={12} /> Exportar Excel
-                              </button>
+                                  }}
+                                  className="px-2 py-1 bg-orange-100 text-orange-700 hover:bg-orange-200 text-xs font-bold flex items-center gap-1 transition-colors border-r border-orange-200"
+                                  title="Exportar Estado de Cuenta en Bolívares a Excel"
+                                >
+                                  <Download size={12} /> Excel (Bs)
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const tasaValida = tcmmv || 1;
+                                      const factCondominio = recibosDeUnidad(u);
+                                      if (factCondominio.length === 0) {
+                                        alert("No hay recibos registradas para emitir estado de cuenta.");
+                                        return;
+                                      }
+                                      const { exportToExcelWithLogos } = await import('@/lib/excelExport');
+                                      const data = factCondominio.map((f: any) => {
+                                        const multaEur = (parseFloat(u.multa_bs || '0') / tasaValida);
+                                        const montoEur = (parseFloat(f.monto || '0') / tasaValida);
+                                        return {
+                                          "Referencia": f.referencia,
+                                          "N° Local": u.numero_unidad,
+                                          "Propietario": u.propietario || 'Sin propietario',
+                                          "IVA Aplicable": u.tipo === 'COMERCIAL' ? '16%' : 'Exento (0%)',
+                                          "Multa (€)": Number(multaEur.toFixed(2)),
+                                          "Emisión": f.emision,
+                                          "Vencimiento": f.vencimiento,
+                                          "Monto (€)": Number(montoEur.toFixed(2)),
+                                          "Estado": f.estado
+                                        };
+                                      });
+                                      await exportToExcelWithLogos(data, `EstadoCuenta_Unidad_${u.numero_unidad}_EUR.xlsx`, "Estado_de_Cuenta_EUR");
+                                    } catch (e) {
+                                      alert("Error exportando a Excel en Euros");
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 text-xs font-extrabold flex items-center gap-1 transition-colors"
+                                  title="Exportar Estado de Cuenta expresado en Euros (€) a Excel"
+                                >
+                                  <span>💶</span> Excel (€)
+                                </button>
+                              </div>
                             </div>
                             {(() => {
                               const factCondominio = recibosDeUnidad(u);

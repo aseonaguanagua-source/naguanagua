@@ -247,14 +247,16 @@ function Caja() {
     }
     try {
       if (String(docId).startsWith('__directo__')) {
+        const nuevoMonto = Math.max(0, Math.round((saldoFavorActivo - montoNum) * 100) / 100);
         const res = await fetch('/api/admin/condominios/ajustar-saldo-favor', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             codigoCondominio: cobro?.condo?.codigo || codigo,
             identidad: cobro?.condo?.identidad,
-            nuevoMonto: 0,
-            motivo: 'Eliminación manual desde Caja de Condominios',
+            nuevoMonto: nuevoMonto,
+            noAnularNotas: true,
+            motivo: 'Eliminación de saldo adicional directo desde Caja de Condominios',
             usuario: usuario()?.usuario || 'Admin'
           })
         });

@@ -150,50 +150,11 @@ function Ficha() {
     });
     
     const ids = new Set(us.map(u => u.id));
-    const byRif = new Map<string, any[]>();
-    
-    // Helper para detectar RIF genérico/placeholder (evitar agrupar locales diferentes con 00000000 o N/A)
-    const esRifGenerico = (idStr: string) => {
-      const clean = String(idStr || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      const digitsOnly = clean.replace(/^[VEJPG]/, '');
-      if (!clean || clean === 'NA' || clean === 'UNDEFINED' || clean === 'NULL') return true;
-      if (/^0+$/.test(digitsOnly) || /^0+$/.test(clean)) return true;
-      return false;
-    };
-
-    // Agrupar unidades sin padre que comparten el mismo RIF real (ej: varias actividades de un mismo contribuyente en Sambil)
-    us.forEach(u => {
-      if (!u.padre_unidad_id || !ids.has(u.padre_unidad_id)) {
-        if (u.identidad && u.identidad.trim() !== '' && !esRifGenerico(u.identidad)) {
-          if (!byRif.has(u.identidad)) byRif.set(u.identidad, []);
-          byRif.get(u.identidad)!.push(u);
-        }
-      }
-    });
 
     const raiz: any[] = [];
     us.forEach(u => {
       if (!u.padre_unidad_id || !ids.has(u.padre_unidad_id)) {
-        if (u.identidad && byRif.has(u.identidad) && byRif.get(u.identidad)!.length > 1) {
-          const group = byRif.get(u.identidad)!;
-          if (group[0].id === u.id) {
-            const virtualId = `virtual-${u.identidad}`;
-            const isN_A = u.inmueble ? false : true; // Si quisieramos marcar si es N/A oficial
-            hijos.set(virtualId, group);
-            raiz.push({
-              id: virtualId,
-              inmueble: group.find(g => g.padre_id)?.padre_id || group[0].inmueble || 'N/A', // Intentamos usar el codigo padre
-              numero: [...new Set(group.map((g: any) => String(g.numero || '').trim()).filter((x: string) => x && !/^N\/?A$/i.test(x)))].join(', ') || '—',
-              propietario: u.propietario,
-              identidad: u.identidad,
-              actividad: 'Múltiples Actividades (Agrupadas)',
-              estado: 'Activa',
-              aseo_pendiente_desde: u.aseo_pendiente_desde
-            });
-          }
-        } else {
-          raiz.push(u);
-        }
+        raiz.push(u);
       }
     });
 
@@ -553,24 +514,47 @@ function Ficha() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button 
-                  disabled={descargandoExcel}
-                  onClick={async () => {
-                    setDescargandoExcel(true);
-                    try {
-                      const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
-                      await exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador');
-                    } catch (err: any) {
-                      console.error('Error al descargar Excel:', err);
-                      alert('Error al descargar Excel: ' + (err?.message || 'Error desconocido'));
-                    } finally {
-                      setDescargandoExcel(false);
-                    }
-                  }} 
-                  className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
-                >
-                  <FileText className="w-3.5 h-3.5" /> {descargandoExcel ? 'Descargando...' : 'Excel'}
-                </button>
+                <div className="inline-flex rounded-xl shadow-2xs border border-emerald-300 overflow-hidden">
+                  <button 
+                    disabled={descargandoExcel}
+                    onClick={async () => {
+                      setDescargandoExcel(true);
+                      try {
+                        const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
+                        await exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador', 'BS');
+                      } catch (err: any) {
+                        console.error('Error al descargar Excel:', err);
+                        alert('Error al descargar Excel: ' + (err?.message || 'Error desconocido'));
+                      } finally {
+                        setDescargandoExcel(false);
+                      }
+                    }} 
+                    className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors border-r border-emerald-200 disabled:opacity-50"
+                    title="Descargar Estado de Cuenta Consolidado en Excel (Bolívares)"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> {descargandoExcel ? 'Descargando...' : 'Excel (Bs)'}
+                  </button>
+                  <button 
+                    id="btn-excel-eur-condominio"
+                    disabled={descargandoExcel}
+                    onClick={async () => {
+                      setDescargandoExcel(true);
+                      try {
+                        const { exportarExcelEstadoCuenta } = await import('@/lib/condominios/excelCondominio');
+                        await exportarExcelEstadoCuenta(c, e, usuarioActual() || 'Administrador', 'EUR');
+                      } catch (err: any) {
+                        console.error('Error al descargar Excel en Euros:', err);
+                        alert('Error al descargar Excel en Euros: ' + (err?.message || 'Error desconocido'));
+                      } finally {
+                        setDescargandoExcel(false);
+                      }
+                    }} 
+                    className="px-3 py-2 bg-emerald-100/70 hover:bg-emerald-200/70 text-emerald-900 font-extrabold text-xs flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
+                    title="Descargar Estado de Cuenta Consolidado en Excel expresado en Euros (€)"
+                  >
+                    <span>💶</span> Excel (€)
+                  </button>
+                </div>
                 {admin && (
                   <button 
                     id="btn-excel-ucd-condominio" 

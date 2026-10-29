@@ -106,18 +106,29 @@ export async function getTasaBCV(sync: boolean = false) {
   let source = 'bcv-scraped';
 
   try {
-    const agent = new https.Agent({ rejectUnauthorized: false });
-    const response = await fetch('https://www.bcv.org.ve/', { 
-      // @ts-ignore
-      agent,
-      cache: 'no-store',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-      }
+    // En Node.js el sitio del BCV tiene un certificado autofirmado/incompleto.
+    // Usamos https nativo para obtener el HTML de forma robusta e infalible.
+    const html: string = await new Promise((resolve, reject) => {
+      const req = https.get('https://www.bcv.org.ve/', {
+        rejectUnauthorized: false,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+        }
+      }, (res) => {
+        if (res.statusCode && res.statusCode >= 400) {
+          return reject(new Error(`BCV HTTP ${res.statusCode}`));
+        }
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => resolve(data));
+      });
+      req.on('error', err => reject(err));
+      req.setTimeout(8000, () => {
+        req.destroy();
+        reject(new Error('BCV request timeout'));
+      });
     });
-    
-    if (!response.ok) throw new Error('BCV Website unreachable');
-    const html = await response.text();
+
     const $ = cheerio.load(html);
     
     const euroText = $('#euro strong').text().trim().replace(',', '.');

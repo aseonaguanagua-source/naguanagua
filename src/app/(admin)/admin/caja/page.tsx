@@ -3040,7 +3040,13 @@ export default function CajaPage() {
               const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
               const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
               if (selectedRecibos.includes('RECIB-DEUDA') || (histRefsThisInm.length >= numMesesInm && (numMesesInm > 0 || histRefsThisInm.length > 0 || (inm.saldo_favor_bs || 0) > 0))) {
-                await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0, saldo_favor_bs: 0 }).eq('id', inm.id);
+                await supabase.from('inmuebles').update({
+                  deuda_mmv: 0,
+                  deuda_congelada_bs: 0,
+                  multa_bs: 0,
+                  meses_deuda: 0,
+                  saldo_favor_bs: saldoAFavorNuevo > 0 ? parseFloat(saldoAFavorNuevo.toFixed(2)) : 0
+                }).eq('id', inm.id);
               } else if (histRefsThisInm.length > 0) {
                 const nuevoMeses = Math.max(0, numMesesInm - histRefsThisInm.length);
                 const d = parseFloat(String(inm.deuda_mmv || 0));
@@ -3051,7 +3057,7 @@ export default function CajaPage() {
                   meses_deuda: nuevoMeses,
                   deuda_mmv: nuevaDeudaMMV,
                   multa_bs: nuevaMultaBs,
-                  saldo_favor_bs: 0,
+                  saldo_favor_bs: saldoAFavorNuevo > 0 ? parseFloat(saldoAFavorNuevo.toFixed(2)) : 0,
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                 }).eq('id', inm.id);
               }
