@@ -103,7 +103,7 @@ export default function ConveniosPagoPage() {
   
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Generar cuotas cuando cambian cuotas, frecuencia, fechaInicio o el usuario
+  // Generar cuotas cuando cambian cuotas, frecuencia, fechaInicio, usuario o meses totales
   useEffect(() => {
     if (!foundUser) {
       setListaCuotas([]);
@@ -114,7 +114,7 @@ export default function ConveniosPagoPage() {
     if (isNaN(totalBs) || totalBs <= 0) return;
     
     const totalMesesDeuda = Math.max(1, parseInt(String(foundUser.totalMesesDeuda || 1)));
-    const valorMesBs = foundUser.valorMesBs > 0 ? foundUser.valorMesBs : (totalBs / totalMesesDeuda);
+    const valorMesBs = totalMesesDeuda > 0 ? (totalBs / totalMesesDeuda) : totalBs;
     const numCuotas = Math.max(1, cuotas);
 
     const [yearStr, monthStr, dayStr] = fechaInicio.split('-');
@@ -181,14 +181,14 @@ export default function ConveniosPagoPage() {
     }
 
     setListaCuotas(nuevasCuotas);
-  }, [cuotas, frecuencia, fechaInicio, foundUser?.identidad, foundUser?.montoACongelar, mantenerDia]);
+  }, [cuotas, frecuencia, fechaInicio, foundUser?.identidad, foundUser?.montoACongelar, foundUser?.totalMesesDeuda, mantenerDia]);
 
   // Manejar cambio individual de meses en una cuota
   const handleCuotaMesesChange = (index: number, nuevosMeses: number) => {
     if (!foundUser) return;
     const totalBs = parseFloat(foundUser.montoACongelar) || 0;
     const totalMesesDeuda = Math.max(1, parseInt(String(foundUser.totalMesesDeuda || 1)));
-    const valorMesBs = foundUser.valorMesBs > 0 ? foundUser.valorMesBs : (totalBs / totalMesesDeuda);
+    const valorMesBs = totalMesesDeuda > 0 ? (totalBs / totalMesesDeuda) : totalBs;
 
     const updated = [...listaCuotas];
     const val = Math.max(1, nuevosMeses);
@@ -653,6 +653,24 @@ export default function ConveniosPagoPage() {
                         </button>
                       </div>
                     </div>
+
+                    <div className="flex justify-between items-center text-slate-700 font-semibold text-xs mt-1 pt-1 border-t border-blue-200/40">
+                      <span>Meses de Deuda a Refinanciar:</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="1"
+                          max="120"
+                          value={foundUser.totalMesesDeuda || 1}
+                          onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value) || 1);
+                            setFoundUser((prev: any) => ({ ...prev, totalMesesDeuda: val }));
+                          }}
+                          className="w-20 border border-blue-400 bg-white rounded px-2 py-1 text-right text-blue-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <span className="text-[11px] text-slate-500">meses</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -768,6 +786,7 @@ export default function ConveniosPagoPage() {
                         <tbody className="divide-y divide-slate-200">
                           {listaCuotas.map((c, i) => {
                             const totalMeses = Math.max(1, parseInt(String(foundUser.totalMesesDeuda || 1)));
+                            const maxOptions = Math.max(60, totalMeses, parseInt(c.meses_cubiertos) || 1);
                             return (
                               <tr key={i} className="hover:bg-blue-50/20">
                                 <td className="px-3 py-2 text-center font-bold text-slate-500 text-xs">{i + 1}</td>
@@ -786,7 +805,7 @@ export default function ConveniosPagoPage() {
                                       onChange={(e) => handleCuotaMesesChange(i, parseInt(e.target.value) || 1)}
                                       className="border border-blue-300 bg-white font-bold text-blue-900 text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     >
-                                      {Array.from({ length: Math.min(24, totalMeses) }, (_, mIdx) => mIdx + 1).map((m) => (
+                                      {Array.from({ length: maxOptions }, (_, mIdx) => mIdx + 1).map((m) => (
                                         <option key={m} value={m}>
                                           {m} {m === 1 ? 'mes' : 'meses'}
                                         </option>
