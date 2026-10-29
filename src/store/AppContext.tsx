@@ -1006,13 +1006,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // NOTA CRÍTICA (Caso 18): Un contribuyente puede tener múltiples locales independientes con direcciones y teléfonos propios.
       // NUNCA sobreescribir la dirección de todos los locales indiscriminadamente por RIF.
       const idClean = identidadExacta.replace(/-/g, '').toUpperCase();
-      const baseNombre = { contribuyente: data.Contribuyente };
-      if (data.clave_portal !== undefined) {
-        (baseNombre as any).clave_portal = String(data.clave_portal || '').trim() || null;
+      const baseNombre: any = { contribuyente: data.Contribuyente };
+      if (data.Correo && String(data.Correo).includes('@')) {
+        baseNombre.correo_electronico = String(data.Correo).trim().toLowerCase();
       }
-      if (notaToSave) (baseNombre as any).notas = notaToSave;
+      if (data.Telefono && String(data.Telefono).trim().length >= 7) {
+        baseNombre.telefono = String(data.Telefono).trim();
+      }
+      if (data.clave_portal !== undefined) {
+        baseNombre.clave_portal = String(data.clave_portal || '').trim() || null;
+      }
+      if (notaToSave) baseNombre.notas = notaToSave;
 
-      // Actualizar razón social / nombre del titular en sus inmuebles
+      // Actualizar razón social / correo / teléfono del titular en sus inmuebles
       await supabase.from('inmuebles').update(baseNombre).or(`identidad.eq.${identidadExacta},identidad.eq.${idClean}`);
 
       // Actualizar en cascada para todos los módulos (Facturación, Cobro Móvil, Portal, Servicios Especiales, Documentos, Retenciones, Condominios)
