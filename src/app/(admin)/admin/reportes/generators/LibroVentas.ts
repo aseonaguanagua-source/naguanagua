@@ -206,30 +206,49 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     if (d.pago_vinculado) retPorPago.set(String(d.pago_vinculado), { monto: Number(p.monto) || 0, ref: String(p.referencia || ''), fecha: fechaISO(p.created_at) });
   });
 
-  // Consultar auditoría para cruzar todas las anulaciones de facturas electrónicas
+  // Consultar auditoría para cruzar todas las anulaciones de facturas electrónicas y comprobantes de retención cargados
   const mapaAnulacionesAudit = new Map<string, any>();
+  const mapaComprobantesRetAudit = new Map<string, { comp: string; fecha: string }>();
   try {
-    const { data: auditAnulaciones } = await supabase
+    const { data: auditRows } = await supabase
       .from('auditoria')
       .select('*')
-      .ilike('accion', '%anula%')
+      .or('accion.ilike.%anula%,accion.ilike.%retenci%')
       .order('created_at', { ascending: false });
 
-    if (Array.isArray(auditAnulaciones)) {
-      auditAnulaciones.forEach((a: any) => {
+    if (Array.isArray(auditRows)) {
+      auditRows.forEach((a: any) => {
         const d = typeof a.detalles === 'string' ? JSON.parse(a.detalles || '{}') : (a.detalles || {});
         const pid = d.pago_id || d.pagoId;
-        if (pid && !mapaAnulacionesAudit.has(pid)) {
-          mapaAnulacionesAudit.set(pid, {
-            fecha_anulacion: a.created_at,
-            numero_factura: d.numero_factura || d.numeroFactura || null,
-            numero_nota_credito: d.numero_nota_credito || d.numeroNotaCredito || 'NC-001',
-          });
+        const fac = d.factura ? String(d.factura) : null;
+        
+        // Mapear anulaciones
+        if (/anula/i.test(a.accion || '')) {
+          if (pid && !mapaAnulacionesAudit.has(pid)) {
+            mapaAnulacionesAudit.set(pid, {
+              fecha_anulacion: a.created_at,
+              numero_factura: d.numero_factura || d.numeroFactura || null,
+              numero_nota_credito: d.numero_nota_credito || d.numeroNotaCredito || 'NC-001',
+            });
+          }
+        }
+
+        // Mapear comprobantes de retención oficiales SENIAT
+        const comp = d.comprobante || d.nro_comprobante || d.numero_comprobante;
+        if (comp) {
+          const compClean = String(comp).trim();
+          const fechaRet = (d.fecha_comprobante || a.created_at || '').slice(0, 10);
+          if (pid && !mapaComprobantesRetAudit.has(pid)) {
+            mapaComprobantesRetAudit.set(pid, { comp: compClean, fecha: fechaRet });
+          }
+          if (fac && !mapaComprobantesRetAudit.has(fac)) {
+            mapaComprobantesRetAudit.set(fac, { comp: compClean, fecha: fechaRet });
+          }
         }
       });
     }
   } catch (errAudit) {
-    console.warn('No se pudo cargar auditoría de anulaciones:', errAudit);
+    console.warn('No se pudo cargar auditoría:', errAudit);
   }
 
   const ventas = pagosFiltrados
@@ -337,8 +356,47 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     const retFiscal = esAnulada ? 0 : retMonto;
 
     // Número y fecha de comprobante de retención
-    const nroCompRet = retMonto > 0 ? (ret?.ref || det.comprobante_retencion || det.numero_comprobante_retencion || '') : '';
-    const fechaCompRet = retMonto > 0 ? (ret?.fecha || det.fecha_comprobante_retencion || fechaISO(p.created_at)) : '';
+    const auditCompInfo = mapaComprobantesRetAudit.get(String(p.id)) || (nroDoc ? mapaComprobantesRetAudit.get(String(nroDoc)) : null);
+    let compRetFinal = '';
+    let fechaCompRetFinal = '';
+
+    if (retMonto > 0 || auditCompInfo) {
+      const posiblesComprobantes = [
+        auditCompInfo?.comp,
+        det.comprobante_retencion,
+        det.numero_comprobante_retencion,
+        fd.retencion?.comprobante,
+        fd.retencion?.numero_comprobante,
+        fd.retencion?.comprobante_numero,
+        ret?.ref,
+      ];
+
+      for (const cand of posiblesComprobantes) {
+        if (!cand) continue;
+        const candStr = String(cand).trim();
+        // Si es el formato oficial de 14 dígitos (ej: 20261000000001) o cualquier número sin prefijo RET-
+        if (candStr && !candStr.startsWith('RET-')) {
+          compRetFinal = candStr;
+          break;
+        }
+      }
+
+      // Fallback si solo existe la referencia interna RET-XXXXXX
+      if (!compRetFinal && ret?.ref) {
+        compRetFinal = ret.ref;
+      }
+
+      fechaCompRetFinal = (
+        auditCompInfo?.fecha ||
+        det.fecha_comprobante_retencion ||
+        fd.retencion?.fecha_comprobante ||
+        ret?.fecha ||
+        fechaISO(p.created_at)
+      );
+    }
+
+    const nroCompRet = esAnulada ? '' : compRetFinal;
+    const fechaCompRet = esAnulada ? '' : fechaCompRetFinal;
 
     const vals: any[] = [
       i + 1, fechaISO(p.created_at), p.identidad || '', nombreDe(p.identidad, det), '', nroDoc, fd.numero_control || '',
