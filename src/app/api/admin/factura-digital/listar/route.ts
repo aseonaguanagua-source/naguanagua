@@ -632,16 +632,16 @@ export async function GET(request: Request) {
           error: det.factura_digital_error || null,
           facturaAnulada: Boolean(
             fd?.anulada || 
-            fd?.rechazada || 
-            pago.estado === 'Anulado' || 
             fd?.nota_credito ||
-            (pago.estado === 'Rechazado' && (String(pago.referencia || '').startsWith('RECH-') || Boolean(det.recibo_caja)))
+            pago.estado === 'Anulado' ||
+            // Si fue rechazada la factura pero había sido emitida
+            (Boolean(fd?.rechazada || pago.estado === 'Rechazado') && Boolean(fd?.numero_documento || fd?.numero_control || emitida))
           ),
           notaCredito: fd?.nota_credito || null,
           notaCreditoUrl: fd?.nota_credito?.url || null,
           notaCreditoControl: fd?.nota_credito?.numero_control || 
             fd?.nota_credito?.numero_documento || 
-            (fd?.anulada ? 'ANULADA' : (fd?.rechazada || pago.estado === 'Rechazado' || String(pago.referencia || '').startsWith('RECH-') ? 'ANULADA EN CAJA' : null)),
+            (fd?.anulada ? 'ANULADA' : ((fd?.rechazada || pago.estado === 'Rechazado') && (fd?.numero_documento || fd?.numero_control || emitida) ? 'ANULADA EN CAJA' : null)),
           // Agente de retención: la factura se envía solo al aprobar su comprobante
           conRetencion: tieneRetencion,
           esRetencion: tieneRetencion,
@@ -674,6 +674,8 @@ export async function GET(request: Request) {
       // ─── AGRUPACIÓN Y DESDUPLICACIÓN DE MÚLTIPLES TRANSFERENCIAS PARA EL MISMO RECIBO ───
       // Si un contribuyente pagó una misma factura/recibo con 2 o más transferencias,
       // se unifican en un único ítem de emisión para evitar facturas duplicadas en el SENIAT.
+      // IMPORTANTE: Solo se deben agrupar pagos APROBADOS o activos. Los pagos rechazados, anulados o reversados
+      // NO deben agrupar ni absorber pagos aprobados, ni ser elegidos como pago principal.
       const dedupedItems: any[] = [];
       const processedIds = new Set<string>();
 
@@ -682,20 +684,22 @@ export async function GET(request: Request) {
 
         const pNormId = normId(item.identidad);
         const itemRecibos = Array.isArray(item.recibos) ? item.recibos.filter(Boolean) : [];
+        const itemEsAprobado = item.estado === 'Aprobado';
 
-        if (!item.facturaEmitida && itemRecibos.length > 0) {
-          // Encontrar duplicados / transferencias complementarias del mismo recibo y contribuyente
+        if (!item.facturaEmitida && itemRecibos.length > 0 && itemEsAprobado) {
+          // Encontrar duplicados / transferencias complementarias del mismo recibo y contribuyente QUE TAMBIÉN ESTÉN APROBADAS
           const hermanos = items.filter(other => 
             other.id !== item.id &&
             !processedIds.has(other.id) &&
             !other.facturaEmitida &&
+            other.estado === 'Aprobado' &&
             normId(other.identidad) === pNormId &&
             Array.isArray(other.recibos) &&
             other.recibos.some((r: string) => itemRecibos.includes(r))
           );
 
           if (hermanos.length > 0) {
-            // Ordenar para dejar el pago con mayor monto como principal
+            // Ordenar para dejar el pago aprobado con mayor monto como principal
             const todosLosPagos = [item, ...hermanos].sort((a, b) => (b.montoPagado || 0) - (a.montoPagado || 0));
             const principal = todosLosPagos[0];
             const secundarios = todosLosPagos.slice(1);

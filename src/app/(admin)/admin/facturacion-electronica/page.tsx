@@ -1470,21 +1470,11 @@ export default function FacturacionElectronicaPage() {
                             {reciboCajaCargando === pago.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                             <span>Recibo Caja</span>
                           </button>
-                          {esAdmin && !pago.facturaEmitida && (
+                          {esAdmin && (!pago.facturaEmitida || pago.facturaAnulada) && (
                             <button
                               onClick={() => pedirEliminar(pago)}
                               className="text-[11px] bg-white hover:bg-red-50 text-red-700 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-red-300 transition-colors cursor-pointer"
                               title="Eliminar este pago y devolverle la deuda al contribuyente (solo administrador)"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Eliminar</span>
-                            </button>
-                          )}
-                          {esAdmin && pago.facturaAnulada && (
-                            <button
-                              onClick={() => pedirEliminar(pago)}
-                              className="text-[11px] bg-white hover:bg-red-50 text-red-700 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-red-300 transition-colors cursor-pointer"
-                              title="Eliminar pago (ya la factura fue anulada)"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                               <span>Eliminar</span>
