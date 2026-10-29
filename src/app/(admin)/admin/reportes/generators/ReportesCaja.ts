@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { supabase } from '@/lib/supabase';
 import { parseDet, montosPago, cargarInmMapPagos, codigosDePago } from './LibroVentas';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 
@@ -111,10 +112,32 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   const inmMap = await cargarInmMapPagos(transf);
   const nombreDe = (id: string, det: any) => contribuyentes.find((x: any) => x.Identidad === id)?.Contribuyente || det.recibo_caja?.[0]?.razonSocial || id;
 
+  // Mapa de facturas y recibos desde auditoría para pagos cuyo JSON no tenga el número grabado
+  const mapaDocsAudit = new Map<string, string>();
+  try {
+    const { data: auditRows } = await supabase
+      .from('auditoria')
+      .select('*')
+      .or('accion.ilike.%factura%,accion.ilike.%comprobante%');
+    if (Array.isArray(auditRows)) {
+      auditRows.forEach((a: any) => {
+        const d = typeof a.detalles === 'string' ? JSON.parse(a.detalles || '{}') : (a.detalles || {});
+        const pid = d.pago_id || d.pagoId;
+        const fac = d.factura || d.numero_factura || d.numeroFactura || d.numero_documento;
+        if (pid && fac && !mapaDocsAudit.has(String(pid))) {
+          mapaDocsAudit.set(String(pid), String(fac).trim());
+        }
+      });
+    }
+  } catch (errAudit) {
+    console.warn('No se pudo cargar auditoría para números de factura en conciliación:', errAudit);
+  }
+
   // Mes del PAGO (fecha de la transferencia), no del registro
   const porMes = new Map<string, any[]>();
   transf.forEach(p => {
     const det = parseDet(p);
+    const fRegistro = String(fechaVE(p.created_at) || '').slice(0, 10);
     // Si la lista de pagos ya contiene las filas individuales de cada pago adicional,
     // NO debemos re-expandir pagos_agregados en el padre porque duplicaría las filas y sumaría varias veces el mismo pago.
     const pagsAgregados = Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1
@@ -131,7 +154,11 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     if (pagsAgregados && pagsAgregados.length > 1 && !yaExistenComoFilasSeparadas) {
       const totalBase = pagsAgregados.reduce((acc: number, x: any) => acc + (Number(x.monto) || 0), 0) || Number(p.monto) || 1;
       pagsAgregados.forEach((pa: any) => {
-        const fPagoSub = String(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fechaVE(p.created_at)).slice(0, 10);
+        let fPagoSub = String(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fRegistro).slice(0, 10);
+        // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro del pago, usar la fecha de registro
+        if (fRegistro && fPagoSub > fRegistro) {
+          fPagoSub = fRegistro;
+        }
         const keySub = fPagoSub.slice(0, 7);
         if (!porMes.has(keySub)) porMes.set(keySub, []);
         porMes.get(keySub)!.push({
@@ -153,7 +180,11 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       const paExacto = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : []).find((a: any) => String(a?.referencia || '').trim() === String(p.referencia || '').trim());
       const fPagoPropia = String(fpExacto?.fecha || paExacto?.fecha || paExacto?.fechaTransaccion || '').slice(0, 10);
       const fPagoBancaria = det.fecha_banco || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? String(det.formasPago[0].fecha).slice(0, 10) : '');
-      const fPago = fPagoPropia || String(fPagoBancaria || det.fecha_transaccion || fechaVE(p.created_at)).slice(0, 10);
+      let fPago = fPagoPropia || String(fPagoBancaria || det.fecha_transaccion || fRegistro).slice(0, 10);
+      // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro del pago, usar la fecha de registro
+      if (fRegistro && fPago > fRegistro) {
+        fPago = fRegistro;
+      }
       const key = fPago.slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
       porMes.get(key)!.push({ p, det, fPago, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
@@ -237,11 +268,14 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         const mPagado = r2(Number(p.monto) || 0);
         const row = wsBan.getRow(f++);
 
-        // Requisito 2: Para usuarios con recibo, sale el número de recibo asociado
+        // Requisito 2: Para usuarios con recibo o factura, sale el número de factura o recibo asociado
         const nroDoc = fd.numero_documento || 
                        det.recibo_caja?.[0]?.controlWeb || 
                        det.recibo_caja?.[0]?.reciboNo || 
                        det.recibo_no || 
+                       mapaDocsAudit.get(String(p.id)) ||
+                       mapaDocsAudit.get(String(det.pago_principal_id || '')) ||
+                       det.recibo_digital?.numero ||
                        '';
 
         // Requisito 3: En condominios sólo debe salir el código principal (URB005770)

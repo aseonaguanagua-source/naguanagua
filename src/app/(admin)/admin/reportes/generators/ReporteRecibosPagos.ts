@@ -137,14 +137,14 @@ export async function generarReporteRecibosPagos(
     let montoMultas = 0;
     let montoAseo = montoTotal;
 
-    // Si tiene detalle de recibos de caja con desglose
+    // 1. Si tiene detalle de recibos de caja con desglose de conceptos
     if (Array.isArray(det.recibo_caja) && det.recibo_caja.length > 0) {
       let sumMulta = 0;
       let sumBase = 0;
       det.recibo_caja.forEach((rc: any) => {
         if (Array.isArray(rc.conceptos)) {
           rc.conceptos.forEach((c: any) => {
-            const m = Number(c.monto) || 0;
+            const m = Number(c.monto || c.total || c.precioUnit) || 0;
             if (/multa/i.test(String(c.descripcion || c.concepto || ''))) {
               sumMulta += m;
             } else {
@@ -155,12 +155,32 @@ export async function generarReporteRecibosPagos(
       });
       if (sumMulta > 0) {
         montoMultas = r2(sumMulta);
-        montoAseo = r2(Math.max(0, montoTotal - montoMultas));
       }
-    } else if (Number(det.monto_multas || det.multa || 0) > 0) {
-      montoMultas = r2(Number(det.monto_multas || det.multa || 0));
-      montoAseo = r2(Math.max(0, montoTotal - montoMultas));
     }
+
+    // 2. Si no se obtuvo de recibo_caja, revisar campos directos o líneas de condominio
+    if (!montoMultas) {
+      if (Number(det.monto_multas || det.multa || 0) > 0) {
+        montoMultas = r2(Number(det.monto_multas || det.multa));
+      } else if (det.condominio && Array.isArray(det.condominio.lineas)) {
+        let sumCondoMulta = 0;
+        det.condominio.lineas.forEach((l: any) => {
+          if (Number(l.multaBs || 0) > 0) sumCondoMulta += Number(l.multaBs);
+        });
+        if (sumCondoMulta > 0) montoMultas = r2(sumCondoMulta);
+      } else if (Array.isArray(det.deuda_previa) && det.deuda_previa.length > 0) {
+        // En deuda previa del pago registrado en caja
+        let sumPrevMulta = 0;
+        det.deuda_previa.forEach((dp: any) => {
+          if (Number(dp.multa_bs || 0) > 0) sumPrevMulta += Number(dp.multa_bs);
+        });
+        if (sumPrevMulta > 0) montoMultas = r2(Math.min(sumPrevMulta, montoTotal));
+      }
+    }
+
+    // Asegurar que multas no exceda el total pagado y calcular aseo
+    if (montoMultas > montoTotal) montoMultas = montoTotal;
+    montoAseo = r2(Math.max(0, montoTotal - montoMultas));
 
     // Código del inmueble o condominio principal (sin desglosar hijos)
     const codigos = codigosDePago(det, p);
@@ -170,6 +190,7 @@ export async function generarReporteRecibosPagos(
     const nroRecibo = det.recibo_caja?.[0]?.controlWeb || 
                       det.recibo_caja?.[0]?.reciboNo || 
                       det.recibo_no || 
+                      det.recibo_digital?.numero ||
                       p.referencia || 
                       '-';
 
@@ -199,7 +220,7 @@ export async function generarReporteRecibosPagos(
         cell.alignment = { horizontal: 'center' };
       }
       if (cIdx >= 6) {
-        cell.numFmt = '#,##0.00';
+        cell.numFmt = '"Bs. "#,##0.00';
         cell.alignment = { horizontal: 'right' };
       }
     });
@@ -219,7 +240,7 @@ export async function generarReporteRecibosPagos(
   rAseo.getCell(7).font = { bold: true, size: 9 };
   rAseo.getCell(8).value = r2(totalAseo);
   rAseo.getCell(8).font = { bold: true, size: 9 };
-  rAseo.getCell(8).numFmt = '#,##0.00';
+  rAseo.getCell(8).numFmt = '"Bs. "#,##0.00';
   rAseo.getCell(7).border = BORDE;
   rAseo.getCell(8).border = BORDE;
 
@@ -229,7 +250,7 @@ export async function generarReporteRecibosPagos(
   rMultas.getCell(7).font = { bold: true, size: 9 };
   rMultas.getCell(8).value = r2(totalMultas);
   rMultas.getCell(8).font = { bold: true, size: 9 };
-  rMultas.getCell(8).numFmt = '#,##0.00';
+  rMultas.getCell(8).numFmt = '"Bs. "#,##0.00';
   rMultas.getCell(7).border = BORDE;
   rMultas.getCell(8).border = BORDE;
 
@@ -239,7 +260,7 @@ export async function generarReporteRecibosPagos(
   rTot.getCell(7).font = { bold: true, size: 10, color: { argb: 'FF1F4E78' } };
   rTot.getCell(8).value = r2(totalGeneral);
   rTot.getCell(8).font = { bold: true, size: 10, color: { argb: 'FF1F4E78' } };
-  rTot.getCell(8).numFmt = '#,##0.00';
+  rTot.getCell(8).numFmt = '"Bs. "#,##0.00';
   rTot.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
   rTot.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
   rTot.getCell(7).border = BORDE;
