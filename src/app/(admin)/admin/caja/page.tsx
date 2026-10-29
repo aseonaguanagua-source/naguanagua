@@ -131,6 +131,7 @@ export default function CajaPage() {
   const [ivaPercent, setIvaPercent] = useState<number>(0); // 0 o 0.16
   const [retencionIVA, setRetencionIVA] = useState<number>(0); // 0, 75 o 100
   const [comprobanteRetencion, setComprobanteRetencion] = useState<string>('');
+  const [fechaComprobanteRetencion, setFechaComprobanteRetencion] = useState<string>(new Date().toISOString().slice(0, 10));
   const [comprobanteRetencionFile, setComprobanteRetencionFile] = useState<File | null>(null);
   const [modalPagoComp, setModalPagoComp] = useState<any | null>(null);
   const [esAgenteRetencion, setEsAgenteRetencion] = useState<boolean>(false);
@@ -2093,7 +2094,17 @@ export default function CajaPage() {
       return alert("Debe ingresar un monto válido a abonar para el condominio.");
     }
     
-    // El comprobante de retención de IVA es OPCIONAL en Caja (decisión del municipio)
+    // Validación SENIAT: Si aplica retención de IVA, N° de Comprobante (14 caracteres) y Fecha son obligatorios
+    if (retencionIVA > 0) {
+      const compLimpio = comprobanteRetencion.trim().replace(/[^0-9]/g, '');
+      if (!compLimpio || compLimpio.length !== 14) {
+        return alert(`El N° de Comprobante de Retención de IVA es obligatorio y debe tener exactamente 14 caracteres numéricos según normativa SENIAT (ejemplo: 20261000000001). Caracteres actuales: ${compLimpio.length}`);
+      }
+      if (!fechaComprobanteRetencion) {
+        return alert("La Fecha del Comprobante de Retención de IVA es obligatoria.");
+      }
+    }
+
     const calculatedTotalBs = Math.round((sumBase + sumIVA + sumMulta) * 100) / 100;
     const realMontoRetencionIVA = Math.round((sumIVARetencionable * (retencionIVA / 100)) * 100) / 100;
     const totalConImpuestos = Math.round((calculatedTotalBs - realMontoRetencionIVA + ajusteMontoAcordado) * 100) / 100;
@@ -2186,6 +2197,7 @@ export default function CajaPage() {
     // ── Abrir modal de confirmación en lugar de confirm() nativo ──
     setConfirmPayload({
       montoReal, finalTotal, totalConImpuestos, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion,
+      fechaComprobanteRetencion,
       abonoPrevioAprobado,
       recibosSeleccionados: selectedRecibos,
       cuotasSeleccionadas: selectedCuotas,
@@ -2197,7 +2209,7 @@ export default function CajaPage() {
 
   const handleConfirmAndPay = async () => {
     if (!confirmPayload) return;
-    const { montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion, abonoPrevioAprobado: payloadAbonoPrevio } = confirmPayload;
+    const { montoReal, finalTotal, saldoAFavorNuevo, esAbono, descuentoSaldoFavor, reqRef, realMontoRetencionIVA, comprobanteRetencion, fechaComprobanteRetencion: payloadFechaCompRet, abonoPrevioAprobado: payloadAbonoPrevio } = confirmPayload;
     const abonoPrevioAprobado = payloadAbonoPrevio || 0;
     const totalConImpuestos = confirmPayload.totalConImpuestos ?? Math.round((finalTotal + (realMontoRetencionIVA || 0) + (descuentoSaldoFavor || 0)) * 100) / 100;
     const totalFacturaBruto = Math.round((totalConImpuestos + (realMontoRetencionIVA || 0)) * 100) / 100;
@@ -2942,6 +2954,9 @@ export default function CajaPage() {
           comprobante_url: comprobanteUrl || undefined,
           comprobante_b64: comprobanteB64 || undefined,
           comprobante_nombre: comprobante?.name || undefined,
+          comprobante_retencion: comprobanteRetencion || undefined,
+          numero_comprobante_retencion: comprobanteRetencion || undefined,
+          fecha_comprobante_retencion: payloadFechaCompRet || undefined,
           comprobante_retencion_url: compRetUrl || undefined,
           comprobante_retencion_b64: compRetB64 || undefined,
           comprobante_retencion_nombre: comprobanteRetencionFile?.name || undefined,
@@ -6188,13 +6203,39 @@ export default function CajaPage() {
                       )}
                       {retencionIVA > 0 && (
                         <div className="mt-2 space-y-2">
-                          <input 
-                            type="text" 
-                            placeholder="N° Comprobante de Retención IVA (ej. 20261000001)" 
-                            value={comprobanteRetencion}
-                            onChange={e => setComprobanteRetencion(e.target.value)}
-                            className="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-emerald-500 font-mono bg-white"
-                          />
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="text-[11px] font-semibold text-slate-700">
+                                N° Comprobante SENIAT (14 dígitos): <span className="text-red-500">*</span>
+                              </label>
+                              <span className={`text-[10px] font-mono ${comprobanteRetencion.trim().replace(/[^0-9]/g, '').length === 14 ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                                {comprobanteRetencion.trim().replace(/[^0-9]/g, '').length} / 14 caracteres
+                              </span>
+                            </div>
+                            <input 
+                              type="text" 
+                              maxLength={14}
+                              placeholder="Ej: 20261000000001 (14 dígitos)" 
+                              value={comprobanteRetencion}
+                              onChange={e => {
+                                const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 14);
+                                setComprobanteRetencion(val);
+                              }}
+                              className="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-emerald-500 font-mono bg-white font-semibold"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-700 mb-1 block">
+                              Fecha del Comprobante: <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                              type="date"
+                              value={fechaComprobanteRetencion}
+                              onChange={e => setFechaComprobanteRetencion(e.target.value)}
+                              className="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-emerald-500 bg-white"
+                            />
+                          </div>
                           <div>
                             <label className="text-[11px] font-semibold text-slate-700 mb-1 block">
                               Adjuntar Comprobante Retención SENIAT (PDF o Imagen):

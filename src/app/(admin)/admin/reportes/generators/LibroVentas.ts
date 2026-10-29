@@ -29,23 +29,30 @@ export const codigosDePago = (det: any, p?: any): string[] => {
   if (!det && !p) return [];
   const d = det || {};
 
-  // 1. Campos directos de inmueble
+  // 1. Condominios: siempre priorizar el código principal del condominio (ej. Torre Cristal URB005770)
+  if (d.condominio?.codigo) s.add(String(d.condominio.codigo).trim().toUpperCase());
+  if (d.condominio_codigo) s.add(String(d.condominio_codigo).trim().toUpperCase());
+  if (d.cod_condominio) s.add(String(d.cod_condominio).trim().toUpperCase());
+
+  // 2. Campos directos de inmueble principal
   if (d.cod_inmueble) s.add(String(d.cod_inmueble).trim().toUpperCase());
   if (d.codigo_inmueble) s.add(String(d.codigo_inmueble).trim().toUpperCase());
   if (d.inmueble) s.add(String(d.inmueble).trim().toUpperCase());
   if (p?.inmueble) s.add(String(p.inmueble).trim().toUpperCase());
 
-  // 2. Condominios
-  if (d.condominio?.codigo) s.add(String(d.condominio.codigo).trim().toUpperCase());
-  if (d.condominio_codigo) s.add(String(d.condominio_codigo).trim().toUpperCase());
-  // Solo incluir lineas hijas si no se ha detectado ningún código de inmueble o condominio
-  if (s.size === 0 && Array.isArray(d.condominio?.lineas)) {
+  // Si ya tenemos el código principal (o de condominio), NO expandir las líneas hijas individuales
+  if (s.size > 0) {
+    return [...s].filter(Boolean);
+  }
+
+  // 3. Solo si no hay código principal, buscar en líneas hijas
+  if (Array.isArray(d.condominio?.lineas)) {
     d.condominio.lineas.forEach((l: any) => {
       if (l?.inmueble) s.add(String(l.inmueble).trim().toUpperCase());
     });
   }
 
-  // 3. Array de recibos
+  // 4. Array de recibos
   (Array.isArray(d.recibos) ? d.recibos : []).forEach((ref: string) => {
     const str = String(ref || '').toUpperCase().trim();
     const m = str.match(/^(?:RECIB-HIST-(.+)-M\d+|MULTA-(.+?)(?:-M\d+)?|CM-(.+?)-\d{4}-\d{2}|CONDO-(.+?)-\d+)$/);
@@ -122,6 +129,48 @@ export async function cargarInmMapPagos(pagos: any[]): Promise<Map<string, any>>
  */
 export function montosPago(p: any, det: any, inmMap: Map<string, any>, retConocida: number) {
   const monto = Number(p.monto) || 0;
+
+  // 1. Si el pago tiene desglose en recibo_caja (ej. pagos comerciales consolidados como CENTRO TERMAL)
+  if (Array.isArray(det?.recibo_caja) && det.recibo_caja.length > 0) {
+    let rcBase = 0, rcIva = 0, rcExento = 0, rcTotal = 0;
+    det.recibo_caja.forEach((rc: any) => {
+      const sub = Number(rc.subTotal) || 0;
+      const iv = Number(rc.iva) || 0;
+      const ex = Number(rc.exento) || 0;
+      const tot = Number(rc.total) || (sub + iv + ex);
+      rcBase += sub;
+      rcIva += iv;
+      rcExento += ex;
+      rcTotal += tot;
+    });
+    if (rcTotal > 0) {
+      const retCalculada = retConocida > 0 ? retConocida : (rcIva > 0 ? r2(rcIva * 0.75) : 0);
+      return {
+        base: r2(rcBase),
+        iva: r2(rcIva),
+        exento: r2(rcExento),
+        total: r2(rcTotal),
+        ret: r2(retCalculada),
+      };
+    }
+  }
+
+  // 2. Si tiene factura digital con datos de retencion asociados
+  const fdRet = det?.factura_digital?.retencion;
+  if (fdRet && Number(fdRet.base) > 0 && Number(fdRet.total) > 0) {
+    const b = Number(fdRet.base) || 0;
+    const iv = Number(fdRet.iva) || 0;
+    const tot = Number(fdRet.total) || (b + iv);
+    const ret = retConocida > 0 ? retConocida : (Number(fdRet.retenido) || 0);
+    return {
+      base: r2(b),
+      iva: r2(iv),
+      exento: 0,
+      total: r2(tot),
+      ret: r2(ret),
+    };
+  }
+
   try {
     const d = desglosarPago(p, inmMap);
     if (d.cuadra && d.lineas.length) {
@@ -158,7 +207,14 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
   });
 
   const ventas = pagosFiltrados
-    .filter(p => !esRetencion(p))
+    .filter(p => {
+      if (esRetencion(p)) return false;
+      const det = parseDet(p);
+      const fd = det.factura_digital;
+      // Requisito 1: No incluir a los usuarios que se les genere recibo (esos van en REPORTE DE RECIBOS DE PAGOS).
+      // En el Libro de Ventas solo van operaciones que tengan Factura Digital emitida o anulada por NC
+      return Boolean(fd && (fd.emitida || fd.numero_documento || fd.anulada || fd.nota_credito));
+    })
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 
   // Inmuebles de los pagos (para el desglose fiscal)
@@ -224,17 +280,39 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     const m = montosPago(p, det, inmMap, r2(ret?.monto ?? Number(det.monto_retencion_iva || 0)));
     const retMonto = m.ret;
     const fd = det.factura_digital || {};
-    const reciboNo = det.recibo_caja?.[0]?.controlWeb || det.recibo_caja?.[0]?.reciboNo || p.referencia || '';
-    const nroDoc = fd.numero_documento || reciboNo;
-    if (fd.numero_documento) facturas++;
+    const esAnulada = Boolean(fd.anulada || String(p.estado || '').toLowerCase().includes('anulad'));
+    const ncInfo = fd.nota_credito;
+    
+    // N° Factura / Doc
+    const nroDoc = fd.numero_documento || '';
+    if (fd.numero_documento && !esAnulada) facturas++;
     (m.iva > 0 ? usuariosCom : usuariosRes).add(String(p.identidad || ''));
+
+    // Requisito 2 y 6: Tipo de Transacción según SENIAT (01-REG para regulares, 03-REG para anuladas/NC)
+    const tipoTransac = esAnulada ? '03-REG' : '01-REG';
+    const nroNotaCredito = esAnulada ? (ncInfo?.numero_documento || ncInfo?.tfhka_seq || 'NC-001') : '';
+    const nroDocAfectado = esAnulada ? (nroDoc || '') : '';
+
+    // Si está anulada, los montos en el libro fiscal se reflejan en negativo o en 0 según la NC
+    const factorSigno = esAnulada ? -1 : 1;
+    const totalVentas = r2(m.total * factorSigno);
+    const exentoVentas = r2(m.exento * factorSigno);
+    const baseC = contrib ? r2(m.base * factorSigno) : 0;
+    const ivaC = contrib ? r2(m.iva * factorSigno) : 0;
+    const baseN = contrib ? 0 : r2(m.base * factorSigno);
+    const ivaN = contrib ? 0 : r2(m.iva * factorSigno);
+    const retFiscal = esAnulada ? 0 : retMonto;
+
+    // Número y fecha de comprobante de retención
+    const nroCompRet = retMonto > 0 ? (ret?.ref || det.comprobante_retencion || det.numero_comprobante_retencion || '') : '';
+    const fechaCompRet = retMonto > 0 ? (ret?.fecha || det.fecha_comprobante_retencion || fechaISO(p.created_at)) : '';
 
     const vals: any[] = [
       i + 1, fechaISO(p.created_at), p.identidad || '', nombreDe(p.identidad, det), '', nroDoc, fd.numero_control || '',
-      '', '', '01-REG', '', m.total, m.exento, 0,
-      contrib ? m.base : 0, 0.16, contrib ? m.iva : 0,
-      contrib ? 0 : m.base, 0.16, contrib ? 0 : m.iva,
-      retMonto, retMonto > 0 ? (ret?.fecha || fechaISO(p.created_at)) : '', retMonto > 0 ? (ret?.ref || '') : '', 0,
+      '', nroNotaCredito, tipoTransac, nroDocAfectado, totalVentas, exentoVentas, 0,
+      baseC, 0.16, ivaC,
+      baseN, 0.16, ivaN,
+      retFiscal, fechaCompRet, nroCompRet, 0,
     ];
     const row = ws.getRow(rowIdx++);
     vals.forEach((v, k) => {
@@ -242,12 +320,12 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       c.value = v;
       c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
       c.font = { size: 9 };
-      if ([12, 13, 14, 15, 17, 18, 20, 21, 24].includes(k + 1)) c.numFmt = '#,##0.00';
+      if ([12, 13, 14, 15, 17, 18, 20, 21, 24].includes(k + 1)) c.numFmt = '#,##0.00;[Red]-#,##0.00;0.00';
       if ([16, 19].includes(k + 1)) c.numFmt = '0%';
     });
-    T.total += m.total; T.exento += m.exento;
-    if (contrib) { T.baseC += m.base; T.ivaC += m.iva; } else { T.baseN += m.base; T.ivaN += m.iva; }
-    T.ret += retMonto;
+    T.total += totalVentas; T.exento += exentoVentas;
+    if (contrib) { T.baseC += baseC; T.ivaC += ivaC; } else { T.baseN += baseN; T.ivaN += ivaN; }
+    T.ret += retFiscal;
   });
 
   const tot = ws.getRow(rowIdx);

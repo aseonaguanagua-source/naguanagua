@@ -4,6 +4,7 @@ import { ChevronDown, Lock, CheckCircle, Loader2, Printer, ArrowLeft, FileSpread
 import { generarCorteCajaPDF } from '../generators/PdfReports';
 import { generarLibroVentas } from '../generators/LibroVentas';
 import { generarTotalPuntosVenta, generarConciliacionTransferencias } from '../generators/ReportesCaja';
+import { generarReporteRecibosPagos } from '../generators/ReporteRecibosPagos';
 import { useEditarMontoReporte } from './EditarMontoReporte';
 import DevPagosCajaModal from './DevPagosCajaModal';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
@@ -394,9 +395,24 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
             padding: '4px 10px', borderRadius: 4, fontWeight: 600,
             cursor: 'pointer', fontSize: 12
           }}
-          title="Descargar Excel"
+          title="Descargar Libro de Ventas (Excel) — Solo Facturas Fiscales"
         >
-          <FileSpreadsheet size={13}/> Excel
+          <FileSpreadsheet size={13}/> Libro Ventas
+        </button>
+      )}
+      {showExcel && (
+        <button
+          id="btn-reporte-recibos-pagos"
+          onClick={() => generarReporteRecibosPagos(getFilteredPagos(), contribuyentes, fechaInicio, fechaFin)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            background: '#0d9488', color: '#fff', border: 'none',
+            padding: '4px 10px', borderRadius: 4, fontWeight: 600,
+            cursor: 'pointer', fontSize: 12
+          }}
+          title="Descargar Reporte de Recibos de Pagos (Excel) según formato oficial"
+        >
+          <FileSpreadsheet size={13}/> Recibos de Pagos
         </button>
       )}
       {showExcel && (

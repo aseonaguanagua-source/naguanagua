@@ -178,53 +178,110 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     wsBan.getCell(f, 2).font = { bold: true }; wsBan.getCell(f, 2).alignment = { horizontal: 'center' };
     f++;
     cab(wsBan, f++, cols, 2);
-    let sub = 0;
+    // Requisito 1: El sistema debe separar en la columna banco destino (todo lo que es Banesco separado de lo de Bancamiga)
+    const itemsBanesco: any[] = [];
+    const itemsBancamiga: any[] = [];
+    const itemsOtros: any[] = [];
+
+    porMes.get(key)!.sort((a, b) => a.fPago.localeCompare(b.fPago)).forEach(item => {
+      const bClass = clasificarBancoDestino(item.p);
+      if (bClass === 'Banesco') itemsBanesco.push(item);
+      else if (bClass === 'Bancamiga') itemsBancamiga.push(item);
+      else itemsOtros.push(item);
+    });
+
+    const grupos = [
+      { titulo: 'BANESCO BANCO UNIVERSAL', items: itemsBanesco, color: 'FF047857', bg: 'FFE6F4EA' },
+      { titulo: 'BANCAMIGA BANCO UNIVERSAL', items: itemsBancamiga, color: 'FF0284C7', bg: 'FFE0F2FE' },
+      { titulo: 'OTROS BANCOS / POR DEFINIR', items: itemsOtros, color: 'FF475569', bg: 'FFF1F5F9' },
+    ].filter(g => g.items.length > 0);
+
+    let subMes = 0;
     let subBanesco = 0;
     let subBancamiga = 0;
-    porMes.get(key)!.sort((a, b) => a.fPago.localeCompare(b.fPago)).forEach(({ p, det, fPago, esSubPago, montoTotalReportado, yaExistenComoFilasSeparadas }) => {
-      const ret = retPorPago.get(String(p.id)) ?? Number(det.monto_retencion_iva || 0);
-      const mtTotal = montosPago(p, det, inmMap, ret);
-      const factor = esSubPago && montoTotalReportado > 0 ? (Number(p.monto) || 0) / montoTotalReportado : 1;
-      const mt = esSubPago ? {
-        base: r2(mtTotal.base * factor),
-        iva: r2(mtTotal.iva * factor),
-        ret: r2(mtTotal.ret * factor),
-        exento: r2(mtTotal.exento * factor)
-      } : mtTotal;
-      const fd = det.factura_digital || {};
-      const ncTotal = Number(det.saldo_favor || 0) > 0 ? Number(det.saldo_favor) : 0;
-      const nc = esSubPago ? r2(ncTotal * factor) : ncTotal;
-      const cajero = det.cajero || det.usuario || p.usuario || '';
-      const bClass = clasificarBancoDestino(p);
-      const bDestLabel = bClass === 'Banesco' ? 'Banesco' : bClass === 'Bancamiga' ? 'Bancamiga' : (det.banco_destino || det.banco_receptor || 'Otro');
-      
-      // Concatenar referencias SOLO si el pago es verdaderamente un único registro consolidado que no existe como filas separadas
-      let refTexto = String(p.referencia || '').trim();
-      if (!esSubPago && !yaExistenComoFilasSeparadas && Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
-        const todasRefs = [...new Set(det.pagos_agregados.map((pa: any) => String(pa.referencia || '').trim()).filter(Boolean))];
-        if (todasRefs.length > 1) {
-          refTexto = todasRefs.join(' / ');
-        }
-      }
 
-      const mPagado = r2(Number(p.monto) || 0);
-      const row = wsBan.getRow(f++);
-      const vals: any[] = [
-        dmy(fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fechaVE(p.created_at)),
-        fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || '', codigosDePago(det, p).join(', '), nombreDe(p.identidad, det),
-        cajero,
-        mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
-      ];
-      vals.forEach((v, i) => { const c = row.getCell(i + 2); c.value = v; c.border = BORDE; c.font = { size: 9 }; if ([5, 11, 13, 14, 15, 16].includes(i)) c.numFmt = '#,##0.00'; });
-      sub += mPagado;
-      if (bClass === 'Banesco') subBanesco += mPagado;
-      else if (bClass === 'Bancamiga') subBancamiga += mPagado;
+    grupos.forEach(g => {
+      // Cabecera de sección de banco
+      const rSec = wsBan.getRow(f++);
+      rSec.getCell(2).value = `🏦 ${g.titulo}`;
+      rSec.getCell(2).font = { bold: true, size: 10, color: { argb: g.color } };
+      rSec.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: g.bg } };
+      wsBan.mergeCells(f - 1, 2, f - 1, 18);
+
+      let subGrupo = 0;
+      g.items.forEach(({ p, det, fPago, esSubPago, montoTotalReportado, yaExistenComoFilasSeparadas }) => {
+        const ret = retPorPago.get(String(p.id)) ?? Number(det.monto_retencion_iva || 0);
+        const mtTotal = montosPago(p, det, inmMap, ret);
+        const factor = esSubPago && montoTotalReportado > 0 ? (Number(p.monto) || 0) / montoTotalReportado : 1;
+        const mt = esSubPago ? {
+          base: r2(mtTotal.base * factor),
+          iva: r2(mtTotal.iva * factor),
+          ret: r2(mtTotal.ret * factor),
+          exento: r2(mtTotal.exento * factor)
+        } : mtTotal;
+        const fd = det.factura_digital || {};
+        const ncTotal = Number(det.saldo_favor || 0) > 0 ? Number(det.saldo_favor) : 0;
+        const nc = esSubPago ? r2(ncTotal * factor) : ncTotal;
+        const cajero = det.cajero || det.usuario || p.usuario || '';
+        const bClass = clasificarBancoDestino(p);
+        const bDestLabel = bClass === 'Banesco' ? 'Banesco' : bClass === 'Bancamiga' ? 'Bancamiga' : (det.banco_destino || det.banco_receptor || 'Otro');
+        
+        let refTexto = String(p.referencia || '').trim();
+        if (!esSubPago && !yaExistenComoFilasSeparadas && Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1) {
+          const todasRefs = [...new Set(det.pagos_agregados.map((pa: any) => String(pa.referencia || '').trim()).filter(Boolean))];
+          if (todasRefs.length > 1) {
+            refTexto = todasRefs.join(' / ');
+          }
+        }
+
+        const mPagado = r2(Number(p.monto) || 0);
+        const row = wsBan.getRow(f++);
+
+        // Requisito 2: Para usuarios con recibo, sale el número de recibo asociado
+        const nroDoc = fd.numero_documento || 
+                       det.recibo_caja?.[0]?.controlWeb || 
+                       det.recibo_caja?.[0]?.reciboNo || 
+                       det.recibo_no || 
+                       '';
+
+        // Requisito 3: En condominios sólo debe salir el código principal (URB005770)
+        const codigosList = codigosDePago(det, p);
+        const codPrincipal = codigosList[0] || det.codigo_inmueble || det.cod_inmueble || p.inmueble || '';
+
+        const vals: any[] = [
+          dmy(fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fechaVE(p.created_at)),
+          nroDoc, codPrincipal, nombreDe(p.identidad, det),
+          cajero,
+          mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,
+        ];
+        vals.forEach((v, i) => { const c = row.getCell(i + 2); c.value = v; c.border = BORDE; c.font = { size: 9 }; if ([5, 11, 13, 14, 15, 16].includes(i)) c.numFmt = '#,##0.00'; });
+        subGrupo += mPagado;
+        subMes += mPagado;
+        if (bClass === 'Banesco') subBanesco += mPagado;
+        else if (bClass === 'Bancamiga') subBancamiga += mPagado;
+      });
+
+      // Subtotal por banco
+      const rSub = wsBan.getRow(f++);
+      rSub.getCell(6).value = `SUBTOTAL ${g.titulo}`;
+      rSub.getCell(7).value = r2(subGrupo);
+      rSub.getCell(7).numFmt = '#,##0.00';
+      rSub.getCell(6).font = { bold: true, size: 9 };
+      rSub.getCell(7).font = { bold: true, size: 9 };
+      f++;
     });
+
+    // Total general del mes
     const t = wsBan.getRow(f++);
-    t.getCell(6).value = 'TOTAL'; t.getCell(7).value = r2(sub); t.getCell(7).numFmt = '#,##0.00';
-    t.getCell(6).font = { bold: true }; t.getCell(7).font = { bold: true };
-    f++;
-    totalesMes.push([`${MESES[parseInt(m) - 1]} ${y}`, sub, subBanesco, subBancamiga]);
+    t.getCell(6).value = `TOTAL MES ${MESES[parseInt(m) - 1]} ${y}`;
+    t.getCell(7).value = r2(subMes);
+    t.getCell(7).numFmt = '#,##0.00';
+    t.getCell(6).font = { bold: true, size: 10 };
+    t.getCell(7).font = { bold: true, size: 10 };
+    t.getCell(6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    t.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    f += 2;
+    totalesMes.push([`${MESES[parseInt(m) - 1]} ${y}`, subMes, subBanesco, subBancamiga]);
   });
 
   // Conciliación del punto: total del sistema por caja y día (cierre de lote lo completa el analista)
@@ -242,15 +299,57 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   [...pto.keys()].sort().forEach(caja => {
     cab(wsPto, fp++, [caja, 'FECHA', 'TOTAL EMITIDO POR EL SISTEMA', 'CIERRE DE PUNTO', 'DIFERENCIA', 'PERSONAS']);
     const m = pto.get(caja)!;
+    let totalCaja = 0;
+    let totalPersonasCaja = 0;
+
     [...m.keys()].sort().forEach(dia => {
       const x = m.get(dia)!;
       const row = wsPto.getRow(fp);
       ['', dmy(dia), r2(x.monto), null, null, x.usuarios.size].forEach((v, i) => { const c = row.getCell(i + 1); c.value = v as any; c.border = BORDE; if (i === 2 || i === 3 || i === 4) c.numFmt = '#,##0.00'; });
       row.getCell(5).value = { formula: `IF(D${fp}="","",D${fp}-C${fp})` } as any;
-      totalPunto += x.monto; fp++;
+      totalCaja += x.monto;
+      totalPersonasCaja += x.usuarios.size;
+      fp++;
     });
+
+    // Requisito: AGREGAR EL TOTAL GENERAL POR CADA CAJA
+    const rTotCaja = wsPto.getRow(fp++);
+    rTotCaja.getCell(1).value = `TOTAL ${caja.toUpperCase()}`;
+    rTotCaja.getCell(1).font = { bold: true, size: 9 };
+    rTotCaja.getCell(3).value = r2(totalCaja);
+    rTotCaja.getCell(3).numFmt = '#,##0.00';
+    rTotCaja.getCell(3).font = { bold: true, size: 9 };
+    rTotCaja.getCell(6).value = totalPersonasCaja;
+    rTotCaja.getCell(6).font = { bold: true, size: 9 };
+    rTotCaja.getCell(1).border = BORDE;
+    rTotCaja.getCell(2).border = BORDE;
+    rTotCaja.getCell(3).border = BORDE;
+    rTotCaja.getCell(4).border = BORDE;
+    rTotCaja.getCell(5).border = BORDE;
+    rTotCaja.getCell(6).border = BORDE;
+    rTotCaja.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    rTotCaja.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+
+    totalPunto += totalCaja;
     fp++;
   });
+
+  // Requisito: Y EL TOTAL FINAL DE TODAS LAS CAJAS
+  const rTotFinal = wsPto.getRow(fp++);
+  rTotFinal.getCell(1).value = 'TOTAL FINAL DE TODAS LAS CAJAS';
+  rTotFinal.getCell(1).font = { bold: true, size: 10, color: { argb: 'FF1F4E78' } };
+  rTotFinal.getCell(3).value = r2(totalPunto);
+  rTotFinal.getCell(3).numFmt = '#,##0.00';
+  rTotFinal.getCell(3).font = { bold: true, size: 10, color: { argb: 'FF1F4E78' } };
+  rTotFinal.getCell(1).border = BORDE;
+  rTotFinal.getCell(2).border = BORDE;
+  rTotFinal.getCell(3).border = BORDE;
+  rTotFinal.getCell(4).border = BORDE;
+  rTotFinal.getCell(5).border = BORDE;
+  rTotFinal.getCell(6).border = BORDE;
+  rTotFinal.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } };
+  rTotFinal.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } };
+  fp++;
 
   // Resumen
   wsRes.getColumn(1).width = 34; wsRes.getColumn(2).width = 22;
