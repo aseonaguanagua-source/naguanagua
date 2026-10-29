@@ -475,36 +475,20 @@ export default function FacturacionElectronicaPage() {
     setLoteModal(tipo);
   };
 
-  // Ejecutar lote: facturas una a una (documento fiscal secuencial) y recibos en bloques de 10
+  // Ejecutar lote: exclusivamente para RECIBOS residenciales por correo (las facturas electrónicas SENIAT exigen revisión individual)
   const ejecutarLote = async () => {
     if (!loteModal) return;
-    const items = pagosList.filter(p => loteSeleccion.has(p.id) && p.documento === loteModal && !p.procesado);
+    if (loteModal === 'factura') {
+      alert('Por seguridad fiscal, la emisión de facturas electrónicas SENIAT no puede realizarse de forma masiva o automática. Debe revisar y emitir cada factura individualmente con el botón "Emitir" de cada registro.');
+      return;
+    }
+    const items = pagosList.filter(p => loteSeleccion.has(p.id) && p.documento === 'recibo' && !p.procesado);
     if (items.length === 0) return;
-    if (loteModal === 'factura' && !confirm(`Se emitirán ${items.length} facturas fiscales reales ante The Factory HKA (SENIAT). ¿Continuar?`)) return;
     setLoteRunning(true);
     const res: any[] = [];
     let ok = 0, fallidos = 0;
     setLoteProgreso({ total: items.length, hechos: 0, ok: 0, fallidos: 0 });
     try {
-      if (loteModal === 'factura') {
-        for (const p of items) {
-          try {
-            const r = await fetch('/api/admin/factura-digital/emitir', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                pagoId: p.id, recibos: p.recibos, contribuyente: p.contribuyente,
-                identidad: p.identidad, montoTotal: p.monto, enviarCorreo: true
-              })
-            });
-            const d = await r.json();
-            if (d.success && !d.skipped) { ok++; res.push({ ...p, resultado: 'EMITIDA', detalle: d.numeroControl || '' }); }
-            else if (d.success && d.skipped) { fallidos++; res.push({ ...p, resultado: 'OMITIDA', detalle: d.message }); }
-            else { fallidos++; res.push({ ...p, resultado: 'ERROR', detalle: d.error || 'Error de emisión' }); }
-          } catch (e: any) { fallidos++; res.push({ ...p, resultado: 'ERROR', detalle: e.message }); }
-          setLoteProgreso({ total: items.length, hechos: res.length, ok, fallidos });
-        }
-      } else {
         for (let i = 0; i < items.length; i += 10) {
           const bloque = items.slice(i, i + 10);
           try {
@@ -524,7 +508,6 @@ export default function FacturacionElectronicaPage() {
           }
           setLoteProgreso({ total: items.length, hechos: res.length, ok, fallidos });
         }
-      }
     } finally {
       setLoteResultados(res);
       setLoteRunning(false);
@@ -1026,27 +1009,35 @@ export default function FacturacionElectronicaPage() {
               <span>Verificar Facturación</span>
             </button>
 
-            {/* Botón Revisar y enviar el lote del día (del tipo seleccionado) */}
-            <button
-              id="btn-lote-dia"
-              onClick={() => abrirLote(docTab)}
-              disabled={totalPendientes === 0}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              title={docTab === 'factura' ? 'Revisar y emitir las facturas comerciales pendientes del día' : 'Revisar y enviar por correo los recibos pendientes del día'}
-            >
-              <Layers className="w-4 h-4 text-[#c8e64c]" />
-              <span>{docTab === 'factura' ? `Emitir facturas del día (${totalPendientes})` : `Enviar recibos del día (${totalPendientes})`}</span>
-            </button>
+            {/* Botón Envío de recibos por correo del día (solo aplica a pestaña recibos) */}
+            {docTab === 'recibo' ? (
+              <button
+                id="btn-lote-dia"
+                onClick={() => abrirLote('recibo')}
+                disabled={totalPendientes === 0}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-700 hover:from-violet-500 hover:to-indigo-600 text-white font-extrabold text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                title="Revisar y enviar por correo los recibos residenciales pendientes del día"
+              >
+                <Layers className="w-4 h-4 text-[#c8e64c]" />
+                <span>Enviar recibos del día ({totalPendientes})</span>
+              </button>
+            ) : (
+              <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold flex items-center gap-1.5" title="Por normativa SENIAT, cada factura comercial debe verificarse y emitirse de forma individual.">
+                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Emisión individual requerida (Sin emisión masiva)</span>
+              </div>
+            )}
 
-            {/* Emitir / enviar solo las seleccionadas en la tabla */}
+            {/* Enviar solo los recibos seleccionados en la tabla */}
             {(() => {
+              if (docTab !== 'recibo') return null;
               const n = delTipo.filter((p: any) => !p.procesado && selTabla.has(p.id)).length;
               return n > 0 ? (
                 <button id="btn-emitir-seleccionadas" onClick={() => {
                   setLoteSeleccion(new Set(delTipo.filter((p: any) => !p.procesado && selTabla.has(p.id)).map((p: any) => p.id)));
-                  setLoteProgreso(null); setLoteResultados([]); setLoteModal(docTab);
-                }} className="px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-600 text-white font-extrabold text-xs flex items-center gap-2 shadow-md cursor-pointer">
-                  <CheckSquare className="w-4 h-4" /> {docTab === 'factura' ? `Emitir seleccionadas (${n})` : `Enviar seleccionados (${n})`}
+                  setLoteProgreso(null); setLoteResultados([]); setLoteModal('recibo');
+                }} className="px-4 py-2.5 rounded-xl bg-violet-700 hover:bg-violet-600 text-white font-extrabold text-xs flex items-center gap-2 shadow-md cursor-pointer">
+                  <CheckSquare className="w-4 h-4" /> Enviar seleccionados ({n})
                 </button>
               ) : null;
             })()}
@@ -1239,12 +1230,12 @@ export default function FacturacionElectronicaPage() {
             <thead className="bg-slate-100/80 text-[11px] uppercase font-black text-slate-600 border-b border-slate-200 tracking-wider">
               <tr>
                 <th className="py-3.5 pl-4 w-8">
-                  {(() => {
+                  {docTab === 'recibo' && (() => {
                     const pend = visibles.filter((p: any) => !p.procesado);
                     const todos = pend.length > 0 && pend.every((p: any) => selTabla.has(p.id));
                     return (
-                      <input id="seleccionar-todas" type="checkbox" title="Seleccionar todas las pendientes" checked={todos} disabled={pend.length === 0}
-                        onChange={() => setSelTabla(todos ? new Set() : new Set(pend.map((p: any) => p.id)))} className="w-4 h-4 cursor-pointer accent-emerald-600" />
+                      <input id="seleccionar-todas" type="checkbox" title="Seleccionar todos los recibos pendientes" checked={todos} disabled={pend.length === 0}
+                        onChange={() => setSelTabla(todos ? new Set() : new Set(pend.map((p: any) => p.id)))} className="w-4 h-4 cursor-pointer accent-violet-600" />
                     );
                   })()}
                 </th>
@@ -1278,9 +1269,9 @@ export default function FacturacionElectronicaPage() {
                   return (
                     <tr key={pago.id} className={`hover:bg-slate-50/80 transition-colors ${selTabla.has(pago.id) ? 'bg-emerald-50/60' : ''}`}>
                       <td className="py-3.5 pl-4">
-                        {!pago.procesado && (
+                        {docTab === 'recibo' && !pago.procesado && (
                           <input type="checkbox" checked={selTabla.has(pago.id)} onChange={() => { const s = new Set(selTabla); if (s.has(pago.id)) s.delete(pago.id); else s.add(pago.id); setSelTabla(s); }}
-                            className="w-4 h-4 cursor-pointer accent-emerald-600" />
+                            className="w-4 h-4 cursor-pointer accent-violet-600" />
                         )}
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
