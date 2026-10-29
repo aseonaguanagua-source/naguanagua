@@ -61,6 +61,8 @@ export async function GET(request: Request) {
         numeroControl: fd.numero_control || 'En asignación',
         fechaEmision: fd.fecha_emision || det.fecha_transaccion || p.created_at?.split('T')[0] || null,
         base: r.base || baseCalc,
+        exento: r.exento || 0,
+        subtotal: r.subtotal || ((r.base || baseCalc) + (r.exento || 0)),
         iva: r.iva || ivaCalc,
         retenido: r.retenido || retCalculado,
         total: r.total || totalCalc,

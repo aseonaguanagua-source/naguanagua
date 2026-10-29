@@ -33,6 +33,7 @@ interface FacturaRet {
   numeroControl: string;
   fechaEmision: string | null;
   base: number; iva: number; retenido: number; total: number; pagado: number;
+  exento?: number; subtotal?: number;
   estado: 'esperando_planilla' | 'planilla_recibida' | 'aprobada' | 'rechazada';
   motivoRechazo?: string;
   facturaUrl?: string | null;
@@ -46,7 +47,8 @@ const variantesDe = (id: string) => /^[VEJPG][-_\s]?\d+$/i.test(id.trim()) ? get
 
 /** PDF con los datos de la factura para elaborar el comprobante de retención. */
 async function descargarDatosFactura(d: { titulo: string; numeroFactura?: string; numeroControl?: string; fecha?: string | null;
-  agente: string; rifAgente: string; base: number; iva: number; retenido: number; total: number; nota?: string }) {
+  agente: string; rifAgente: string; base: number; iva: number; retenido: number; total: number;
+  exento?: number; subtotal?: number; nota?: string }) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'mm', format: 'letter' });
   const W = doc.internal.pageSize.getWidth(); let y = 18;
@@ -63,7 +65,14 @@ async function descargarDatosFactura(d: { titulo: string; numeroFactura?: string
   fila('N° de factura:', d.numeroFactura || 'Se asigna al emitir'); fila('N° de control:', d.numeroControl || 'Se asigna al emitir'); fila('Fecha de emisión:', d.fecha ? fmtFecha(d.fecha) : '—');
   fila('Concepto:', 'Tasa por servicio de aseo urbano domiciliario');
   sec('MONTOS (Bs.)');
-  fila('Base imponible:', fmt(d.base)); fila('Alícuota IVA:', '16 %'); fila('Impuesto IVA (16 %):', fmt(d.iva));
+  if (d.exento && d.exento > 0) {
+    fila('Subtotal:', fmt(d.subtotal || (d.base + d.exento)));
+    fila('Monto exento:', fmt(d.exento));
+    fila('Base imponible (G):', fmt(d.base));
+  } else {
+    fila('Base imponible:', fmt(d.base));
+  }
+  fila('Alícuota IVA:', '16 %'); fila('Impuesto IVA (16 %):', fmt(d.iva));
   fila('IVA retenido (75 %):', fmt(d.retenido), true); fila('IVA no retenido (25 %):', fmt(r2(d.iva - d.retenido)));
   fila('Total factura:', fmt(d.total)); fila('Total a pagar (total - retención):', fmt(r2(d.total - d.retenido)), true);
   if (d.nota) { y += 4; doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.text(doc.splitTextToSize(d.nota, W - 40) as string[], 20, y); }
@@ -343,7 +352,15 @@ export default function RetencionesDashboard() {
             {/* Datos para llenar la planilla */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">
               <div><span className="font-bold text-slate-700 block">RIF emisor</span>{RIF_IAMEC}</div>
-              <div><span className="font-bold text-slate-700 block">Base imponible</span>Bs. {fmt(f.base)}</div>
+              {f.exento && f.exento > 0 ? (
+                <>
+                  <div><span className="font-bold text-slate-700 block">Subtotal</span>Bs. {fmt(f.subtotal || (f.base + f.exento))}</div>
+                  <div><span className="font-bold text-slate-700 block">Exento</span>Bs. {fmt(f.exento)}</div>
+                  <div><span className="font-bold text-slate-700 block">Base imponible (G)</span>Bs. {fmt(f.base)}</div>
+                </>
+              ) : (
+                <div><span className="font-bold text-slate-700 block">Base imponible</span>Bs. {fmt(f.base)}</div>
+              )}
               <div><span className="font-bold text-slate-700 block">IVA (16%)</span>Bs. {fmt(f.iva)}</div>
               <div><span className="font-bold text-slate-700 block">Total factura</span>Bs. {fmt(f.total)}</div>
               <div><span className="font-bold text-slate-700 block">Emisor</span>IAMEC Naguanagua</div>
@@ -351,7 +368,7 @@ export default function RetencionesDashboard() {
               <div><span className="font-bold text-slate-700 block">Pagado en caja</span>Bs. {fmt(f.pagado)}</div>
               <div>
                 <button onClick={() => descargarDatosFactura({ titulo: 'DATOS DE LA FACTURA PARA EL COMPROBANTE DE RETENCIÓN DE IVA', numeroFactura: f.numeroFactura, numeroControl: f.numeroControl,
-                  fecha: f.fechaEmision, agente: (typeof window !== 'undefined' ? localStorage.getItem('portal_user') || '' : ''), rifAgente: identidad, base: f.base, iva: f.iva, retenido: f.retenido, total: f.total })}
+                  fecha: f.fechaEmision, agente: (typeof window !== 'undefined' ? localStorage.getItem('portal_user') || '' : ''), rifAgente: identidad, base: f.base, exento: f.exento, subtotal: f.subtotal, iva: f.iva, retenido: f.retenido, total: f.total })}
                   className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:underline mt-3"><Download className="w-3.5 h-3.5" /> Descargar datos</button>
               </div>
             </div>

@@ -26,6 +26,8 @@ export interface RetencionPago {
   total: number;
   /** total - retenido (lo que efectivamente pagó en caja) */
   pagado: number;
+  exento?: number;
+  subtotal?: number;
   retencion_id?: string;
   datos_enviados_at?: string;
   datos_enviados_a?: string;
@@ -97,6 +99,9 @@ export function htmlDatosFactura(p: {
   ret: RetencionPago; portalUrl: string; esCopiaInterna?: boolean; correoCliente?: string | null;
 }): string {
   const fecha = new Intl.DateTimeFormat('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(p.fechaEmision));
+  const tieneExento = Boolean(p.ret.exento && p.ret.exento > 0);
+  const subtotalVal = p.ret.subtotal || (tieneExento ? r2(p.ret.base + (p.ret.exento || 0)) : p.ret.base);
+
   const cuerpo = `
 ${p.esCopiaInterna ? `<p style="margin:0 0 14px;padding:8px 12px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:bold;border-radius:6px;">COPIA DE ARCHIVO &mdash; ${p.correoCliente ? `enviado a ${esc(p.correoCliente)}` : 'el contribuyente NO tiene correo registrado: entregue estos datos por otra vía'}</p>` : ''}
 <p style="margin:0 0 14px;font-size:15px;color:#1e293b;">Estimado(a) <strong>${esc(p.contribuyente)}</strong> (R.I.F.: <strong>${esc(p.identidad)}</strong>),</p>
@@ -107,7 +112,9 @@ ${fila('R.I.F. del emisor', RIF_IAMEC, true)}
 ${fila('N° de Factura', esc(p.numeroDocumento || '-'), true)}
 ${fila('N° de Control', esc(p.numeroControl || '-'), true)}
 ${fila('Fecha de emisión', esc(fecha))}
-${fila('Base imponible', `Bs ${fmtBs(p.ret.base)}`)}
+${tieneExento ? fila('Subtotal', `Bs ${fmtBs(subtotalVal)}`) : ''}
+${tieneExento ? fila('Exento', `Bs ${fmtBs(p.ret.exento || 0)}`) : ''}
+${fila(tieneExento ? 'Base imponible (G)' : 'Base imponible', `Bs ${fmtBs(p.ret.base)}`)}
 ${fila('IVA (16%)', `Bs ${fmtBs(p.ret.iva)}`)}
 ${fila('Total factura', `Bs ${fmtBs(p.ret.total)}`, true)}
 ${fila('IVA retenido (75%)', `<span style="color:#b91c1c;">Bs ${fmtBs(p.ret.retenido)}</span>`, true)}
@@ -141,11 +148,12 @@ export const portalRetencionesUrl = (origin?: string) => {
 };
 
 /** Totales de la retención a partir de los totales de la factura emitida. */
-export function calcularRetencion(totalBase: number, totalIva: number): Omit<RetencionPago, 'estado'> {
-  const base = r2(totalBase), iva = r2(totalIva);
+export function calcularRetencion(baseGravada: number, totalIva: number, totalExento: number = 0): Omit<RetencionPago, 'estado'> {
+  const base = r2(baseGravada), iva = r2(totalIva), exento = r2(totalExento);
+  const subtotal = r2(base + exento);
   const retenido = r2(iva * PORC_RETENCION);
-  const total = r2(base + iva);
-  return { base, iva, retenido, total, pagado: r2(total - retenido) };
+  const total = r2(subtotal + iva);
+  return { base, iva, retenido, total, pagado: r2(total - retenido), exento, subtotal };
 }
 
 /**

@@ -1753,7 +1753,7 @@ export async function POST(request: Request) {
       nuevosDetalles.factura_digital.retencion = {
         ...(nuevosDetalles.factura_digital.retencion || {}),
         estado: nuevosDetalles.factura_digital.retencion?.estado || 'esperando_planilla',
-        ...calcularRetencion(totalGravado + totalExento, totalIVA),
+        ...calcularRetencion(totalGravado, totalIVA, totalExento),
       };
     }
 
