@@ -136,11 +136,23 @@ export async function GET(request: Request) {
       // la factura electrónica SOLO se emite desde el pago principal y no debe salir duplicada.
       if (d?.es_pago_adicional === true || Boolean(d?.pago_principal_id)) return false;
 
-      const esAnulada = p.estado === 'Anulado' || 
-        Boolean(d?.factura_digital?.anulada || d?.factura_digital?.nota_credito || d?.factura_digital?.rechazada) ||
-        (p.estado === 'Rechazado' && (String(p.referencia || '').startsWith('RECH-') || Boolean(d?.recibo_caja) || Boolean(d?.factura_digital)));
+      // Una factura solo se considera anulada fiscalmente si fue emitida (o tiene documento/control) y luego anulada/rechazada,
+      // o si el pago fue marcado como 'Anulado' tras haber sido procesado.
+      const teniaFactura = Boolean(
+        d?.factura_digital?.emitida ||
+        d?.factura_digital?.numero_documento ||
+        d?.factura_digital?.numero_control
+      );
 
-      if (['Rechazado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')) && !esAnulada && !query) return false;
+      const esAnulada = (p.estado === 'Anulado' && teniaFactura) || 
+        Boolean(d?.factura_digital?.anulada || d?.factura_digital?.nota_credito) ||
+        (Boolean(d?.factura_digital?.rechazada || p.estado === 'Rechazado') && teniaFactura);
+
+      // Si el pago fue rechazado, reversado o condonado en caja/conciliación y NUNCA se le emitió factura fiscal,
+      // no tiene nada que hacer en Facturación Electrónica (ni como pendiente ni como emitida).
+      if (['Rechazado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')) && !teniaFactura) {
+        return false;
+      }
 
       // Si ya tiene factura digital emitida o anulada, SIEMPRE debe mostrarse en facturación electrónica
       const yaEmitidaOAnulada = Boolean(

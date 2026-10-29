@@ -449,14 +449,14 @@ export default function FacturacionElectronicaPage() {
     : filterTab === 'anuladas'
     ? anuladasDia
     : delTipo.filter(p => {
-        const esAnulada = p.facturaAnulada || p.notaCredito || p.estado === 'Anulado';
-        if (filterTab === 'pendientes') return !p.procesado && !esAnulada;
+        const esAnulada = p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.estado === 'Rechazado';
+        if (filterTab === 'pendientes') return !p.procesado && !esAnulada && p.estado !== 'Rechazado';
         if (filterTab === 'emitidas') return p.procesado && !esAnulada;
         return true;
       });
 
-  const totalPendientes = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => !p.procesado && !p.facturaAnulada && p.estado !== 'Anulado').length;
-  const totalEmitidas = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => p.procesado && !p.facturaAnulada && p.estado !== 'Anulado').length;
+  const totalPendientes = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => !p.procesado && !p.facturaAnulada && p.estado !== 'Anulado' && p.estado !== 'Rechazado').length;
+  const totalEmitidas = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => p.procesado && !p.facturaAnulada && p.estado !== 'Anulado' && p.estado !== 'Rechazado').length;
   const resumen = (lista: any[]) => ({
     total: lista.length,
     pendientes: lista.filter(p => !p.procesado).length,
