@@ -223,6 +223,8 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
     setSelectedCajas(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
   };
 
+  const [criterioFecha, setCriterioFecha] = useState<'registro' | 'banco'>('registro');
+
   const getFilteredPagos = () => {
     const s = new Date(fechaInicio), e = new Date(fechaFin);
     const hasSearch = !!searchTerm.trim();
@@ -233,7 +235,12 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       const d = new Date(p.created_at);
       const fTx = det.fecha_transaccion || det.fecha_banco || '';
       const fTxDate = fTx ? new Date(fTx + 'T12:00:00') : null;
-      const fechaCoincide = (d >= s && d <= e) || (fTxDate && fTxDate >= s && fTxDate <= e);
+      
+      // Filtrar según el criterio seleccionado: por Fecha de Registro en Caja o por Fecha Bancaria del Comprobante
+      const fechaCoincide = criterioFecha === 'banco'
+        ? (fTxDate ? (fTxDate >= s && fTxDate <= e) : (d >= s && d <= e))
+        : (d >= s && d <= e);
+
       if (!fechaCoincide && !(buscarEnTodoHistorial && hasSearch)) return false;
 
       // Para debitos: det.cajero. Para transferencias conciliadas: det.analista o det.cajero
@@ -266,7 +273,7 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
   const pagosFiltrados = useMemo(() => {
     if (!showReport && !searchTerm.trim()) return [];
     return getFilteredPagos();
-  }, [showReport, pagos, fechaInicio, fechaFin, selectedCajas, tipoFilter, bancFilter, subTipo, effectiveIsAdmin, currentUser, searchTerm, buscarEnTodoHistorial]);
+  }, [showReport, pagos, fechaInicio, fechaFin, criterioFecha, selectedCajas, tipoFilter, bancFilter, subTipo, effectiveIsAdmin, currentUser, searchTerm, buscarEnTodoHistorial]);
 
   const handleDescargarPDF = () => {
     const items = getFilteredPagos();
@@ -767,14 +774,29 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
           )}
 
           {subTipo !== 'Resumen Libro de Ventas' && (
-            <div style={S.fw}>
-              <span style={S.fl}>Rango de Fechas</span>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input type="datetime-local" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} style={{ ...S.fi, fontSize: 11 }} />
-                <span style={{ color: '#999' }}>-</span>
-                <input type="datetime-local" value={fechaFin} onChange={e => setFechaFin(e.target.value)} style={{ ...S.fi, fontSize: 11 }} />
+            <>
+              <div style={S.fw}>
+                <span style={S.fl}>Filtrar por</span>
+                <select 
+                  value={criterioFecha} 
+                  onChange={e => setCriterioFecha(e.target.value as any)} 
+                  style={{ ...S.fi, fontSize: 11, fontWeight: 600 }}
+                  title="Permite filtrar estrictamente por la Fecha en que se cobró/registró en Caja, o por la Fecha del comprobante bancario"
+                >
+                  <option value="registro">📅 Fecha de Registro en Caja</option>
+                  <option value="banco">🏦 Fecha de Transf. / Banco</option>
+                </select>
               </div>
-            </div>
+
+              <div style={S.fw}>
+                <span style={S.fl}>Rango de Fechas</span>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="datetime-local" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} style={{ ...S.fi, fontSize: 11 }} />
+                  <span style={{ color: '#999' }}>-</span>
+                  <input type="datetime-local" value={fechaFin} onChange={e => setFechaFin(e.target.value)} style={{ ...S.fi, fontSize: 11 }} />
+                </div>
+              </div>
+            </>
           )}
           <button onClick={() => { setShowReport(true); setShowCajaDD(false); }} style={S.btnGen}>Generar Reporte</button>
 
