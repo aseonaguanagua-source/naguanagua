@@ -650,12 +650,24 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const esCondo = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || !!det.es_condominio || !!det.condominio;
         const condoCod = det.condominio?.codigo || det.codigo_condominio || det.codigo_inmueble || det.cod_inmueble || pago.cod_inmueble;
 
-        // Detectar si el pago corresponde a un local/unidad individual dentro del condominio
+        // Detectar si el pago corresponde a un local/unidad individual dentro del condominio o contribuyente
+        const recibosCodesModal: string[] = [];
+        if (Array.isArray(det.recibos)) {
+          for (const r of det.recibos) {
+            const m = String(r).match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
+            if (m && m[1]) {
+              const c = m[1].toUpperCase().split('-')[0];
+              if (c && !recibosCodesModal.includes(c)) recibosCodesModal.push(c);
+            }
+          }
+        }
+
         const unidadCod = det.condominio?.lineas?.[0]?.inmueble 
-          || det.deuda_previa?.[0]?.inmueble
+          || (recibosCodesModal.length > 0 ? recibosCodesModal[0] : null)
           || (det.inmueble && det.inmueble !== condoCod ? det.inmueble : null)
           || (det.cod_inmueble && det.cod_inmueble !== condoCod ? det.cod_inmueble : null)
-          || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null);
+          || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null)
+          || pago.cod_inmueble;
 
         const lineasCondo = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
         const tieneMultiplesLineas = lineasCondo.length > 1;
@@ -2161,6 +2173,17 @@ export default function ConciliacionPage() {
     return m;
   }, [inmuebles]);
 
+  // Mapa de inmuebles por código O(1) para resolver código principal padre (ej: N/A) vs desgloses
+  const inmueblesPorCodigo = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const i of inmuebles || []) {
+      if (i.inmueble) {
+        m.set(String(i.inmueble).toUpperCase(), i);
+      }
+    }
+    return m;
+  }, [inmuebles]);
+
   const [filtros, setFiltros] = useState<Filtros>({
     desde: (() => {
       const d = new Date();
@@ -2404,10 +2427,10 @@ export default function ConciliacionPage() {
             const esCondo = Boolean(condo || det.modulo === 'condominios' || det.es_condominio || det.condominio);
             const condoCod = det.condominio?.codigo || condo?.codigo;
             const unidadCod = det.condominio?.lineas?.[0]?.inmueble 
-              || det.deuda_previa?.[0]?.inmueble
               || (det.inmueble && det.inmueble !== condoCod ? det.inmueble : null)
               || (det.cod_inmueble && det.cod_inmueble !== condoCod ? det.cod_inmueble : null)
-              || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null);
+              || (det.codigo_inmueble && det.codigo_inmueble !== condoCod ? det.codigo_inmueble : null)
+              || pago.cod_inmueble;
 
             const idPagoLimpio = (pago.identidad || '').replace(/-/g, '').trim().toUpperCase();
             const idCondoLimpio = ((det.condominio?.identidad || (condo as any)?.identidad) || '').replace(/-/g, '').trim().toUpperCase();
@@ -2430,8 +2453,37 @@ export default function ConciliacionPage() {
               );
             }
 
-            // Pago individual / por unidad
-            const codMostrar = unidadCod || det.cod_inmueble || det.codigo_inmueble || det.inmueble || pago.cod_inmueble || '---';
+            // Pago individual / por unidad o local
+            // Extraer primero los inmuebles asociados directamente a los recibos pagados
+            const recibosCodigos: string[] = [];
+            if (Array.isArray(det.recibos)) {
+              for (const r of det.recibos) {
+                const m = String(r).match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
+                if (m && m[1]) {
+                  const c = m[1].toUpperCase().split('-')[0];
+                  if (c && !recibosCodigos.includes(c)) recibosCodigos.push(c);
+                }
+              }
+            }
+
+            // Mapear cada código al código principal (si pertenece a un local unificado con padre N/A)
+            const codigosPrincipales = new Set<string>();
+            const codigosATratar = recibosCodigos.length > 0
+              ? recibosCodigos
+              : (det.cod_inmueble || det.codigo_inmueble || det.inmueble || pago.cod_inmueble ? [det.cod_inmueble || det.codigo_inmueble || det.inmueble || pago.cod_inmueble] : []);
+
+            for (const cod of codigosATratar) {
+              const inmObj = inmueblesPorCodigo.get(String(cod).toUpperCase());
+              if (inmObj?.padre_id) {
+                codigosPrincipales.add(String(inmObj.padre_id).toUpperCase());
+              } else if (cod) {
+                codigosPrincipales.add(String(cod).toUpperCase());
+              }
+            }
+
+            const codigosFinales = Array.from(codigosPrincipales);
+            const codMostrar = codigosFinales.length > 0 ? codigosFinales.join(', ') : (unidadCod || '---');
+
             return (
               <div>
                 <div className="font-bold text-[11px] text-slate-800">{codMostrar}</div>

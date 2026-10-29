@@ -4822,6 +4822,11 @@ export default function CajaPage() {
                                           )
                                       }
                                     </span>
+                                    {cluster.localId && (
+                                      <span className="bg-slate-200 text-slate-800 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-300">
+                                        Cód: {cluster.localId}
+                                      </span>
+                                    )}
                                     {isResCluster ? (
                                       <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.5 rounded border border-emerald-300">
                                         RESIDENCIAL (Exento 0% IVA)
