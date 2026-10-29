@@ -1615,6 +1615,11 @@ export default function CajaPage() {
       const contribNombre = String(user.Contribuyente || user.contribuyente || '').trim().toLowerCase();
 
       const arrPagosPend = (allPorVerificar || []).filter((p: any) => {
+        const estNorm = String(p.estado || '').trim().toLowerCase();
+        if (estNorm === 'anulado' || estNorm.startsWith('anulad')) return false;
+        const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
+        if (detObj.anulado || detObj.factura_digital?.anulada || detObj.factura_anulada) return false;
+
         const pIdentClean = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const pIdentNums = String(p.identidad || '').replace(/\D/g, '');
         if (pIdentClean && cleanIdents.has(pIdentClean)) return true;
@@ -1871,7 +1876,7 @@ export default function CajaPage() {
           const allCmForInm = (recibos || []).filter((rc: any) =>
             rc.referencia?.startsWith('CM-') && (rc.referencia || '').includes(inm.inmueble || '')
           );
-          const isUltimoMes = allCmForInm.length <= 1 || allCmForInm[allCmForInm.length - 1]?.referencia === ref || monthsDiff <= 1;
+          const isUltimoMes = (allCmForInm.length <= 1 && monthsDiff <= 1) || (allCmForInm[allCmForInm.length - 1]?.referencia === ref && monthsDiff <= 1) || monthsDiff <= 1;
           const esMesExon = isMesExoneradoMulta(inm.notas, emision);
 
           if (!isUltimoMes && monthsDiff > 1 && !esMesExon) {
@@ -2481,7 +2486,7 @@ export default function CajaPage() {
               const today = new Date();
               const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
               const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
-              const isUltimoMes = mesNum >= totalMeses || monthsDiff <= 1;
+              const isUltimoMes = (mesNum >= totalMeses && monthsDiff <= 1) || (totalMeses === 1 && monthsDiff <= 1);
               const esMesExon = isMesExoneradoMulta(inm?.notas, emision);
               const multa = (!isUltimoMes && monthsDiff > 1 && !esMesExon) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
               const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));

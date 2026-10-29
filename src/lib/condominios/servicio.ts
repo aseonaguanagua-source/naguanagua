@@ -175,11 +175,12 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     const mu = motorPorId.get(r.clave);
     const res = M.unidadResidencial(c, mu || null);
     const tMulta = res ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
-    // Unidad registrada: sus propios meses. Grupo sin registrar / tarifa fija: los meses del condominio.
-    const desde = u ? u.aseo_pendiente_desde : condoRow.aseo_pendiente_desde;
+    // Unidad registrada: sus propios meses. Grupo sin registrar / contenedor N/A / tarifa fija: los meses del condominio.
+    const esGrupoOuNA = Boolean(mu?.es_grupo || String(u?.actividad || '').trim().toUpperCase() === 'N/A');
+    const desde = (u && !esGrupoOuNA) ? u.aseo_pendiente_desde : condoRow.aseo_pendiente_desde;
     const meses = r.montoBs > 0 ? M.mesesPendientes(desde, hoy) : 0;
     // Multas exoneradas ("quitar todas las multas"): los meses hasta esa fecha no llevan multa
-    const hasta = String((u ? u.multa_exonerada_hasta : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
+    const hasta = String(((u && !esGrupoOuNA) ? u.multa_exonerada_hasta : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
     const exonerados = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
     // En INDIVIDUAL, cada unidad paga lo suyo, así que se usa su retención. En las demás, el condominio factura el Aseo.
     const esAgente = c.modalidad === 'INDIVIDUAL' ? (u ? !!u.agente_retencion : false) : !!c.agente_retencion;

@@ -430,13 +430,14 @@ export async function generarPdfEstadoCuentaUnidad(
   doc.setFont('helvetica', 'normal');
   doc.text('Contribuyente:', 14, y);
   doc.setFont('helvetica', 'bold');
-  doc.text(String(prop).slice(0, 48), 38, y);
+  const splitProp = doc.splitTextToSize(String(prop), 102);
+  doc.text(splitProp, 38, y);
 
   doc.setFont('helvetica', 'normal');
   doc.text('R.I.F. / C.I.:', 145, y);
   doc.setFont('helvetica', 'bold');
   doc.text(r.identidad || 'N/A', 165, y);
-  y += 5;
+  y += Math.max(5, splitProp.length * 4);
 
   doc.setFont('helvetica', 'normal');
   doc.text('Código Inmueble:', 14, y);
@@ -584,6 +585,31 @@ export async function generarPdfEstadoCuentaUnidad(
     ]);
   } else {
     oficialRows.push([{ content: 'Solvente — No posee períodos pendientes', colSpan: 8, styles: { halign: 'center' } }]);
+  }
+
+  // Multas adicionales / remanentes por períodos previos acumulados (ej. 35 multas adeudadas)
+  if ((r.multaExtraBs || 0) > 0) {
+    const mesesMultaEnAseo = (porMes || []).filter((m: any) => m.multaBs > 0).length;
+    const mRemanentes = Math.max(0, (r.multaMeses || 0) - mesesMultaEnAseo);
+    const cuotaRemanente = mRemanentes > 0 ? (r.multaExtraBs / mRemanentes) : r.multaExtraBs;
+    const periodosPrevios = M.periodosMultasPrevias(r.pendienteDesde, mRemanentes);
+    for (let k = 0; k < mRemanentes; k++) {
+      const pPrev = periodosPrevios[k];
+      const [py, pm] = pPrev ? pPrev.split('-') : ['', ''];
+      const perLabel = pm && py ? `Multa ${pm}/${py}` : `Multa Período Previo ${k + 1}`;
+      const totM = cuotaRemanente;
+      const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+      oficialRows.push([
+        { content: r.inmueble || r.numero || 'Local', styles: { fontStyle: 'bold' } },
+        perLabel,
+        '0,00',
+        '-',
+        fmtBs(toCurr(totM)),
+        '0,00',
+        fmtBs(toCurr(totM)),
+        ucdM
+      ]);
+    }
   }
 
   // Multas manuales si existen

@@ -160,6 +160,11 @@ function Caja() {
           .limit(200);
         if (data) {
           const match = data.filter((p: any) => {
+            const estNorm = String(p.estado || '').trim().toLowerCase();
+            if (estNorm === 'anulado' || estNorm.startsWith('anulad')) return false;
+            const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
+            if (detObj.anulado || detObj.factura_digital?.anulada || detObj.factura_anulada) return false;
+
             const pId = String(p.identidad || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             if (idents.some(id => id && (pId === id || pId.includes(id) || id.includes(pId)))) return true;
             const detStr = (typeof p.detalles === 'string' ? p.detalles : JSON.stringify(p.detalles || '')).toLowerCase();

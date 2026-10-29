@@ -56,10 +56,14 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     ? (esActRes(actIni) || /APARTAMENTO|APTO|CASA|QUINTA|TOWN ?HOUSE|VIVIENDA/i.test(actIni) || (condo.tipo === 'RESIDENCIAL' && !actIni) ? 'RES' : 'COM')
     : (condo.tipo === 'RESIDENCIAL' ? 'RES' : 'COM');
   const [clase, setClase] = useState<'RES' | 'COM'>(claseIni);
+  const esGrupoUnidad = Boolean(unidad?.es_grupo || actIni.toUpperCase() === 'N/A');
+  const mesesDefecto = unidad
+    ? (esGrupoUnidad ? mesesPendientes(condo.aseo_pendiente_desde) : mesesPendientes(unidad.aseo_pendiente_desde))
+    : 0;
   const [f, setF] = useState<any>({
     inmueble: unidad?.inmueble || '', numero: unidad?.numero || '', propietario: unidad?.propietario || '', identidad: unidad?.identidad || '',
     estado: unidad?.estado || 'Activa', padre_unidad_id: unidad?.padre_unidad_id || '', es_grupo: !!unidad?.es_grupo,
-    meses: unidad ? mesesPendientes(unidad.aseo_pendiente_desde) : 0, multa_meses: unidad?.multa_meses || 0,
+    meses: mesesDefecto, multa_meses: unidad?.multa_meses || 0,
     tarifa_mmv: unidad?.tarifa_mmv ?? '', agente_retencion: !!unidad?.agente_retencion,
     telefono: unidad?.telefono || '', correo: unidad?.correo || '',
     direccion: unidad?.direccion || '',
@@ -233,7 +237,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
       cambios = {};
       const antes: any = {
         ...unidad,
-        meses: mesesPendientes(unidad.aseo_pendiente_desde),
+        meses: esGrupoUnidad ? mesesPendientes(condo.aseo_pendiente_desde) : mesesPendientes(unidad.aseo_pendiente_desde),
         padre_unidad_id: unidad.padre_unidad_id || null,
         telefono: unidad.telefono || '',
         correo: unidad.correo || '',

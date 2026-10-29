@@ -743,6 +743,18 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     await sb.from('inmuebles').update({ meses_deuda: 0, deuda_mmv: 0, multa_bs: 0 }).or(`inmueble.eq.${c.codigo},condominio_padre_id.eq.${c.codigo},padre_id.eq.${c.codigo}`);
   }
 
+  // Sincronizar unidades contenedor / es_grupo / N/A con la fecha pendiente del condominio matriz
+  if (cobro.modo === 'CONDOMINIO' && !sol.soloMultas) {
+    const { data: condoActualizado } = await sb.from('condominios').select('aseo_pendiente_desde').eq('id', c.id).maybeSingle();
+    const nuevoDesdeCondo = condoActualizado?.aseo_pendiente_desde ?? c.aseo_pendiente_desde;
+    if (nuevoDesdeCondo) {
+      await sb.from('condominio_unidades')
+        .update({ aseo_pendiente_desde: nuevoDesdeCondo })
+        .eq('condominio_id', c.id)
+        .or('es_grupo.eq.true,actividad.eq.N/A,actividad.is.null');
+    }
+  }
+
   // 3) Libro del condominio
   const movs = cobro.lineas.map(l => ({
     condominio_id: c.id, unidad_id: porId.has(l.clave) ? l.clave : null, tipo: 'PAGO', periodo: l.periodos[0] ? `${l.periodos[0]}-01` : null,

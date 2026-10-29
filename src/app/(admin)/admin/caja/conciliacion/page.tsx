@@ -595,6 +595,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const [fechaBanco, setFechaBanco] = useState(det.fecha_banco || fechaTransaccionDe(det) || hoyCaracasStr);
   const [enviarCorreo, setEnviarCorreo] = useState(true);
   const [observaciones, setObservaciones] = useState(det.observaciones || '');
+  const [cajeroOperador, setCajeroOperador] = useState(det.cajero || det.caja || det.usuario || '');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showComp, setShowComp] = useState(false);
   const [showEdo, setShowEdo] = useState(false);
@@ -909,7 +910,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         observaciones,
         enviar_correo: enviarCorreo,
         cod_inmueble: det.cod_inmueble || pago.cod_inmueble || contribInfo?.codigo,
-        cajero: det.cajero || undefined,
+        cajero: cajeroOperador.trim() || det.cajero || undefined,
+        caja: cajeroOperador.trim() || det.caja || undefined,
         banco_destino: bancoReceptor,
         tasa_bcv: tasaParaGuardar,
         tasa_bcv_conciliacion: tasaParaGuardar,
@@ -1894,7 +1896,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 <input value={pago.tipo || '---'} readOnly className={icRO}/>
               </div>
               <div><label className={lc}>Cajero / Operador</label>
-                <input value={det.cajero || det.caja || det.usuario || 'Sistema'} readOnly className={icRO}/>
+                <input value={cajeroOperador} onChange={e=>setCajeroOperador(e.target.value)} placeholder="Ej: O-carlieth" className={ic}/>
               </div>
               <div><label className={lc}>Banco Emisor</label>
                 <select value={bancoEmisor} onChange={e=>setBancoEmisor(e.target.value)} className={ic}>
@@ -2278,11 +2280,12 @@ export default function ConciliacionPage() {
       // Filtrar estrictamente: solo pagos bancarios activos/conciliables
       // (sin anulados ni comprobantes puros de retención de IVA, que se gestionan en su propio módulo)
       result = result.filter((p: any) => {
-        if (p.estado === 'Anulado') return false;
+        const estNorm = String(p.estado || '').trim().toLowerCase();
+        if (estNorm === 'anulado' || estNorm.startsWith('anulad')) return false;
         if (p.tipo === 'Retencion de IVA') return false;
         if (String(p.referencia || '').startsWith('RET-')) return false;
         const det = parseDetalles(p.detalles);
-        if (det.factura_digital?.anulada) return false;
+        if (det.anulado || det.factura_digital?.anulada || det.factura_anulada) return false;
         if (det.pago_vinculado && p.banco === 'N/A') return false;
         return pasaFiltroModulo(p, filtros.modulo, condos);
       });

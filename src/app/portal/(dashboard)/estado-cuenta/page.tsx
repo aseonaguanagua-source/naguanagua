@@ -643,13 +643,14 @@ export default function EstadoCuentaPage() {
       doc.setFont('helvetica', 'normal');
       doc.text('Contribuyente:', 14, y);
       doc.setFont('helvetica', 'bold');
-      doc.text(String(viewData.Contribuyente || '').slice(0, 48), 38, y);
+      const splitContrib = doc.splitTextToSize(String(viewData.Contribuyente || ''), 102);
+      doc.text(splitContrib, 38, y);
 
       doc.setFont('helvetica', 'normal');
       doc.text('R.I.F. / C.I.:', 145, y);
       doc.setFont('helvetica', 'bold');
       doc.text(viewData.Identidad || '', 165, y);
-      y += 5;
+      y += Math.max(5, splitContrib.length * 4);
 
       if (isMultiActivity) {
         const codigoPrincipal = cluster.localId || 'Principal';
