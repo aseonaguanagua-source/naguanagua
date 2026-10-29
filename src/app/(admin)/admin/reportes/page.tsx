@@ -96,7 +96,7 @@ export default function ReportesPage() {
         const { data, error } = await supabase
           .from('pagos_reportados')
           .select('*')
-          .not('estado','in','(Anulado,Reversado,Condonado)')
+          .not('estado','in','(Reversado,Condonado)')
           .order('created_at', { ascending: false })
           .range(from, from + PAGE_SIZE - 1);
         if (error || !data || data.length === 0) break;
