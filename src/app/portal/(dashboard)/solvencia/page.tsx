@@ -506,9 +506,9 @@ export default function SolvenciaPage() {
                     Datos del Contribuyente
                   </h3>
                   <div className="text-xs space-y-1.5">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-medium">Razón Social / Nombre:</span>
-                      <strong className="text-slate-900 font-black text-right max-w-[200px] truncate">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-slate-500 font-medium shrink-0">Razón Social / Nombre:</span>
+                      <strong className="text-slate-900 font-black text-right break-words">
                         {activeInm?.contribuyente || contribuyenteNombre || 'Contribuyente'}
                       </strong>
                     </div>

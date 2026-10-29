@@ -44,17 +44,20 @@ export const dibujarYDescargarPDF = async (data: any, isPreview = false) => {
     // Contribuyente data
     doc.text("Razón Social:", 15, 62);
     const contLines = doc.splitTextToSize(data.contribuyente || '', 65);
-    doc.text(contLines[0] || '', 40, 62);
+    doc.text(contLines, 40, 62);
     
+    // Dynamic offset based on number of lines in Razón Social
+    const extraOffset = Math.max(0, (contLines.length - 1) * 4);
+
     doc.setFont("helvetica", "normal");
-    doc.text("RIF / C.I.:", 15, 68);
-    doc.text(data.identidad || '', 40, 68);
+    doc.text("RIF / C.I.:", 15, 68 + extraOffset);
+    doc.text(data.identidad || '', 40, 68 + extraOffset);
     
-    doc.text("Teléfono:", 15, 74);
-    doc.text(data.telefono || '+58 412-9030238', 40, 74);
+    doc.text("Teléfono:", 15, 74 + extraOffset);
+    doc.text(data.telefono || '+58 412-9030238', 40, 74 + extraOffset);
     
-    doc.text("Código:", 15, 80);
-    doc.text(data.codigoContribuyente || '', 40, 80);
+    doc.text("Código:", 15, 80 + extraOffset);
+    doc.text(data.codigoContribuyente || '', 40, 80 + extraOffset);
     
     // Inmueble data
     doc.setFont("helvetica", "normal");
