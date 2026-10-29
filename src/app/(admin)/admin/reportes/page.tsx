@@ -15,19 +15,26 @@ import CajaIngresosMain from './views/CajaIngresosMain';
 import CuadreCaja from './views/CuadreCaja';
 import { aplicarMontoReporte } from './montoReporte';
 
+import { generarTotalPuntosVenta, generarConciliacionTransferencias } from './generators/ReportesCaja';
+import { generarReporteRecibosPagos } from './generators/ReporteRecibosPagos';
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-type ActiveView = null | 'ingresos' | 'corte' | 'libro-ventas' | 'fiscalizacion' | 'empleados' | 'saldos' | 'ingreso-bancario' | 'morosos' | 'transferencias';
+type ActiveView = null | 'ingresos' | 'corte' | 'libro-ventas' | 'recibos-pagos' | 'conciliacion-bancaria' | 'puntos-venta' | 'fiscalizacion' | 'empleados' | 'saldos' | 'ingreso-bancario' | 'morosos' | 'transferencias';
 
 const CARDS = [
-  { id: 'ingresos' as ActiveView,       label: 'Caja - Ingresos',         emoji: '🖨️',  desc: 'General de Ingresos, Corte, Libro de Ventas', adminOnly: false },
-  { id: 'corte' as ActiveView,          label: 'Cuadre de Caja',          emoji: '🗂️',  desc: 'Cuadre diario por cajero y forma de pago',    adminOnly: false },
-  { id: 'fiscalizacion' as ActiveView,  label: 'Fiscalizacion',           emoji: '🛡️',  desc: 'Reporte de contribuyentes fiscalizados',       adminOnly: true  },
-  { id: 'saldos' as ActiveView,         label: 'Saldo a Favor',           emoji: '💳',  desc: 'Contribuyentes con saldo a favor vigente',     adminOnly: true  },
-  { id: 'empleados' as ActiveView,      label: 'Gestion Empleados',       emoji: '👥',  desc: 'Reporte mensual del personal',                 adminOnly: true  },
-  { id: 'morosos' as ActiveView,        label: 'Reporte Morosos',         emoji: '🔴',  desc: 'Contribuyentes con deuda pendiente',           adminOnly: true  },
-  { id: 'transferencias' as ActiveView,  label: 'Transferencias',          emoji: '🏦',  desc: 'Por Verificar, Pendiente, Débito y Aprobadas',  adminOnly: true  },
+  { id: 'ingresos' as ActiveView,              label: 'Caja - Ingresos',                emoji: '🖨️',  desc: 'Vista interactiva de ingresos, corte y conciliación', adminOnly: false },
+  { id: 'libro-ventas' as ActiveView,          label: 'Libro de Ventas SENIAT',         emoji: '📊',  desc: 'Solo Facturas Digitales (01-REG y 03-REG)',           adminOnly: false },
+  { id: 'recibos-pagos' as ActiveView,         label: 'Reporte de Recibos de Pagos',    emoji: '🧾',  desc: 'Excel de recibos de pago emitidos',                    adminOnly: false },
+  { id: 'conciliacion-bancaria' as ActiveView, label: 'Conciliación Bancaria',          emoji: '🏦',  desc: 'Transferencias por mes y banco (Banesco / Bancamiga)', adminOnly: false },
+  { id: 'puntos-venta' as ActiveView,          label: 'Total Puntos de Venta',          emoji: '💳',  desc: 'Débitos por caja, totales por caja y general',         adminOnly: false },
+  { id: 'corte' as ActiveView,                 label: 'Cuadre de Caja',                 emoji: '🗂️',  desc: 'Cuadre diario por cajero y forma de pago',            adminOnly: false },
+  { id: 'transferencias' as ActiveView,        label: 'Monitoreo Transferencias',       emoji: '🔍',  desc: 'Por Verificar, Pendiente, Débito y Aprobadas',         adminOnly: true  },
+  { id: 'morosos' as ActiveView,               label: 'Reporte Morosos',                emoji: '🔴',  desc: 'Contribuyentes con deuda pendiente',                  adminOnly: true  },
+  { id: 'saldos' as ActiveView,                label: 'Saldo a Favor',                  emoji: '💰',  desc: 'Contribuyentes con saldo a favor vigente',            adminOnly: true  },
+  { id: 'fiscalizacion' as ActiveView,         label: 'Fiscalizacion',                  emoji: '🛡️',  desc: 'Reporte de contribuyentes fiscalizados',              adminOnly: true  },
+  { id: 'empleados' as ActiveView,             label: 'Gestion Empleados',              emoji: '👥',  desc: 'Reporte mensual del personal',                        adminOnly: true  },
 ];
 
 export default function ReportesPage() {
@@ -193,21 +200,111 @@ export default function ReportesPage() {
       <div className="flex items-center gap-3">
         <button onClick={() => setActiveView(null)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">← Regresar</button>
         <span className="text-slate-300">|</span>
-        <h1 className="text-lg font-bold text-slate-800">📊 Resumen Libro de Ventas</h1>
+        <h1 className="text-lg font-bold text-slate-800">📊 Libro de Ventas SENIAT</h1>
       </div>
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-3 max-w-md">
-        <div className="flex gap-3 mb-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 max-w-lg">
+        <p className="text-xs text-slate-600">
+          Genera el Libro de Ventas en Excel con formato SENIAT. Incluye exclusivamente facturas digitales emitidas (01-REG) y facturas anuladas por Nota de Crédito (03-REG).
+        </p>
+        <div className="flex gap-3">
           <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Desde</label><input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
           <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Hasta</label><input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
         </div>
         {(['Diario','Semanal','Mensual'] as const).map(t => (
-          <button key={t} onClick={() => generarLibroVentas(t)} className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-blue-50 border border-slate-100 rounded-lg text-sm font-semibold text-slate-700 transition-colors">
-            Libro de Ventas {t} <Download className="w-4 h-4 text-blue-500" />
+          <button key={t} onClick={() => generarLibroVentas(t)} className="w-full flex items-center justify-between px-4 py-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-sm font-semibold text-emerald-900 transition-colors">
+            Descargar Libro de Ventas {t} (Excel) <Download className="w-4 h-4 text-emerald-700" />
           </button>
         ))}
       </div>
     </div>
   );
+
+  if (activeView === 'recibos-pagos') {
+    const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
+    const pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return d >= s && d <= e; });
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setActiveView(null)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">← Regresar</button>
+          <span className="text-slate-300">|</span>
+          <h1 className="text-lg font-bold text-slate-800">🧾 Reporte de Recibos de Pagos</h1>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 max-w-lg">
+          <p className="text-xs text-slate-600">
+            Genera la planilla oficial en Excel del <b>REPORTE DE RECIBOS DE PAGOS</b> con columnas de Código Inmueble, N° de Recibo, Servicio de Aseo, Multas y Totales.
+          </p>
+          <div className="flex gap-3">
+            <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Desde</label><input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
+            <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Hasta</label><input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
+          </div>
+          <button
+            onClick={() => generarReporteRecibosPagos(pf, contribuyentes, fechaInicio, fechaFin)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg text-sm font-semibold text-teal-900 transition-colors"
+          >
+            Descargar REPORTE DE RECIBOS DE PAGOS (Excel) <Download className="w-4 h-4 text-teal-700" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeView === 'conciliacion-bancaria') {
+    const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
+    const pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return d >= s && d <= e; });
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setActiveView(null)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">← Regresar</button>
+          <span className="text-slate-300">|</span>
+          <h1 className="text-lg font-bold text-slate-800">🏦 Conciliación Bancaria de Transferencias</h1>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 max-w-lg">
+          <p className="text-xs text-slate-600">
+            Descarga la hoja de cálculo con la conciliación de transferencias organizadas por mes del pago, con separación detallada de <b>Banesco</b> y <b>Bancamiga</b> y subtotales por banco.
+          </p>
+          <div className="flex gap-3">
+            <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Desde</label><input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
+            <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Hasta</label><input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
+          </div>
+          <button
+            onClick={() => generarConciliacionTransferencias(pf, contribuyentes, fechaInicio, fechaFin)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg text-sm font-semibold text-purple-900 transition-colors"
+          >
+            Descargar Conciliación Bancaria (Excel) <Download className="w-4 h-4 text-purple-700" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeView === 'puntos-venta') {
+    const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
+    const pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return d >= s && d <= e; });
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setActiveView(null)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">← Regresar</button>
+          <span className="text-slate-300">|</span>
+          <h1 className="text-lg font-bold text-slate-800">💳 Total Puntos de Venta (Débitos)</h1>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 max-w-lg">
+          <p className="text-xs text-slate-600">
+            Descarga el total de operaciones por punto de venta agrupado por día y por cajero, incluyendo el total por cada caja y el total consolidado general.
+          </p>
+          <div className="flex gap-3">
+            <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Desde</label><input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
+            <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Hasta</label><input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
+          </div>
+          <button
+            onClick={() => generarTotalPuntosVenta(pf, fechaInicio, fechaFin)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-sm font-semibold text-blue-900 transition-colors"
+          >
+            Descargar Total Puntos de Venta (Excel) <Download className="w-4 h-4 text-blue-700" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (activeView === 'fiscalizacion') return (
     <div className="space-y-4">
