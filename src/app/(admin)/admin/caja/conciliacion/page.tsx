@@ -892,10 +892,21 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   })();
 
   const handleConciliar = async () => {
+    // Validación estricta: No permitir conciliar como 'Aprobado' si falta monto por pagar
+    if (estatus === 'Aprobado') {
+      const faltaPorPagar = Math.round((totalAPagarCalc - montoConciliadoNum) * 100) / 100;
+      if (faltaPorPagar > 0.05 && !det.es_abono) {
+        alert(
+          `⛔ NO SE PUEDE CONCILIAR:\n\nEl monto conciliado (Bs. ${fmt(montoConciliadoNum)}) es menor al total a pagar requerido (Bs. ${fmt(totalAPagarCalc)}).\nFalta por pagar: Bs. ${fmt(faltaPorPagar)}.\n\nPara aprobar un pago parcial, use el estatus "Con Diferencia" o regístrelo como abono formal.`
+        );
+        return;
+      }
+    }
+
     setIsProcessing(true);
     try {
       const tasaParaGuardar = parseFloat(tasaCustom) || tasaOriginal;
-            const cajeroStr = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || 'Administrador';
+      const cajeroStr = (typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null) || 'Administrador';
       const letraStr = (typeof window !== 'undefined' ? localStorage.getItem('adminLetra') : null);
       const current_analista = letraStr && cajeroStr !== 'Administrador' ? `${letraStr}-${cajeroStr}` : cajeroStr;
 
@@ -2111,6 +2122,20 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   <span>+ {fmt(montoConciliadoNum - totalAPagarCalc)}</span>
                 </div>
               )}
+              {/* Alerta de monto insuficiente */}
+              {estatus === 'Aprobado' && !det.es_abono && (totalAPagarCalc - montoConciliadoNum) > 0.05 && (
+                <div className="border border-red-300 bg-red-50 text-red-800 rounded p-3 text-xs mt-2 font-medium">
+                  <div className="flex items-center justify-between font-bold text-red-900 mb-1">
+                    <span>⛔ MONTO INSUFICIENTE PARA APROBAR</span>
+                    <span>Falta: Bs. {fmt(totalAPagarCalc - montoConciliadoNum)}</span>
+                  </div>
+                  <p>
+                    El monto a conciliar (Bs. {fmt(montoConciliadoNum)}) no cubre la totalidad del documento/deuda a pagar (Bs. {fmt(totalAPagarCalc)}).
+                    Para admitir pagos parciales, seleccione el estatus <b>"Con Diferencia"</b> o regístrelo formalmente como abono en Caja.
+                  </p>
+                </div>
+              )}
+
               {/* Diferencia pendiente cuando monto conciliado < deuda total */}
               {estatus === 'Aprobado' && montoConciliadoNum > 0 && montoReportadoNum < deudaTotalContrib - 0.05 && (
                 <div className="border-t pt-2 mt-1">
@@ -2142,7 +2167,12 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             </div>
             <div className="flex gap-2">
               <button onClick={onClose} className="px-4 py-2 border border-slate-400 text-slate-600 hover:bg-slate-50 rounded font-semibold text-sm flex items-center gap-1"><X size={14}/> Cerrar</button>
-              <button onClick={handleConciliar} disabled={isProcessing} className="px-5 py-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 rounded font-bold text-sm flex items-center gap-2">
+              <button 
+                onClick={handleConciliar} 
+                disabled={isProcessing || (estatus === 'Aprobado' && !det.es_abono && (totalAPagarCalc - montoConciliadoNum) > 0.05)} 
+                className="px-5 py-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed rounded font-bold text-sm flex items-center gap-2"
+                title={estatus === 'Aprobado' && !det.es_abono && (totalAPagarCalc - montoConciliadoNum) > 0.05 ? 'No puede conciliar porque falta monto por pagar' : ''}
+              >
                 {isProcessing ? <RefreshCw size={14} className="animate-spin"/> : <CheckCheck size={14}/>} {pago.estado === 'Aprobado' ? 'Guardar Cambios / Referencia' : 'Conciliar'}
               </button>
             </div>
