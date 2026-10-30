@@ -89,8 +89,6 @@ export default function KioskPage() {
   const [tcmmv, setTcmmv] = useState<number>(0);
   const [bcvDate, setBcvDate] = useState<string>('');
   const [currentTime, setCurrentTime] = useState<string>('');
-  const [recentLivePayments, setRecentLivePayments] = useState<any[]>([]);
-  const [statsLive, setStatsLive] = useState<{ count: number; totalBs: number }>({ count: 0, totalBs: 0 });
 
   useEffect(() => {
     fetch('/api/bcv').then(r => r.json()).then(d => { 
@@ -105,35 +103,6 @@ export default function KioskPage() {
     };
     updateTime();
     const timer = setInterval(updateTime, 1000);
-
-    // Cargar estadísticas y pagos reales en vivo del sistema
-    const loadLiveActivity = async () => {
-      try {
-        const { data: ps } = await supabase
-          .from('pagos_reportados')
-          .select('id, identidad, monto, tipo, banco, referencia, created_at, detalles')
-          .eq('estado', 'Aprobado')
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        if (ps) {
-          setRecentLivePayments(ps);
-        }
-
-        const { data: countData, count } = await supabase
-          .from('pagos_reportados')
-          .select('monto', { count: 'exact' })
-          .eq('estado', 'Aprobado');
-
-        if (countData) {
-          const sum = countData.reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
-          setStatsLive({ count: count || countData.length, totalBs: sum });
-        }
-      } catch (e) {
-        console.warn('Error cargando actividad real:', e);
-      }
-    };
-    loadLiveActivity();
 
     return () => clearInterval(timer);
   }, []);
@@ -880,82 +849,70 @@ export default function KioskPage() {
               </div>
             </div>
 
-            {/* Panel Derecho: Métricas en Vivo y Pagos Reales Recientes */}
+            {/* Panel Derecho: Métodos de Pago Habilitados e Información para el Usuario */}
             <div className="lg:col-span-5 flex flex-col gap-4">
-              {/* Tarjeta de Resumen en Vivo del Sistema */}
-              <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 rounded-3xl p-5 sm:p-6 border border-slate-700/80 shadow-xl">
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-700/60">
-                  <div className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
-                    <span className="text-xs font-black uppercase text-slate-300 tracking-wider">Actividad en Vivo</span>
+              {/* Tarjeta Informativa de Medios de Pago Autorizados */}
+              <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 rounded-3xl p-6 sm:p-7 border border-slate-700/80 shadow-xl">
+                <div className="flex items-center gap-3 mb-5 pb-3 border-b border-slate-700/60">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <CreditCard className="w-5 h-5" />
                   </div>
-                  <span className="text-[10px] bg-emerald-500/15 text-emerald-400 px-2.5 py-0.5 rounded-full font-bold border border-emerald-500/30">
-                    Base de Datos Conectada
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
-                    <span className="text-[11px] text-slate-400 block mb-1">Pagos Procesados</span>
-                    <span className="text-xl sm:text-2xl font-black text-white font-mono">
-                      {statsLive.count > 0 ? statsLive.count.toLocaleString('es-VE') : '4,060+'}
-                    </span>
-                  </div>
-                  <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
-                    <span className="text-[11px] text-slate-400 block mb-1">Total Recaudado</span>
-                    <span className="text-base sm:text-lg font-black text-emerald-400 font-mono truncate block" title={`Bs. ${fmtBs(statsLive.totalBs)}`}>
-                      Bs. {statsLive.totalBs > 0 ? fmtBs(statsLive.totalBs).split(',')[0] + '...' : '45.9M+'}
-                    </span>
+                  <div>
+                    <h3 className="text-sm font-black uppercase text-white tracking-wider">Medios de Pago Habilitados</h3>
+                    <p className="text-[11px] text-slate-400">Operaciones directas y seguras</p>
                   </div>
                 </div>
 
-                {/* Últimos Pagos Registrados en Vivo */}
-                <div className="space-y-2 mt-3">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Últimas Transacciones Registradas
-                  </span>
-                  
-                  {recentLivePayments.length > 0 ? (
-                    recentLivePayments.slice(0, 3).map((p) => {
-                      let detJson: any = {};
-                      try { detJson = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
-                      const contrib = detJson.contribuyente || detJson.contribuyente_nombre || p.identidad;
-                      return (
-                        <div key={p.id} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs">
-                          <div className="min-w-0 pr-2">
-                            <span className="font-bold text-slate-200 block truncate max-w-[170px]" title={contrib}>
-                              {contrib}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-mono">
-                              Ref: {p.referencia || 'N/D'} · {p.tipo || 'Pago'}
-                            </span>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <span className="font-mono font-black text-emerald-400 text-xs block">
-                              Bs. {fmtBs(Number(p.monto) || 0)}
-                            </span>
-                            <span className="text-[10px] text-emerald-500/80 font-semibold">
-                              ✓ Aprobado
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-4 text-slate-500 text-xs">
-                      Cargando actividad reciente...
+                <div className="space-y-3.5">
+                  <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-900/70 border border-slate-800">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
+                      <CreditCard className="w-5 h-5" />
                     </div>
-                  )}
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-200">Punto de Venta Inalámbrico (POS)</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Acepta todas las tarjetas de débito de la banca nacional con emisión inmediata de comprobante digital.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-900/70 border border-slate-800">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center shrink-0">
+                      <Landmark className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-200">Transferencias y Bancamiga Oficial</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Cuenta corriente recaudadora oficial IAMEC N° 01720110711101340717 (RIF G-20008614-9).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-900/70 border border-slate-800">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-200">Solvencia Inmediata</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Al completar su pago, el estado de cuenta se actualiza al instante en los registros municipales.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Banner de Información Bancaria Oficial */}
-              <div className="bg-slate-800/60 rounded-3xl p-5 border border-slate-700/60 text-xs text-slate-400 flex items-start gap-3">
-                <Landmark className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-slate-200 font-bold block mb-0.5">Cuentas Recaudadoras Municipales</strong>
-                  <span>Cobros autorizados vía Bancamiga y Tarjetas de Débito en Punto de Venta inalámbrico del IAMEC.</span>
+              {/* Guía Rápida de Pasos */}
+              <div className="bg-slate-800/60 rounded-3xl p-5 border border-slate-700/60 text-xs text-slate-400">
+                <div className="flex items-center gap-2 text-slate-200 font-bold mb-2">
+                  <HelpCircle className="w-4 h-4 text-emerald-400" />
+                  <span>¿Cómo realizar su pago en Taquilla?</span>
                 </div>
+                <ol className="list-decimal list-inside space-y-1.5 text-slate-300">
+                  <li>Ingrese su número de cédula o RIF en el buscador.</li>
+                  <li>Seleccione los períodos o recibos que desea cancelar.</li>
+                  <li>Elija su forma de pago y reciba su recibo oficial.</li>
+                </ol>
               </div>
             </div>
 
