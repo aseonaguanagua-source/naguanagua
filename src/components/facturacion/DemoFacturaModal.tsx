@@ -665,7 +665,11 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
                         <tr className="align-top bg-slate-50/60">
                           <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">1</td>
                           <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed">
-                            Multa por Mora - Aseo Urbano {inmuebleCod}
+                            {baseImponibleFinal <= 0 && (det.concepto || pago?.concepto)
+                              ? (det.concepto || pago?.concepto)
+                              : conceptoGeneralFinal.toLowerCase().includes('multa')
+                                ? conceptoGeneralFinal
+                                : `Multa por Mora - Aseo Urbano ${inmuebleCod}`}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
                             {formatBs(exentoFinal)}

@@ -570,8 +570,15 @@ export async function POST(request: Request) {
         const per = Array.isArray(l.periodos) && l.periodos.length ? ` (${l.periodos[0]}${l.periodos.length > 1 ? ` a ${l.periodos[l.periodos.length - 1]}` : ''})` : ` (${obtenerMesAseoTexto()})`;
         const aseo = parseFloat((Number(l.aseoBs) || 0).toFixed(2));
         const multa = parseFloat((Number(l.multaBs) || 0).toFixed(2));
-        if (aseo > 0) itemsCondoMod.push(it(`Servicio de Aseo Urbano - ${condoDet?.nombre || 'Condominio'} ${donde}${l.actividad ? ` - ${l.actividad}` : ''}${per}`, 'ASEO001', aseo, true));
-        if (multa > 0) itemsCondoMod.push(it(`Multa por Mora - Aseo Urbano ${donde}`, 'MULT001', multa, false));
+        const descCustom = ((concepto && String(concepto).trim()) || (detPago?.concepto && String(detPago.concepto).trim())) || '';
+        if (aseo > 0) {
+          const descAseo = (lineasCondo.length === 1 && descCustom && multa === 0) ? descCustom : `Servicio de Aseo Urbano - ${condoDet?.nombre || 'Condominio'} ${donde}${l.actividad ? ` - ${l.actividad}` : ''}${per}`;
+          itemsCondoMod.push(it(descAseo, 'ASEO001', aseo, true));
+        }
+        if (multa > 0) {
+          const descMulta = (lineasCondo.length === 1 && descCustom && aseo === 0) ? descCustom : `Multa por Mora - Aseo Urbano ${donde}`;
+          itemsCondoMod.push(it(descMulta, 'MULT001', multa, false));
+        }
       }
     }
     if (!lineasCondo && (isCondominio || condoRecibos.length > 0) && itemsFacturas.length === 0 && itemsHist.length === 0 && itemsMulta.length === 0 && excluidosResidenciales === 0) {
@@ -848,12 +855,16 @@ export async function POST(request: Request) {
     // 3. AGREGAR LÍNEA DE MULTA SOLO SI EXISTE MULTA REAL (baseExenta > 0)
     if (baseExenta > 0) {
       totalExento = baseExenta;
+      const descMulta = (baseGravada <= 0.001 && ((concepto && String(concepto).trim()) || (detPago?.concepto && String(detPago.concepto).trim())))
+        ? ((concepto && String(concepto).trim()) || (detPago?.concepto && String(detPago.concepto).trim()))
+        : `Multa por Mora - Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`;
+
       detallesItems.push({
         NumeroLinea:             String(numLinea++),
         CodigoCIIU:              "0198",
         CodigoPLU:               "MULT001",
         IndicadorBienoServicio:  "2",
-        Descripcion:             `Multa por Mora - Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`.slice(0, 250),
+        Descripcion:             descMulta.slice(0, 250),
         Cantidad:                "1",
         UnidadMedida:            "NIU",
         PrecioUnitario:          baseExenta.toFixed(2),

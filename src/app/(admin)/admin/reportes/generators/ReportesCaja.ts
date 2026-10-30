@@ -151,6 +151,35 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     console.warn('No se pudo cargar auditoría para números de factura en conciliación:', errAudit);
   }
 
+  // Mapas de referencia cruzada (para pagos combinados o abonos que liquidaron un recibo con factura/recibo final)
+  const docMapPorRef = new Map<string, string>();
+  const docMapPorRecibo = new Map<string, string>();
+  vivos.forEach(p => {
+    const d = parseDet(p);
+    const fd = d.factura_digital || {};
+    const doc = fd.numero_documento ||
+                d.recibo_caja?.[0]?.controlWeb ||
+                d.recibo_caja?.[0]?.reciboNo ||
+                d.recibo_no ||
+                mapaDocsAudit.get(String(p.id)) ||
+                d.recibo_digital?.numero ||
+                '';
+    if (doc) {
+      if (p.referencia) {
+        const partes = String(p.referencia).split(/[\s,()\/+]+/).map(x => x.trim()).filter(Boolean);
+        partes.forEach(pt => {
+          if (!docMapPorRef.has(pt)) docMapPorRef.set(pt, doc);
+        });
+      }
+      if (Array.isArray(d.recibos)) {
+        d.recibos.forEach((r: any) => {
+          const rStr = String(r || '').trim();
+          if (rStr && !docMapPorRecibo.has(rStr)) docMapPorRecibo.set(rStr, doc);
+        });
+      }
+    }
+  });
+
   // Mes del PAGO (fecha de la transferencia), no del registro
   const porMes = new Map<string, any[]>();
   transf.forEach(p => {
@@ -297,14 +326,34 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         const row = wsBan.getRow(f++);
 
         // Requisito 2: Para usuarios con recibo o factura, sale el número de factura o recibo asociado
-        const nroDoc = fd.numero_documento || 
-                       det.recibo_caja?.[0]?.controlWeb || 
-                       det.recibo_caja?.[0]?.reciboNo || 
-                       det.recibo_no || 
-                       mapaDocsAudit.get(String(p.id)) ||
-                       mapaDocsAudit.get(String(det.pago_principal_id || '')) ||
-                       det.recibo_digital?.numero ||
-                       '';
+        let nroDoc = fd.numero_documento || 
+                     det.recibo_caja?.[0]?.controlWeb || 
+                     det.recibo_caja?.[0]?.reciboNo || 
+                     det.recibo_no || 
+                     mapaDocsAudit.get(String(p.id)) ||
+                     mapaDocsAudit.get(String(det.pago_principal_id || '')) ||
+                     det.recibo_digital?.numero ||
+                     '';
+
+        // Si no tiene nroDoc directo (ej. pago combinado o abono parcial), buscar por referencia bancaria o recibos asociados
+        if (!nroDoc && p.referencia) {
+          const partes = String(p.referencia).split(/[\s,()\/+]+/).map(x => x.trim()).filter(Boolean);
+          for (const pt of partes) {
+            if (docMapPorRef.has(pt)) {
+              nroDoc = docMapPorRef.get(pt)!;
+              break;
+            }
+          }
+        }
+        if (!nroDoc && Array.isArray(det.recibos)) {
+          for (const rec of det.recibos) {
+            const rStr = String(rec || '').trim();
+            if (rStr && docMapPorRecibo.has(rStr)) {
+              nroDoc = docMapPorRecibo.get(rStr)!;
+              break;
+            }
+          }
+        }
 
         // Requisito 3: En condominios sólo debe salir el código principal (URB005770)
         const codigosList = codigosDePago(det, p);

@@ -13,6 +13,7 @@ import { generarCuadreCajaPDF } from './generators/CuadreCaja';
 import { generarMorososExcel, generarMorososPDF } from './generators/Morosos';
 import CajaIngresosMain from './views/CajaIngresosMain';
 import CuadreCaja from './views/CuadreCaja';
+import MorososView from './views/MorososView';
 import { aplicarMontoReporte } from './montoReporte';
 
 import { generarTotalPuntosVenta, generarConciliacionTransferencias } from './generators/ReportesCaja';
@@ -33,7 +34,7 @@ const CARDS = [
   { id: 'puntos-venta' as ActiveView,          label: 'Total Puntos de Venta',          emoji: '💳',  desc: 'Débitos por caja, totales por caja y general',         adminOnly: false },
   { id: 'corte' as ActiveView,                 label: 'Cuadre de Caja',                 emoji: '🗂️',  desc: 'Cuadre diario por cajero y forma de pago',            adminOnly: false },
   { id: 'transferencias' as ActiveView,        label: 'Monitoreo Transferencias',       emoji: '🔍',  desc: 'Por Verificar, Pendiente, Débito y Aprobadas',         adminOnly: true  },
-  { id: 'morosos' as ActiveView,               label: 'Reporte Morosos',                emoji: '🔴',  desc: 'Contribuyentes con deuda pendiente',                  adminOnly: true  },
+  { id: 'morosos' as ActiveView,               label: 'Reporte Morosos',                emoji: '🔴',  desc: 'Contribuyentes con deuda pendiente',                  adminOnly: false },
   { id: 'saldos' as ActiveView,                label: 'Saldo a Favor',                  emoji: '💰',  desc: 'Contribuyentes con saldo a favor vigente',            adminOnly: true  },
   { id: 'fiscalizacion' as ActiveView,         label: 'Fiscalizacion',                  emoji: '🛡️',  desc: 'Reporte de contribuyentes fiscalizados',              adminOnly: true  },
   { id: 'empleados' as ActiveView,             label: 'Gestion Empleados',              emoji: '👥',  desc: 'Reporte mensual del personal',                        adminOnly: true  },
@@ -401,45 +402,11 @@ export default function ReportesPage() {
   };
 
   if (activeView === 'morosos') return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => setActiveView(null)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">← Regresar</button>
-        <span className="text-slate-300">|</span>
-        <h1 className="text-lg font-bold text-slate-800">🔴 Reporte de Morosos</h1>
-      </div>
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm max-w-lg space-y-4">
-        <p className="text-sm text-slate-600">Genera el listado de todos los contribuyentes con recibos <strong>Pendiente</strong> o <strong>Abonado</strong>, ordenados por mayor deuda y meses adeudados.</p>
-        {morososData && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 grid grid-cols-2 gap-4">
-            <div className="text-center">
-              <div className="text-3xl font-black text-red-700">{morososData.total}</div>
-              <div className="text-xs text-red-600 mt-1 font-medium">Contribuyentes Morosos</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xl font-black text-red-700">Bs. {morososData.deudaTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</div>
-              <div className="text-xs text-red-600 mt-1 font-medium">Deuda Total Pendiente</div>
-            </div>
-          </div>
-        )}
-        <div className="space-y-3">
-          <button
-            onClick={exportarMorososExcel}
-            disabled={loadingMorosos}
-            className="w-full flex items-center justify-between px-4 py-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-sm font-semibold text-emerald-800 transition-colors disabled:opacity-50"
-          >
-            {loadingMorosos ? 'Generando...' : 'Exportar a Excel (.xlsx)'} <Download className="w-4 h-4 text-emerald-600" />
-          </button>
-          <button
-            onClick={exportarMorososPDF}
-            disabled={loadingMorosos}
-            className="w-full flex items-center justify-between px-4 py-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-sm font-semibold text-red-800 transition-colors disabled:opacity-50"
-          >
-            {loadingMorosos ? 'Generando...' : 'Exportar a PDF (landscape)'} <Download className="w-4 h-4 text-red-500" />
-          </button>
-        </div>
-        <p className="text-[11px] text-slate-400">* Los contribuyentes con 3+ meses aparecen destacados en rojo en el PDF.</p>
-      </div>
-    </div>
+    <MorososView
+      contribuyentes={contribuyentes}
+      tcmmv={tcmmv || 0}
+      onBack={() => setActiveView(null)}
+    />
   );
 
   if (activeView === 'saldos') return (

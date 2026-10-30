@@ -67,7 +67,14 @@ export function resolverConceptoPeriodoPago(pago: any): string {
     return det.concepto || 'Servicio Especial';
   }
 
-  // 1. Revisar recibo_caja (máxima fidelidad con lo liquidado en caja)
+  // 1. Si tiene concepto explícito ya guardado o editado manualmente por el usuario,
+  // tiene máxima prioridad sobre cualquier cálculo automático.
+  if (det.concepto || pago.concepto) {
+    const c = String(det.concepto || pago.concepto).trim();
+    if (c) return c;
+  }
+
+  // 2. Revisar recibo_caja (máxima fidelidad con lo liquidado en caja cuando no fue editado a mano)
   if (det.recibo_caja) {
     try {
       const rc = typeof det.recibo_caja === 'string' ? JSON.parse(det.recibo_caja) : det.recibo_caja;
@@ -101,19 +108,13 @@ export function resolverConceptoPeriodoPago(pago: any): string {
     } catch (_) {}
   }
 
-  // 1.5 Revisar periodos_pagados explícito en detalles
+  // 2.5 Revisar periodos_pagados explícito en detalles
   if (det.periodos_pagados) {
     const pp = String(det.periodos_pagados).trim();
     if (pp) {
       const fmt = formatearPeriodoParaConcepto(pp);
       return `Servicio de Aseo Urbano Comercial - ${fmt || pp}`;
     }
-  }
-
-  // 2. Si tiene concepto explícito ya guardado (distinto del genérico default)
-  if (det.concepto || pago.concepto) {
-    const c = String(det.concepto || pago.concepto).trim();
-    if (c) return c;
   }
 
   // 3. Revisar mes_aseo
