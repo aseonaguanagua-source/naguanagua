@@ -328,11 +328,11 @@ export async function POST(request: Request) {
           montoBase = parseFloat(String(inm.deuda_congelada_bs));
         }
 
-        // Fallback si aún no se determinó
+        // Fallback si aún no se determinó: totalRc es el total con IVA de los recibos
         if (montoBase <= 0) {
           const totalRc = parseFloat(String(detPago?.monto_factura || detPago?.total_seleccionado || montoTotal || pagoRow?.monto || '0'));
           if (totalRc > 0) {
-            montoBase = parseFloat(((totalRc / 1.16) / histRecibos.length).toFixed(2));
+            montoBase = parseFloat((totalRc / histRecibos.length).toFixed(2));
           }
         }
 
@@ -787,15 +787,20 @@ export async function POST(request: Request) {
     let baseGravada = 0;
     let ivaGravado = 0;
 
-    if (explicitBase > 0) {
-      baseGravada = r2(explicitBase);
-      ivaGravado = r2(baseGravada * 0.16);
-    } else if (explicitTotal > 0) {
+    if (explicitTotal > 0) {
       const gravadoConIva = r2(Math.max(0, explicitTotal - baseExenta));
       if (gravadoConIva > 0.001) {
-        baseGravada = r2(gravadoConIva / 1.16);
-        ivaGravado = r2(gravadoConIva - baseGravada);
+        if (explicitBase > 0 && Math.abs(explicitBase - r2(gravadoConIva / 1.16)) <= 0.05) {
+          baseGravada = explicitBase;
+          ivaGravado = r2(gravadoConIva - baseGravada);
+        } else {
+          baseGravada = r2(gravadoConIva / 1.16);
+          ivaGravado = r2(gravadoConIva - baseGravada);
+        }
       }
+    } else if (explicitBase > 0) {
+      baseGravada = r2(explicitBase);
+      ivaGravado = r2(baseGravada * 0.16);
     } else if (rcTotal > 0) {
       const gravadoConIva = r2(Math.max(0, rcTotal - baseExenta));
       if (gravadoConIva > 0.001) {
