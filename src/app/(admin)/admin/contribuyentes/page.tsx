@@ -1281,19 +1281,22 @@ function ContribuyentesPageContent() {
       const totalPagarLocal = Math.round((subtotalBaseLocal + subtotalIvaLocal + subtotalMultasLocal + totalServiciosBs) * 100) / 100;
       // Agente de retención: si el contribuyente o cualquiera de sus inmuebles comerciales es agente de retención,
       // la condición fiscal de agente (SENIAT) aplica al contribuyente sobre la totalidad del IVA comercial generado.
+      const checkAgenteBool = (val: any) => val === true || val === 1 || String(val) === 'true' || String(val) === '1' || String(val).toUpperCase() === 'SI';
       const esAgenteCluster = !esRes && (
-        viewData?.agente_retencion === true ||
-        String(viewData?.agente_retencion) === 'true' ||
-        viewData?.esAgenteRetencion === true ||
-        cluster.inmuebles.some((i: any) => i.agente_retencion === true || String(i.agente_retencion) === 'true') ||
-        userInms.some((i: any) => i.agente_retencion === true || String(i.agente_retencion) === 'true')
+        checkAgenteBool(viewData?.agente_retencion) ||
+        checkAgenteBool(viewData?.esAgenteRetencion) ||
+        cluster.inmuebles.some((i: any) => checkAgenteBool(i.agente_retencion)) ||
+        userInms.some((i: any) => checkAgenteBool(i.agente_retencion))
       );
-      const ivaRetenidoLocal = esAgenteCluster
+      // Si el cluster es agente o tiene retención en cualquiera de sus actividades comerciales,
+      // la retención del 75% aplica sobre el IVA total comercial gravado
+      const retencionSumada = clusterInmBreakdown.reduce((s: number, b: any) => {
+        const inmB = cluster.inmuebles.find((i: any) => i.inmueble === b.inmueble);
+        return s + (checkAgenteBool(inmB?.agente_retencion) ? b.ivaTotal * 0.75 : 0);
+      }, 0);
+      const ivaRetenidoLocal = (esAgenteCluster || retencionSumada > 0)
         ? Math.round((subtotalIvaLocal * 0.75) * 100) / 100
-        : Math.round(clusterInmBreakdown.reduce((s: number, b: any) => {
-            const inmB = cluster.inmuebles.find((i: any) => i.inmueble === b.inmueble);
-            return s + ((inmB?.agente_retencion === true || String(inmB?.agente_retencion) === 'true') ? b.ivaTotal * 0.75 : 0);
-          }, 0) * 100) / 100;
+        : 0;
       const esAgenteLocal = ivaRetenidoLocal > 0;
       const totalCancelarLocal = Math.round((totalPagarLocal - ivaRetenidoLocal) * 100) / 100;
 

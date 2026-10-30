@@ -244,6 +244,9 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
       totalBs += hijos.reduce((acc, h) => acc + (Number(h.totalBs) || 0), 0);
     }
 
+    // Total por fila asegurando cuadre perfecto con la suma de las columnas: Serv. Aseo + Multa + IVA + Multas Manuales
+    const totalFilaBs = baseBs + multaBs + ivaBs + manualesBs;
+
     const row = ws3.getRow(f3++);
     const vals: any[] = [
       sinReg ? 'Declaradas sin registrar' : (r.inmueble || r.clave),
@@ -259,7 +262,7 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
       conv(multaBs),
       conv(ivaBs),
       conv(manualesBs),
-      conv(totalBs),
+      conv(totalFilaBs),
     ];
     vals.forEach((v, i) => {
       const cell = row.getCell(i + 1);
@@ -271,7 +274,8 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   }
   const rt3 = ws3.getRow(f3);
   rt3.getCell(1).value = 'TOTALES';
-  const tv: Record<number, number> = { 10: totales.baseBs, 11: totales.multaBs, 12: totales.ivaBs, 14: totales.totalBs };
+  const totalBrutoBs = totales.baseBs + totales.multaBs + totales.ivaBs;
+  const tv: Record<number, number> = { 10: totales.baseBs, 11: totales.multaBs, 12: totales.ivaBs, 14: totalBrutoBs };
   for (let k = 1; k <= 14; k++) {
     const cell = rt3.getCell(k);
     if (tv[k] !== undefined) { cell.value = conv(tv[k]); cell.numFmt = numFmt; }

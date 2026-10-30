@@ -1103,8 +1103,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       }
       await actualizarPago(pago.id, payloadAct, { soloSiEstado: pago.estado || 'Por Verificar' });
 
-      // Si conciliarTodoElGrupo está activo y hay pagos vinculados, actualizar también los demás pagos del grupo
-      if (conciliarTodoElGrupo && pagosVinculados.length > 1) {
+      // Si conciliarTodoElGrupo está activo y hay pagos vinculados, actualizar también los demás pagos del grupo SOLO AL APROBAR
+      // Al rechazar un pago individual de un grupo/reparto, NO rechazar colateralmente los demás pagos válidos
+      if (conciliarTodoElGrupo && estatus === 'Aprobado' && pagosVinculados.length > 1) {
         const otrosPagos = pagosVinculados.filter((p: any) => p.id !== pago.id && p.estado !== estatus);
         for (const op of otrosPagos) {
           const opDet = parseDetalles(op.detalles);
@@ -1116,17 +1117,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             tasa_bcv: tasaParaGuardar,
             tasa_bcv_conciliacion: tasaParaGuardar,
           };
-          if (estatus === 'Rechazado') {
-            delete (opUpdatedDet as any).factura_digital;
-            (opUpdatedDet as any).factura_digital = { emitida: false, pendiente: false, rechazada: true, rechazada_at: new Date().toISOString() };
-          }
           const opPayload: any = {
             estado: estatus,
             detalles: opUpdatedDet
           };
-          if (estatus === 'Rechazado' && op.referencia && !op.referencia.startsWith('RECH-')) {
-            opPayload.referencia = `RECH-${op.referencia}-${op.id.slice(0, 6)}`;
-          }
           await actualizarPago(op.id, opPayload);
         }
       }
@@ -1909,7 +1903,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                     className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                   />
                   <span className="text-xs text-indigo-900 font-bold">
-                    Conciliar simultáneamente todas las transferencias vinculadas de este grupo
+                    Al Aprobar: aprobar simultáneamente todas las transferencias vinculadas de este grupo
                   </span>
                 </label>
               </div>

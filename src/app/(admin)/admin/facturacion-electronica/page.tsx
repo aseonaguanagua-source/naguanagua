@@ -335,6 +335,7 @@ export default function FacturacionElectronicaPage() {
   const [emitReferencia, setEmitReferencia] = useState('');
   const [emitModulo, setEmitModulo] = useState('caja');
   const [emitEsRetencion, setEmitEsRetencion] = useState(false);
+  const [emitFechaEmision, setEmitFechaEmision] = useState('');
 
   // Modal de Edición de Datos Fiscales del Pago (monto, retención, nombre, cédula/RIF, referencia, caja)
   const [pagoAEditar, setPagoAEditar] = useState<any | null>(null);
@@ -439,8 +440,10 @@ export default function FacturacionElectronicaPage() {
   
   const anuladasDia = (filterTab === 'anuladas' ? pagosList : (docTab === 'factura' ? facturasDia : recibosDia))
     .filter(p => pasaModulo(p))
-    .filter(p => p.facturaAnulada || p.notaCredito || p.estado === 'Anulado');
-  const totalAnuladas = anuladasDia.length;
+    .filter(p => p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.detalles?.factura_digital?.anulada || p.detalles?.factura_digital?.nota_credito);
+  const totalAnuladas = (filterTab === 'anuladas' ? pagosList : facturasDia)
+    .filter(p => pasaModulo(p))
+    .filter(p => p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.detalles?.factura_digital?.anulada || p.detalles?.factura_digital?.nota_credito).length;
 
   const delTipo = filterTab === 'retenciones' 
     ? retencionesDia 
@@ -760,6 +763,8 @@ export default function FacturacionElectronicaPage() {
     setAjusteConcepto(conceptoPeriodo);
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
+    const fechaPagoOrig = (pago.detalles?.fecha_transaccion || pago.detalles?.fecha_banco || pago.fechaPago || pago.created_at || '').slice(0, 10);
+    setEmitFechaEmision(fechaPagoOrig || hoyCaracas());
   };
 
   // Abrir Modal de Edición Directa de Datos Fiscales
@@ -883,10 +888,11 @@ export default function FacturacionElectronicaPage() {
           referencia: emitReferencia.trim(),
           modulo: emitModulo,
           esRetencion: emitEsRetencion,
-          fecha: selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString(),
+          fechaEmisionOverride: emitFechaEmision ? emitFechaEmision : undefined,
+          fecha: emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString()),
           formasPago: [{
             descripcion: selectedPagoForEmit.tipo || 'Transferencia',
-            fecha: selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString(),
+            fecha: emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString()),
             forma: '05',
             monto: total
           }],
@@ -1280,7 +1286,7 @@ export default function FacturacionElectronicaPage() {
                 <th className="py-3.5 px-4">Contribuyente / Razón Social</th>
                 <th className="py-3.5 px-4">Documento</th>
                 <th className="py-3.5 px-4">Correo Destino</th>
-                <th className="py-3.5 px-4">Monto Pagado</th>
+                <th className="py-3.5 px-4">{docTab === 'factura' ? 'Monto Facturado' : 'Monto Pagado'}</th>
                 <th className="py-3.5 px-4">Fecha Pago</th>
                 <th className="py-3.5 px-4">{docTab === 'factura' ? 'Estado Fiscal' : 'Estado Envío'}</th>
                 <th className="py-3.5 px-4 text-right">Acciones</th>
@@ -2142,6 +2148,18 @@ export default function FacturacionElectronicaPage() {
                       <option value="condominios">Caja Condominios</option>
                     </select>
                   </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-emerald-900 uppercase mb-0.5 flex items-center justify-between">
+                      <span>📅 Fecha de Emisión Factura (The Factory HKA)</span>
+                      <span className="text-[9px] text-slate-500 font-normal">Puedes elegir otra fecha si requieres facturar con fecha específica</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={emitFechaEmision}
+                      onChange={e => setEmitFechaEmision(e.target.value)}
+                      className="w-full border border-emerald-400 bg-emerald-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
 
                 <div className="pt-2 border-t border-slate-200">
@@ -2489,12 +2507,11 @@ export default function FacturacionElectronicaPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Fecha Operación <span className="text-rose-500">*</span>
+                      Fecha de Emisión / Operación <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="date"
                       value={editForm.fecha}
-                      max={hoyCaracas()}
                       onChange={e => setEditForm(prev => ({ ...prev, fecha: e.target.value }))}
                       className="w-full border border-slate-300 rounded-xl px-2 py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-white"
                     />

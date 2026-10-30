@@ -999,10 +999,18 @@ function Caja() {
                         <td className="px-4 py-3 font-medium">{n.identidad}</td>
                         <td className="px-4 py-3">{n.contribuyente}</td>
                         <td className="px-4 py-3 text-right font-bold text-emerald-600">Bs. {formattedMonto}</td>
-                        <td className="px-4 py-3 text-center">{details.origen_referencia || '-'}</td>
+                        <td className="px-4 py-3 text-center">
+                          {n.isDirecto ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300" title="Saldo a favor registrado directamente en la ficha del condominio">
+                              <span>📌</span> Saldo Directo en Ficha
+                            </span>
+                          ) : (
+                            details.origen_referencia || '-'
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`px-2 py-1 rounded text-xs font-semibold ${esVigente ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {n.estado}
+                            {esVigente && n.isDirecto ? 'Saldo en Ficha' : n.estado}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -1922,15 +1930,33 @@ function Caja() {
                 </div>
               )}
 
-              {/* Nota de crédito que le quedará al contribuyente */}
-              {cobro.lineas?.length > 0 && (faltaPagar < -0.05 || (saldoFavorActivo > 0 && descuentoSaldoFavor > 0)) && (
-                <div id="nota-credito-quedara" className="rounded-xl bg-amber-400/15 border border-amber-300/40 text-amber-100 text-xs p-2.5 space-y-1">
-                  {faltaPagar < -0.05 && (
-                    <div className="flex justify-between gap-2"><span className="font-bold">Nota de crédito por excedente</span><b className="tabular-nums">Bs {fmtBs(Math.abs(faltaPagar))}</b></div>
-                  )}
-                  <div className="flex justify-between gap-2"><span>Saldo a favor que le quedará</span><b className="tabular-nums">Bs {fmtBs(Math.max(0, saldoFavorActivo - descuentoSaldoFavor) + (faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0))}</b></div>
-                </div>
-              )}
+              {/* Nota de crédito que le quedará al contribuyente / Proyección con monto en edición */}
+              {(() => {
+                const montoEnEdicion = parseLocalFloat(montoAct) || 0;
+                const totalPagadoProyectado = sumaPagos + montoEnEdicion;
+                const balanceProyectado = Math.round((totalNetoAbonable - totalPagadoProyectado) * 100) / 100;
+                const tieneExcedente = balanceProyectado < -0.05 || faltaPagar < -0.05;
+                const excedenteMonto = Math.max(0, -balanceProyectado);
+                const saldoRestanteBase = Math.max(0, saldoFavorActivo - descuentoSaldoFavor);
+
+                if (cobro.lineas?.length > 0 && (tieneExcedente || (saldoFavorActivo > 0 && descuentoSaldoFavor > 0))) {
+                  return (
+                    <div id="nota-credito-quedara" className="rounded-xl bg-amber-400/15 border border-amber-300/40 text-amber-100 text-xs p-2.5 space-y-1">
+                      {tieneExcedente && (
+                        <div className="flex justify-between gap-2">
+                          <span className="font-bold">Nota de crédito por excedente</span>
+                          <b className="tabular-nums">Bs {fmtBs(excedenteMonto > 0 ? excedenteMonto : Math.abs(faltaPagar))}</b>
+                        </div>
+                      )}
+                      <div className="flex justify-between gap-2">
+                        <span>Saldo a favor que le quedará</span>
+                        <b className="tabular-nums">Bs {fmtBs(saldoRestanteBase + (excedenteMonto > 0 ? excedenteMonto : (faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0)))}</b>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Información de Convenio si la unidad en cobro lo tiene */}
               {(() => {

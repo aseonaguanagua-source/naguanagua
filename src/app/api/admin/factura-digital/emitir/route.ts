@@ -575,7 +575,8 @@ export async function POST(request: Request) {
           const descAseo = (lineasCondo.length === 1 && descCustom && multa === 0) ? descCustom : `Servicio de Aseo Urbano - ${condoDet?.nombre || 'Condominio'} ${donde}${l.actividad ? ` - ${l.actividad}` : ''}${per}`;
           itemsCondoMod.push(it(descAseo, 'ASEO001', aseo, true));
         }
-        if (multa > 0) {
+        const sinMultas = detPago?.solo_aseo === true || detPago?.sin_multas === true || detPago?.incluir_multas === false || detPago?.modo_cobro === 'SOLO_ASEO';
+        if (multa > 0 && !sinMultas) {
           const descMulta = (lineasCondo.length === 1 && descCustom && aseo === 0) ? descCustom : `Multa por Mora - Aseo Urbano ${donde}`;
           itemsCondoMod.push(it(descMulta, 'MULT001', multa, false));
         }
@@ -1703,7 +1704,7 @@ export async function POST(request: Request) {
           numero_control:   finalControl,
           numero_documento: finalDoc,
           tfhka_seq:        parseInt(finalDoc, 10) || seq,
-          fecha_emision:    new Date().toISOString(),
+          fecha_emision:    fechaEmisionOverride ? `${fechaEmisionOverride}T12:00:00-04:00` : new Date().toISOString(),
           raw_response:     tfhkaResponse,
           ...(totalManualNum > 0 ? { total_manual: totalManualNum, monto_cobrado: montoCobrado, motivo_ajuste: motivoAjuste || null, ajustado_por: usuario || null } : {}),
         };
@@ -1729,7 +1730,7 @@ export async function POST(request: Request) {
         emitida:          true,
         url:              "https://democonsulta.thefactoryhka.com.ve/?doc=GhQVet4Fbe+vAHltz47VsoKrQ1NOzTmiOLp4jVe5oz4U01Z9FA/OdGcGnU9nU1co",
         numero_control:   `00-${(pagoId || '').replace(/-/g,'').slice(0,8).toUpperCase()}`,
-        fecha_emision:    new Date().toISOString(),
+        fecha_emision:    fechaEmisionOverride ? `${fechaEmisionOverride}T12:00:00-04:00` : new Date().toISOString(),
         simulated:        true,
         payload_generado: jsonTFHKA,
       };

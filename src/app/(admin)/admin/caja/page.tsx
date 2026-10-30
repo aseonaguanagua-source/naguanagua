@@ -492,12 +492,6 @@ export default function CajaPage() {
   // Set de referencias bloqueadas por pago en verificación: O(1) lookup
   const pendingRefsSet = useMemo(() => {
     const blocked = new Set<string>();
-    recibos.forEach((r: any) => {
-      const monto = reciboMontoMap.get(r.referencia) ?? 0;
-      if (monto <= 0 && r.estado !== 'Abonado' && r.estado !== 'Pagado') {
-        blocked.add(r.referencia);
-      }
-    });
     // Referencias reportadas en pagos_reportados con estado 'Por Verificar'
     pagosPendientes.forEach((p: any) => {
       let det: any = {};
