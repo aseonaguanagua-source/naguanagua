@@ -2094,14 +2094,12 @@ export default function CajaPage() {
       return alert("Debe ingresar un monto válido a abonar para el condominio.");
     }
     
-    // Validación SENIAT: Si aplica retención de IVA, N° de Comprobante (14 caracteres) y Fecha son obligatorios
-    if (retencionIVA > 0) {
+    // Validación SENIAT: Si ingresa el comprobante en taquilla debe cumplir el formato de 14 caracteres.
+    // Si no lo ingresa, se permite procesar el cobro con la retención aplicada para que con los datos de la factura monte su planilla.
+    if (retencionIVA > 0 && comprobanteRetencion.trim().length > 0) {
       const compLimpio = comprobanteRetencion.trim().replace(/[^0-9]/g, '');
-      if (!compLimpio || compLimpio.length !== 14) {
-        return alert(`El N° de Comprobante de Retención de IVA es obligatorio y debe tener exactamente 14 caracteres numéricos según normativa SENIAT (ejemplo: 20261000000001). Caracteres actuales: ${compLimpio.length}`);
-      }
-      if (!fechaComprobanteRetencion) {
-        return alert("La Fecha del Comprobante de Retención de IVA es obligatoria.");
+      if (compLimpio.length !== 14) {
+        return alert(`El N° de Comprobante de Retención de IVA debe tener exactamente 14 caracteres numéricos según normativa SENIAT (ejemplo: 20261000000001). Caracteres actuales: ${compLimpio.length}`);
       }
     }
 
@@ -6206,7 +6204,7 @@ export default function CajaPage() {
                           <div>
                             <div className="flex justify-between items-center mb-1">
                               <label className="text-[11px] font-semibold text-slate-700">
-                                N° Comprobante SENIAT (14 dígitos): <span className="text-red-500">*</span>
+                                N° Comprobante SENIAT (14 dígitos): <span className="text-slate-400 font-normal">(Opcional en taquilla)</span>
                               </label>
                               <span className={`text-[10px] font-mono ${comprobanteRetencion.trim().replace(/[^0-9]/g, '').length === 14 ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
                                 {comprobanteRetencion.trim().replace(/[^0-9]/g, '').length} / 14 caracteres
@@ -6215,7 +6213,7 @@ export default function CajaPage() {
                             <input 
                               type="text" 
                               maxLength={14}
-                              placeholder="Ej: 20261000000001 (14 dígitos)" 
+                              placeholder="Ej: 20261000000001 (o dejar vacío para cargar después)" 
                               value={comprobanteRetencion}
                               onChange={e => {
                                 const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 14);
@@ -6223,11 +6221,14 @@ export default function CajaPage() {
                               }}
                               className="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-emerald-500 font-mono bg-white font-semibold"
                             />
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                              Si el contribuyente no lo trajo, puede pagar con el 75% retenido y cargar su planilla posteriormente con los datos de la factura.
+                            </p>
                           </div>
 
                           <div>
                             <label className="text-[11px] font-semibold text-slate-700 mb-1 block">
-                              Fecha del Comprobante: <span className="text-red-500">*</span>
+                              Fecha del Comprobante: <span className="text-slate-400 font-normal">(Opcional)</span>
                             </label>
                             <input 
                               type="date"
