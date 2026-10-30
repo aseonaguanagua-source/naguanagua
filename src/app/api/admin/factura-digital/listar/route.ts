@@ -60,6 +60,7 @@ export async function GET(request: Request) {
 
       // 3. Buscar propietarios de los inmuebles vinculados (excluyendo condominios genéricos)
       if (queryRelatedInmuebleCodes.size > 0) {
+        const specificCodes = Array.from(queryRelatedInmuebleCodes).filter(c => !c.startsWith('URB014903') && c.length >= 6).slice(0, 30);
         const { data: inmsFromCodes } = await supabase
           .from('inmuebles')
           .select('identidad, contribuyente')
@@ -69,6 +70,20 @@ export async function GET(request: Request) {
             queryInmIdents.add(i.identidad);
           }
         });
+
+        // También buscar otros pagos cruzados sobre los mismos inmuebles específicos
+        if (specificCodes.length > 0) {
+          for (const sCod of specificCodes) {
+            try {
+              const { data: pLineas } = await supabase
+                .from('pagos_reportados')
+                .select('identidad')
+                .filter('detalles', 'cs', JSON.stringify({ condominio: { lineas: [{ inmueble: sCod }] } }))
+                .limit(10);
+              pLineas?.forEach(pl => pl.identidad && queryInmIdents.add(pl.identidad));
+            } catch (_) {}
+          }
+        }
       }
     }
 
