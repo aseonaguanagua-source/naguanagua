@@ -1196,6 +1196,7 @@ function Caja() {
                     setModo('CONDOMINIO');
                     setAbonoLocales(true);
                     setSoloMultas(false);
+                    setIncluirMultas(false);
                     setIdentidad('');
                   }}
                   className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${
@@ -1571,6 +1572,7 @@ function Caja() {
                           } else {
                             // En cobro completo: al hacer click en un local, se activa el modo abono seleccionando este local
                             setAbonoLocales(true);
+                            setIncluirMultas(false);
                             setClaves([r.clave]);
                           }
                         };
