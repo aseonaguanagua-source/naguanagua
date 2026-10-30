@@ -60,10 +60,13 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   });
   const cajasOrden = [...todasCajas.keys()].sort();
   const wb = new ExcelJS.Workbook();
-  const res = wb.addWorksheet('TOTAL POR DIA');
+  const res = wb.addWorksheet('RESUMEN');
   res.columns = [{ width: 10 }, { width: 8 }, { width: 18 }, { width: 12 }, { width: 10 }] as any;
-  res.mergeCells('A1:E1'); res.getCell('A1').value = `TOTAL PUNTOS DE VENTA ${dmy(fechaInicio)} AL ${dmy(fechaFin)}`; res.getCell('A1').font = { bold: true, size: 12 };
-  cab(res, 3, ['Dia sem', 'DIA', 'MONTO', 'USUARIOS', 'ACTIVAS']);
+  res.mergeCells('A1:E1');
+  res.getCell('A1').value = `TOTAL PUNTOS DE VENTA ${dmy(fechaInicio)} AL ${dmy(fechaFin)}`;
+  res.getCell('A1').font = { bold: true, size: 12 };
+  res.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+  cab(res, 3, ['Dia sem', 'DIA', 'MONTO (Bs.)', 'USUARIOS', 'ACTIVAS']);
   let f = 4; let tM = 0, tU = 0;
   [...porDia.keys()].sort().forEach(dia => {
     const m = porDia.get(dia)!;
@@ -71,18 +74,33 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     const usuarios = [...m.values()].reduce((s, c) => s + c.usuarios.size, 0);
     const d = new Date(`${dia}T12:00:00`);
     const row = res.getRow(f++);
-    [DIAS[d.getDay()], d.getDate(), r2(monto), usuarios, m.size].forEach((v, i) => { const c = row.getCell(i + 1); c.value = v; c.border = BORDE; if (i === 2) c.numFmt = '#,##0.00'; });
+    [DIAS[d.getDay()], d.getDate(), r2(monto), usuarios, m.size].forEach((v, i) => {
+      const c = row.getCell(i + 1);
+      c.value = v;
+      c.border = BORDE;
+      if (i === 2) {
+        c.numFmt = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"';
+      }
+    });
     tM += monto; tU += usuarios;
   });
   const tr = res.getRow(f);
-  ['TOTAL', '', r2(tM), tU, ''].forEach((v, i) => { const c = tr.getCell(i + 1); c.value = v; c.font = { bold: true }; c.border = BORDE; if (i === 2) c.numFmt = '#,##0.00'; });
+  ['TOTAL', '', r2(tM), tU, ''].forEach((v, i) => {
+    const c = tr.getCell(i + 1);
+    c.value = v;
+    c.font = { bold: true };
+    c.border = BORDE;
+    if (i === 2) {
+      c.numFmt = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"';
+    }
+  });
 
   [...porDia.keys()].sort().forEach(dia => {
     const [, mm, dd] = dia.split('-');
     const ws = wb.addWorksheet(`${dd}-${mm}`);
     ws.columns = [{ width: 12 }, { width: 18 }, { width: 9 }, { width: 22 }, { width: 18 }, { width: 11 }] as any;
     ws.mergeCells('A1:F1'); ws.getCell('A1').value = `PUNTOS DE VENTA ${dmy(dia)}`; ws.getCell('A1').font = { bold: true, size: 12 };
-    cab(ws, 3, ['CAJAS', 'CAJERO', 'ACTIVA', 'UBICACION', 'MONTO', 'USUARIOS']);
+    cab(ws, 3, ['CAJAS', 'CAJERO', 'ACTIVA', 'UBICACION', 'MONTO (Bs.)', 'USUARIOS']);
     const m = porDia.get(dia)!;
     let r = 4; let sm = 0, su = 0;
     cajasOrden.forEach(caja => {
@@ -262,6 +280,14 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           const todasRefs = [...new Set(det.pagos_agregados.map((pa: any) => String(pa.referencia || '').trim()).filter(Boolean))];
           if (todasRefs.length > 1) {
             refTexto = todasRefs.join(' / ');
+          }
+        }
+        // Limpiar referencias rechazadas erróneamente concatenadas (ej. '77015, RECH-34...' -> '77015')
+        if (/rech/i.test(refTexto)) {
+          const partes = refTexto.split(/[,;\/]/).map(x => x.trim()).filter(Boolean);
+          const buenas = partes.filter(x => !/rech/i.test(x));
+          if (buenas.length > 0) {
+            refTexto = buenas.join(' / ');
           }
         }
 

@@ -3,6 +3,7 @@ import { saveAs } from 'file-saver';
 import { supabase } from '@/lib/supabase';
 import { desglosarPago, COLS_INMUEBLE_DESGLOSE } from '@/lib/desglosePago';
 import { isResidencialInm } from '@/lib/calculos';
+import { logos } from '@/lib/logosBase64';
 
 /**
  * Libro de Ventas (formato Providencia SNAT/2025/000054) — modelo "Formato Libro de Ventas Agosto 2026.xlsx".
@@ -298,6 +299,22 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     const c = ws.getCell(row, 1);
     c.value = txt; c.font = { name: 'Arial', size, bold: true }; c.alignment = { horizontal: 'center' };
   };
+  const addLogo = (base64Str: string, colFrom: number, rowFrom: number, width: number, height: number) => {
+    try {
+      if (!base64Str) return;
+      const base64Data = base64Str.split(',')[1] || base64Str;
+      const imageId = wb.addImage({ base64: base64Data, extension: 'png' });
+      ws.addImage(imageId, {
+        tl: { col: colFrom, row: rowFrom },
+        ext: { width, height }
+      });
+    } catch (e) {
+      console.warn('No se pudo incrustar logo en Libro de Ventas:', e);
+    }
+  };
+  addLogo(logos.instituto || logos.alcaldia, 0.4, 0.2, 140, 60);
+  addLogo(logos.iamec, 18.2, 0.2, 140, 60);
+
   titulo(1, 'REPÚBLICA BOLIVARIANA DE VENEZUELA - ESTADO CARABOBO', 11);
   titulo(2, ORGANISMO, 12);
   titulo(3, `LIBRO DE VENTAS E INGRESOS POR SERVICIO DE ASEO URBANO${tipo === 'Mensual' && per ? ' - ' + per : ''}`, 12);

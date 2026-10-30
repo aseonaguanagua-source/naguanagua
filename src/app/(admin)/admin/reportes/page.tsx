@@ -17,14 +17,16 @@ import { aplicarMontoReporte } from './montoReporte';
 
 import { generarTotalPuntosVenta, generarConciliacionTransferencias } from './generators/ReportesCaja';
 import { generarReporteRecibosPagos } from './generators/ReporteRecibosPagos';
+import { generarMontoDiarioRecaudado } from './generators/MontoDiarioRecaudado';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-type ActiveView = null | 'ingresos' | 'corte' | 'libro-ventas' | 'recibos-pagos' | 'conciliacion-bancaria' | 'puntos-venta' | 'fiscalizacion' | 'empleados' | 'saldos' | 'ingreso-bancario' | 'morosos' | 'transferencias';
+type ActiveView = null | 'ingresos' | 'corte' | 'libro-ventas' | 'recibos-pagos' | 'conciliacion-bancaria' | 'puntos-venta' | 'monto-diario' | 'fiscalizacion' | 'empleados' | 'saldos' | 'ingreso-bancario' | 'morosos' | 'transferencias';
 
 const CARDS = [
   { id: 'ingresos' as ActiveView,              label: 'Caja - Ingresos',                emoji: '🖨️',  desc: 'Vista interactiva de ingresos, corte y conciliación', adminOnly: false },
+  { id: 'monto-diario' as ActiveView,          label: 'Monto Diario Recaudado',         emoji: '📅',  desc: 'Punto y Transferencias en Bs y € con logos oficiales', adminOnly: false },
   { id: 'libro-ventas' as ActiveView,          label: 'Libro de Ventas SENIAT',         emoji: '📊',  desc: 'Solo Facturas Digitales (01-REG y 03-REG)',           adminOnly: false },
   { id: 'recibos-pagos' as ActiveView,         label: 'Reporte de Recibos de Pagos',    emoji: '🧾',  desc: 'Excel de recibos de pago emitidos',                    adminOnly: false },
   { id: 'conciliacion-bancaria' as ActiveView, label: 'Conciliación Bancaria',          emoji: '🏦',  desc: 'Transferencias por mes y banco (Banesco / Bancamiga)', adminOnly: false },
@@ -300,6 +302,39 @@ export default function ReportesPage() {
             className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-sm font-semibold text-blue-900 transition-colors"
           >
             Descargar Total Puntos de Venta (Excel) <Download className="w-4 h-4 text-blue-700" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeView === 'monto-diario') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setActiveView(null)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">← Regresar</button>
+          <span className="text-slate-300">|</span>
+          <h1 className="text-lg font-bold text-slate-800">📅 Monto Diario Recaudado</h1>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 max-w-lg">
+          <p className="text-xs text-slate-600">
+            Genera la planilla oficial en Excel del <b>MONTO DIARIO RECAUDADO</b> con desglose diario/semanal por Punto de Venta (Bs y €), Transferencias y Depósitos (Bs y €), Estado de Cuenta consolidado y logos oficiales del IAMEC.
+          </p>
+          <div className="flex gap-3">
+            <div className="flex flex-col flex-1">
+              <label className="text-xs text-slate-500 mb-1">Desde</label>
+              <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div className="flex flex-col flex-1">
+              <label className="text-xs text-slate-500 mb-1">Hasta</label>
+              <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <button
+            onClick={() => generarMontoDiarioRecaudado({ pagos, fechaInicio, fechaFin, tcmmvActual: tcmmv || 0 })}
+            className="w-full flex items-center justify-between px-4 py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-sm font-semibold text-indigo-900 transition-colors"
+          >
+            Descargar Monto Diario Recaudado (Excel) <Download className="w-4 h-4 text-indigo-700" />
           </button>
         </div>
       </div>
