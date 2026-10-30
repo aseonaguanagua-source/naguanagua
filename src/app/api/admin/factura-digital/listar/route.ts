@@ -148,11 +148,16 @@ export async function GET(request: Request) {
 
         const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
         const recibosA = (dA?.recibos || []).map((r: any) => String(r).toUpperCase());
-        const comparteRecibo = recibosP.length > 0 && recibosA.length > 0 && recibosP.some((r: string) => recibosA.includes(r));
+        // Un abono previo solo se considera genuinamente absorbido por un pago principal posterior si:
+        // 1. Todos los recibos liquidados por el abono están contenidos dentro del pago principal posterior.
+        //    (Si el abono pagó 3 o 4 inmuebles distintos y el pago posterior solo pagó 1, son facturas distintas).
+        // 2. O si el saldo previo registrado en el pago posterior coincide exactamente con el monto del abono Y no quedan recibos huérfanos.
+        const todosRecibosEnPrincipal = recibosA.length > 0 && recibosA.every((r: string) => recibosP.includes(r));
         const coincideSaldo = saldoPrevio > 0 && Math.abs(saldoPrevio - montoSoloA) < 0.05;
+        const absorcionValida = todosRecibosEnPrincipal || (coincideSaldo && (recibosA.length === 0 || todosRecibosEnPrincipal));
 
-        // Si el abono ocurrió antes o igual que el pago principal y comparte recibo o su monto fue abonado previamente
-        if ((comparteRecibo || coincideSaldo) && new Date(pAbono.created_at) <= new Date(pPrincipal.created_at)) {
+        // Si el abono ocurrió antes o igual que el pago principal y fue genuinamente absorbido
+        if (absorcionValida && new Date(pAbono.created_at) <= new Date(pPrincipal.created_at)) {
           abonosAbsorbidosIds.add(pAbono.id);
           const current = abonosInfoPorPagoPrincipal.get(pPrincipal.id) || { montoTotal: 0, referencias: [], formasPago: [] };
           if (!current.referencias.includes(pAbono.referencia)) {
