@@ -1029,8 +1029,9 @@ export default function CajaPage() {
       // N/A = suma de sus actividades. Si la deuda (meses) está registrada en el contenedor N/A,
       // sus actividades hijas heredan esos meses (misma lógica que Estado de Cuenta y Detalles Contribuyente).
       const mesesEf = (x: any) => {
+        if (x?.meses_deuda === 0 || x?.meses_deuda === '0') return 0;
         const m = parseInt(String(x?.meses_deuda || 0), 10) || 0;
-        return m > 0 ? m : ((parseFloat(String(x?.deuda_mmv || 0)) || 0) > 0 || (parseFloat(String(x?.deuda_congelada_bs || 0)) || 0) > 0 ? 1 : 0);
+        return m > 0 ? m : ((parseFloat(String(x?.deuda_mmv || 0)) || 0) > 0.01 || (parseFloat(String(x?.deuda_congelada_bs || 0)) || 0) > 0.01 ? 1 : 0);
       };
       const naMesesMap = new Map<string, number>();
       (inmFresh || []).forEach((i: any) => {
@@ -1407,8 +1408,9 @@ export default function CajaPage() {
             // Para contribuyentes directos (o filiales de condominio con pago individual habilitado):
             // Generar sus meses de aseo (RECIB-HIST-) con su base + IVA + mora correspondiente a cada mes
             const isTerreno = isTerrenoInm(inm);
-            const deudaMMV = isTerreno ? 0 : parseFloat(inm.deuda_mmv || '0');
-            const meses = isTerreno ? 0 : parseInt(inm.meses_deuda || 0);
+            const deudaMMV = isTerreno ? 0 : (parseFloat(inm.deuda_mmv || '0') || 0);
+            const mesesRaw = isTerreno ? 0 : parseInt(String(inm.meses_deuda ?? '0'), 10);
+            const meses = Math.max(0, isNaN(mesesRaw) ? 0 : mesesRaw);
             
             const recibosFormales = combined.filter((r: any) => 
               (r.referencia || '').includes(inm.inmueble) && 
@@ -1416,7 +1418,10 @@ export default function CajaPage() {
               !r.referencia?.startsWith('MULTA-')
             ).length;
             
-            const numMeses = isTerreno ? 0 : Math.max(0, (meses > 0 ? meses : (deudaMMV > 0 ? 1 : 0)) - recibosFormales);
+            // Si el inmueble tiene meses_deuda registrado, usar estrictamente meses.
+            // Si meses_deuda es 0 o no está definido, solo considerar deudaMMV si es mayor a 0.01 y no fue puesto a 0 explícitamente.
+            const mesesBase = meses > 0 ? meses : (inm.meses_deuda !== 0 && inm.meses_deuda !== '0' && deudaMMV > 0.01 ? 1 : 0);
+            const numMeses = isTerreno ? 0 : Math.max(0, mesesBase - recibosFormales);
 
             // Si NO tiene meses de aseo pendientes pero sí tiene multa acumulada aislada, generar recibo MULTA- por meses
             const multa = parseFloat(inm.multa_bs || '0');

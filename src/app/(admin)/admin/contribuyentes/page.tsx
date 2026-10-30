@@ -662,83 +662,156 @@ function ContribuyentesPageContent() {
       const isMulta = recId.startsWith('multa-');
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recId);
 
+      const syncInmuebleReduccion = async (inmCode: string) => {
+        if (!inmCode) return;
+        const { data: inmData } = await supabase
+          .from('inmuebles')
+          .select('*')
+          .eq('inmueble', inmCode)
+          .maybeSingle();
+
+        if (inmData) {
+          const mesesActuales = Math.max(0, parseInt(String(inmData.meses_deuda || '1'), 10));
+          const nuevosMeses = Math.max(0, mesesActuales - 1);
+          const mmvMes = parseFloat(inmData.mmv_mes || '0');
+          const nuevaDeudaMmv = nuevosMeses > 0 ? parseFloat((nuevosMeses * mmvMes).toFixed(5)) : 0;
+
+          const updateObj: any = {
+            meses_deuda: nuevosMeses,
+            deuda_mmv: nuevaDeudaMmv
+          };
+          if (nuevosMeses === 0) {
+            updateObj.deuda_congelada_bs = 0;
+            updateObj.multa_bs = 0;
+            updateObj.multa_meses = 0;
+          }
+
+          const { error: errInm } = await supabase
+            .from('inmuebles')
+            .update(updateObj)
+            .eq('inmueble', inmCode);
+
+          if (errInm) throw errInm;
+
+          // Si el inmueble es contenedor comercial o matriz con actividades hijas (padre_id), sincronizar hijos
+          const { data: hijosPadre } = await supabase
+            .from('inmuebles')
+            .select('id, inmueble, mmv_mes, meses_deuda')
+            .eq('padre_id', inmCode)
+            .neq('estado', 'Eliminado');
+
+          if (hijosPadre && hijosPadre.length > 0) {
+            for (const h of hijosPadre) {
+              const hM = Math.max(0, parseInt(String(h.meses_deuda || '1'), 10));
+              const nHM = Math.max(0, hM - 1);
+              const hMmvMes = parseFloat(h.mmv_mes || '0');
+              const hNuevaMmv = nHM > 0 ? parseFloat((nHM * hMmvMes).toFixed(5)) : 0;
+              await supabase.from('inmuebles').update({
+                meses_deuda: nHM,
+                deuda_mmv: hNuevaMmv,
+                ...(nHM === 0 ? { deuda_congelada_bs: 0, multa_bs: 0, multa_meses: 0 } : {})
+              }).eq('id', h.id);
+            }
+          }
+
+          // Si tiene padre_id (contenedor N/A), sincronizar meses_deuda en el padre
+          if (inmData.padre_id) {
+            const { data: hermanosNA } = await supabase
+              .from('inmuebles')
+              .select('deuda_mmv, meses_deuda')
+              .eq('padre_id', inmData.padre_id)
+              .neq('estado', 'Eliminado');
+            if (hermanosNA && hermanosNA.length > 0) {
+              const maxMesesHermanos = hermanosNA.reduce((max, h) => Math.max(max, parseInt(String(h.meses_deuda || 0))), 0);
+              const totalMmvHermanos = hermanosNA.reduce((sum, h) => sum + parseFloat(h.deuda_mmv || '0'), 0);
+              await supabase
+                .from('inmuebles')
+                .update({
+                  meses_deuda: maxMesesHermanos,
+                  deuda_mmv: parseFloat(totalMmvHermanos.toFixed(5)),
+                  ...(maxMesesHermanos === 0 ? { deuda_congelada_bs: 0, multa_bs: 0, multa_meses: 0 } : {})
+                })
+                .eq('inmueble', inmData.padre_id);
+            }
+          }
+
+          // Si el inmueble es condominio padre, propagar la reducción de meses a todos sus hijos
+          if (inmData.es_condominio) {
+            const { data: hijos } = await supabase.from('inmuebles').select('*').eq('condominio_padre_id', inmCode);
+            if (hijos && hijos.length > 0) {
+              for (const hijo of hijos) {
+                const mActuales = Math.max(0, parseInt(String(hijo.meses_deuda || '1'), 10));
+                const nM = Math.max(0, mActuales - 1);
+                const hMmvMes = parseFloat(hijo.mmv_mes || '0');
+                const nDeudaMmv = nM > 0 ? parseFloat((nM * hMmvMes).toFixed(5)) : 0;
+                await supabase.from('inmuebles').update({
+                  meses_deuda: nM,
+                  deuda_mmv: nDeudaMmv,
+                  ...(nM === 0 ? { deuda_congelada_bs: 0, multa_bs: 0, multa_meses: 0 } : {})
+                }).eq('id', hijo.id);
+              }
+            }
+          }
+
+          // Si tiene condominio_padre_id, recalcular también la deuda_mmv del padre
+          if (inmData.condominio_padre_id) {
+            const { data: hermanos } = await supabase
+              .from('inmuebles')
+              .select('deuda_mmv, meses_deuda')
+              .eq('condominio_padre_id', inmData.condominio_padre_id);
+            if (hermanos) {
+              const totalHermanosMmv = hermanos.reduce((sum, h) => sum + parseFloat(h.deuda_mmv || '0'), 0);
+              const maxMesesHermanos = hermanos.reduce((max, h) => Math.max(max, parseInt(h.meses_deuda || '0')), 0);
+              await supabase
+                .from('inmuebles')
+                .update({
+                  deuda_mmv: parseFloat(totalHermanosMmv.toFixed(5)),
+                  meses_deuda: maxMesesHermanos,
+                  ...(maxMesesHermanos === 0 ? { deuda_congelada_bs: 0, multa_bs: 0, multa_meses: 0 } : {})
+                })
+                .eq('inmueble', inmData.condominio_padre_id);
+            }
+          }
+        }
+      };
+
       if (isDummyHist) {
         // Formato: dummy-hist-CODIGO_INMUEBLE-MES_NUM
         const parts = recId.split('-');
         const inmCode = parts[2] || recibo.referencia?.split('-')[2];
         if (inmCode) {
-          const { data: inmData } = await supabase
-            .from('inmuebles')
-            .select('*')
-            .eq('inmueble', inmCode)
-            .maybeSingle();
-
-          if (inmData) {
-            const mesesActuales = Math.max(0, parseInt(String(inmData.meses_deuda || '1'), 10));
-            const nuevosMeses = Math.max(0, mesesActuales - 1);
-            const mmvMes = parseFloat(inmData.mmv_mes || '0');
-            const nuevaDeudaMmv = nuevosMeses > 0 ? parseFloat((nuevosMeses * mmvMes).toFixed(5)) : 0;
-
-            const { error: errInm } = await supabase
-              .from('inmuebles')
-              .update({
-                meses_deuda: nuevosMeses,
-                deuda_mmv: nuevaDeudaMmv
-              })
-              .eq('inmueble', inmCode);
-
-            if (errInm) throw errInm;
-
-            // Si el inmueble es condominio padre, propagar la reducción de meses a todos sus hijos
-            if (inmData.es_condominio) {
-              const { data: hijos } = await supabase.from('inmuebles').select('*').eq('condominio_padre_id', inmCode);
-              if (hijos && hijos.length > 0) {
-                for (const hijo of hijos) {
-                  const mActuales = Math.max(0, parseInt(String(hijo.meses_deuda || '1'), 10));
-                  const nM = Math.max(0, mActuales - 1);
-                  const hMmvMes = parseFloat(hijo.mmv_mes || '0');
-                  const nDeudaMmv = nM > 0 ? parseFloat((nM * hMmvMes).toFixed(5)) : 0;
-                  await supabase.from('inmuebles').update({ meses_deuda: nM, deuda_mmv: nDeudaMmv }).eq('id', hijo.id);
-                }
-              }
-            }
-
-            // Si tiene condominio_padre_id, recalcular también la deuda_mmv del padre
-            if (inmData.condominio_padre_id) {
-              const { data: hermanos } = await supabase
-                .from('inmuebles')
-                .select('deuda_mmv, meses_deuda')
-                .eq('condominio_padre_id', inmData.condominio_padre_id);
-              if (hermanos) {
-                const totalHermanosMmv = hermanos.reduce((sum, h) => sum + parseFloat(h.deuda_mmv || '0'), 0);
-                const maxMesesHermanos = hermanos.reduce((max, h) => Math.max(max, parseInt(h.meses_deuda || '0')), 0);
-                await supabase
-                  .from('inmuebles')
-                  .update({ deuda_mmv: parseFloat(totalHermanosMmv.toFixed(5)), meses_deuda: maxMesesHermanos })
-                  .eq('inmueble', inmData.condominio_padre_id);
-              }
-            }
-          }
+          await syncInmuebleReduccion(inmCode);
         }
       } else if (isMulta) {
-        const inmCode = recId.replace('multa-', '');
+        const parts = recId.split('-');
+        const inmCode = parts[1] || recId.replace('multa-', '');
         if (inmCode) {
           await supabase
             .from('inmuebles')
-            .update({ multa_bs: 0, deuda_congelada_bs: 0 })
+            .update({ multa_bs: 0, multa_meses: 0, deuda_congelada_bs: 0 })
             .eq('inmueble', inmCode);
         }
       } else if (isUuid) {
         const { error } = await supabase.from('facturas').delete().eq('id', recibo.id);
         if (error) throw error;
+        // Al eliminar una factura formal de aseo/deuda, reducir también la deuda en el inmueble
+        // para evitar que Caja sintetice un RECIB-HIST- en su lugar
+        const inmCode = recibo.inmueble || (recibo.referencia?.match(/([A-Z]{3,4}\d{4,8})/)?.[1]);
+        if (inmCode) {
+          await syncInmuebleReduccion(inmCode);
+        }
       } else {
         // Fallback: intentar por referencia en la tabla facturas
         if (recibo.referencia) {
           await supabase.from('facturas').delete().eq('referencia', recibo.referencia);
+          const inmCode = recibo.inmueble || (recibo.referencia?.match(/([A-Z]{3,4}\d{4,8})/)?.[1]);
+          if (inmCode) {
+            await syncInmuebleReduccion(inmCode);
+          }
         }
       }
 
-      setViewFacturasDb(prev => prev.filter((f: any) => f.id !== recibo.id));
+      setViewFacturasDb(prev => prev.filter((f: any) => f.id !== recibo.id && f.referencia !== recibo.referencia));
       setFacturas((prev: any) => (prev || []).filter((f: any) => f.id !== recibo.id && f.referencia !== recibo.referencia));
       await refreshData();
       alert("Deuda eliminada exitosamente.");
