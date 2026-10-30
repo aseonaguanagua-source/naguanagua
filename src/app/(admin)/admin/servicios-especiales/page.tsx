@@ -320,6 +320,7 @@ export default function ServiciosEspecialesPage() {
                 tasa_euro: tcmmv || null,
                 nombre_evento: form.descripcion || form.nombreEvento || 'Inspección Técnica Ambiental',
                 fecha_evento: form.fechaEvento || form.fecha || null,
+                fecha_evento_hasta: form.fechaEventoHasta || null,
                 direccion_evento: form.lugar || form.direccion || null,
                 telefono: form.telefono || null,
                 correo: form.correo || null,

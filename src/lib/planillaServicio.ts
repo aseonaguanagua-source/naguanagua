@@ -186,17 +186,35 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
   if (insp) {
     seccion('DETALLES Y ACTA DE LA INSPECCIÓN DE ASEO:');
     campo('DIRECCIÓN DEL INMUEBLE:', d.direccion || d.lugar || 'Municipio Naguanagua'); y += 8;
-    campo('MOTIVO / SOLICITUD:', nombreEventoSanitizado || vehiculoLabelSanitizado || 'Inspección de Aseo Urbano'); y += 8;
+    campo('FECHA:', fechaRangoVE(d.fechaEvento, d.fechaEventoHasta), L, 80); campo('MOTIVO / SOLICITUD:', nombreEventoSanitizado || vehiculoLabelSanitizado || 'Inspección de Aseo Urbano', L + 85, R - L - 85); y += 8;
     
-    // Más líneas para escribir detalles in situ o impresos
+    // Observaciones técnicas in situ / registradas
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
     doc.text('DETALLES / OBSERVACIONES TÉCNICAS IN SITU:', L, y);
     y += 5;
-    const txtObs = String(d.direccion || nombreEventoSanitizado || '').length > 60 ? '' : '';
-    for (let lineIdx = 0; lineIdx < 4; lineIdx++) {
-      doc.setDrawColor(180);
-      doc.line(L, y, R, y);
-      y += 6.5;
+    
+    const obsTexto = (d.observaciones || d.descripcion || '').trim();
+    if (obsTexto) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+      const splitObs = doc.splitTextToSize(obsTexto, R - L - 4);
+      const maxLines = Math.min(splitObs.length, 4);
+      for (let lineIdx = 0; lineIdx < maxLines; lineIdx++) {
+        doc.text(splitObs[lineIdx], L + 2, y);
+        doc.setDrawColor(210);
+        doc.line(L, y + 1.2, R, y + 1.2);
+        y += 5.5;
+      }
+      for (let lineIdx = maxLines; lineIdx < 4; lineIdx++) {
+        doc.setDrawColor(180);
+        doc.line(L, y + 1.2, R, y + 1.2);
+        y += 5.5;
+      }
+    } else {
+      for (let lineIdx = 0; lineIdx < 4; lineIdx++) {
+        doc.setDrawColor(180);
+        doc.line(L, y, R, y);
+        y += 6.5;
+      }
     }
     y += 2;
   } else if (esp) {
