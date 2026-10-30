@@ -593,7 +593,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   const hoyCaracasStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
   const [fechaTransaccion, setFechaTransaccion] = useState(fechaTransaccionDe(det) || hoyCaracasStr);
   const [fechaBanco, setFechaBanco] = useState(det.fecha_banco || fechaTransaccionDe(det) || hoyCaracasStr);
-  const [enviarCorreo, setEnviarCorreo] = useState(true);
+  const [enviarCorreo, setEnviarCorreo] = useState(false);
   const [observaciones, setObservaciones] = useState(det.observaciones || '');
   const [cajeroOperador, setCajeroOperador] = useState(det.cajero || det.caja || det.usuario || '');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -2070,19 +2070,11 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <p className="text-sm font-semibold text-slate-600 mb-2">Notificar al Usuario?</p>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={enviarCorreo} onChange={e=>setEnviarCorreo(e.target.checked)} className="w-4 h-4 accent-blue-600"/>
-                  <span className="text-sm font-medium text-slate-700">Enviar Correo</span>
-                </label>
-              </div>
-              <div>
-                <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} rows={3}
-                  placeholder="Observaciones (se copian al correo del usuario)"
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"/>
-              </div>
+            <div>
+              <label className={lc}>Observaciones</label>
+              <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} rows={2}
+                placeholder="Observaciones de la conciliación"
+                className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"/>
             </div>
 
             {/* RESUMEN */}

@@ -748,6 +748,8 @@ export async function GET(request: Request) {
             fd?.anulada || 
             fd?.nota_credito ||
             pago.estado === 'Anulado' ||
+            det?.estado === 'Anulado' ||
+            (Array.isArray(det?.facturas_digitales_previas) && det.facturas_digitales_previas.some((prev: any) => prev?.anulada || prev?.nota_credito)) ||
             // Si fue rechazada la factura pero había sido emitida
             (Boolean(fd?.rechazada || pago.estado === 'Rechazado') && Boolean(fd?.numero_documento || fd?.numero_control || emitida))
           ),
@@ -755,7 +757,7 @@ export async function GET(request: Request) {
           notaCreditoUrl: fd?.nota_credito?.url || null,
           notaCreditoControl: fd?.nota_credito?.numero_control || 
             fd?.nota_credito?.numero_documento || 
-            (fd?.anulada ? 'ANULADA' : ((fd?.rechazada || pago.estado === 'Rechazado') && (fd?.numero_documento || fd?.numero_control || emitida) ? 'ANULADA EN CAJA' : null)),
+            (fd?.anulada ? 'ANULADA' : ((fd?.rechazada || pago.estado === 'Rechazado') && (fd?.numero_documento || fd?.numero_control || emitida) ? 'ANULADA EN CAJA' : (pago.estado === 'Anulado' ? 'ANULADA' : null))),
           // Agente de retención: la factura se envía solo al aprobar su comprobante
           conRetencion: tieneRetencion,
           esRetencion: tieneRetencion,

@@ -1061,6 +1061,11 @@ export default function CajaPage() {
         if (esEspecifico) return true;
         return st === 'activo';
       }).map((i: any) => {
+        const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
+        // Si se buscó específicamente por este código, respetar exactamente sus meses_deuda ajustados
+        if (esEspecifico && (i.meses_deuda !== null && i.meses_deuda !== undefined)) {
+          return i;
+        }
         const p = i.padre_id;
         const mNa = p ? naMesesMap.get(p) : undefined;
         if (mNa && mNa > mesesEf(i)) {
@@ -1356,6 +1361,10 @@ export default function CajaPage() {
             return !isNA || !hasChildren;
           })
           .map((i: any) => {
+            const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
+            if (esEspecifico && (i.meses_deuda !== null && i.meses_deuda !== undefined)) {
+              return i;
+            }
             const p = i.padre_id || i.condominio_padre_id;
             const mNa = p ? naMeses.get(p) : undefined;
             if (mNa && mNa > mesesEf(i)) {

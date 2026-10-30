@@ -1465,19 +1465,12 @@ export default function FacturacionElectronicaPage() {
                               {pago.reciboError && <span className="block text-[10px] text-red-600 max-w-[180px]">{pago.reciboError}</span>}
                             </div>
                           )
-                        ) : (pago.facturaEmitida || pago.facturaAnulada) ? (
+                        ) : pago.facturaAnulada || pago.estado === 'Anulado' ? (
                           <div className="space-y-1">
-                            {pago.facturaAnulada ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800 border border-rose-300">
-                                <X className="w-3.5 h-3.5 text-rose-600" />
-                                Anulada (NC)
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                Emitida SENIAT
-                              </span>
-                            )}
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800 border border-rose-300">
+                              <X className="w-3.5 h-3.5 text-rose-600" />
+                              Anulada (NC)
+                            </span>
                             {pago.numeroFactura && (
                               <span className="block font-mono text-[10px] font-bold text-slate-700">
                                 Doc: {pago.numeroFactura}
@@ -1494,6 +1487,28 @@ export default function FacturacionElectronicaPage() {
                               </span>
                             )}
                           </div>
+                        ) : pago.facturaEmitida ? (
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Emitida SENIAT
+                            </span>
+                            {pago.numeroFactura && (
+                              <span className="block font-mono text-[10px] font-bold text-slate-700">
+                                Doc: {pago.numeroFactura}
+                              </span>
+                            )}
+                            {pago.numeroControl && (
+                              <span className="block font-mono text-[10px] text-slate-500">
+                                Ctrl: {pago.numeroControl}
+                              </span>
+                            )}
+                          </div>
+                        ) : pago.estado === 'Rechazado' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                            <X className="w-3.5 h-3.5 text-slate-500" />
+                            Pago Rechazado
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
