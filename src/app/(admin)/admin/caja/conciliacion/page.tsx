@@ -624,10 +624,25 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         if (pago.grupo_pago && typeof pago.grupo_pago === 'string') {
           orParts.push(`grupo_pago.eq.${pago.grupo_pago}`);
         }
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('pagos_reportados')
           .select('*')
           .or(orParts.join(','));
+        
+        if (error) {
+          console.warn('Error fetching pagos vinculados via OR:', error);
+          // Fallback con consulta directa por grupo_pago
+          if (pago.grupo_pago) {
+            const { data: dFallback } = await supabase
+              .from('pagos_reportados')
+              .select('*')
+              .eq('grupo_pago', pago.grupo_pago);
+            if (!cancel && dFallback && dFallback.length > 1) {
+              setPagosVinculados(dFallback);
+              return;
+            }
+          }
+        }
         
         if (!cancel && data && data.length > 1) {
           setPagosVinculados(data);
@@ -884,6 +899,68 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     return montoReportadoNum;
   })();
 
+  // Saldo a Favor / Nota de Crédito previa aplicada en la operación
+  const saldoFavorUsado = (() => {
+    let s = parseFloat(String(det.saldo_usado || det.saldo_favor_usado || det.descuentoSaldoFavor || det.saldo_aplicado || 0)) || 0;
+    if (s <= 0 && Array.isArray(det.pagos_agregados)) {
+      const pSF = det.pagos_agregados.find((pa: any) => 
+        String(pa.metodo || pa.tipo || '').toLowerCase().includes('saldo') || 
+        String(pa.referencia || '').toLowerCase().includes('saldo')
+      );
+      if (pSF && parseFloat(String(pSF.monto || 0)) > 0) {
+        s = parseFloat(String(pSF.monto || 0));
+      }
+    }
+    if (s <= 0 && Array.isArray(det.formasPago)) {
+      const fSF = det.formasPago.find((fp: any) => 
+        String(fp.descripcion || fp.metodo || '').toLowerCase().includes('saldo') || 
+        String(fp.referencia || '').toLowerCase().includes('saldo')
+      );
+      if (fSF && parseFloat(String(fSF.monto || 0)) > 0) {
+        s = parseFloat(String(fSF.monto || 0));
+      }
+    }
+    return Math.round(s * 100) / 100;
+  })();
+
+  // Detectar si esta fila es parte de un pago múltiple / fraccionado
+  const esMultiPago = Boolean(
+    pagosVinculados.length > 1 || 
+    det.pago_principal_id || 
+    det.es_pago_adicional || 
+    pago.grupo_pago || 
+    (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)
+  );
+
+  // Total combinado de transferencias bancarias vinculadas
+  const totalTransferenciasVinculadas = pagosVinculados.length > 1
+    ? Math.round(pagosVinculados.reduce((acc, p) => acc + (parseFloat(String(p.monto || '0')) || 0), 0) * 100) / 100
+    : (Array.isArray(det.pagos_agregados)
+        ? Math.round(det.pagos_agregados.filter((pa: any) => !String(pa.metodo || pa.tipo || '').toLowerCase().includes('saldo')).reduce((acc: number, pa: any) => acc + (parseFloat(String(pa.monto || 0)) || 0), 0) * 100) / 100
+        : montoReportadoNum);
+
+  // Deuda neta que debe ser pagada mediante bancos (restando nota de crédito y retención)
+  const totalBancosRequerido = Math.max(0, Math.round((totalAPagarCalc - saldoFavorUsado) * 100) / 100);
+
+  // Validación de falta por pagar considerando si se concilia individualmente o en grupo
+  const faltaPorPagarIndividual = Math.round((montoReportadoNum - montoConciliadoNum) * 100) / 100;
+  const faltaPorPagarGrupo = Math.round((totalBancosRequerido - totalTransferenciasVinculadas) * 100) / 100;
+
+  // Está insuficiente sólo si:
+  // - En modo individual: el monto digitado es menor al de esta transferencia (faltaPorPagarIndividual > 0.05)
+  // - O si no es multi-pago: el monto digitado no cubre la deuda neta bancaria (totalBancosRequerido - montoConciliadoNum > 0.05)
+  // - O en conciliarTodoElGrupo: la suma de todas las transferencias no cubre la deuda neta bancaria (faltaPorPagarGrupo > 0.05)
+  const esMontoInsuficiente = (() => {
+    if (det.es_abono) return false;
+    if (esMultiPago) {
+      if (conciliarTodoElGrupo && pagosVinculados.length > 1) {
+        return faltaPorPagarGrupo > 0.05;
+      }
+      return faltaPorPagarIndividual > 0.05;
+    }
+    return (totalBancosRequerido - montoConciliadoNum) > 0.05;
+  })();
+
   const deudaTotalContrib = (() => {
     const dContrib = contribInfo?._deudaTotal ? parseLocalFloat(contribInfo._deudaTotal) : 0;
     if (dContrib > 0) return dContrib;
@@ -893,14 +970,15 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
   const handleConciliar = async () => {
     // Validación estricta: No permitir conciliar como 'Aprobado' si falta monto por pagar
-    if (estatus === 'Aprobado') {
-      const faltaPorPagar = Math.round((totalAPagarCalc - montoConciliadoNum) * 100) / 100;
-      if (faltaPorPagar > 0.05 && !det.es_abono) {
-        alert(
-          `⛔ NO SE PUEDE CONCILIAR:\n\nEl monto conciliado (Bs. ${fmt(montoConciliadoNum)}) es menor al total a pagar requerido (Bs. ${fmt(totalAPagarCalc)}).\nFalta por pagar: Bs. ${fmt(faltaPorPagar)}.\n\nPara aprobar un pago parcial, use el estatus "Con Diferencia" o regístrelo como abono formal.`
-        );
-        return;
-      }
+    if (estatus === 'Aprobado' && esMontoInsuficiente) {
+      const faltaTexto = esMultiPago && (!conciliarTodoElGrupo || pagosVinculados.length <= 1)
+        ? `Falta por pagar para esta transferencia: Bs. ${fmt(faltaPorPagarIndividual)}`
+        : `Falta por cubrir de la deuda neta bancaria: Bs. ${fmt(Math.max(faltaPorPagarGrupo, totalBancosRequerido - montoConciliadoNum))}`;
+
+      alert(
+        `⛔ NO SE PUEDE CONCILIAR:\n\nEl monto conciliado (Bs. ${fmt(montoConciliadoNum)}) no cubre lo requerido.\n${faltaTexto}.\n\nPara aprobar un pago parcial, use el estatus "Con Diferencia" o regístrelo como abono formal.`
+      );
+      return;
     }
 
     setIsProcessing(true);
@@ -2105,9 +2183,29 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 </div>
               )}
               <div className="flex justify-between text-sm border-t pt-1 mt-1">
-                <span className="font-bold text-slate-800">Total a Pagar</span>
+                <span className="font-bold text-slate-800">Total Documento / Liquidado</span>
                 <span className="font-bold text-slate-800">{fmt(totalAPagarCalc)}</span>
               </div>
+              {saldoFavorUsado > 0 && (
+                <div className="flex justify-between text-sm text-indigo-700 bg-indigo-50/70 p-1.5 rounded mt-1 font-semibold">
+                  <span className="flex items-center gap-1">
+                    <span>💳</span> Saldo a Favor / Nota de Crédito Aplicada
+                  </span>
+                  <span className="font-bold">- {fmt(saldoFavorUsado)}</span>
+                </div>
+              )}
+              {saldoFavorUsado > 0 && (
+                <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-200 pt-1 mt-1">
+                  <span>Deuda Neta a Transferir por Bancos</span>
+                  <span className="text-indigo-900 font-black">{fmt(totalBancosRequerido)}</span>
+                </div>
+              )}
+              {esMultiPago && (
+                <div className="flex justify-between text-xs text-indigo-800 bg-indigo-50/50 p-1.5 rounded mt-1">
+                  <span>Transferencia Actual en Pantalla:</span>
+                  <span className="font-bold font-mono">Bs. {fmt(montoReportadoNum)}</span>
+                </div>
+              )}
               {estatus === 'Aprobado' && montoConciliadoNum > totalAPagarCalc + 0.05 && (
                 <div className="flex justify-between text-sm border-t pt-1 mt-1 text-emerald-700 font-bold bg-emerald-50/70 p-2 rounded">
                   <span>Saldo a Favor Generado (Nota de Crédito)</span>
@@ -2115,21 +2213,31 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                 </div>
               )}
               {/* Alerta de monto insuficiente */}
-              {estatus === 'Aprobado' && !det.es_abono && (totalAPagarCalc - montoConciliadoNum) > 0.05 && (
+              {estatus === 'Aprobado' && !det.es_abono && esMontoInsuficiente && (
                 <div className="border border-red-300 bg-red-50 text-red-800 rounded p-3 text-xs mt-2 font-medium">
                   <div className="flex items-center justify-between font-bold text-red-900 mb-1">
                     <span>⛔ MONTO INSUFICIENTE PARA APROBAR</span>
-                    <span>Falta: Bs. {fmt(totalAPagarCalc - montoConciliadoNum)}</span>
+                    <span>
+                      Falta: Bs. {fmt(esMultiPago && (!conciliarTodoElGrupo || pagosVinculados.length <= 1) ? faltaPorPagarIndividual : Math.max(faltaPorPagarGrupo, totalBancosRequerido - montoConciliadoNum))}
+                    </span>
                   </div>
                   <p>
-                    El monto a conciliar (Bs. {fmt(montoConciliadoNum)}) no cubre la totalidad del documento/deuda a pagar (Bs. {fmt(totalAPagarCalc)}).
-                    Para admitir pagos parciales, seleccione el estatus <b>"Con Diferencia"</b> o regístrelo formalmente como abono en Caja.
+                    {esMultiPago && (!conciliarTodoElGrupo || pagosVinculados.length <= 1) ? (
+                      <>
+                        El monto ingresado (Bs. {fmt(montoConciliadoNum)}) no cubre el importe reportado para esta transferencia (Bs. {fmt(montoReportadoNum)}).
+                      </>
+                    ) : (
+                      <>
+                        El monto ingresado no cubre la totalidad de la deuda neta bancaria a pagar (Bs. {fmt(totalBancosRequerido)}).
+                        Para admitir pagos parciales, seleccione el estatus <b>"Con Diferencia"</b> o regístrelo formalmente como abono en Caja.
+                      </>
+                    )}
                   </p>
                 </div>
               )}
 
               {/* Diferencia pendiente cuando monto conciliado < deuda total */}
-              {estatus === 'Aprobado' && montoConciliadoNum > 0 && montoReportadoNum < deudaTotalContrib - 0.05 && (
+              {estatus === 'Aprobado' && montoConciliadoNum > 0 && montoReportadoNum < deudaTotalContrib - 0.05 && !esMultiPago && (
                 <div className="border-t pt-2 mt-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-amber-700 font-bold">⚠️ Deuda Restante (Pendiente de Pago)</span>
@@ -2161,9 +2269,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               <button onClick={onClose} className="px-4 py-2 border border-slate-400 text-slate-600 hover:bg-slate-50 rounded font-semibold text-sm flex items-center gap-1"><X size={14}/> Cerrar</button>
               <button 
                 onClick={handleConciliar} 
-                disabled={isProcessing || (estatus === 'Aprobado' && !det.es_abono && (totalAPagarCalc - montoConciliadoNum) > 0.05)} 
+                disabled={isProcessing || (estatus === 'Aprobado' && esMontoInsuficiente)} 
                 className="px-5 py-2 bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed rounded font-bold text-sm flex items-center gap-2"
-                title={estatus === 'Aprobado' && !det.es_abono && (totalAPagarCalc - montoConciliadoNum) > 0.05 ? 'No puede conciliar porque falta monto por pagar' : ''}
+                title={estatus === 'Aprobado' && esMontoInsuficiente ? 'No puede conciliar porque el monto es insuficiente' : ''}
               >
                 {isProcessing ? <RefreshCw size={14} className="animate-spin"/> : <CheckCheck size={14}/>} {pago.estado === 'Aprobado' ? 'Guardar Cambios / Referencia' : 'Conciliar'}
               </button>
