@@ -909,14 +909,16 @@ export async function GET(request: Request) {
     else if (moduloFiltro === 'Condominios comerciales') filtered = filtered.filter(i => i.condominio?.residencial === false);
 
     if (query) {
+      const qLower = query.toLowerCase();
       filtered = filtered.filter(i => 
-        i.identidad.toLowerCase().includes(query) ||
-        i.contribuyente.toLowerCase().includes(query) ||
-        i.referencia.toLowerCase().includes(query) ||
-        (i.numeroControl && i.numeroControl.toLowerCase().includes(query)) ||
-        (i.numeroDocumento && String(i.numeroDocumento).toLowerCase().includes(query)) ||
-        (i.inmuebles && i.inmuebles.some((inm: string) => inm.toLowerCase().includes(query))) ||
-        (i.recibos && i.recibos.some((r: string) => r.toLowerCase().includes(query)))
+        i.identidad.toLowerCase().includes(qLower) ||
+        i.contribuyente.toLowerCase().includes(qLower) ||
+        i.referencia.toLowerCase().includes(qLower) ||
+        (i.numeroControl && i.numeroControl.toLowerCase().includes(qLower)) ||
+        (i.numeroDocumento && String(i.numeroDocumento).toLowerCase().includes(qLower)) ||
+        (i.inmuebles && i.inmuebles.some((inm: string) => inm.toLowerCase().includes(qLower) || queryRelatedInmuebleCodes.has(inm.toUpperCase()))) ||
+        (i.recibos && i.recibos.some((r: string) => r.toLowerCase().includes(qLower))) ||
+        (queryInmIdents.size > 0 && queryInmIdents.has(i.identidad))
       );
     }
 

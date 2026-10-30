@@ -454,6 +454,13 @@ export default function FacturacionElectronicaPage() {
     ? anuladasDia
     : delTipo.filter(p => {
         const esAnulada = p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.estado === 'Rechazado';
+        // Si hay una búsqueda activa por cédula/nombre/referencia, mostrar todos los documentos coincidentes
+        // a menos que se haya seleccionado explícitamente la pestaña de emitidas o pendientes
+        if (searchTerm.trim()) {
+          if (filterTab === 'pendientes') return true; // en búsqueda, no ocultar las ya emitidas si el usuario busca por cédula
+          if (filterTab === 'emitidas') return p.procesado && !esAnulada;
+          return true;
+        }
         if (filterTab === 'pendientes') return !p.procesado && !esAnulada && p.estado !== 'Rechazado';
         if (filterTab === 'emitidas') return p.procesado && !esAnulada;
         return true;
@@ -1469,6 +1476,11 @@ export default function FacturacionElectronicaPage() {
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                 Emitida SENIAT
+                              </span>
+                            )}
+                            {pago.numeroFactura && (
+                              <span className="block font-mono text-[10px] font-bold text-slate-700">
+                                Doc: {pago.numeroFactura}
                               </span>
                             )}
                             {pago.numeroControl && (
