@@ -586,6 +586,17 @@ export default function FacturacionElectronicaPage() {
       sumRecibos = Object.values(montosMap).reduce((acc: number, val: any) => acc + (parseFloat(String(val)) || 0), 0);
     }
 
+    // Obtener total de recibo_caja si existe
+    let rcTotal = 0;
+    if (pago.detalles?.recibo_caja) {
+      try {
+        const rcParsed = typeof pago.detalles.recibo_caja === 'string' ? JSON.parse(pago.detalles.recibo_caja) : pago.detalles.recibo_caja;
+        if (Array.isArray(rcParsed) && rcParsed.length > 0) {
+          rcTotal = rcParsed.reduce((acc: number, r: any) => acc + (parseFloat(String(r.total || 0)) || 0), 0);
+        }
+      } catch (_) {}
+    }
+
     const montoFacturaDet = parseFloat(String(pago.detalles?.monto_factura || 0)) || sumRecibos || 0;
     let saldoFavor = parseFloat(String(pago.detalles?.saldo_a_favor_nuevo || pago.detalles?.monto_sobrante || pago.detalles?.saldo_favor || pago.detalles?.saldo_favor_generado || 0)) || 0;
     
@@ -606,7 +617,18 @@ export default function FacturacionElectronicaPage() {
     const montoPagoNeto = Math.max(0, netoTransferido - saldoFavor);
     let ref = totalRef && totalRef > 0 ? totalRef : 0;
     if (!ref) {
-      if (pago.detalles?.monto_factura && parseFloat(String(pago.detalles.monto_factura)) > 0) {
+      if (rcTotal > 0) {
+        // Si hay recibos emitidos en caja, ese es el monto exacto fiscal de la factura
+        const esNeto = esRet && montoRet > 0 && (
+          (pago.detalles?.monto_neto_factura && Math.abs(rcTotal - parseFloat(pago.detalles.monto_neto_factura)) < 1) ||
+          (pago.detalles?.montoTotal && Math.abs(rcTotal - parseFloat(pago.detalles.montoTotal)) < 1) ||
+          (pago.detalles?.total_seleccionado && parseFloat(pago.detalles.total_seleccionado) > rcTotal + 1)
+        );
+        ref = esNeto ? Math.round((rcTotal + montoRet) * 100) / 100 : rcTotal;
+      } else if (pago.monto && typeof pago.monto === 'number' && pago.monto > 0) {
+        // En listar, pago.monto ya viene calculado como montoFacturaReal
+        ref = pago.monto;
+      } else if (pago.detalles?.monto_factura && parseFloat(String(pago.detalles.monto_factura)) > 0) {
         ref = parseFloat(String(pago.detalles.monto_factura));
       } else if (esRet) {
         const totalSel = parseFloat(String(pago.detalles?.total_seleccionado || 0));
@@ -736,10 +758,14 @@ export default function FacturacionElectronicaPage() {
     setPagoAEditar(pago);
     const fOrig = (pago.detalles?.fecha_transaccion || pago.created_at || pago.fecha || '').slice(0, 10);
     const conceptoOrig = pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle || '';
+    const montoPagadoReal = pago.montoPagado || 
+      pago.detalles?.monto_conciliado || 
+      (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.monto) || 
+      pago.monto || '';
     setEditForm({
       contribuyente: pago.contribuyente || pago.detalles?.contribuyente || '',
       identidad: pago.identidad || '',
-      monto: String(pago.monto || ''),
+      monto: String(montoPagadoReal),
       referencia: pago.referencia && pago.referencia !== 'N/A' ? pago.referencia : '',
       fecha: fOrig || hoyCaracas(),
       concepto: conceptoOrig,

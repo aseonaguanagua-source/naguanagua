@@ -265,7 +265,9 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           }
         }
 
-        const mPagado = r2(Number(p.monto) || 0);
+        const mPagado = r2(
+          Number(det.monto_conciliado || (Array.isArray(det.formasPago) && det.formasPago[0]?.monto) || p.monto) || 0
+        );
         const row = wsBan.getRow(f++);
 
         // Requisito 2: Para usuarios con recibo o factura, sale el número de factura o recibo asociado

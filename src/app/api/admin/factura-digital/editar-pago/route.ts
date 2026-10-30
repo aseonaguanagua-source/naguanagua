@@ -53,16 +53,23 @@ export async function POST(req: Request) {
     const nuevoNombre = String(contribuyente || det.contribuyente || det.contribuyente_nombre || '').trim();
     const flagRetencion = esRetencion !== undefined ? !!esRetencion : (det.agente_retencion || det.es_retencion || false);
 
-    const nuevosDetalles = {
-      ...det,
-      contribuyente: nuevoNombre,
-      contribuyente_nombre: nuevoNombre,
-      referencia: nuevaRef,
-      referencia_origen: nuevaRef,
-      agente_retencion: flagRetencion,
-      es_retencion: flagRetencion,
-      modulo: nuevoModulo,
-      ...(flagRetencion ? (() => {
+    // Comprobar si el monto realmente fue alterado por el usuario
+    const montoAnterior = parseFloat(String(pago.monto || 0));
+    const montoConciliadoAnterior = parseFloat(String(det.monto_conciliado || det.formasPago?.[0]?.monto || 0));
+    const montoCambio = Math.abs(nuevoMonto - montoAnterior) > 0.05 && Math.abs(nuevoMonto - montoConciliadoAnterior) > 0.05;
+
+    // Si el monto no cambió, preservar el monto_factura y retenciones calculados previamente en lugar de recalcular a ciegas
+    const calculoRetencion = (() => {
+      if (!montoCambio && det.monto_factura) {
+        return {
+          monto_factura: det.monto_factura,
+          monto_retencion_iva: det.monto_retencion_iva ?? det.retencion_iva ?? 0,
+          retencion_iva: det.retencion_iva ?? det.monto_retencion_iva ?? 0,
+          porcentaje_retencion: det.porcentaje_retencion ?? (flagRetencion ? 75 : 0),
+          conRetencion: flagRetencion
+        };
+      }
+      if (flagRetencion) {
         const base = parseFloat((nuevoMonto / 1.04).toFixed(2));
         const iva = parseFloat((base * 0.16).toFixed(2));
         const retencion = parseFloat((iva * 0.75).toFixed(2));
@@ -74,12 +81,25 @@ export async function POST(req: Request) {
           porcentaje_retencion: 75,
           conRetencion: true
         };
-      })() : {
-        monto_factura: nuevoMonto,
+      }
+      return {
+        monto_factura: det.monto_factura || nuevoMonto,
         monto_retencion_iva: 0,
         retencion_iva: 0,
         conRetencion: false
-      }),
+      };
+    })();
+
+    const nuevosDetalles = {
+      ...det,
+      contribuyente: nuevoNombre,
+      contribuyente_nombre: nuevoNombre,
+      referencia: nuevaRef,
+      referencia_origen: nuevaRef,
+      agente_retencion: flagRetencion,
+      es_retencion: flagRetencion,
+      modulo: nuevoModulo,
+      ...calculoRetencion,
       ...(marcarAnulada ? {
         factura_digital: {
           ...(det.factura_digital || {}),
@@ -141,9 +161,17 @@ export async function POST(req: Request) {
       }
     }
 
+    // Actualizar monto pagado en formasPago y monto_conciliado si el monto fue modificado expresamente
+    if (montoCambio) {
+      nuevosDetalles.monto_conciliado = String(nuevoMonto);
+      if (Array.isArray(nuevosDetalles.formasPago) && nuevosDetalles.formasPago[0]) {
+        nuevosDetalles.formasPago[0].monto = nuevoMonto;
+      }
+    }
+
     const updatePayload: any = {
       identidad: nuevaIdentidad,
-      monto: nuevoMonto,
+      monto: montoCambio ? nuevoMonto : pago.monto,
       referencia: nuevaRef,
       modulo: nuevoModulo,
       detalles: nuevosDetalles,
