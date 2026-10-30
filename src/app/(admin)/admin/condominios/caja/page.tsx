@@ -1331,13 +1331,13 @@ function Caja() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2.5">
-                    {/* Switch de Multa por Mora (solo activo para Pago Individual de Contribuyente) */}
-                    {modo === 'CONTRIBUYENTE' && !soloMultas && (
+                    {/* Switch de Multa por Mora (activo para Pago de Condominio completo, Abono o Individual) */}
+                    {!soloMultas && (
                       <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${
                         incluirMultas
                           ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-2xs ring-1 ring-amber-300'
                           : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
-                      }`} title="Incluye o no las multas acumuladas de este contribuyente">
+                      }`} title="Incluye o no las multas acumuladas en este cobro">
                         <input
                           id="incluir-multas-condominio"
                           type="checkbox"

@@ -194,11 +194,10 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     const meses = r.deuda.porMes.slice(0, nMeses);
     const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs') => r2(meses.reduce((a, m) => a + m[k], 0));
     // ¿Las multas van en este cobro? Solo si el usuario lo tilda (o en soloMultas)
-    const condoPorActividad = modo === 'CONDOMINIO' && porAct;
     const permitirMultas = sol.soloMultas || sol.incluirMultas === true;
-    const multaMora = (condoPorActividad || !permitirMultas) ? 0 : s('multaBs');
+    const multaMora = !permitirMultas ? 0 : s('multaBs');
     const multaMesesQueQuedan = !permitirMultas ? r.multaMeses : 0;
-    const incluirAparte = permitirMultas && !condoPorActividad && (modo === 'CONTRIBUYENTE' || !porAct);
+    const incluirAparte = permitirMultas;
     const aparte = incluirAparte ? r2((nMeses === r.deuda.meses ? r.multaExtraBs : 0) + r.multasManualesBs) : 0;
     const base = s('baseBs'), iva = s('ivaBs'), ret = s('retencionBs');
     return {
@@ -209,8 +208,8 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
     };
   }).filter(l => l.totalBs > 0.01);
 
-  if (modo === 'CONDOMINIO' && porAct && conDeuda.some(r => r.deuda.multaBs + r.multaExtraBs + r.multasManualesBs > 0))
-    avisos.push('Las multas no van en el pago del condominio: las paga cada contribuyente (búsquelo por su cédula).');
+  if (modo === 'CONDOMINIO' && porAct && !sol.incluirMultas && conDeuda.some(r => r.deuda.multaBs + r.multaExtraBs + r.multasManualesBs > 0))
+    avisos.push('Las multas están desactivadas por defecto en el pago del condominio; marque "Cobrar Aseo + Multas" si el condominio desea pagarlas.');
 
   // Facturas: CONDOMINIO → una al condominio. CONTRIBUYENTE → una por dueño.
   const facturas: Factura[] = [];
