@@ -1206,11 +1206,21 @@ function ContribuyentesPageContent() {
       subtotalMultasLocal = Math.round(subtotalMultasLocal * 100) / 100;
 
       const totalPagarLocal = Math.round((subtotalBaseLocal + subtotalIvaLocal + subtotalMultasLocal + totalServiciosBs) * 100) / 100;
-      // Agente de retención: retiene el 75% del IVA de sus inmuebles comerciales y cancela el resto.
-      const ivaRetenidoLocal = esRes ? 0 : Math.round(clusterInmBreakdown.reduce((s: number, b: any) => {
-        const inmB = cluster.inmuebles.find((i: any) => i.inmueble === b.inmueble);
-        return s + ((inmB?.agente_retencion === true || String(inmB?.agente_retencion) === 'true') ? b.ivaTotal * 0.75 : 0);
-      }, 0) * 100) / 100;
+      // Agente de retención: si el contribuyente o cualquiera de sus inmuebles comerciales es agente de retención,
+      // la condición fiscal de agente (SENIAT) aplica al contribuyente sobre la totalidad del IVA comercial generado.
+      const esAgenteCluster = !esRes && (
+        viewData?.agente_retencion === true ||
+        String(viewData?.agente_retencion) === 'true' ||
+        viewData?.esAgenteRetencion === true ||
+        cluster.inmuebles.some((i: any) => i.agente_retencion === true || String(i.agente_retencion) === 'true') ||
+        userInms.some((i: any) => i.agente_retencion === true || String(i.agente_retencion) === 'true')
+      );
+      const ivaRetenidoLocal = esAgenteCluster
+        ? Math.round((subtotalIvaLocal * 0.75) * 100) / 100
+        : Math.round(clusterInmBreakdown.reduce((s: number, b: any) => {
+            const inmB = cluster.inmuebles.find((i: any) => i.inmueble === b.inmueble);
+            return s + ((inmB?.agente_retencion === true || String(inmB?.agente_retencion) === 'true') ? b.ivaTotal * 0.75 : 0);
+          }, 0) * 100) / 100;
       const esAgenteLocal = ivaRetenidoLocal > 0;
       const totalCancelarLocal = Math.round((totalPagarLocal - ivaRetenidoLocal) * 100) / 100;
 
