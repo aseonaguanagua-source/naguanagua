@@ -383,8 +383,10 @@ export default function FacturacionElectronicaPage() {
   const loadPagos = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Se cargan todos los pagos del día; las pestañas filtran en el cliente
-      const res = await fetch(`/api/admin/factura-digital/listar?filter=todos&fecha=${fecha}&q=${encodeURIComponent(searchTerm)}`);
+      // Se cargan los pagos según el tab; si es 'anuladas' y no hay búsqueda, se consulta filter=anuladas
+      const filterParam = filterTab === 'anuladas' && !searchTerm ? 'anuladas' : 'todos';
+      const fechaParam = filterTab === 'anuladas' && !searchTerm ? '' : fecha;
+      const res = await fetch(`/api/admin/factura-digital/listar?filter=${filterParam}&fecha=${fechaParam}&q=${encodeURIComponent(searchTerm)}`);
       const data = await res.json();
       if (data.success) {
         const items = data.items || [];
@@ -411,7 +413,7 @@ export default function FacturacionElectronicaPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [fecha, searchTerm]);
+  }, [fecha, searchTerm, filterTab]);
 
   useEffect(() => {
     loadConfig();

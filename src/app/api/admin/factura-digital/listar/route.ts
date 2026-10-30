@@ -18,19 +18,61 @@ export async function GET(request: Request) {
 
     // Si hay un término de búsqueda (cédula, referencia, código de inmueble, etc.),
     // buscamos directamente en la base de datos sin restringir por fecha del día.
-    let queryInmIdents: string[] = [];
+    // Si hay un término de búsqueda (cédula, referencia, código de inmueble, etc.),
+    // buscamos directamente en la base de datos sin restringir por fecha del día.
+    const queryInmIdents = new Set<string>();
+    const queryRelatedInmuebleCodes = new Set<string>();
+
     if (query) {
+      // 1. Buscar inmuebles que coincidan por código de inmueble, cédula/RIF o nombre de contribuyente
       const { data: matchedInms } = await supabase
         .from('inmuebles')
-        .select('identidad')
-        .ilike('inmueble', `%${query}%`)
-        .limit(10);
-      if (matchedInms) {
-        queryInmIdents = matchedInms.map(i => i.identidad).filter(Boolean);
+        .select('identidad, inmueble, contribuyente')
+        .or(`inmueble.ilike.%${query}%,identidad.ilike.%${query}%,contribuyente.ilike.%${query}%`)
+        .limit(30);
+
+      matchedInms?.forEach(i => {
+        if (i.identidad) queryInmIdents.add(i.identidad);
+        if (i.inmueble) queryRelatedInmuebleCodes.add(i.inmueble);
+      });
+
+      // 2. Si el query es un número de cédula o referencia, buscar pagos iniciales directos para extraer inmuebles asociados
+      // (por ejemplo: si pagan local URB015179 con cédula V-7112190 pero el inmueble está registrado a V-19866756)
+      const { data: directPagos } = await supabase
+        .from('pagos_reportados')
+        .select('identidad, detalles')
+        .or(`identidad.ilike.%${query}%,referencia.ilike.%${query}%`)
+        .limit(20);
+
+      directPagos?.forEach(p => {
+        if (p.identidad) queryInmIdents.add(p.identidad);
+        const d = parseDetalles(p.detalles);
+        const c1 = d?.condominio?.codigo || d?.codigo_inmueble || d?.cod_inmueble;
+        if (c1) queryRelatedInmuebleCodes.add(c1);
+        (d?.condominio?.lineas || []).forEach((l: any) => {
+          if (l.inmueble) queryRelatedInmuebleCodes.add(l.inmueble);
+        });
+        (d?.recibos || []).forEach((r: any) => {
+          const match = String(r).match(/(URB\d+|AURI\d+|RES\d+)/i);
+          if (match) queryRelatedInmuebleCodes.add(match[1].toUpperCase());
+        });
+      });
+
+      // 3. Buscar propietarios de los inmuebles vinculados (excluyendo condominios genéricos)
+      if (queryRelatedInmuebleCodes.size > 0) {
+        const { data: inmsFromCodes } = await supabase
+          .from('inmuebles')
+          .select('identidad, contribuyente')
+          .in('inmueble', Array.from(queryRelatedInmuebleCodes).slice(0, 30));
+        inmsFromCodes?.forEach(i => {
+          if (i.identidad && !String(i.contribuyente || '').toUpperCase().includes('CONDOMINIO')) {
+            queryInmIdents.add(i.identidad);
+          }
+        });
       }
     }
 
-    // Obtener los pagos reportados (de un día concreto, por búsqueda de término, o los más recientes)
+    // Obtener los pagos reportados (de un día concreto, por búsqueda de término, anuladas o los más recientes)
     let pagosQuery = supabase
       .from('pagos_reportados')
       .select('*')
@@ -42,8 +84,13 @@ export async function GET(request: Request) {
         `identidad.ilike.%${query}%`,
         `referencia.ilike.%${query}%`
       ];
-      queryInmIdents.forEach(id => orParts.push(`identidad.eq.${id}`));
+      Array.from(queryInmIdents).forEach(id => orParts.push(`identidad.eq.${id}`));
       pagosQuery = pagosQuery.or(orParts.join(',')).limit(500);
+    } else if (filter === 'anuladas') {
+      // Vista específica de facturas anuladas / notas de crédito
+      pagosQuery = pagosQuery
+        .or('estado.eq.Anulado,detalles->>factura_digital.ilike.%anulad%,detalles->>factura_digital.ilike.%nota_credito%')
+        .limit(500);
     } else {
       // En vista regular sin búsqueda, excluir reversados o condonados automáticos
       pagosQuery = pagosQuery.not('estado', 'in', '(Reversado,Condonado)');
@@ -128,13 +175,48 @@ export async function GET(request: Request) {
       });
     });
 
+    // 1.2) Consultar el estado de los pagos principales vinculados para verificar si siguen activos
+    const principalIdsToCheck = new Set<string>();
+    (rawPagos || []).forEach(p => {
+      const d = parseDetalles(p.detalles);
+      if (d?.pago_principal_id) principalIdsToCheck.add(d.pago_principal_id);
+    });
+
+    const pagosPrincipalesActivosMap = new Map<string, boolean>();
+    if (principalIdsToCheck.size > 0) {
+      const { data: parentRows } = await supabase
+        .from('pagos_reportados')
+        .select('id, estado, detalles')
+        .in('id', Array.from(principalIdsToCheck));
+
+      parentRows?.forEach(pr => {
+        const prD = parseDetalles(pr.detalles);
+        const prTeniaFactura = Boolean(
+          prD?.factura_digital?.emitida ||
+          prD?.factura_digital?.numero_documento ||
+          prD?.factura_digital?.numero_control
+        );
+        // El pago principal se considera activo si está Aprobado o si ya tiene factura emitida/anulada
+        const estaActivo = pr.estado === 'Aprobado' || prTeniaFactura;
+        pagosPrincipalesActivosMap.set(pr.id, estaActivo);
+      });
+    }
+
     const pagos = (rawPagos || []).filter(p => {
       if (p.tipo === 'Retencion de IVA') return false;
       const d = parseDetalles(p.detalles);
 
       // Si es un pago adicional / secundario vinculado a un pago principal (múltiples transferencias para una misma factura),
-      // la factura electrónica SOLO se emite desde el pago principal y no debe salir duplicada.
-      if (d?.es_pago_adicional === true || Boolean(d?.pago_principal_id)) return false;
+      // solo se excluye SI el pago principal realmente existe y está activo/aprobado.
+      // Si el pago principal fue rechazado o no existe, el pago aprobado individual DEBE mostrarse para poder ser facturado.
+      if (d?.pago_principal_id) {
+        const principalActivo = pagosPrincipalesActivosMap.get(d.pago_principal_id);
+        if (principalActivo === true) {
+          return false;
+        }
+      } else if (d?.es_pago_adicional === true) {
+        return false;
+      }
 
       // Una factura solo se considera anulada fiscalmente si fue emitida (o tiene documento/control) y luego anulada/rechazada,
       // o si el pago fue marcado como 'Anulado' tras haber sido procesado.
