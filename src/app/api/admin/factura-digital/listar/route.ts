@@ -87,9 +87,9 @@ export async function GET(request: Request) {
       Array.from(queryInmIdents).forEach(id => orParts.push(`identidad.eq.${id}`));
       pagosQuery = pagosQuery.or(orParts.join(',')).limit(500);
     } else if (filter === 'anuladas') {
-      // Vista específica de facturas anuladas / notas de crédito
+      // Vista específica de facturas anuladas / notas de crédito (incluye facturas previas anuladas o con NC)
       pagosQuery = pagosQuery
-        .or('estado.eq.Anulado,detalles->>factura_digital.ilike.%anulad%,detalles->>factura_digital.ilike.%nota_credito%')
+        .or('estado.eq.Anulado,detalles->>factura_digital.ilike.%anulad%,detalles->>factura_digital.ilike.%nota_credito%,detalles->>facturas_digitales_previas.ilike.%anulad%')
         .limit(500);
     } else {
       // En vista regular sin búsqueda, excluir reversados o condonados automáticos
@@ -231,13 +231,16 @@ export async function GET(request: Request) {
         d?.factura_digital?.numero_control
       );
 
+      const tienePrevias = Array.isArray(d?.facturas_digitales_previas) && d.facturas_digitales_previas.length > 0;
+
       const esAnulada = (p.estado === 'Anulado' && teniaFactura) || 
         Boolean(d?.factura_digital?.anulada || d?.factura_digital?.nota_credito) ||
-        (Boolean(d?.factura_digital?.rechazada || p.estado === 'Rechazado') && teniaFactura);
+        (Boolean(d?.factura_digital?.rechazada || p.estado === 'Rechazado') && teniaFactura) ||
+        (tienePrevias && d.facturas_digitales_previas.some((f: any) => f.anulada || f.nota_credito));
 
       // Si el pago fue rechazado, reversado o condonado en caja/conciliación y NUNCA se le emitió factura fiscal,
       // no tiene nada que hacer en Facturación Electrónica (ni como pendiente ni como emitida).
-      if (['Rechazado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')) && !teniaFactura) {
+      if (['Rechazado', 'Reversado', 'Condonado'].includes(String(p?.estado || '')) && !teniaFactura && !tienePrevias) {
         return false;
       }
 
@@ -246,7 +249,8 @@ export async function GET(request: Request) {
         d?.factura_digital?.emitida ||
         d?.factura_digital?.numero_documento ||
         d?.factura_digital?.url ||
-        esAnulada
+        esAnulada ||
+        tienePrevias
       );
       if (yaEmitidaOAnulada) {
         return true;
@@ -851,6 +855,38 @@ export async function GET(request: Request) {
 
         processedIds.add(item.id);
         dedupedItems.push(item);
+
+        // Si el pago contiene facturas digitales previas (emitidas y luego anuladas con o sin NC),
+        // se agregan como ítems independientes para que aparezcan en la pestaña de Anuladas (NC)
+        const previas = Array.isArray(item.detalles?.facturas_digitales_previas) ? item.detalles.facturas_digitales_previas : [];
+        previas.forEach((prevFd: any, pIdx: number) => {
+          if (!prevFd) return;
+          const esPrevAnulada = Boolean(prevFd.anulada || prevFd.nota_credito);
+          const prevEmitida = Boolean(prevFd.emitida || prevFd.numero_documento || prevFd.numero_control);
+          if (!esPrevAnulada && !prevEmitida) return;
+
+          const prevNCControl = prevFd.nota_credito?.numero_control ||
+            prevFd.nota_credito?.numero_documento ||
+            (prevFd.anulada ? 'ANULADA' : null);
+
+          dedupedItems.push({
+            ...item,
+            id: `${item.id}_previa_${pIdx}`,
+            pagoId: item.pagoId,
+            esFacturaPrevia: true,
+            referencia: `${item.referencia || 'N/A'} (Factura Previa #${prevFd.numero_control || prevFd.numero_documento || pIdx + 1})`,
+            facturaEmitida: prevEmitida,
+            facturaUrl: prevFd.url || null,
+            numeroControl: prevFd.numero_control || null,
+            numeroDocumento: prevFd.numero_documento || null,
+            fechaEmision: prevFd.fecha_emision || item.fechaEmision,
+            facturaAnulada: esPrevAnulada,
+            notaCredito: prevFd.nota_credito || null,
+            notaCreditoUrl: prevFd.nota_credito?.url || null,
+            notaCreditoControl: prevNCControl,
+            procesado: true,
+          });
+        });
       }
 
       // Aplicar filtros

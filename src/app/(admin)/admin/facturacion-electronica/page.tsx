@@ -437,7 +437,9 @@ export default function FacturacionElectronicaPage() {
   const retencionesDia = pagosList.filter(p => p.conRetencion && pasaModulo(p));
   const retencionesPorRevisarCount = retencionesDia.filter(p => p.retencionEstado === 'planilla_recibida').length;
   
-  const anuladasDia = (docTab === 'factura' ? facturasDia : recibosDia).filter(p => p.facturaAnulada || p.notaCredito || p.estado === 'Anulado');
+  const anuladasDia = (filterTab === 'anuladas' ? pagosList : (docTab === 'factura' ? facturasDia : recibosDia))
+    .filter(p => pasaModulo(p))
+    .filter(p => p.facturaAnulada || p.notaCredito || p.estado === 'Anulado');
   const totalAnuladas = anuladasDia.length;
 
   const delTipo = filterTab === 'retenciones' 

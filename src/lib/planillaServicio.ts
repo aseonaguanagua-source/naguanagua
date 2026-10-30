@@ -195,9 +195,9 @@ export function generarPlanillaServicio(d: DatosPlanilla, descargar = true): jsP
     
     const obsTexto = (d.observaciones || d.descripcion || '').trim();
     if (obsTexto) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
       const splitObs = doc.splitTextToSize(obsTexto, R - L - 4);
-      const maxLines = Math.min(splitObs.length, 4);
+      const maxLines = Math.min(splitObs.length, 5);
       for (let lineIdx = 0; lineIdx < maxLines; lineIdx++) {
         doc.text(splitObs[lineIdx], L + 2, y);
         doc.setDrawColor(210);

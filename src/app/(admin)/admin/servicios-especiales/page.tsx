@@ -475,7 +475,7 @@ export default function ServiciosEspecialesPage() {
       lugar: s.direccion_evento || '',
       horario: s.hora_evento || '',
       aforo: s.aforo ?? '',
-      observaciones: notasLimpias || s.descripcion || '',
+      observaciones: notasLimpias || s.notas || s.observaciones || s.descripcion || '',
       descripcion: s.descripcion || '',
       direccion: s.direccion_evento || '',
       vehiculoLabel: tEsp?.label || tExt?.label || s.descripcion,
@@ -635,8 +635,19 @@ export default function ServiciosEspecialesPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{s.descripcion}</td>
-                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{s.fecha}</td>
+                      <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={s.descripcion}>{s.descripcion}</td>
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
+                        {(() => {
+                          const fHasta = (s as any).fecha_evento_hasta || String((s as any).notas || '').match(/\[FECHA_HASTA:([^\]]*)\]/)?.[1];
+                          const fDesde = (s as any).fecha_evento || s.fecha;
+                          if (fHasta && fDesde && fDesde !== fHasta) {
+                            const [y1, m1, d1] = fDesde.split('-');
+                            const [y2, m2, d2] = fHasta.split('-');
+                            return `${d1}/${m1} al ${d2}/${m2}/${y2}`;
+                          }
+                          return s.fecha;
+                        })()}
+                      </td>
                       <td className="px-4 py-3 text-right font-bold text-slate-800">
                         Bs. {Number(s.monto || 0).toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2})}
                       </td>
@@ -1271,17 +1282,19 @@ export default function ServiciosEspecialesPage() {
                 </div>
               </div>
 
-              {/* Notas */}
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Observaciones</label>
-                <input
-                  type="text"
-                  placeholder="Notas adicionales (opcional)"
-                  value={form.notas}
-                  onChange={e => setForm(prev => ({ ...prev, notas: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500"
-                />
-              </div>
+              {/* Notas / Observaciones para servicios generales */}
+              {form.tipo !== 'inspeccion' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Observaciones</label>
+                  <input
+                    type="text"
+                    placeholder="Notas adicionales (opcional)"
+                    value={form.notas}
+                    onChange={e => setForm(prev => ({ ...prev, notas: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500"
+                  />
+                </div>
+              )}
 
               {msg && (
                 <div className={`px-3 py-2 rounded text-xs flex items-center gap-1 ${msg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
