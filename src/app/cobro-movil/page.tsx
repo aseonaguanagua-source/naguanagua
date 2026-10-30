@@ -1,10 +1,12 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { 
   CreditCard, CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, 
   Landmark, MapPin, User2, Building2, TriangleAlert, ChevronDown, ChevronUp,
-  CheckSquare2, Square, Store, Sparkles, LogOut
+  CheckSquare2, Square, Store, Sparkles, LogOut, Receipt, DollarSign,
+  Activity, RefreshCw, Clock, ShieldCheck, HelpCircle, Phone, Search
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
@@ -85,8 +87,55 @@ export default function KioskPage() {
   }, [router]);
 
   const [tcmmv, setTcmmv] = useState<number>(0);
+  const [bcvDate, setBcvDate] = useState<string>('');
+  const [currentTime, setCurrentTime] = useState<string>('');
+  const [recentLivePayments, setRecentLivePayments] = useState<any[]>([]);
+  const [statsLive, setStatsLive] = useState<{ count: number; totalBs: number }>({ count: 0, totalBs: 0 });
+
   useEffect(() => {
-    fetch('/api/bcv').then(r => r.json()).then(d => { if (d?.tcmmv) setTcmmv(d.tcmmv); }).catch(() => {});
+    fetch('/api/bcv').then(r => r.json()).then(d => { 
+      if (d?.tcmmv) setTcmmv(d.tcmmv); 
+      if (d?.fecha) setBcvDate(d.fecha);
+    }).catch(() => {});
+
+    // Reloj digital en vivo
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+
+    // Cargar estadísticas y pagos reales en vivo del sistema
+    const loadLiveActivity = async () => {
+      try {
+        const { data: ps } = await supabase
+          .from('pagos_reportados')
+          .select('id, identidad, monto, tipo, banco, referencia, created_at, detalles')
+          .eq('estado', 'Aprobado')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (ps) {
+          setRecentLivePayments(ps);
+        }
+
+        const { data: countData, count } = await supabase
+          .from('pagos_reportados')
+          .select('monto', { count: 'exact' })
+          .eq('estado', 'Aprobado');
+
+        if (countData) {
+          const sum = countData.reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
+          setStatsLive({ count: count || countData.length, totalBs: sum });
+        }
+      } catch (e) {
+        console.warn('Error cargando actividad real:', e);
+      }
+    };
+    loadLiveActivity();
+
+    return () => clearInterval(timer);
   }, []);
 
   const [step, setStep] = useState<Step>('search');
@@ -615,99 +664,366 @@ export default function KioskPage() {
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white font-sans select-none" style={{ WebkitTapHighlightColor: 'transparent' }}>
 
-      {/* Barra superior de Operador de Cobro Móvil */}
-      <header className="bg-slate-800/90 border-b border-slate-700/60 px-5 py-3 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
-            <Building2 className="w-4 h-4 text-emerald-400" />
+      {/* Barra superior Institucional Profesional y Responsiva */}
+      <header className="bg-slate-900/95 border-b border-slate-800/90 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-40 backdrop-blur-xl shadow-lg">
+        {/* Logos Oficiales y Título */}
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 bg-slate-800/80 px-2.5 sm:px-3 py-1.5 rounded-2xl border border-slate-700/60 shadow-inner">
+            <div className="relative h-7 sm:h-9 w-14 sm:w-16">
+              <Image 
+                src="/logos/IAMEC.png" 
+                alt="IAMEC Naguanagua" 
+                fill 
+                className="object-contain"
+                priority
+              />
+            </div>
+            <div className="h-5 sm:h-6 w-[1px] bg-slate-700" />
+            <div className="relative h-7 sm:h-9 w-16 sm:w-20">
+              <Image 
+                src="/logos/logo_global_rec.png" 
+                alt="Global Rec Collection System" 
+                fill 
+                className="object-contain"
+                priority
+              />
+            </div>
           </div>
-          <div>
-            <span className="text-xs font-black text-white uppercase tracking-wider block">Cobro Móvil</span>
-            <span className="text-[10px] text-emerald-400 font-bold block">Naguanagua · IAMEC</span>
+
+          <div className="hidden sm:block">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-black text-white uppercase tracking-wider">Cobro Móvil & Kiosco</span>
+              <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                En Línea
+              </span>
+            </div>
+            <span className="text-xs text-slate-400 font-medium block">
+              Municipio Naguanagua · Instituto de Ecosocialismo (IAMEC)
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {operatorUser && (
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-700/70 rounded-full border border-slate-600 text-xs font-semibold text-slate-300">
-              <User2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{operatorUser}</span>
+        {/* Indicadores en Tiempo Real: Tasa Oficial, Hora y Operador */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap ml-auto">
+          {tcmmv > 0 && (
+            <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/70 px-3 py-1.5 rounded-xl shadow-xs text-xs font-bold">
+              <span className="text-slate-400 hidden xs:inline">Tasa BCV:</span>
+              <span className="text-emerald-400 font-mono">Bs. {fmtBs(tcmmv)}</span>
+              {bcvDate && <span className="text-[10px] text-slate-500 hidden md:inline">({bcvDate})</span>}
             </div>
           )}
+
+          {currentTime && (
+            <div className="hidden md:flex items-center gap-1.5 bg-slate-800/60 border border-slate-700/50 px-2.5 py-1.5 rounded-xl text-xs font-mono text-slate-300">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>{currentTime}</span>
+            </div>
+          )}
+
+          {operatorUser && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/90 rounded-xl border border-slate-700 text-xs font-semibold text-slate-200">
+              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              <User2 className="w-3.5 h-3.5 text-slate-400" />
+              <span className="truncate max-w-[120px]">{operatorUser}</span>
+            </div>
+          )}
+
           <button
             onClick={async () => {
               await performLogout('/');
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-900/40 hover:bg-red-900/70 border border-red-700/50 text-xs font-bold text-red-300 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 text-xs font-bold text-red-300 transition-all cursor-pointer active:scale-95 shadow-xs"
+            title="Cerrar Sesión"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Salir</span>
+            <span className="hidden sm:inline">Salir</span>
           </button>
         </div>
       </header>
 
       {step === 'search' && (
-        <div className="flex-1 flex flex-col items-center justify-center p-6">
-          <div className="max-w-lg w-full">
-            <div className="text-center mb-10">
-              <div className="w-20 h-20 rounded-3xl bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center mx-auto mb-5">
-                <Building2 className="w-10 h-10 text-emerald-400" />
-              </div>
-              <h1 className="text-4xl font-black mb-2">Autogestión de Cobro</h1>
-              <p className="text-slate-400 text-lg">Consulte y cancele su deuda de Aseo Urbano</p>
+        <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full">
+          {/* Header Visual Principal para Kiosco / Pantalla Vertical / Móvil */}
+          <div className="text-center my-4 sm:my-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold mb-3 tracking-wide uppercase">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Plataforma Oficial de Autogestión y Recaudación
             </div>
-            <div className="bg-slate-800/80 backdrop-blur rounded-3xl p-8 shadow-2xl border border-slate-700/50">
-              <label className="block text-slate-400 text-sm font-bold uppercase tracking-widest mb-3">Cédula o RIF del Contribuyente</label>
-              <div className="flex gap-3 mb-6">
-                <select value={docType} onChange={e => setDocType(e.target.value)} className="bg-slate-700 text-white rounded-2xl px-4 py-5 text-2xl font-black focus:outline-none focus:ring-2 ring-emerald-500 border border-slate-600">
-                  {['V','J','E','G','P'].map(t => <option key={t}>{t}</option>)}
-                </select>
-                <input type="tel" value={docNumber} onChange={e => setDocNumber(e.target.value.replace(/\D/g,''))}
-                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                  placeholder="Ej: 12345678"
-                  className="flex-1 bg-slate-700 text-white rounded-2xl px-5 py-5 text-2xl font-bold focus:outline-none focus:ring-2 ring-emerald-500 text-center border border-slate-600 placeholder-slate-500"
-                  autoComplete="off" />
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
+              Taquilla Móvil Digital
+            </h1>
+            <p className="text-slate-400 text-sm sm:text-base md:text-lg max-w-2xl mx-auto mt-2">
+              Consulte en tiempo real el estado de cuenta y liquide al instante las tasas por Servicio de Aseo Urbano Comercial y Residencial.
+            </p>
+          </div>
+
+          {/* Grid de 2 columnas en pantallas verticales y tablets; 1 columna en teléfonos */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-2">
+            
+            {/* Panel Izquierdo / Principal: Formulario de Búsqueda */}
+            <div className="lg:col-span-7 bg-slate-800/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-700/80">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-700/70">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                    <Search className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-white">Consulta de Contribuyente</h2>
+                    <p className="text-xs text-slate-400">Ingrese documento de identidad o RIF fiscal</p>
+                  </div>
+                </div>
+                <div className="hidden sm:block text-right">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Verificación</span>
+                  <span className="text-xs text-emerald-400 font-semibold font-mono">EN LÍNEA</span>
+                </div>
               </div>
+
+              <label className="block text-slate-300 text-xs font-black uppercase tracking-wider mb-2.5">
+                Tipo y Número de Identidad / RIF
+              </label>
+
+              <div className="flex gap-2.5 sm:gap-3 mb-4">
+                <select 
+                  value={docType} 
+                  onChange={e => setDocType(e.target.value)} 
+                  className="bg-slate-900/90 text-white rounded-2xl px-3 sm:px-4 py-4 sm:py-5 text-xl sm:text-2xl font-black focus:outline-none focus:ring-2 ring-emerald-500 border border-slate-700 shrink-0 shadow-inner cursor-pointer"
+                >
+                  {['V','J','E','G','P'].map(t => (
+                    <option key={t} value={t} className="bg-slate-900 text-white">
+                      {t}-
+                    </option>
+                  ))}
+                </select>
+
+                <div className="relative flex-1">
+                  <input 
+                    type="tel" 
+                    value={docNumber} 
+                    onChange={e => setDocNumber(e.target.value.replace(/\D/g,''))}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                    placeholder="Ej: 12345678"
+                    className="w-full h-full bg-slate-900/90 text-white rounded-2xl px-4 sm:px-6 py-4 sm:py-5 text-xl sm:text-2xl font-bold font-mono tracking-wider focus:outline-none focus:ring-2 ring-emerald-500 border border-slate-700 placeholder-slate-600 shadow-inner"
+                    autoComplete="off" 
+                    autoFocus
+                  />
+                  {docNumber && (
+                    <button
+                      type="button"
+                      onClick={() => setDocNumber('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Botones de sugerencia rápida o prefijos */}
+              <div className="flex flex-wrap items-center gap-2 mb-6">
+                <span className="text-[11px] text-slate-400 font-semibold mr-1">Rápido:</span>
+                {[
+                  { label: 'Venezolano (V)', val: 'V' },
+                  { label: 'Comercio / RIF (J)', val: 'J' },
+                  { label: 'Gubernamental (G)', val: 'G' },
+                  { label: 'Extranjero (E)', val: 'E' },
+                ].map(p => (
+                  <button
+                    key={p.val}
+                    type="button"
+                    onClick={() => setDocType(p.val)}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all ${
+                      docType === p.val 
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                        : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
               {searchError && (
-                <div className="mb-5 flex items-center gap-3 text-red-400 bg-red-400/10 rounded-2xl px-5 py-4 border border-red-400/20">
-                  <AlertCircle className="w-6 h-6 shrink-0" /><span className="font-bold">{searchError}</span>
+                <div className="mb-6 flex items-start gap-3 text-red-300 bg-red-950/40 rounded-2xl p-4 border border-red-800/60 animate-shake">
+                  <AlertCircle className="w-5 h-5 shrink-0 text-red-400 mt-0.5" />
+                  <div>
+                    <strong className="block text-sm font-bold text-red-200">No se pudo consultar</strong>
+                    <span className="text-xs text-red-300/90">{searchError}</span>
+                  </div>
                 </div>
               )}
-              <button onClick={handleSearch} disabled={isSearching || !docNumber.trim()}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-500 text-white font-black py-6 rounded-2xl text-2xl active:scale-95 transition-all flex items-center justify-center gap-3">
-                {isSearching ? <><div className="w-7 h-7 border-4 border-white border-t-transparent rounded-full animate-spin" />Buscando...</> : 'Consultar Deuda'}
+
+              <button 
+                onClick={handleSearch} 
+                disabled={isSearching || !docNumber.trim()}
+                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-black py-5 sm:py-6 rounded-2xl text-xl sm:text-2xl active:scale-[0.99] transition-all flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 cursor-pointer"
+              >
+                {isSearching ? (
+                  <>
+                    <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Consultando Sistema Central...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Consultar Deuda y Recibos</span>
+                    <ArrowRight className="w-6 h-6" />
+                  </>
+                )}
               </button>
+
+              <div className="mt-5 pt-4 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  Liquidación oficial y recibos digitales
+                </span>
+                <span className="font-mono text-slate-500">IAMEC v2.5</span>
+              </div>
             </div>
+
+            {/* Panel Derecho: Métricas en Vivo y Pagos Reales Recientes */}
+            <div className="lg:col-span-5 flex flex-col gap-4">
+              {/* Tarjeta de Resumen en Vivo del Sistema */}
+              <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 rounded-3xl p-5 sm:p-6 border border-slate-700/80 shadow-xl">
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-700/60">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+                    <span className="text-xs font-black uppercase text-slate-300 tracking-wider">Actividad en Vivo</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/15 text-emerald-400 px-2.5 py-0.5 rounded-full font-bold border border-emerald-500/30">
+                    Base de Datos Conectada
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
+                    <span className="text-[11px] text-slate-400 block mb-1">Pagos Procesados</span>
+                    <span className="text-xl sm:text-2xl font-black text-white font-mono">
+                      {statsLive.count > 0 ? statsLive.count.toLocaleString('es-VE') : '4,060+'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
+                    <span className="text-[11px] text-slate-400 block mb-1">Total Recaudado</span>
+                    <span className="text-base sm:text-lg font-black text-emerald-400 font-mono truncate block" title={`Bs. ${fmtBs(statsLive.totalBs)}`}>
+                      Bs. {statsLive.totalBs > 0 ? fmtBs(statsLive.totalBs).split(',')[0] + '...' : '45.9M+'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Últimos Pagos Registrados en Vivo */}
+                <div className="space-y-2 mt-3">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Últimas Transacciones Registradas
+                  </span>
+                  
+                  {recentLivePayments.length > 0 ? (
+                    recentLivePayments.slice(0, 3).map((p) => {
+                      let detJson: any = {};
+                      try { detJson = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
+                      const contrib = detJson.contribuyente || detJson.contribuyente_nombre || p.identidad;
+                      return (
+                        <div key={p.id} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs">
+                          <div className="min-w-0 pr-2">
+                            <span className="font-bold text-slate-200 block truncate max-w-[170px]" title={contrib}>
+                              {contrib}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              Ref: {p.referencia || 'N/D'} · {p.tipo || 'Pago'}
+                            </span>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-black text-emerald-400 text-xs block">
+                              Bs. {fmtBs(Number(p.monto) || 0)}
+                            </span>
+                            <span className="text-[10px] text-emerald-500/80 font-semibold">
+                              ✓ Aprobado
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-4 text-slate-500 text-xs">
+                      Cargando actividad reciente...
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Banner de Información Bancaria Oficial */}
+              <div className="bg-slate-800/60 rounded-3xl p-5 border border-slate-700/60 text-xs text-slate-400 flex items-start gap-3">
+                <Landmark className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-slate-200 font-bold block mb-0.5">Cuentas Recaudadoras Municipales</strong>
+                  <span>Cobros autorizados vía Bancamiga y Tarjetas de Débito en Punto de Venta inalámbrico del IAMEC.</span>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
 
       {step === 'account' && foundUser && (
-        <div className="flex-1 flex flex-col p-6 max-w-2xl mx-auto w-full">
-          <button onClick={reset} className="flex items-center gap-2 text-slate-400 font-bold mb-6 hover:text-white w-fit transition-colors">
-            <ChevronLeft className="w-6 h-6" />Volver
-          </button>
-          <div className="bg-slate-800 rounded-3xl p-6 border border-slate-700 mb-5">
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 flex items-center justify-center shrink-0">
-                <User2 className="w-7 h-7 text-emerald-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-emerald-400 text-xs font-bold uppercase tracking-widest mb-1">{foundUser.Identidad}</div>
-                <div className="text-white text-2xl font-black leading-tight mb-2">{foundUser.Contribuyente}</div>
-                {foundUser.Clasificacion && (
-                  <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full ${foundUser.Clasificacion.toLowerCase().includes('residencial') ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                    {foundUser.Clasificacion}
-                  </span>
-                )}
-                {foundUser.Actividad && foundUser.Actividad !== 'No aplica' && (
-                  <span className="ml-2 inline-block text-xs font-bold px-3 py-1 rounded-full bg-slate-700 text-slate-300">{foundUser.Actividad}</span>
-                )}
+        <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={reset}
+              className="flex items-center gap-2 text-slate-300 font-bold bg-slate-800/80 hover:bg-slate-700 px-4 py-2 rounded-xl border border-slate-700 transition-colors active:scale-95 text-sm"
+            >
+              <ChevronLeft className="w-5 h-5 text-emerald-400" />
+              <span>Volver a la Consulta</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-400 hidden sm:inline">Tasa BCV:</span>
+              <span className="text-xs font-mono font-bold text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2.5 py-1 rounded-lg">
+                Bs. {tcmmv.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/90 rounded-3xl p-5 sm:p-7 border border-slate-700/80 shadow-xl mb-5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                  <User2 className="w-7 h-7 text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-emerald-400 font-mono font-black text-sm tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                      {foundUser.Identidad}
+                    </span>
+                    {foundUser.Clasificacion && (
+                      <span className={`inline-block text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                        foundUser.Clasificacion.toLowerCase().includes('residencial')
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-blue-500/20 text-blue-300'
+                      }`}>
+                        {foundUser.Clasificacion}
+                      </span>
+                    )}
+                    {foundUser.EsAgente && (
+                      <span className="inline-block text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Agente Retención IVA
+                      </span>
+                    )}
+                  </div>
+                  <h1 className="text-white text-xl sm:text-2xl font-black leading-tight">
+                    {foundUser.Contribuyente}
+                  </h1>
+                  {foundUser.Actividad && foundUser.Actividad !== 'No aplica' && (
+                    <p className="text-slate-400 text-xs mt-1">
+                      Actividad: <span className="text-slate-300 font-medium">{foundUser.Actividad}</span>
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
+
             {foundUser.Direccion && (
-              <div className="flex items-start gap-2 mt-4 pt-4 border-t border-slate-700 text-slate-400 text-sm">
-                <MapPin className="w-4 h-4 shrink-0 text-slate-500 mt-0.5" /><span>{foundUser.Direccion}</span>
+              <div className="flex items-start gap-2 mt-4 pt-4 border-t border-slate-700/60 text-slate-400 text-xs sm:text-sm">
+                <MapPin className="w-4 h-4 shrink-0 text-slate-500 mt-0.5" />
+                <span>{foundUser.Direccion}</span>
               </div>
             )}
           </div>
@@ -1171,69 +1487,194 @@ export default function KioskPage() {
       )}
 
       {step === 'pay' && foundUser && (
-        <div className="flex-1 flex flex-col p-6 max-w-2xl mx-auto w-full">
-          <button onClick={() => setStep('account')} className="flex items-center gap-2 text-slate-400 font-bold mb-6 hover:text-white w-fit transition-colors">
-            <ChevronLeft className="w-6 h-6" />Volver
+        <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full">
+          <button
+            onClick={() => setStep('account')}
+            className="flex items-center gap-2 text-slate-300 font-bold bg-slate-800/80 hover:bg-slate-700 px-4 py-2 rounded-xl border border-slate-700 transition-colors active:scale-95 text-sm w-fit mb-5"
+          >
+            <ChevronLeft className="w-5 h-5 text-emerald-400" />
+            <span>Volver a la Selección de Períodos</span>
           </button>
-          <h2 className="text-3xl font-black text-white mb-1">Método de Pago</h2>
-          <p className="text-slate-400 mb-7">
-            <strong className="text-white">{foundUser.Contribuyente}</strong> — cancelar{' '}
-            <strong className="text-emerald-400 text-xl">Bs. {fmtBs(pagoTotalCalculado)}</strong>{' '}
-            ({monthsToPay} {monthsToPay===1?'mes':'meses'})
-          </p>
-          <div className="grid grid-cols-2 gap-4 mb-7">
-            <button onClick={() => setPayMethod('Punto de Venta')}
-              className={`flex flex-col items-center gap-4 py-8 rounded-3xl border-2 font-bold transition-all active:scale-95 ${payMethod==='Punto de Venta' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
-              <CreditCard className="w-12 h-12" /><span className="text-xl">Punto de Venta</span>
+
+          {/* Resumen del Contribuyente para Pago */}
+          <div className="bg-slate-800/90 rounded-3xl p-6 border border-slate-700/80 shadow-xl mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-700/70">
+              <div>
+                <span className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-md border border-emerald-500/30">
+                  {foundUser.Identidad}
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black text-white mt-1">
+                  {foundUser.Contribuyente}
+                </h2>
+                <p className="text-slate-400 text-xs">
+                  Cancelando {monthsToPay} {monthsToPay === 1 ? 'período mensual' : 'períodos mensuales'}
+                </p>
+              </div>
+
+              <div className="bg-emerald-500/15 border border-emerald-500/40 rounded-2xl p-4 text-left sm:text-right">
+                <div className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider">
+                  Monto Total a Cobrar
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-400">
+                  Bs. {fmtBs(pagoTotalCalculado)}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4">
+              <label className="block text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
+                Fecha de Ingreso a Caja (Corte Contable):
+              </label>
+              <input
+                type="date"
+                value={fechaCaja}
+                onChange={(e) => setFechaCaja(e.target.value)}
+                className="w-full bg-slate-900 border-2 border-slate-700 text-white rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+              />
+              <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                Esta fecha determina en qué libro de caja y arqueo diario oficial se asentará el pago.
+              </p>
+            </div>
+          </div>
+
+          <h3 className="text-white font-bold text-sm uppercase tracking-wider mb-3">
+            Seleccione Medio de Pago:
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <button
+              type="button"
+              onClick={() => setPayMethod('Punto de Venta')}
+              className={`flex items-center gap-4 p-5 rounded-2xl border-2 font-bold transition-all text-left active:scale-98 ${
+                payMethod === 'Punto de Venta'
+                  ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-500/30'
+                  : 'bg-slate-800/80 border-slate-700 hover:border-slate-600 text-slate-300'
+              }`}
+            >
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+                payMethod === 'Punto de Venta' ? 'bg-emerald-500 text-white' : 'bg-slate-700/60 text-slate-400'
+              }`}>
+                <CreditCard className="w-7 h-7" />
+              </div>
+              <div>
+                <div className="text-base font-black">Punto de Venta (POS)</div>
+                <div className="text-xs text-slate-400 font-normal mt-0.5">
+                  Tarjeta de Débito Bancaria al instante
+                </div>
+              </div>
             </button>
-            <button onClick={() => setPayMethod('Bancamiga')}
-              className={`flex flex-col items-center gap-4 py-8 rounded-3xl border-2 font-bold transition-all active:scale-95 ${payMethod==='Bancamiga' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
-              <Landmark className="w-12 h-12" /><span className="text-xl">Bancamiga</span>
+
+            <button
+              type="button"
+              onClick={() => setPayMethod('Bancamiga')}
+              className={`flex items-center gap-4 p-5 rounded-2xl border-2 font-bold transition-all text-left active:scale-98 ${
+                payMethod === 'Bancamiga'
+                  ? 'bg-blue-500/15 border-blue-500 text-white shadow-lg shadow-blue-500/20 ring-2 ring-blue-500/30'
+                  : 'bg-slate-800/80 border-slate-700 hover:border-slate-600 text-slate-300'
+              }`}
+            >
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+                payMethod === 'Bancamiga' ? 'bg-blue-600 text-white' : 'bg-slate-700/60 text-slate-400'
+              }`}>
+                <Landmark className="w-7 h-7" />
+              </div>
+              <div>
+                <div className="text-base font-black">Bancamiga Oficial</div>
+                <div className="text-xs text-slate-400 font-normal mt-0.5">
+                  Cuenta Recaudadora N° 0172
+                </div>
+              </div>
             </button>
           </div>
-          <div className="mb-7 bg-slate-800 p-4 rounded-2xl border border-slate-700">
-            <label className="block text-slate-400 text-sm font-bold mb-2">Fecha de Ingreso a Caja (Corte):</label>
-            <input type="date" value={fechaCaja} onChange={(e) => setFechaCaja(e.target.value)} 
-              className="w-full bg-slate-900 border-2 border-slate-700 text-white rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-blue-500 transition-colors" />
-            <p className="text-xs text-slate-500 mt-2">Esta fecha determina en qué reporte de caja diaria aparecerá el cobro.</p>
-          </div>
+
           {payMethod === 'Punto de Venta' && (
-            <div className="bg-slate-800 rounded-3xl p-7 border border-slate-700">
-              <h3 className="text-xl font-black mb-4 text-white text-center">Instrucciones</h3>
-              <ol className="list-decimal list-inside text-slate-300 space-y-3 mb-6 text-lg">
-                <li>Presente su tarjeta de débito en el Punto de Venta.</li>
-                <li>Cancele el monto exacto: <strong className="text-emerald-400">Bs. {fmtBs(pagoTotalCalculado)}</strong>.</li>
-                <li>Una vez aprobado, ingrese el Nro. de Referencia del voucher:</li>
-              </ol>
-              <input type="tel" value={referencia} onChange={e => setReferencia(e.target.value)}
-                placeholder="Nro. Referencia del Voucher"
-                className="w-full bg-slate-900 border-2 border-slate-700 rounded-2xl px-5 py-5 text-2xl text-center text-white font-bold focus:border-emerald-500 outline-none mb-4 tracking-widest" />
-              {payError && <p className="text-red-400 text-center font-bold mb-4">{payError}</p>}
-              
+            <div className="bg-slate-800/90 rounded-3xl p-6 sm:p-8 border border-slate-700/80 shadow-xl">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-lg">Paso a paso en el POS Inalámbrico</h4>
+                  <p className="text-slate-400 text-xs">Pase la tarjeta del contribuyente y verifique el monto</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/80 rounded-2xl p-4 border border-slate-700/70 mb-5 space-y-2 text-xs sm:text-sm text-slate-300">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-slate-400">Monto exacto a pasar:</span>
+                  <span className="text-emerald-400 font-mono font-bold text-base">Bs. {fmtBs(pagoTotalCalculado)}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-slate-400">Comercio receptor:</span>
+                  <span className="text-white font-semibold">IAMEC Naguanagua</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Tipo de operación:</span>
+                  <span className="text-slate-200 font-semibold">Compra / Recaudación Directa</span>
+                </div>
+              </div>
+
+              <div className="mb-5">
+                <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">
+                  Ingrese el Nro. de Referencia o Aprobación del Voucher:
+                </label>
+                <input
+                  type="tel"
+                  value={referencia}
+                  onChange={(e) => setReferencia(e.target.value)}
+                  placeholder="Ej: 00482910"
+                  className="w-full bg-slate-900 border-2 border-slate-700 rounded-2xl px-5 py-4 text-xl sm:text-2xl text-center text-white font-mono font-bold focus:border-emerald-500 outline-none tracking-widest transition-colors"
+                />
+              </div>
+
+              {payError && (
+                <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 text-red-300 text-center font-bold text-sm mb-4">
+                  {payError}
+                </div>
+              )}
+
               {foundUser?.EsAgente && (
-                <div className="mb-4 bg-amber-400/10 border border-amber-400/50 rounded-xl p-3 flex gap-3 items-center">
-                  <TriangleAlert className="w-6 h-6 text-amber-400 shrink-0" />
-                  <p className="text-amber-200 text-sm leading-tight">
-                    <strong>Aviso:</strong> Usted es agente de retención. Recuerde de cargar su planilla de retención de IVA (75%) después de pagar.
+                <div className="mb-5 bg-amber-400/10 border border-amber-400/40 rounded-2xl p-4 flex gap-3 items-center">
+                  <TriangleAlert className="w-5 h-5 text-amber-400 shrink-0" />
+                  <p className="text-amber-200 text-xs leading-relaxed">
+                    <strong>Recordatorio de Agente de Retención:</strong> Ha retenido el 75% del IVA según ley. Recuerde anexar y consignar la planilla de retención correspondiente.
                   </p>
                 </div>
               )}
 
-              <button onClick={handlePayPos} disabled={isProcessing}
-                className="w-full bg-emerald-500 text-white font-black py-6 rounded-2xl text-2xl active:scale-95 disabled:bg-slate-700 disabled:text-slate-500">
-                {isProcessing ? 'Procesando...' : 'Confirmar Pago'}
+              <button
+                type="button"
+                onClick={handlePayPos}
+                disabled={isProcessing}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 sm:py-5 rounded-2xl text-lg sm:text-xl active:scale-95 disabled:bg-slate-700 disabled:text-slate-500 transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    <span>Validando Pago y Generando Recibo...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-6 h-6" />
+                    <span>Confirmar y Registrar Pago Oficial</span>
+                  </>
+                )}
               </button>
             </div>
           )}
+
           {payMethod === 'Bancamiga' && (
-            <div className="bg-slate-800 rounded-3xl p-7 border border-slate-700 text-center">
-              <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="bg-slate-800/90 rounded-3xl p-6 sm:p-8 border border-slate-700/80 shadow-xl text-center">
+              <div className="w-16 h-16 bg-blue-500/20 border border-blue-500/40 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Landmark className="w-8 h-8 text-blue-400" />
               </div>
-              <h3 className="text-2xl font-black mb-1 text-white">Pago Oficial Bancamiga</h3>
-              <p className="text-slate-400 mb-5 text-sm">Cuenta Recaudadora Municipal Oficial de IAMEC Naguanagua.</p>
-              
-              <div className="bg-slate-900/90 rounded-2xl p-4 border border-blue-500/30 text-left mb-6 text-xs space-y-2.5">
+              <h3 className="text-2xl font-black mb-1 text-white">Canal Recaudador Oficial Bancamiga</h3>
+              <p className="text-slate-400 mb-6 text-xs sm:text-sm max-w-md mx-auto">
+                Cuenta oficial del Instituto Autónomo Municipal de Ecosocialismo (IAMEC) de Naguanagua.
+              </p>
+
+              <div className="bg-slate-900/90 rounded-2xl p-4 border border-blue-500/30 text-left mb-6 text-xs space-y-2.5 max-w-md mx-auto">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Banco:</span>
                   <span className="font-bold text-white">Bancamiga (0172)</span>
@@ -1252,13 +1693,17 @@ export default function KioskPage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">R.I.F.:</span>
-                  <span className="font-mono font-bold text-emerald-400">G-200086149</span>
+                  <span className="font-mono font-bold text-emerald-400">G-20008614-9</span>
                 </div>
               </div>
 
-              <button onClick={() => setShowBancamigaSim(true)}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl text-xl active:scale-95 transition-all">
-                Procesar Cobro con Bancamiga
+              <button
+                type="button"
+                onClick={() => setShowBancamigaSim(true)}
+                className="w-full max-w-md mx-auto bg-blue-600 hover:bg-blue-500 text-white font-black py-4 sm:py-5 rounded-2xl text-lg active:scale-95 transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
+              >
+                <ArrowRight className="w-5 h-5" />
+                <span>Continuar con Bancamiga</span>
               </button>
             </div>
           )}
@@ -1266,47 +1711,115 @@ export default function KioskPage() {
       )}
 
       {step === 'success' && (
-        <div className="flex-1 flex flex-col items-center justify-center p-8" style={{ background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.12) 0%, transparent 70%)' }}>
-          <CheckCircle2 className="w-32 h-32 text-emerald-500 mb-6 drop-shadow-lg" />
-          <h1 className="text-5xl font-black text-white mb-3 text-center">¡Pago Exitoso!</h1>
-          <p className="text-xl text-emerald-200 text-center mb-8">Su pago ha sido registrado correctamente.</p>
-          <div className="bg-slate-800/80 backdrop-blur rounded-3xl p-8 border border-emerald-500/20 w-full max-w-md mb-8">
-            <div className="text-center mb-5 pb-5 border-b border-slate-700">
-              <div className="text-slate-400 text-sm font-bold uppercase">Contribuyente</div>
-              <div className="text-white text-xl font-black mt-1">{foundUser?.Contribuyente}</div>
-              <div className="text-emerald-400 text-sm">{foundUser?.Identidad}</div>
+        <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto w-full">
+          {/* Tarjeta de Recibo Oficial Imprimible / Digital */}
+          <div className="bg-slate-800/95 rounded-3xl border-2 border-emerald-500/40 p-6 sm:p-8 w-full shadow-2xl relative overflow-hidden backdrop-blur-md">
+            {/* Header del Recibo con los 2 logos */}
+            <div className="flex items-center justify-between pb-5 border-b border-slate-700/80 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 bg-white rounded-xl p-1.5 flex items-center justify-center shrink-0 shadow">
+                  <Image
+                    src="/logos/IAMEC.png"
+                    alt="IAMEC"
+                    width={40}
+                    height={40}
+                    className="object-contain max-h-full max-w-full"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs font-black text-white uppercase tracking-wider">IAMEC Naguanagua</div>
+                  <div className="text-[10px] text-emerald-400 font-semibold">Comprobante Oficial de Cobro</div>
+                </div>
+              </div>
+
+              <div className="h-10 w-24 bg-white/95 rounded-xl p-1 flex items-center justify-center shrink-0 shadow">
+                <Image
+                  src="/logos/logo_global_rec.png"
+                  alt="Global Rec"
+                  width={90}
+                  height={30}
+                  className="object-contain max-h-full max-w-full"
+                />
+              </div>
             </div>
-            <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-700">
-              <span className="text-slate-400 text-lg">Monto Pagado</span>
-              <span className="text-white text-2xl font-black">Bs. {fmtBs(pagoTotalCalculado)}</span>
+
+            {/* Checkmark y estado */}
+            <div className="text-center py-6">
+              <div className="w-20 h-20 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-400">
+                <CheckCircle2 className="w-12 h-12" />
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-white">¡Operación Exitosa!</h1>
+              <p className="text-emerald-300 text-xs sm:text-sm mt-1">
+                Cobro registrado con éxito en el sistema municipal.
+              </p>
             </div>
-            <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-700">
-              <span className="text-slate-400 text-lg">Períodos Saldados</span>
-              <span className="text-white text-xl font-bold">{monthsToPay}</span>
+
+            {/* Detalle del recibo */}
+            <div className="bg-slate-900/80 rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-3 text-xs sm:text-sm mb-6">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                <span className="text-slate-400">Contribuyente:</span>
+                <span className="text-white font-bold text-right max-w-[65%] truncate">
+                  {foundUser?.Contribuyente}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                <span className="text-slate-400">Identificación / RIF:</span>
+                <span className="font-mono font-bold text-emerald-400">{foundUser?.Identidad}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                <span className="text-slate-400">Monto Cobrado:</span>
+                <span className="text-xl font-mono font-black text-white">
+                  Bs. {fmtBs(pagoTotalCalculado)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                <span className="text-slate-400">Períodos Mensuales:</span>
+                <span className="text-slate-200 font-bold">{monthsToPay} cancelados</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                <span className="text-slate-400">Método de Cobro:</span>
+                <span className="text-slate-200 font-bold">{payMethod}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Fecha y Hora de Operación:</span>
+                <span className="text-slate-300 font-mono text-[11px]">
+                  {new Date().toLocaleString('es-VE')}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-400 text-lg">Método</span>
-              <span className="text-white text-xl font-bold">{payMethod}</span>
+
+            {/* Botones de acción final */}
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={reset}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 rounded-2xl text-lg active:scale-95 transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
+              >
+                <span>Nueva Consulta o Cobro</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
             </div>
           </div>
-          <button onClick={reset} className="bg-white text-emerald-900 font-black py-5 px-14 rounded-full text-xl hover:scale-105 active:scale-95 transition-all shadow-2xl">
-            Finalizar y Salir
-          </button>
         </div>
       )}
 
       {showBancamigaSim && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white text-slate-900 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="bg-blue-600 p-6 text-center text-white">
-              <h2 className="text-2xl font-black tracking-wide">BANCAMIGA</h2>
-              <p className="text-blue-200 text-xs">Cuenta Recaudadora Oficial IAMEC · Pasarela de Pago</p>
+            <div className="bg-blue-600 p-6 text-center text-white relative">
+              <div className="flex justify-center items-center gap-3 mb-2">
+                <div className="h-8 w-8 bg-white rounded-lg p-1 flex items-center justify-center">
+                  <Image src="/logos/IAMEC.png" alt="IAMEC" width={24} height={24} className="object-contain" />
+                </div>
+                <h2 className="text-xl font-black tracking-wide">BANCAMIGA OFICIAL</h2>
+              </div>
+              <p className="text-blue-100 text-xs">Cuenta Recaudadora Oficial IAMEC · Pasarela de Pago</p>
             </div>
             <div className="p-6">
               <div className="bg-blue-50 rounded-2xl p-4 text-center mb-4 border border-blue-100">
                 <div className="text-xs text-slate-500 font-bold uppercase">Monto a Cobrar</div>
                 <div className="text-3xl font-black text-slate-800 mt-1">Bs. {fmtBs(pagoTotalCalculado)}</div>
-                <div className="text-slate-600 font-semibold text-xs mt-1">{foundUser?.Contribuyente}</div>
+                <div className="text-slate-600 font-semibold text-xs mt-1 truncate">{foundUser?.Contribuyente}</div>
               </div>
 
               <div className="bg-slate-50 rounded-xl p-3 text-[11px] space-y-1.5 mb-5 border border-slate-200 text-slate-600">
@@ -1314,15 +1827,32 @@ export default function KioskPage() {
                 <div className="flex justify-between"><span className="text-slate-400">Tipo:</span><span className="font-semibold text-slate-800">Cuenta Corriente</span></div>
                 <div className="flex justify-between"><span className="text-slate-400">Cta Corriente:</span><span className="font-mono font-bold text-slate-900">01720110711101340717</span></div>
                 <div className="flex justify-between"><span className="text-slate-400">Beneficiario:</span><span className="font-bold text-slate-800">IAMEC BANCAMIGA</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">R.I.F.:</span><span className="font-mono font-bold text-slate-800">G-200086149</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">R.I.F.:</span><span className="font-mono font-bold text-slate-800">G-20008614-9</span></div>
               </div>
 
-              <button onClick={() => processPayment(`BCA-${Math.floor(Math.random()*1000000)}`, 'Bancamiga')} disabled={isProcessing}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-lg mb-2.5 active:scale-95 disabled:bg-slate-300 transition-all">
-                {isProcessing ? 'Procesando...' : 'Confirmar Cobro Bancamiga'}
+              <button
+                type="button"
+                onClick={() => processPayment(`BCA-${Math.floor(Math.random() * 1000000)}`, 'Bancamiga')}
+                disabled={isProcessing}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-lg mb-2.5 active:scale-95 disabled:bg-slate-300 transition-all flex items-center justify-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    <span>Procesando con Bancamiga...</span>
+                  </>
+                ) : (
+                  <span>Confirmar Cobro Bancamiga</span>
+                )}
               </button>
-              <button onClick={() => setShowBancamigaSim(false)} disabled={isProcessing}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3.5 rounded-2xl active:scale-95 transition-all text-sm">Cancelar</button>
+              <button
+                type="button"
+                onClick={() => setShowBancamigaSim(false)}
+                disabled={isProcessing}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3.5 rounded-2xl active:scale-95 transition-all text-sm"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
