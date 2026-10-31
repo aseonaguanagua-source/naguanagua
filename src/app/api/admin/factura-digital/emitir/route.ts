@@ -1847,7 +1847,10 @@ export async function POST(request: Request) {
 
     const updatePayload: any = { detalles: nuevosDetalles };
     if (identidad && String(identidad).trim()) updatePayload.identidad = String(identidad).trim().toUpperCase();
-    if (referencia && String(referencia).trim()) updatePayload.referencia = String(referencia).trim();
+    if (referencia && String(referencia).trim()) {
+      const cleanRefUpdate = String(referencia).replace(/\s*\(\+.*$/, '').trim();
+      if (cleanRefUpdate) updatePayload.referencia = cleanRefUpdate;
+    }
     if (modulo) updatePayload.modulo = modulo;
     if (totalManualNum > 0) updatePayload.monto = totalManualNum;
 

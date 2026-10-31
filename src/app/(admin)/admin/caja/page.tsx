@@ -2155,16 +2155,16 @@ export default function CajaPage() {
       if (isNaN(transferido) || transferido <= 0) return alert("Debe ingresar un monto transferido válido.");
       
       const diffTransferido = Math.round((transferido - finalTotal) * 100) / 100;
-      if (diffTransferido < -0.02 || isPagoMultiple) {
+      if (diffTransferido < -0.10 || isPagoMultiple) {
         esAbono = true;
         montoReal = transferido;
-      } else if (diffTransferido > 0.02) {
+      } else if (diffTransferido > 0.10) {
         saldoAFavorNuevo = diffTransferido;
         montoReal = transferido;
       } else {
-        // Pago exacto (dentro de tolerancia de 2 céntimos)
+        // Pago exacto (dentro de tolerancia de 10 céntimos por redondeo BCV)
         esAbono = false;
-        montoReal = finalTotal;
+        montoReal = transferido;
       }
     } else if (['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod)) {
       const cardLabel = paymentMethod === 'TMD' ? 'Tarjeta Master (TMD)' : paymentMethod === 'TVD' ? 'Tarjeta Visa (TVD)' : paymentMethod === 'Credito' ? 'Tarjeta de Crédito' : 'Punto de Venta';
@@ -2177,13 +2177,13 @@ export default function CajaPage() {
       if (montoDebito && parseLocalFloat(montoDebito) > 0) {
         montoReal = parseLocalFloat(montoDebito);
         const diffDeb = Math.round((montoReal - finalTotal) * 100) / 100;
-        if (diffDeb > 0.02) {
+        if (diffDeb > 0.10) {
           saldoAFavorNuevo = diffDeb;
-        } else if (diffDeb < -0.02) {
+        } else if (diffDeb < -0.10) {
           esAbono = true;
         } else {
+          // Dentro de tolerancia de 10 céntimos: liquida la totalidad sin dejar residuo de céntimos
           esAbono = false;
-          montoReal = finalTotal;
         }
       }
     } else if (paymentMethod === 'Saldo a Favor') {
@@ -2714,7 +2714,7 @@ export default function CajaPage() {
       // Detect abono: montoDebito provided and < finalTotal, o marcado como abono/pago multiple
       const debVal = montoDebito ? parseLocalFloat(montoDebito) : 0;
       const diffDebito = debVal > 0 ? (confirmPayload.finalTotal - debVal) : 0;
-      const esAbonoParcial = (diffDebito > 0.02) || !!confirmPayload.esAbono || (montoReal < confirmPayload.finalTotal - 0.02);
+      const esAbonoParcial = (diffDebito > 0.10) || !!confirmPayload.esAbono || (montoReal < confirmPayload.finalTotal - 0.10);
       const esAbonoDebito = esAbonoParcial;
 
       if (isAutoAprobado) {
