@@ -65,12 +65,24 @@ export const getUserInmuebles = (
 
   const fid = (foundUser.Identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
   const specificCode = (foundUser as any).CodCont || (foundUser as any).cod_cont;
-  const sCode = specificCode ? String(specificCode).toUpperCase() : '';
+  const sCodeRaw = specificCode ? String(specificCode).trim().toUpperCase() : '';
+  const isSearchByCode = Boolean((foundUser as any).isSearchByCode) && sCodeRaw.length > 0 && !sCodeRaw.includes(' ');
+  const sCode = isSearchByCode ? sCodeRaw : '';
 
   const isActivo = (i: any) => {
     const est = (i.estado || 'Activo').trim().toLowerCase();
     return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
   };
+
+  // Si se buscó por un código específico que es actividad hija (tiene padre_id), resolver también su contenedor padre
+  // para incluir todas las actividades hermanas unificadas de ese mismo local físico.
+  let parentOfSCode = '';
+  if (sCode) {
+    const searchedObj = source.find((x: any) => String(x.inmueble || '').toUpperCase() === sCode);
+    if (searchedObj && (searchedObj as any).padre_id) {
+      parentOfSCode = String((searchedObj as any).padre_id).trim().toUpperCase();
+    }
+  }
 
   // Pre-calcular Set de inmuebles propios del contribuyente para evitar O(n^2) anidado sobre decenas de miles de registros
   const fidInmueblesSet = new Set<string>();
@@ -83,25 +95,30 @@ export const getUserInmuebles = (
       }
     }
   }
+  if (sCodeRaw) {
+    sCodeRaw.split(/\s+/).filter(Boolean).forEach((c) => fidInmueblesSet.add(c));
+  }
 
   return source.filter((i) => {
     if (!isActivo(i)) return false;
     if (isTrueCondo) return true;
 
-    // Si la búsqueda fue por un código específico (isCodeFormat o sCode especificado):
-    // Prioridad estricta al código buscado y a sus actividades unificadas (padre_id / matriz).
-    // NO arrastrar otros inmuebles del mismo titular con códigos diferentes.
+    // Si la búsqueda fue explícitamente por un código de inmueble (isSearchByCode):
+    // Incluir el código buscado, su contenedor padre N/A y todas las actividades hermanas de ese mismo local.
     if (sCode) {
       const iCode = String(i.inmueble || '').toUpperCase();
       const pCode = String((i as any).condominio_padre_id || '').toUpperCase();
       const nCode = String((i as any).padre_id || '').toUpperCase();
       if (iCode === sCode || pCode === sCode || nCode === sCode) return true;
+      if (parentOfSCode && (iCode === parentOfSCode || nCode === parentOfSCode)) return true;
       return false;
     }
 
     const itemFid = (i.identidad || '').replace(/^[VEJPG]-?/i, '').replace(/-/g, '').toUpperCase();
     // Coincidencia por RIF / Cédula del contribuyente
     if (fid && itemFid === fid) return true;
+    const iCode = String(i.inmueble || '').toUpperCase();
+    if (iCode && fidInmueblesSet.has(iCode)) return true;
     // O si este inmueble es hijo vinculado (padre_id) de un inmueble que pertenece a este contribuyente (lookup O(1))
     const pCode = (i as any).padre_id;
     if (pCode && fidInmueblesSet.has(String(pCode).toUpperCase())) {

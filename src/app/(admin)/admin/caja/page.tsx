@@ -1918,6 +1918,7 @@ export default function CajaPage() {
 
     // Calcular con precisión canónica de 2 decimales idéntica a recibos y factura SENIAT
     let totalAbonoPrevio = 0;
+    const padresAbonoContados = new Set<string>();
     inmSelectedMap.forEach(({ inm, totalMeses, mesesConMora }) => {
       const esRes = isResidencialInm(inm);
       const bMes = Math.round(calcularMensualidad(inm, tasaActualUse) * 100) / 100;
@@ -1942,10 +1943,18 @@ export default function CajaPage() {
       const multaInm = Math.round((multaMes * mesesConMora) * 100) / 100;
       smulta4 += multaInm;
 
-      // Abono previo aprobado en conciliación para este inmueble
+      // Abono previo aprobado en conciliación para este inmueble (o en su contenedor padre N/A)
       const saldoAbonoInm = parseFloat(inm.saldo_favor_bs || '0') || 0;
       if (saldoAbonoInm > 0) {
         totalAbonoPrevio += saldoAbonoInm;
+      }
+      if (inm.padre_id && !padresAbonoContados.has(inm.padre_id)) {
+        const padreObj = inmueblesMap.get(inm.padre_id);
+        const saldoPadre = parseFloat(padreObj?.saldo_favor_bs || '0') || 0;
+        if (saldoPadre > 0) {
+          padresAbonoContados.add(inm.padre_id);
+          totalAbonoPrevio += saldoPadre;
+        }
       }
     });
 
@@ -5670,27 +5679,32 @@ export default function CajaPage() {
             )}
 
             {/* Recibos de Aseo Mensual */}
-            {!foundUser?.isServicioEspecialDirecto && (!isCondominio || recibos.length > 0) && (
+            {!foundUser?.isServicioEspecialDirecto && (() => {
+              const recibosConMonto = recibos.filter(
+                (r: any) => (parseFloat(getReciboMonto(r) || '0') || 0) > 0.009 || isItemPending(r.referencia)
+              );
+              if (isCondominio && recibosConMonto.length === 0) return null;
+              return (
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-slate-600" />
                   <h3 className="font-bold text-slate-800">Recibos de Aseo Mensual</h3>
-                  <span className="text-xs text-slate-500 font-medium">({recibos.length} pendiente{recibos.length !== 1 ? 's' : ''})</span>
+                  <span className="text-xs text-slate-500 font-medium">({recibosConMonto.length} pendiente{recibosConMonto.length !== 1 ? 's' : ''})</span>
                 </div>
 
                 {/* Botones de selección rápida para pagos múltiples */}
-                {recibos.length > 1 && (
+                {recibosConMonto.length > 1 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       type="button"
                       onClick={() => {
-                        const allRefs = recibos.map((r: any) => r.referencia).filter(Boolean);
+                        const allRefs = recibosConMonto.map((r: any) => r.referencia).filter(Boolean);
                         setSelectedRecibos(allRefs);
                       }}
                       className="text-[11px] font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded transition-colors shadow-xs"
                     >
-                      ✓ Marcar Todos ({recibos.length})
+                      ✓ Marcar Todos ({recibosConMonto.length})
                     </button>
                     <button
                       type="button"
@@ -5699,11 +5713,11 @@ export default function CajaPage() {
                     >
                       ✕ Desmarcar
                     </button>
-                    {recibos.length > 3 && (
+                    {recibosConMonto.length > 3 && (
                       <button
                         type="button"
                         onClick={() => {
-                          const last3 = recibos.slice(-3).map((r: any) => r.referencia).filter(Boolean);
+                          const last3 = recibosConMonto.slice(-3).map((r: any) => r.referencia).filter(Boolean);
                           setSelectedRecibos(last3);
                         }}
                         className="text-[11px] font-semibold bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded transition-colors"
@@ -5711,11 +5725,11 @@ export default function CajaPage() {
                         Últimos 3
                       </button>
                     )}
-                    {recibos.length > 6 && (
+                    {recibosConMonto.length > 6 && (
                       <button
                         type="button"
                         onClick={() => {
-                          const last6 = recibos.slice(-6).map((r: any) => r.referencia).filter(Boolean);
+                          const last6 = recibosConMonto.slice(-6).map((r: any) => r.referencia).filter(Boolean);
                           setSelectedRecibos(last6);
                         }}
                         className="text-[11px] font-semibold bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded transition-colors"
@@ -5723,11 +5737,11 @@ export default function CajaPage() {
                         Últimos 6
                       </button>
                     )}
-                    {recibos.length > 12 && (
+                    {recibosConMonto.length > 12 && (
                       <button
                         type="button"
                         onClick={() => {
-                          const last12 = recibos.slice(-12).map((r: any) => r.referencia).filter(Boolean);
+                          const last12 = recibosConMonto.slice(-12).map((r: any) => r.referencia).filter(Boolean);
                           setSelectedRecibos(last12);
                         }}
                         className="text-[11px] font-semibold bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded transition-colors"
@@ -5739,12 +5753,12 @@ export default function CajaPage() {
                 )}
               </div>
               <div className="p-4 bg-slate-50 border-t border-slate-200 max-h-[700px] overflow-y-auto">
-                {recibos.length === 0 ? (
+                {recibosConMonto.length === 0 ? (
                   <p className="text-sm text-slate-500 bg-white p-4 rounded-lg border border-slate-200">No hay recibos pendientes.</p>
                 ) : (
                   <div className="space-y-4">
                     {Object.entries(
-                      recibos.reduce((acc: any, r: any) => {
+                      recibosConMonto.reduce((acc: any, r: any) => {
                         const userInms = getUserInmuebles(freshInmuebles, condominioHijos, inmuebles, foundUser);
                         let inmId = 'Facturación General';
                         let tipo = '';
@@ -5984,7 +5998,8 @@ export default function CajaPage() {
                 )}
               </div>
             </div>
-            )}
+              );
+            })()}
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-orange-50 px-4 py-3 border-b border-orange-200 flex items-center gap-2">

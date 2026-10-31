@@ -70,7 +70,10 @@ export function useCajaCalculations({
       const parts = r.referencia.split('-');
       const inmId = parts[2];
       const mNum = parseInt(parts[3]?.replace('M', '') || '0');
-      const inm = userInms.find((i: any) => i.inmueble === inmId);
+      const inm =
+        userInms.find((i: any) => i.inmueble === inmId) ||
+        (freshInmuebles || []).find((i: any) => i.inmueble === inmId) ||
+        (inmuebles || []).find((i: any) => i.inmueble === inmId);
       if (inm) {
         const esRes = isResidencialInm(inm);
         let jNotas: any = null;
