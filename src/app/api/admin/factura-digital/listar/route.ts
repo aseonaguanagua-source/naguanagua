@@ -36,13 +36,25 @@ export async function GET(request: Request) {
         if (i.inmueble) queryRelatedInmuebleCodes.add(i.inmueble);
       });
 
+      // 1b. También buscar en condominio_unidades por inmueble, identidad o propietario
+      const { data: cuByQuery } = await supabase
+        .from('condominio_unidades')
+        .select('identidad, inmueble')
+        .or(`inmueble.ilike.%${query}%,identidad.ilike.%${query}%,propietario.ilike.%${query}%`)
+        .limit(50);
+
+      cuByQuery?.forEach(cu => {
+        if (cu.identidad) queryInmIdents.add(cu.identidad);
+        if (cu.inmueble) queryRelatedInmuebleCodes.add(cu.inmueble);
+      });
+
       // 2. Si el query es un número de cédula o referencia, buscar pagos iniciales directos para extraer inmuebles asociados
       // (por ejemplo: si pagan local URB015179 con cédula V-7112190 pero el inmueble está registrado a V-19866756)
       const { data: directPagos } = await supabase
         .from('pagos_reportados')
         .select('identidad, detalles')
-        .or(`identidad.ilike.%${query}%,referencia.ilike.%${query}%`)
-        .limit(20);
+        .or(`identidad.ilike.%${query}%,referencia.ilike.%${query}%,detalles->>codigo_inmueble.ilike.%${query}%,detalles->>cod_inmueble.ilike.%${query}%`)
+        .limit(30);
 
       directPagos?.forEach(p => {
         if (p.identidad) queryInmIdents.add(p.identidad);
@@ -71,6 +83,16 @@ export async function GET(request: Request) {
           }
         });
 
+        const { data: cuFromCodes } = await supabase
+          .from('condominio_unidades')
+          .select('identidad, propietario')
+          .in('inmueble', Array.from(queryRelatedInmuebleCodes).slice(0, 30));
+        cuFromCodes?.forEach(cu => {
+          if (cu.identidad && !String(cu.propietario || '').toUpperCase().includes('CONDOMINIO')) {
+            queryInmIdents.add(cu.identidad);
+          }
+        });
+
         // También buscar otros pagos cruzados sobre los mismos inmuebles específicos
         if (specificCodes.length > 0) {
           for (const sCod of specificCodes) {
@@ -78,9 +100,17 @@ export async function GET(request: Request) {
               const { data: pLineas } = await supabase
                 .from('pagos_reportados')
                 .select('identidad')
+                .or(`detalles->>codigo_inmueble.eq.${sCod},detalles->>cod_inmueble.eq.${sCod},detalles->>recibos.ilike.%${sCod}%`)
+                .limit(20);
+              pLineas?.forEach(pl => pl.identidad && queryInmIdents.add(pl.identidad));
+            } catch (_) {}
+            try {
+              const { data: pCondoLineas } = await supabase
+                .from('pagos_reportados')
+                .select('identidad')
                 .filter('detalles', 'cs', JSON.stringify({ condominio: { lineas: [{ inmueble: sCod }] } }))
                 .limit(10);
-              pLineas?.forEach(pl => pl.identidad && queryInmIdents.add(pl.identidad));
+              pCondoLineas?.forEach(pl => pl.identidad && queryInmIdents.add(pl.identidad));
             } catch (_) {}
           }
         }
@@ -97,9 +127,15 @@ export async function GET(request: Request) {
       // Al buscar por RIF, referencia o código, NO excluir Rechazado/Anulado para permitir ver el historial y facturas anuladas
       const orParts = [
         `identidad.ilike.%${query}%`,
-        `referencia.ilike.%${query}%`
+        `referencia.ilike.%${query}%`,
+        `detalles->>codigo_inmueble.ilike.%${query}%`,
+        `detalles->>cod_inmueble.ilike.%${query}%`
       ];
       Array.from(queryInmIdents).forEach(id => orParts.push(`identidad.eq.${id}`));
+      Array.from(queryRelatedInmuebleCodes).filter(c => !c.startsWith('URB014903') && c.length >= 6).slice(0, 15).forEach(c => {
+        orParts.push(`detalles->>codigo_inmueble.eq.${c}`);
+        orParts.push(`detalles->>cod_inmueble.eq.${c}`);
+      });
       pagosQuery = pagosQuery.or(orParts.join(',')).limit(500);
     } else if (filter === 'anuladas') {
       // Vista específica de facturas anuladas / notas de crédito (incluye facturas previas anuladas o con NC)

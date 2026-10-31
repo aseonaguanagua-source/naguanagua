@@ -492,6 +492,7 @@ export default function CajaPage() {
   // Set de referencias bloqueadas por pago en verificación: O(1) lookup
   const pendingRefsSet = useMemo(() => {
     const blocked = new Set<string>();
+    const allInmsList = [...(freshInmuebles || []), ...(condominioHijos || []), ...(inmuebles || [])];
     // Referencias reportadas en pagos_reportados con estado 'Por Verificar'
     pagosPendientes.forEach((p: any) => {
       let det: any = {};
@@ -499,10 +500,28 @@ export default function CajaPage() {
         det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {});
       } catch (_) {}
       const refs: string[] = det.recibos || [];
-      refs.forEach(ref => blocked.add(ref));
+      const deudaPrev: any[] = Array.isArray(det.deuda_previa) ? det.deuda_previa : [];
+      refs.forEach(ref => {
+        const mHist = String(ref).match(/^RECIB-HIST-(.+)-M(\d+)$/i);
+        if (mHist) {
+          const cod = mHist[1].toUpperCase();
+          const prevInm = deudaPrev.find((dp: any) => String(dp?.inmueble || '').toUpperCase() === cod);
+          const currInm = allInmsList.find((i: any) => String(i?.inmueble || '').toUpperCase() === cod);
+          if (prevInm && currInm) {
+            const prevMeses = Math.max(0, parseInt(String(prevInm.meses_deuda ?? 0), 10) || 0);
+            const currMeses = Math.max(0, parseInt(String(currInm.meses_deuda ?? 0), 10) || 0);
+            // Si los meses cubiertos por esta transferencia ya fueron descontados de meses_deuda,
+            // los recibos actuales (ej. M1 = Septiembre) son los meses restantes y NO deben bloquearse
+            if (prevMeses > currMeses) {
+              return;
+            }
+          }
+        }
+        blocked.add(ref);
+      });
     });
     return blocked;
-  }, [recibos, reciboMontoMap, pagosPendientes]);
+  }, [recibos, reciboMontoMap, pagosPendientes, freshInmuebles, condominioHijos, inmuebles]);
 
   // isItemPending: O(1) — solo consulta el Set precalculado
   const isItemPending = useCallback(

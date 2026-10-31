@@ -248,6 +248,13 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     const totalFilaBs = baseBs + multaBs + ivaBs + manualesBs;
 
     const row = ws3.getRow(f3++);
+    const cBase = conv(baseBs);
+    const cMulta = conv(multaBs);
+    const cIva = conv(ivaBs);
+    const cManuales = conv(manualesBs);
+    const cTotalFila = mon === '€'
+      ? Math.round((cBase + cMulta + cIva + cManuales) * 10000) / 10000
+      : conv(totalFilaBs);
     const vals: any[] = [
       sinReg ? 'Declaradas sin registrar' : (r.inmueble || r.clave),
       r.numero || (hijos.map(h => h.numero).find(Boolean) || ''),
@@ -258,11 +265,11 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
       conv(mensualBs),
       mesesAseo,
       mesesMulta,
-      conv(baseBs),
-      conv(multaBs),
-      conv(ivaBs),
-      conv(manualesBs),
-      conv(totalFilaBs),
+      cBase,
+      cMulta,
+      cIva,
+      cManuales,
+      cTotalFila,
     ];
     vals.forEach((v, i) => {
       const cell = row.getCell(i + 1);
@@ -275,10 +282,17 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   const rt3 = ws3.getRow(f3);
   rt3.getCell(1).value = 'TOTALES';
   const totalBrutoBs = totales.baseBs + totales.multaBs + totales.ivaBs;
-  const tv: Record<number, number> = { 10: totales.baseBs, 11: totales.multaBs, 12: totales.ivaBs, 14: totalBrutoBs };
+  const tvConv: Record<number, number> = {
+    10: conv(totales.baseBs),
+    11: conv(totales.multaBs),
+    12: conv(totales.ivaBs),
+    14: mon === '€'
+      ? Math.round((conv(totales.baseBs) + conv(totales.multaBs) + conv(totales.ivaBs)) * 10000) / 10000
+      : conv(totalBrutoBs)
+  };
   for (let k = 1; k <= 14; k++) {
     const cell = rt3.getCell(k);
-    if (tv[k] !== undefined) { cell.value = conv(tv[k]); cell.numFmt = numFmt; }
+    if (tvConv[k] !== undefined) { cell.value = tvConv[k]; cell.numFmt = numFmt; }
     cell.font = { bold: true }; cell.border = borde;
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
   }
@@ -302,6 +316,16 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
       const numLocal = padre?.numero || hijos.map(h => h.numero).find(Boolean) || '';
       for (const h of hijos) {
         const row = ws4.getRow(f4++);
+        const hBaseBs = Number(h.deuda?.baseBs) || 0;
+        const hMultaBs = (Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0);
+        const hIvaBs = Number(h.deuda?.ivaBs) || 0;
+        const hTotalBrutoBs = hBaseBs + hMultaBs + hIvaBs;
+        const chBase = conv(hBaseBs);
+        const chMulta = conv(hMultaBs);
+        const chIva = conv(hIvaBs);
+        const chTotal = mon === '€'
+          ? Math.round((chBase + chMulta + chIva) * 10000) / 10000
+          : conv(hTotalBrutoBs);
         const vals: any[] = [
           numLocal,
           padre?.inmueble || padre?.clave || '—',
@@ -313,10 +337,10 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
           conv((Number(h.mensualBs) || 0) * (h.residencial ? 1 : 1.16)),
           Number(h.deuda?.meses) || 0,
           Number(h.multaMeses) || 0,
-          conv(Number(h.deuda?.baseBs) || 0),
-          conv((Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0)),
-          conv(Number(h.deuda?.ivaBs) || 0),
-          conv(Number(h.totalBs) || 0)
+          chBase,
+          chMulta,
+          chIva,
+          chTotal
         ];
         vals.forEach((v, i) => {
           const cell = row.getCell(i + 1);

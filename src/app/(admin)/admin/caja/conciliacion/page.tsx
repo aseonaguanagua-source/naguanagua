@@ -1028,14 +1028,31 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
       };
 
       if (estatus === 'Rechazado') {
-        // Rechazado: eliminar cualquier preparación o cola de factura digital
-        delete (updatedDet as any).factura_digital;
-        (updatedDet as any).factura_digital = {
-          emitida: false,
-          pendiente: false,
-          rechazada: true,
-          rechazada_at: new Date().toISOString()
-        };
+        // Rechazado: conservar metadatos si ya se emitió o anuló una factura fiscal SENIAT
+        const existingFd = (updatedDet as any).factura_digital;
+        const hasEmittedOrAnnulledInvoice = existingFd && (
+          existingFd.emitida === true ||
+          existingFd.anulada === true ||
+          Boolean(existingFd.numero_control) ||
+          Boolean(existingFd.numero_documento) ||
+          Boolean(existingFd.nota_credito)
+        );
+        if (hasEmittedOrAnnulledInvoice) {
+          (updatedDet as any).factura_digital = {
+            ...existingFd,
+            pendiente: false,
+            rechazada: true,
+            rechazada_at: new Date().toISOString()
+          };
+        } else {
+          delete (updatedDet as any).factura_digital;
+          (updatedDet as any).factura_digital = {
+            emitida: false,
+            pendiente: false,
+            rechazada: true,
+            rechazada_at: new Date().toISOString()
+          };
+        }
         // Limpiar saldo a favor en el detalle del pago rechazado
         (updatedDet as any).saldo_favor = 0;
         (updatedDet as any).saldo_favor_bs = 0;
@@ -2330,16 +2347,19 @@ export default function ConciliacionPage() {
         const { data } = await q;
         result = data || [];
       }
-      // Filtrar estrictamente: solo pagos bancarios activos/conciliables
-      // (sin anulados ni comprobantes puros de retención de IVA, que se gestionan en su propio módulo)
+      // Filtrar estrictamente: solo pagos bancarios activos/conciliables en la vista general,
+      // pero si el operador busca un código/referencia/RIF específico (tieneTermino) con Estatus=Todos,
+      // permitir ver pagos cuya factura fue anulada para trazabilidad completa.
       result = result.filter((p: any) => {
-        const estNorm = String(p.estado || '').trim().toLowerCase();
-        if (estNorm === 'anulado' || estNorm.startsWith('anulad')) return false;
         if (p.tipo === 'Retencion de IVA') return false;
         if (String(p.referencia || '').startsWith('RET-')) return false;
         const det = parseDetalles(p.detalles);
-        if (det.anulado || det.factura_digital?.anulada || det.factura_anulada) return false;
         if (det.pago_vinculado && p.banco === 'N/A') return false;
+        if (!tieneTermino || filtros.estatus !== 'Todos') {
+          const estNorm = String(p.estado || '').trim().toLowerCase();
+          if (estNorm === 'anulado' || estNorm.startsWith('anulad')) return false;
+          if (det.anulado || det.factura_digital?.anulada || det.factura_anulada) return false;
+        }
         return pasaFiltroModulo(p, filtros.modulo, condos);
       });
 

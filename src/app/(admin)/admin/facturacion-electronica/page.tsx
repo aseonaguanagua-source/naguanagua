@@ -1569,7 +1569,7 @@ export default function FacturacionElectronicaPage() {
                                 <span>{pago.reciboEnviado ? 'Reenviar' : 'Enviar'}</span>
                               </button>
                             </>
-                          ) : pago.facturaEmitida ? (
+                          ) : (pago.facturaEmitida || pago.facturaAnulada) ? (
                             <>
                               {pago.facturaUrl && (
                                 <a
