@@ -125,8 +125,9 @@ export default function FacturacionPortalPage() {
           try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
 
           const fd = det.factura_digital;
-          // Solo facturas que ya hayan sido emitidas
+          // Solo facturas que ya hayan sido emitidas y que no sean filas secundarias de multipago
           if (!fd || fd.emitida !== true) return;
+          if (det.es_pago_adicional === true || fd.es_pago_adicional === true) return;
 
           const numDoc = fd.numero_documento || fd.raw_response?.resultado?.numeroDocumento || '0';
           const numCtrl = fd.numero_control || fd.raw_response?.resultado?.numeroControl || 'N/A';
@@ -166,7 +167,7 @@ export default function FacturacionPortalPage() {
             }
           }
 
-          const total = parseFloat(String(r.total || det.montoTotal || det.monto_factura || p.monto || 0)) || 0;
+          const total = parseFloat(String(r.total || fd.monto_total || det.monto_factura || det.total_seleccionado || det.montoTotal || p.monto || 0)) || 0;
           const base = parseFloat(String(r.base || (total ? total / 1.16 : 0))) || 0;
           const iva = parseFloat(String(r.iva || (total - base))) || 0;
           const periodoFacturado = resolverPeriodoFactura(p, det, matchedRet);

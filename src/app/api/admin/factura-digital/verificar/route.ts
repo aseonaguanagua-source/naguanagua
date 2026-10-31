@@ -136,10 +136,31 @@ export async function POST(request: Request) {
         } catch(e) {}
       }
 
-      if (rcTotal > 0) {
-        montoTotal = Math.round(rcTotal * 100) / 100;
+      const fdTotalGuardado = parseFloat(String(det.factura_digital?.retencion?.total || det.factura_digital?.monto_total || 0)) || 0;
+      const mFacGuardado = parseFloat(String(det.monto_factura || 0)) || 0;
+      const mPagoCol = parseFloat(String(pagoData.monto || 0)) || 0;
+      const mNetoGuardado = parseFloat(String(det.monto_neto_factura || 0)) || 0;
+      const netFromRetEst = ret > 0 ? Math.round((ret * 26 / 3) * 100) / 100 : 0;
+
+      if (fdTotalGuardado > 0 && (!esRet || ret === 0 || fdTotalGuardado >= (ret * 29 / 3) - 25 || fdTotalGuardado > mPagoCol + 1)) {
+        montoTotal = fdTotalGuardado;
+      } else if (mFacGuardado > 0) {
+        const esMFacNeto = esRet && ret > 0 && (
+          (mNetoGuardado > 0 && Math.abs(mFacGuardado - mNetoGuardado) < 1) ||
+          (Math.abs(mFacGuardado - mPagoCol) < 1 && Math.abs(mFacGuardado - netFromRetEst) < 25) ||
+          (rcTotal > mFacGuardado + 1 && Math.abs(rcTotal - (mFacGuardado + ret)) < 2)
+        );
+        montoTotal = esMFacNeto ? Math.round((mFacGuardado + ret + sfUsado) * 100) / 100 : mFacGuardado;
+      } else if (rcTotal > 0) {
+        const esNeto = esRet && ret > 0 && (
+          (mNetoGuardado > 0 && Math.abs(rcTotal - mNetoGuardado) < 1) ||
+          (det.montoTotal && Math.abs(rcTotal - parseFloat(det.montoTotal)) < 1 && Math.abs(rcTotal - netFromRetEst) < 25) ||
+          (Math.abs(rcTotal - mPagoCol) < 1 && Math.abs(rcTotal - netFromRetEst) < 25) ||
+          (det.total_seleccionado && parseFloat(det.total_seleccionado) > rcTotal + 1)
+        );
+        montoTotal = esNeto ? Math.round((rcTotal + ret) * 100) / 100 : Math.round(rcTotal * 100) / 100;
       } else if (esRet) {
-        const montoNeto = parseFloat(String(det.monto_neto_factura || 0));
+        const montoNeto = mNetoGuardado;
         const totalSel = parseFloat(String(det.total_seleccionado || 0));
         const deudaSis = parseFloat(String(det.deuda_total_sistema || 0));
         if (montoNeto > 0 && ret > 0) {
@@ -149,18 +170,16 @@ export async function POST(request: Request) {
         } else if (deudaSis > 0) {
           montoTotal = deudaSis;
         } else if (ret > 0) {
-          montoTotal = Math.max(0, parseFloat(pagoData.monto || 0) - sfReal) + ret + sfUsado;
+          montoTotal = Math.max(0, mPagoCol - sfReal) + ret + sfUsado;
         }
-      } else if (det.monto_neto_factura && parseFloat(det.monto_neto_factura) > 0) {
-        montoTotal = parseFloat(det.monto_neto_factura);
-      } else if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
-        montoTotal = parseFloat(det.monto_factura);
+      } else if (mNetoGuardado > 0) {
+        montoTotal = mNetoGuardado;
       } else if (det.total_seleccionado && parseFloat(det.total_seleccionado) > 0) {
         montoTotal = parseFloat(det.total_seleccionado);
-      } else if (sfReal > 0 && parseFloat(pagoData.monto || 0) > sfReal) {
-        montoTotal = (parseFloat(pagoData.monto || 0)) - sfReal + sfUsado;
+      } else if (sfReal > 0 && mPagoCol > sfReal) {
+        montoTotal = mPagoCol - sfReal + sfUsado;
       } else {
-        montoTotal = parseFloat(String(pagoData.monto || '0')) + sfUsado;
+        montoTotal = mPagoCol + sfUsado;
       }
     }
 

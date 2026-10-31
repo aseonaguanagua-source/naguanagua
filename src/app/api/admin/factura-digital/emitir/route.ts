@@ -793,9 +793,45 @@ export async function POST(request: Request) {
       if (matchPeriodo) periodoGlobal = matchPeriodo[1]?.trim();
     }
 
+    // Agente de retención: la factura se emite por el MONTO BRUTO TOTAL (100% IVA), no por el neto pagado
+    const conRetencion = esRetencion !== undefined ? !!esRetencion : (pagoTieneRetencion(detPago) || !!(propRef as any)?.agente_retencion);
+    const saldoFavorGenerado = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
+    const montoFacturaGuardadoRaw = parseFloat(String(detPago.monto_factura || 0)) || 0;
+    const montoRetencionGuardada = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
+
+    const totalEfectivoPagado = (() => {
+      if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
+        return detPago.pagos_agregados
+          .filter((p: any) => !String(p?.metodo || p?.tipo || '').toLowerCase().includes('saldo a favor') && !String(p?.metodo || p?.tipo || '').toLowerCase().includes('nota de credito'))
+          .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+      }
+      if (Array.isArray(detPago?.formasPago) && detPago.formasPago.length > 0) {
+        return detPago.formasPago
+          .filter((p: any) => !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('saldo a favor') && !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('nota de credito'))
+          .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+      }
+      return parseFloat(String(pagoRow?.monto || 0)) || 0;
+    })();
+
+    const mNetoPagoGuardado = parseFloat(String(detPago.monto_neto_factura || 0)) || 0;
+    const esMFacGuardadoNeto = conRetencion && montoRetencionGuardada > 0 && montoFacturaGuardadoRaw > 0 && (
+      (mNetoPagoGuardado > 0 && Math.abs(montoFacturaGuardadoRaw - mNetoPagoGuardado) < 1) ||
+      (Math.abs(montoFacturaGuardadoRaw - totalEfectivoPagado) < 1 && Math.abs(montoFacturaGuardadoRaw - (montoRetencionGuardada * 26 / 3)) < 25)
+    );
+    const montoFacturaGuardado = esMFacGuardadoNeto ? r2(montoFacturaGuardadoRaw + montoRetencionGuardada) : montoFacturaGuardadoRaw;
+
     const explicitBase = parseFloat(String(montoServicio ?? montos?.servicio ?? 0)) || 0;
     const explicitMulta = parseFloat(String(montoMulta ?? montos?.multa ?? 0)) || 0;
-    const explicitTotal = parseFloat(String(montoTotal ?? montos?.total ?? totalManualNum ?? 0)) || 0;
+    let explicitTotal = parseFloat(String(montoTotal ?? montos?.total ?? totalManualNum ?? 0)) || 0;
+    if (explicitTotal > 0 && totalManualNum === 0 && conRetencion && montoRetencionGuardada > 0) {
+      const esExplicitNeto =
+        (mNetoPagoGuardado > 0 && Math.abs(explicitTotal - mNetoPagoGuardado) < 1) ||
+        (montoFacturaGuardado > explicitTotal + 1 && Math.abs(explicitTotal + montoRetencionGuardada - montoFacturaGuardado) < 5) ||
+        (Math.abs(explicitTotal - totalEfectivoPagado) < 1 && Math.abs(explicitTotal - (montoRetencionGuardada * 26 / 3)) < 25);
+      if (esExplicitNeto) {
+        explicitTotal = r2(explicitTotal + montoRetencionGuardada);
+      }
+    }
     const tieneMontoMultaExplicito = (montoMulta !== undefined && montoMulta !== null && String(montoMulta).trim() !== '') ||
       (montos?.multa !== undefined && montos?.multa !== null && String(montos.multa).trim() !== '');
 
@@ -837,6 +873,15 @@ export async function POST(request: Request) {
       baseExenta = r2(itemsExentos.reduce((s: number, it: any) => s + (parseFloat(it.PrecioUnitario) || 0), 0));
     }
 
+    const esRcNeto = conRetencion && montoRetencionGuardada > 0 && rcTotal > 0 && (
+      (mNetoPagoGuardado > 0 && Math.abs(rcTotal - mNetoPagoGuardado) < 1) ||
+      (detPago.montoTotal && Math.abs(rcTotal - parseFloat(String(detPago.montoTotal))) < 1 && Math.abs(rcTotal - (montoRetencionGuardada * 26 / 3)) < 25) ||
+      (detPago.total_seleccionado && parseFloat(String(detPago.total_seleccionado)) > rcTotal + 1) ||
+      (montoFacturaGuardado > rcTotal + 1 && Math.abs(rcTotal + montoRetencionGuardada - montoFacturaGuardado) < 5) ||
+      (Math.abs(rcTotal - totalEfectivoPagado) < 1 && Math.abs(rcTotal - (montoRetencionGuardada * 26 / 3)) < 25)
+    );
+    const rcTotalBruto = esRcNeto ? r2(rcTotal + montoRetencionGuardada) : rcTotal;
+
     // 2. DETERMINAR BASE GRAVADA E IVA
     let baseGravada = 0;
     let ivaGravado = 0;
@@ -855,10 +900,10 @@ export async function POST(request: Request) {
     } else if (explicitBase > 0) {
       baseGravada = r2(explicitBase);
       ivaGravado = r2(baseGravada * 0.16);
-    } else if (rcTotal > 0) {
-      const gravadoConIva = r2(Math.max(0, rcTotal - baseExenta));
+    } else if (rcTotalBruto > 0) {
+      const gravadoConIva = r2(Math.max(0, rcTotalBruto - baseExenta));
       if (gravadoConIva > 0.001) {
-        if (rcSubTotal > 0 && rcSubTotal !== rcTotal && Math.abs((rcSubTotal + (rcIva || r2(rcSubTotal * 0.16)) + baseExenta) - rcTotal) <= 0.05) {
+        if (!esRcNeto && rcSubTotal > 0 && rcSubTotal !== rcTotalBruto && Math.abs((rcSubTotal + (rcIva || r2(rcSubTotal * 0.16)) + baseExenta) - rcTotalBruto) <= 0.05) {
           baseGravada = rcSubTotal;
           ivaGravado = rcIva > 0 ? rcIva : r2(baseGravada * 0.16);
         } else {
@@ -931,27 +976,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Agente de retención: la factura se emite pero NO se envía hasta aprobar su comprobante de retención
-    const conRetencion = esRetencion !== undefined ? !!esRetencion : (pagoTieneRetencion(detPago) || !!(propRef as any)?.agente_retencion);
-
-    const saldoFavorGenerado = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
-    const montoFacturaGuardado = parseFloat(String(detPago.monto_factura || 0)) || 0;
-    const montoRetencionGuardada = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
-
-    const totalEfectivoPagado = (() => {
-      if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
-        return detPago.pagos_agregados
-          .filter((p: any) => !String(p?.metodo || p?.tipo || '').toLowerCase().includes('saldo a favor') && !String(p?.metodo || p?.tipo || '').toLowerCase().includes('nota de credito'))
-          .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
-      }
-      if (Array.isArray(detPago?.formasPago) && detPago.formasPago.length > 0) {
-        return detPago.formasPago
-          .filter((p: any) => !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('saldo a favor') && !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('nota de credito'))
-          .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
-      }
-      return parseFloat(String(pagoRow?.monto || 0)) || 0;
-    })();
-
     // Detección de Nota de Crédito (Saldo a Favor) aplicada en el pago
     const saldoFavorUsado = (() => {
       let sf = parseFloat(String(
@@ -976,11 +1000,11 @@ export async function POST(request: Request) {
           .filter((fp: any) => String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') || String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
           .reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
       }
-      if (sf === 0 && detPago.monto_factura) {
-        const mFactura = parseFloat(String(detPago.monto_factura)) || 0;
+      if (sf === 0 && montoFacturaGuardado > 0) {
+        const mFactura = montoFacturaGuardado;
         const mPago = totalEfectivoPagado;
-        const mRet = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
-        const sFavorGen = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || 0)) || 0;
+        const mRet = montoRetencionGuardada;
+        const sFavorGen = saldoFavorGenerado;
         const dif = Math.round((mFactura - mPago - mRet + (sFavorGen > 0 ? sFavorGen : 0)) * 100) / 100;
         if (dif > 0.05) {
           sf = dif;
@@ -993,13 +1017,8 @@ export async function POST(request: Request) {
     let montoCobrado = totalEfectivoPagado + montoRetencionGuardada + saldoFavorUsado - sfReal;
     if (montoFacturaGuardado > 0) {
       montoCobrado = montoFacturaGuardado;
-    } else if (rcTotal > 0) {
-      const esNeto = conRetencion && montoRetencionGuardada > 0 && (
-        (detPago.monto_neto_factura && Math.abs(rcTotal - parseFloat(detPago.monto_neto_factura)) < 1) ||
-        (detPago.montoTotal && Math.abs(rcTotal - parseFloat(detPago.montoTotal)) < 1) ||
-        (detPago.total_seleccionado && parseFloat(detPago.total_seleccionado) > rcTotal + 1)
-      );
-      montoCobrado = esNeto ? r2(rcTotal + montoRetencionGuardada) : rcTotal;
+    } else if (rcTotalBruto > 0) {
+      montoCobrado = rcTotalBruto;
     } else if (conRetencion) {
       const montoNeto = parseFloat(String(detPago.monto_neto_factura || 0));
       if (montoNeto > 0 && montoRetencionGuardada > 0) {
@@ -1027,7 +1046,9 @@ export async function POST(request: Request) {
     // Lo que esté por encima NO se traslada a la factura digital; solo va a la nota de crédito.
     const objetivo = totalManualNum > 0
       ? totalManualNum
-      : (totalCalculado > 0 && montoCobrado >= totalCalculado - 0.05 ? totalCalculado : montoCobrado);
+      : (conRetencion && montoRetencionGuardada > 0 && montoCobrado > totalCalculado + 1 && Math.abs(totalCalculado + montoRetencionGuardada - montoCobrado) < 5
+          ? montoCobrado
+          : (totalCalculado > 0 && montoCobrado >= totalCalculado - 0.05 ? totalCalculado : montoCobrado));
 
     // Caja de Condominios: los renglones ya son exactos (si hubo residenciales, lo cobrado incluye esa parte)
     const aplicarCuadre = totalManualNum > 0 || (lineasCondo ? excluidosResidenciales === 0 : (!esMixto && excluidosResidenciales === 0));
@@ -1724,7 +1745,7 @@ export async function POST(request: Request) {
 
         let seq = await siguienteNumeroDocumento(supabase);
         let tfhkaResponse: any = null;
-        for (let intento = 0; intento < 5; intento++) {
+        for (let intento = 0; intento < 25; intento++) {
           jsonTFHKA.documentoElectronico.Encabezado.IdentificacionDocumento.NumeroDocumento = String(seq);
           tfhkaResponse = await TheFactoryHKA.emitirDocumento(jsonTFHKA.documentoElectronico);
           if (tfhkaResponse?.resultado?.numeroControl) break;
@@ -1864,6 +1885,10 @@ export async function POST(request: Request) {
     }
     nuevosDetalles.base_imponible = totalGravado;
     nuevosDetalles.iva_monto = totalIVA;
+    nuevosDetalles.monto_factura = totalAPagar;
+    if (nuevosDetalles.factura_digital) {
+      nuevosDetalles.factura_digital.monto_total = totalAPagar;
+    }
     nuevosDetalles.factura_digital_error = null;
 
     const updatePayload: any = { detalles: nuevosDetalles };

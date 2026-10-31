@@ -155,25 +155,47 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     }
   }
 
+  const fdTotalGuardado = parseFloat(String(det.factura_digital?.retencion?.total || det.factura_digital?.monto_total || 0)) || 0;
+  const mFacGuardado = parseFloat(String(det.monto_factura || 0)) || 0;
+  const mNetoGuardado = parseFloat(String(det.monto_neto_factura || 0)) || 0;
+  const netFromRetEst = retGuardada > 0 ? Math.round((retGuardada * 26 / 3) * 100) / 100 : 0;
+
   if (pago?.totalManual && parseFloat(String(pago.totalManual)) > 0) {
     totalFactura = parseFloat(String(pago.totalManual));
+  } else if (fdTotalGuardado > 0 && (!esRetencion || retGuardada === 0 || fdTotalGuardado >= (retGuardada * 29 / 3) - 25 || fdTotalGuardado > montoPagado + 1)) {
+    totalFactura = fdTotalGuardado;
+  } else if (mFacGuardado > 0) {
+    const esMFacNeto = esRetencion && retGuardada > 0 && (
+      (mNetoGuardado > 0 && Math.abs(mFacGuardado - mNetoGuardado) < 1) ||
+      (Math.abs(mFacGuardado - montoPagado) < 1 && Math.abs(mFacGuardado - netFromRetEst) < 25) ||
+      (rcTotal > mFacGuardado + 1 && Math.abs(rcTotal - (mFacGuardado + retGuardada)) < 2)
+    );
+    totalFactura = esMFacNeto ? parseFloat((mFacGuardado + retGuardada + saldoFavorUsado).toFixed(2)) : mFacGuardado;
   } else if (rcTotal > 0) {
-    totalFactura = rcTotal;
-    const remGravado = Math.max(0, rcTotal - exento);
-    if (remGravado <= 0.01) {
-      baseImponible = 0;
-      iva = 0;
-    } else {
-      baseImponible = rcSubTotal > 0 && rcSubTotal !== rcTotal && Math.abs((rcSubTotal + (rcIva || parseFloat((rcSubTotal * 0.16).toFixed(2))) + exento) - rcTotal) <= 0.05
-        ? rcSubTotal
-        : parseFloat((remGravado / 1.16).toFixed(2));
-      iva = rcIva > 0 ? rcIva : parseFloat((remGravado - baseImponible).toFixed(2));
+    const esNeto = esRetencion && retGuardada > 0 && (
+      (mNetoGuardado > 0 && Math.abs(rcTotal - mNetoGuardado) < 1) ||
+      (det.montoTotal && Math.abs(rcTotal - parseFloat(String(det.montoTotal))) < 1 && Math.abs(rcTotal - netFromRetEst) < 25) ||
+      (Math.abs(rcTotal - montoPagado) < 1 && Math.abs(rcTotal - netFromRetEst) < 25) ||
+      (det.total_seleccionado && parseFloat(String(det.total_seleccionado)) > rcTotal + 1)
+    );
+    totalFactura = esNeto ? parseFloat((rcTotal + retGuardada).toFixed(2)) : rcTotal;
+    if (!esNeto) {
+      const remGravado = Math.max(0, rcTotal - exento);
+      if (remGravado <= 0.01) {
+        baseImponible = 0;
+        iva = 0;
+      } else {
+        baseImponible = rcSubTotal > 0 && rcSubTotal !== rcTotal && Math.abs((rcSubTotal + (rcIva || parseFloat((rcSubTotal * 0.16).toFixed(2))) + exento) - rcTotal) <= 0.05
+          ? rcSubTotal
+          : parseFloat((remGravado / 1.16).toFixed(2));
+        iva = rcIva > 0 ? rcIva : parseFloat((remGravado - baseImponible).toFixed(2));
+      }
     }
     exento = exento > 0 ? exento : rcExento;
   } else if (esRetencion) {
     // Para pagos con retención de IVA:
     // El total fiscal de la factura es el monto BRUTO con IVA (antes de deducir la retención)
-    const montoFacturaNeto = parseFloat(String(det.monto_neto_factura || 0));
+    const montoFacturaNeto = mNetoGuardado;
     const totalSel = parseFloat(String(det.total_seleccionado || 0));
     const deudaSis = parseFloat(String(det.deuda_total_sistema || 0));
 
@@ -191,10 +213,8 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
       const baseEst = (netoCobradoDeuda - exento) / 1.04;
       totalFactura = parseFloat((baseEst * 1.16 + exento).toFixed(2));
     }
-  } else if (det.monto_neto_factura && parseFloat(String(det.monto_neto_factura)) > 0) {
-    totalFactura = parseFloat(String(det.monto_neto_factura));
-  } else if (det.monto_factura && parseFloat(String(det.monto_factura)) > 0) {
-    totalFactura = parseFloat(String(det.monto_factura));
+  } else if (mNetoGuardado > 0) {
+    totalFactura = mNetoGuardado;
   } else if (det.total_seleccionado && parseFloat(String(det.total_seleccionado)) > 0) {
     totalFactura = parseFloat(String(det.total_seleccionado));
   } else {
@@ -387,7 +407,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             contribuyente: pago.contribuyente || det.contribuyente,
             referencia: pago.referencia || det.referencia,
             modulo: pago.modulo || det.modulo,
-            montoTotal: pago.monto || pago.montoTotal || det.montoTotal
+            montoTotal: totalFactura || pago.monto || det.monto_factura || pago.montoTotal || det.montoTotal
           })
         });
         const d = await res.json();

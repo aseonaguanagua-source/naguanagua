@@ -1642,9 +1642,24 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
             String(curDet.condominio?.modalidad || det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
             (curDet.condominio?.lineas?.length === 1 && curDet.condominio?.lineas?.[0]?.inmueble && curDet.condominio?.lineas?.[0]?.inmueble !== (curDet.condominio?.codigo || det.condominio?.codigo));
 
+          const retDocConcil = parseFloat(String(curDet.monto_retencion_iva || curDet.retencion_iva || det.monto_retencion_iva || det.retencion_iva || montoRetencionDoc || 0)) || 0;
+          const sfUsadoConcil = parseFloat(String(curDet.saldo_usado || curDet.saldo_favor_usado || curDet.descuento_saldo_favor || saldoFavorUsado || 0)) || 0;
+          const montoNetoSinExcedente = Math.max(0, Math.round((montoConciliadoNum - excedenteCaja) * 100) / 100);
+          const montoBrutoConcil = Math.round((montoNetoSinExcedente + retDocConcil + sfUsadoConcil) * 100) / 100;
+          if (!esCondo) {
+            if (!curDet.monto_factura || parseFloat(String(curDet.monto_factura)) < montoBrutoConcil - 0.5) {
+              curDet.monto_factura = montoBrutoConcil;
+            }
+            if (!curDet.monto_neto_factura && retDocConcil > 0) {
+              curDet.monto_neto_factura = montoNetoSinExcedente;
+            }
+          }
           if (!esCondo && excedenteCaja <= 0.01) {
-            curDet.montos = { total: montoConciliadoNum };
-            curDet.montoTotal = montoConciliadoNum;
+            const hasPerReceiptMontos = curDet.montos && typeof curDet.montos === 'object' && Object.keys(curDet.montos).some((k: string) => k !== 'total');
+            if (!hasPerReceiptMontos) {
+              curDet.montos = { total: montoBrutoConcil };
+            }
+            curDet.montoTotal = montoBrutoConcil;
           }
           if (esCondo && !esPagoUnidadFac) {
             curDet.contribuyente = curDet.condominio?.nombre || det.condominio?.nombre || curDet.contribuyente || det.contribuyente || pago.identidad;

@@ -2924,7 +2924,7 @@ export default function CajaPage() {
         if (isCondominio) {
           const refCondo = `CONDO-${foundUser.CodCont || foundUser.cod_cont || 'PADRE'}-${Date.now().toString().slice(-6)}`;
           digitalRecibos = [refCondo];
-          digitalMontos = { [refCondo]: montoReal };
+          digitalMontos = { [refCondo]: (realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos };
         }
 
         const fpsList: any[] = [];

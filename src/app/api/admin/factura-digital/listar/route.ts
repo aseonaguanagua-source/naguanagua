@@ -709,18 +709,32 @@ export async function GET(request: Request) {
         } catch(e) {}
       }
 
-      if (det.monto_factura && parseFloat(det.monto_factura) > 0) {
-        montoFacturaReal = parseFloat(det.monto_factura);
+      const fdTotalGuardado = parseFloat(String(fd?.retencion?.total || fd?.monto_total || 0)) || 0;
+      const mFacGuardado = parseFloat(String(det.monto_factura || 0)) || 0;
+      const mPagoCol = parseFloat(String(pago.monto || 0)) || 0;
+      const mNetoGuardado = parseFloat(String(det.monto_neto_factura || 0)) || 0;
+      const netFromRetEst = montoRetNum > 0 ? Math.round((montoRetNum * 26 / 3) * 100) / 100 : 0;
+
+      if (fdTotalGuardado > 0 && (!tieneRetencion || montoRetNum === 0 || fdTotalGuardado >= (montoRetNum * 29 / 3) - 25 || fdTotalGuardado > mPagoCol + 1)) {
+        montoFacturaReal = fdTotalGuardado;
+      } else if (mFacGuardado > 0) {
+        const esMFacNeto = tieneRetencion && montoRetNum > 0 && (
+          (mNetoGuardado > 0 && Math.abs(mFacGuardado - mNetoGuardado) < 1) ||
+          (Math.abs(mFacGuardado - mPagoCol) < 1 && Math.abs(mFacGuardado - netFromRetEst) < 25) ||
+          (rcTotal > mFacGuardado + 1 && Math.abs(rcTotal - (mFacGuardado + montoRetNum)) < 2)
+        );
+        montoFacturaReal = esMFacNeto ? Math.round((mFacGuardado + montoRetNum + sfUsado) * 100) / 100 : mFacGuardado;
       } else if (rcTotal > 0) {
         const esNeto = tieneRetencion && montoRetNum > 0 && (
-          (det.monto_neto_factura && Math.abs(rcTotal - parseFloat(det.monto_neto_factura)) < 1) ||
-          (det.montoTotal && Math.abs(rcTotal - parseFloat(det.montoTotal)) < 1) ||
+          (mNetoGuardado > 0 && Math.abs(rcTotal - mNetoGuardado) < 1) ||
+          (det.montoTotal && Math.abs(rcTotal - parseFloat(det.montoTotal)) < 1 && Math.abs(rcTotal - netFromRetEst) < 25) ||
+          (Math.abs(rcTotal - mPagoCol) < 1 && Math.abs(rcTotal - netFromRetEst) < 25) ||
           (det.total_seleccionado && parseFloat(det.total_seleccionado) > rcTotal + 1)
         );
         montoFacturaReal = esNeto ? Math.round((rcTotal + montoRetNum) * 100) / 100 : rcTotal;
       } else if (tieneRetencion) {
         // Para retención: El monto fiscal de la factura es el valor BRUTO con IVA (antes de deducir retención)
-        const montoNetoDet = parseFloat(String(det.monto_neto_factura || 0));
+        const montoNetoDet = mNetoGuardado;
         const totalSel = parseFloat(String(det.total_seleccionado || 0));
         const deudaSis = parseFloat(String(det.deuda_total_sistema || 0));
         if (montoNetoDet > 0 && montoRetNum > 0) {
@@ -730,10 +744,10 @@ export async function GET(request: Request) {
         } else if (deudaSis > 0) {
           montoFacturaReal = deudaSis;
         } else if (montoRetNum > 0) {
-          montoFacturaReal = Math.max(0, parseFloat(pago.monto || '0') - (sFavorGuardado > 0 ? sFavorGuardado : 0)) + montoRetNum + sfUsado;
+          montoFacturaReal = Math.max(0, mPagoCol - (sFavorGuardado > 0 ? sFavorGuardado : 0)) + montoRetNum + sfUsado;
         }
-      } else if (det.monto_neto_factura && parseFloat(det.monto_neto_factura) > 0) {
-        montoFacturaReal = parseFloat(det.monto_neto_factura);
+      } else if (mNetoGuardado > 0) {
+        montoFacturaReal = mNetoGuardado;
       } else if (det.total_seleccionado && parseFloat(det.total_seleccionado) > 0) {
         montoFacturaReal = parseFloat(det.total_seleccionado);
       } else if (sFavorGuardado > 0 && montoFacturaReal > sFavorGuardado) {

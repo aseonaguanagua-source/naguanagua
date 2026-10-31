@@ -60,7 +60,7 @@ function buildFacturaEmailHtml(data: {
                   <td style="color:#0f172a;text-align:right;border-bottom:1px solid #e2e8f0;">${data.fecha}</td>
                 </tr>
                 <tr>
-                  <td style="color:#64748b;font-size:14px;font-weight:bold;">Monto Total Pagado:</td>
+                  <td style="color:#64748b;font-size:14px;font-weight:bold;">Monto Total de la Factura:</td>
                   <td style="color:#166534;font-size:15px;font-weight:bold;text-align:right;">Bs ${data.monto.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               </table>
@@ -101,8 +101,9 @@ export async function POST(request: Request) {
 
     // Agente de retención: la factura solo se envía después de aprobar su comprobante de retención
     let numeroDocumento: string | null = null;
+    let montoFacturaDb = 0;
     if (pagoId) {
-      const { data: pg } = await supabase.from('pagos_reportados').select('detalles').eq('id', pagoId).maybeSingle();
+      const { data: pg } = await supabase.from('pagos_reportados').select('monto, detalles').eq('id', pagoId).maybeSingle();
       let dt: any = pg?.detalles || {};
       if (typeof dt === 'string') { try { dt = JSON.parse(dt); } catch { dt = {}; } }
       const est = dt?.factura_digital?.retencion?.estado;
@@ -110,6 +111,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Esta factura es de un agente de retención: se envía automáticamente cuando se apruebe su comprobante de retención (Conciliación → Retenciones).' }, { status: 409 });
       }
       numeroDocumento = dt?.factura_digital?.numero_documento || dt?.factura_digital?.raw_response?.resultado?.numeroDocumento || null;
+      montoFacturaDb = parseFloat(String(dt?.factura_digital?.retencion?.total || dt?.factura_digital?.monto_total || dt?.monto_factura || 0)) || 0;
     }
 
     // PDF oficial adjunto: el contribuyente recibe SOLO su factura, sin acceso al visor de TFHKA
@@ -133,7 +135,7 @@ export async function POST(request: Request) {
       contribuyente: contribuyente || 'Contribuyente',
       identidad: identidad || 'N/A',
       numeroControl: numeroControl || 'PENDIENTE',
-      monto: parseFloat(monto || '0'),
+      monto: montoFacturaDb > 0 ? montoFacturaDb : parseFloat(monto || '0'),
       fecha: fecha ? new Date(fecha).toLocaleDateString('es-VE') : new Date().toLocaleDateString('es-VE'),
       url: facturaUrl || '#'
     });

@@ -96,7 +96,17 @@ export async function POST(request: Request) {
           conveniosIds: convenioIds,
           servicios: servicioRefs,
           comprobante_url: comprobanteUrl,
-          ...(montoRetencionIva > 0 ? { monto_retencion_iva: montoRetencionIva, es_agente_retencion: true } : {}),
+          monto_factura: Math.round((montoNum + montoRetencionIva) * 100) / 100,
+          monto_neto_factura: montoNum,
+          montoTotal: Math.round((montoNum + montoRetencionIva) * 100) / 100,
+          ...(montoRetencionIva > 0 ? {
+            monto_retencion_iva: montoRetencionIva,
+            retencion_iva: montoRetencionIva,
+            es_retencion: true,
+            conRetencion: true,
+            agente_retencion: true,
+            es_agente_retencion: true,
+          } : {}),
           fecha_transaccion: fechaPago
         })
       });

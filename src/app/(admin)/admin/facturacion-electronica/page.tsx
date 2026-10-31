@@ -626,21 +626,32 @@ export default function FacturacionElectronicaPage() {
       return parseFloat(String(pago.montoPagado || pago.monto || 0)) || 0;
     })();
     const montoPagoNeto = Math.max(0, netoTransferido - saldoFavor);
+    const mNetoGuardado = parseFloat(String(pago.detalles?.monto_neto_factura || 0)) || 0;
     let ref = totalRef && totalRef > 0 ? totalRef : 0;
     if (!ref) {
       if (rcTotal > 0) {
-        // Si hay recibos emitidos en caja, ese es el monto exacto fiscal de la factura
+        // Si hay recibos emitidos en caja, ese es el monto exacto fiscal de la factura (salvo que haya guardado el neto sin retención)
         const esNeto = esRet && montoRet > 0 && (
-          (pago.detalles?.monto_neto_factura && Math.abs(rcTotal - parseFloat(pago.detalles.monto_neto_factura)) < 1) ||
-          (pago.detalles?.montoTotal && Math.abs(rcTotal - parseFloat(pago.detalles.montoTotal)) < 1) ||
-          (pago.detalles?.total_seleccionado && parseFloat(pago.detalles.total_seleccionado) > rcTotal + 1)
+          (mNetoGuardado > 0 && Math.abs(rcTotal - mNetoGuardado) < 1) ||
+          (pago.detalles?.montoTotal && Math.abs(rcTotal - parseFloat(pago.detalles.montoTotal)) < 1 && Math.abs(rcTotal - (montoRet * 26 / 3)) < 25) ||
+          (pago.detalles?.total_seleccionado && parseFloat(pago.detalles.total_seleccionado) > rcTotal + 1) ||
+          (Math.abs(rcTotal - montoPagoNeto) < 1 && Math.abs(rcTotal - (montoRet * 26 / 3)) < 25)
         );
         ref = esNeto ? Math.round((rcTotal + montoRet) * 100) / 100 : rcTotal;
       } else if (pago.monto && typeof pago.monto === 'number' && pago.monto > 0) {
         // En listar, pago.monto ya viene calculado como montoFacturaReal
-        ref = pago.monto;
+        const esPagoMontoNeto = esRet && montoRet > 0 && (
+          (mNetoGuardado > 0 && Math.abs(pago.monto - mNetoGuardado) < 1) ||
+          (Math.abs(pago.monto - montoPagoNeto) < 1 && Math.abs(pago.monto - (montoRet * 26 / 3)) < 25)
+        );
+        ref = esPagoMontoNeto ? Math.round((pago.monto + montoRet) * 100) / 100 : pago.monto;
       } else if (pago.detalles?.monto_factura && parseFloat(String(pago.detalles.monto_factura)) > 0) {
-        ref = parseFloat(String(pago.detalles.monto_factura));
+        const mFac = parseFloat(String(pago.detalles.monto_factura));
+        const esMFacNeto = esRet && montoRet > 0 && (
+          (mNetoGuardado > 0 && Math.abs(mFac - mNetoGuardado) < 1) ||
+          (Math.abs(mFac - montoPagoNeto) < 1 && Math.abs(mFac - (montoRet * 26 / 3)) < 25)
+        );
+        ref = esMFacNeto ? Math.round((mFac + montoRet) * 100) / 100 : mFac;
       } else if (esRet) {
         const totalSel = parseFloat(String(pago.detalles?.total_seleccionado || 0));
         const deudaSis = parseFloat(String(pago.detalles?.deuda_total_sistema || 0));

@@ -58,13 +58,20 @@ export async function POST(req: Request) {
     const montoConciliadoAnterior = parseFloat(String(det.monto_conciliado || det.formasPago?.[0]?.monto || 0));
     const montoCambio = Math.abs(nuevoMonto - montoAnterior) > 0.05 && Math.abs(nuevoMonto - montoConciliadoAnterior) > 0.05;
 
-    // Si el monto no cambió, preservar el monto_factura y retenciones calculados previamente en lugar de recalcular a ciegas
+    // Si el monto no cambió, preservar el monto_factura y retenciones calculados previamente (corrigiendo si monto_factura tenía el neto pagado)
     const calculoRetencion = (() => {
-      if (!montoCambio && det.monto_factura) {
+      const mRetPrev = parseFloat(String(det.monto_retencion_iva ?? det.retencion_iva ?? 0)) || 0;
+      const mFacPrev = parseFloat(String(det.monto_factura || 0)) || 0;
+      const mNetoPrev = parseFloat(String(det.monto_neto_factura || 0)) || 0;
+      const esMFacPrevNeto = flagRetencion && mRetPrev > 0 && mFacPrev > 0 && (
+        (mNetoPrev > 0 && Math.abs(mFacPrev - mNetoPrev) < 1) ||
+        (Math.abs(mFacPrev - nuevoMonto) < 1 && Math.abs(mFacPrev - (mRetPrev * 26 / 3)) < 25)
+      );
+      if (!montoCambio && mFacPrev > 0) {
         return {
-          monto_factura: det.monto_factura,
-          monto_retencion_iva: det.monto_retencion_iva ?? det.retencion_iva ?? 0,
-          retencion_iva: det.retencion_iva ?? det.monto_retencion_iva ?? 0,
+          monto_factura: esMFacPrevNeto ? Math.round((mFacPrev + mRetPrev) * 100) / 100 : mFacPrev,
+          monto_retencion_iva: mRetPrev,
+          retencion_iva: mRetPrev,
           porcentaje_retencion: det.porcentaje_retencion ?? (flagRetencion ? 75 : 0),
           conRetencion: flagRetencion
         };

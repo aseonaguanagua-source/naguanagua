@@ -112,7 +112,7 @@ export function buildFacturaEmailTemplate(data: {
                   </td>
                 </tr>
                 <tr>
-                  <td style="color:#64748b;font-size:14px;font-weight:bold;">Monto Total Pagado:</td>
+                  <td style="color:#64748b;font-size:14px;font-weight:bold;">Monto Total de la Factura:</td>
                   <td style="color:#166534;font-size:17px;font-weight:800;text-align:right;">
                     Bs ${montoFormateado}
                   </td>

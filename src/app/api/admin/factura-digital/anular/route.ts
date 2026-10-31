@@ -309,7 +309,7 @@ export async function POST(request: Request) {
             identidad: pagoRow.identidad || '',
             numeroFactura: String(facturaAfectadaNum || ''),
             numeroControlFactura: dm.factura_digital?.numero_control,
-            monto: parseFloat(String(dm.factura_digital?.montoTotal || dm.monto_factura || pagoRow.monto || 0)) || 0,
+            monto: parseFloat(String(dm.factura_digital?.retencion?.total || dm.factura_digital?.monto_total || dm.factura_digital?.montoTotal || dm.monto_factura || pagoRow.monto || 0)) || 0,
             fecha: new Date().toISOString(),
             motivo: motivoAjuste || 'Anulación administrativa de factura',
             correoContribuyente: emailDestinoManual,
@@ -354,7 +354,7 @@ export async function POST(request: Request) {
       if (dm?.montos && typeof dm.montos === 'object') montosMulta = { ...dm.montos, ...montos };
     }
 
-    const montoTotalNum = parseFloat(String(montoTotal ?? dm.montoTotal ?? dm.monto_factura ?? pagoRow.monto ?? 0)) || 0;
+    const montoTotalNum = parseFloat(String(montoTotal ?? dm.factura_digital?.retencion?.total ?? dm.factura_digital?.monto_total ?? dm.monto_factura ?? dm.montoTotal ?? pagoRow.monto ?? 0)) || 0;
 
     // --- PAGOS DE LA CAJA DE CONDOMINIOS ---
     let lineasCondo: any[] | null = null;
@@ -1033,7 +1033,7 @@ export async function POST(request: Request) {
             SerieFacturaAfectada:         String(dm.factura_digital?.serie ?? dm.factura_digital?.serie_factura ?? ""),
             NumeroFacturaAfectada:        String(facturaAfectada),
             FechaFacturaAfectada:         (dm.factura_digital?.fecha_emision || dm.factura_digital?.fecha) ? formatearFecha((dm.factura_digital.fecha_emision || dm.factura_digital.fecha).split('T')[0]) : formatearFecha(fechaActual.toISOString()),
-            MontoFacturaAfectada:         (parseFloat(String(dm.factura_digital?.montoTotal || dm.monto_factura || totalAPagar)) || totalAPagar).toFixed(2),
+            MontoFacturaAfectada:         (parseFloat(String(dm.factura_digital?.retencion?.total || dm.factura_digital?.monto_total || dm.factura_digital?.montoTotal || dm.monto_factura || totalAPagar)) || totalAPagar).toFixed(2),
             ComentarioFacturaAfectada:    "Anulación de Factura",
             RegimenEspTributacion:        null,
             FechaEmision:                 formatearFecha(fechaActual.toISOString()),

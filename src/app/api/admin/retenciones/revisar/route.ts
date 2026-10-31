@@ -192,7 +192,7 @@ export async function POST(request: Request) {
               identidad: pago?.identidad,
               numeroControl: fd.numero_control,
               numeroDocumento: fd.numero_documento,
-              monto: parseFloat(String(fd.retencion?.total || pago?.monto || 0)),
+              monto: parseFloat(String(fd.retencion?.total || fd.monto_total || det?.monto_factura || pago?.monto || 0)),
               fecha: fd.fecha_emision,
               urlPdf: fd.url,
               correoContribuyente: correo || undefined,
@@ -301,7 +301,12 @@ export async function POST(request: Request) {
 
     const finalIdentidad = pago?.identidad || ret?.identidad;
     const finalContribuyente = ret?.contribuyente || det.contribuyente || finalIdentidad || 'Contribuyente';
-    const finalMonto = parseFloat(String(fd.retencion?.total || (ret?.monto_base ? (Number(ret.monto_base || 0) + Number(ret.monto_iva || 0)) : pago?.monto || 0)));
+    const finalMonto = parseFloat(String(
+      fd.retencion?.total ||
+      fd.monto_total ||
+      det?.monto_factura ||
+      (ret?.monto_base ? (Number(ret.monto_base || 0) + Number(ret.monto_iva || 0) + Number(ret.monto_exento || 0)) : pago?.monto || 0)
+    ));
     const finalCorreo = correo || (finalIdentidad ? await correoContribuyente(finalIdentidad, det) : null);
 
     // Si no existía registro en retenciones_iva (ej. aprobado sin planilla antes de que el usuario la subiera)
