@@ -151,7 +151,7 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
         return;
       }
 
-      // Soporte directo para credenciales maestras de administrador
+      // Soporte directo para credenciales maestras de administrador (emitiendo también cookie de sesión en el servidor)
       if ((u.toLowerCase() === 'dzara' || u.toLowerCase() === 'administrador' || u.toLowerCase() === 'admin') && (p === 'dzara' || p === 'admin123')) {
         const uMaster = u.toLowerCase() === 'dzara' ? 'dzara' : 'admin';
         const adminData = {
@@ -161,6 +161,13 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
           letra: 'DZ',
           permisos: {} // Administrador tiene bypass total
         };
+
+        // Intentar emitir cookie httpOnly en el servidor para endpoints como /api/admin/dios
+        await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: uMaster, password: p })
+        }).catch(() => {});
 
         localStorage.setItem('admin_user_data', JSON.stringify(adminData));
         localStorage.setItem('adminUser', uMaster);

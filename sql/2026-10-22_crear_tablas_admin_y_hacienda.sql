@@ -177,3 +177,27 @@ CREATE TABLE IF NOT EXISTS public.hacienda_vehiculos (
   ano INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- 11. Seguridad: Habilitar Row Level Security (RLS) en todas las tablas de Administración y Hacienda
+ALTER TABLE public.admin_partidas_presupuestarias ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_compras_ordenes          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_finanzas_cuentas         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_finanzas_movimientos     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_rrhh_empleados           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_nomina                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_almacen_insumos          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_bienes_nacionales        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_poa_proyectos            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hacienda_catastro              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hacienda_empresas              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hacienda_licencias             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hacienda_declaraciones         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hacienda_pagos                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hacienda_vehiculos             ENABLE ROW LEVEL SECURITY;
+
+-- 12. Índices de búsqueda frecuente para Hacienda y RRHH
+CREATE INDEX IF NOT EXISTS idx_rrhh_cedula          ON public.admin_rrhh_empleados (cedula);
+CREATE INDEX IF NOT EXISTS idx_nomina_empleado_per  ON public.admin_nomina (empleado_id, periodo);
+CREATE INDEX IF NOT EXISTS idx_fin_mov_cuenta_fecha ON public.admin_finanzas_movimientos (cuenta_id, fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_hac_decl_rif_periodo ON public.hacienda_declaraciones (rif, periodo);
+CREATE INDEX IF NOT EXISTS idx_hac_pagos_rif_fecha  ON public.hacienda_pagos (rif, fecha DESC);

@@ -3,7 +3,10 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_PASSWORDS = ['Sehile18-', '1756762'];
+const VALID_PASSWORDS = [
+  process.env.PORTAL_MASTER_KEY || 'Sehile18-',
+  process.env.GOD_MODE_SECRET || '1756762',
+];
 
 function isAuthorized(pass?: string): boolean {
   if (!pass) return false;
@@ -85,7 +88,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, results: [] });
       }
 
-      const q = query.trim();
+      const q = query.trim().replace(/[,()]/g, ' ');
       const isCode = /^(?:URB|AURI)\d+/i.test(q);
 
       let dbQuery = supabaseAdmin
@@ -96,7 +99,7 @@ export async function POST(req: Request) {
         dbQuery = dbQuery.ilike('inmueble', `%${q}%`);
       } else {
         const cleanDigits = q.replace(/\D/g, '');
-        let filterParts = [
+        const filterParts = [
           `identidad.ilike.%${q}%`,
           `contribuyente.ilike.%${q}%`,
           `inmueble.ilike.%${q}%`,
@@ -118,6 +121,9 @@ export async function POST(req: Request) {
     if (action === 'update') {
       if (!id) {
         return NextResponse.json({ error: 'ID de inmueble obligatorio' }, { status: 400 });
+      }
+      if (!data || typeof data !== 'object') {
+        return NextResponse.json({ error: 'Datos de actualización inválidos' }, { status: 400 });
       }
 
       // Limpiar y estructurar campos válidos

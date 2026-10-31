@@ -1089,14 +1089,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         return;
       }
 
-      updatedDet.fecha_conciliado = new Date().toISOString();
+      if (estatus === 'Rechazado') {
+        updatedDet.fecha_rechazo = new Date().toISOString();
+      } else {
+        updatedDet.fecha_conciliado = new Date().toISOString();
+      }
       const payloadAct: any = {
         estado: estatus,
         banco: bancoEmisor,
         tipo: pago.tipo,
         referencia: refFinal,
         ...(montoConciliadoNum > 0 ? { monto: montoConciliadoNum } : {}),
-        detalles: updatedDet
+        detalles: updatedDet,
+        skipServerDebtSync: true,
       };
       if (estatus === 'Rechazado' && pago.referencia && !pago.referencia.startsWith('RECH-')) {
         payloadAct.referencia = `RECH-${pago.referencia}-${pago.id.slice(0, 6)}`;
@@ -1161,13 +1166,12 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         // Rechazar o anular comprobante de retención de IVA vinculado al pago rechazado
         await supabase.from('pagos_reportados').update({ estado: 'Rechazado' }).filter('detalles->>pago_vinculado', 'eq', pago.id);
 
-        // Restaurar estado de deuda si el pago se rechaza
-        // PREFERENCIA 1: Si Caja o Condominios guardó la foto exacta de deuda_previa al registrar el pago, restaurar exactamente esa foto
-        let prevLista: any[] = Array.isArray(det.deuda_previa) && det.deuda_previa.length > 0 ? det.deuda_previa : [];
+        // NOTA: /api/admin/pagos/actualizar ya restaura deuda_previa, desbloquea recibos/convenios/servicios
+        // y revierte únicamente las Notas de Crédito asociadas a este pago usando supabaseAdmin en el servidor.
+        // Aquí solo aplicamos recuperación desde auditoría de condominios si no existía deuda_previa en detalles:
         const esCondoPago = det.es_condominio || det.isCondominio || det.modulo === 'condominios' || (pago as any).modulo === 'condominios';
-
-        // Si no tiene deuda_previa en detalles pero es de condominios, intentar recuperarla de auditoría
-        if (prevLista.length === 0 && esCondoPago) {
+        const teniaDeudaPrevia = Array.isArray(det.deuda_previa) && det.deuda_previa.length > 0;
+        if (!teniaDeudaPrevia && esCondoPago) {
           try {
             const codCondo = det.condominio?.codigo || pago.identidad;
             const { data: auditRec } = await supabase
@@ -1177,130 +1181,35 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               .order('created_at', { ascending: false })
               .limit(5);
             const foundAudit = (auditRec || []).find((a: any) => Array.isArray(a.detalles?.deuda_previa) && a.detalles?.deuda_previa.length > 0);
-            if (foundAudit) prevLista = foundAudit.detalles.deuda_previa;
+            const prevLista: any[] = foundAudit ? foundAudit.detalles.deuda_previa : [];
+            for (const prev of prevLista) {
+              if (prev.unidad) {
+                await supabase.from('condominio_unidades').update({
+                  aseo_pendiente_desde: prev.aseo_pendiente_desde,
+                  multa_meses: prev.multa_meses || 0,
+                  multa_exonerada_hasta: prev.multa_exonerada_hasta || null,
+                }).eq('id', prev.unidad);
+              }
+              if (prev.condominio) {
+                await supabase.from('condominios').update({
+                  aseo_pendiente_desde: prev.aseo_pendiente_desde,
+                  multa_meses: prev.multa_meses || 0,
+                }).eq('id', prev.condominio);
+              }
+              if (prev.id || (prev.inmueble && prev.meses_deuda !== undefined)) {
+                const q = supabase.from('inmuebles').update({
+                  meses_deuda: Math.max(0, parseInt(String(prev.meses_deuda ?? 0))),
+                  deuda_mmv: parseFloat(String(prev.deuda_mmv || 0)),
+                  multa_bs: parseFloat(String(prev.multa_bs || 0)),
+                  deuda_congelada_bs: parseFloat(String(prev.deuda_congelada_bs || 0)),
+                  saldo_favor_bs: parseFloat(String(prev.saldo_favor_bs || 0)),
+                });
+                if (prev.id) await q.eq('id', prev.id);
+                else await q.eq('inmueble', prev.inmueble);
+              }
+            }
           } catch (e) {
             console.warn('No se pudo recuperar deuda_previa de auditoría para condominio:', e);
-          }
-        }
-
-        if (prevLista.length > 0) {
-          for (const prev of prevLista) {
-            // Restaurar unidad de condominio
-            if (prev.unidad) {
-              await supabase.from('condominio_unidades').update({
-                aseo_pendiente_desde: prev.aseo_pendiente_desde,
-                multa_meses: prev.multa_meses || 0,
-                multa_exonerada_hasta: prev.multa_exonerada_hasta || null,
-              }).eq('id', prev.unidad);
-            }
-            // Restaurar condominio padre
-            if (prev.condominio) {
-              await supabase.from('condominios').update({
-                aseo_pendiente_desde: prev.aseo_pendiente_desde,
-                multa_meses: prev.multa_meses || 0,
-              }).eq('id', prev.condominio);
-            }
-            // Restaurar inmueble
-            if (prev.id || prev.inmueble) {
-              const q = supabase.from('inmuebles').update({
-                meses_deuda: Math.max(0, parseInt(String(prev.meses_deuda || (prev.aseo_pendiente_desde ? 1 : 0)))),
-                deuda_mmv: parseFloat(String(prev.deuda_mmv || 0)),
-                multa_bs: parseFloat(String(prev.multa_bs || 0)),
-                deuda_congelada_bs: parseFloat(String(prev.deuda_congelada_bs || 0)),
-                saldo_favor_bs: parseFloat(String(prev.saldo_favor_bs || 0)),
-              });
-              if (prev.id) await q.eq('id', prev.id);
-              else await q.eq('inmueble', prev.inmueble);
-            }
-          }
-        } else {
-          // Fallback: solo restaurar meses si el pago estuvo previamente Aprobado o si vino de Caja con deuda descontada
-          const pagoEstabaAprobado = pago.estado === 'Aprobado' || pago.estado === 'Con Diferencia' || det.fecha_conciliado || det.recibo_caja;
-          if (pagoEstabaAprobado) {
-            const propCodesRech = new Set<string>();
-            recibos.forEach((r: string) => {
-              const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
-              if (m && m[1]) propCodesRech.add(m[1].toUpperCase());
-              const mDir = r.match(/(URB\d+|AURI\d+)/i);
-              if (mDir && mDir[1]) propCodesRech.add(mDir[1].toUpperCase());
-            });
-            if (det.cod_inmueble) propCodesRech.add(String(det.cod_inmueble).toUpperCase());
-            if (det.inmueble) propCodesRech.add(String(det.inmueble).toUpperCase());
-            if (pago.cod_inmueble) propCodesRech.add(String(pago.cod_inmueble).toUpperCase());
-
-            const idVarsRech = getIdentidadVariantsExact(pago.identidad);
-            const orCondsRech = [
-              ...idVarsRech.map(v => `identidad.eq.${v}`),
-              ...Array.from(propCodesRech).map(c => `inmueble.eq.${c}`)
-            ];
-
-            const { data: inmListRech } = await supabase.from('inmuebles').select('*').or(orCondsRech.join(','));
-            if (inmListRech && inmListRech.length > 0) {
-              for (const inm of inmListRech) {
-                const mesesThisInm = recibos.filter((r: string) => r.toUpperCase().includes(String(inm.inmueble || '').toUpperCase())).length || 1;
-                const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
-                const nuevoMeses = numMesesInm + mesesThisInm;
-                const mmv = parseFloat(String(inm.mmv_mes || 0)) || (parseFloat(String(inm.deuda_mmv || 0)) / (numMesesInm || 1)) || 0;
-                await supabase.from('inmuebles').update({
-                  meses_deuda: nuevoMeses,
-                  deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
-                }).eq('id', inm.id);
-              }
-            }
-          }
-        }
-
-        // Limpiar movimientos de condominio vinculados al pago rechazado
-        if (esCondoPago) {
-          const idsCondo = [pago.id, det.pago_principal_id, det.pago_vinculado].filter(Boolean);
-          if (idsCondo.length > 0) {
-            await supabase.from('condominio_movimientos').delete().in('pago_id', idsCondo);
-          }
-        }
-
-        // Revertir saldo a favor si el pago tenía o había generado saldo a favor
-        const excedenteCaja = parseFloat(String(det.saldo_favor || det.saldo_favor_bs || det.monto_saldo_favor || 0)) || 0;
-        const diferenciaMonto = pago.estado === 'Con Diferencia' ? (parseFloat(String(det.monto_conciliado || pago.monto || 0)) || 0) : 0;
-        const saldoRevertir = excedenteCaja > 0 ? excedenteCaja : diferenciaMonto;
-
-        if (saldoRevertir > 0 || det.saldo_favor_acreditado || pago.estado === 'Con Diferencia' || pago.estado === 'Aprobado') {
-          const montoFinal = saldoRevertir > 0 ? saldoRevertir : (parseFloat(String(pago.monto || 0)) || 0);
-          if (montoFinal > 0.009) {
-            await descontarSaldoFavor(pago.identidad, montoFinal, det.codigo_condominio || det.condominio?.codigo);
-          }
-          // Anular o eliminar Notas de Crédito emitidas en documentos para este pago
-          try {
-            const ident = String(pago.identidad || '').trim().toUpperCase();
-            const refsToCheck = new Set<string>();
-            if (pago.id) refsToCheck.add(String(pago.id));
-            if (pago.referencia) refsToCheck.add(String(pago.referencia).trim());
-            if (det.referencia) refsToCheck.add(String(det.referencia).trim());
-            if (det.referencia_original) refsToCheck.add(String(det.referencia_original).trim());
-            if (Array.isArray(det.formasPago)) {
-              det.formasPago.forEach((fp: any) => fp?.referencia && refsToCheck.add(String(fp.referencia).trim()));
-            }
-            if (Array.isArray(det.pagos_agregados)) {
-              det.pagos_agregados.forEach((pa: any) => pa?.referencia && refsToCheck.add(String(pa.referencia).trim()));
-            }
-
-            if (ident) {
-              const { data: docsNC } = await supabase
-                .from('documentos')
-                .select('*')
-                .eq('tipo', 'Nota de Credito')
-                .eq('identidad', ident);
-
-              const matchingDocs = (docsNC || []).filter((d: any) => {
-                const raw = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
-                return [...refsToCheck].some(r => r.length >= 4 && raw.includes(r));
-              });
-
-              if (matchingDocs.length > 0) {
-                await supabase.from('documentos').delete().in('id', matchingDocs.map((d: any) => d.id));
-              }
-            }
-          } catch (e) {
-            console.error('Error anulando nota de credito por rechazo:', e);
           }
         }
       }

@@ -550,7 +550,17 @@ export function sanitizarDireccionFiscal(
   s = s.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim();
   s = s.replace(/^,\s*|,\s*$/g, '');
 
-  if (suffix) {
+  if (!s || s.length < 4 || /^[0-9\s.,/-]+$/i.test(s) || s.toUpperCase() === 'N/A') {
+    if (opts.parentDir && typeof opts.parentDir === 'string' && opts.parentDir.trim().length > 4 && !/^[0-9\s.,/-]+$/i.test(opts.parentDir.trim())) {
+      s = opts.parentDir.trim();
+    } else if (opts.nombreCondo && typeof opts.nombreCondo === 'string' && opts.nombreCondo.trim().length > 3) {
+      s = opts.nombreCondo.trim();
+    } else {
+      return 'NAGUANAGUA, EDO. CARABOBO';
+    }
+  }
+
+  if (suffix && !s.toUpperCase().endsWith(suffix.toUpperCase())) {
     s += suffix;
   }
 

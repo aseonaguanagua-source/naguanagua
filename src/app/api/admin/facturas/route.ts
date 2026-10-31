@@ -22,8 +22,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (search.trim()) {
-      const s = search.trim();
-      query = query.or(`referencia.ilike.%${s}%,contribuyente.ilike.%${s}%,identidad.ilike.%${s}%`);
+      const s = search.trim().replace(/[,()]/g, ' ');
+      if (s) {
+        query = query.or(`referencia.ilike.%${s}%,contribuyente.ilike.%${s}%,identidad.ilike.%${s}%`);
+      }
     }
 
     const { data, error, count } = await query;
@@ -89,6 +91,11 @@ export async function PATCH(req: NextRequest) {
 
     if (!id && !referencia) {
       return NextResponse.json({ success: false, error: 'Falta id o referencia' }, { status: 400 });
+    }
+
+    const ALLOWED_STATES = ['Pendiente', 'Pagado', 'Abonado', 'Anulado', 'Por Verificar'];
+    if (!estado || !ALLOWED_STATES.includes(estado)) {
+      return NextResponse.json({ success: false, error: 'Estado de recibo inválido' }, { status: 400 });
     }
 
     let query = supabaseAdmin.from('facturas').update({ estado });

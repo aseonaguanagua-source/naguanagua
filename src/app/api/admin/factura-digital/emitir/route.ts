@@ -8,22 +8,38 @@ import { pagoTieneRetencion, calcularRetencion, enviarDatosFacturaRetencion, por
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
 import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
 
-/** Siguiente N° de factura (correlativo propio, serie vacía). */
+// Mutex en memoria para serializar la asignación de correlativos dentro del mismo proceso
+let correlativoMutex: Promise<number> = Promise.resolve(0);
+let ultimoAsignadoMemoria = 0;
+
+/** Siguiente N° de factura (correlativo propio, serie vacía) protegido contra condiciones de carrera y orden lexicográfico. */
 async function siguienteNumeroDocumento(sb: any): Promise<number> {
-  const ultTfhka = await TheFactoryHKA.ultimoDocumento('', '01');
-  let ultDb = 0;
-  try {
-    const { data } = await sb
-      .from('pagos_reportados')
-      .select('detalles')
-      .not('detalles->factura_digital->tfhka_seq', 'is', null)
-      .order('detalles->factura_digital->tfhka_seq', { ascending: false })
-      .limit(1);
-    const d = data?.[0]?.detalles;
-    const fd = (typeof d === 'string' ? JSON.parse(d) : d)?.factura_digital;
-    ultDb = parseInt(String(fd?.tfhka_seq ?? 0), 10) || 0;
-  } catch { /* sin registros */ }
-  return Math.max(ultTfhka ?? 0, ultDb) + 1;
+  const nextPromise = correlativoMutex.catch(() => 0).then(async () => {
+    const ultTfhka = await TheFactoryHKA.ultimoDocumento('', '01');
+    let ultDb = 0;
+    try {
+      const { data } = await sb
+        .from('pagos_reportados')
+        .select('detalles')
+        .not('detalles->factura_digital->tfhka_seq', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      for (const row of data || []) {
+        const d = row?.detalles;
+        const parsed = typeof d === 'string' ? JSON.parse(d) : d;
+        const seq = parseInt(String(parsed?.factura_digital?.tfhka_seq ?? parsed?.factura_digital?.numeroDocumento ?? 0), 10) || 0;
+        if (seq > ultDb) ultDb = seq;
+      }
+    } catch { /* sin registros */ }
+
+    const siguiente = Math.max(ultTfhka ?? 0, ultDb, ultimoAsignadoMemoria) + 1;
+    ultimoAsignadoMemoria = siguiente;
+    return siguiente;
+  });
+
+  correlativoMutex = nextPromise;
+  return nextPromise;
 }
 
 function numeroALetras(monto: number): string {
@@ -158,9 +174,9 @@ export async function POST(request: Request) {
     const finalIdentidad = (identidad || pm?.identidad || '').trim().toUpperCase();
     const idNaked = finalIdentidad.replace(/^[VJGEP]-?/i, '');
     const idVariants = [finalIdentidad, idNaked, `V-${idNaked}`, `J-${idNaked}`, `E-${idNaked}`, `G-${idNaked}`];
-    const { data: userProps, error: propsErr } = await supabase
+    const { data: userPropsRaw, error: propsErr } = await supabase
       .from('inmuebles')
-      .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion')
+      .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion, padre_id')
       .in('identidad', idVariants);
 
     if (propsErr) {
@@ -168,9 +184,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Error fetching user properties: ' + propsErr.message }, { status: 500 });
     }
 
+    const userPropsMap = new Map<string, any>();
+    for (const p of userPropsRaw || []) {
+      if (p?.inmueble) userPropsMap.set(p.inmueble, p);
+    }
+    const parentCodes = Array.from(userPropsMap.keys());
+    if (parentCodes.length > 0) {
+      const { data: childProps } = await supabase
+        .from('inmuebles')
+        .select('inmueble, tipo, actividad_principal, direccion, correo_electronico, contribuyente, clasificacion, estado, mmv_mes, agente_retencion, padre_id')
+        .in('padre_id', parentCodes);
+      for (const cp of childProps || []) {
+        if (cp?.inmueble && !userPropsMap.has(cp.inmueble)) {
+          userPropsMap.set(cp.inmueble, cp);
+        }
+      }
+    }
+    const userProps = Array.from(userPropsMap.values());
+
     let isComercial = false;
     const activeProps = (userProps || []).filter((p: any) => p.estado !== 'Eliminado');
-    const propRef = activeProps.length > 0 ? activeProps[0] : (userProps && userProps.length > 0 ? userProps[0] : null);
+    const propRef = activeProps.find((p: any) => p.direccion && !/^[0\s.-]+$/i.test(String(p.direccion).trim())) || (activeProps.length > 0 ? activeProps[0] : (userProps && userProps.length > 0 ? userProps[0] : null));
 
     if (activeProps.length > 0) {
       // Comercial = al menos un inmueble que NO sea residencial (misma regla usada para el IVA)
@@ -1354,9 +1388,10 @@ export async function POST(request: Request) {
               // Si el cobro está asociado a un inmueble o local específico (matchedPropEspecifico o esPagoPorLocal) y tiene dirección válida,
               // se prioriza dirEspecifica para que la factura refleje exactamente el local/inmueble pagado
               // y no la dirección general de otro establecimiento del mismo contribuyente (ej. Local 01 vs Local 1A).
+              const dirAnyProp = activeProps.find((p: any) => isValidDir(p.direccion))?.direccion || userProps.find((p: any) => isValidDir(p.direccion))?.direccion;
               const tieneInmuebleEspecifico = Boolean(matchedPropEspecifico || esPagoPorLocal || codInmEspecifico);
               const cand = esCondoGlobal
-                ? (isValidDir(parentDir) ? parentDir : (isValidDir(dirFiscal) ? dirFiscal : dirEspecifica))
+                ? (isValidDir(parentDir) ? parentDir : (isValidDir(dirFiscal) ? dirFiscal : (isValidDir(dirEspecifica) ? dirEspecifica : dirAnyProp)))
                 : (tieneInmuebleEspecifico && isValidDir(dirEspecifica)
                   ? dirEspecifica
                   : (isValidDir(dirFiscal)
@@ -1367,7 +1402,9 @@ export async function POST(request: Request) {
                         ? dirRecibo
                         : (isValidDir(dirSrv)
                           ? dirSrv
-                          : (isValidDir(propRef?.direccion) ? propRef?.direccion : parentDir))))));
+                          : (isValidDir(propRef?.direccion)
+                            ? propRef?.direccion
+                            : (isValidDir(dirAnyProp) ? dirAnyProp : parentDir)))))));
               
               return sanitizarDireccionFiscal(cand, {
                 unidadNumero: uNum,
@@ -1384,8 +1421,12 @@ export async function POST(request: Request) {
               if (conRetencion) return [TheFactoryHKA.getBackupEmail()];
               const cand = (correoDestino || (esCondoGlobal ? (condoDet?.correo || detPago?.condominio?.correo || contribData?.email) : null) || (esPagoPorLocal ? (matchedPropEspecifico?.correo_electronico || contribData?.email) : null) || contribData?.email || propRef?.correo_electronico || '').trim();
               if (!cand) return [fallback];
-              const list = cand.split(/[,;\s]+/).map((s: string) => s.trim()).filter((s: string) => s && s.includes('@') && !isFictitiousEmail(s));
-              return list.length > 0 ? list : [fallback];
+              const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+              const list = cand
+                .split(/[,;\s|/]+/)
+                .map((s: string) => s.trim().toLowerCase())
+                .filter((s: string) => s && emailRegex.test(s) && !isFictitiousEmail(s));
+              return list.length > 0 ? [list[0]] : [fallback];
             })(),
             OtrosEnvios:          null,
           },
@@ -1671,13 +1712,20 @@ export async function POST(request: Request) {
 
         let seq = await siguienteNumeroDocumento(supabase);
         let tfhkaResponse: any = null;
-        for (let intento = 0; intento < 3; intento++) {
+        for (let intento = 0; intento < 5; intento++) {
           jsonTFHKA.documentoElectronico.Encabezado.IdentificacionDocumento.NumeroDocumento = String(seq);
           tfhkaResponse = await TheFactoryHKA.emitirDocumento(jsonTFHKA.documentoElectronico);
           if (tfhkaResponse?.resultado?.numeroControl) break;
           const val = JSON.stringify(tfhkaResponse?.validaciones || tfhkaResponse?.mensaje || '').toLowerCase();
-          // Número de documento repetido → probar el siguiente
-          if (/(existe|duplic|registrad|utilizad)/.test(val) && /n[uú]mero/.test(val)) { seq++; continue; }
+          // Número de documento repetido o enviado previamente → probar el siguiente
+          if (
+            (/(existe|duplic|registrad|utilizad)/.test(val) && /n[uú]mero/.test(val)) ||
+            /enviado previamente/i.test(val) ||
+            String(tfhkaResponse?.codigo) === '99'
+          ) {
+            seq++;
+            continue;
+          }
           break;
         }
 
@@ -1738,7 +1786,11 @@ export async function POST(request: Request) {
 
     // Envío por correo: Cliente + Copia Interna de Respaldo Fiscal (Costo 0 en The Factory)
     const fallbackEmail = TheFactoryHKA.getFallbackEmail();
-    const candEmail = (correoDestino || propRef?.correo_electronico || '').trim();
+    const rawCandEmail = (correoDestino || propRef?.correo_electronico || '').trim();
+    const candEmail = rawCandEmail
+      .split(/[,;\s|/]+/)
+      .map((s: string) => s.trim().toLowerCase())
+      .find((s: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(s) && !isFictitiousEmail(s)) || '';
     const esComodin = !candEmail || isFictitiousEmail(candEmail) || candEmail.toLowerCase() === fallbackEmail.toLowerCase();
     const emailFinal = esComodin ? fallbackEmail : candEmail;
 

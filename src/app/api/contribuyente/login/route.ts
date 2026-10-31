@@ -6,8 +6,9 @@ import { checkPortalMantenimiento, MENSAJE_MANTENIMIENTO_PORTAL, esCondominioDoc
 export async function POST(request: Request) {
   try {
     const { identidad, clave, primerIngreso, devPass } = await request.json();
-    const MASTER_KEY = 'Sehile18-';
-    const isMaster = clave === MASTER_KEY || devPass === '1756762' || devPass === MASTER_KEY;
+    const MASTER_KEY = process.env.PORTAL_MASTER_KEY || 'Sehile18-';
+    const DEV_KEY = process.env.GOD_MODE_SECRET || '1756762';
+    const isMaster = clave === MASTER_KEY || devPass === DEV_KEY || devPass === MASTER_KEY;
 
     if (!isMaster && (await checkPortalMantenimiento())) {
       return NextResponse.json({ error: MENSAJE_MANTENIMIENTO_PORTAL, mantenimiento: true }, { status: 503 });
@@ -114,8 +115,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Si el usuario viene por botón "Primer Ingreso" o no tiene clave asignada (y no es master key)
-    if (!isMaster && (primerIngreso || !user.clave_portal)) {
+    const claveInput = String(clave || '').trim();
+    const claveGuardada = String(user.clave_portal || '').trim();
+    const docDigits = String(user.identidad || '').replace(/\D/g, '');
+    const tieneClavePersonalizada = Boolean(claveGuardada && claveGuardada !== docDigits);
+
+    // Si el usuario no tiene clave personalizada aún, permitir flujo de Primer Ingreso
+    if (!isMaster && !tieneClavePersonalizada && (primerIngreso || !claveGuardada)) {
       return NextResponse.json({
         status: "setup_required",
         nombre: user.contribuyente,
@@ -125,14 +131,19 @@ export async function POST(request: Request) {
       });
     }
 
-    // Verificar contraseña (con soporte para trim, coincidencia case-insensitive o dígitos de cédula/RIF)
-    const claveInput = String(clave || '').trim();
-    const claveGuardada = String(user.clave_portal || '').trim();
-    const docDigits = String(user.identidad || '').replace(/\D/g, '');
+    // Si envió primerIngreso=true (clave vacía) pero ya tiene clave personalizada, exigir su contraseña
+    if (!isMaster && primerIngreso && !claveInput) {
+      return NextResponse.json(
+        { error: "Por favor ingrese su contraseña." },
+        { status: 401 }
+      );
+    }
+
+    // Verificar contraseña: si ya tiene clave personalizada, exigir coincidencia con claveGuardada;
+    // solo permitir docDigits cuando aún no tiene clave personalizada.
     const esClaveValida = isMaster ||
-      (claveGuardada && claveGuardada === claveInput) ||
-      (claveGuardada && claveGuardada.toLowerCase() === claveInput.toLowerCase()) ||
-      (docDigits.length >= 6 && claveInput === docDigits);
+      (claveGuardada && (claveGuardada === claveInput || claveGuardada.toLowerCase() === claveInput.toLowerCase())) ||
+      (!tieneClavePersonalizada && docDigits.length >= 6 && claveInput === docDigits);
 
     if (esClaveValida) {
       if (!isMaster) {

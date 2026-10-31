@@ -76,17 +76,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         let userInmuebles = [];
         
         if (portalDoc) {
-          const idLimpio = portalDoc.replace(/-/g, '').toUpperCase();
+          const safePortalDoc = portalDoc.replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
+          const idLimpio = safePortalDoc.replace(/-/g, '');
           const idFmt = idLimpio.charAt(0) + '-' + idLimpio.slice(1);
-          const soloNum = portalDoc.replace(/\D/g, '');
+          const soloNum = safePortalDoc.replace(/\D/g, '');
+          const orParts = [
+            idFmt ? `identidad.eq.${idFmt}` : '',
+            idLimpio ? `identidad.eq.${idLimpio}` : '',
+            safePortalDoc ? `identidad.eq.${safePortalDoc}` : '',
+            soloNum ? `identidad.eq.${soloNum}` : ''
+          ].filter(Boolean).join(',');
           
-          const [ { data: facturas }, { data: inmuebles } ] = await Promise.all([
-             supabase.from('facturas').select('*').in('estado', ['Pendiente', 'Abonado', 'Por Verificar']).or('identidad.eq.' + idFmt + ',identidad.eq.' + idLimpio + ',identidad.eq.' + portalDoc.toUpperCase() + ',identidad.eq.' + soloNum),
-             supabase.from('inmuebles').select('*').or('identidad.eq.' + idFmt + ',identidad.eq.' + idLimpio + ',identidad.eq.' + portalDoc.toUpperCase() + ',identidad.eq.' + soloNum)
-          ]);
-          
-          userFacturas = facturas || [];
-          userInmuebles = inmuebles || [];
+          if (orParts) {
+            const [ { data: facturas }, { data: inmuebles } ] = await Promise.all([
+               supabase.from('facturas').select('*').in('estado', ['Pendiente', 'Abonado', 'Por Verificar']).or(orParts),
+               supabase.from('inmuebles').select('*').or(orParts)
+            ]);
+            
+            userFacturas = facturas || [];
+            userInmuebles = inmuebles || [];
+          }
         }
 
         const [ { data: dbConfig }, apiBcv ] = await Promise.all([
@@ -190,8 +199,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Descarga secuencial por cursor. Si la BD está ocupada se detiene y NO guarda caché incompleta.
       let cargaIncompleta = false;
-      // Escalonar el arranque (0–10 s) para que, tras una caída, no descarguen todas las computadoras a la vez.
-      await new Promise(r => setTimeout(r, Math.floor(Math.random() * 10000)));
+      // Escalonar ligeramente el arranque automático (0–1.5 s) sin demorar cuando el usuario fuerza sincronización manual.
+      if (!forceFresh) {
+        await new Promise(r => setTimeout(r, Math.floor(Math.random() * 1500)));
+      }
       const fetchAllClientParallel = async (table: string, select: string) => {
         const step = 1000;
         // Paginación por cursor (id > último id) usando el índice de la llave primaria:
@@ -295,12 +306,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { data: dbConfig },
         apiBcv
       ] = await Promise.all([
-        supabase.from('pre_registros').select('*'),
-        supabase.from('documentos').select('*'),
-        supabase.from('certificados').select('*'),
-        supabase.from('reclamos').select('*'),
+        supabase.from('pre_registros').select('*').limit(2000),
+        supabase.from('documentos').select('*').limit(2000),
+        supabase.from('certificados').select('*').limit(2000),
+        supabase.from('reclamos').select('*').limit(2000),
         fetch('/api/admin/convenios', { cache: 'no-store' }).then(r => r.json()).then(j => ({ data: j?.data || [] })).catch(() => ({ data: [] as any[] })),
-        supabase.from('pre_liquidaciones').select('*'),
+        supabase.from('pre_liquidaciones').select('*').limit(2000),
         fetch('/api/admin/auditoria?limit=200', { cache: 'no-store' }).then(r => r.json()).then(j => ({ data: j?.data || [] })).catch(() => ({ data: [] as any[] })),
         supabase.from('sistema_config').select('*'),
         fetch(`/api/bcv?t=${Date.now()}`, { cache: 'no-store' }).then(res => res.json()).catch(() => ({ tcmmv: 0 }))
@@ -327,7 +338,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
           const eurRes = await fetch('https://ve.dolarapi.com/v1/euros/oficial');
           const eurData = await eurRes.json();
-          if (eurData && eurData.promedio > 0 && eurData.promedio < 2000) {
+          if (eurData && eurData.promedio > 10 && eurData.promedio < 100000) {
             currentTcmmv = eurData.promedio;
           }
         } catch (e) {

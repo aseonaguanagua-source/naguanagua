@@ -82,7 +82,7 @@ async function resolveCondo(identidad?: string, codigoCondominio?: string, clien
   const sinGuion = idTrim.replace(/[^A-Z0-9]/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : idTrim;
   const variantes = [...new Set([idTrim, sinGuion, conGuion].filter(Boolean))];
-  const { data } = await sb.from('condominios').select('id, codigo, abono_bs').in('identidad', variantes).maybeSingle();
+  const { data } = await sb.from('condominios').select('id, codigo, abono_bs').in('identidad', variantes).order('created_at', { ascending: true }).limit(1).maybeSingle();
   if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
   return null;
 }

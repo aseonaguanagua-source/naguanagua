@@ -105,7 +105,8 @@ export class TheFactoryHKA {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ usuario, clave })
+      body: JSON.stringify({ usuario, clave }),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
@@ -166,10 +167,10 @@ export class TheFactoryHKA {
    * Emite un Documento Electrónico (Factura Fiscal) hacia The Factory HKA
    */
   static async emitirDocumento(documentoData: any) {
-    const token = await this.getToken();
+    let token = await this.getToken();
     const baseUrl = this.getBaseUrl();
 
-    const response = await fetch(`${baseUrl}/api/Emision`, {
+    let response = await fetch(`${baseUrl}/api/Emision`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -177,8 +178,27 @@ export class TheFactoryHKA {
       },
       body: JSON.stringify({
         documentoElectronico: documentoData
-      })
+      }),
+      signal: AbortSignal.timeout(25000),
     });
+
+    // Si el token expiró prematuramente en el servidor de TFHKA (401), invalidar caché y reintentar una vez
+    if (response.status === 401 && !process.env.TFHKA_TOKEN) {
+      this.token = null;
+      this.tokenExpiration = null;
+      token = await this.getToken();
+      response = await fetch(`${baseUrl}/api/Emision`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          documentoElectronico: documentoData
+        }),
+        signal: AbortSignal.timeout(25000),
+      });
+    }
 
     const data = await response.json();
 

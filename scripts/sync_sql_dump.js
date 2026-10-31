@@ -2,26 +2,43 @@ const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 
-// Load environment variables
+// Load environment variables (preferir SERVICE_ROLE_KEY para evitar bloqueos silenciosos de RLS)
 let SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-let SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+let SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   try {
     const envContent = fs.readFileSync(path.join(__dirname, '../.env.local'), 'utf-8');
-    const urlMatch = envContent.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/);
-    const keyMatch = envContent.match(/NEXT_PUBLIC_SUPABASE_ANON_KEY=(.*)/);
-    if(urlMatch) SUPABASE_URL = urlMatch[1].trim();
-    if(keyMatch) SUPABASE_KEY = keyMatch[1].trim();
-  } catch(e) {}
+    const urlMatch = envContent.match(/^NEXT_PUBLIC_SUPABASE_URL=(.*)$/m);
+    const serviceKeyMatch = envContent.match(/^SUPABASE_SERVICE_ROLE_KEY=(.*)$/m);
+    const anonKeyMatch = envContent.match(/^NEXT_PUBLIC_SUPABASE_ANON_KEY=(.*)$/m);
+    if (urlMatch && !SUPABASE_URL) SUPABASE_URL = urlMatch[1].trim();
+    if (serviceKeyMatch) SUPABASE_KEY = serviceKeyMatch[1].trim();
+    else if (anonKeyMatch && !SUPABASE_KEY) SUPABASE_KEY = anonKeyMatch[1].trim();
+  } catch (e) {
+    console.warn('No se pudo leer .env.local:', e.message);
+  }
+}
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('Error crítico: Faltan credenciales de Supabase.');
+  process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const sqlContent = fs.readFileSync('/Users/davidzara/Documents/naguanagua_zero/documentos/filtered_naguanagua_data.sql', 'utf8');
+const sqlPath = process.env.SQL_DUMP_PATH || path.resolve(__dirname, '../../documentos/filtered_naguanagua_data.sql');
+
+if (!fs.existsSync(sqlPath)) {
+  console.error(`Error crítico: No se encontró el archivo SQL en ${sqlPath}`);
+  process.exit(1);
+}
+
+const sqlContent = fs.readFileSync(sqlPath, 'utf8');
 
 function parseSqlValues(tableName) {
   const records = [];
-  const regex = new RegExp(`INSERT INTO public."${tableName}".*?VALUES\\s*([\\s\\S]*?);`, 'g');
+  const safeTable = tableName.replace(/[^a-zA-Z0-9_]/g, '');
+  const regex = new RegExp(`INSERT INTO public\\."${safeTable}".*?VALUES\\s*([\\s\\S]*?);`, 'g');
   let match;
   while ((match = regex.exec(sqlContent)) !== null) {
     const valuesString = match[1];
@@ -32,29 +49,34 @@ function parseSqlValues(tableName) {
     
     for (let i = 0; i < valuesString.length; i++) {
       const char = valuesString[i];
+      if (char === '\\' && inString && i + 1 < valuesString.length) {
+        currentVal += char + valuesString[i + 1];
+        i++;
+        continue;
+      }
       if (char === "'" && !inString) {
         inString = true;
       } else if (char === "'" && inString) {
-        if (valuesString[i+1] === "'") {
+        if (valuesString[i + 1] === "'") {
           currentVal += "'";
           i++;
         } else {
           inString = false;
         }
       } else if (char === ',' && !inString) {
-         currentTuple.push(currentVal.trim());
-         currentVal = '';
+        currentTuple.push(currentVal.trim());
+        currentVal = '';
       } else if (char === ')' && !inString) {
-         currentTuple.push(currentVal.trim());
-         records.push(currentTuple);
-         currentTuple = [];
-         currentVal = '';
-         while(i + 1 < valuesString.length && valuesString[i+1] !== '(') i++;
-         if (i + 1 < valuesString.length && valuesString[i+1] === '(') i++;
+        currentTuple.push(currentVal.trim());
+        records.push(currentTuple);
+        currentTuple = [];
+        currentVal = '';
+        while (i + 1 < valuesString.length && valuesString[i + 1] !== '(') i++;
+        if (i + 1 < valuesString.length && valuesString[i + 1] === '(') i++;
       } else if (char === '(' && !inString && currentTuple.length === 0 && currentVal.trim() === '') {
-         // Start of tuple
+        // Start of tuple
       } else {
-         currentVal += char;
+        currentVal += char;
       }
     }
   }
@@ -64,8 +86,8 @@ function parseSqlValues(tableName) {
 function cleanString(str) {
   if (!str) return '';
   if (str === 'NULL') return '';
-  // Eliminar comillas simples iniciales y finales si existen
-  return str.replace(/^'(.*)'$/, '$1').trim();
+  // Eliminar comillas simples iniciales y finales si existen (soportando saltos de línea)
+  return str.replace(/^'([\s\S]*)'$/, '$1').trim();
 }
 
 async function migrateData() {
@@ -91,7 +113,7 @@ async function migrateData() {
   oldProperties.forEach(p => {
     const userId = cleanString(p[1]); // user_id
     const urbaserCode = cleanString(p[10]); // urbaser_code
-    if (userMap.has(userId)) {
+    if (urbaserCode && userMap.has(userId)) {
       propertyMap.set(urbaserCode, userMap.get(userId));
     }
   });
@@ -103,16 +125,23 @@ async function migrateData() {
   let currentContribuyentes = [];
   let from = 0;
   const step = 1000;
-  while(true) {
-    const { data, error } = await supabase.from('contribuyentes').select('identidad, nombre, email, telefono, direccion').range(from, from + step - 1);
-    if(error) { console.error(error); break; }
-    if(data.length === 0) break;
+  while (true) {
+    const { data, error } = await supabase
+      .from('contribuyentes')
+      .select('identidad, nombre, email, telefono, direccion')
+      .order('identidad', { ascending: true })
+      .range(from, from + step - 1);
+    if (error) {
+      throw new Error(`Error consultando contribuyentes en offset ${from}: ${error.message}`);
+    }
+    if (!data || data.length === 0) break;
     currentContribuyentes = currentContribuyentes.concat(data);
+    if (data.length < step) break;
     from += step;
   }
   console.log(`Se encontraron ${currentContribuyentes.length} contribuyentes actuales en Supabase.`);
 
-  let updates = [];
+  const updates = [];
   
   // Condominios (generalmente la identidad en la base de datos nueva es igual al código URB...)
   currentContribuyentes.forEach(c => {
@@ -120,10 +149,10 @@ async function migrateData() {
     if (propertyMap.has(c.identidad)) {
       const oldData = propertyMap.get(c.identidad);
       let needsUpdate = false;
-      let newRow = { identidad: c.identidad };
+      const newRow = { identidad: c.identidad };
 
       // Solo actualizamos si el dato viejo existe y el nuevo está genérico/N/A/vacío
-      if (oldData.nombre && (c.nombre === 'N/A' || c.nombre.startsWith('Condominio '))) {
+      if (oldData.nombre && (!c.nombre || c.nombre === 'N/A' || c.nombre.startsWith('Condominio '))) {
         newRow.nombre = oldData.nombre;
         needsUpdate = true;
       }
@@ -150,25 +179,31 @@ async function migrateData() {
   
   if (updates.length > 0) {
     console.log("Aplicando actualizaciones en Supabase...");
-    let chunks = [];
-    for(let i=0; i<updates.length; i+=500) {
-      chunks.push(updates.slice(i, i+500));
+    const chunks = [];
+    for (let i = 0; i < updates.length; i += 500) {
+      chunks.push(updates.slice(i, i + 500));
     }
     
     let totalUpdated = 0;
-    for (let i=0; i<chunks.length; i++) {
+    let totalErrors = 0;
+    for (let i = 0; i < chunks.length; i++) {
       const { error } = await supabase.from('contribuyentes').upsert(chunks[i], { onConflict: 'identidad' });
       if (error) {
         console.error("Error actualizando chunk:", error.message);
+        totalErrors += chunks[i].length;
       } else {
         totalUpdated += chunks[i].length;
         process.stdout.write(`.${totalUpdated}`);
       }
     }
-    console.log(`\n¡Actualización completada! ${totalUpdated} registros actualizados.`);
+    console.log(`\n¡Actualización completada! ${totalUpdated} registros actualizados, ${totalErrors} errores.`);
+    if (totalErrors > 0) process.exitCode = 1;
   } else {
     console.log("No hubo datos para actualizar.");
   }
 }
 
-migrateData();
+migrateData().catch(err => {
+  console.error("Error crítico en migrateData:", err);
+  process.exit(1);
+});

@@ -18,53 +18,29 @@ export async function POST(request: Request) {
     const cleanIdentidad = /^[JVGE]\d+$/.test(rawId) ? `${rawId[0]}-${rawId.slice(1)}` : rawId;
 
     const fechaPago = fecha || new Date().toISOString().split('T')[0];
+    const metodoNorm = String(metodo || '').trim().toLowerCase();
 
-    // PUNTO DE VENTA: aprobación automática
-    if (metodo === 'punto_de_venta') {
-      const errores: string[] = [];
+    const esTransferencia = [
+      'transferencia',
+      'transferencia_web',
+      'transferencia (web)',
+      'transferencia web',
+      'pago_movil',
+      'pago movil',
+      'pago móvil',
+    ].includes(metodoNorm);
 
-      if (facturaIds && facturaIds.length > 0) {
-        const { error } = await supabase
-          .from('facturas')
-          .update({
-            estado: 'Pagado',
-            metodo_pago: 'Punto de Venta',
-            fecha_pago: fechaPago,
-            referencia_pago: referencia || `PDV-${Date.now()}`
-          })
-          .in('id', facturaIds);
-        if (error) errores.push(`Error recibos: ${error.message}`);
-      }
-
-      if (convenioIds && convenioIds.length > 0) {
-        const { error } = await supabase
-          .from('convenios_pago')
-          .update({
-            estado: 'Pagado',
-            metodo_pago: 'Punto de Venta',
-            fecha_pago: fechaPago
-          })
-          .in('id', convenioIds);
-        if (error) errores.push(`Error convenios: ${error.message}`);
-      }
-
-      if (servicioRefs.length > 0) {
-        const { error } = await supabase.from('servicios_especiales').update({ estado: 'Pagado' }).in('referencia', servicioRefs);
-        if (error) errores.push(`Error servicios: ${error.message}`);
-      }
-
-      if (errores.length > 0) {
-        return NextResponse.json({ error: errores.join('; ') }, { status: 500 });
-      }
-
-      return NextResponse.json({ 
-        status: 'approved',
-        message: 'Pago por Punto de Venta procesado automáticamente'
-      });
+    // En el portal Soy Contribuyente ÚNICAMENTE se permite Transferencia Bancaria (pasa a Conciliación 'Por Verificar').
+    // Los pagos por Punto de Venta / Débito / Tarjeta son exclusivos de Caja Presencial (Taquilla).
+    if (!esTransferencia) {
+      return NextResponse.json(
+        { error: 'En el portal Soy Contribuyente el único método de pago habilitado es Transferencia Bancaria.' },
+        { status: 400 }
+      );
     }
 
-    // TRANSFERENCIA: queda en revisión
-    if (metodo === 'transferencia') {
+    // TRANSFERENCIA Y TRANSFERENCIA WEB: único método que pasa a Conciliación ('Por Verificar')
+    if (esTransferencia) {
       const cleanRef = String(referencia || '').trim().replace(/\D/g, '');
       if (!cleanRef || cleanRef.length !== 8) {
         return NextResponse.json({ 
@@ -77,38 +53,37 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Es obligatorio adjuntar el comprobante de pago bancario.' }, { status: 400 });
       }
 
-      if (facturaIds && facturaIds.length > 0) {
-        await supabase
-          .from('facturas')
-          .update({
-            estado: 'En Revisión',
-            metodo_pago: banco || metodo,
-            referencia_pago: cleanRef,
-            fecha_pago: fechaPago
-          })
-          .in('id', facturaIds);
+      const montoNum = parseFloat(String(monto).replace(/[^0-9.]/g, ''));
+      if (isNaN(montoNum) || montoNum <= 0) {
+        return NextResponse.json({ error: 'El monto reportado no es válido.' }, { status: 400 });
       }
 
-      if (convenioIds && convenioIds.length > 0) {
-        await supabase
-          .from('convenios_pago')
-          .update({
-            estado: 'En Revisión',
-            metodo_pago: banco || metodo,
-            referencia_pago: cleanRef,
-            fecha_pago: fechaPago
-          })
-          .in('id', convenioIds);
+      // Prevenir duplicidad de referencia bancaria (evita doble reporte / condición de carrera)
+      const { data: dupPago } = await supabase
+        .from('pagos_reportados')
+        .select('id, estado')
+        .eq('referencia', cleanRef)
+        .neq('estado', 'Rechazado')
+        .limit(1);
+
+      if (dupPago && dupPago.length > 0) {
+        return NextResponse.json(
+          { error: `La referencia bancaria ${cleanRef} ya fue registrada previamente.` },
+          { status: 409 }
+        );
       }
 
-      // Insertar en pagos_reportados para que aparezca en Conciliación Bancaria
-      const { data: recibosData } = await supabase.from('facturas').select('referencia').in('id', facturaIds || []);
+      // Obtener referencias de recibos ANTES de insertar el pago
+      const { data: recibosData } = (facturaIds && facturaIds.length > 0)
+        ? await supabase.from('facturas').select('referencia').in('id', facturaIds)
+        : { data: [] as any[] };
       const dbRefs = recibosData ? recibosData.map(r => r.referencia) : [];
       const finalRecibos = Array.from(new Set([...(reciboRefs || []), ...dbRefs]));
-      
-      await supabase.from('pagos_reportados').insert({
+
+      // 1. Insertar primero en pagos_reportados y verificar que no haya error antes de bloquear recibos
+      const { error: insertErr } = await supabase.from('pagos_reportados').insert({
         identidad: cleanIdentidad,
-        monto: monto,
+        monto: montoNum,
         banco: banco || metodo,
         referencia: cleanRef,
         tipo: 'Transferencia (Web)',
@@ -126,16 +101,45 @@ export async function POST(request: Request) {
         })
       });
 
-      if (servicioRefs.length > 0) {
-        await supabase.from('servicios_especiales').update({ estado: 'Por Verificar' }).in('referencia', servicioRefs).eq('estado', 'Pendiente');
+      if (insertErr) {
+        console.error('Error insertando pago en pagos_reportados:', insertErr);
+        return NextResponse.json({ error: 'No se pudo registrar el pago. Intente nuevamente.' }, { status: 500 });
       }
 
-      // Marcar facturas como Por Verificar para que Caja las bloquee automaticamente
-      if (facturaIds && facturaIds.length > 0) {
-        await supabase.from('facturas')
-          .update({ estado: 'Por Verificar' })
-          .in('id', facturaIds);
-      }
+      // 2. Una sola actualización atómica por tabla para bloquear recibos en "Por Verificar"
+      await Promise.all([
+        facturaIds && facturaIds.length > 0
+          ? supabase
+              .from('facturas')
+              .update({
+                estado: 'Por Verificar',
+                metodo_pago: banco || metodo,
+                referencia_pago: cleanRef,
+                fecha_pago: fechaPago
+              })
+              .in('id', facturaIds)
+          : Promise.resolve(),
+        convenioIds && convenioIds.length > 0
+          ? supabase
+              .from('convenios_pago')
+              .update({
+                estado: 'En Revisión',
+                metodo_pago: banco || metodo,
+                referencia_pago: cleanRef,
+                fecha_pago: fechaPago
+              })
+              .in('id', convenioIds)
+          : Promise.resolve(),
+        servicioRefs.length > 0
+          ? supabase
+              .from('servicios_especiales')
+              .update({ estado: 'Por Verificar' })
+              .in('referencia', servicioRefs)
+              .eq('estado', 'Pendiente')
+          : Promise.resolve(),
+      ]);
+    } else {
+      return NextResponse.json({ error: 'Método de pago no soportado' }, { status: 400 });
     }
 
     return NextResponse.json({

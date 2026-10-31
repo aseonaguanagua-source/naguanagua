@@ -78,14 +78,22 @@ export async function POST(req: Request) {
     const { data: nueva, error } = await sb.from('condominio_unidades').insert(fila).select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Ensure it exists in inmuebles
+    // Ensure it exists in inmuebles with complete synchronized fields
     const notasStr = _actExt && _actExt.length > 0 ? JSON.stringify({ actividades_extra: _actExt }) : null;
+    const mesesIniciales = fila.aseo_pendiente_desde ? mesesPendientes(fila.aseo_pendiente_desde) : 0;
+    const mmvInicial = fila.tarifa_mmv != null ? Number(fila.tarifa_mmv) : 1.98;
+    const esResidencial = String(fila.actividad || '').toUpperCase().includes('RESIDENCIAL');
     await sb.from('inmuebles').upsert({
       inmueble: fila.inmueble,
-      tipo: 'COMERCIAL',
+      contribuyente: fila.propietario || c.nombre,
+      tipo: esResidencial ? 'RESIDENCIAL' : 'COMERCIAL',
+      clasificacion: esResidencial ? 'Residencial' : 'Comercial',
       actividad_principal: fila.actividad,
       estado: 'ACTIVO',
       identidad: fila.identidad,
+      mmv_mes: mmvInicial,
+      meses_deuda: mesesIniciales,
+      deuda_mmv: parseFloat((mesesIniciales * mmvInicial).toFixed(5)),
       telefono: _tel,
       correo_electronico: _cor,
       direccion: _dir,
@@ -128,10 +136,13 @@ export async function PATCH(req: Request) {
       if (ya) return NextResponse.json({ error: `El inmueble ${upd.inmueble} ya está registrado en otra unidad.` }, { status: 409 });
     }
     
-    // Actualizar campos en inmuebles
-    const inmuebleAActualizar = upd.inmueble || antes.inmueble;
+    // Actualizar campos en inmuebles (sincronización completa de propietario, identidad, deuda y actividad)
+    const inmuebleAActualizar = antes.inmueble || upd.inmueble;
     if (inmuebleAActualizar) {
       const inmUpd: any = {};
+      if ('inmueble' in upd && upd.inmueble) inmUpd.inmueble = upd.inmueble;
+      if ('propietario' in upd && upd.propietario) inmUpd.contribuyente = upd.propietario;
+      if ('identidad' in upd && upd.identidad) inmUpd.identidad = upd.identidad;
       if ('agente_retencion' in cambios) inmUpd.agente_retencion = esAgente;
       if (_tel !== undefined) inmUpd.telefono = _tel;
       if (_cor !== undefined) inmUpd.correo_electronico = _cor;

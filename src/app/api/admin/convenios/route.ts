@@ -126,17 +126,35 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Actualizar inmuebles
+    // 3. Actualizar inmuebles (guardando foto de deuda previa para poder restaurar si se anula el convenio)
+    const deudaPreviaInmuebles: any[] = [];
     if (Array.isArray(inmueblesUpdates) && inmueblesUpdates.length > 0) {
+      const idsInm = inmueblesUpdates.map((u: any) => u.id).filter(Boolean);
+      const { data: prevInms } = idsInm.length > 0
+        ? await supabase.from('inmuebles').select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, notas').in('id', idsInm)
+        : { data: [] as any[] };
+      const prevMap = new Map((prevInms || []).map((p: any) => [p.id, p]));
+
       for (const upd of inmueblesUpdates) {
         if (!upd.id) continue;
+        const pInm = prevMap.get(upd.id);
+        if (pInm) {
+          deudaPreviaInmuebles.push({
+            id: pInm.id,
+            inmueble: pInm.inmueble,
+            meses_deuda: pInm.meses_deuda ?? 0,
+            deuda_mmv: pInm.deuda_mmv ?? 0,
+            multa_bs: pInm.multa_bs ?? 0,
+          });
+        }
+        const tagPrev = pInm ? ` [PRE_CONV:${pInm.meses_deuda ?? 0}:${pInm.deuda_mmv ?? 0}]` : '';
         await supabase
           .from('inmuebles')
           .update({
             deuda_mmv: 0,
             meses_deuda: 0,
             deuda_congelada_bs: upd.deuda_congelada_bs,
-            notas: `Convenio de Pago ${finalNro} (${cuotas} cuotas por Bs. ${montoTotal})`
+            notas: `Convenio de Pago ${finalNro} (${cuotas} cuotas por Bs. ${montoTotal})${tagPrev}`
           })
           .eq('id', upd.id);
       }
@@ -162,7 +180,9 @@ export async function POST(request: Request) {
           contribuyente,
           monto_congelado: montoTotal,
           cuotas,
-          tasa_bcv: tasaAplicada
+          tasa_bcv: tasaAplicada,
+          deuda_previa_inmuebles: deudaPreviaInmuebles,
+          facturas_refinanciadas: facturasReferencias || []
         }
       });
     } catch (_) {}
@@ -208,25 +228,42 @@ export async function DELETE(request: Request) {
       .eq('convenio_id', conv.id)
       .eq('estado', 'Pendiente');
 
-    // 3. Descongelar deuda en inmuebles asociados
+    // 3. Descongelar y restaurar deuda original en inmuebles y facturas asociadas
     if (conv.identidad) {
       const { data: inms } = await supabase
         .from('inmuebles')
-        .select('id, notas, deuda_congelada_bs')
+        .select('id, inmueble, notas, deuda_congelada_bs, meses_deuda, deuda_mmv, mmv_mes')
         .eq('identidad', conv.identidad);
 
       if (inms && inms.length > 0) {
         for (const inm of inms) {
-          const notasActuales = (inm.notas || '').replace(/Convenio de Pago[^\n;.]*/gi, '').trim();
+          const mPrev = String(inm.notas || '').match(/\[PRE_CONV:(\d+):([\d.]+)\]/);
+          const restoredMeses = mPrev ? parseInt(mPrev[1], 10) : Math.max(1, parseInt(String(inm.meses_deuda || 1)));
+          const restoredMmv = mPrev
+            ? parseFloat(mPrev[2])
+            : (parseFloat(String(inm.deuda_mmv || 0)) || parseFloat(((parseFloat(String(inm.mmv_mes || 0)) || 0) * restoredMeses).toFixed(6)));
+          const notasActuales = (inm.notas || '')
+            .replace(/\[PRE_CONV:[^\]]*\]/gi, '')
+            .replace(/Convenio de Pago[^\n;.]*/gi, '')
+            .trim();
           await supabase
             .from('inmuebles')
             .update({
               deuda_congelada_bs: 0,
+              meses_deuda: restoredMeses,
+              deuda_mmv: restoredMmv,
               notas: notasActuales ? `${notasActuales} (Convenio ${conv.numero} Anulado)` : `Convenio ${conv.numero} Anulado`
             })
             .eq('id', inm.id);
         }
       }
+
+      // Restaurar facturas refinanciadas de este contribuyente a Pendiente
+      await supabase
+        .from('facturas')
+        .update({ estado: 'Pendiente' })
+        .eq('identidad', conv.identidad)
+        .eq('estado', 'Refinanciado');
     }
 
     // 4. Auditoria

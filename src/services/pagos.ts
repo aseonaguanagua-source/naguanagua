@@ -127,12 +127,16 @@ export async function actualizarEstadoFacturas(
 
   let dineroDisponible = monto;
   for (const fac of facs) {
+    if (dineroDisponible <= 0.01) break;
     const montoFac = parseFloat(fac.monto || '0');
+    if (montoFac <= 0) continue;
+
+    // Tolerancia de 1 Bs para diferencias de redondeo en pago total de recibo, o pago exacto
     if (dineroDisponible >= montoFac - 1.00) {
-      dineroDisponible = Math.max(0, dineroDisponible - montoFac);
+      dineroDisponible = Math.max(0, parseFloat((dineroDisponible - montoFac).toFixed(2)));
       await supabase.from('facturas').update({ estado: 'Pagado' }).eq('referencia', fac.referencia);
-    } else if (dineroDisponible > 1.00) {
-      const montoRestante = parseFloat((montoFac - dineroDisponible).toFixed(2));
+    } else if (dineroDisponible > 0.01) {
+      const montoRestante = Math.max(0.01, parseFloat((montoFac - dineroDisponible).toFixed(2)));
       await supabase.from('facturas').update({ monto: montoRestante, estado: 'Abonado' }).eq('referencia', fac.referencia);
       dineroDisponible = 0;
     }

@@ -14,21 +14,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Identidad requerida' }, { status: 400 });
     }
 
-    const term = identidad.trim();
-    const rawDigits = term.replace(/\D/g, '');
-    const cleanPrefix = term.replace(/[-\s]/g, '').toUpperCase();
-    
-    // Generar todas las variantes posibles de búsqueda para el RIF / Cédula
-    const variantsSet = new Set<string>();
-    variantsSet.add(term.toUpperCase());
-    variantsSet.add(cleanPrefix);
-    if (rawDigits) {
-      variantsSet.add(rawDigits);
-      ['V-', 'J-', 'E-', 'G-', 'V', 'J', 'E', 'G'].forEach(pre => {
-        variantsSet.add(`${pre}${rawDigits}`);
-      });
+    const term = identidad.trim().toUpperCase();
+    // Usar únicamente variantes con el mismo prefijo (V con V, J con J, G con G) para evitar colisión entre personas y empresas
+    const idVariants = getIdentidadVariantsExact(term);
+    if (idVariants.length === 0) {
+      return NextResponse.json({ error: 'Formato de identificación inválido' }, { status: 400 });
     }
-    const idVariants = Array.from(variantsSet);
     const orFilter = idVariants.map(v => `identidad.eq.${v}`).join(',');
 
     // 1. Buscar en inmuebles
@@ -82,8 +73,8 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // Generar JWT token válido por 2 horas
-    const token = jwt.sign({ identidad: user.identidad }, JWT_SECRET, { expiresIn: '2h' });
+    // Generar JWT token válido por 2 horas con propósito explícito (evita confusión de tokens)
+    const token = jwt.sign({ identidad: user.identidad, purpose: 'portal_password_reset' }, JWT_SECRET, { expiresIn: '2h' });
     const resetUrl = `https://aseonaguanagua.globalrecca.com/portal/reset?token=${token}`;
 
     const anio = new Date().getFullYear();

@@ -50,19 +50,47 @@ export async function POST(req: Request) {
         d.saldo_favor_acreditado = false;
         upd.detalles = d;
 
-        // Determinar si el pago había descontado deuda (previamente Aprobado, con conciliación o de Caja/Condominios)
+        // Determinar si el pago realmente había descontado deuda en inmuebles:
+        // Solo pagos ya Aprobados / Con Diferencia o del módulo de Condominios (que descuentan al cobrar).
+        // IMPORTANTE: evaluar detP.fecha_conciliado (estado previo en BD), NO detMerged.fecha_conciliado.
         const detP = typeof actualP.detalles === 'string' ? JSON.parse(actualP.detalles || '{}') : (actualP.detalles || {});
         const detMerged = { ...detP, ...d };
-        const habiaDescontadoDeuda = 
-          actualP.estado === 'Aprobado' || 
-          actualP.estado === 'Con Diferencia' || 
-          Boolean(detMerged.fecha_conciliado) || 
-          Boolean(detMerged.recibo_caja) || 
-          (Array.isArray(detMerged.deuda_previa) && detMerged.deuda_previa.length > 0) || 
-          actualP.modulo === 'condominios';
+        const habiaDescontadoDeuda =
+          actualP.estado === 'Aprobado' ||
+          actualP.estado === 'Con Diferencia' ||
+          Boolean(detP.fecha_conciliado) ||
+          actualP.modulo === 'condominios' ||
+          Boolean(detP.es_condominio) ||
+          Boolean(detP.isCondominio);
+
+        // SIEMPRE desbloquear facturas, convenios y servicios especiales que estaban 'Por Verificar' / 'En Revisión'
+        const recibos: string[] = Array.isArray(detMerged.recibos) ? detMerged.recibos : [];
+        if (recibos.length > 0) {
+          await sb.from('facturas').update({ estado: 'Pendiente' }).in('referencia', recibos);
+        }
+        if (Array.isArray(detMerged.recibosIds) && detMerged.recibosIds.length > 0) {
+          await sb.from('facturas').update({ estado: 'Pendiente' }).in('id', detMerged.recibosIds);
+        }
+        if (Array.isArray(detMerged.cuotas) && detMerged.cuotas.length > 0) {
+          await sb.from('convenios_cuotas').update({ estado: 'Pendiente' }).in('id', detMerged.cuotas.map((c: any) => typeof c === 'object' ? (c.cuotaId || c.id) : c).filter(Boolean));
+        }
+        if (Array.isArray(detMerged.conveniosIds) && detMerged.conveniosIds.length > 0) {
+          await sb.from('convenios_pago').update({ estado: 'Al Día' }).in('id', detMerged.conveniosIds);
+        }
+        if (Array.isArray(detMerged.servicios) && detMerged.servicios.length > 0) {
+          await sb.from('servicios_especiales').update({ estado: 'Pendiente' }).in('referencia', detMerged.servicios.map((s: any) => typeof s === 'string' ? s : s.referencia).filter(Boolean));
+        }
+        if (Array.isArray(detMerged.tala_poda) && detMerged.tala_poda.length > 0) {
+          await sb.from('servicios_especiales').update({ estado: 'Pendiente' }).in('referencia', detMerged.tala_poda.map((s: any) => typeof s === 'string' ? s : s.referencia).filter(Boolean));
+        }
+
+        // Rechazar comprobantes de retención vinculados
+        await sb.from('pagos_reportados').update({ estado: 'Rechazado' }).filter('detalles->>pago_vinculado', 'eq', pagoId);
 
         if (habiaDescontadoDeuda) {
-          const prevLista = Array.isArray(detMerged.deuda_previa) && detMerged.deuda_previa.length > 0 ? detMerged.deuda_previa : [];
+          const prevLista = Array.isArray(detP.deuda_previa) && detP.deuda_previa.length > 0
+            ? detP.deuda_previa
+            : (Array.isArray(detMerged.deuda_previa) && detMerged.deuda_previa.length > 0 ? detMerged.deuda_previa : []);
           
           if (prevLista.length > 0) {
             for (const prev of prevLista) {
@@ -79,8 +107,8 @@ export async function POST(req: Request) {
                   multa_meses: prev.multa_meses || 0,
                 }).eq('id', prev.condominio);
               }
-              if (prev.id || prev.inmueble) {
-                const nMeses = Math.max(0, parseInt(String(prev.meses_deuda || (prev.aseo_pendiente_desde ? 1 : 0))));
+              if (prev.id || (prev.inmueble && prev.meses_deuda !== undefined)) {
+                const nMeses = Math.max(0, parseInt(String(prev.meses_deuda ?? 0)));
                 const updInm: any = {
                   meses_deuda: nMeses,
                   deuda_mmv: parseFloat(String(prev.deuda_mmv || 0)),
@@ -94,7 +122,6 @@ export async function POST(req: Request) {
             }
           } else {
             // Fallback: restaurar por recibos y RIF
-            const recibos: string[] = Array.isArray(detMerged.recibos) ? detMerged.recibos : [];
             const propCodes = new Set<string>();
             recibos.forEach((r: string) => {
               const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
@@ -161,23 +188,8 @@ export async function POST(req: Request) {
             }
           }
 
-          // Restaurar recibos a Pendiente
-          const recibos: string[] = Array.isArray(detMerged.recibos) ? detMerged.recibos : [];
-          if (recibos.length > 0) {
-            await sb.from('facturas').update({ estado: 'Pendiente' }).in('referencia', recibos);
-          }
-          if (detMerged.cuotas && detMerged.cuotas.length > 0) {
-            await sb.from('convenios_cuotas').update({ estado: 'Pendiente' }).in('id', detMerged.cuotas.map((c: any) => typeof c === 'object' ? c.id : c));
-          }
-          if (detMerged.servicios && detMerged.servicios.length > 0) {
-            await sb.from('servicios_especiales').update({ estado: 'Pendiente' }).in('referencia', detMerged.servicios.map((s: any) => typeof s === 'string' ? s : s.referencia));
-          }
-
           // Limpiar movimientos de condominio
           await sb.from('condominio_movimientos').delete().in('pago_id', [pagoId, detMerged.pago_principal_id, detMerged.pago_vinculado].filter(Boolean));
-
-          // Rechazar comprobantes de retención vinculados
-          await sb.from('pagos_reportados').update({ estado: 'Rechazado' }).filter('detalles->>pago_vinculado', 'eq', pagoId);
 
           // Revertir y borrar/anular notas de crédito creadas por exceso o saldo a favor
           try {
@@ -225,6 +237,88 @@ export async function POST(req: Request) {
             }
           } catch(e) {}
         }
+      }
+    }
+
+    // Si se aprueba un pago pendiente / por verificar (por ejemplo desde Estado de Cuenta o vía API)
+    // y el llamador no maneja la sincronización en cliente (skipServerDebtSync !== true):
+    if (upd.estado === 'Aprobado' && !cambios.skipServerDebtSync) {
+      const { data: actualP } = await sb.from('pagos_reportados').select('*').eq('id', pagoId).maybeSingle();
+      if (actualP && actualP.estado !== 'Aprobado') {
+        const detP = typeof actualP.detalles === 'string' ? JSON.parse(actualP.detalles || '{}') : (actualP.detalles || {});
+        const d = typeof upd.detalles === 'object' ? { ...detP, ...upd.detalles } : { ...detP };
+        if (!d.fecha_conciliado) d.fecha_conciliado = new Date().toISOString();
+
+        const recibos: string[] = Array.isArray(d.recibos) ? d.recibos : [];
+        const rawId = String(actualP.identidad || '').trim().toUpperCase();
+        const sinG = rawId.replace(/-/g, '');
+        const conG = /^[VEJPG]\d/.test(sinG) ? `${sinG[0]}-${sinG.slice(1)}` : rawId;
+        const idVars = [...new Set([rawId, sinG, conG].filter(Boolean))];
+
+        const esCondo = actualP.modulo === 'condominios' || d.modulo === 'condominios' || d.es_condominio || d.isCondominio;
+
+        // Snapshot de deuda previa antes de descontar en inmuebles (si no es de condominios, que ya descontó al cobrar)
+        if (!esCondo && idVars.length > 0) {
+          const { data: inmsPrev } = await sb
+            .from('inmuebles')
+            .select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs')
+            .in('identidad', idVars);
+          if (inmsPrev && inmsPrev.length > 0) {
+            if (!Array.isArray(d.deuda_previa) || d.deuda_previa.length === 0) {
+              d.deuda_previa = inmsPrev;
+            }
+            const histRefs = recibos.filter(r => r.startsWith('RECIB-HIST-'));
+            const multaRefs = recibos.filter(r => r.startsWith('MULTA-'));
+            if (!d.es_abono && (histRefs.length > 0 || multaRefs.length > 0 || recibos.includes('RECIB-DEUDA'))) {
+              for (const inm of inmsPrev) {
+                const cod = String(inm.inmueble || '').toUpperCase();
+                const histInm = histRefs.filter(r => r.toUpperCase().includes(`-${cod}-`));
+                const multaInm = multaRefs.filter(r => r.toUpperCase().includes(`MULTA-${cod}`));
+                const curMeses = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+
+                if (recibos.includes('RECIB-DEUDA') || (histInm.length >= curMeses && histInm.length > 0)) {
+                  await sb.from('inmuebles').update({ meses_deuda: 0, deuda_mmv: 0, multa_bs: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
+                } else if (histInm.length > 0) {
+                  const nuevoMeses = Math.max(0, curMeses - histInm.length);
+                  const dMmv = parseFloat(String(inm.deuda_mmv || 0));
+                  const mBs = parseFloat(String(inm.multa_bs || 0));
+                  await sb.from('inmuebles').update({
+                    meses_deuda: nuevoMeses,
+                    deuda_mmv: nuevoMeses === 0 ? 0 : parseFloat(((dMmv * nuevoMeses) / (curMeses || 1)).toFixed(6)),
+                    multa_bs: multaInm.length > 0 ? 0 : (nuevoMeses === 0 ? 0 : parseFloat(((mBs * nuevoMeses) / (curMeses || 1)).toFixed(2))),
+                    ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
+                  }).eq('id', inm.id);
+                } else if (multaInm.length > 0) {
+                  await sb.from('inmuebles').update({ multa_bs: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
+                }
+              }
+            }
+          }
+        }
+
+        if (!d.es_abono) {
+          if (recibos.length > 0) {
+            await sb.from('facturas').update({ estado: 'Pagado' }).in('referencia', recibos);
+          }
+          if (Array.isArray(d.recibosIds) && d.recibosIds.length > 0) {
+            await sb.from('facturas').update({ estado: 'Pagado' }).in('id', d.recibosIds);
+          }
+          if (Array.isArray(d.conveniosIds) && d.conveniosIds.length > 0) {
+            await sb.from('convenios_pago').update({ estado: 'Pagado' }).in('id', d.conveniosIds);
+          }
+          if (Array.isArray(d.cuotas) && d.cuotas.length > 0) {
+            const cIds = d.cuotas.map((c: any) => typeof c === 'object' ? (c.cuotaId || c.id) : c).filter(Boolean);
+            if (cIds.length > 0) await sb.from('convenios_cuotas').update({ estado: 'Pagado' }).in('id', cIds);
+          }
+          if (Array.isArray(d.servicios) && d.servicios.length > 0) {
+            await sb.from('servicios_especiales').update({ estado: 'Pagado' }).in('referencia', d.servicios.map((s: any) => typeof s === 'string' ? s : s.referencia).filter(Boolean));
+          }
+          if (Array.isArray(d.tala_poda) && d.tala_poda.length > 0) {
+            await sb.from('servicios_especiales').update({ estado: 'Pagado' }).in('referencia', d.tala_poda.map((s: any) => typeof s === 'string' ? s : s.referencia).filter(Boolean));
+          }
+        }
+
+        upd.detalles = d;
       }
     }
 

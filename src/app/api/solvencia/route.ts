@@ -123,6 +123,14 @@ export async function POST(req: Request) {
         codigosAlcance.some((c: string) => (f.referencia || '').includes(c) || f.inmueble === c)
       );
 
+      if (facturasPendientesInm.length > 0) {
+        return NextResponse.json({
+          solvente: false,
+          inmueblesConDeuda: [especifico],
+          mensaje: `EMISIÓN DENEGADA: ${especifico} registra ${facturasPendientesInm.length} recibo(s) pendiente(s) o en verificación.`
+        });
+      }
+
       // Validar retenciones pendientes (Si es Agente de Retención, debe haber subido y tener aprobada su retención)
       const { data: pagosConRet } = await sb
         .from('pagos_reportados')
@@ -164,15 +172,18 @@ export async function POST(req: Request) {
       if (inmuebleTieneDeuda(i)) { conDeuda.push(i.inmueble); detalle.push(`${i.inmueble} (${i.meses_deuda || 0} meses)`); }
     }
     const idList = variantes.length ? variantes : [identidad];
-    const { data: facts } = await sb.from('facturas').select('id').in('identidad', idList).in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
+    const { data: facts } = await sb.from('facturas').select('id, estado').in('identidad', idList).in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
     if (facts && facts.length > 0) {
-      if (conDeuda.length === 0) {
-        // Si los inmuebles están solventes (0 meses de deuda), conciliar facturas viejas
+      const porVerificar = facts.filter((f: any) => f.estado === 'Por Verificar');
+      if (porVerificar.length > 0) {
+        detalle.push(`${porVerificar.length} pago(s) en espera de verificación bancaria`);
+      } else if (conDeuda.length === 0) {
+        // Solo si no hay pagos en revisión ni deuda en inmuebles, conciliar recibos viejos en Pendiente
         try {
           await sb.from('facturas')
             .update({ estado: 'Pagado', metodo_pago: 'Conciliado por Solvencia', fecha_pago: new Date().toISOString() })
             .in('identidad', idList)
-            .in('estado', ['Pendiente', 'Abonado', 'Por Verificar']);
+            .in('estado', ['Pendiente', 'Abonado']);
         } catch (_) {}
       } else {
         detalle.push(`${facts.length} factura(s) pendiente(s)`);

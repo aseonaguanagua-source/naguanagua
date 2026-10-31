@@ -137,8 +137,9 @@ export async function getTasaBCV(sync: boolean = false) {
     euroVal = parseFloat(euroText);
     usdVal = parseFloat(usdText);
 
-    if (isNaN(euroVal) || isNaN(usdVal)) {
-      throw new Error('Could not parse BCV HTML correctly');
+    // Sanity check de seguridad para prevenir inyección MITM o parseo corrupto del HTML del BCV
+    if (isNaN(euroVal) || isNaN(usdVal) || euroVal <= 10 || euroVal > 100000 || usdVal <= 10 || usdVal > 100000) {
+      throw new Error(`Invalid BCV rates parsed: EUR=${euroVal}, USD=${usdVal}`);
     }
   } catch (error: any) {
     // Fallback: DolarAPI
@@ -152,6 +153,9 @@ export async function getTasaBCV(sync: boolean = false) {
       
       usdVal = parseFloat(usdData.promedio);
       euroVal = parseFloat(eurData.promedio);
+      if (isNaN(euroVal) || isNaN(usdVal) || euroVal <= 10 || euroVal > 100000) {
+        throw new Error(`Invalid DolarAPI rates: EUR=${euroVal}, USD=${usdVal}`);
+      }
       source = 'dolarapi-oficial';
     } catch (e2: any) {
       console.error('DolarAPI fallback failed:', e2.message);

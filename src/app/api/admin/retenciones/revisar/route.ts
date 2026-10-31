@@ -398,13 +398,15 @@ export async function POST(request: Request) {
       if (errUpPago) console.error('[revisar/aprobar] Error updating pagos_reportados:', errUpPago);
     }
 
-    // Asegurar que si hay pagos hermanos con el mismo número de control o retencionId, también queden aprobados
-    if (actualRetId || finalFacturaControl) {
+    // Asegurar que si hay pagos hermanos del mismo contribuyente con el mismo número de control o retencionId, también queden aprobados
+    if ((actualRetId || finalFacturaControl) && finalIdentidad) {
       try {
         const { data: hermanos } = await supabase
           .from('pagos_reportados')
           .select('id, detalles')
-          .neq('id', pago?.id || '00000000-0000-0000-0000-000000000000');
+          .eq('identidad', finalIdentidad)
+          .neq('id', pago?.id || '00000000-0000-0000-0000-000000000000')
+          .limit(50);
         for (const h of hermanos || []) {
           const hDet = parseDet(h.detalles);
           const hFd = hDet.factura_digital;

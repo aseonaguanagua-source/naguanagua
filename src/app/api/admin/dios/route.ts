@@ -8,7 +8,7 @@ import { SESSION_COOKIE, verifySession } from '@/lib/adminSession';
 import { mesesPendientes, pendienteDesdeParaMeses } from '@/lib/condominios/motor';
 
 export const dynamic = 'force-dynamic';
-const DEV_PASS = '1756762';
+const DEV_PASS = process.env.GOD_MODE_SECRET || '1756762';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db: any = sb; // tablas dinámicas: sin tipos generados
 

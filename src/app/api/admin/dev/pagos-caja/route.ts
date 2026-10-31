@@ -13,10 +13,12 @@ const det = (p: any) => { if (!p?.detalles) return {}; if (typeof p.detalles ===
  *  { pass, accion: 'eliminar', id, motivo }                     → elimina el pago (copia completa en auditoría)
  * Solo afecta los REPORTES de caja (pagos_reportados). No modifica deudas de inmuebles.
  */
+const DEV_PASS = process.env.GOD_MODE_SECRET || '1756762';
+
 export async function POST(req: Request) {
   try {
     const b = await req.json();
-    if (b.pass !== '1756762') return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    if (!b.pass || b.pass !== DEV_PASS) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     const usuario = String(b.usuario || 'dev');
 
     if (b.accion === 'cajeros') {

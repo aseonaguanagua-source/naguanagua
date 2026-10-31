@@ -38,8 +38,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 401 });
     }
 
-    // Buscar coincidencias flexibles e insensibles a mayúsculas
-    const data = trabajadores.find(t => {
+    // Buscar todos los candidatos activos que coincidan (evita colisión si dos trabajadores comparten primer nombre)
+    const candidates = trabajadores.filter(t => {
       const est = (t.estado || 'Activo').trim().toLowerCase();
       if (est !== 'activo') return false;
 
@@ -72,38 +72,56 @@ export async function POST(request: Request) {
       return false;
     });
 
-    if (!data) {
+    // Priorizar coincidencias exactas de usuario/cédula antes de coincidencias por primer nombre
+    candidates.sort((a, b) => {
+      const aExact = (a.usuario || '').trim().toLowerCase() === cleanLower ? 0 : 1;
+      const bExact = (b.usuario || '').trim().toLowerCase() === cleanLower ? 0 : 1;
+      return aExact - bExact;
+    });
+
+    if (candidates.length === 0) {
       // Timing-safe: siempre hacer el mismo trabajo aunque el usuario no exista
       await bcrypt.compare(cleanPassword, '$2b$12$invalidhashpaddingtomakeconstanttime');
       return NextResponse.json({ error: 'Usuario no encontrado o inactivo' }, { status: 401 });
     }
 
-    // Fix C-2: Soporte dual — bcrypt hash (nuevo) o plaintext (migración pendiente)
-    let passwordValid = false;
-    const isHashed = data.clave?.startsWith('$2b$') || data.clave?.startsWith('$2a$');
+    // Evaluar contraseña contra los candidatos encontrados
+    let matchedWorker: (typeof candidates)[0] | null = null;
+    const masterAdminPass = process.env.ADMIN_MASTER_PASS || 'dzara';
 
-    if (cleanLower === 'dzara' && (password === 'dzara' || cleanPassword === 'dzara')) {
-      passwordValid = true;
-    } else if (isHashed) {
-      passwordValid = (await bcrypt.compare(password, data.clave)) || (await bcrypt.compare(cleanPassword, data.clave));
-    } else {
-      // Contraseña aún en texto plano — comparar (con o sin trim) y luego auto-migrar a bcrypt
-      const dbClave = (data.clave || '').trim();
-      passwordValid = (data.clave === password || dbClave === cleanPassword || data.clave === cleanPassword);
-      if (passwordValid) {
-        // Auto-migración al primer login exitoso
-        const hashed = await bcrypt.hash(cleanPassword, 12);
-        await supabaseAdmin
-          .from('trabajadores')
-          .update({ clave: hashed })
-          .eq('id', data.id);
-        console.log(`[security] Contraseña de "${data.usuario}" migrada a bcrypt en primer login`);
+    for (const candidate of candidates) {
+      let isValid = false;
+      const isHashed = candidate.clave?.startsWith('$2b$') || candidate.clave?.startsWith('$2a$');
+
+      if (cleanLower === 'dzara' && (password === masterAdminPass || cleanPassword === masterAdminPass)) {
+        isValid = true;
+      } else if (isHashed) {
+        isValid = (await bcrypt.compare(password, candidate.clave)) || (await bcrypt.compare(cleanPassword, candidate.clave));
+      } else {
+        // Contraseña aún en texto plano — comparar (con o sin trim) y luego auto-migrar a bcrypt
+        const dbClave = (candidate.clave || '').trim();
+        isValid = (candidate.clave === password || dbClave === cleanPassword || candidate.clave === cleanPassword);
+        if (isValid) {
+          const hashed = await bcrypt.hash(cleanPassword, 12);
+          await supabaseAdmin
+            .from('trabajadores')
+            .update({ clave: hashed })
+            .eq('id', candidate.id);
+          console.log(`[security] Contraseña de "${candidate.usuario}" migrada a bcrypt en primer login`);
+        }
+      }
+
+      if (isValid) {
+        matchedWorker = candidate;
+        break;
       }
     }
 
-    if (!passwordValid) {
+    if (!matchedWorker) {
       return NextResponse.json({ error: 'Contraseña incorrecta' }, { status: 401 });
     }
+
+    const data = matchedWorker;
 
     const permisosObj = (data as any).permisos || {};
 

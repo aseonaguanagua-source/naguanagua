@@ -9,10 +9,10 @@ export async function GET(request: Request) {
   const testSecret = searchParams.get('secret');
   const simDateStr = searchParams.get('simDate'); // ej: 2026-09-30
 
-  // Auth: Bearer token O secret de prueba en query param
+  // Auth: Bearer token O secret en query param (requiere CRON_SECRET configurado en entorno)
   const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET || 'test-billing-2026';
-  const isAuthorized = authHeader === `Bearer ${cronSecret}` || testSecret === cronSecret;
+  const cronSecret = process.env.CRON_SECRET || process.env.INTERNAL_API_SECRET;
+  const isAuthorized = Boolean(cronSecret && (authHeader === `Bearer ${cronSecret}` || testSecret === cronSecret));
 
   if (!isAuthorized) {
     return new Response('Unauthorized', { status: 401 });
@@ -47,20 +47,31 @@ export async function GET(request: Request) {
     const vencimientoDate = new Date(mesFacturacionDate.getFullYear(), mesFacturacionDate.getMonth(), 30).toISOString().split('T')[0];
     const modoTexto = testMode ? ' [MODO PRUEBA]' : '';
 
-    // ── PASO 1: Obtener inmuebles facturables ──
+    // ── PASO 1: Obtener TODOS los inmuebles facturables mediante paginación por cursor ──
     // Reglas:
     //  - Solo estado 'Activo' (Inactivo/Eliminado no generan deuda).
     //  - NUNCA contenedores "N/A": su tarifa es la suma de sus hijos (fuera de condominio)
     //    o de sus nietos (condominio → N/A → actividades). Facturarlos duplicaría el cobro.
     //  - NUNCA el código padre de un condominio (es_condominio): se cobra por el módulo de Condominios.
-    // TODO(saneamiento): esta consulta devuelve máx. 1000 filas (límite de Supabase) y solo suma deuda_mmv,
-    // no meses_deuda. Se rediseña junto con el libro de deuda mensual antes del próximo cierre.
-    const { data: inmRaw, error: inmueblesError } = await supabase
-      .from('inmuebles')
-      .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, meses_deuda, clasificacion, actividad_principal, estado, es_condominio')
-      .gt('mmv_mes', 0)
-      .eq('estado', 'Activo');
-    if (inmueblesError) throw inmueblesError;
+    const inmRaw: any[] = [];
+    let lastId: any = null;
+    const STEP = 1000;
+    while (true) {
+      let q = supabase
+        .from('inmuebles')
+        .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, meses_deuda, clasificacion, actividad_principal, estado, es_condominio')
+        .gt('mmv_mes', 0)
+        .eq('estado', 'Activo')
+        .order('id', { ascending: true })
+        .limit(STEP);
+      if (lastId !== null) q = q.gt('id', lastId);
+      const { data: batch, error: inmueblesError } = await q;
+      if (inmueblesError) throw inmueblesError;
+      if (!batch || batch.length === 0) break;
+      inmRaw.push(...batch);
+      lastId = batch[batch.length - 1].id;
+      if (batch.length < STEP) break;
+    }
     const inmuebles: any[] = (inmRaw || []).filter((i: any) =>
       (i.actividad_principal || '').trim().toUpperCase() !== 'N/A' && i.es_condominio !== true);
     if (inmuebles.length === 0) {
@@ -165,19 +176,41 @@ export async function GET(request: Request) {
       });
     }
 
-    // ── PASO 4: UPSERT masivo — ignora duplicados automáticamente ──
-    const { error: insertError } = await supabase
-      .from('facturas')
-      .upsert(facturasNuevas, { onConflict: 'referencia', ignoreDuplicates: true });
+    // Si es testMode, devolver simulación sin alterar la base de datos de producción
+    if (testMode) {
+      const montoTotalSim = facturasNuevas.reduce((s: number, f: any) => s + f.monto, 0);
+      return NextResponse.json({
+        success: true,
+        dryRun: true,
+        message: `[SIMULACIÓN SIN ESCRITURA] Se generarían ${facturasNuevas.length} recibos para ${mesFacturado}`,
+        procesados: facturasNuevas.length,
+        omitidos,
+        montoTotal: montoTotalSim,
+        periodo: periodoKey,
+        tasa_tcmmv: tcmmv,
+        test_mode: true,
+      });
+    }
 
-    if (insertError) throw insertError;
+    // ── PASO 4: UPSERT masivo en lotes de 500 — ignora duplicados automáticamente ──
+    for (let i = 0; i < facturasNuevas.length; i += 500) {
+      const chunk = facturasNuevas.slice(i, i + 500);
+      const { error: insertError } = await supabase
+        .from('facturas')
+        .upsert(chunk, { onConflict: 'referencia', ignoreDuplicates: true });
+      if (insertError) throw insertError;
+    }
 
-    // ── PASO 5: Actualizar deuda_mmv y meses_deuda en paralelo (batch updates) ──
-    await Promise.all(
-      inmueblesAActualizar.map(({ id, nuevaDeudaMmv, nuevoMesesDeuda }) =>
-        supabase.from('inmuebles').update({ deuda_mmv: nuevaDeudaMmv, meses_deuda: nuevoMesesDeuda }).eq('id', id)
-      )
-    );
+    // ── PASO 5: Actualizar deuda_mmv y meses_deuda en lotes controlados (50 concurrentes) ──
+    const UPDATE_BATCH = 50;
+    for (let i = 0; i < inmueblesAActualizar.length; i += UPDATE_BATCH) {
+      const chunk = inmueblesAActualizar.slice(i, i + UPDATE_BATCH);
+      await Promise.all(
+        chunk.map(({ id, nuevaDeudaMmv, nuevoMesesDeuda }) =>
+          supabase.from('inmuebles').update({ deuda_mmv: nuevaDeudaMmv, meses_deuda: nuevoMesesDeuda }).eq('id', id)
+        )
+      );
+    }
 
     const montoTotal = facturasNuevas.reduce((s: number, f: any) => s + f.monto, 0);
 

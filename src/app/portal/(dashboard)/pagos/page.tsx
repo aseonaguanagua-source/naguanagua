@@ -220,9 +220,9 @@ export default function DondePagarPage() {
         // D. Cargar Convenios de Pago activos
         const { data: dbConvenios } = await supabase
           .from('convenios_pago')
-          .select('*')
+          .select('*, convenios_cuotas(*)')
           .or(orFilter)
-          .eq('estado', 'Activo');
+          .in('estado', ['Al Día', 'Activo']);
 
         if (dbConvenios && dbConvenios.length > 0) {
           const convItems: ConvenioItem[] = dbConvenios.map((c: any) => ({

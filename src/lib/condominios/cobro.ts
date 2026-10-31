@@ -320,14 +320,67 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   const grupo = cobro.facturas.length > 1 ? pago.pagoId : null;
   let refFinal = ref || `EFECTIVO-${Date.now()}`;
 
-  // Foto de deuda previa para permitir reversión / rechazo seguro
+  // Foto de deuda previa para permitir reversión / rechazo seguro (incluyendo estado real en tabla inmuebles)
+  const codigosInmFoto = Array.from(
+    new Set(
+      [
+        c.codigo,
+        ...cobro.lineas.map(l => porId.get(l.clave)?.inmueble).filter(Boolean),
+      ].filter(Boolean)
+    )
+  );
+  const inmsFotoMap = new Map<string, any>();
+  if (codigosInmFoto.length > 0) {
+    const { data: inmsRows } = await sb
+      .from('inmuebles')
+      .select('id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs')
+      .in('inmueble', codigosInmFoto);
+    (inmsRows || []).forEach((ir: any) => {
+      if (ir.inmueble) inmsFotoMap.set(String(ir.inmueble).toUpperCase(), ir);
+    });
+  }
+
   const antes: any[] = [];
   for (const l of cobro.lineas) {
     const u = porId.get(l.clave);
     if (u) {
-      antes.push({ unidad: u.id, inmueble: u.inmueble, aseo_pendiente_desde: u.aseo_pendiente_desde, multa_meses: u.multa_meses, multa_exonerada_hasta: u.multa_exonerada_hasta });
+      const inmSnap = u.inmueble ? inmsFotoMap.get(String(u.inmueble).toUpperCase()) : null;
+      antes.push({
+        unidad: u.id,
+        inmueble: u.inmueble,
+        aseo_pendiente_desde: u.aseo_pendiente_desde,
+        multa_meses: u.multa_meses,
+        multa_exonerada_hasta: u.multa_exonerada_hasta,
+        ...(inmSnap
+          ? {
+              id: inmSnap.id,
+              meses_deuda: inmSnap.meses_deuda ?? 0,
+              deuda_mmv: inmSnap.deuda_mmv ?? 0,
+              multa_bs: inmSnap.multa_bs ?? 0,
+              deuda_congelada_bs: inmSnap.deuda_congelada_bs ?? 0,
+              saldo_favor_bs: inmSnap.saldo_favor_bs ?? 0,
+            }
+          : {}),
+      });
     } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {
-      antes.push({ condominio: c.id, codigo: c.codigo, aseo_pendiente_desde: c.aseo_pendiente_desde, multa_meses: c.multa_meses });
+      const inmSnap = c.codigo ? inmsFotoMap.get(String(c.codigo).toUpperCase()) : null;
+      antes.push({
+        condominio: c.id,
+        codigo: c.codigo,
+        aseo_pendiente_desde: c.aseo_pendiente_desde,
+        multa_meses: c.multa_meses,
+        ...(inmSnap
+          ? {
+              id: inmSnap.id,
+              inmueble: inmSnap.inmueble,
+              meses_deuda: inmSnap.meses_deuda ?? 0,
+              deuda_mmv: inmSnap.deuda_mmv ?? 0,
+              multa_bs: inmSnap.multa_bs ?? 0,
+              deuda_congelada_bs: inmSnap.deuda_congelada_bs ?? 0,
+              saldo_favor_bs: inmSnap.saldo_favor_bs ?? 0,
+            }
+          : {}),
+      });
     }
   }
 
@@ -646,12 +699,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     || c.nombre;
 
   if (montoSaldoFavor > 0 && pagadorIdentidad) {
-    const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor, c?.codigo);
+    const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor, c?.codigo, sb);
     if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
   }
 
   if (pago.saldoFavorGenerado && pago.saldoFavorGenerado > 0 && pagadorIdentidad) {
-    const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, r2(pago.saldoFavorGenerado), c?.codigo);
+    const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, r2(pago.saldoFavorGenerado), c?.codigo, sb);
     if (!resAcreditar.ok) throw new Error('Error al acreditar Saldo a Favor generado por exceso: ' + resAcreditar.error);
     // Nota de crédito visible en Caja / Conciliación
     await sb.from('documentos').insert([{
@@ -697,7 +750,6 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         }
       }
       if (Object.keys(upd).length) {
-        antes.push({ unidad: u.id, inmueble: u.inmueble, aseo_pendiente_desde: u.aseo_pendiente_desde, multa_meses: u.multa_meses, multa_exonerada_hasta: u.multa_exonerada_hasta });
         await sb.from('condominio_unidades').update(upd).eq('id', u.id);
       }
       // Sincronizar en inmuebles para evitar bloqueos de solvencia
@@ -722,7 +774,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         if (permitirMultas && l.meses >= l.mesesDeuda) upd.multa_meses = 0;
         else if (!permitirMultas && l.multaMesesQueQuedan > 0) upd.multa_meses = l.multaMesesQueQuedan;
       }
-      if (Object.keys(upd).length) { antes.push({ condominio: c.id, aseo_pendiente_desde: c.aseo_pendiente_desde, multa_meses: c.multa_meses }); await sb.from('condominios').update(upd).eq('id', c.id); }
+      if (Object.keys(upd).length) { await sb.from('condominios').update(upd).eq('id', c.id); }
       // Sincronizar condominio en inmuebles
       if (c.codigo && l.meses > 0 && !sol.soloMultas) {
         const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv').eq('inmueble', c.codigo).maybeSingle();

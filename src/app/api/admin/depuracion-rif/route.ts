@@ -323,6 +323,18 @@ export async function POST(req: Request) {
           await sb.from('facturas').update({ identidad: newIdNormalizada }).eq('inmueble', currentCode);
           tablasRifAfectadas['facturas_inmueble'] = 1;
         } catch (_) {}
+        // Si es un contenedor padre (N/A), propagar también el cambio de RIF a sus actividades hijas directas
+        try {
+          const { data: hijosUpdated } = await sb
+            .from('inmuebles')
+            .update({ identidad: newIdNormalizada })
+            .eq('padre_id', currentCode)
+            .eq('identidad', oldIdentidad)
+            .select('inmueble');
+          if (hijosUpdated && hijosUpdated.length > 0) {
+            tablasRifAfectadas['inmuebles_hijos'] = hijosUpdated.length;
+          }
+        } catch (_) {}
       }
 
       updatesInm.identidad = newIdNormalizada;
@@ -357,6 +369,11 @@ export async function POST(req: Request) {
       }
 
       updatesInm.contribuyente = nuevoNombre;
+      // Propagar nombre también a actividades hijas del contenedor padre si existe
+      try {
+        const currentCode = updatesInm.inmueble || inmobCode;
+        await sb.from('inmuebles').update({ contribuyente: nuevoNombre }).eq('padre_id', currentCode);
+      } catch (_) {}
       auditCascade.nombre = {
         anterior: inmActual.contribuyente,
         nuevo: nuevoNombre,

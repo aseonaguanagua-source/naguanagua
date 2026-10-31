@@ -15,6 +15,8 @@ const TABLAS_HIJAS: { tabla: string; col: string }[] = [
   { tabla: 'documentos', col: 'identidad' },
   { tabla: 'retenciones_iva', col: 'identidad' },
   { tabla: 'hacienda_multas', col: 'identidad_infractor' },
+  { tabla: 'saldos_favor', col: 'identidad' },
+  { tabla: 'saldos_favor_movimientos', col: 'identidad' },
 ];
 
 const normalizar = (s: string) => {

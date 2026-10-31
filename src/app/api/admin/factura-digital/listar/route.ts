@@ -473,7 +473,7 @@ export async function GET(request: Request) {
       const correoInm = clasif.inmuebles.map(c => inmMap.get(c)?.correo_electronico).find((e: any) => e && String(e).includes('@'));
       
       // Si la factura va al CONDOMINIO centralizado, priorizar el correo oficial del condominio
-      const rawEmail = (
+      const rawEmailStr = (
         (esModoCondominio && (condo?.correo || det.correo)) ||
         cont?.email ||
         condo?.correo ||
@@ -482,6 +482,10 @@ export async function GET(request: Request) {
         correoInm ||
         ''
       ).trim();
+      const rawEmail = rawEmailStr
+        .split(/[,;\s|/]+/)
+        .map((s: string) => s.trim().toLowerCase())
+        .find((s: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(s)) || '';
       const esCorreoComodin = !rawEmail || rawEmail.length < 4 || rawEmail.toLowerCase() === fallbackEmail.toLowerCase();
       const correoFinal = esCorreoComodin ? fallbackEmail : rawEmail;
       const reciboEnviado = !!(rd && rd.enviado);

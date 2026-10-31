@@ -128,7 +128,11 @@ export async function limpiarDeuda(
     (i.identidad || '').replace(/-/g, '').toUpperCase() === 
     (identidad || '').replace(/-/g, '').toUpperCase()
   );
-  for (const inm of userInms) {
-    await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
-  }
+  const ids = userInms.map(inm => inm.id).filter(Boolean);
+  if (ids.length === 0) return;
+
+  await supabase
+    .from('inmuebles')
+    .update({ deuda_mmv: 0, deuda_congelada_bs: 0 })
+    .in('id', ids);
 }

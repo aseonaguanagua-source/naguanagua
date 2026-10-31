@@ -14,28 +14,43 @@ async function fetchAllParallel(table: string, cols: string): Promise<any[]> {
     .from(table)
     .select('*', { count: 'exact', head: true });
 
-  if (countErr || !count || count === 0) return [];
-
-  // Lanzar TODOS los batches en paralelo (máx ~55 para inmuebles)
-  const numBatches = Math.ceil(count / STEP);
-  const batchPromises = Array.from({ length: numBatches }, (_, i) => {
-    const from = i * STEP;
-    return supabaseAdmin
-      .from(table)
-      .select(cols)
-      .range(from, from + STEP - 1);
-  });
-
-  const results = await Promise.all(batchPromises);
-  
-  let all: any[] = [];
-  for (const { data, error } of results) {
-    if (error) {
-      console.error(`Error fetching ${table} batch:`, error);
-      continue;
-    }
-    if (data) all = all.concat(data);
+  if (countErr) {
+    throw new Error(`Error obteniendo conteo de ${table}: ${countErr.message}`);
   }
+  if (!count || count === 0) return [];
+
+  const numBatches = Math.ceil(count / STEP);
+  const CONCURRENCY = 10;
+  let all: any[] = [];
+
+  for (let start = 0; start < numBatches; start += CONCURRENCY) {
+    const end = Math.min(start + CONCURRENCY, numBatches);
+    const chunkPromises = [];
+
+    for (let i = start; i < end; i++) {
+      const from = i * STEP;
+      chunkPromises.push(
+        (async () => {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const { data, error } = await supabaseAdmin
+              .from(table)
+              .select(cols)
+              .range(from, from + STEP - 1);
+            if (!error) return data || [];
+            if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            else throw new Error(`Fallo al descargar lote ${i} de ${table}: ${error.message}`);
+          }
+          return [];
+        })()
+      );
+    }
+
+    const chunkResults = await Promise.all(chunkPromises);
+    for (const rows of chunkResults) {
+      all = all.concat(rows);
+    }
+  }
+
   return all;
 }
 
