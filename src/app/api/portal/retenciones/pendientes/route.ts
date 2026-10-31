@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const [{ data, error }, { data: inmsAg }] = await Promise.all([
       supabase
         .from('pagos_reportados')
-        .select('id, identidad, monto, created_at, detalles, estado, referencia')
+        .select('id, identidad, monto, created_at, detalles, estado, referencia, grupo_pago')
         .in('identidad', variantes)
         .order('created_at', { ascending: false })
         .limit(100),
@@ -36,7 +36,11 @@ export async function GET(request: Request) {
       if (['Rechazado', 'Anulado', 'Reversado'].includes(String(p?.estado || ''))) return;
       if (String(p?.referencia || '').startsWith('RECH-')) return;
       const det = parseDet(p.detalles);
-      if (det?.es_pago_adicional === true || Boolean(det?.pago_principal_id)) return;
+      const esVinculoAutomaticoSinGrupo = Boolean(det?.vinculado_a_referencia) && !p.grupo_pago;
+      if (!esVinculoAutomaticoSinGrupo && (det?.es_pago_adicional === true || Boolean(det?.pago_principal_id))) {
+        const parentObj = det?.pago_principal_id ? (data || []).find((x: any) => x.id === det.pago_principal_id) : null;
+        if (!det?.pago_principal_id || (parentObj && parentObj.estado === 'Aprobado')) return;
+      }
       const fd = det.factura_digital || {};
       const r = fd.retencion || {};
       const retMonto = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || r.retenido || 0)) || 0;

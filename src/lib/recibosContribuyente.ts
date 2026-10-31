@@ -75,14 +75,21 @@ export function construirRecibosContribuyente(params: {
   const tieneCondominio = condoInms.length > 0;
   const soloCondominio = activos.length > 0 && activos.every(esCondo);
 
-  // N/A = suma de sus actividades. Si la deuda (meses) está registrada en el contenedor N/A,
-  // sus actividades hijas heredan esos meses (misma regla exacta que Caja).
+  // N/A = suma de sus actividades. Si la deuda (meses) está registrada únicamente en el contenedor N/A
+  // (y ningún hijo tiene deuda propia individual), sus actividades hijas heredan esos meses (misma regla exacta que Caja).
   const naMeses = new Map<string, number>();
   activos.forEach((i: any) => {
     if ((i.actividad_principal || '').trim().toUpperCase() === 'N/A' || naCodes.includes(i.inmueble)) {
       const m = parseInt(String(i.meses_deuda || 0), 10) || 0;
       const ef = m > 0 ? m : ((num(i.deuda_mmv) > 0 || num(i.deuda_congelada_bs) > 0) ? 1 : 0);
       if (ef > 0 && i.inmueble) naMeses.set(i.inmueble, ef);
+    }
+  });
+  activos.forEach((i: any) => {
+    const p = i.padre_id || i.condominio_padre_id;
+    const mChild = parseInt(String(i.meses_deuda || 0), 10) || 0;
+    if (p && (mChild > 0 || num(i.deuda_mmv) > 0)) {
+      naMeses.delete(p);
     }
   });
 

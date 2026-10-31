@@ -1034,14 +1034,18 @@ export default function CajaPage() {
           if (ef > 0) naMesesMap.set(i.inmueble, ef);
         }
       });
+      // Solo propagar meses del contenedor N/A hacia sus hijos cuando TODOS sus hijos activos tienen 0 meses
+      // (es decir, la deuda fue cargada en el contenedor N/A y no individualmente por local/actividad).
+      // Si algún hijo ya tiene meses_deuda > 0 y otros tienen 0 (porque fueron pagados individualmente),
+      // NUNCA sobreescribir en 1 mes los locales que ya están solventes (meses_deuda = 0).
+      const padresConHijosIndividuales = new Set<string>();
       (inmFresh || []).forEach((i: any) => {
         const p = i.padre_id;
-        if (p) {
-          const mChild = mesesEf(i);
-          const currentP = naMesesMap.get(p) || 0;
-          if (mChild > currentP) naMesesMap.set(p, mChild);
+        if (p && mesesEf(i) > 0) {
+          padresConHijosIndividuales.add(p);
         }
       });
+      padresConHijosIndividuales.forEach(p => naMesesMap.delete(p));
       
       // Filtrar los inmuebles eliminados/inactivos y sincronizar meses de deuda heredados
       const specificCode = (user.CodCont || user.cod_cont || '').toUpperCase();

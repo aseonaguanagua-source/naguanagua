@@ -239,9 +239,9 @@ function ModalComprobante({ pago, onClose }: { pago: Pago; onClose: () => void }
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs font-bold text-slate-500 uppercase">Monto Reportado</p>
-                {(det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${det.es_pago_adicional ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`}>
-                    {det.es_pago_adicional ? 'Diferencia' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? 'Anticipo' : 'Transferencia')}
+                {((pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional))) || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`}>
+                    {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? 'Diferencia' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? 'Anticipo' : 'Transferencia')}
                   </span>
                 )}
               </div>
@@ -615,7 +615,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
     (async () => {
       try {
         setCargandoVinculados(true);
-        const mainId = det.pago_principal_id || (pago.grupo_pago && typeof pago.grupo_pago === 'string' && pago.grupo_pago !== pago.id ? pago.grupo_pago : pago.id);
+        const esVinculoAutoFalso = Boolean(det.vinculado_a_referencia) && !pago.grupo_pago;
+        const effectivePrincipalId = esVinculoAutoFalso ? null : det.pago_principal_id;
+        const mainId = effectivePrincipalId || (pago.grupo_pago && typeof pago.grupo_pago === 'string' && pago.grupo_pago !== pago.id ? pago.grupo_pago : pago.id);
+        if (!effectivePrincipalId && !pago.grupo_pago) {
+          if (!cancel) setPagosVinculados([]);
+          return;
+        }
         const orParts = [
           `id.eq.${mainId}`,
           `grupo_pago.eq.${mainId}`,
@@ -629,6 +635,19 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           .select('*')
           .or(orParts.join(','));
         
+        const filterValidLinked = (rows: any[]) => {
+          const isCurrentRejected = ['Rechazado', 'Anulado', 'Reversado'].includes(String(pago.estado || ''));
+          return (rows || []).filter((r: any) => {
+            if (r.id === pago.id) return true;
+            if (!isCurrentRejected && (['Rechazado', 'Anulado', 'Reversado'].includes(String(r.estado || '')) || String(r.referencia || '').startsWith('RECH-'))) {
+              return false;
+            }
+            const rd = typeof r.detalles === 'string' ? (() => { try { return JSON.parse(r.detalles); } catch { return {}; } })() : (r.detalles || {});
+            if (Boolean(rd.vinculado_a_referencia) && !r.grupo_pago) return false;
+            return true;
+          });
+        };
+
         if (error) {
           console.warn('Error fetching pagos vinculados via OR:', error);
           // Fallback con consulta directa por grupo_pago
@@ -637,15 +656,17 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               .from('pagos_reportados')
               .select('*')
               .eq('grupo_pago', pago.grupo_pago);
-            if (!cancel && dFallback && dFallback.length > 1) {
-              setPagosVinculados(dFallback);
+            const validFallback = filterValidLinked(dFallback || []);
+            if (!cancel && validFallback.length > 1) {
+              setPagosVinculados(validFallback);
               return;
             }
           }
         }
         
-        if (!cancel && data && data.length > 1) {
-          setPagosVinculados(data);
+        const validData = filterValidLinked(data || []);
+        if (!cancel && validData.length > 1) {
+          setPagosVinculados(validData);
         } else if (!cancel) {
           setPagosVinculados([]);
         }
@@ -926,9 +947,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
   // Detectar si esta fila es parte de un pago múltiple / fraccionado
   const esMultiPago = Boolean(
     pagosVinculados.length > 1 || 
-    det.pago_principal_id || 
-    det.es_pago_adicional || 
     pago.grupo_pago || 
+    (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional)) || 
     (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)
   );
 
@@ -2389,19 +2409,19 @@ export default function ConciliacionPage() {
                 Factura a: {condo.facturaA === 'CONTRIBUYENTE' ? 'el contribuyente' : 'el condominio'}
               </span>
               {condo.grupo && <span className="px-1.5 py-0.5 rounded bg-sky-600 text-white text-[10px] font-black">Pago repartido · parte {condo.grupo.parte} de {condo.grupo.partes} · total Bs {fmt(condo.grupo.montoTotal)}</span>}
-              {(det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
+              {((pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional))) || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
                 <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">
-                  🔗 MULTI-TRANSFERENCIA {det.es_pago_adicional ? '· DIFERENCIA' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? '· ANTICIPO' : '')}
+                  🔗 MULTI-TRANSFERENCIA {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? '· DIFERENCIA' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? '· ANTICIPO' : '')}
                 </span>
               )}
             </span>
           )}
-          {!condo && (det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
+          {!condo && ((pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional))) || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
             <span className="inline-flex items-center gap-1.5 mr-2 font-sans align-middle">
               <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black">
-                🔗 MULTI-TRANSFERENCIA {det.es_pago_adicional ? '· DIFERENCIA' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? '· ANTICIPO' : '')}
+                🔗 MULTI-TRANSFERENCIA {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? '· DIFERENCIA' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? '· ANTICIPO' : '')}
               </span>
-              {det.es_pago_adicional && (
+              {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) && (
                 <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-300 text-[10px] font-bold">Transferencia Adicional</span>
               )}
             </span>
@@ -2502,16 +2522,27 @@ export default function ConciliacionPage() {
               }
             }
 
-            // Mapear cada código al código principal (si pertenece a un local unificado con padre N/A)
+            // Mapear al código principal solo cuando el pago agrupa múltiples actividades del mismo padre_id unificado;
+            // si el pago es de un local/inmueble individual específico (ej. URB010367), mostrar su propio código real.
             const codigosPrincipales = new Set<string>();
             const codigosATratar = recibosCodigos.length > 0
               ? recibosCodigos
               : (det.cod_inmueble || det.codigo_inmueble || det.inmueble || pago.cod_inmueble ? [det.cod_inmueble || det.codigo_inmueble || det.inmueble || pago.cod_inmueble] : []);
 
+            const padresEnPago = new Map<string, number>();
             for (const cod of codigosATratar) {
               const inmObj = inmueblesPorCodigo.get(String(cod).toUpperCase());
               if (inmObj?.padre_id) {
-                codigosPrincipales.add(String(inmObj.padre_id).toUpperCase());
+                const pid = String(inmObj.padre_id).toUpperCase();
+                padresEnPago.set(pid, (padresEnPago.get(pid) || 0) + 1);
+              }
+            }
+
+            for (const cod of codigosATratar) {
+              const inmObj = inmueblesPorCodigo.get(String(cod).toUpperCase());
+              const pid = inmObj?.padre_id ? String(inmObj.padre_id).toUpperCase() : '';
+              if (pid && (padresEnPago.get(pid) || 0) > 1) {
+                codigosPrincipales.add(pid);
               } else if (cod) {
                 codigosPrincipales.add(String(cod).toUpperCase());
               }
@@ -2533,9 +2564,9 @@ export default function ConciliacionPage() {
         <td className="px-3 py-2 text-xs font-mono text-slate-600">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-bold text-slate-800">{pago.referencia || '---'}</span>
-            {(det.pago_principal_id || det.es_pago_adicional || pago.grupo_pago || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
-              <span className={`px-1 py-0.2 rounded font-sans text-[9px] font-bold ${det.es_pago_adicional ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`} title="Parte de un pago con múltiples transferencias">
-                {det.es_pago_adicional ? 'Diferencia' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? 'Anticipo' : '🔗 Multi')}
+            {((pago.grupo_pago || (!det.vinculado_a_referencia && (det.pago_principal_id || det.es_pago_adicional))) || (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1)) && (
+              <span className={`px-1 py-0.2 rounded font-sans text-[9px] font-bold ${(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-indigo-100 text-indigo-700'}`} title="Parte de un pago con múltiples transferencias">
+                {(det.es_pago_adicional && (pago.grupo_pago || !det.vinculado_a_referencia)) ? 'Diferencia' : (Array.isArray(det.pagos_agregados) && det.pagos_agregados.length > 1 ? 'Anticipo' : '🔗 Multi')}
               </span>
             )}
           </div>

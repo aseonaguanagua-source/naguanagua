@@ -244,16 +244,28 @@ export async function POST(request: Request) {
     // Datos reales del pago registrado en caja (leídos temprano para fechas y snapshots de deuda)
     const { data: pagoRow } = await supabase
       .from('pagos_reportados')
-      .select('monto, banco, referencia, tipo, detalles, created_at, modulo')
+      .select('monto, banco, referencia, tipo, detalles, created_at, modulo, grupo_pago')
       .eq('id', pagoId)
       .maybeSingle();
     let detPago: any = pagoRow?.detalles || {};
     if (typeof detPago === 'string') { try { detPago = JSON.parse(detPago); } catch { detPago = {}; } }
 
-    if (detPago?.es_pago_adicional === true || Boolean(detPago?.pago_principal_id)) {
-      return NextResponse.json({
-        error: 'Este registro es un pago adicional de una transacción múltiple. La factura fiscal se emite desde el pago principal.',
-      }, { status: 400 });
+    const esVinculoAutomaticoSinGrupo = Boolean(detPago?.vinculado_a_referencia) && !pagoRow?.grupo_pago;
+    if (!esVinculoAutomaticoSinGrupo && (detPago?.es_pago_adicional === true || Boolean(detPago?.pago_principal_id))) {
+      let principalRealmenteActivo = Boolean(pagoRow?.grupo_pago);
+      if (detPago?.pago_principal_id) {
+        const { data: pRow } = await supabase
+          .from('pagos_reportados')
+          .select('id, estado')
+          .eq('id', detPago.pago_principal_id)
+          .maybeSingle();
+        principalRealmenteActivo = Boolean(pRow && pRow.estado === 'Aprobado');
+      }
+      if (principalRealmenteActivo) {
+        return NextResponse.json({
+          error: 'Este registro es un pago adicional de una transacción múltiple. La factura fiscal se emite desde el pago principal.',
+        }, { status: 400 });
+      }
     }
 
     if (recibos.length === 0 && Array.isArray(detPago?.recibos)) {
@@ -1410,7 +1422,7 @@ export async function POST(request: Request) {
                 unidadNumero: uNum,
                 nombreCondo,
                 parentDir
-              });
+              }) || 'NAGUANAGUA, EDO. CARABOBO';
             })(),
             Pais:                 "VE",
             Notificar:            null,

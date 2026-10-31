@@ -227,15 +227,17 @@ export async function GET(request: Request) {
       const d = parseDetalles(p.detalles);
 
       // Si es un pago adicional / secundario vinculado a un pago principal (múltiples transferencias para una misma factura),
-      // solo se excluye SI el pago principal realmente existe y está activo/aprobado.
-      // Si el pago principal fue rechazado o no existe, el pago aprobado individual DEBE mostrarse para poder ser facturado.
-      if (d?.pago_principal_id) {
-        const principalActivo = pagosPrincipalesActivosMap.get(d.pago_principal_id);
-        if (principalActivo === true) {
+      // solo se excluye SI pertenece a un grupo_pago real (no un vínculo automático falso) y el pago principal está activo/aprobado.
+      const esVinculoAutomaticoSinGrupo = Boolean(d?.vinculado_a_referencia) && !p.grupo_pago;
+      if (!esVinculoAutomaticoSinGrupo) {
+        if (d?.pago_principal_id) {
+          const principalActivo = pagosPrincipalesActivosMap.get(d.pago_principal_id);
+          if (principalActivo === true) {
+            return false;
+          }
+        } else if (d?.es_pago_adicional === true && p.grupo_pago) {
           return false;
         }
-      } else if (d?.es_pago_adicional === true) {
-        return false;
       }
 
       // Una factura solo se considera anulada fiscalmente si fue emitida (o tiene documento/control) y luego anulada/rechazada,
@@ -784,6 +786,7 @@ export async function GET(request: Request) {
           referenciaRetencion: vincRet?.referencia || det.referencia_retencion || null,
           pagoRetencionId: vincRet?.id || det.pago_retencion_id || null,
           modulo: pago.modulo || (infoCondo(pago, det) ? 'condominios' : 'caja'),
+          grupo_pago: pago.grupo_pago || null,
           detalles: det,
           retencionEstado: stRet,
           retencionDatosEnviados: fd?.retencion?.datos_enviados_at || null,
@@ -821,16 +824,16 @@ export async function GET(request: Request) {
         const itemRecibos = Array.isArray(item.recibos) ? item.recibos.filter(Boolean) : [];
         const itemEsAprobado = item.estado === 'Aprobado';
 
-        if (!item.facturaEmitida && itemRecibos.length > 0 && itemEsAprobado) {
-          // Encontrar duplicados / transferencias complementarias del mismo recibo y contribuyente QUE TAMBIÉN ESTÉN APROBADAS
+        if (!item.facturaEmitida && itemRecibos.length > 0 && itemEsAprobado && item.grupo_pago) {
+          // Encontrar transferencias complementarias del MISMO grupo_pago explícito QUE TAMBIÉN ESTÉN APROBADAS.
+          // Nunca agrupar ni mutar en BD pagos independientes sin grupo_pago aunque compartan código RECIB-HIST-*-M1.
           const hermanos = items.filter(other => 
             other.id !== item.id &&
             !processedIds.has(other.id) &&
             !other.facturaEmitida &&
             other.estado === 'Aprobado' &&
-            normId(other.identidad) === pNormId &&
-            Array.isArray(other.recibos) &&
-            other.recibos.some((r: string) => itemRecibos.includes(r))
+            other.grupo_pago === item.grupo_pago &&
+            normId(other.identidad) === pNormId
           );
 
           if (hermanos.length > 0) {
@@ -853,19 +856,8 @@ export async function GET(request: Request) {
               banco: p.banco
             }));
 
-            // Marcar secundarios en la base de datos para que queden vinculados permanentemente
             for (const sec of secundarios) {
               processedIds.add(sec.id);
-              try {
-                await supabase.from('pagos_reportados').update({
-                  detalles: {
-                    ...(sec.detalles || {}),
-                    pago_principal_id: principal.id,
-                    es_pago_adicional: true,
-                    vinculado_a_referencia: principal.referencia
-                  }
-                }).eq('id', sec.id);
-              } catch(e) {}
             }
 
             processedIds.add(principal.id);

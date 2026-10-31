@@ -75,12 +75,20 @@ export const getUserInmuebles = (
   };
 
   // Si se buscó por un código específico que es actividad hija (tiene padre_id), resolver también su contenedor padre
-  // para incluir todas las actividades hermanas unificadas de ese mismo local físico.
+  // SOLO si el contenedor padre realmente consolida la tarifa de sus hijos (mismo local multi-actividad)
+  // y no cuando son locales independientes (ej. J-075377745 con 16 locales distintos).
   let parentOfSCode = '';
   if (sCode) {
     const searchedObj = source.find((x: any) => String(x.inmueble || '').toUpperCase() === sCode);
     if (searchedObj && (searchedObj as any).padre_id) {
-      parentOfSCode = String((searchedObj as any).padre_id).trim().toUpperCase();
+      const candidatePid = String((searchedObj as any).padre_id).trim().toUpperCase();
+      const parentObj = source.find((x: any) => String(x.inmueble || '').toUpperCase() === candidatePid);
+      const siblings = source.filter((x: any) => isActivo(x) && String((x as any).padre_id || '').trim().toUpperCase() === candidatePid);
+      const sumSiblingsMmv = siblings.reduce((s, x: any) => s + (parseFloat(String(x.mmv_mes || 0)) || 0), 0);
+      const pMmv = parentObj ? (parseFloat(String((parentObj as any).mmv_mes || 0)) || 0) : 0;
+      if (!parentObj || pMmv === 0 || Math.abs(pMmv - sumSiblingsMmv) < 0.25) {
+        parentOfSCode = candidatePid;
+      }
     }
   }
 
