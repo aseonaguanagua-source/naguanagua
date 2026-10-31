@@ -104,8 +104,8 @@ export async function GET(request: Request) {
     } else if (filter === 'anuladas') {
       // Vista específica de facturas anuladas / notas de crédito (incluye facturas previas anuladas o con NC)
       pagosQuery = pagosQuery
-        .or('estado.eq.Anulado,detalles->>factura_digital.ilike.%anulad%,detalles->>factura_digital.ilike.%nota_credito%,detalles->>facturas_digitales_previas.ilike.%anulad%')
-        .limit(500);
+        .or('estado.eq.Anulado,detalles->>factura_digital.ilike.%anulad%,detalles->>factura_digital.ilike.%nota_credito%,detalles->>facturas_digitales_previas.ilike.%anulad%,detalles->>facturas_digitales_previas.ilike.%nota_credito%')
+        .limit(1000);
     } else {
       // En vista regular sin búsqueda, excluir reversados o condonados automáticos
       pagosQuery = pagosQuery.not('estado', 'in', '(Reversado,Condonado)');
@@ -240,10 +240,24 @@ export async function GET(request: Request) {
         }
       }
 
+      // Si un pago Rechazado fue marcado erróneamente como es_pago_adicional de un pago principal activo,
+      // no tiene factura propia real (su numero_control pertenece al pago principal aprobado).
+      const esSecundarioRechazadoFalso =
+        p.estado === 'Rechazado' &&
+        Boolean(d?.factura_digital?.es_pago_adicional || d?.es_pago_adicional) &&
+        Boolean(d?.factura_digital?.pago_principal_id || d?.pago_principal_id) &&
+        !d?.factura_digital?.anulada &&
+        !d?.factura_digital?.nota_credito;
+      if (esSecundarioRechazadoFalso) {
+        return false;
+      }
+
       // Una factura solo se considera anulada fiscalmente si fue emitida (o tiene documento/control) y luego anulada/rechazada,
       // o si el pago fue marcado como 'Anulado' tras haber sido procesado.
       const teniaFactura = Boolean(
         d?.factura_digital?.emitida ||
+        d?.factura_digital?.anulada ||
+        d?.factura_digital?.nota_credito ||
         d?.factura_digital?.numero_documento ||
         d?.factura_digital?.numero_control
       );
@@ -770,7 +784,6 @@ export async function GET(request: Request) {
             fd?.nota_credito ||
             pago.estado === 'Anulado' ||
             det?.estado === 'Anulado' ||
-            (Array.isArray(det?.facturas_digitales_previas) && det.facturas_digitales_previas.some((prev: any) => prev?.anulada || prev?.nota_credito)) ||
             // Si fue rechazada la factura pero había sido emitida
             (Boolean(fd?.rechazada || pago.estado === 'Rechazado') && Boolean(fd?.numero_documento || fd?.numero_control || emitida))
           ),
@@ -866,12 +879,23 @@ export async function GET(request: Request) {
           }
         }
 
+        const previas = Array.isArray(item.detalles?.facturas_digitales_previas) ? item.detalles.facturas_digitales_previas : [];
+        const tieneFacturaActual = Boolean(
+          item.facturaEmitida ||
+          item.numeroControl ||
+          item.numeroDocumento ||
+          item.detalles?.factura_digital?.anulada ||
+          item.detalles?.factura_digital?.nota_credito
+        );
+        const omitirItemVacioPorPrevia = previas.length > 0 && !tieneFacturaActual && (item.estado === 'Rechazado' || item.estado === 'Anulado');
+
         processedIds.add(item.id);
-        dedupedItems.push(item);
+        if (!omitirItemVacioPorPrevia) {
+          dedupedItems.push(item);
+        }
 
         // Si el pago contiene facturas digitales previas (emitidas y luego anuladas con o sin NC),
         // se agregan como ítems independientes para que aparezcan en la pestaña de Anuladas (NC)
-        const previas = Array.isArray(item.detalles?.facturas_digitales_previas) ? item.detalles.facturas_digitales_previas : [];
         previas.forEach((prevFd: any, pIdx: number) => {
           if (!prevFd) return;
           const esPrevAnulada = Boolean(prevFd.anulada || prevFd.nota_credito);

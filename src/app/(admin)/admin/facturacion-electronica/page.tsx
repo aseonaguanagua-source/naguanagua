@@ -458,10 +458,9 @@ export default function FacturacionElectronicaPage() {
     : delTipo.filter(p => {
         const esAnulada = p.facturaAnulada || p.notaCredito || p.estado === 'Anulado' || p.estado === 'Rechazado';
         // Si hay una búsqueda activa por cédula/nombre/referencia, mostrar todos los documentos coincidentes
-        // a menos que se haya seleccionado explícitamente la pestaña de emitidas o pendientes
+        // (incluyendo tanto las facturas emitidas activas como las anuladas con Nota de Crédito)
         if (searchTerm.trim()) {
-          if (filterTab === 'pendientes') return true; // en búsqueda, no ocultar las ya emitidas si el usuario busca por cédula
-          if (filterTab === 'emitidas') return p.procesado && !esAnulada;
+          if (filterTab === 'emitidas') return p.procesado || esAnulada;
           return true;
         }
         if (filterTab === 'pendientes') return !p.procesado && !esAnulada && p.estado !== 'Rechazado';

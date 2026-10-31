@@ -41,9 +41,31 @@ export async function POST(req: Request) {
         if (actualP.referencia && !actualP.referencia.startsWith('RECH-')) {
           upd.referencia = `RECH-${actualP.referencia}-${pagoId.slice(0, 6)}`;
         }
-        let d = typeof upd.detalles === 'object' ? { ...upd.detalles } : (actualP.detalles || {});
+        const detP = typeof actualP.detalles === 'string' ? JSON.parse(actualP.detalles || '{}') : (actualP.detalles || {});
+        let d = typeof upd.detalles === 'object' ? { ...detP, ...upd.detalles } : { ...detP };
         d.referencia_original = actualP.referencia;
-        d.factura_digital = { emitida: false, pendiente: false, rechazada: true, rechazada_at: new Date().toISOString() };
+        const fdPrevia = detP?.factura_digital;
+        const teniaFacturaPrevia = Boolean(
+          fdPrevia?.emitida ||
+          fdPrevia?.anulada ||
+          fdPrevia?.numero_documento ||
+          fdPrevia?.numero_control ||
+          fdPrevia?.nota_credito
+        );
+        if (teniaFacturaPrevia) {
+          d.factura_digital = {
+            ...fdPrevia,
+            emitida: true,
+            anulada: Boolean(fdPrevia?.anulada || fdPrevia?.nota_credito),
+            rechazada: true,
+            rechazada_at: new Date().toISOString(),
+          };
+        } else {
+          d.factura_digital = { emitida: false, pendiente: false, rechazada: true, rechazada_at: new Date().toISOString() };
+        }
+        if (Array.isArray(detP?.facturas_digitales_previas) && detP.facturas_digitales_previas.length > 0) {
+          d.facturas_digitales_previas = detP.facturas_digitales_previas;
+        }
         d.saldo_favor = 0;
         d.saldo_favor_bs = 0;
         d.monto_saldo_favor = 0;
@@ -53,7 +75,6 @@ export async function POST(req: Request) {
         // Determinar si el pago realmente había descontado deuda en inmuebles:
         // Solo pagos ya Aprobados / Con Diferencia o del módulo de Condominios (que descuentan al cobrar).
         // IMPORTANTE: evaluar detP.fecha_conciliado (estado previo en BD), NO detMerged.fecha_conciliado.
-        const detP = typeof actualP.detalles === 'string' ? JSON.parse(actualP.detalles || '{}') : (actualP.detalles || {});
         const detMerged = { ...detP, ...d };
         const habiaDescontadoDeuda =
           actualP.estado === 'Aprobado' ||

@@ -1752,10 +1752,19 @@ export async function POST(request: Request) {
         }
 
         delete nuevosDetalles.factura_digital_error;
-        if (nuevosDetalles.factura_digital?.anulada || (reemitir && nuevosDetalles.factura_digital?.emitida)) {
+        if (
+          nuevosDetalles.factura_digital?.anulada ||
+          nuevosDetalles.factura_digital?.emitida ||
+          nuevosDetalles.factura_digital?.numero_control ||
+          nuevosDetalles.factura_digital?.numero_documento ||
+          nuevosDetalles.factura_digital?.nota_credito
+        ) {
           nuevosDetalles.facturas_digitales_previas = [
             ...(nuevosDetalles.facturas_digitales_previas || []),
-            nuevosDetalles.factura_digital
+            {
+              ...nuevosDetalles.factura_digital,
+              anulada: Boolean(nuevosDetalles.factura_digital?.anulada ?? true),
+            }
           ];
         }
         nuevosDetalles.factura_digital = {
