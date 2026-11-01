@@ -358,7 +358,11 @@ export default function CajaPage() {
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [notaManualMonto, setNotaManualMonto] = useState('');
   const [notaManualRef, setNotaManualRef] = useState('');
-  
+  const [omitirMultaSeptiembre, setOmitirMultaSeptiembre] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/cron/billing?auto=1').catch(() => {});
+  }, []);
 
   // ─── useCajaCalculations hook (Fase 2) ────────────────────────────────────────
   const { getReciboMonto } = useCajaCalculations({
@@ -369,6 +373,7 @@ export default function CajaPage() {
     condominioHijos,
     inmuebles,
     pagosPendientes,
+    omitirMultaSeptiembre,
   });
 
   // Tasa efectiva activa (personalizada o BCV global)
@@ -423,17 +428,23 @@ export default function CajaPage() {
       let sumBase = 0;
       let sumIva = 0;
       let sumMulta = 0;
-      periodosUsar.forEach((p) => {
+      periodosUsar.forEach((p, idx) => {
         const cfg = jNotas.periodos_custom[p];
         const mmv = cfg.tarifa_mmv !== null && cfg.tarifa_mmv !== undefined ? Number(cfg.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
         const b = Math.round((mmv * 57 * currentTasa * (esRes ? 1 : 0.128) + Number.EPSILON) * 100) / 100;
         const iv = esRes ? 0 : Math.round((b * 0.16 + Number.EPSILON) * 100) / 100;
-        const esUltimo = p === keys[keys.length - 1];
-        const m = cfg.lleva_multa && !esUltimo ? Math.round((b * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
+        const esUltimo = idx >= Math.max(keys.length, mesesTotales) - 1;
+        const esMesExon = isMesExoneradoMulta(hijo?.notas, p, omitirMultaSeptiembre);
+        const m = cfg.lleva_multa && !esUltimo && !esMesExon ? Math.round((b * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
         sumBase += b;
         sumIva += iv;
         sumMulta += m;
       });
+      if (mesesAPagar > periodosUsar.length) {
+        const extraM = mesesAPagar - periodosUsar.length;
+        sumBase += baseMensual * extraM;
+        sumIva += ivaMensual * extraM;
+      }
       const tot = Math.round((sumBase + sumIva + sumMulta + Number.EPSILON) * 100) / 100;
       return {
         baseMensual,
@@ -450,11 +461,18 @@ export default function CajaPage() {
 
     const base = parseFloat((baseMensual * mesesAPagar).toFixed(2));
     const iva = esRes ? 0 : parseFloat((ivaMensual * mesesAPagar).toFixed(2));
-    // Multa mensual por mora: 10% residencial, 12% comercial sobre los meses adeudados vencidos (septiembre se paga en octubre sin multa; multas aplican hasta agosto)
     const porcentajeMulta = esRes ? 0.10 : 0.12;
-    const mesesConMora = Math.max(0, mesesAPagar - 1);
+    const hoyRef = new Date();
+    let mesesConMora = 0;
+    const maxMoraIdx = Math.min(mesesAPagar, Math.max(0, mesesTotales - 1));
+    for (let i = 1; i <= maxMoraIdx; i++) {
+      const targetDate = new Date(hoyRef.getFullYear(), hoyRef.getMonth() - mesesTotales + i - 1, 1, 12, 0, 0);
+      if (!isMesExoneradoMulta(hijo?.notas, targetDate, omitirMultaSeptiembre)) {
+        mesesConMora++;
+      }
+    }
     const multaCalculada = parseFloat((baseMensual * porcentajeMulta * (mesesTotales > 1 ? mesesConMora : 0)).toFixed(2));
-    const multaGuardada = parseFloat(hijo?.multa_bs || '0');
+    const multaGuardada = omitirMultaSeptiembre ? 0 : parseFloat(hijo?.multa_bs || '0');
     const multa = (mesesTotales <= 1 || mesesConMora === 0) ? 0 : Math.max(multaCalculada, multaGuardada);
     const total = parseFloat((base + iva + multa).toFixed(2));
 
@@ -469,7 +487,7 @@ export default function CajaPage() {
       total,
       esRes
     };
-  }, [customBcvRate, tcmmv, hijosMesesAPagar, foundUser]);
+  }, [customBcvRate, tcmmv, hijosMesesAPagar, foundUser, omitirMultaSeptiembre]);
 
   const totalDeudaCondominio = useMemo(() => {
     if (!isCondominio || condominioHijos.length === 0) return 0;
@@ -1880,7 +1898,7 @@ export default function CajaPage() {
           const mNum = parseInt(parts[3]?.replace('M', '') || '0');
           const totalMesesDeuda = Math.max(1, parseInt(inm.meses_deuda || '1'));
           const isUltimoMes = mNum > 0 ? (mNum >= totalMesesDeuda) : false;
-          const esMesExon = isMesExoneradoMulta(inm.notas, emision);
+          const esMesExon = isMesExoneradoMulta(inm.notas, emision, omitirMultaSeptiembre);
 
           if (!isUltimoMes && monthsDiff > 1 && !esMesExon) {
             item.mesesConMora += 1;
@@ -1909,7 +1927,7 @@ export default function CajaPage() {
             rc.referencia?.startsWith('CM-') && (rc.referencia || '').includes(inm.inmueble || '')
           );
           const isUltimoMes = (allCmForInm.length <= 1 && monthsDiff <= 1) || (allCmForInm[allCmForInm.length - 1]?.referencia === ref && monthsDiff <= 1) || monthsDiff <= 1;
-          const esMesExon = isMesExoneradoMulta(inm.notas, emision);
+          const esMesExon = isMesExoneradoMulta(inm.notas, emision, omitirMultaSeptiembre);
 
           if (!isUltimoMes && monthsDiff > 1 && !esMesExon) {
             item.mesesConMora += 1;
@@ -1917,7 +1935,9 @@ export default function CajaPage() {
         });
       } else if (ref.startsWith('MULTA-')) {
         const f = recibosMap.get(ref);
-        if (f) extraMulta += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
+        if (f && !(omitirMultaSeptiembre && isMesExoneradoMulta(null, f.emision, true))) {
+          extraMulta += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
+        }
       } else {
         const f = recibosMap.get(ref);
         if (f) extraSb += parseFloat(String(f.monto || '0').replace(/[^\d.]/g, '')) || 0;
@@ -2035,7 +2055,7 @@ export default function CajaPage() {
       setComprobanteRetencion('');
     }
 
-  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, hijosMesesAPagar, getHijoDebt, reciboMontoMap, getReciboMonto]);
+  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, hijosMesesAPagar, getHijoDebt, reciboMontoMap, getReciboMonto, omitirMultaSeptiembre]);
 
   // ─── useCajaSelection hook (Fase 2) ────────────────────────────────────────
   const { sortedRecibos, toggleRecibo, toggleCuota, toggleServicio, toggleTalaPoda } = useCajaSelection({
@@ -2537,7 +2557,7 @@ export default function CajaPage() {
               const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
               const totalMeses = Math.max(1, parseInt(inm?.meses_deuda || '1'));
               const isUltimoMes = (mesNum >= totalMeses && monthsDiff <= 1) || (totalMeses === 1 && monthsDiff <= 1);
-              const esMesExon = isMesExoneradoMulta(inm?.notas, emision);
+              const esMesExon = isMesExoneradoMulta(inm?.notas, emision, omitirMultaSeptiembre);
               const multa = (!isUltimoMes && monthsDiff > 1 && !esMesExon) ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
               const iva = esRes ? 0 : parseFloat((bm * 0.16).toFixed(2));
               sumaBase += bm;
@@ -3013,6 +3033,7 @@ export default function CajaPage() {
           monto_retencion_iva: realMontoRetencionIVA,
           es_retencion: (realMontoRetencionIVA > 0),
           agente_retencion: (realMontoRetencionIVA > 0),
+          omitir_multa_septiembre: omitirMultaSeptiembre || undefined,
           formasPago: fpsList,
           ...(!esAbonoDebito ? {
             factura_digital: {
@@ -3220,7 +3241,10 @@ export default function CajaPage() {
               
               for (let m = 1; m <= maxMeses; m++) {
                 const isUltimo = (m >= numMesesInm);
-                const multaMes = isUltimo ? 0 : Math.round((bMes * tasaMora) * 100) / 100;
+                const nowM = new Date();
+                const targetM = new Date(nowM.getFullYear(), nowM.getMonth() - numMesesInm + m - 1, 1, 12, 0, 0);
+                const esExonM = isMesExoneradoMulta(inm?.notas, targetM, omitirMultaSeptiembre);
+                const multaMes = (isUltimo || esExonM) ? 0 : Math.round((bMes * tasaMora) * 100) / 100;
                 const costoMes = Math.round((bMes + ivaMes) * 100) / 100 + multaMes;
 
                 if (dineroLocal >= costoMes - 0.01) {
@@ -3710,7 +3734,8 @@ export default function CajaPage() {
             comprobante_retencion_b64: compRetB64T || undefined,
             fecha_transaccion: fechaTransaccion,
             tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
-            nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined
+            nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
+            omitir_multa_septiembre: omitirMultaSeptiembre || undefined
           })
         });
 
@@ -3759,7 +3784,8 @@ export default function CajaPage() {
               comprobante_retencion_b64: compRetB64T || undefined,
               fecha_transaccion: fechaTransaccion,
               tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
-              nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined
+              nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
+              omitir_multa_septiembre: omitirMultaSeptiembre || undefined
             })
           });
           pErr = r2.error;
@@ -4418,15 +4444,30 @@ export default function CajaPage() {
       )}
       {/* Buscador */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <label className="block text-sm font-semibold text-slate-700">Buscar Contribuyente</label>
-          <Link
-            href="/admin/recibo-demo"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors shadow-xs"
-          >
-            <Printer size={13} />
-            <span>Ver Formato de Recibo</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className={`inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-lg border cursor-pointer transition-colors select-none shadow-xs ${
+              omitirMultaSeptiembre
+                ? 'bg-emerald-100 border-emerald-400 text-emerald-950 ring-1 ring-emerald-300'
+                : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900'
+            }`} title="Omite el cobro de la multa correspondiente al mes de Septiembre 2026 (2026-09) en este cobro">
+              <input
+                type="checkbox"
+                checked={omitirMultaSeptiembre}
+                onChange={(e) => setOmitirMultaSeptiembre(e.target.checked)}
+                className="rounded border-amber-400 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+              />
+              <span>Omitir Multa de Septiembre 2026</span>
+            </label>
+            <Link
+              href="/admin/recibo-demo"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors shadow-xs"
+            >
+              <Printer size={13} />
+              <span>Ver Formato de Recibo</span>
+            </Link>
+          </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <select 
@@ -5710,10 +5751,19 @@ export default function CajaPage() {
               return (
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <FileText className="w-5 h-5 text-slate-600" />
                   <h3 className="font-bold text-slate-800">Recibos de Aseo Mensual</h3>
                   <span className="text-xs text-slate-500 font-medium">({recibosConMonto.length} pendiente{recibosConMonto.length !== 1 ? 's' : ''})</span>
+                  <label className="ml-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200/80 border border-amber-300 px-2.5 py-1 rounded-md cursor-pointer transition-colors select-none">
+                    <input
+                      type="checkbox"
+                      checked={omitirMultaSeptiembre}
+                      onChange={(e) => setOmitirMultaSeptiembre(e.target.checked)}
+                      className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span>Omitir Multa Sep 2026</span>
+                  </label>
                 </div>
 
                 {/* Botones de selección rápida para pagos múltiples */}
@@ -6213,6 +6263,25 @@ export default function CajaPage() {
                 <span>Multa Total:</span>
                 <span className="font-semibold text-rose-600">Bs. {formatBs(sumMulta)}</span>
               </div>
+              <label className="mt-2 flex items-center justify-between gap-2 bg-amber-50 hover:bg-amber-100/70 border border-amber-300 rounded-lg px-3 py-2 cursor-pointer transition-colors select-none">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={omitirMultaSeptiembre}
+                    onChange={(e) => setOmitirMultaSeptiembre(e.target.checked)}
+                    className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-amber-900 block">Omitir Multa de Septiembre 2026</span>
+                    <span className="text-[10px] text-amber-700 block">Exonera el recargo por mora del período 09/2026</span>
+                  </div>
+                </div>
+                {omitirMultaSeptiembre && (
+                  <span className="text-[10px] font-black uppercase bg-emerald-600 text-white px-2 py-0.5 rounded">
+                    Activa
+                  </span>
+                )}
+              </label>
               {sumIVARetencionable > 0 && (
                 <div className="mt-1 inline-flex items-center gap-1.5 bg-amber-100 text-amber-900 text-xs font-bold px-2.5 py-1 rounded-md border border-amber-300">
                   <span>⚠️ Agente de Retención — Aplica retención sobre comercios autorizados (Bs. {formatBs(sumIVARetencionable)} de IVA)</span>

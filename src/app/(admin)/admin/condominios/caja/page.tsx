@@ -91,6 +91,7 @@ function Caja() {
   const [referencia, setReferencia] = useState('');
   const [cobrando, setCobrando] = useState(false);
   const [recibo, setRecibo] = useState<any>(null);
+  const [omitirMultaSeptiembre, setOmitirMultaSeptiembre] = useState(false);
   const pagoId = useRef<string>('');
   // multipago
   const [pagosAgregados, setPagosAgregados] = useState<any[]>([]);
@@ -362,6 +363,7 @@ function Caja() {
   useEffect(() => {
     const u = usuario(); setAdmin(u.rol === 'Administrador' || u.usuario === 'dzara');
     fetch('/api/admin/condominios/cobrar', { method: 'POST', body: JSON.stringify({ accion: 'estado' }) }).then(r => r.json()).then(j => setActiva(!!j.cajaActiva)).catch(() => setActiva(false));
+    fetch('/api/cron/billing?auto=1').catch(() => {});
   }, []);
 
   // Búsqueda
@@ -384,7 +386,7 @@ function Caja() {
 
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
-    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(false); setContactoOmitido(false);
+    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(false); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
       router.replace(`/admin/condominios/caja?codigo=${cod}&cedula=${encodeURIComponent(unidad.identidad)}`);
@@ -418,6 +420,7 @@ function Caja() {
           mesesPorUnidad: Object.keys(mesesPorUnidad).length > 0 ? mesesPorUnidad : undefined,
           soloMultas,
           incluirMultas,
+          omitirMultaSeptiembre,
           tasaOverride: tasaParsed > 0 ? tasaParsed : undefined,
           fechaOverride: fechaOverrideStr || undefined,
         }) });
@@ -447,7 +450,7 @@ function Caja() {
       } catch (e: any) { setError(e.message); setCobro(null); setSaldoFavorActivo(0); } finally { setCalculando(false); }
     }, 300);
     return () => clearTimeout(h);
-  }, [codigo, modo, claves, abonoLocales, identidad, meses, mesesPorUnidad, soloMultas, incluirMultas, tasaOverrideStr, fechaOverrideStr, calcTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [codigo, modo, claves, abonoLocales, identidad, meses, mesesPorUnidad, soloMultas, incluirMultas, omitirMultaSeptiembre, tasaOverrideStr, fechaOverrideStr, calcTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = cobro?.condo;
   const base = cobro?.estado;
@@ -677,6 +680,7 @@ function Caja() {
           mesesPorUnidad: Object.keys(mesesPorUnidad).length > 0 ? mesesPorUnidad : undefined,
           soloMultas,
           incluirMultas,
+          omitirMultaSeptiembre,
           usuario: u.usuario,
           tasaOverride: tasaParsed > 0 ? tasaParsed : (cobro?.estado?.tasa ? Number(cobro.estado.tasa) : undefined),
           fechaOverride: fechaOverrideStr || undefined,
@@ -798,6 +802,20 @@ function Caja() {
               <button onClick={() => setActiveTab('Pagos')} className={`px-4 py-1.5 text-xs font-bold rounded transition ${activeTab === 'Pagos' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`}>Pagos</button>
               <button onClick={() => setActiveTab('NotasCredito')} className={`px-4 py-1.5 text-xs font-bold rounded transition ${activeTab === 'NotasCredito' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`}>Notas de Crédito</button>
             </div>
+
+            <label className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-colors select-none ${
+              omitirMultaSeptiembre
+                ? 'bg-emerald-100 border-emerald-400 text-emerald-950 shadow-2xs ring-1 ring-emerald-300'
+                : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900'
+            }`} title="Omite el cobro de la multa correspondiente al mes de Septiembre 2026 (2026-09)">
+              <input
+                type="checkbox"
+                checked={omitirMultaSeptiembre}
+                onChange={e => setOmitirMultaSeptiembre(e.target.checked)}
+                className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
+              />
+              <span>Omitir Multa de Septiembre 2026</span>
+            </label>
             
             {admin && activa !== null && (
               <button id="btn-interruptor-caja-condominios" onClick={() => setModalInt(true)} className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer">
@@ -1358,6 +1376,21 @@ function Caja() {
                       </label>
                     )}
 
+                    <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${
+                      omitirMultaSeptiembre
+                        ? 'bg-emerald-100 border-emerald-400 text-emerald-950 shadow-2xs ring-1 ring-emerald-300'
+                        : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                    }`} title="Omite el cobro de la multa correspondiente al mes de Septiembre 2026 (2026-09)">
+                      <input
+                        id="omitir-multa-sep-condominio"
+                        type="checkbox"
+                        checked={omitirMultaSeptiembre}
+                        onChange={e => setOmitirMultaSeptiembre(e.target.checked)}
+                        className="w-4 h-4 accent-emerald-600 rounded"
+                      />
+                      <span>Omitir Multa Sep 2026</span>
+                    </label>
+
                     <div className="flex flex-wrap items-center gap-1.5">
                       <label className="text-xs font-bold text-slate-600">
                         {soloMultas ? 'Multas:' : 'Meses:'}
@@ -1799,6 +1832,22 @@ function Caja() {
               <div className="text-xs space-y-1 border-t border-white/10 pt-3">
                 <div className="flex justify-between"><span className="text-white/70">Aseo</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.baseBs)}</b></div>
                 <div className="flex justify-between"><span className="text-white/70">Multas</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.multaBs)}</b></div>
+                <label className="mt-1.5 flex items-center justify-between gap-2 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors select-none">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={omitirMultaSeptiembre}
+                      onChange={e => setOmitirMultaSeptiembre(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-emerald-500 rounded cursor-pointer"
+                    />
+                    <span className="text-[11px] font-bold text-amber-200">Omitir Multa de Septiembre 2026</span>
+                  </div>
+                  {omitirMultaSeptiembre && (
+                    <span className="text-[9px] font-black uppercase bg-emerald-500 text-slate-950 px-1.5 py-0.5 rounded">
+                      Omitida
+                    </span>
+                  )}
+                </label>
                 {cobro.totales.ivaBs > 0 && <div className="flex justify-between"><span className="text-white/70">IVA 16%</span><b className="tabular-nums">Bs {fmtBs(cobro.totales.ivaBs)}</b></div>}
                 {cobro.totales.retencionBs > 0 && <div className="flex justify-between text-violet-300"><span>Retención IVA (75%)</span><b className="tabular-nums">− Bs {fmtBs(cobro.totales.retencionBs)}</b></div>}
               </div>

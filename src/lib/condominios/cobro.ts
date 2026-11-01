@@ -47,6 +47,8 @@ export interface SolicitudCobro {
   soloMultas?: boolean;
   /** Si es false o no está marcado, no se agrega multa al cobro de aseo */
   incluirMultas?: boolean;
+  /** Si es true, omite la multa correspondiente al período 2026-09 (Septiembre 2026) */
+  omitirMultaSeptiembre?: boolean;
   tasaOverride?: number;
   fechaOverride?: string;
 }
@@ -110,7 +112,7 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
   const fecha = sol.fechaOverride
     ? new Date(sol.fechaOverride.includes('T') ? sol.fechaOverride : `${sol.fechaOverride}T12:00:00-04:00`)
     : new Date();
-  const estado = calcularEstado(datos.condo, datos.unidades, tasa, fecha, datos.multas);
+  const estado = calcularEstado(datos.condo, datos.unidades, tasa, fecha, datos.multas, !!sol.omitirMultaSeptiembre);
   const porAct = estado.porActividad;
   const avisos: string[] = [];
   const modo: ModoCobro = sol.modo ? sol.modo : (sol.identidad ? 'CONTRIBUYENTE' : 'CONDOMINIO');
@@ -149,6 +151,7 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
       if (mesesRemanentes > 0) {
         const prevPeriodos = M.periodosMultasPrevias(r.pendienteDesde, mesesRemanentes, fecha);
         for (const p of prevPeriodos) {
+          if (sol.omitirMultaSeptiembre && p === '2026-09') continue;
           itemsMulta.push({ tipo: 'PREVIA', periodo: p, montoBs: cuotaMultaBs });
         }
       }
@@ -157,6 +160,7 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
       for (const m of r.deuda.porMes) {
         if (m.multaBs > 0) {
           const per = r.periodos[m.n - 1] || `Mes ${m.n}`;
+          if (sol.omitirMultaSeptiembre && per === '2026-09') continue;
           itemsMulta.push({ tipo: 'DEUDA', periodo: per, montoBs: m.multaBs });
         }
       }
@@ -546,6 +550,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       solo_aseo: !sol.incluirMultas && !sol.soloMultas,
       sin_multas: !sol.incluirMultas && !sol.soloMultas,
       incluir_multas: !!sol.incluirMultas,
+      omitir_multa_septiembre: !!sol.omitirMultaSeptiembre,
       recibos: [reciboRef],
       montos: { [reciboRef]: fTotalBruto },
       montoTotal: fTotalBruto,
@@ -745,6 +750,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         const permitirMultas = sol.incluirMultas === true;
         if (permitirMultas && l.meses >= l.mesesDeuda) {
           upd.multa_meses = 0;
+        } else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0) {
+          upd.multa_meses = 0;
         } else if (!permitirMultas && l.multaMesesQueQuedan > 0) {
           upd.multa_meses = l.multaMesesQueQuedan;
         }
@@ -772,6 +779,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       } else {
         const permitirMultas = sol.incluirMultas === true;
         if (permitirMultas && l.meses >= l.mesesDeuda) upd.multa_meses = 0;
+        else if (sol.omitirMultaSeptiembre && l.periodos.includes('2026-09') && l.multaMesesQueQuedan === 0) upd.multa_meses = 0;
         else if (!permitirMultas && l.multaMesesQueQuedan > 0) upd.multa_meses = l.multaMesesQueQuedan;
       }
       if (Object.keys(upd).length) { await sb.from('condominios').update(upd).eq('id', c.id); }

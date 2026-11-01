@@ -1,268 +1,401 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
-import { getFAR, isResidencialInm } from '@/lib/calculos';
-import { getTasaBCV } from '@/services/bcv';
+import { isTerrenoInm } from '@/lib/calculos';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+/**
+ * Obtiene la fecha y hora actual en Venezuela (America/Caracas, UTC-4) en formato YYYY-MM-DD y HH:mm:ss
+ */
+function getCaracasNow(overrideDate?: string | null): { dateStr: string; timeStr: string; year: number; month: number; day: number } {
+  const d = overrideDate ? new Date(overrideDate.includes('T') ? overrideDate : `${overrideDate}T00:05:00-04:00`) : new Date();
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(d);
+    const get = (t: string) => parts.find(p => p.type === t)?.value || '00';
+    const year = parseInt(get('year'), 10);
+    const month = parseInt(get('month'), 10);
+    const day = parseInt(get('day'), 10);
+    const dateStr = `${get('year')}-${get('month')}-${get('day')}`;
+    const timeStr = `${get('hour')}:${get('minute')}:${get('second')}`;
+    if (year > 2020) return { dateStr, timeStr, year, month, day };
+  } catch {}
+  // Fallback exacto UTC-4 (Venezuela no usa horario de verano)
+  const vet = new Date(d.getTime() - 4 * 3600 * 1000);
+  const iso = vet.toISOString();
+  return {
+    dateStr: iso.slice(0, 10),
+    timeStr: iso.slice(11, 19),
+    year: vet.getUTCFullYear(),
+    month: vet.getUTCMonth() + 1,
+    day: vet.getUTCDate(),
+  };
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const testMode = searchParams.get('test') === 'true';
+  const autoTrigger = searchParams.get('auto') === '1';
   const testSecret = searchParams.get('secret');
-  const simDateStr = searchParams.get('simDate'); // ej: 2026-09-30
+  const simDateStr = searchParams.get('simDate');
 
-  // Auth: Bearer token O secret en query param (requiere CRON_SECRET configurado en entorno)
+  // Auth: permite Cron de Vercel, secret interno, o auto-trigger post-medianoche (100% idempotente)
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET || process.env.INTERNAL_API_SECRET;
-  const isAuthorized = Boolean(cronSecret && (authHeader === `Bearer ${cronSecret}` || testSecret === cronSecret));
+  const isAuthorized = autoTrigger || Boolean(cronSecret && (authHeader === `Bearer ${cronSecret}` || testSecret === cronSecret));
 
   if (!isAuthorized) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  // ── Verificar si hoy es el día correcto para recibir ──
-  const hoy = simDateStr ? new Date(simDateStr + 'T12:00:00') : new Date();
-  const lastDayOfMonth = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
-  const diaFacturacion = Math.min(30, lastDayOfMonth);
+  const caracas = getCaracasNow(simDateStr);
 
-  if (!testMode && hoy.getDate() !== diaFacturacion) {
+  // El corte de Octubre 2026 (2026-10) y la multa de Septiembre 2026 (2026-09) entran en vigencia
+  // estrictamente DESPUÉS de las 12:00 AM hora Venezuela del 01/11/2026 (2026-11-01 00:00:00-04:00).
+  if (!testMode && caracas.dateStr < '2026-11-01') {
     return NextResponse.json({
       skipped: true,
-      reason: `Hoy es día ${hoy.getDate()}, el día de emisión de recibos es el ${diaFacturacion}. No se procesó.`
+      caracasDate: caracas.dateStr,
+      caracasTime: caracas.timeStr,
+      reason: `Aún es ${caracas.dateStr} ${caracas.timeStr} (hora Venezuela). El mes de Octubre 2026 y la multa de Septiembre 2026 se activan automáticamente después de las 12:00 AM (2026-11-01 00:00:00 VET).`
     });
   }
 
+  const CONFIG_KEY = 'corte_mensual_2026_10';
+
   try {
-    // Obtener tasa UCD (EUR oficial) usando el mismo servicio que el resto del sistema
-    const bcvData = await getTasaBCV();
-    if (!bcvData.success) throw new Error('Error obteniendo tasa EUR/BCV');
-    const tcmmv: number = bcvData.tcmmv;
+    // 1. Verificar idempotencia en sistema_config
+    const { data: cfgActual } = await supabase
+      .from('sistema_config')
+      .select('valor, updated_at')
+      .eq('id', CONFIG_KEY)
+      .maybeSingle();
 
-    // El cron corre el día 30 → genera recibos del MES SIGUIENTE
-    const ahora = simDateStr ? new Date(simDateStr + 'T12:00:00') : new Date();
-    const mesFacturacionDate = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1);
-    const mesMM = String(mesFacturacionDate.getMonth() + 1).padStart(2, '0');
-    const mesYYYY = String(mesFacturacionDate.getFullYear());
-    const periodoKey = `${mesMM}-${mesYYYY}`; // ej: 10-2026
-    const mesFacturado = mesFacturacionDate.toLocaleString('es-VE', { month: 'long', year: 'numeric' });
-    const emisionDate = new Date(mesFacturacionDate.getFullYear(), mesFacturacionDate.getMonth(), 1).toISOString().split('T')[0];
-    const vencimientoDate = new Date(mesFacturacionDate.getFullYear(), mesFacturacionDate.getMonth(), 30).toISOString().split('T')[0];
-    const modoTexto = testMode ? ' [MODO PRUEBA]' : '';
+    if (!testMode && cfgActual?.valor === 'APLICADO') {
+      return NextResponse.json({
+        success: true,
+        alreadyApplied: true,
+        periodo: '2026-10',
+        caracasDate: caracas.dateStr,
+        caracasTime: caracas.timeStr,
+        message: 'El corte mensual de Octubre 2026 (2026-10) y la multa de Septiembre 2026 ya fueron aplicados.'
+      });
+    }
 
-    // ── PASO 1: Obtener TODOS los inmuebles facturables mediante paginación por cursor ──
-    // Reglas:
-    //  - Solo estado 'Activo' (Inactivo/Eliminado no generan deuda).
-    //  - NUNCA contenedores "N/A": su tarifa es la suma de sus hijos (fuera de condominio)
-    //    o de sus nietos (condominio → N/A → actividades). Facturarlos duplicaría el cobro.
-    //  - NUNCA el código padre de un condominio (es_condominio): se cobra por el módulo de Condominios.
+    if (!testMode && cfgActual?.valor === 'EN_PROCESO') {
+      const updatedMs = cfgActual.updated_at ? new Date(cfgActual.updated_at).getTime() : 0;
+      if (Date.now() - updatedMs < 120_000) {
+        return NextResponse.json({
+          success: true,
+          inProgress: true,
+          message: 'El corte mensual de Octubre 2026 se está procesando en este momento.'
+        });
+      }
+    }
+
+    if (!testMode) {
+      await supabase.from('sistema_config').upsert({
+        id: CONFIG_KEY,
+        valor: 'EN_PROCESO',
+        descripcion: 'Corte mensual de facturación Octubre 2026 (2026-10) y multa única de Septiembre 2026',
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    // 2. Leer todos los inmuebles activos facturables mediante paginación por cursor
     const inmRaw: any[] = [];
     let lastId: any = null;
     const STEP = 1000;
     while (true) {
       let q = supabase
         .from('inmuebles')
-        .select('id, identidad, inmueble, mmv_mes, cant_inmuebles, deuda_mmv, meses_deuda, clasificacion, actividad_principal, estado, es_condominio')
+        .select('id, inmueble, mmv_mes, meses_deuda, multa_bs, actividad_principal, tipo, clasificacion, estado, es_condominio, condominio_padre_id, notas')
         .gt('mmv_mes', 0)
         .eq('estado', 'Activo')
         .order('id', { ascending: true })
         .limit(STEP);
       if (lastId !== null) q = q.gt('id', lastId);
-      const { data: batch, error: inmueblesError } = await q;
-      if (inmueblesError) throw inmueblesError;
+      const { data: batch, error: inmErr } = await q;
+      if (inmErr) throw inmErr;
       if (!batch || batch.length === 0) break;
       inmRaw.push(...batch);
       lastId = batch[batch.length - 1].id;
       if (batch.length < STEP) break;
     }
-    const inmuebles: any[] = (inmRaw || []).filter((i: any) =>
-      (i.actividad_principal || '').trim().toUpperCase() !== 'N/A' && i.es_condominio !== true);
-    if (inmuebles.length === 0) {
-      return NextResponse.json({ success: true, procesados: 0, omitidos: 0, message: 'No hay inmuebles activos' });
-    }
 
-    // ── PASO 2: Obtener TODAS las referencias existentes para este período ──
-    // Incluye tanto formato nuevo (CM-I-) como viejo (CM-C-) para evitar duplicados
-    const todasLasRefs = inmuebles
-      .filter((inm: any) => inm.inmueble)
-      .map((inm: any) => `CM-${inm.inmueble}-${periodoKey}`);
-
-    // Buscar referencias que ya existen (formato CM-I-) — por lotes para no exceder el largo de URL
-    const existentesNuevo: any[] = [];
-    for (let k = 0; k < todasLasRefs.length; k += 300) {
-      const { data: lote } = await supabase
-        .from('facturas')
-        .select('referencia, identidad')
-        .in('referencia', todasLasRefs.slice(k, k + 300));
-      existentesNuevo.push(...(lote || []));
-    }
-
-    // Buscar referencias en formato viejo (CM-C-{cod_cont}) para el mismo período
-    const { data: existentesViejo } = await supabase
-      .from('facturas')
-      .select('referencia, identidad')
-      .like('referencia', `CM-C-%-${periodoKey}`)
-      .not('estado', 'eq', 'Pagado');
-
-    // Construir Set de identidades ya cubiertas por recibo vieja CM-C- (1 recibo por contribuyente)
-    // Solo aplica si el contribuyente tiene UN SOLO inmueble activo
-    const identidadesConFacturaVieja = new Set((existentesViejo || []).map((e: any) => e.identidad));
-
-    // Contar inmuebles activos por identidad (para saber si es multi-local)
-    const inmueblesXidentidad: Record<string, number> = {};
-    inmuebles.forEach((inm: any) => {
-      if (inm.inmueble && parseFloat(inm.mmv_mes) > 0) {
-        inmueblesXidentidad[inm.identidad] = (inmueblesXidentidad[inm.identidad] || 0) + 1;
-      }
+    const inmueblesFacturables = inmRaw.filter((i: any) => {
+      const act = String(i.actividad_principal || '').trim().toUpperCase();
+      if (act === 'N/A' || i.es_condominio === true) return false;
+      if (isTerrenoInm(i)) return false;
+      // Si es unidad de condominio que ya pagó su aseo (meses_deuda = 0) y solo está abonando multas viejas poco a poco (multa_bs > 0),
+      // no alterar su meses_deuda desde aquí para no sumarle multas adicionales.
+      const mesesAct = parseInt(String(i.meses_deuda || 0), 10) || 0;
+      const multaBsAct = parseFloat(String(i.multa_bs || 0)) || 0;
+      if (i.condominio_padre_id && mesesAct === 0 && multaBsAct > 0) return false;
+      return true;
     });
 
-    const refsExistentes = new Set((existentesNuevo || []).map((e: any) => e.referencia));
-
-    // ── PASO 3: Construir batch de recibos nuevas ──
-    const facturasNuevas: any[] = [];
-    const inmueblesAActualizar: { id: string; nuevaDeudaMmv: number; nuevoMesesDeuda: number }[] = [];
-
-    for (const inm of inmuebles) {
-      if (!inm.inmueble) continue;
-      const cant = parseFloat(inm.cant_inmuebles) || 1;
-      const mmv  = parseFloat(inm.mmv_mes) || 0;
-      if (mmv <= 0) continue;
-
-      const refFactura = `CM-${inm.inmueble}-${periodoKey}`;
-
-      // Skip si ya existe en formato nuevo CM-I-
-      if (refsExistentes.has(refFactura)) continue;
-
-      // Skip si existe recibo vieja CM-C- Y el contribuyente tiene un solo inmueble
-      // (la recibo vieja ya lo cubre todo)
-      const esUnicoLocal = (inmueblesXidentidad[inm.identidad] || 0) === 1;
-      if (esUnicoLocal && identidadesConFacturaVieja.has(inm.identidad)) continue;
-
-      // Fórmula oficial de la Ordenanza:
-      //   Residencial: TR = F.O. × UCD × FAR  (donde FAR depende del tipo de vivienda)
-      //   Comercial:   TC = F.O. × UCD × FAC  (FAC = 0.1280)
-      // UCD = 57 * Euro BCV (tcmmv)
-      const esResidencial = isResidencialInm(inm);
-      const currentFAR = getFAR(inm.actividad_principal || '');
-      const ucdMultiplicador = esResidencial ? (57 * currentFAR) : (57 * 0.128);
-
-      const deudaAgregadaBs = parseFloat((cant * mmv * ucdMultiplicador * tcmmv).toFixed(2));
-      const nuevaDeudaMmv   = (parseFloat(inm.deuda_mmv) || 0) + (cant * mmv * ucdMultiplicador);
-
-      facturasNuevas.push({
-        referencia:    refFactura,
-        identidad:     inm.identidad,
-        
-        monto:         deudaAgregadaBs,
-        estado:        'Pendiente',
-        emision:       emisionDate,
-        vencimiento:   vencimientoDate
-      });
-
-      // Agregar al Set para evitar duplicados dentro de la misma ejecución
-      refsExistentes.add(refFactura);
-      const nuevoMesesDeuda = (parseInt(String(inm.meses_deuda || 0)) || 0) + 1;
-      inmueblesAActualizar.push({ id: inm.id, nuevaDeudaMmv, nuevoMesesDeuda });
-    }
-
-    const omitidos = todasLasRefs.length - facturasNuevas.length;
-
-    if (facturasNuevas.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: `Todas las recibos de ${mesFacturado} ya existían.${modoTexto}`,
-        procesados: 0,
-        omitidos,
-        periodo: periodoKey,
-        tasa_tcmmv: tcmmv,
-        test_mode: testMode
-      });
-    }
-
-    // Si es testMode, devolver simulación sin alterar la base de datos de producción
     if (testMode) {
-      const montoTotalSim = facturasNuevas.reduce((s: number, f: any) => s + f.monto, 0);
       return NextResponse.json({
         success: true,
         dryRun: true,
-        message: `[SIMULACIÓN SIN ESCRITURA] Se generarían ${facturasNuevas.length} recibos para ${mesFacturado}`,
-        procesados: facturasNuevas.length,
-        omitidos,
-        montoTotal: montoTotalSim,
-        periodo: periodoKey,
-        tasa_tcmmv: tcmmv,
-        test_mode: true,
+        periodo: '2026-10',
+        caracasDate: caracas.dateStr,
+        caracasTime: caracas.timeStr,
+        inmueblesAProcesar: inmueblesFacturables.length,
+        message: `[SIMULACIÓN] Se agregaría el mes de Octubre 2026 (2026-10) y únicamente la multa de Septiembre 2026 (a quienes aún deban Septiembre) respetando los abonos parciales de multas previas.`
       });
     }
 
-    // ── PASO 4: UPSERT masivo en lotes de 500 — ignora duplicados automáticamente ──
-    for (let i = 0; i < facturasNuevas.length; i += 500) {
-      const chunk = facturasNuevas.slice(i, i + 500);
-      const { error: insertError } = await supabase
-        .from('facturas')
-        .upsert(chunk, { onConflict: 'referencia', ignoreDuplicates: true });
-      if (insertError) throw insertError;
+    // 3. Agrupar inmuebles por meses_deuda actual para actualización masiva ultrarrápida
+    // Regla:
+    // - Si meses_deuda === 0 (ya pagó Septiembre), pasa a meses_deuda = 1 (Octubre 2026, 0 multas).
+    // - Si meses_deuda >= 1 (aún debe Septiembre), pasa a meses_deuda + 1 (se suma Octubre sin multa, y ÚNICAMENTE Septiembre pasa a tener multa; los meses anteriores conservan exactamente las multas que ya tenían).
+    const gruposPorMeses = new Map<number, string[]>();
+    const inmueblesConCustomNotas: { id: string; nuevoMeses: number; nuevasNotas: string }[] = [];
+
+    for (const inm of inmueblesFacturables) {
+      const mesesActual = Math.max(0, parseInt(String(inm.meses_deuda || 0), 10) || 0);
+      const nuevoMeses = mesesActual + 1;
+
+      let actualizoCustom = false;
+      if (inm.notas && String(inm.notas).includes('periodos_custom')) {
+        try {
+          const parsed = JSON.parse(String(inm.notas));
+          if (parsed && typeof parsed === 'object' && parsed.periodos_custom && typeof parsed.periodos_custom === 'object') {
+            // NO tocar lleva_multa de ningún mes anterior a 2026-09 (esos ya están listos / abonados poco a poco).
+            // Solo activar la multa de 2026-09 si 2026-09 sigue pendiente en periodos_custom, y agregar 2026-10 sin multa.
+            if (parsed.periodos_custom['2026-09'] && mesesActual > 0) {
+              parsed.periodos_custom['2026-09'].lleva_multa = true;
+            }
+            if (!parsed.periodos_custom['2026-10']) {
+              parsed.periodos_custom['2026-10'] = {
+                mmv: Number(inm.mmv_mes) || 0,
+                tarifa_mmv: Number(inm.mmv_mes) || 0,
+                actividad: inm.actividad_principal || undefined,
+                lleva_multa: false
+              };
+            }
+            const totalKeys = Object.keys(parsed.periodos_custom).length;
+            inmueblesConCustomNotas.push({
+              id: inm.id,
+              nuevoMeses: Math.max(nuevoMeses, totalKeys),
+              nuevasNotas: JSON.stringify(parsed)
+            });
+            actualizoCustom = true;
+          }
+        } catch {}
+      }
+
+      if (!actualizoCustom) {
+        const arr = gruposPorMeses.get(mesesActual) || [];
+        arr.push(inm.id);
+        gruposPorMeses.set(mesesActual, arr);
+      }
     }
 
-    // ── PASO 5: Actualizar deuda_mmv y meses_deuda en lotes controlados (50 concurrentes) ──
-    const UPDATE_BATCH = 50;
-    for (let i = 0; i < inmueblesAActualizar.length; i += UPDATE_BATCH) {
-      const chunk = inmueblesAActualizar.slice(i, i + UPDATE_BATCH);
-      await Promise.all(
-        chunk.map(({ id, nuevaDeudaMmv, nuevoMesesDeuda }) =>
-          supabase.from('inmuebles').update({ deuda_mmv: nuevaDeudaMmv, meses_deuda: nuevoMesesDeuda }).eq('id', id)
-        )
-      );
+    // Ejecutar updates masivos de inmuebles por lotes de 500 IDs
+    const tareasBatch: (() => Promise<void>)[] = [];
+    for (const [mesesActual, ids] of gruposPorMeses.entries()) {
+      const nuevoMeses = mesesActual + 1;
+      for (let i = 0; i < ids.length; i += 500) {
+        const chunkIds = ids.slice(i, i + 500);
+        tareasBatch.push(async () => {
+          const { error } = await supabase
+            .from('inmuebles')
+            .update({ meses_deuda: nuevoMeses })
+            .in('id', chunkIds);
+          if (error) throw error;
+        });
+      }
     }
 
-    const montoTotal = facturasNuevas.reduce((s: number, f: any) => s + f.monto, 0);
+    for (let i = 0; i < tareasBatch.length; i += 10) {
+      await Promise.all(tareasBatch.slice(i, i + 10).map(fn => fn()));
+    }
 
-    // Audit log en tabla auditoria (sistema unificado)
+    for (const item of inmueblesConCustomNotas) {
+      await supabase
+        .from('inmuebles')
+        .update({ meses_deuda: item.nuevoMeses, notas: item.nuevasNotas })
+        .eq('id', item.id);
+    }
+
+    // 4. Actualizar Condominios y Unidades de Condominio respetando multas abonadas poco a poco:
+    // Regla estricta:
+    // - Si YA pagaron Septiembre 2026 (aseo_pendiente_desde IS NULL o >= '2026-10-01'):
+    //   NO se les agrega ninguna multa (su multa_meses actual, si van pagando multas viejas poco a poco, queda intacta).
+    //   Solo pasan a deber el aseo de Octubre 2026 ('2026-10-01') sin multa.
+    // - Si AÚN deben Septiembre 2026 (aseo_pendiente_desde <= '2026-09-01'):
+    //   ÚNICAMENTE se les suma +1 a `multa_meses` (correspondiente a la multa de Septiembre 2026),
+    //   sin recalcular ni agregar multas de meses anteriores que ya están listas o abonadas parcialmente.
+
+    // 4a. Condominios
+    const { data: allCondos } = await supabase
+      .from('condominios')
+      .select('id, aseo_pendiente_desde, multa_meses, multa_exonerada_hasta, estado')
+      .neq('estado', 'Eliminado');
+
+    let condosSolventesCount = 0;
+    let condosMultaSepCount = 0;
+    const condosSolventesIds: string[] = [];
+    const condosPorMulta = new Map<number, string[]>();
+
+    for (const c of allCondos || []) {
+      const desde = c.aseo_pendiente_desde ? String(c.aseo_pendiente_desde).slice(0, 10) : null;
+      if (!desde) {
+        condosSolventesIds.push(c.id);
+        condosSolventesCount++;
+      } else if (desde <= '2026-09-01') {
+        const exonHasta = c.multa_exonerada_hasta ? String(c.multa_exonerada_hasta).slice(0, 7) : '';
+        if (!exonHasta || exonHasta < '2026-09') {
+          const mAct = Math.max(0, parseInt(String(c.multa_meses || 0), 10) || 0);
+          const arr = condosPorMulta.get(mAct) || [];
+          arr.push(c.id);
+          condosPorMulta.set(mAct, arr);
+          condosMultaSepCount++;
+        }
+      }
+    }
+
+    if (condosSolventesIds.length > 0) {
+      for (let i = 0; i < condosSolventesIds.length; i += 500) {
+        await supabase
+          .from('condominios')
+          .update({ aseo_pendiente_desde: '2026-10-01' })
+          .in('id', condosSolventesIds.slice(i, i + 500));
+      }
+    }
+
+    for (const [mAct, ids] of condosPorMulta.entries()) {
+      for (let i = 0; i < ids.length; i += 500) {
+        await supabase
+          .from('condominios')
+          .update({ multa_meses: mAct + 1 })
+          .in('id', ids.slice(i, i + 500));
+      }
+    }
+
+    // 4b. Unidades de Condominio
+    const unidadesRaw: any[] = [];
+    let lastUId: any = null;
+    while (true) {
+      let qU = supabase
+        .from('condominio_unidades')
+        .select('id, aseo_pendiente_desde, multa_meses, multa_exonerada_hasta, estado')
+        .neq('estado', 'Eliminada')
+        .order('id', { ascending: true })
+        .limit(1000);
+      if (lastUId !== null) qU = qU.gt('id', lastUId);
+      const { data: bU, error: errU } = await qU;
+      if (errU) throw errU;
+      if (!bU || bU.length === 0) break;
+      unidadesRaw.push(...bU);
+      lastUId = bU[bU.length - 1].id;
+      if (bU.length < 1000) break;
+    }
+
+    const unidadesSolventesIds: string[] = [];
+    const unidadesPorMulta = new Map<number, string[]>();
+    let unidadesMultaSepCount = 0;
+
+    for (const u of unidadesRaw) {
+      const desde = u.aseo_pendiente_desde ? String(u.aseo_pendiente_desde).slice(0, 10) : null;
+      if (!desde) {
+        unidadesSolventesIds.push(u.id);
+      } else if (desde <= '2026-09-01') {
+        const exonHasta = u.multa_exonerada_hasta ? String(u.multa_exonerada_hasta).slice(0, 7) : '';
+        if (!exonHasta || exonHasta < '2026-09') {
+          const mAct = Math.max(0, parseInt(String(u.multa_meses || 0), 10) || 0);
+          const arr = unidadesPorMulta.get(mAct) || [];
+          arr.push(u.id);
+          unidadesPorMulta.set(mAct, arr);
+          unidadesMultaSepCount++;
+        }
+      }
+    }
+
+    for (let i = 0; i < unidadesSolventesIds.length; i += 500) {
+      await supabase
+        .from('condominio_unidades')
+        .update({ aseo_pendiente_desde: '2026-10-01' })
+        .in('id', unidadesSolventesIds.slice(i, i + 500));
+    }
+
+    const tareasUnidadesMulta: (() => Promise<void>)[] = [];
+    for (const [mAct, ids] of unidadesPorMulta.entries()) {
+      const nuevoM = mAct + 1;
+      for (let i = 0; i < ids.length; i += 500) {
+        const chunkIds = ids.slice(i, i + 500);
+        tareasUnidadesMulta.push(async () => {
+          const { error } = await supabase
+            .from('condominio_unidades')
+            .update({ multa_meses: nuevoM })
+            .in('id', chunkIds);
+          if (error) throw error;
+        });
+      }
+    }
+
+    for (let i = 0; i < tareasUnidadesMulta.length; i += 10) {
+      await Promise.all(tareasUnidadesMulta.slice(i, i + 10).map(fn => fn()));
+    }
+
+    // 5. Marcar el corte de Octubre 2026 como APLICADO
+    await supabase.from('sistema_config').upsert({
+      id: CONFIG_KEY,
+      valor: 'APLICADO',
+      descripcion: `Corte Octubre 2026 y multa Septiembre 2026 aplicados el ${caracas.dateStr} ${caracas.timeStr} VET (${inmueblesFacturables.length} inmuebles)`,
+      updated_at: new Date().toISOString()
+    });
+
+    // 6. Registrar en Auditoría
     try {
       await supabase.from('auditoria').insert({
-        usuario:   'Sistema (Cron)',
-        accion:    'Facturación Mensual Automática',
+        usuario: 'Sistema (Corte Mensual)',
+        accion: 'Activación Mes Octubre 2026 y Multa Única Septiembre 2026',
         categoria: 'FACTURACION',
-        modulo:    '/api/cron/billing',
+        modulo: '/api/cron/billing',
         detalles: {
-          criticidad: 'MEDIA',
+          criticidad: 'ALTA',
           _categoria: 'FACTURACION',
           _modulo: '/api/cron/billing',
-          periodo: mesFacturado,
-          procesados: facturasNuevas.length,
-          omitidos,
-          monto_total_bs: montoTotal,
-          tasa_ucd: tcmmv,
-          _hora: new Date().toLocaleTimeString('es-VE'),
-          _fecha: new Date().toLocaleDateString('es-VE'),
+          periodo_agregado: '2026-10',
+          multa_agregada: 'Solo 2026-09 (respetando multas previas y pagos parciales)',
+          inmuebles_actualizados: inmueblesFacturables.length,
+          condominios_solventes_activados: condosSolventesCount,
+          condominios_multa_sep_agregada: condosMultaSepCount,
+          unidades_solventes_activadas: unidadesSolventesIds.length,
+          unidades_multa_sep_agregada: unidadesMultaSepCount,
+          fecha_caracas: `${caracas.dateStr} ${caracas.timeStr}`,
           _ts: new Date().toISOString()
         }
       });
-    } catch(e) {}
+    } catch {}
 
     return NextResponse.json({
       success: true,
-      message: `Emisión de recibos mensual completada — ${mesFacturado}${modoTexto}`,
-      procesados: facturasNuevas.length,
-      omitidos,
-      montoTotal,
-      periodo: periodoKey,
-      tasa_tcmmv: tcmmv,
-      test_mode: testMode,
-      sim_date: simDateStr || null
+      periodo: '2026-10',
+      caracasDate: caracas.dateStr,
+      caracasTime: caracas.timeStr,
+      inmueblesActualizados: inmueblesFacturables.length,
+      condominiosActivados: condosSolventesCount,
+      condominiosMultaSep: condosMultaSepCount,
+      unidadesActivadas: unidadesSolventesIds.length,
+      unidadesMultaSep: unidadesMultaSepCount,
+      message: `Corte de Octubre 2026 (2026-10) y multa exclusiva de Septiembre 2026 aplicados exitosamente.`
     });
-
   } catch (error: any) {
-    console.error('Error en Cron Billing:', error);
-    try {
-      await supabase.from('auditoria').insert({
-        usuario:   'Sistema (Cron)',
-        accion:    'Error Facturacion Mensual',
-        categoria: 'SISTEMA',
-        modulo:    '/api/cron/billing',
-        detalles: {
-          _categoria: 'SISTEMA',
-          error: error.message || 'Error desconocido',
-        }
-      });
-    } catch(e) {}
+    console.error('Error en Corte Mensual Octubre 2026:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

@@ -161,7 +161,7 @@ export interface EstadoCuenta {
 export const montoMulta = (m: any, tasa: number) => r2(m.monto_bs != null ? Number(m.monto_bs) : (Number(m.monto_mmv) || 0) * 57 * tasa);
 
 /** Estado de cuenta de un condominio con la tarifa vigente. */
-export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number, hoy = new Date(), multasRows: any[] = []): EstadoCuenta {
+export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number, hoy = new Date(), multasRows: any[] = [], omitirMultaSeptiembre = false): EstadoCuenta {
   const c = aMotorCondo(condoRow);
   const grupos = idsGrupo(unidadesRows);
   const unidades = unidadesRows.map(u => aMotorUnidad(u, grupos));
@@ -179,9 +179,14 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
     const esGrupoOuNA = Boolean(mu?.es_grupo || String(u?.actividad || '').trim().toUpperCase() === 'N/A');
     const desde = (u && !esGrupoOuNA) ? u.aseo_pendiente_desde : condoRow.aseo_pendiente_desde;
     const meses = r.montoBs > 0 ? M.mesesPendientes(desde, hoy) : 0;
-    // Multas exoneradas ("quitar todas las multas"): los meses hasta esa fecha no llevan multa
+    const multaMesesRaw = Number((u && !esGrupoOuNA) ? (u.multa_meses ?? condoRow.multa_meses) : condoRow.multa_meses) || 0;
+    // Multas exoneradas o ya pagadas poco a poco por el contribuyente:
+    // Se respetan tanto `multa_exonerada_hasta` como `multa_meses` para no volver a cobrar multas ya abonadas.
     const hasta = String(((u && !esGrupoOuNA) ? u.multa_exonerada_hasta : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
-    const exonerados = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
+    const exoneradosPorHasta = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
+    const tieneMultaMesesExplicito = (u && !esGrupoOuNA) ? (u.multa_meses !== null && u.multa_meses !== undefined) : (condoRow.multa_meses !== null && condoRow.multa_meses !== undefined);
+    const exoneradosPorPagosParciales = tieneMultaMesesExplicito ? Math.max(0, (meses - 1) - multaMesesRaw) : 0;
+    const exonerados = Math.max(exoneradosPorHasta, exoneradosPorPagosParciales);
     // En INDIVIDUAL, cada unidad paga lo suyo, así que se usa su retención. En las demás, el condominio factura el Aseo.
     const esAgente = c.modalidad === 'INDIVIDUAL' ? (u ? !!u.agente_retencion : false) : !!c.agente_retencion;
     const periodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
@@ -214,7 +219,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
           bases.push(base);
 
           // Multa
-          if (hasta && p <= hasta) {
+          if (idx < exonerados || (hasta && p <= hasta) || (omitirMultaSeptiembre && p === '2026-09')) {
             multas.push(false);
           } else if (custom.lleva_multa === false) {
             multas.push(false);
@@ -228,7 +233,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
         } else if (u?.desocupada_desde) {
           const esDesoc = p >= u.desocupada_desde && (!u.desocupada_hasta || p <= u.desocupada_hasta);
           bases.push(esDesoc ? tDesoc : tActiva);
-          if (hasta && p <= hasta) {
+          if (idx < exonerados || (hasta && p <= hasta) || (omitirMultaSeptiembre && p === '2026-09')) {
             multas.push(false);
           } else if (idx === periodos.length - 1) {
             multas.push(false);
@@ -237,7 +242,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
           }
         } else {
           bases.push(r.montoBs);
-          if (hasta && p <= hasta) {
+          if (idx < exonerados || (hasta && p <= hasta) || (omitirMultaSeptiembre && p === '2026-09')) {
             multas.push(false);
           } else if (idx === periodos.length - 1) {
             multas.push(false);
@@ -248,19 +253,29 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
       });
       basesPorMes = bases;
       multasPorMes = multas;
+    } else if (omitirMultaSeptiembre && periodos.includes('2026-09')) {
+      multasPorMes = periodos.map((p, idx) => {
+        if (idx < exonerados || (hasta && p <= hasta) || p === '2026-09' || idx === periodos.length - 1) return false;
+        return true;
+      });
     }
 
     const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes);
-    const multaMesesRaw = Number(u ? u.multa_meses : condoRow.multa_meses) || 0;
     const mesesMultaEnAseo = (r.montoBs > 0 && deuda.meses > 0) ? (deuda.porMes || []).filter(m => m.multaBs > 0).length : 0;
-    const multaMeses = Math.max(mesesMultaEnAseo, multaMesesRaw);
+    // Si omitimos la multa de septiembre y estaba dentro del aseo dinámico, no transferirla a multaExtraBs
+    const sepOmitidoEnAseo = omitirMultaSeptiembre && periodos.slice(0, -1).includes('2026-09') && !(hasta && '2026-09' <= hasta) ? 1 : 0;
+    const multaMeses = Math.max(mesesMultaEnAseo, Math.max(0, multaMesesRaw - sepOmitidoEnAseo));
 
     const baseParaMultaExtra = Array.isArray(basesPorMes) ? (basesPorMes[basesPorMes.length - 1] || r.montoBs) : r.montoBs;
     // Si la unidad es un grupo contenedor (mu?.es_grupo), no genera multas directas: cobran sus actividades
     // multaExtraBs solo cobra meses de multa remanentes no cubiertos por el aseo dinámico
-    const mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - mesesMultaEnAseo) : 0;
+    let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - sepOmitidoEnAseo - mesesMultaEnAseo) : 0;
+    if (omitirMultaSeptiembre && mesesMultaRemanente > 0 && M.periodosMultasPrevias(desde, mesesMultaRemanente, hoy).includes('2026-09')) {
+      mesesMultaRemanente = Math.max(0, mesesMultaRemanente - 1);
+    }
     const multaExtraBs = (!mu?.es_grupo && u) ? r2(baseParaMultaExtra * tMulta * mesesMultaRemanente) : 0;
-    const manuales = multasPend.filter(m => (u ? m.unidad_id === u.id : !m.unidad_id))
+    const manuales = multasPend
+      .filter(m => (u ? m.unidad_id === u.id : !m.unidad_id) && !(omitirMultaSeptiembre && m.periodo === '2026-09'))
       .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
     const multasManualesBs = r2(manuales.reduce((a, m) => a + m.montoBs, 0));
     return {

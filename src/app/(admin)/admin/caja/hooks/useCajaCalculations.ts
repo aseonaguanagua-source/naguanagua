@@ -17,6 +17,7 @@ interface UseCajaCalculationsParams {
   condominioHijos: any[];
   inmuebles: any[];
   pagosPendientes: any[];
+  omitirMultaSeptiembre?: boolean;
 }
 
 /**
@@ -35,6 +36,7 @@ export function useCajaCalculations({
   condominioHijos,
   inmuebles,
   pagosPendientes,
+  omitirMultaSeptiembre = false,
 }: UseCajaCalculationsParams) {
 
   const getReciboMonto = useCallback((r: any): string => {
@@ -82,13 +84,15 @@ export function useCajaCalculations({
         if (jNotas?.periodos_custom && Object.keys(jNotas.periodos_custom).length > 0) {
           const keys = Object.keys(jNotas.periodos_custom).sort();
           const p = keys[mNum - 1];
+          const totalMesesCustom = Math.max(keys.length, parseInt(String(inm.meses_deuda || '1')));
           if (p && jNotas.periodos_custom[p]) {
             const cfg = jNotas.periodos_custom[p];
             const mmv = cfg.tarifa_mmv !== null && cfg.tarifa_mmv !== undefined ? Number(cfg.tarifa_mmv) : (jNotas.tarifa_activa_mmv || 3.77);
             const baseMonto = Math.round((mmv * 57 * tasaActual * (esRes ? 1 : 0.128) + Number.EPSILON) * 100) / 100;
             const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16 + Number.EPSILON) * 100) / 100;
-            const isUltimoMes = mNum >= keys.length;
-            const montoMulta = cfg.lleva_multa && !isUltimoMes ? Math.round((baseMonto * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
+            const isUltimoMes = mNum >= totalMesesCustom;
+            const esMesExonCustom = isMesExoneradoMulta((inm as any).notas, p, omitirMultaSeptiembre);
+            const montoMulta = cfg.lleva_multa && !isUltimoMes && !esMesExonCustom ? Math.round((baseMonto * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
             const totalMes = Math.round((baseMonto + montoIVA + montoMulta + Number.EPSILON) * 100) / 100;
             let montoFinal = Math.max(0, totalMes);
             if (mNum === 1 && parseFloat(String(inm.saldo_favor_bs || '0')) > 0) {
@@ -109,7 +113,7 @@ export function useCajaCalculations({
           (today.getFullYear() - emision.getFullYear()) * 12 +
           (today.getMonth() - emision.getMonth());
 
-        const esMesExon = isMesExoneradoMulta((inm as any).notas, emision);
+        const esMesExon = isMesExoneradoMulta((inm as any).notas, emision, omitirMultaSeptiembre);
         const tieneMora = (!isUltimoMes && monthsDiff > 1 && !esMesExon);
 
         let totalMes = 0;
@@ -119,24 +123,31 @@ export function useCajaCalculations({
           const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16) * 100) / 100;
           totalMes = baseMonto + montoIVA;
         } else if (totalMesesInm > 1) {
-          // Período con mora: distribuido exactamente para que la suma total sea idéntica al Estado de Cuenta
-          const mesesConMora = Math.max(1, totalMesesInm - 1);
-          const tasaMora = esRes ? 0.10 : 0.12;
+          // Período con mora: si se omitió septiembre o hay meses exonerados, calcular la cuota exacta con mora
+          if (omitirMultaSeptiembre) {
+            const baseMonto = Math.round(bMes * 100) / 100;
+            const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16) * 100) / 100;
+            const montoMulta = Math.round((baseMonto * (esRes ? 0.10 : 0.12)) * 100) / 100;
+            totalMes = parseFloat((baseMonto + montoIVA + montoMulta).toFixed(2));
+          } else {
+            const mesesConMora = Math.max(1, totalMesesInm - 1);
+            const tasaMora = esRes ? 0.10 : 0.12;
 
-          const baseTotalLocal = Math.round((bMes * totalMesesInm) * 100) / 100;
-          const ultMesBase = Math.round(bMes * 100) / 100;
-          const baseTotalMora = baseTotalLocal - ultMesBase;
+            const baseTotalLocal = Math.round((bMes * totalMesesInm) * 100) / 100;
+            const ultMesBase = Math.round(bMes * 100) / 100;
+            const baseTotalMora = baseTotalLocal - ultMesBase;
 
-          const multaTotal = Math.round(((bMes * tasaMora) * mesesConMora) * 100) / 100;
-          const ivaTotal = esRes ? 0 : (Math.round(((bMes * 0.16) * totalMesesInm) * 100) / 100 - Math.round((bMes * 0.16) * 100) / 100);
+            const multaTotal = Math.round(((bMes * tasaMora) * mesesConMora) * 100) / 100;
+            const ivaTotal = esRes ? 0 : (Math.round(((bMes * 0.16) * totalMesesInm) * 100) / 100 - Math.round((bMes * 0.16) * 100) / 100);
 
-          const totalPeriodoMora = baseTotalMora + multaTotal + ivaTotal;
-          const baseCuota = Math.floor((totalPeriodoMora / mesesConMora) * 100) / 100;
-          const restoCentavos = Math.round((totalPeriodoMora - (baseCuota * mesesConMora)) * 100);
+            const totalPeriodoMora = baseTotalMora + multaTotal + ivaTotal;
+            const baseCuota = Math.floor((totalPeriodoMora / mesesConMora) * 100) / 100;
+            const restoCentavos = Math.round((totalPeriodoMora - (baseCuota * mesesConMora)) * 100);
 
-          // Repartir los centavos sobrantes equitativamente entre los primeros meses
-          const cuotaMonto = (mNum <= restoCentavos) ? baseCuota + 0.01 : baseCuota;
-          totalMes = parseFloat(cuotaMonto.toFixed(2));
+            // Repartir los centavos sobrantes equitativamente entre los primeros meses
+            const cuotaMonto = (mNum <= restoCentavos) ? baseCuota + 0.01 : baseCuota;
+            totalMes = parseFloat(cuotaMonto.toFixed(2));
+          }
         } else {
           const baseMonto = Math.round(bMes * 100) / 100;
           const montoIVA = esRes ? 0 : Math.round((baseMonto * 0.16) * 100) / 100;
@@ -182,7 +193,7 @@ export function useCajaCalculations({
         // El último mes de la factura no lleva multa (ej. septiembre en octubre)
         const isUltimoMes = monthsDiff <= 1;
 
-        const esMesExon = isMesExoneradoMulta((inm as any).notas, emision);
+        const esMesExon = isMesExoneradoMulta((inm as any).notas, emision, omitirMultaSeptiembre);
 
         const tieneMora = (!isUltimoMes && monthsDiff > 1 && !esMesExon);
         const multaLocal = tieneMora ? parseFloat((bm * (esRes ? 0.10 : 0.12)).toFixed(2)) : 0;
@@ -196,9 +207,14 @@ export function useCajaCalculations({
       }
     }
 
+    // ─── MULTA- aislada: si omitirMultaSeptiembre está activo y corresponde a Sep 2026, es 0 ──
+    if (r.referencia?.startsWith('MULTA-') && omitirMultaSeptiembre && isMesExoneradoMulta(null, r.emision, true)) {
+      return '0.00';
+    }
+
     // ─── Fallback genérico ─────────────────────────────────────────────────────
     return String(parseFloat(String(r.monto || '0').replace(/[^\d.]/g, '')) || 0);
-  }, [foundUser, customBcvRate, tcmmv, freshInmuebles, condominioHijos, inmuebles, pagosPendientes]);
+  }, [foundUser, customBcvRate, tcmmv, freshInmuebles, condominioHijos, inmuebles, pagosPendientes, omitirMultaSeptiembre]);
 
   return { getReciboMonto };
 }

@@ -436,9 +436,32 @@ export const isExoneradoTotalMultas = (notasOrInm?: any): boolean => {
 };
 
 /**
+ * Determina si una fecha o clave de período corresponde al mes de Septiembre 2026 (2026-09).
+ */
+export const isSeptiembre2026 = (dateOrMonthKey?: string | Date | null): boolean => {
+  if (!dateOrMonthKey) return false;
+  if (dateOrMonthKey instanceof Date) {
+    if (isNaN(dateOrMonthKey.getTime())) return false;
+    return dateOrMonthKey.getFullYear() === 2026 && dateOrMonthKey.getMonth() === 8;
+  }
+  if (typeof dateOrMonthKey === 'string') {
+    const s = dateOrMonthKey.trim();
+    if (/^2026-09/.test(s) || /^09-2026/.test(s)) return true;
+    const match = s.match(/(\d{4})-(\d{2})/);
+    if (match) return match[1] === '2026' && match[2] === '09';
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() === 2026 && d.getMonth() === 8;
+    }
+  }
+  return false;
+};
+
+/**
  * Determina si la multa de un mes específico (YYYY-MM o Date) está exonerada.
  */
-export const isMesExoneradoMulta = (notasOrInm?: any, dateOrMonthKey?: string | Date | null): boolean => {
+export const isMesExoneradoMulta = (notasOrInm?: any, dateOrMonthKey?: string | Date | null, omitirSeptiembre?: boolean): boolean => {
+  if (omitirSeptiembre && isSeptiembre2026(dateOrMonthKey)) return true;
   if (!notasOrInm) return false;
   if (typeof notasOrInm === 'object' && notasOrInm !== null) {
     if (isTerrenoInm(notasOrInm)) return true;

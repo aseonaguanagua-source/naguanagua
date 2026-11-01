@@ -386,13 +386,16 @@ export async function POST(request: Request) {
         // Si hay recibo_caja: manda lo registrado en caja (si exento es 0, no hubo multa).
         // Si hay deuda_previa: manda si previa.multa_bs es 0 (exonerado / sin multa).
         // Si notas indica exoneración total o por mes: no hay multa.
+        const omitirSepPago = Boolean(detPago?.omitir_multa_septiembre);
         let montoMulta = 0;
-        if (detPago?.recibo_caja) {
+        if (isMesExoneradoMulta(inm?.notas, dPer, omitirSepPago)) {
+          montoMulta = 0;
+        } else if (detPago?.recibo_caja) {
           montoMulta = multaDeRc > 0 ? parseFloat((multaDeRc / histRecibos.length).toFixed(2)) : 0;
         } else if (previa && previa.multa_bs !== undefined) {
           const multaPrevia = parseFloat(String(previa.multa_bs || 0));
           montoMulta = multaPrevia > 0 ? parseFloat((multaPrevia / countHistThisInm).toFixed(2)) : 0;
-        } else if (inm?.multa_bs === 0 || isExoneradoTotalMultas(inm?.notas) || isMesExoneradoMulta(inm?.notas, dPer)) {
+        } else if (inm?.multa_bs === 0 || isExoneradoTotalMultas(inm?.notas)) {
           montoMulta = 0;
         } else if (!isUltimoMes && totalMeses > 1) {
           montoMulta = parseFloat((montoBase * pctMulta).toFixed(2));
