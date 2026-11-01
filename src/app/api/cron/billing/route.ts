@@ -44,14 +44,13 @@ function getCaracasNow(overrideDate?: string | null): { dateStr: string; timeStr
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const testMode = searchParams.get('test') === 'true';
-  const autoTrigger = searchParams.get('auto') === '1';
   const testSecret = searchParams.get('secret');
   const simDateStr = searchParams.get('simDate');
 
-  // Auth: permite Cron de Vercel, secret interno, o auto-trigger post-medianoche (100% idempotente)
+  // Auth: requiere CRON_SECRET o INTERNAL_API_SECRET
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET || process.env.INTERNAL_API_SECRET;
-  const isAuthorized = autoTrigger || Boolean(cronSecret && (authHeader === `Bearer ${cronSecret}` || testSecret === cronSecret));
+  const isAuthorized = Boolean(cronSecret && (authHeader === `Bearer ${cronSecret}` || testSecret === cronSecret));
 
   if (!isAuthorized) {
     return new Response('Unauthorized', { status: 401 });
@@ -73,14 +72,14 @@ export async function GET(request: Request) {
   const CONFIG_KEY = 'corte_mensual_2026_10';
 
   try {
-    // 1. Verificar idempotencia en sistema_config
+    // 1. Verificar idempotencia en sistema_config (columnas: id, valor)
     const { data: cfgActual } = await supabase
       .from('sistema_config')
-      .select('valor, updated_at')
+      .select('valor')
       .eq('id', CONFIG_KEY)
       .maybeSingle();
 
-    if (!testMode && cfgActual?.valor === 'APLICADO') {
+    if (!testMode && (cfgActual?.valor === 'APLICADO' || cfgActual?.valor === 'EN_PROCESO')) {
       return NextResponse.json({
         success: true,
         alreadyApplied: true,
@@ -91,24 +90,12 @@ export async function GET(request: Request) {
       });
     }
 
-    if (!testMode && cfgActual?.valor === 'EN_PROCESO') {
-      const updatedMs = cfgActual.updated_at ? new Date(cfgActual.updated_at).getTime() : 0;
-      if (Date.now() - updatedMs < 120_000) {
-        return NextResponse.json({
-          success: true,
-          inProgress: true,
-          message: 'El corte mensual de Octubre 2026 se está procesando en este momento.'
-        });
-      }
-    }
-
     if (!testMode) {
-      await supabase.from('sistema_config').upsert({
+      const { error: cfgErr } = await supabase.from('sistema_config').upsert({
         id: CONFIG_KEY,
-        valor: 'EN_PROCESO',
-        descripcion: 'Corte mensual de facturación Octubre 2026 (2026-10) y multa única de Septiembre 2026',
-        updated_at: new Date().toISOString()
+        valor: 'APLICADO'
       });
+      if (cfgErr) throw cfgErr;
     }
 
     // 2. Leer todos los inmuebles activos facturables mediante paginación por cursor
@@ -353,9 +340,7 @@ export async function GET(request: Request) {
     // 5. Marcar el corte de Octubre 2026 como APLICADO
     await supabase.from('sistema_config').upsert({
       id: CONFIG_KEY,
-      valor: 'APLICADO',
-      descripcion: `Corte Octubre 2026 y multa Septiembre 2026 aplicados el ${caracas.dateStr} ${caracas.timeStr} VET (${inmueblesFacturables.length} inmuebles)`,
-      updated_at: new Date().toISOString()
+      valor: 'APLICADO'
     });
 
     // 6. Registrar en Auditoría

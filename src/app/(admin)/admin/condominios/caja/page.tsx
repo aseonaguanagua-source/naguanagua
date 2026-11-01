@@ -363,7 +363,6 @@ function Caja() {
   useEffect(() => {
     const u = usuario(); setAdmin(u.rol === 'Administrador' || u.usuario === 'dzara');
     fetch('/api/admin/condominios/cobrar', { method: 'POST', body: JSON.stringify({ accion: 'estado' }) }).then(r => r.json()).then(j => setActiva(!!j.cajaActiva)).catch(() => setActiva(false));
-    fetch('/api/cron/billing?auto=1').catch(() => {});
   }, []);
 
   // Búsqueda

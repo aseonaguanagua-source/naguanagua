@@ -262,17 +262,16 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
 
     const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes);
     const mesesMultaEnAseo = (r.montoBs > 0 && deuda.meses > 0) ? (deuda.porMes || []).filter(m => m.multaBs > 0).length : 0;
-    // Si omitimos la multa de septiembre y estaba dentro del aseo dinámico, no transferirla a multaExtraBs
-    const sepOmitidoEnAseo = omitirMultaSeptiembre && periodos.slice(0, -1).includes('2026-09') && !(hasta && '2026-09' <= hasta) ? 1 : 0;
-    const multaMeses = Math.max(mesesMultaEnAseo, Math.max(0, multaMesesRaw - sepOmitidoEnAseo));
+    const mesesMoraCubiertosPorAseo = Math.max(0, meses - 1);
 
     const baseParaMultaExtra = Array.isArray(basesPorMes) ? (basesPorMes[basesPorMes.length - 1] || r.montoBs) : r.montoBs;
     // Si la unidad es un grupo contenedor (mu?.es_grupo), no genera multas directas: cobran sus actividades
-    // multaExtraBs solo cobra meses de multa remanentes no cubiertos por el aseo dinámico
-    let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - sepOmitidoEnAseo - mesesMultaEnAseo) : 0;
+    // multaExtraBs solo cobra meses de multa remanentes (previos al aseo pendiente) no cubiertos por el aseo dinámico
+    let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - mesesMoraCubiertosPorAseo) : 0;
     if (omitirMultaSeptiembre && mesesMultaRemanente > 0 && M.periodosMultasPrevias(desde, mesesMultaRemanente, hoy).includes('2026-09')) {
       mesesMultaRemanente = Math.max(0, mesesMultaRemanente - 1);
     }
+    const multaMeses = mesesMultaEnAseo + mesesMultaRemanente;
     const multaExtraBs = (!mu?.es_grupo && u) ? r2(baseParaMultaExtra * tMulta * mesesMultaRemanente) : 0;
     const manuales = multasPend
       .filter(m => (u ? m.unidad_id === u.id : !m.unidad_id) && !(omitirMultaSeptiembre && m.periodo === '2026-09'))

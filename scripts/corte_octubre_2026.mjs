@@ -56,9 +56,7 @@ async function main() {
   if (!dryRun) {
     await supabase.from('sistema_config').upsert({
       id: CONFIG_KEY,
-      valor: 'EN_PROCESO',
-      descripcion: 'Corte mensual de facturación Octubre 2026 (2026-10) y multa única de Septiembre 2026',
-      updated_at: new Date().toISOString()
+      valor: 'APLICADO'
     });
   }
 

@@ -69,9 +69,10 @@ export function useCajaCalculations({
 
     // ─── RECIB-HIST-: deuda histórica por inmueble ─────────────────────────────
     if (r.referencia?.startsWith('RECIB-HIST-')) {
+      const mHist = r.referencia.match(/^RECIB-HIST-(.+)-M(\d+)$/i);
       const parts = r.referencia.split('-');
-      const inmId = parts[2];
-      const mNum = parseInt(parts[3]?.replace('M', '') || '0');
+      const inmId = mHist ? mHist[1] : parts[2];
+      const mNum = mHist ? parseInt(mHist[2], 10) : parseInt(parts[3]?.replace('M', '') || '0');
       const inm =
         userInms.find((i: any) => i.inmueble === inmId) ||
         (freshInmuebles || []).find((i: any) => i.inmueble === inmId) ||

@@ -360,10 +360,6 @@ export default function CajaPage() {
   const [notaManualRef, setNotaManualRef] = useState('');
   const [omitirMultaSeptiembre, setOmitirMultaSeptiembre] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/cron/billing?auto=1').catch(() => {});
-  }, []);
-
   // ─── useCajaCalculations hook (Fase 2) ────────────────────────────────────────
   const { getReciboMonto } = useCajaCalculations({
     foundUser,
@@ -1881,8 +1877,9 @@ export default function CajaPage() {
 
     selectedRecibos.forEach(ref => {
       if (ref.startsWith('RECIB-HIST-')) {
+        const mHist = ref.match(/^RECIB-HIST-(.+)-M(\d+)$/i);
         const parts = ref.split('-');
-        const inmId = parts[2];
+        const inmId = mHist ? mHist[1] : parts[2];
         const inm = inmueblesMap.get(inmId);
         if (inm) {
           if (!inmSelectedMap.has(inmId)) {
@@ -1895,7 +1892,7 @@ export default function CajaPage() {
           const emision = f?.emision ? new Date(f.emision) : new Date();
           const today = new Date();
           const monthsDiff = (today.getFullYear() - emision.getFullYear()) * 12 + (today.getMonth() - emision.getMonth());
-          const mNum = parseInt(parts[3]?.replace('M', '') || '0');
+          const mNum = mHist ? parseInt(mHist[2], 10) : parseInt(parts[3]?.replace('M', '') || '0');
           const totalMesesDeuda = Math.max(1, parseInt(inm.meses_deuda || '1'));
           const isUltimoMes = mNum > 0 ? (mNum >= totalMesesDeuda) : false;
           const esMesExon = isMesExoneradoMulta(inm.notas, emision, omitirMultaSeptiembre);
@@ -6224,7 +6221,10 @@ export default function CajaPage() {
               const selectedRefsThisUser = selectedRecibos.filter(r => r.startsWith('RECIB-HIST-'));
               
               // Ver si hay actividades seleccionadas que pertenezcan al mismo cluster
-              const selectedInmCodes = Array.from(new Set(selectedRefsThisUser.map(r => r.split('-')[2])));
+              const selectedInmCodes = Array.from(new Set(selectedRefsThisUser.map(r => {
+                const mHist = r.match(/^RECIB-HIST-(.+)-M(\d+)$/i);
+                return mHist ? mHist[1] : r.split('-')[2];
+              })));
               const clusterCounts = new Map<string, string[]>();
               selectedInmCodes.forEach(code => {
                 const cInfo = clustersMap.get(code);
