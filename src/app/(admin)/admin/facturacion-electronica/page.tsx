@@ -332,9 +332,14 @@ export default function FacturacionElectronicaPage() {
   // Campos editables del pago dentro de la emisión individual
   const [emitContribuyente, setEmitContribuyente] = useState('');
   const [emitIdentidad, setEmitIdentidad] = useState('');
+  const [emitDireccion, setEmitDireccion] = useState('');
   const [emitReferencia, setEmitReferencia] = useState('');
   const [emitModulo, setEmitModulo] = useState('caja');
+  const [emitFormaPago, setEmitFormaPago] = useState('Transferencia');
+  const [emitBanco, setEmitBanco] = useState('');
   const [emitEsRetencion, setEmitEsRetencion] = useState(false);
+  const [emitLlevaMulta, setEmitLlevaMulta] = useState(false);
+  const [emitConceptoMulta, setEmitConceptoMulta] = useState('Multa por Mora - Aseo Urbano');
   const [emitFechaEmision, setEmitFechaEmision] = useState('');
   const [emitFechaPago, setEmitFechaPago] = useState('');
 
@@ -767,8 +772,30 @@ export default function FacturacionElectronicaPage() {
     const baseEstimada = (montoGravado / 1.16).toFixed(2);
     setAjusteMontoServicio(baseEstimada);
     setAjusteMontoMulta(exentoRecibo > 0 ? exentoRecibo.toFixed(2) : '0.00');
+    setEmitLlevaMulta(exentoRecibo > 0);
+    setEmitConceptoMulta('Multa por Mora - Aseo Urbano');
     if (!totalOverride) setMotivoAjuste('');
     setTotalForzado(totalOverride && totalOverride > 0 ? totalOverride : null);
+
+    // Dirección fiscal editable inicial
+    const dirInicial = (() => {
+      let d = '';
+      if (Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.domicilioFiscal) {
+        d = pago.detalles.recibo_caja[0].domicilioFiscal;
+      } else if (pago.detalles?.direccion) {
+        d = pago.detalles.direccion;
+      } else if (pago.direccion) {
+        d = pago.direccion;
+      }
+      return d || '';
+    })();
+    setEmitDireccion(dirInicial);
+
+    // Forma de pago y banco inicial
+    const fpDesc = pago.tipo || (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.descripcion) || 'Transferencia';
+    setEmitFormaPago(fpDesc);
+    const bancoDesc = pago.banco || (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.banco) || pago.detalles?.banco || '';
+    setEmitBanco(bancoDesc);
 
     const conceptoPeriodo = resolverConceptoPeriodoPago(pago);
     setAjusteConcepto(conceptoPeriodo);
@@ -866,7 +893,7 @@ export default function FacturacionElectronicaPage() {
     setIsEmitting(true);
     try {
       const base = parseFloat(ajusteMontoServicio) || 0;
-      const multa = parseFloat(ajusteMontoMulta) || 0;
+      const multa = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
       const iva = parseFloat((base * 0.16).toFixed(2));
       let total = parseFloat((base + multa + iva).toFixed(2));
       // Total escrito en la verificación: si no se tocaron base/multa, se usa EXACTO (sin desvío por redondeo)
@@ -894,9 +921,14 @@ export default function FacturacionElectronicaPage() {
           montoTotal: total,
           montoServicio: base,
           montoMulta: multa,
+          llevaMulta: emitLlevaMulta,
           concepto: ajusteConcepto,
+          conceptoMultaOverride: emitConceptoMulta,
           contribuyente: emitContribuyente.trim(),
           identidad: emitIdentidad.trim().toUpperCase(),
+          direccionOverride: emitDireccion.trim(),
+          bancoOverride: emitBanco.trim(),
+          formaPagoOverride: emitFormaPago.trim(),
           referencia: emitReferencia.trim(),
           modulo: emitModulo,
           esRetencion: emitEsRetencion,
@@ -904,7 +936,8 @@ export default function FacturacionElectronicaPage() {
           fechaPagoOverride: emitFechaPago ? emitFechaPago : undefined,
           fecha: emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString()),
           formasPago: [{
-            descripcion: selectedPagoForEmit.tipo || 'Transferencia',
+            descripcion: emitFormaPago || selectedPagoForEmit.tipo || 'Transferencia',
+            banco: emitBanco || selectedPagoForEmit.banco || '',
             fecha: emitFechaPago ? `${emitFechaPago}T12:00:00-04:00` : (emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString())),
             forma: '05',
             monto: total
@@ -2140,6 +2173,16 @@ export default function FacturacionElectronicaPage() {
                       className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 bg-white uppercase"
                     />
                   </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Dirección Fiscal Completa</label>
+                    <input
+                      type="text"
+                      value={emitDireccion}
+                      onChange={e => setEmitDireccion(e.target.value)}
+                      placeholder="Dirección fiscal (TFHKA)"
+                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 bg-white"
+                    />
+                  </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Nro. Referencia</label>
                     <input
@@ -2160,6 +2203,33 @@ export default function FacturacionElectronicaPage() {
                       <option value="caja">Caja General (Contribuyentes)</option>
                       <option value="condominios">Caja Condominios</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Forma de Pago (TFHKA)</label>
+                    <select
+                      value={emitFormaPago}
+                      onChange={e => setEmitFormaPago(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 bg-white"
+                    >
+                      <option value="Transferencia">Transferencia Bancaria</option>
+                      <option value="Pago Móvil">Pago Móvil (C2P/P2P)</option>
+                      <option value="Tarjeta de débito">Tarjeta de Débito (Punto de Venta)</option>
+                      <option value="Tarjeta de crédito">Tarjeta de Crédito</option>
+                      <option value="Depósito en cuenta">Depósito en Cuenta</option>
+                      <option value="Efectivo">Efectivo Bolívares</option>
+                      <option value="Efectivo divisas">Efectivo Divisas</option>
+                      <option value="Cheque">Cheque</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Banco / Entidad Financiera</label>
+                    <input
+                      type="text"
+                      value={emitBanco}
+                      onChange={e => setEmitBanco(e.target.value)}
+                      placeholder="Ej.: Banesco, Mercantil, Bancamiga"
+                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 bg-white"
+                    />
                   </div>
                   <div className="col-span-2 sm:col-span-1">
                     <label className="block text-[10px] font-bold text-emerald-900 uppercase mb-0.5 flex items-center justify-between">
@@ -2256,13 +2326,62 @@ export default function FacturacionElectronicaPage() {
               {/* CAMPOS DE AJUSTE */}
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Concepto Facturable</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Concepto Facturable (Servicio Gravado)</label>
                   <input
                     type="text"
                     value={ajusteConcepto}
                     onChange={e => setAjusteConcepto(e.target.value)}
                     className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500"
                   />
+                </div>
+
+                {/* SECCIÓN DE MULTA MODIFICABLE */}
+                <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950">
+                      <input
+                        type="checkbox"
+                        checked={emitLlevaMulta}
+                        onChange={e => {
+                          const val = e.target.checked;
+                          setEmitLlevaMulta(val);
+                          if (!val) {
+                            setAjusteMontoMulta('0.00');
+                          }
+                        }}
+                        className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                      />
+                      <span>¿Factura incluye Multa por Mora (Renglón Exento)?</span>
+                    </label>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black ${emitLlevaMulta ? 'bg-amber-200 text-amber-900' : 'bg-slate-200 text-slate-600'}`}>
+                      {emitLlevaMulta ? 'CON MULTA' : 'SIN MULTA'}
+                    </span>
+                  </div>
+
+                  {emitLlevaMulta && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Descripción de la Multa</label>
+                        <input
+                          type="text"
+                          value={emitConceptoMulta}
+                          onChange={e => setEmitConceptoMulta(e.target.value)}
+                          placeholder="Multa por Mora - Aseo Urbano"
+                          className="w-full border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Monto Multa Exenta (Bs)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={ajusteMontoMulta}
+                          onChange={e => setAjusteMontoMulta(e.target.value)}
+                          className="w-full border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold bg-white text-amber-900 focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -2277,18 +2396,21 @@ export default function FacturacionElectronicaPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Multa Exenta (Bs)</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Multa Exenta en Factura (Bs)</label>
                     <input
                       type="number"
                       step="0.01"
-                      value={ajusteMontoMulta}
-                      onChange={e => setAjusteMontoMulta(e.target.value)}
-                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-emerald-500"
+                      disabled={!emitLlevaMulta}
+                      value={emitLlevaMulta ? ajusteMontoMulta : '0.00'}
+                      onChange={e => {
+                        if (emitLlevaMulta) setAjusteMontoMulta(e.target.value);
+                      }}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </div>
                 </div>
 
-                {/* DESGLOSE FISCAL */}
+                {/* DESGLOSE FISCAL REACTIVO */}
                 <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 text-xs space-y-1">
                   <div className="flex justify-between text-slate-600">
                     <span>Base Gravada (Servicio):</span>
@@ -2298,12 +2420,18 @@ export default function FacturacionElectronicaPage() {
                     <span>IVA (16% sobre servicio):</span>
                     <span className="font-mono">Bs {((parseFloat(ajusteMontoServicio) || 0) * 0.16).toFixed(2)}</span>
                   </div>
+                  {emitLlevaMulta && (
+                    <div className="flex justify-between text-amber-800">
+                      <span>Multa por Mora (Exenta):</span>
+                      <span className="font-mono">Bs {(parseFloat(ajusteMontoMulta) || 0).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-slate-900 font-black border-t border-emerald-200 pt-1 text-sm">
                     <span>Total Factura Fiscal:</span>
                     <span className="font-mono text-emerald-800">
                       Bs {(
                         (parseFloat(ajusteMontoServicio) || 0) * 1.16 +
-                        (parseFloat(ajusteMontoMulta) || 0)
+                        (emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0)
                       ).toFixed(2)}
                     </span>
                   </div>
@@ -2317,7 +2445,7 @@ export default function FacturacionElectronicaPage() {
                         <span>Monto Cancelado por el Cliente (Neto):</span>
                         <span className="font-mono text-emerald-900">
                           Bs {(
-                            ((parseFloat(ajusteMontoServicio) || 0) * 1.16 + (parseFloat(ajusteMontoMulta) || 0)) -
+                            ((parseFloat(ajusteMontoServicio) || 0) * 1.16 + (emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0)) -
                             (((parseFloat(ajusteMontoServicio) || 0) * 0.16) * 0.75)
                           ).toFixed(2)}
                         </span>
@@ -2325,7 +2453,7 @@ export default function FacturacionElectronicaPage() {
                     </div>
                   )}
                 </div>
-                {Math.abs(((parseFloat(ajusteMontoServicio) || 0) * 1.16 + (parseFloat(ajusteMontoMulta) || 0)) - (totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0)) > 0.02 && (
+                {Math.abs(((parseFloat(ajusteMontoServicio) || 0) * 1.16 + (emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0)) - (totalReferencia || parseFloat(selectedPagoForEmit.monto) || 0)) > 0.02 && (
                   <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 space-y-1.5">
                     <div className="text-[11px] text-amber-900 flex items-start gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
@@ -2384,7 +2512,7 @@ export default function FacturacionElectronicaPage() {
                   type="button"
                   onClick={() => {
                     const base = parseFloat(ajusteMontoServicio) || 0;
-                    const multa = parseFloat(ajusteMontoMulta) || 0;
+                    const multa = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
                     const iva = parseFloat((base * 0.16).toFixed(2));
                     let total = parseFloat((base + multa + iva).toFixed(2));
                     if ((totalForzado || totalReferencia) && multa === 0 && !totalForzado && Math.abs(base - parseFloat((totalReferencia / 1.16).toFixed(2))) < 0.005) total = totalReferencia;
@@ -2395,6 +2523,8 @@ export default function FacturacionElectronicaPage() {
                       contribuyente: emitContribuyente.trim(),
                       identidad: emitIdentidad.trim().toUpperCase(),
                       referencia: emitReferencia.trim(),
+                      tipo: emitFormaPago || selectedPagoForEmit.tipo,
+                      banco: emitBanco || selectedPagoForEmit.banco,
                       monto: total,
                       totalManual: total,
                       conRetencion: emitEsRetencion,
@@ -2404,6 +2534,9 @@ export default function FacturacionElectronicaPage() {
                         contribuyente: emitContribuyente.trim(),
                         identidad: emitIdentidad.trim().toUpperCase(),
                         referencia: emitReferencia.trim(),
+                        direccion: emitDireccion.trim(),
+                        banco: emitBanco.trim(),
+                        tipo: emitFormaPago.trim(),
                         concepto: ajusteConcepto,
                         es_retencion: emitEsRetencion,
                         agente_retencion: emitEsRetencion,

@@ -107,7 +107,8 @@ export async function POST(request: Request) {
       pagoId, recibos: recibosBody, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
       correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
-      esRetencion, referencia, modulo, fechaEmisionOverride, fechaPagoOverride, fecha, reemitir = false
+      esRetencion, referencia, modulo, fechaEmisionOverride, fechaPagoOverride, fecha, reemitir = false,
+      direccionOverride, bancoOverride, formaPagoOverride, conceptoMultaOverride, llevaMulta
     } = await request.json();
     const r2 = (n: number) => Math.round(n * 100) / 100;
     // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
@@ -826,6 +827,14 @@ export async function POST(request: Request) {
     const explicitBase = parseFloat(String(montoServicio ?? montos?.servicio ?? 0)) || 0;
     const explicitMulta = parseFloat(String(montoMulta ?? montos?.multa ?? 0)) || 0;
     let explicitTotal = parseFloat(String(montoTotal ?? montos?.total ?? totalManualNum ?? 0)) || 0;
+    if (explicitBase > 0 || explicitTotal > 0) {
+      // Si el operador especificó montoServicio o montoTotal desde el modal,
+      // el total a facturar debe concordar con lo digitado (base * 1.16 + multa)
+      const totalCalculado = r2(explicitBase * 1.16 + (llevaMulta === false ? 0 : explicitMulta));
+      if (explicitTotal <= 0 || Math.abs(explicitTotal - totalCalculado) < 0.05) {
+        explicitTotal = totalCalculado;
+      }
+    }
     if (explicitTotal > 0 && totalManualNum === 0 && conRetencion && montoRetencionGuardada > 0) {
       const esExplicitNeto =
         (mNetoPagoGuardado > 0 && Math.abs(explicitTotal - mNetoPagoGuardado) < 1) ||
@@ -851,7 +860,9 @@ export async function POST(request: Request) {
       multaCondoDirecta = r2(detPago.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0));
     }
 
-    if (tieneMontoMultaExplicito) {
+    if (llevaMulta === false) {
+      baseExenta = 0;
+    } else if (tieneMontoMultaExplicito) {
       // Si el operador o payload indicó explícitamente el monto de multa (incluso 0)
       baseExenta = explicitMulta > 0 ? r2(explicitMulta) : 0;
     } else if (multaCondoDirecta > 0) {
@@ -950,9 +961,11 @@ export async function POST(request: Request) {
     // 3. AGREGAR LÍNEA DE MULTA SOLO SI EXISTE MULTA REAL (baseExenta > 0)
     if (baseExenta > 0) {
       totalExento = baseExenta;
-      const descMulta = (baseGravada <= 0.001 && ((concepto && String(concepto).trim()) || (detPago?.concepto && String(detPago.concepto).trim())))
-        ? ((concepto && String(concepto).trim()) || (detPago?.concepto && String(detPago.concepto).trim()))
-        : `Multa por Mora - Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`;
+      const descMulta = (conceptoMultaOverride && String(conceptoMultaOverride).trim())
+        ? String(conceptoMultaOverride).trim()
+        : ((baseGravada <= 0.001 && ((concepto && String(concepto).trim()) || (detPago?.concepto && String(detPago.concepto).trim())))
+          ? ((concepto && String(concepto).trim()) || (detPago?.concepto && String(detPago.concepto).trim()))
+          : `Multa por Mora - Aseo Urbano${periodoGlobal ? ` - Período ${periodoGlobal}` : ''}`);
 
       detallesItems.push({
         NumeroLinea:             String(numLinea++),
@@ -1192,24 +1205,26 @@ export async function POST(request: Request) {
     } catch { licenciaAE = ''; }
     const cajaLabel = String(detPago.cajero || '').trim() || '-';
     const fp0: any = (formasPago && formasPago[0]) || {};
-    const tipoPago = String(pagoRow?.tipo || fp0.descripcion || 'Transferencia').trim();
-    const bancoRaw = String(pagoRow?.banco || fp0.banco || '').trim();
+    const tipoPago = String(formaPagoOverride || pagoRow?.tipo || fp0.descripcion || 'Transferencia').trim();
+    const bancoRaw = String(bancoOverride || pagoRow?.banco || fp0.banco || '').trim();
     const bancoPago = bancoRaw.toLowerCase() === tipoPago.toLowerCase() ? '' : bancoRaw;
     const refPago = String(referencia || pagoRow?.referencia || fp0.referencia || '').trim();
     const fechaPago = fechaPagoOverride 
       ? `${fechaPagoOverride}T12:00:00-04:00`
       : (detPago.fecha_transaccion || fp0.fecha || pagoRow?.created_at || fechaActual.toISOString());
 
-    let docIdentParaEmision = finalIdentidad;
-    if (esPagoPorLocal) {
-      const idLocal = (matchedPropEspecifico as any)?.identidad || detPago?.recibo_caja?.[0]?.rifCi || (finalIdentidad && finalIdentidad !== condoDet?.identidad ? finalIdentidad : null);
-      if (idLocal && idLocal !== condoDet?.identidad) {
-        docIdentParaEmision = idLocal;
-      }
-    } else if (esCondoGlobal) {
-      const idCondo = condoDet?.identidad || detPago?.condominio?.identidad;
-      if (idCondo) {
-        docIdentParaEmision = idCondo;
+    let docIdentParaEmision = (identidad && String(identidad).trim()) ? String(identidad).trim().toUpperCase() : finalIdentidad;
+    if (!identidad || !String(identidad).trim()) {
+      if (esPagoPorLocal) {
+        const idLocal = (matchedPropEspecifico as any)?.identidad || detPago?.recibo_caja?.[0]?.rifCi || (finalIdentidad && finalIdentidad !== condoDet?.identidad ? finalIdentidad : null);
+        if (idLocal && idLocal !== condoDet?.identidad) {
+          docIdentParaEmision = idLocal;
+        }
+      } else if (esCondoGlobal) {
+        const idCondo = condoDet?.identidad || detPago?.condominio?.identidad;
+        if (idCondo) {
+          docIdentParaEmision = idCondo;
+        }
       }
     }
     const docIdentificacion = docIdentParaEmision.replace(/[^A-Z0-9-]/gi, '');
@@ -1279,7 +1294,10 @@ export async function POST(request: Request) {
 
     let razonSocialFinal = '';
 
-    if (esPagoPorLocal) {
+    if (contribuyente && String(contribuyente).trim()) {
+      // Prioridad máxima: lo que el operador digitó o confirmó en el modal de emisión
+      razonSocialFinal = String(contribuyente).trim();
+    } else if (esPagoPorLocal) {
       // 1. Pago por local individual: la factura va SIEMPRE a nombre del local / propietario individual
       const candLocal = [
         matchedPropEspecifico?.contribuyente,
@@ -1402,6 +1420,9 @@ export async function POST(request: Request) {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             Direccion:            (() => {
+              if (direccionOverride && String(direccionOverride).trim().length > 3) {
+                return sanitizarDireccionFiscal(String(direccionOverride).trim()) || 'NAGUANAGUA, EDO. CARABOBO';
+              }
               const uNum = esCondoGlobal ? null : (lineaCom?.numero ||
                 lineaCom?.unidadNumero || 
                 lineasCondo?.[0]?.numero ||
