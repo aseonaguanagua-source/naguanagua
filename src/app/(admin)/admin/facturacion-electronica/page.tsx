@@ -1984,7 +1984,7 @@ export default function FacturacionElectronicaPage() {
               ) : null}
             </div>
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setSelectedPagoForVerify(null)}
@@ -2137,8 +2137,8 @@ export default function FacturacionElectronicaPage() {
       {/* ══ MODAL DE AJUSTE Y EMISIÓN MANUAL INDIVIDUAL ══ */}
       {selectedPagoForEmit && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[92vh] overflow-hidden border border-slate-200 flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-[#c8e64c]" />
                 <h3 className="font-bold text-base">Emisión de Factura Fiscal Digital</h3>
@@ -2148,7 +2148,7 @@ export default function FacturacionElectronicaPage() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 text-xs">
                 <div className="flex items-center justify-between pb-1 border-b border-slate-200">
                   <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider">Datos Fiscales del Contribuyente y Caja</span>
@@ -2500,7 +2500,7 @@ export default function FacturacionElectronicaPage() {
               </div>
             </div>
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setSelectedPagoForEmit(null)}
