@@ -1589,16 +1589,6 @@ export default function FacturacionElectronicaPage() {
                               <span>Eliminar</span>
                             </button>
                           )}
-                          {/* Botón Editar solo para administradores si se requiere ajuste administrativo directo */}
-                          {esAdmin && (
-                            <button
-                              onClick={() => handleOpenEditModal(pago)}
-                              className="text-[11px] bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-800 font-bold px-2 py-1.5 rounded-lg flex items-center gap-1 border border-slate-300 hover:border-amber-300 transition-colors cursor-pointer"
-                              title="Modificar registro en base de datos (Exclusivo Administrador)"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-amber-600" />
-                            </button>
-                          )}
                           {pago.documento === 'recibo' ? (
                             <>
                               <button
@@ -1771,16 +1761,6 @@ export default function FacturacionElectronicaPage() {
                             </>
                           ) : (
                             <>
-                              {/* Botón Demo / Vista Previa de Factura */}
-                              <button
-                                onClick={() => setSelectedPagoForDemo(pago)}
-                                className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-emerald-300 transition-colors cursor-pointer"
-                                title="Ver Demo / Vista Previa de la Factura Electrónica antes de emitir"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Demo Factura</span>
-                              </button>
-
                               {/* Botón Emitir o Badge Por Conciliar */}
                               {pago.estado !== 'Aprobado' ? (
                                 <span 
@@ -1796,7 +1776,7 @@ export default function FacturacionElectronicaPage() {
                                   title="Emitir Factura Digital a The Factory HKA (Permite verificar y modificar todos los campos)"
                                 >
                                   <FileText className="w-3.5 h-3.5 text-[#c8e64c]" />
-                                  <span>Emitir</span>
+                                  <span>Emitir Factura</span>
                                 </button>
                               )}
                             </>
