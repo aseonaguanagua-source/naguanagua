@@ -183,6 +183,7 @@ export async function GET(request: Request) {
       const dP = parseDetalles(pPrincipal.detalles);
       const saldoPrevio = parseFloat(String(dP?.deuda_previa?.[0]?.saldo_favor_bs || dP?.abono_previo_descontado || 0)) || 0;
       const recibosP = (dP?.recibos || []).map((r: any) => String(r).toUpperCase());
+      const esAbonoP = dP?.es_abono === true || dP?.abono === true || pPrincipal.tipo === 'Abono' || dP?.pago_parcial === true;
 
       (rawPagos || []).forEach(pAbono => {
         if (pAbono.id === pPrincipal.id || pAbono.tipo === 'Retencion de IVA') return;
@@ -197,15 +198,19 @@ export async function GET(request: Request) {
         const esAbonoA = dA?.es_abono === true || dA?.abono === true || pAbono.tipo === 'Abono' || dA?.pago_parcial === true;
         if (!esAbonoA) return;
 
+        // Si el supuesto pago principal es TAMBIÉN un abono sin saldo previo descontado ni absorción explícita, no debe anular al otro abono
+        if (esAbonoP && saldoPrevio === 0 && !dP?.pago_principal_id) {
+          return;
+        }
+
         const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
         const recibosA = (dA?.recibos || []).map((r: any) => String(r).toUpperCase());
         // Un abono previo solo se considera genuinamente absorbido por un pago principal posterior si:
-        // 1. Todos los recibos liquidados por el abono están contenidos dentro del pago principal posterior.
-        //    (Si el abono pagó 3 o 4 inmuebles distintos y el pago posterior solo pagó 1, son facturas distintas).
+        // 1. Todos los recibos liquidados por el abono están contenidos dentro del pago principal posterior Y el pago principal no es otro abono independiente.
         // 2. O si el saldo previo registrado en el pago posterior coincide exactamente con el monto del abono Y no quedan recibos huérfanos.
         const todosRecibosEnPrincipal = recibosA.length > 0 && recibosA.every((r: string) => recibosP.includes(r));
         const coincideSaldo = saldoPrevio > 0 && Math.abs(saldoPrevio - montoSoloA) < 0.05;
-        const absorcionValida = todosRecibosEnPrincipal || (coincideSaldo && (recibosA.length === 0 || todosRecibosEnPrincipal));
+        const absorcionValida = (todosRecibosEnPrincipal && !esAbonoP) || (coincideSaldo && (recibosA.length === 0 || todosRecibosEnPrincipal));
 
         // Si el abono ocurrió antes o igual que el pago principal y fue genuinamente absorbido
         if (absorcionValida && new Date(pAbono.created_at) <= new Date(pPrincipal.created_at)) {
