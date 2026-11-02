@@ -107,7 +107,7 @@ export async function POST(request: Request) {
       pagoId, recibos: recibosBody, montos: montosBody, contribuyente, identidad, formasPago, 
       montoTotal, isCondominio, concepto, montoServicio, montoMulta, 
       correoDestino, enviarCorreo = true, dryRun = false, totalManual, motivoAjuste, usuario,
-      esRetencion, referencia, modulo, fechaEmisionOverride, fecha, reemitir = false
+      esRetencion, referencia, modulo, fechaEmisionOverride, fechaPagoOverride, fecha, reemitir = false
     } = await request.json();
     const r2 = (n: number) => Math.round(n * 100) / 100;
     // Total editado a mano en la verificación/emisión (con IVA). Si viene, la factura totaliza ESE monto.
@@ -1196,7 +1196,9 @@ export async function POST(request: Request) {
     const bancoRaw = String(pagoRow?.banco || fp0.banco || '').trim();
     const bancoPago = bancoRaw.toLowerCase() === tipoPago.toLowerCase() ? '' : bancoRaw;
     const refPago = String(referencia || pagoRow?.referencia || fp0.referencia || '').trim();
-    const fechaPago = detPago.fecha_transaccion || pagoRow?.created_at || fechaActual.toISOString();
+    const fechaPago = fechaPagoOverride 
+      ? `${fechaPagoOverride}T12:00:00-04:00`
+      : (detPago.fecha_transaccion || fp0.fecha || pagoRow?.created_at || fechaActual.toISOString());
 
     let docIdentParaEmision = finalIdentidad;
     if (esPagoPorLocal) {

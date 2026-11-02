@@ -336,6 +336,7 @@ export default function FacturacionElectronicaPage() {
   const [emitModulo, setEmitModulo] = useState('caja');
   const [emitEsRetencion, setEmitEsRetencion] = useState(false);
   const [emitFechaEmision, setEmitFechaEmision] = useState('');
+  const [emitFechaPago, setEmitFechaPago] = useState('');
 
   // Modal de Edición de Datos Fiscales del Pago (monto, retención, nombre, cédula/RIF, referencia, caja)
   const [pagoAEditar, setPagoAEditar] = useState<any | null>(null);
@@ -774,7 +775,8 @@ export default function FacturacionElectronicaPage() {
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
     const fechaPagoOrig = (pago.detalles?.fecha_transaccion || pago.detalles?.fecha_banco || pago.fechaPago || pago.created_at || '').slice(0, 10);
-    setEmitFechaEmision(fechaPagoOrig || hoyCaracas());
+    setEmitFechaEmision(hoyCaracas());
+    setEmitFechaPago(fechaPagoOrig || hoyCaracas());
   };
 
   // Abrir Modal de Edición Directa de Datos Fiscales
@@ -899,10 +901,11 @@ export default function FacturacionElectronicaPage() {
           modulo: emitModulo,
           esRetencion: emitEsRetencion,
           fechaEmisionOverride: emitFechaEmision ? emitFechaEmision : undefined,
+          fechaPagoOverride: emitFechaPago ? emitFechaPago : undefined,
           fecha: emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString()),
           formasPago: [{
             descripcion: selectedPagoForEmit.tipo || 'Transferencia',
-            fecha: emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString()),
+            fecha: emitFechaPago ? `${emitFechaPago}T12:00:00-04:00` : (emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : (selectedPagoForEmit.fechaPago || selectedPagoForEmit.created_at || new Date().toISOString())),
             forma: '05',
             monto: total
           }],
@@ -2158,10 +2161,9 @@ export default function FacturacionElectronicaPage() {
                       <option value="condominios">Caja Condominios</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-2 sm:col-span-1">
                     <label className="block text-[10px] font-bold text-emerald-900 uppercase mb-0.5 flex items-center justify-between">
-                      <span>📅 Fecha de Emisión Factura (The Factory HKA)</span>
-                      <span className="text-[9px] text-slate-500 font-normal">Puedes elegir otra fecha si requieres facturar con fecha específica</span>
+                      <span>📅 Fecha de Emisión Factura (TFHKA)</span>
                     </label>
                     <input
                       type="date"
@@ -2169,6 +2171,19 @@ export default function FacturacionElectronicaPage() {
                       onChange={e => setEmitFechaEmision(e.target.value)}
                       className="w-full border border-emerald-400 bg-emerald-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
                     />
+                    <p className="text-[9px] text-slate-500 mt-0.5">Fecha impresa de la factura</p>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-0.5 flex items-center justify-between">
+                      <span>💳 Fecha del Pago / Transacción</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={emitFechaPago}
+                      onChange={e => setEmitFechaPago(e.target.value)}
+                      className="w-full border border-indigo-400 bg-indigo-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <p className="text-[9px] text-slate-500 mt-0.5">Fecha del movimiento bancario</p>
                   </div>
                 </div>
 
