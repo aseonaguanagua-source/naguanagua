@@ -1589,14 +1589,16 @@ export default function FacturacionElectronicaPage() {
                               <span>Eliminar</span>
                             </button>
                           )}
-                          <button
-                            onClick={() => handleOpenEditModal(pago)}
-                            className="text-[11px] bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-800 font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 border border-slate-300 hover:border-amber-300 transition-colors cursor-pointer"
-                            title="Editar monto, si es de retención, nombre, cédula o RIF, referencia o caja"
-                          >
-                            <Edit3 className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Editar</span>
-                          </button>
+                          {/* Botón Editar solo para administradores si se requiere ajuste administrativo directo */}
+                          {esAdmin && (
+                            <button
+                              onClick={() => handleOpenEditModal(pago)}
+                              className="text-[11px] bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-800 font-bold px-2 py-1.5 rounded-lg flex items-center gap-1 border border-slate-300 hover:border-amber-300 transition-colors cursor-pointer"
+                              title="Modificar registro en base de datos (Exclusivo Administrador)"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                            </button>
+                          )}
                           {pago.documento === 'recibo' ? (
                             <>
                               <button
@@ -1779,16 +1781,6 @@ export default function FacturacionElectronicaPage() {
                                 <span>Demo Factura</span>
                               </button>
 
-                              {/* Botón Verificar Factura antes de enviarla */}
-                              <button
-                                onClick={() => handleVerifyPago(pago)}
-                                className="text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-indigo-200 transition-colors cursor-pointer"
-                                title="Verificar y auditar los datos fiscales antes de emitir"
-                              >
-                                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-                                <span>Verificar</span>
-                              </button>
-
                               {/* Botón Emitir o Badge Por Conciliar */}
                               {pago.estado !== 'Aprobado' ? (
                                 <span 
@@ -1800,8 +1792,8 @@ export default function FacturacionElectronicaPage() {
                               ) : (
                                 <button
                                   onClick={() => handleOpenEmitModal(pago)}
-                                  className="text-[11px] bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-                                  title="Emitir Factura Digital a The Factory HKA"
+                                  className="text-[11px] bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                                  title="Emitir Factura Digital a The Factory HKA (Permite verificar y modificar todos los campos)"
                                 >
                                   <FileText className="w-3.5 h-3.5 text-[#c8e64c]" />
                                   <span>Emitir</span>
