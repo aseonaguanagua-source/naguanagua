@@ -68,18 +68,28 @@ const extraerCodigoInmuebleRef = (ref: string): string | null => {
  * Foto de la deuda de los inmuebles ANTES del cobro (se guarda en detalles.deuda_previa del pago).
  * Permite revertir un pago sin depender del respaldo de SIGYR. Nunca bloquea el cobro.
  */
-const snapshotDeudaPrevia = async (identidad: string, hijosIds: string[] = []) => {
+const snapshotDeudaPrevia = async (identidad: string, hijosIds: string[] = [], codigosExtra: string[] = []) => {
   try {
     const cols = 'id, inmueble, meses_deuda, deuda_mmv, multa_bs, deuda_congelada_bs, saldo_favor_bs';
-    const { data: propios } = await supabase.from('inmuebles').select(cols).eq('identidad', identidad);
+    const idVars = getIdentidadVariantsExact(identidad);
+    const ors: string[] = [];
+    if (idVars.length > 0) ors.push(...idVars.map(v => `identidad.eq.${v}`));
+    const cods = Array.from(new Set((codigosExtra || []).filter(Boolean).map(c => String(c).trim().toUpperCase())));
+    if (cods.length > 0) ors.push(...cods.map(c => `inmueble.eq.${c}`));
+
+    let propios: any[] = [];
+    if (ors.length > 0) {
+      const { data } = await supabase.from('inmuebles').select(cols).or(ors.join(','));
+      propios = data || [];
+    }
     let hijos: any[] = [];
-    const ids = (hijosIds || []).filter(Boolean);
+    const ids = Array.from(new Set((hijosIds || []).filter(Boolean)));
     if (ids.length > 0) {
       const { data } = await supabase.from('inmuebles').select(cols).in('id', ids);
       hijos = data || [];
     }
     const vistos = new Set<string>();
-    return [...(propios || []), ...hijos].filter((i: any) => !vistos.has(i.id) && vistos.add(i.id));
+    return [...propios, ...hijos].filter((i: any) => i?.id && !vistos.has(i.id) && vistos.add(i.id));
   } catch (e) {
     console.warn('No se pudo tomar la deuda previa:', e);
     return [];
@@ -2870,7 +2880,11 @@ export default function CajaPage() {
 
         const pagoId = crypto.randomUUID();
         const deudaPrevia = (selectedRecibos.length > 0 || isCondominio)
-          ? await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id))
+          ? await snapshotDeudaPrevia(
+              foundUser.Identidad,
+              [...condominioHijos.map((h: any) => h.id), ...freshInmuebles.map((i: any) => i.id)],
+              selectedRecibos.map((r: string) => extraerCodigoInmuebleRef(r) || '').filter(Boolean)
+            )
           : [];
         const hoyStr = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
         const fechaUTC = fechaCorteCaja === hoyStr 
@@ -3664,7 +3678,11 @@ export default function CajaPage() {
           }
         }
 
-        const deudaPreviaT = await snapshotDeudaPrevia(foundUser.Identidad, condominioHijos.map((h: any) => h.id));
+        const deudaPreviaT = await snapshotDeudaPrevia(
+          foundUser.Identidad,
+          [...condominioHijos.map((h: any) => h.id), ...freshInmuebles.map((i: any) => i.id)],
+          selectedRecibos.map((r: string) => extraerCodigoInmuebleRef(r) || '').filter(Boolean)
+        );
         const pagoIdT = crypto.randomUUID();
         const hoyStr = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
         const fechaUTC = fechaCorteCaja === hoyStr 

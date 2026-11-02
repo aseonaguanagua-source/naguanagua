@@ -2123,26 +2123,32 @@ function ContribuyentesPageContent() {
     if (!local || !local.codigo) return;
     const desc = local.actividad || local.tipoResidencia || local.numeracion || local.codigo;
     const nuevoRif = window.prompt(
-      `DESVINCULAR INMUEBLE / HIJO: ${local.codigo} (${desc})\n\nEste inmueble pertenece a otro titular o fue vinculado por error.\n\nEscriba la Cédula/RIF del verdadero propietario al que se asignará (ej: J-298542780, V-12345678):`,
-      ''
+      `DESVINCULAR INMUEBLE / CAMBIAR RIF INDIVIDUAL: ${local.codigo} (${desc})\n\nEste inmueble pertenece a otro titular o razón social.\n\n1) Escriba la Cédula/RIF del titular o comercio para ${local.codigo} (ej: J-298542780, V-12345678):`,
+      local.identidad || formData.Identidad || ''
     );
     if (!nuevoRif || !nuevoRif.trim()) return;
     const rifDestino = nuevoRif.trim().toUpperCase();
 
-    if (!window.confirm(`Se reasignará ${local.codigo} al contribuyente ${rifDestino} y se desvinculará de ${formData.Identidad}.\n\n¿Desea continuar?`)) {
-      return;
-    }
-
     try {
       // Buscar datos del contribuyente destino
       const { data: contDest } = await supabase.from('contribuyentes').select('nombre, email, telefono, direccion').eq('identidad', rifDestino).maybeSingle();
-      const nombreDest = contDest?.nombre || null;
+      const nombreSugerido = contDest?.nombre || local.contribuyente || formData.Contribuyente || '';
+      const nuevoNombreInput = window.prompt(
+        `2) Escriba el Nombre o Razón Social para el inmueble ${local.codigo} (${rifDestino}):`,
+        nombreSugerido
+      );
+      if (nuevoNombreInput === null) return;
+      const nombreDest = (nuevoNombreInput.trim() || nombreSugerido).toUpperCase();
+
+      if (!window.confirm(`Se actualizará únicamente el inmueble ${local.codigo}:\n• RIF/Cédula: ${rifDestino}\n• Razón Social: ${nombreDest}\n\nLos demás inmuebles de ${formData.Identidad} NO serán afectados.\n¿Desea continuar?`)) {
+        return;
+      }
       
       const updPayload: any = {
         identidad: rifDestino,
         padre_id: null,
+        contribuyente: nombreDest,
       };
-      if (nombreDest) updPayload.contribuyente = nombreDest;
       if (contDest?.telefono) updPayload.telefono = contDest.telefono;
       if (contDest?.email) updPayload.correo_electronico = contDest.email;
 
@@ -2153,19 +2159,35 @@ function ContribuyentesPageContent() {
 
       if (error) throw error;
 
-      const newLocales = (formData.locales || []).filter((_: any, i: number) => i !== index);
-      const newCodes = (formData.__inmuebleCodes || []).filter((c: string) => c !== local.codigo);
+      if (rifDestino !== String(formData.Identidad || '').trim().toUpperCase()) {
+        await supabase.from('contribuyentes').upsert([{
+          identidad: rifDestino,
+          nombre: nombreDest,
+          telefono: contDest?.telefono || local.telefono || formData.Telefono || null,
+          email: contDest?.email || local.correo_electronico || formData.Correo || null,
+          direccion: contDest?.direccion || local.direccion || formData.Direccion || null,
+        }], { onConflict: 'identidad' });
 
-      setFormData({
-        ...formData,
-        locales: newLocales,
-        cantidadInmuebles: newLocales.length,
-        __inmuebleCodes: newCodes
-      });
+        const newLocales = (formData.locales || []).filter((_: any, i: number) => i !== index);
+        const newCodes = (formData.__inmuebleCodes || []).filter((c: string) => c !== local.codigo);
+
+        setFormData({
+          ...formData,
+          locales: newLocales,
+          cantidadInmuebles: newLocales.length,
+          __inmuebleCodes: newCodes
+        });
+      } else {
+        const newLocales = [...(formData.locales || [])];
+        newLocales[index] = { ...newLocales[index], contribuyente: nombreDest, identidad: rifDestino };
+        setFormData({ ...formData, locales: newLocales });
+      }
 
       await refreshUserData(formData.Identidad);
-      await refreshUserData(rifDestino).catch(() => {});
-      alert(`Inmueble ${local.codigo} desvinculado exitosamente y reasignado a ${rifDestino}${nombreDest ? ` (${nombreDest})` : ''}.`);
+      if (rifDestino !== formData.Identidad) {
+        await refreshUserData(rifDestino).catch(() => {});
+      }
+      alert(`Inmueble ${local.codigo} actualizado exitosamente → ${rifDestino} (${nombreDest}).`);
     } catch (err: any) {
       console.error(err);
       alert('Error al desvincular inmueble: ' + err.message);
@@ -2293,6 +2315,8 @@ function ContribuyentesPageContent() {
           tipoResidencia: uso === 'Residencial' ? (act || ordenanzaData.tiposResidenciales[0].label) : '',
           nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
           mmvActual: inm.mmv_mes,
+          contribuyente: inm.contribuyente || row.Contribuyente || '',
+          identidad: inm.identidad || row.Identidad || '',
           direccion: inm.direccion || '',
           telefono: inm.telefono || '',
           correo_electronico: inm.correo_electronico || '',
@@ -2305,6 +2329,8 @@ function ContribuyentesPageContent() {
           tipoResidencia: loc.tipoResidencia, 
           estatus: loc.estatus, 
           agente_retencion: loc.agente_retencion,
+          contribuyente: loc.contribuyente,
+          identidad: loc.identidad,
           direccion: loc.direccion,
           telefono: loc.telefono,
           correo_electronico: loc.correo_electronico
@@ -2800,12 +2826,32 @@ function ContribuyentesPageContent() {
                   <button
                     type="button"
                     id="btn-cambiar-identidad"
-                    title="Corregir la cédula / RIF en todo el sistema"
+                    title="Corregir la cédula / RIF en todo el sistema o en un inmueble específico"
                     onClick={async () => {
                       const actual = String(formData.Identidad || '');
+                      const localesCodigos = (formData.locales || []).map((l: any) => l.codigo).filter(Boolean);
+                      if (localesCodigos.length > 1) {
+                        const soloUno = window.prompt(
+                          `Este titular (${actual}) tiene ${localesCodigos.length} inmuebles vinculados: ${localesCodigos.join(', ')}.\n\n` +
+                          `• Si desea cambiar el RIF/Cédula de UN SOLO inmueble (ej: el comercio), escriba el código del inmueble (ej: ${localesCodigos[0]}).\n` +
+                          `• Si desea cambiar la Cédula/RIF de TODOS los inmuebles a la vez, escriba TODOS:`,
+                          localesCodigos[0]
+                        );
+                        if (!soloUno) return;
+                        const respUpper = soloUno.trim().toUpperCase();
+                        if (respUpper !== 'TODOS') {
+                          const idxLocal = (formData.locales || []).findIndex((l: any) => String(l.codigo || '').toUpperCase() === respUpper);
+                          if (idxLocal === -1) {
+                            alert(`No se encontró el código "${respUpper}" entre los inmuebles de este contribuyente (${localesCodigos.join(', ')}).`);
+                            return;
+                          }
+                          await handleDesvincularActividad(idxLocal);
+                          return;
+                        }
+                      }
                       const nueva = window.prompt(`Cédula/RIF actual: ${actual}\n\nEscriba la identidad correcta (ej: V-12345678, E-81225289, J-123456789):`, actual);
                       if (!nueva || nueva.trim().toUpperCase() === actual.toUpperCase()) return;
-                      if (!window.confirm(`Se cambiará ${actual} → ${nueva.trim().toUpperCase()} en inmuebles, pagos, facturas, convenios y documentos.\n\n¿Confirmar?`)) return;
+                      if (!window.confirm(`Se cambiará ${actual} → ${nueva.trim().toUpperCase()} en TODOS los inmuebles (${localesCodigos.join(', ') || 'todos'}), pagos, facturas, convenios y documentos.\n\n¿Confirmar?`)) return;
                       try {
                         const res = await fetch('/api/admin/contribuyentes/cambiar-identidad', {
                           method: 'POST',
@@ -3392,20 +3438,54 @@ function ContribuyentesPageContent() {
                           </button>
                         </div>
                       </div>
-                      {/* Dirección específica de este local / inmueble (Caso 18) */}
-                      <div className="mt-2.5 pt-2 border-t border-slate-200 flex items-center gap-2">
-                        <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Dirección de este local:</label>
-                        <input
-                          type="text"
-                          value={local.direccion || ''}
-                          onChange={e => {
-                            const newLocales = [...formData.locales];
-                            newLocales[index].direccion = e.target.value;
-                            setFormData({...formData, locales: newLocales});
-                          }}
-                          placeholder="Dejar vacío para usar la dirección principal..."
-                          className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-blue-500 bg-white"
-                        />
+                      {/* Razón Social / RIF y Dirección específica de este local / inmueble (Casos 13 y 18) */}
+                      <div className="mt-2.5 pt-2 border-t border-slate-200 space-y-2">
+                        {(formData.locales?.length > 1 || (local.contribuyente && local.contribuyente !== formData.Contribuyente)) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div className="flex items-center gap-2">
+                              <label className="text-[10px] font-bold text-blue-800 whitespace-nowrap">Nombre / Razón Social de este inmueble:</label>
+                              <input
+                                type="text"
+                                value={local.contribuyente ?? formData.Contribuyente ?? ''}
+                                onChange={e => {
+                                  const newLocales = [...formData.locales];
+                                  newLocales[index].contribuyente = e.target.value;
+                                  setFormData({...formData, locales: newLocales});
+                                }}
+                                placeholder="Nombre o razón social específica de este inmueble..."
+                                className="flex-1 border border-blue-200 rounded px-2 py-1 text-xs outline-none focus:border-blue-500 bg-white font-semibold text-slate-800"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-[10px] font-bold text-blue-800 whitespace-nowrap">RIF / Cédula de este inmueble:</label>
+                              <input
+                                type="text"
+                                value={local.identidad ?? formData.Identidad ?? ''}
+                                onChange={e => {
+                                  const newLocales = [...formData.locales];
+                                  newLocales[index].identidad = e.target.value.toUpperCase();
+                                  setFormData({...formData, locales: newLocales});
+                                }}
+                                placeholder="Ej: J-123456789 o V-5292680..."
+                                className="flex-1 border border-blue-200 rounded px-2 py-1 text-xs font-mono outline-none focus:border-blue-500 bg-white font-semibold text-slate-800"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Dirección de este local:</label>
+                          <input
+                            type="text"
+                            value={local.direccion || ''}
+                            onChange={e => {
+                              const newLocales = [...formData.locales];
+                              newLocales[index].direccion = e.target.value;
+                              setFormData({...formData, locales: newLocales});
+                            }}
+                            placeholder="Dejar vacío para usar la dirección principal..."
+                            className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-blue-500 bg-white"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}

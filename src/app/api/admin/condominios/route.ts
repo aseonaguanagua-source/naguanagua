@@ -37,7 +37,20 @@ export async function GET(req: Request) {
       const uors = [`inmueble.ilike.%${t}%`, `numero.ilike.%${t}%`, `propietario.ilike.%${t}%`];
       if (digitos.length >= 5) uors.push(`identidad.ilike.%${digitos}%`);
       const { data: us } = await sb.from('condominio_unidades').select('id,inmueble,numero,propietario,identidad,actividad,tarifa_mmv,estado,condominios!inner(codigo,nombre,estado)').neq('estado', 'Eliminada').neq('condominios.estado', 'Eliminado').or(uors.join(',')).limit(25);
-      return NextResponse.json({ condominios: cs || [], unidades: us || [] });
+      const codsUs = (us || []).map((u: any) => u.inmueble).filter(Boolean);
+      const sfMap = new Map<string, number>();
+      if (codsUs.length > 0) {
+        const { data: inmsUs } = await sb.from('inmuebles').select('inmueble, saldo_favor_bs').in('inmueble', codsUs);
+        (inmsUs || []).forEach((r: any) => {
+          const val = parseFloat(r.saldo_favor_bs || '0') || 0;
+          if (val >= 1.00 && r.inmueble) sfMap.set(String(r.inmueble).toUpperCase(), Math.round(val * 100) / 100);
+        });
+      }
+      const usEnriquecidas = (us || []).map((u: any) => ({
+        ...u,
+        saldo_favor_bs: u.inmueble ? (sfMap.get(String(u.inmueble).toUpperCase()) || 0) : 0,
+      }));
+      return NextResponse.json({ condominios: cs || [], unidades: usEnriquecidas });
     }
 
     if (codigo) {
@@ -81,7 +94,12 @@ export async function PATCH(req: Request) {
     if ('cant_declarada' in upd) upd.cant_declarada = Math.max(1, parseInt(upd.cant_declarada) || 1);
     if ('tarifa_mmv' in upd) upd.tarifa_mmv = upd.tarifa_mmv === '' || upd.tarifa_mmv == null ? null : Number(upd.tarifa_mmv);
     if ('tipo' in upd && !['RESIDENCIAL', 'COMERCIAL', 'MIXTO'].includes(upd.tipo)) return NextResponse.json({ error: 'Tipo no válido' }, { status: 400 });
-    if ('multa_meses' in upd) upd.multa_meses = Math.max(0, parseInt(upd.multa_meses) || 0);
+    if ('multa_meses' in upd) {
+      upd.multa_meses = Math.max(0, parseInt(upd.multa_meses) || 0);
+      if (upd.multa_meses > 0) {
+        upd.multa_exonerada_hasta = null;
+      }
+    }
     if (cambios && 'meses' in cambios) {
       const nuevo = pendienteDesdeParaMeses(Math.max(0, parseInt(cambios.meses) || 0));
       upd.aseo_pendiente_desde = nuevo;
@@ -121,9 +139,13 @@ export async function PATCH(req: Request) {
       await sb.from('inmuebles').update({ meses_deuda: mesesCalc }).eq('inmueble', antes.codigo);
       await sb.from('inmuebles').update({ meses_deuda: mesesCalc }).eq('condominio_padre_id', antes.codigo);
     }
-    if ('multa_meses' in upd && Number(upd.multa_meses) === 0) {
-      await sb.from('condominio_unidades').update({ multa_meses: 0, multa_exonerada_hasta: upd.aseo_pendiente_desde || antes.aseo_pendiente_desde }).eq('condominio_id', antes.id);
-      await sb.from('condominio_multas').update({ estado: 'Anulada', motivo_anulacion: motivo }).eq('condominio_id', antes.id).eq('estado', 'Pendiente');
+    if ('multa_meses' in upd) {
+      if (Number(upd.multa_meses) === 0) {
+        await sb.from('condominio_unidades').update({ multa_meses: 0, multa_exonerada_hasta: upd.aseo_pendiente_desde || antes.aseo_pendiente_desde }).eq('condominio_id', antes.id);
+        await sb.from('condominio_multas').update({ estado: 'Anulada', motivo_anulacion: motivo }).eq('condominio_id', antes.id).eq('estado', 'Pendiente');
+      } else if (Number(upd.multa_meses) > 0) {
+        await sb.from('condominio_unidades').update({ multa_meses: Number(upd.multa_meses), multa_exonerada_hasta: null }).eq('condominio_id', antes.id).neq('estado', 'Eliminada');
+      }
     }
 
     // Sincronizar el campo agente_retencion en la tabla inmuebles para el inmueble principal del condominio,

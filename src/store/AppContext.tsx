@@ -1030,10 +1030,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (notaToSave) baseNombre.notas = notaToSave;
 
       // Actualizar razón social / correo / teléfono del titular en sus inmuebles
-      await supabase.from('inmuebles').update(baseNombre).or(`identidad.eq.${identidadExacta},identidad.eq.${idClean}`);
+      // NOTA CRÍTICA (Item 13): Si el contribuyente tiene múltiples inmuebles (ej: una casa residencial y un comercio con distinta razón social),
+      // NO sobrescribir indiscriminadamente el nombre de todos los inmuebles si solo se editó uno o si cada local tiene su propio nombre/RIF.
+      const nombreTopCambio = !orig.Contribuyente || String(data.Contribuyente || '').trim().toUpperCase() !== String(orig.Contribuyente || '').trim().toUpperCase();
+      if (Array.isArray(data.locales) && data.locales.length > 0) {
+        const baseContactOnly: any = {};
+        if (data.Correo && String(data.Correo).includes('@')) baseContactOnly.correo_electronico = String(data.Correo).trim().toLowerCase();
+        if (data.Telefono && String(data.Telefono).trim().length >= 7) baseContactOnly.telefono = String(data.Telefono).trim();
+        if (data.clave_portal !== undefined) baseContactOnly.clave_portal = String(data.clave_portal || '').trim() || null;
+        if (notaToSave) baseContactOnly.notas = notaToSave;
+        if (Object.keys(baseContactOnly).length > 0) {
+          await supabase.from('inmuebles').update(baseContactOnly).or(`identidad.eq.${identidadExacta},identidad.eq.${idClean}`);
+        }
+      } else {
+        await supabase.from('inmuebles').update(baseNombre).or(`identidad.eq.${identidadExacta},identidad.eq.${idClean}`);
+      }
 
-      // Actualizar en cascada para todos los módulos (Facturación, Cobro Móvil, Portal, Servicios Especiales, Documentos, Retenciones, Condominios)
-      if (data.Contribuyente && String(data.Contribuyente).trim() !== '') {
+      // Actualizar en cascada para todos los módulos solo cuando el cambio aplica a toda la identidad
+      if (data.Contribuyente && String(data.Contribuyente).trim() !== '' && (!Array.isArray(data.locales) || data.locales.length <= 1)) {
         const nuevoNom = String(data.Contribuyente).trim().toUpperCase();
         const orIdent = `identidad.eq.${identidadExacta},identidad.eq.${idClean}`;
         await Promise.allSettled([
@@ -1084,6 +1098,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
               (local.direccion && local.direccion !== o.direccion);
             
             const updatePayload: any = {};
+            if (local.contribuyente && String(local.contribuyente).trim() !== '' && local.contribuyente !== o.contribuyente) {
+              updatePayload.contribuyente = String(local.contribuyente).trim().toUpperCase();
+            } else if (data.locales.length === 1 && data.Contribuyente) {
+              updatePayload.contribuyente = String(data.Contribuyente).trim().toUpperCase();
+            } else if (nombreTopCambio && (!o.contribuyente || String(o.contribuyente).trim().toUpperCase() === String(orig.Contribuyente || '').trim().toUpperCase())) {
+              updatePayload.contribuyente = String(data.Contribuyente).trim().toUpperCase();
+            }
+            if (local.identidad && String(local.identidad).trim() !== '' && String(local.identidad).trim().toUpperCase() !== String(o.identidad || identidadExacta).trim().toUpperCase()) {
+              const nuevaIdLocal = String(local.identidad).trim().toUpperCase();
+              updatePayload.identidad = nuevaIdLocal;
+              updatePayload.padre_id = null;
+              await supabase.from('contribuyentes').upsert([{
+                identidad: nuevaIdLocal,
+                nombre: (local.contribuyente || data.Contribuyente || '').trim().toUpperCase(),
+                telefono: local.telefono || data.Telefono || null,
+                email: local.correo_electronico || data.Correo || null,
+                direccion: local.direccion || data.Direccion || null
+              }], { onConflict: 'identidad' });
+              cambios.push(`${local.codigo}: RIF/Cédula → ${nuevaIdLocal}`);
+            }
             if (local.direccion && String(local.direccion).trim() !== '') {
               updatePayload.direccion = local.direccion;
             } else if (data.locales.length === 1 && data.Direccion) {

@@ -310,8 +310,11 @@ export default function ServiciosEspecialesPage() {
             const p = calcPlanilla();
             if (form.tipo === 'inspeccion') {
               const mBs = parseFloat(form.monto) || 0;
-              const ucdVal = p ? p.valorUcd : (tcmmv > 0 && mBs > 0 ? Math.round((mBs / tcmmv) * 10000) / 10000 : null);
-              const factorVal = p ? p.factor : (parseFloat(form.area || '0') || 1);
+              const m2Area = parseFloat(form.area || '0') || 0;
+              const ucdVal = m2Area > 0
+                ? CONCEPTOS_IAMEC.inspeccionUcdPorM2
+                : (p ? p.valorUcd : (tcmmv > 0 && mBs > 0 ? Math.round((mBs / tcmmv) * 10000) / 10000 : null));
+              const factorVal = m2Area > 0 ? m2Area : (p ? p.factor : 1);
               return {
                 categoria: 'INSPECCION',
                 valor_ucd: ucdVal,
@@ -350,8 +353,13 @@ export default function ServiciosEspecialesPage() {
         if (form.tipo === 'especial' || form.tipo === 'extraordinario' || form.tipo === 'inspeccion') {
           const p = calcPlanilla();
           const montoBs = parseFloat(form.monto) || 0;
-          const ucdFinal = p ? p.valorUcd : (tcmmv > 0 && montoBs > 0 ? Math.round((montoBs / tcmmv) * 10000) / 10000 : null);
-          const factorFinal = p ? p.factor : (parseFloat(form.area || '0') || 1);
+          const m2Area = parseFloat(form.area || '0') || 0;
+          const ucdFinal = (form.tipo === 'inspeccion' && m2Area > 0)
+            ? CONCEPTOS_IAMEC.inspeccionUcdPorM2
+            : (p ? p.valorUcd : (tcmmv > 0 && montoBs > 0 ? Math.round((montoBs / tcmmv) * 10000) / 10000 : null));
+          const factorFinal = (form.tipo === 'inspeccion' && m2Area > 0)
+            ? m2Area
+            : (p ? p.factor : (parseFloat(form.area || '0') || 1));
 
           descargarPlanilla(form.tipo, {
             tipo: form.tipo,
@@ -1153,6 +1161,34 @@ export default function ServiciosEspecialesPage() {
                           onChange={e => setForm(prev => ({ ...prev, telefono: e.target.value }))}
                           className={inp}
                         />
+                      </div>
+                    </div>
+
+                    <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-3.5 space-y-2">
+                      <label className="block text-xs font-bold text-purple-900 uppercase">
+                        📐 Cantidad de Metros Cuadrados (m²) a Inspeccionar
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="Ej: 150 o 723.27"
+                            value={form.area}
+                            onChange={e => setForm(prev => ({ ...prev, area: e.target.value }))}
+                            className={`${inp} pr-10 font-bold text-purple-900 border-purple-300`}
+                          />
+                          <span className="absolute right-3 top-2 text-xs font-bold text-purple-600">m²</span>
+                        </div>
+                        <div className="text-[11px] text-purple-800 leading-snug">
+                          Tarifa Ordenanza: <b>{C.inspeccionUcdPorM2} UCD por m²</b>
+                          {parseFloat(form.area || '0') > 0 && tcmmv > 0 && (
+                            <div className="font-bold text-emerald-700 mt-0.5">
+                              = {(parseFloat(form.area) * C.inspeccionUcdPorM2).toLocaleString('es-VE', { maximumFractionDigits: 4 })} UCD (Bs. {(parseFloat(form.area) * C.inspeccionUcdPorM2 * tcmmv).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 

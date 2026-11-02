@@ -146,6 +146,7 @@ export interface RenglonEstado {
   multasManuales: MultaManual[];
   multasManualesBs: number;
   totalBs: number;
+  saldoFavorBs?: number;
 }
 
 export interface EstadoCuenta {
@@ -284,6 +285,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
       estado: u?.estado ?? 'Declarada', cantidad: r.cantidad, esGrupo: !!mu?.es_grupo, padreId: u?.padre_unidad_id ?? null, residencial: res,
       mensualBs: r.montoBs, pendienteDesde: desde || null, periodos: M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy),
       deuda, multaMeses, multaExtraBs, multasManuales: manuales, multasManualesBs, totalBs: r2(deuda.totalBs + multaExtraBs + multasManualesBs),
+      saldoFavorBs: Number(u?.saldo_favor_bs) >= 1.00 ? r2(Number(u.saldo_favor_bs)) : 0,
     };
   });
   // Multas manuales del condominio (sin unidad) cuando no hay renglón de condominio
@@ -371,7 +373,7 @@ export async function cargarCondominio(codigo: string) {
   const agentes = new Map<string, any>();
   if (codigosUnidades.length > 0) {
     for (let i = 0; i < codigosUnidades.length; i += 300) {
-      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion, multa_bs, telefono, correo_electronico, direccion, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
+      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion, multa_bs, saldo_favor_bs, telefono, correo_electronico, direccion, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
       (inm || []).forEach(r => agentes.set(r.inmueble, r));
     }
   }
@@ -396,11 +398,13 @@ export async function cargarCondominio(codigo: string) {
         if (j.periodos_custom) periodos_custom = j.periodos_custom;
       }
     } catch (e) {}
+    const rawSF = parseFloat(inf.saldo_favor_bs || '0') || 0;
     return {
       ...u,
       padre_inmueble: inf.padre_id || null,
       agente_retencion: !!inf.agente_retencion,
       multa_bs: parseFloat(inf.multa_bs || '0'),
+      saldo_favor_bs: rawSF >= 1.00 ? r2(rawSF) : 0,
       telefono: inf.telefono || '',
       correo: inf.correo_electronico || '',
       direccion: inf.direccion || '',

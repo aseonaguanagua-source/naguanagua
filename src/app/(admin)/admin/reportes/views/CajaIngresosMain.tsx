@@ -418,11 +418,11 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       {showExcel && (
         <button
           id="btn-total-puntos-venta"
-          onClick={() => generarTotalPuntosVenta(getFilteredPagos(), fechaInicio, fechaFin)}
+          onClick={() => generarTotalPuntosVenta(getFilteredPagos(), fechaInicio, fechaFin, contribuyentes)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#1f4e78', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 4, fontWeight: 600, cursor: 'pointer', fontSize: 12 }}
-          title="Total de puntos de venta por día y por caja (Excel)"
+          title="Reporte detallado de puntos de venta (débito) de todas las cajas + resumen por día (Excel)"
         >
-          <FileSpreadsheet size={13}/> Puntos de venta
+          <FileSpreadsheet size={13}/> Detalle Puntos de Venta
         </button>
       )}
       {showExcel && (

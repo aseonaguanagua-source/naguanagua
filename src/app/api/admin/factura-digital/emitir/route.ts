@@ -138,13 +138,14 @@ export async function POST(request: Request) {
     let lineasCondo: any[] | null = null;
     let condoDet: any = null;
     const { data: pm }: any = await supabase.from('pagos_reportados').select('id, identidad, modulo, detalles, estado, tipo').eq('id', pagoId).maybeSingle();
-    if (pm && pm.estado !== 'Aprobado') {
+    let dm: any = pm?.detalles || {};
+    if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
+    const esPagoAnuladoConFacturaPrevia = pm?.estado === 'Anulado' && Boolean(dm?.factura_digital?.anulada || dm?.factura_digital?.nota_credito || reemitir);
+    if (pm && pm.estado !== 'Aprobado' && !esPagoAnuladoConFacturaPrevia) {
       return NextResponse.json({ 
         error: `No se puede emitir factura fiscal: el pago aún no ha sido conciliado (estado actual: "${pm.estado || 'Pendiente'}"). Debe ser aprobado en Conciliación Bancaria antes de facturar.` 
       }, { status: 400 });
     }
-    let dm: any = pm?.detalles || {};
-    if (typeof dm === 'string') { try { dm = JSON.parse(dm); } catch { dm = {}; } }
     const esPagoConRetencion = Boolean(
       esRetencion || 
       dm?.es_retencion || 
@@ -860,7 +861,8 @@ export async function POST(request: Request) {
       multaCondoDirecta = r2(detPago.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0));
     }
 
-    if (llevaMulta === false) {
+    const esSoloAseoDet = Boolean(detPago?.solo_aseo || detPago?.sin_multas || detPago?.incluir_multas === false);
+    if (llevaMulta === false || (esSoloAseoDet && multaCondoDirecta === 0 && !tieneMontoMultaExplicito)) {
       baseExenta = 0;
     } else if (tieneMontoMultaExplicito) {
       // Si el operador o payload indicó explícitamente el monto de multa (incluso 0)
@@ -1420,9 +1422,6 @@ export async function POST(request: Request) {
             TipoIdentificacion:   tipoId || "J",
             NumeroIdentificacion: numId,
             Direccion:            (() => {
-              if (direccionOverride && String(direccionOverride).trim().length > 3) {
-                return sanitizarDireccionFiscal(String(direccionOverride).trim()) || 'NAGUANAGUA, EDO. CARABOBO';
-              }
               const uNum = esCondoGlobal ? null : (lineaCom?.numero ||
                 lineaCom?.unidadNumero || 
                 lineasCondo?.[0]?.numero ||
@@ -1433,13 +1432,18 @@ export async function POST(request: Request) {
                 null);
               const nombreCondo = condoDet?.nombre || detPago?.condominio?.nombre || null;
               const parentDir = condoDet?.direccion || detPago?.condominio?.direccion || null;
+
+              if (direccionOverride && String(direccionOverride).trim().length > 3) {
+                return sanitizarDireccionFiscal(String(direccionOverride).trim(), {
+                  unidadNumero: uNum,
+                  nombreCondo,
+                  parentDir
+                }) || 'NAGUANAGUA, EDO. CARABOBO';
+              }
               
               const isValidDir = (d: any) => d && typeof d === 'string' && d.trim().length > 3 && d.trim() !== '0 0' && d.trim() !== '0' && d.trim().toUpperCase() !== 'N/A';
               const dirFiscal = contribData?.direccion;
-              let dirEspecifica = matchedPropEspecifico?.direccion;
-              if (dirEspecifica) {
-                dirEspecifica = dirEspecifica.replace(/^[0-9\s.-]+(?:[A-Z0-9-]+\s+)*(?=(?:URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON|Bo|BARRIO|COMUNIDAD)\b)/i, '');
-              }
+              const dirEspecifica = matchedPropEspecifico?.direccion;
               const dirRecibo = detPago?.recibo_caja?.[0]?.domicilioFiscal;
               const dirSrv = srvDet?.direccion_evento;
               
@@ -1453,12 +1457,12 @@ export async function POST(request: Request) {
                 ? (isValidDir(parentDir) ? parentDir : (isValidDir(dirFiscal) ? dirFiscal : (isValidDir(dirEspecifica) ? dirEspecifica : dirAnyProp)))
                 : (tieneInmuebleEspecifico && isValidDir(dirEspecifica)
                   ? dirEspecifica
-                  : (isValidDir(dirFiscal)
-                    ? dirFiscal
+                  : (isValidDir(dirRecibo)
+                    ? dirRecibo
                     : (isValidDir(dirEspecifica)
                       ? dirEspecifica
-                      : (isValidDir(dirRecibo)
-                        ? dirRecibo
+                      : (isValidDir(dirFiscal)
+                        ? dirFiscal
                         : (isValidDir(dirSrv)
                           ? dirSrv
                           : (isValidDir(propRef?.direccion)
@@ -1554,7 +1558,34 @@ export async function POST(request: Request) {
                 const montoNetoCaja = r2(totalAPagar - montoRetFinal - montoSF);
 
                 const fps: any[] = [];
-                if (montoNetoCaja > 0) {
+                const pagosBancarios = Array.isArray(detPago.pagos_agregados)
+                  ? detPago.pagos_agregados.filter((pa: any) => !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') && !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
+                  : [];
+
+                if (pagosBancarios.length > 1 && montoNetoCaja > 0) {
+                  let sumPa = 0;
+                  for (const pa of pagosBancarios) {
+                    const descPa = String(pa.metodo || pa.tipo || tipoPago).trim();
+                    const nPa = descPa.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    const hPa = tabla.find(([, , keys]) => keys.some(k => nPa.includes(k)));
+                    const cPa = hPa ? hPa[0] : codigo;
+                    const fPa = casilla(hPa ? hPa[1] : descPa, 40);
+                    const rPa = casilla(String(pa.referencia || ''), 25);
+                    const bPa = casilla(String(pa.banco || bancoPago), Math.max(0, 100 - 2 - fPa.length - rPa.length));
+                    const mPa = r2(parseFloat(String(pa.monto || 0)) || 0);
+                    if (mPa > 0) {
+                      sumPa = r2(sumPa + mPa);
+                      fps.push({
+                        Descripcion: [fPa, bPa, rPa].join('|'),
+                        Fecha:       formatearFecha(pa.fecha || pa.fechaTransaccion || fechaPago),
+                        Forma:       cPa,
+                        Monto:       mPa.toFixed(2),
+                        Moneda:      'BSD',
+                        TipoCambio:  '0.0000',
+                      });
+                    }
+                  }
+                } else if (montoNetoCaja > 0) {
                   fps.push({
                     Descripcion: [forma, banco, ref].join('|'),
                     Fecha:       formatearFecha(fechaPago),
@@ -1664,15 +1695,22 @@ export async function POST(request: Request) {
               const montoNetoCaja = r2(totalAPagar - montoRetFinal - montoSF);
               const montoCompletoCaja = r2(montoNetoCaja + montoSF);
 
-              // Monto registrado en la conciliación del pago
-              const montoConciliado = parseFloat(String(detPago.monto_conciliado || pagoRow?.monto || 0)) || 0;
+              // Monto registrado en la conciliación del pago (sumando multi-transferencias si aplica)
+              const montoConciliado = totalEfectivoPagado > 0 ? totalEfectivoPagado : (parseFloat(String(detPago.monto_conciliado || pagoRow?.monto || 0)) || 0);
               const saldoFavorGen = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || 0)) || 0;
+
+              const refsMulti = Array.isArray(detPago.pagos_agregados) && detPago.pagos_agregados.length > 1
+                ? detPago.pagos_agregados
+                    .filter((pa: any) => !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('saldo a favor') && !String(pa?.metodo || pa?.tipo || '').toLowerCase().includes('nota de credito'))
+                    .map((pa: any) => `${pa.referencia} (Bs. ${f2(parseFloat(String(pa.monto || 0)) || 0)})`)
+                    .join(' + ')
+                : '';
 
               const partes: string[] = [];
               if (montoConciliado > 0) {
-                partes.push(`Monto Conciliado: Bs. ${f2(montoConciliado)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''})`);
+                partes.push(`Monto Conciliado: Bs. ${f2(montoConciliado)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refsMulti ? ' Refs. ' + refsMulti : (refPago ? ' Ref. ' + refPago : '')})`);
               } else if (montoNetoCaja > 0) {
-                partes.push(`Monto Pagado en Caja: Bs. ${f2(montoNetoCaja)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refPago ? ' Ref. ' + refPago : ''})`);
+                partes.push(`Monto Pagado en Caja: Bs. ${f2(montoNetoCaja)} (${tipoPago}${bancoPago ? ' ' + bancoPago : ''}${refsMulti ? ' Refs. ' + refsMulti : (refPago ? ' Ref. ' + refPago : '')})`);
               }
 
               if (montoSF > 0) {
@@ -1918,6 +1956,7 @@ export async function POST(request: Request) {
     nuevosDetalles.factura_digital_error = null;
 
     const updatePayload: any = { detalles: nuevosDetalles };
+    if (pm?.estado === 'Anulado') updatePayload.estado = 'Aprobado';
     if (identidad && String(identidad).trim()) updatePayload.identidad = String(identidad).trim().toUpperCase();
     if (referencia && String(referencia).trim()) {
       const cleanRefUpdate = String(referencia).replace(/\s*\(\+.*$/, '').trim();

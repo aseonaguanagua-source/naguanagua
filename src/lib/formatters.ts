@@ -452,7 +452,13 @@ export function sanitizarDireccionFiscal(
     }
   }
 
-  // 1. Eliminar prefijos catastrales numéricos iniciales solo si la cadena comienza con dígitos
+  // 1. Eliminar prefijos catastrales numéricos iniciales solo si la cadena comienza con dígitos,
+  // pero rescatando el código de local/unidad si viene en el prefijo (ej: "1 T-37 URB. EL TRIGAL CC CRISTAL..." -> unidad "T-37")
+  let unidadRescatadaDePrefijo = '';
+  const mLocalPrefijo = s.match(/^[0-9\s.-]+([A-Z]{1,4}-[0-9A-Z]+)\s+(?=(?:URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON|Bo|BARRIO|COMUNIDAD)\b)/i);
+  if (mLocalPrefijo && mLocalPrefijo[1]) {
+    unidadRescatadaDePrefijo = mLocalPrefijo[1].trim().toUpperCase();
+  }
   if (/^[0-9\s.-]+[A-Z0-9-]*\s+/i.test(s)) {
     // Si contiene un identificador geográfico/vial conocido, eliminar todo el prefijo numérico previo
     const stripped = s.replace(/^[0-9\s.-]+(?:[A-Z0-9-]+\s+)*(?=(?:URB|AV|AVENIDA|CALLE|CARRERA|SECTOR|CARRETERA|ZONA|AUTOPISTA|PARCELAMIENTO|CONJ|EDIF|C\.C|CENTRO|RESD|RESIDENCIAS?|CASA|LOCAL|QUINTA|GALPON|Bo|BARRIO|COMUNIDAD)\b)/i, '');
@@ -478,8 +484,8 @@ export function sanitizarDireccionFiscal(
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 3. Integrar el número de unidad si fue provisto y no está ya presente en la dirección
-  const uNum = (opts.unidadNumero || '').trim();
+  // 3. Integrar el número de unidad si fue provisto (o rescatado del prefijo) y no está ya presente en la dirección
+  const uNum = (opts.unidadNumero || unidadRescatadaDePrefijo || '').trim();
   if (uNum) {
     const cleanUNum = uNum.replace(/^(LOCAL|APTO|NRO\.?|OFICINA|MODULO|PUESTO)\s*/i, '').trim();
     if (cleanUNum) {

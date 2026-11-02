@@ -113,6 +113,7 @@ export async function POST(req: Request) {
             ? detP.deuda_previa
             : (Array.isArray(detMerged.deuda_previa) && detMerged.deuda_previa.length > 0 ? detMerged.deuda_previa : []);
           
+          const codsInmRestaurados = new Set<string>();
           if (prevLista.length > 0) {
             for (const prev of prevLista) {
               if (prev.unidad) {
@@ -139,10 +140,29 @@ export async function POST(req: Request) {
                 };
                 if (prev.id) await sb.from('inmuebles').update(updInm).eq('id', prev.id);
                 else if (prev.inmueble) await sb.from('inmuebles').update(updInm).eq('inmueble', prev.inmueble);
+                if (prev.inmueble) codsInmRestaurados.add(String(prev.inmueble).toUpperCase());
+              } else if (prev.inmueble && prev.aseo_pendiente_desde) {
+                // Pagos de condominio previos donde deuda_previa guardó aseo_pendiente_desde sin meses_deuda explícito
+                const [yP, mP] = String(prev.aseo_pendiente_desde).slice(0, 7).split('-').map(Number);
+                const hoyNow = new Date();
+                const mesesCalc = (yP && mP)
+                  ? Math.max(1, (hoyNow.getFullYear() - yP) * 12 + ((hoyNow.getMonth() + 1) - mP))
+                  : 1;
+                const { data: inmRow } = await sb.from('inmuebles').select('id, mmv_mes, deuda_mmv').eq('inmueble', prev.inmueble).maybeSingle();
+                if (inmRow) {
+                  const mmvMes = parseFloat(String(inmRow.mmv_mes || 0)) || 0;
+                  await sb.from('inmuebles').update({
+                    meses_deuda: mesesCalc,
+                    ...(mmvMes > 0 ? { deuda_mmv: parseFloat((mmvMes * mesesCalc).toFixed(6)) } : {}),
+                  }).eq('id', inmRow.id);
+                }
+                codsInmRestaurados.add(String(prev.inmueble).toUpperCase());
               }
             }
-          } else {
-            // Fallback: restaurar por recibos y RIF
+          }
+
+          // Fallback adicional: restaurar cualquier inmueble referenciado en recibos que no haya estado en prevLista
+          {
             const propCodes = new Set<string>();
             recibos.forEach((r: string) => {
               const m = r.match(/(?:RECIB-HIST|dummy-hist|CM|RECIB|MULTA)-([A-Z0-9_-]+)/i);
@@ -166,44 +186,51 @@ export async function POST(req: Request) {
                 if (rc?.inmueble) propCodes.add(String(rc.inmueble).toUpperCase());
               });
             }
+            // Excluir códigos ya restaurados mediante prevLista
+            codsInmRestaurados.forEach(c => propCodes.delete(c));
 
-            const rawId = String(actualP.identidad || '').trim().toUpperCase();
-            const sinG = rawId.replace(/-/g, '');
-            const conG = /^[VEJPG]\d/.test(sinG) ? `${sinG[0]}-${sinG.slice(1)}` : rawId;
-            const idVars = [...new Set([rawId, sinG, conG].filter(Boolean))];
-            
-            const orConditions = [
-              ...idVars.map(v => `identidad.eq.${v}`),
-              ...Array.from(propCodes).map(c => `inmueble.eq.${c}`)
-            ];
+            if (prevLista.length === 0 || propCodes.size > 0) {
+              const rawId = String(actualP.identidad || '').trim().toUpperCase();
+              const sinG = rawId.replace(/-/g, '');
+              const conG = /^[VEJPG]\d/.test(sinG) ? `${sinG[0]}-${sinG.slice(1)}` : rawId;
+              const idVars = [...new Set([rawId, sinG, conG].filter(Boolean))];
+              
+              const orConditions = [
+                ...(prevLista.length === 0 ? idVars.map(v => `identidad.eq.${v}`) : []),
+                ...Array.from(propCodes).map(c => `inmueble.eq.${c}`)
+              ].filter(Boolean);
 
-            const { data: inmsAfectados } = await sb.from('inmuebles').select('*').or(orConditions.join(','));
-            if (inmsAfectados && inmsAfectados.length > 0) {
-              for (const inm of inmsAfectados) {
-                const mesesPagados = recibos.filter((r: string) => r.toUpperCase().includes(String(inm.inmueble || '').toUpperCase())).length || 1;
-                const curMeses = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
-                const nuevoMeses = curMeses + mesesPagados;
-                const mmv = parseFloat(String(inm.mmv_mes || 0)) || (parseFloat(String(inm.deuda_mmv || 0)) / (curMeses || 1)) || 0;
-                await sb.from('inmuebles').update({
-                  meses_deuda: nuevoMeses,
-                  deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
-                }).eq('id', inm.id);
+              if (orConditions.length > 0) {
+                const { data: inmsAfectados } = await sb.from('inmuebles').select('*').or(orConditions.join(','));
+                if (inmsAfectados && inmsAfectados.length > 0) {
+                  for (const inm of inmsAfectados) {
+                    if (inm.inmueble && codsInmRestaurados.has(String(inm.inmueble).toUpperCase())) continue;
+                    const mesesPagados = recibos.filter((r: string) => r.toUpperCase().includes(String(inm.inmueble || '').toUpperCase())).length || 1;
+                    const curMeses = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
+                    const nuevoMeses = curMeses + mesesPagados;
+                    const mmv = parseFloat(String(inm.mmv_mes || 0)) || (parseFloat(String(inm.deuda_mmv || 0)) / (curMeses || 1)) || 0;
+                    await sb.from('inmuebles').update({
+                      meses_deuda: nuevoMeses,
+                      deuda_mmv: parseFloat((mmv * nuevoMeses).toFixed(6)),
+                    }).eq('id', inm.id);
+                  }
+                }
               }
-            }
 
-            // Condominios: retroceder fecha de aseo si aplica
-            const esCondo = actualP.modulo === 'condominios' || detMerged.es_condominio || detMerged.modulo === 'condominios';
-            if (esCondo) {
-              const condoCod = detMerged.condominio?.codigo || detMerged.codigo_condominio || (Array.from(propCodes)[0]);
-              if (condoCod) {
-                const { data: cRow } = await sb.from('condominios').select('*').eq('codigo', condoCod).maybeSingle();
-                if (cRow && cRow.aseo_pendiente_desde) {
-                  const mesesARevertir = recibos.length > 0 ? recibos.length : (detMerged.meses || 1);
-                  const f = new Date(cRow.aseo_pendiente_desde + 'T12:00:00Z');
-                  f.setMonth(f.getMonth() - mesesARevertir);
-                  const nuevaFecha = f.toISOString().slice(0, 10);
-                  await sb.from('condominios').update({ aseo_pendiente_desde: nuevaFecha }).eq('id', cRow.id);
-                  await sb.from('condominio_unidades').update({ aseo_pendiente_desde: nuevaFecha }).eq('condominio_id', cRow.id);
+              // Condominios: retroceder fecha de aseo si aplica y no había prevLista
+              const esCondo = actualP.modulo === 'condominios' || detMerged.es_condominio || detMerged.modulo === 'condominios';
+              if (esCondo && prevLista.length === 0) {
+                const condoCod = detMerged.condominio?.codigo || detMerged.codigo_condominio || (Array.from(propCodes)[0]);
+                if (condoCod) {
+                  const { data: cRow } = await sb.from('condominios').select('*').eq('codigo', condoCod).maybeSingle();
+                  if (cRow && cRow.aseo_pendiente_desde) {
+                    const mesesARevertir = recibos.length > 0 ? recibos.length : (detMerged.meses || 1);
+                    const f = new Date(cRow.aseo_pendiente_desde + 'T12:00:00Z');
+                    f.setMonth(f.getMonth() - mesesARevertir);
+                    const nuevaFecha = f.toISOString().slice(0, 10);
+                    await sb.from('condominios').update({ aseo_pendiente_desde: nuevaFecha }).eq('id', cRow.id);
+                    await sb.from('condominio_unidades').update({ aseo_pendiente_desde: nuevaFecha }).eq('condominio_id', cRow.id);
+                  }
                 }
               }
             }

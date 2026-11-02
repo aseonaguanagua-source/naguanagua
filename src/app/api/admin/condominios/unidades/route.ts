@@ -124,6 +124,9 @@ export async function PATCH(req: Request) {
     if (!antes) return NextResponse.json({ error: 'Unidad no encontrada' }, { status: 404 });
 
     const upd = limpiar(cambios || {});
+    if ('multa_meses' in upd && Number(upd.multa_meses) > 0) {
+      (upd as any).multa_exonerada_hasta = null;
+    }
     const esAgente = cambios.agente_retencion === true;
     
     const _tel = upd._telefono; const _cor = upd._correo; const _dir = upd._direccion; const _actExt = upd._actividades_extra;

@@ -292,17 +292,17 @@ export default function ReportesPage() {
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 max-w-lg">
           <p className="text-xs text-slate-600">
-            Descarga el total de operaciones por punto de venta agrupado por día y por cajero, incluyendo el total por cada caja y el total consolidado general.
+            Descarga el reporte detallado en Excel de todos los cobros de punto de venta (débito) de todas las cajas (con contribuyente, RIF, inmueble, recibo, lote, aprobación y desglose de IVA), además del resumen por día y por caja.
           </p>
           <div className="flex gap-3">
             <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Desde</label><input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
             <div className="flex flex-col flex-1"><label className="text-xs text-slate-500 mb-1">Hasta</label><input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" /></div>
           </div>
           <button
-            onClick={() => generarTotalPuntosVenta(pf, fechaInicio, fechaFin)}
+            onClick={() => generarTotalPuntosVenta(pf, fechaInicio, fechaFin, contribuyentes)}
             className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-sm font-semibold text-blue-900 transition-colors"
           >
-            Descargar Total Puntos de Venta (Excel) <Download className="w-4 h-4 text-blue-700" />
+            Descargar Detalle y Total Puntos de Venta — Todas las Cajas (Excel) <Download className="w-4 h-4 text-blue-700" />
           </button>
         </div>
       </div>

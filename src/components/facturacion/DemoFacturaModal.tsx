@@ -251,9 +251,17 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
   });
 
-  const fechaEmisionDoc = pago?.fechaEmision
-    ? new Date(pago.fechaEmision).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : fechaActual;
+  const rawFechaEmision = pago?.fechaEmisionOverride || det?.fecha_emision_override || pago?.fechaEmision || det?.factura_digital?.fecha_emision;
+  const fechaEmisionDoc = rawFechaEmision
+    ? (() => {
+        const s = String(rawFechaEmision).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+          const [y, m, d] = s.split('-');
+          return `${d}/${m}/${y}`;
+        }
+        return new Date(s).toLocaleDateString('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric' });
+      })()
+    : (simulacionTFHKA?.Encabezado?.IdentificacionDocumento?.FechaEmision || fechaActual);
   const horaEmisionDoc = pago?.fechaEmision
     ? new Date(pago.fechaEmision).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
     : horaActual;
@@ -345,10 +353,10 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
           det.modo !== 'CONDOMINIO'
         );
 
-        // Si es pago por local individual y tenemos el inmueble específico con dirección válida,
-        // priorizamos la dirección del local para no asignarle la dirección de otro local del mismo titular
+        // Si no es condominio global y tenemos el inmueble específico con dirección válida,
+        // priorizamos la dirección del inmueble/local específico para no asignarle la dirección de otro inmueble del mismo titular
         const isValidInmDir = inm?.direccion && inm.direccion.trim() !== '0 0' && inm.direccion.trim().length > 3;
-        if (esPagoPorLocal && isValidInmDir) {
+        if (!esCondoGlobal && isValidInmDir) {
           if (!cancel) {
             setInmuebleDireccion(inm.direccion);
             if (inm.licencia) setInmuebleLicencia(inm.licencia);
@@ -416,6 +424,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             esRetencion: pago.esRetencion ?? det.es_retencion ?? det.conRetencion ?? esRetencion,
             bancoOverride: det.banco || pago.banco,
             formaPagoOverride: det.tipo || pago.tipo,
+            fechaEmisionOverride: pago.fechaEmisionOverride || det.fecha_emision_override,
             montoTotal: totalFactura || pago.monto || det.monto_factura || pago.montoTotal || det.montoTotal
           })
         });

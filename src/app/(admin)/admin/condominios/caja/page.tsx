@@ -108,7 +108,7 @@ function Caja() {
   const [modalInt, setModalInt] = useState(false);
   const [motivoInt, setMotivoInt] = useState('');
 
-  const sumaPagos = useMemo(() => pagosAgregados.reduce((a, p) => a + p.monto, 0), [pagosAgregados]);
+  const sumaPagos = useMemo(() => Math.round(pagosAgregados.reduce((a, p) => a + (Number(p.monto) || 0), 0) * 100) / 100, [pagosAgregados]);
   
   // Saldo a Favor & Notas Crédito
   const [activeTab, setActiveTab] = useState<'Pagos' | 'NotasCredito'>(() => {
@@ -134,11 +134,11 @@ function Caja() {
   const [pagosPorConciliar, setPagosPorConciliar] = useState<any[]>([]);
 
   // Computado de deuda tras aplicar Saldo a Favor
-  const totalConImpuestos = cobro?.totales?.totalBs || 0;
+  const totalConImpuestos = Math.round((Number(cobro?.totales?.totalBs) || 0) * 100) / 100;
   const descuentoSaldoFavor = (metodoAct !== 'Saldo a Favor' && useSaldoFavor) 
-    ? Math.min(totalConImpuestos, saldoFavorActivo) 
+    ? Math.round(Math.min(totalConImpuestos, saldoFavorActivo) * 100) / 100
     : 0;
-  const totalNetoAbonable = Math.max(0, totalConImpuestos - descuentoSaldoFavor);
+  const totalNetoAbonable = Math.max(0, Math.round((totalConImpuestos - descuentoSaldoFavor) * 100) / 100);
   const faltaPagar = useMemo(() => Math.round((totalNetoAbonable - sumaPagos) * 100) / 100, [totalNetoAbonable, sumaPagos]);
 
   // Se resetean los pagos si cambia la deuda
@@ -191,8 +191,11 @@ function Caja() {
         return;
       }
 
-      const rawIdents = [condoIdent, condoCodigo].filter(Boolean);
-      const allIdents = Array.from(new Set(rawIdents.flatMap(id => getIdentidadVariantsExact(id))));
+      const unidadesIdents = (cobro?.estado?.renglones || [])
+        .flatMap((r: any) => [r?.identidad, r?.inmueble])
+        .filter(Boolean);
+      const rawIdents = [condoIdent, condoCodigo, ...unidadesIdents].filter(Boolean);
+      const allIdents = Array.from(new Set(rawIdents.flatMap(id => getIdentidadVariantsExact(id)))).slice(0, 300);
 
       const { data, error: errDocs } = await supabase
         .from('documentos')
@@ -206,17 +209,19 @@ function Caja() {
       const validDocs = (data || []).filter((d: any) => d.estado !== 'Anulado');
       const docsList = [...validDocs];
 
-      // Suma de notas registradas en documentos
-      const sumaDocs = docsList.reduce((acc: number, n: any) => {
-        let details: any = {};
-        try { details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
-        return acc + parseLocalFloat(details.monto_bs ?? details.monto ?? 0);
-      }, 0);
+      // Suma de notas vigentes registradas en documentos para el contexto actual
+      const sumaDocs = docsList
+        .filter((n: any) => n.estado === 'Vigente')
+        .reduce((acc: number, n: any) => {
+          let details: any = {};
+          try { details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
+          return acc + parseLocalFloat(details.monto_bs ?? details.monto ?? 0);
+        }, 0);
 
-      // Si en la ficha (inmuebles/condominios) hay saldo a favor que supera los documentos existentes,
-      // sintetizamos una fila explícita para que el usuario pueda verla, editar su monto o eliminarla/ponerla a 0.
+      // Si en la ficha (inmuebles/condominios) hay saldo a favor que supera los documentos existentes en al menos Bs 1,00,
+      // sintetizamos una fila explícita (ignorando diferencias de céntimos < Bs 1,00 por redondeo).
       const diferenciaDirecta = Math.round((saldoFavorActivo - sumaDocs) * 100) / 100;
-      if (diferenciaDirecta > 0.05) {
+      if (diferenciaDirecta >= 1.00) {
         docsList.unshift({
           id: `__directo__${condoCodigo || condoIdent}`,
           created_at: new Date().toISOString(),
@@ -513,7 +518,7 @@ function Caja() {
   const sinSeleccion = (porContrib && !claves.length && !identidad.trim()) || (!porContrib && abonoLocales && !claves.length);
 
   const agregarPago = () => {
-    let montoParsed = parseLocalFloat(montoAct);
+    let montoParsed = Math.round((parseLocalFloat(montoAct) || 0) * 100) / 100;
     if (!montoParsed || montoParsed <= 0) return alert('Monto inválido.');
     if (['Transferencia', 'Deposito', 'Punto de Venta'].includes(metodoAct)) {
       if (!bancoAct) return alert('Seleccione banco.');
@@ -662,9 +667,9 @@ function Caja() {
         ? ['__NINGUNO__']
         : (modo === 'CONDOMINIO' && !abonoLocales ? [] : claves);
 
-      const sumaRealPagos = realPagosSubidos.reduce((a, b) => a + (Number(b.monto) || 0), 0);
-      const totalAPagarCobro = cobro.totales.totalBs;
-      const excedenteGenerado = faltaPagar < -0.05 ? Math.abs(faltaPagar) : 0;
+      const sumaRealPagos = Math.round(realPagosSubidos.reduce((a, b) => a + (Number(b.monto) || 0), 0) * 100) / 100;
+      const totalAPagarCobro = Math.round((Number(cobro.totales.totalBs) || 0) * 100) / 100;
+      const excedenteGenerado = faltaPagar <= -1.00 ? Math.round(Math.abs(faltaPagar) * 100) / 100 : 0;
       const nuevoCobroId = crypto.randomUUID();
       pagoId.current = nuevoCobroId;
 
@@ -886,8 +891,17 @@ function Caja() {
               <div key={u.id} className="w-full px-4 py-2.5 hover:bg-emerald-50 flex items-center gap-3">
                 <button onClick={() => elegir(u.condominios.codigo, u)} className="flex-1 text-left flex items-center gap-3 cursor-pointer" title="Cobrar solo este local">
                   <Layers className="w-4 h-4 text-sky-600 shrink-0" />
-                  <div><div className="font-bold text-slate-900 text-sm"><span className="font-mono">{u.inmueble}{u.numero ? ` · ${u.numero}` : ''}</span> — {u.propietario || 'Sin propietario'} <span className="font-mono text-xs text-slate-500">{u.identidad}</span></div>
-                    <div className="text-[11px] text-slate-500">en {u.condominios.nombre} · <b className="text-sky-700">cobrar solo este local</b></div></div>
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
+                      <span><span className="font-mono">{u.inmueble}{u.numero ? ` · ${u.numero}` : ''}</span> — {u.propietario || 'Sin propietario'} <span className="font-mono text-xs text-slate-500">{u.identidad}</span></span>
+                      {Number(u.saldo_favor_bs || 0) >= 1.00 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          💳 Nota de Crédito: Bs {fmtBs(u.saldo_favor_bs)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-500">en {u.condominios.nombre} · <b className="text-sky-700">cobrar solo este local</b></div>
+                  </div>
                 </button>
                 {u.identidad && (
                   <button onClick={() => elegir(u.condominios.codigo, u, true)} className="shrink-0 px-2.5 py-1 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-600 hover:border-sky-300 hover:text-sky-800 cursor-pointer">
@@ -1655,7 +1669,14 @@ function Caja() {
                               )}
                             </td>
                             <td className={`py-2 px-3 ${!seleccionada ? 'opacity-60' : ''}`}>
-                              <div className="font-bold text-slate-900 font-mono text-xs">{r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'Declaradas sin registrar' : 'Condominio')}{r.numero ? ` · ${r.numero}` : ''}</div>
+                              <div className="font-bold text-slate-900 font-mono text-xs flex items-center gap-1.5 flex-wrap">
+                                <span>{r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'Declaradas sin registrar' : 'Condominio')}{r.numero ? ` · ${r.numero}` : ''}</span>
+                                {Number(r.saldoFavorBs || 0) >= 1.00 && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold font-sans bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    💳 Nota de Crédito: Bs {fmtBs(r.saldoFavorBs)}
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-[11px] text-slate-500">{r.propietario || ''}{r.identidad ? ` · ${r.identidad}` : ''}</div>
                               {r.actividad && <div className="text-[10px] text-violet-700 font-bold truncate max-w-[340px]">{r.actividad}</div>}
                               {r.multasManuales?.map((m: any) => <div key={m.id} className="text-[10px] text-red-700">• Multa: {m.concepto} (Bs {fmtBs(m.montoBs)})</div>)}
@@ -1869,7 +1890,7 @@ function Caja() {
                     </div>
                   </div>
                 ))}
-                {faltaPagar < -0.05 && (
+                {faltaPagar <= -1.00 && (
                   <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-center mb-2">
                     <p className="text-emerald-300 text-xs font-bold uppercase tracking-wide">Genera Saldo a Favor</p>
                     <p className="text-emerald-400 text-base font-black">Bs {fmtBs(Math.abs(faltaPagar))}</p>

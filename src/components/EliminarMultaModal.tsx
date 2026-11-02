@@ -36,31 +36,28 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
   }, [inmuebles, rawId]);
 
   const [selectedInmCode, setSelectedInmCode] = useState<string>(
-    userInms.length > 0 ? userInms[0].inmueble : ''
+    userInms.length > 1 ? '__TODOS__' : (userInms.length > 0 ? userInms[0].inmueble : '')
   );
 
-  const activeInm = useMemo(() => {
-    return userInms.find((i: any) => i.inmueble === selectedInmCode) || userInms[0] || null;
-  }, [userInms, selectedInmCode]);
+  const isTodosSelected = selectedInmCode === '__TODOS__' && userInms.length > 1;
 
-  // Lista de meses que adeuda el inmueble activo
+  const activeInm = useMemo(() => {
+    if (isTodosSelected) return userInms[0] || null;
+    return userInms.find((i: any) => i.inmueble === selectedInmCode) || userInms[0] || null;
+  }, [userInms, selectedInmCode, isTodosSelected]);
+
+  // Lista de meses que adeuda el inmueble activo (o suma consolidada de todos los inmuebles si __TODOS__)
   const mesesAdeudados = useMemo<MonthItem[]>(() => {
     if (!activeInm) return [];
-    const totalMeses = Math.max(0, parseInt(String(activeInm.meses_deuda || '0'), 10));
-    const esRes = isResidencialInm(activeInm);
-    const baseUnMes = calcularMensualidad(activeInm, tcmmv > 0 ? tcmmv : 1);
-    const multaPorcentaje = esRes ? 0.10 : 0.12;
-    const baseMultaMes = parseFloat((baseUnMes * multaPorcentaje).toFixed(2));
+    const targetInms = isTodosSelected ? userInms : [activeInm];
+    const maxMeses = Math.max(0, ...targetInms.map((inm: any) => parseInt(String(inm.meses_deuda || '0'), 10)));
 
     const now = new Date();
     const items: MonthItem[] = [];
 
-    // Ver si ya tiene multas totalmente exoneradas
-    const yaExoneradoTodo = isExoneradoTotalMultas(activeInm.notas);
-
-    for (let i = 1; i <= Math.max(1, totalMeses); i++) {
+    for (let i = 1; i <= Math.max(1, maxMeses); i++) {
       // De más antiguo a más reciente
-      const targetDate = new Date(now.getFullYear(), now.getMonth() - totalMeses + i - 1, 1);
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - maxMeses + i - 1, 1);
       const year = targetDate.getFullYear();
       const monthNum = targetDate.getMonth(); // 0-11
       const monthStr = String(monthNum + 1).padStart(2, '0');
@@ -72,21 +69,38 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
       const monthsDiff = (now.getFullYear() - year) * 12 + (now.getMonth() - monthNum);
       const isOverdue = monthsDiff > 1;
 
-      const yaExoneradoEsteMes = yaExoneradoTodo || isMesExoneradoMulta(activeInm.notas, key);
-      const multaBs = (!isOverdue || yaExoneradoEsteMes) ? 0 : baseMultaMes;
+      let sumBaseBs = 0;
+      let sumMultaBs = 0;
+      let allExonerados = true;
+
+      for (const inm of targetInms) {
+        const inmMeses = Math.max(0, parseInt(String(inm.meses_deuda || '0'), 10));
+        // Verificar si este inmueble debe este mes específico
+        const debeEsteMes = monthsDiff < inmMeses;
+        if (!debeEsteMes && inmMeses > 0) continue;
+        const esRes = isResidencialInm(inm);
+        const baseUnMes = calcularMensualidad(inm, tcmmv > 0 ? tcmmv : 1);
+        const multaPorcentaje = esRes ? 0.10 : 0.12;
+        const baseMultaMes = parseFloat((baseUnMes * multaPorcentaje).toFixed(2));
+        const yaExoneradoTodo = isExoneradoTotalMultas(inm.notas);
+        const yaExoneradoEsteMes = yaExoneradoTodo || isMesExoneradoMulta(inm.notas, key);
+        if (!yaExoneradoEsteMes) allExonerados = false;
+        sumBaseBs += baseUnMes;
+        sumMultaBs += (!isOverdue || yaExoneradoEsteMes) ? 0 : baseMultaMes;
+      }
 
       items.push({
         key,
         label: monthName,
-        baseBs: baseUnMes,
-        multaBs,
+        baseBs: parseFloat(sumBaseBs.toFixed(2)),
+        multaBs: parseFloat(sumMultaBs.toFixed(2)),
         isOverdue,
-        yaExoneradoPreviamente: isOverdue && yaExoneradoEsteMes
+        yaExoneradoPreviamente: isOverdue && allExonerados
       });
     }
 
     return items;
-  }, [activeInm, tcmmv]);
+  }, [activeInm, userInms, isTodosSelected, tcmmv]);
 
   // Meses seleccionados para eliminar multa
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
@@ -153,46 +167,65 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
       
       const todosLosMesesConMulta = mesesAdeudados.filter(m => m.multaBs > 0);
       const exoneroTodos = selectedMonths.length >= todosLosMesesConMulta.length;
-
-      let nuevaNota = (activeInm.notas || '').trim();
+      const targetInms = isTodosSelected ? userInms : [activeInm];
       const registroExoneracion = `[${fechaHoy} ${hora}] EXONERACIÓN DE MULTAS: Se eliminaron las multas de ${selectedMonths.length} mes(es) (${selectedMonths.join(', ')}). Motivo: ${nota.trim()} (Autorizado por: dzara)`;
 
-      if (nuevaNota) {
-        nuevaNota += `\n---\n${registroExoneracion}`;
-      } else {
-        nuevaNota = registroExoneracion;
-      }
-
-      // Si se exoneraron todos los meses, marcar Caso especial: Exonerado de multas
-      if (exoneroTodos) {
-        if (!nuevaNota.includes('Caso especial: Exonerado de multas')) {
-          nuevaNota = `Caso especial: Exonerado de multas\n${nuevaNota}`;
+      const now = new Date();
+      for (const inm of targetInms) {
+        let nuevaNota = (inm.notas || '').trim();
+        if (nuevaNota) {
+          nuevaNota += `\n---\n${registroExoneracion}`;
+        } else {
+          nuevaNota = registroExoneracion;
         }
+
+        if (exoneroTodos) {
+          if (!nuevaNota.includes('Caso especial: Exonerado de multas')) {
+            nuevaNota = `Caso especial: Exonerado de multas\n${nuevaNota}`;
+          }
+        }
+
+        const tagsExistentes = nuevaNota.match(/\[EXONERADO:\d{4}-\d{2}\]/g) || [];
+        const tagsNuevos = selectedMonths
+          .map(k => `[EXONERADO:${k}]`)
+          .filter(t => !tagsExistentes.includes(t));
+        if (tagsNuevos.length > 0) {
+          nuevaNota += `\n${tagsNuevos.join(' ')}`;
+        }
+
+        // Calcular multa remanente para este inmueble específico
+        const inmMeses = Math.max(0, parseInt(String(inm.meses_deuda || '0'), 10));
+        const esRes = isResidencialInm(inm);
+        const baseUnMes = calcularMensualidad(inm, tcmmv > 0 ? tcmmv : 1);
+        const multaPorcentaje = esRes ? 0.10 : 0.12;
+        const baseMultaMes = parseFloat((baseUnMes * multaPorcentaje).toFixed(2));
+        const yaExoneradoTodo = isExoneradoTotalMultas(nuevaNota);
+
+        let nuevaMultaBsInm = 0;
+        if (!yaExoneradoTodo && inmMeses > 1) {
+          for (let i = 1; i <= inmMeses; i++) {
+            const targetDate = new Date(now.getFullYear(), now.getMonth() - inmMeses + i - 1, 1);
+            const year = targetDate.getFullYear();
+            const monthNum = targetDate.getMonth();
+            const key = `${year}-${String(monthNum + 1).padStart(2, '0')}`;
+            const monthsDiff = (now.getFullYear() - year) * 12 + (now.getMonth() - monthNum);
+            const isOverdue = monthsDiff > 1;
+            if (isOverdue && !selectedMonths.includes(key) && !isMesExoneradoMulta(nuevaNota, key)) {
+              nuevaMultaBsInm += baseMultaMes;
+            }
+          }
+        }
+
+        const { error: errInm } = await supabase
+          .from('inmuebles')
+          .update({
+            multa_bs: parseFloat(nuevaMultaBsInm.toFixed(2)),
+            notas: nuevaNota
+          })
+          .eq('id', inm.id);
+
+        if (errInm) throw errInm;
       }
-
-      // Guardar también tags de meses exonerados evitando duplicados
-      const tagsExistentes = nuevaNota.match(/\[EXONERADO:\d{4}-\d{2}\]/g) || [];
-      const tagsNuevos = selectedMonths
-        .map(k => `[EXONERADO:${k}]`)
-        .filter(t => !tagsExistentes.includes(t));
-      if (tagsNuevos.length > 0) {
-        nuevaNota += `\n${tagsNuevos.join(' ')}`;
-      }
-
-      // Calcular la multa remanente para los meses que NO fueron seleccionados
-      const mesesRestantesConMulta = mesesAdeudados.filter(m => m.multaBs > 0 && !selectedMonths.includes(m.key));
-      const nuevaMultaBs = mesesRestantesConMulta.reduce((sum, m) => sum + m.multaBs, 0);
-
-      // 1. Actualizar inmueble en Supabase
-      const { error: errInm } = await supabase
-        .from('inmuebles')
-        .update({
-          multa_bs: nuevaMultaBs,
-          notas: nuevaNota
-        })
-        .eq('id', activeInm.id);
-
-      if (errInm) throw errInm;
 
       // 2. Si hay notas en contribuyentes, registrar también
       if (row.id) {
@@ -205,12 +238,13 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
       }
 
       // 3. Registrar en Auditoría Municipal
+      const codigosExonerados = targetInms.map((i: any) => i.inmueble).join(', ');
       await logAudit(
         'Exoneración de Multas por Mes',
         {
           contribuyente: row.Contribuyente || row.contribuyente || row.nombre,
           identidad: row.Identidad || row.identidad,
-          inmueble: activeInm.inmueble,
+          inmueble: codigosExonerados,
           meses_exonerados: selectedMonths,
           total_multa_eliminada_bs: totalMultaAEliminar,
           motivo: nota.trim(),
@@ -227,7 +261,7 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
       }
       await refreshData(true);
 
-      alert(`✅ Multas eliminadas exitosamente para ${selectedMonths.length} mes(es) en el inmueble ${activeInm.inmueble}.\n\nTotal exonerado: Bs. ${totalMultaAEliminar.toFixed(2)}`);
+      alert(`✅ Multas eliminadas exitosamente para ${selectedMonths.length} mes(es) en ${targetInms.length > 1 ? `TODOS los inmuebles (${codigosExonerados})` : `el inmueble ${activeInm.inmueble}`}.\n\nTotal exonerado: Bs. ${totalMultaAEliminar.toFixed(2)}`);
       
       if (onSuccess) await onSuccess();
       onClose();
@@ -288,6 +322,9 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
                 onChange={(e) => setSelectedInmCode(e.target.value)}
                 className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-rose-500"
               >
+                <option value="__TODOS__">
+                  🏢 TODAS LAS UNIDADES / ACTIVIDADES ({userInms.length} inmuebles - Exoneración Masiva)
+                </option>
                 {userInms.map((inm: any) => (
                   <option key={inm.id || inm.inmueble} value={inm.inmueble}>
                     {inm.inmueble} - {inm.actividad_principal || 'Residencial'} ({inm.meses_deuda || 0} meses)

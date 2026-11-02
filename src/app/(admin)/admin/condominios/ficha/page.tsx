@@ -685,11 +685,19 @@ function Ficha() {
                             <tr onClick={() => setAbierto(open ? null : r.clave)} className={`cursor-pointer hover:bg-emerald-50/40 ${sinReg ? 'bg-amber-50/50' : ''} ${unidadFoco && r.inmueble === unidadFoco ? 'bg-emerald-50' : ''}`}>
                               <td className="pl-3 text-slate-400">{r.deuda.meses > 0 ? (open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />) : null}</td>
                               <td className="py-2.5 px-3">
-                                <div className="font-bold text-slate-900 flex items-center gap-2">
+                                <div className="font-bold text-slate-900 flex items-center gap-2 flex-wrap">
                                   {sinReg ? (
                                     <span className="text-amber-800">Unidades declaradas sin registrar</span>
                                   ) : (
                                     <span className="font-mono">{r.inmueble}{r.numero ? ` · ${r.numero}` : ''}</span>
+                                  )}
+                                  {Number(r.saldoFavorBs || u?.saldo_favor_bs || 0) >= 1.00 && (
+                                    <span
+                                      title={`Esta unidad posee una Nota de Crédito / Saldo a Favor disponible de Bs ${fmtBs(r.saldoFavorBs || u?.saldo_favor_bs)}`}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs"
+                                    >
+                                      💳 Nota de Crédito: Bs {fmtBs(r.saldoFavorBs || u?.saldo_favor_bs)}
+                                    </span>
                                   )}
                                   {convUnidad && (
                                     <Link
@@ -835,11 +843,16 @@ function Ficha() {
                     <tr onClick={() => hs.length && setTorresAbiertas(s => { const n = new Set(s); n.has(u.id) ? n.delete(u.id) : n.add(u.id); return n; })}
                       className={`${hs.length ? 'cursor-pointer bg-slate-50/80 hover:bg-emerald-50/50' : ''} ${unidadFoco && u.inmueble === unidadFoco ? 'bg-emerald-50' : ''}`}>
                       <td className="py-2 px-4 font-mono font-bold" style={{ paddingLeft: 16 + nivel * 22 }}>
-                        <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1.5 flex-wrap">
                           {hs.length ? (abierta ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />) : nivel > 0 ? <span className="text-slate-300">└</span> : null}
                           {hs.length ? <Building className="w-3.5 h-3.5 text-emerald-600" /> : null}
                           {u.inmueble || '—'}
                           {hs.length ? <span className="ml-1 px-1.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black">{hs.length} unidades</span> : null}
+                          {Number(u.saldo_favor_bs || 0) >= 1.00 && (
+                            <span className="ml-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-extrabold font-sans">
+                              💳 Nota de Crédito: Bs {fmtBs(u.saldo_favor_bs)}
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td className="py-2 px-3">{u.numero || '—'}</td>

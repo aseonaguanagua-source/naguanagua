@@ -3,6 +3,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { extraerCodigoInmueble, parseDetalles } from '@/lib/documentoPago';
 import { isResidencialInm } from '@/lib/calculos';
 import { desglosarPago, COLS_INMUEBLE_DESGLOSE, LineaDesglose } from '@/lib/desglosePago';
+import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
 
 /** Conceptos del recibo a partir del desglose por período (base, IVA, retención y multa de cada mes). */
 function conceptosDeDesglose(lineas: LineaDesglose[]) {
@@ -105,9 +106,19 @@ export async function GET(request: Request) {
     };
     const lbl = (k: string) => `${MESES[parseInt(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}`;
     const keys = [...new Set(refs.filter(r => !/^MULTA-/i.test(r)).map(mesKey).filter(Boolean) as string[])].sort();
-    const periodo = keys.length === 0 ? undefined
+    const conceptoUnificado = resolverConceptoPeriodoPago({
+      ...pago,
+      detalles: det,
+      mesesServicio: refs.filter(r => !/^MULTA-/i.test(r)).length || 1,
+      subtipo: (inms || []).some((i: any) => !isResidencialInm(i)) ? 'comercial' : 'residencial'
+    });
+    const periodoFromHelper = (() => {
+      const m = conceptoUnificado.match(/-\s*(.+)$/);
+      return m && m[1] ? m[1].trim().toUpperCase() : undefined;
+    })();
+    const periodo = periodoFromHelper || (keys.length === 0 ? undefined
       : keys.length === 1 ? lbl(keys[0])
-      : `DESDE ${lbl(keys[0])} HASTA ${lbl(keys[keys.length - 1])} (${keys.length} MESES)`;
+      : `DESDE ${lbl(keys[0])} HASTA ${lbl(keys[keys.length - 1])} (${keys.length} MESES)`);
 
     const conceptos: { descripcion: string; precioUnit: number; total: number }[] = [];
     for (const ref of refs) {
@@ -116,18 +127,25 @@ export async function GET(request: Request) {
       const cod = extraerCodigoInmueble(ref) || '';
       const mes = ref.match(/-M(\d+)$/i)?.[1];
       const k = mesKey(ref);
+      const lblPeriodoRef = refs.filter(r => !/^MULTA-/i.test(r)).length === 1 && periodoFromHelper ? periodoFromHelper : (k ? lbl(k) : `Mes ${mes || ''} de deuda`);
       const desc = /^MULTA-/i.test(ref)
         ? `Multa por mora - Aseo Urbano (${cod})`
         : /^RECIB-HIST-/i.test(ref)
-          ? `Servicio de Aseo Urbano - ${k ? lbl(k) : `Mes ${mes || ''} de deuda`} (${cod})`
-          : `Servicio de Aseo Urbano ${k ? lbl(k) : ''} (${ref})`;
+          ? `Servicio de Aseo Urbano - ${lblPeriodoRef} (${cod})`
+          : `Servicio de Aseo Urbano ${lblPeriodoRef} (${ref})`;
       conceptos.push({ descripcion: desc, precioUnit: m, total: m });
     }
     const suma = r2(conceptos.reduce((s, c) => s + c.total, 0));
     const cuadra = conceptos.length > 0 && Math.abs(suma - monto) <= 0.05;
+    const descUnicaFallback = periodo
+      ? `Servicio de Aseo Urbano${esComercialTmp() ? ' Comercial' : ''} - ${periodo}${codigos[0] ? ` (${codigos[0]})` : ''}`
+      : 'Servicio de Aseo Urbano y Domiciliario';
+    function esComercialTmp() {
+      return (inms || []).some((i: any) => !isResidencialInm(i));
+    }
     const lineas = cuadra ? conceptos
       : desglose.cuadra ? conceptosDeDesglose(desglose.lineas)
-      : [{ descripcion: 'Servicio de Aseo Urbano y Domiciliario', precioUnit: monto, total: monto }];
+      : [{ descripcion: descUnicaFallback, precioUnit: monto, total: monto }];
 
     const inmPrincipal: any = codigos.map(c => inmMap.get(c)).find(Boolean);
     const esComercial = (inms || []).some((i: any) => !isResidencialInm(i));
@@ -170,22 +188,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, original: false, recibos: recibosSeparados });
     }
 
+    const subTotalSingle = esComercial ? r2(monto / 1.16) : monto;
+    const ivaSingle = esComercial ? r2(monto - subTotalSingle) : 0;
+    const exentoSingle = esComercial ? 0 : monto;
+
     const recibo = {
       reciboNo: refNum,
       controlWeb: `WEB-${refNum}`,
       fechaEmision: String(det.fecha_transaccion || pago.created_at || '').slice(0, 10),
       codContribuyente: codigos[0] || pago.identidad,
-      razonSocial: det.contribuyente || cont?.nombre || inmPrincipal?.contribuyente || '',
+      razonSocial: inmPrincipal?.contribuyente || det.contribuyente || cont?.nombre || '',
       domicilioFiscal: String(inmPrincipal?.direccion || cont?.direccion || 'NAGUANAGUA, CARABOBO').toUpperCase(),
       rifCi: pago.identidad,
       caja: det.cajero || '',
       periodo: det.es_condominio && Array.isArray(det.condominio?.lineas) 
         ? [...new Set(det.condominio.lineas.flatMap((l: any) => l.periodos || []))].join(', ') || periodo 
-        : desglose.periodoTexto || periodo,
+        : periodo || desglose.periodoTexto,
       conceptos: lineas,
-      subTotal: monto,
-      exento: monto,
-      iva: 0,
+      subTotal: subTotalSingle,
+      exento: exentoSingle,
+      iva: ivaSingle,
       total: monto,
       formaPago: formaPagoTexto(pago.tipo),
       banco: pago.banco || pago.tipo || '',

@@ -41,9 +41,16 @@ function cab(ws: any, fila: number, valores: string[], desde = 1) {
 }
 
 // ─────────────────────────── TOTAL PUNTOS DE VENTA ───────────────────────────
-export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string, fechaFin: string) {
+export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string, fechaFin: string, contribuyentes: any[] = []) {
   const deb = pagos.filter(p => !esAnulado(p) && esDebito(p));
   if (!deb.length) { alert('No hay pagos por punto de venta en el rango.'); return; }
+  const inmMap = await cargarInmMapPagos(deb);
+  const nombreDe = (id: string, det: any, p: any) =>
+    contribuyentes.find((x: any) => (x.Identidad || x.identidad) === id)?.Contribuyente ||
+    det.recibo_caja?.[0]?.razonSocial ||
+    p.contribuyente ||
+    id;
+
   const porDia = new Map<string, Map<string, { cajero: string; monto: number; usuarios: Set<string> }>>();
   const todasCajas = new Map<string, string>();
   deb.forEach(p => {
@@ -60,6 +67,126 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   });
   const cajasOrden = [...todasCajas.keys()].sort();
   const wb = new ExcelJS.Workbook();
+
+  // Hoja 1: DETALLE DEBITOS (TODAS LAS CAJAS) - similar al reporte detallado de transferencias
+  const wsDet = wb.addWorksheet('DETALLE PUNTOS DE VENTA');
+  const colsDet = [
+    'Fecha Pago', 'Caja', 'Cajero / Operador', 'Banco / Punto', 'Referencia / Recibo',
+    'Aprobación', 'Lote', 'Forma de Pago', 'Monto Pagado (Bs.)', 'Nro Factura / Control',
+    'Código Inmueble', 'RIF / Cédula', 'Razón Social / Contribuyente',
+    'Aseo Urbano', '% IVA', 'Monto IVA', 'Exento'
+  ];
+  [12, 12, 18, 18, 16, 14, 12, 14, 16, 16, 15, 15, 34, 15, 8, 13, 13].forEach((w, i) => {
+    wsDet.getColumn(i + 1).width = w;
+  });
+  wsDet.mergeCells(1, 1, 1, colsDet.length);
+  wsDet.getCell(1, 1).value = `REPORTE DETALLADO DE COBROS POR PUNTO DE VENTA (DÉBITO) — TODAS LAS CAJAS (${dmy(fechaInicio)} AL ${dmy(fechaFin)})`;
+  wsDet.getCell(1, 1).font = { bold: true, size: 12 };
+  wsDet.getCell(1, 1).alignment = { horizontal: 'center', vertical: 'middle' };
+  cab(wsDet, 3, colsDet, 1);
+
+  const porCajaItems = new Map<string, any[]>();
+  deb.slice().sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).forEach(p => {
+    const det = parseDet(p);
+    const { caja } = cajaDe(det);
+    if (!porCajaItems.has(caja)) porCajaItems.set(caja, []);
+    porCajaItems.get(caja)!.push({ p, det });
+  });
+
+  let fdRow = 4;
+  let granTotalDeb = 0;
+  let granBase = 0, granIva = 0, granExento = 0;
+
+  [...porCajaItems.keys()].sort().forEach(caja => {
+    const itemsCaja = porCajaItems.get(caja)!;
+    const cajeroNom = todasCajas.get(caja) || '';
+    const rSec = wsDet.getRow(fdRow++);
+    rSec.getCell(1).value = `💳 ${caja}${cajeroNom ? ` — CAJERO: ${cajeroNom}` : ''} (${itemsCaja.length} operaciones)`;
+    rSec.getCell(1).font = { bold: true, size: 10, color: { argb: 'FF1F4E78' } };
+    rSec.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+    wsDet.mergeCells(fdRow - 1, 1, fdRow - 1, colsDet.length);
+
+    let subCaja = 0, subBase = 0, subIva = 0, subExento = 0;
+    itemsCaja.forEach(({ p, det }) => {
+      const fPago = fechaVE(p.created_at);
+      const { cajero } = cajaDe(det);
+      const mt = montosPago(p, det, inmMap, 0);
+      const fd = det.factura_digital || {};
+      const recs = Array.isArray(det.recibos) ? det.recibos : [];
+      const nroDoc = fd.numero_documento || det.recibo_caja?.[0]?.controlWeb || det.recibo_caja?.[0]?.reciboNo || det.recibo_no || recs[0] || '';
+      const codigosList = codigosDePago(det, p);
+      const codPrincipal = codigosList[0] || det.codigo_inmueble || det.cod_inmueble || p.inmueble || '';
+      const mPagado = r2(Number(p.monto) || 0);
+
+      const row = wsDet.getRow(fdRow++);
+      const vals: any[] = [
+        dmy(fPago),
+        caja,
+        cajero || det.cajero || '',
+        p.banco || det.banco_destino || 'Punto de Venta',
+        p.referencia || recs[0] || '',
+        det.aprobacion || '',
+        det.lote || '',
+        p.tipo || 'Débito',
+        mPagado,
+        nroDoc,
+        codPrincipal,
+        p.identidad || '',
+        nombreDe(p.identidad, det, p),
+        mt.base,
+        mt.iva > 0 ? 16 : 0,
+        mt.iva,
+        mt.exento
+      ];
+      vals.forEach((v, i) => {
+        const c = row.getCell(i + 1);
+        c.value = v;
+        c.border = BORDE;
+        c.font = { size: 9 };
+        if ([8, 13, 15, 16].includes(i)) c.numFmt = '#,##0.00';
+      });
+      subCaja += mPagado;
+      subBase += mt.base;
+      subIva += mt.iva;
+      subExento += mt.exento;
+    });
+
+    const rSub = wsDet.getRow(fdRow++);
+    rSub.getCell(8).value = `SUBTOTAL ${caja}`;
+    rSub.getCell(9).value = r2(subCaja);
+    rSub.getCell(14).value = r2(subBase);
+    rSub.getCell(16).value = r2(subIva);
+    rSub.getCell(17).value = r2(subExento);
+    [8, 9, 14, 16, 17].forEach(colIdx => {
+      const cell = rSub.getCell(colIdx);
+      cell.font = { bold: true, size: 9 };
+      cell.border = BORDE;
+      if (colIdx !== 8) cell.numFmt = '#,##0.00';
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    });
+    fdRow++;
+
+    granTotalDeb += subCaja;
+    granBase += subBase;
+    granIva += subIva;
+    granExento += subExento;
+  });
+
+  const rGran = wsDet.getRow(fdRow++);
+  rGran.getCell(8).value = 'TOTAL GENERAL PUNTOS DE VENTA';
+  rGran.getCell(9).value = r2(granTotalDeb);
+  rGran.getCell(14).value = r2(granBase);
+  rGran.getCell(16).value = r2(granIva);
+  rGran.getCell(17).value = r2(granExento);
+  [8, 9, 14, 16, 17].forEach(colIdx => {
+    const cell = rGran.getCell(colIdx);
+    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    cell.border = BORDE;
+    if (colIdx !== 8) cell.numFmt = '#,##0.00';
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+  });
+
+  // Hoja 2: RESUMEN POR DIA
   const res = wb.addWorksheet('RESUMEN');
   res.columns = [{ width: 10 }, { width: 8 }, { width: 18 }, { width: 12 }, { width: 10 }] as any;
   res.mergeCells('A1:E1');

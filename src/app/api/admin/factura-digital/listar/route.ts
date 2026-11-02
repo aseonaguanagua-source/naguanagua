@@ -855,7 +855,7 @@ export async function GET(request: Request) {
           pagoRetencionId: vincRet?.id || det.pago_retencion_id || null,
           modulo: pago.modulo || (infoCondo(pago, det) ? 'condominios' : 'caja'),
           grupo_pago: pago.grupo_pago || null,
-          direccion: cont?.direccion || det.direccion || (Array.isArray(det.recibo_caja) && det.recibo_caja[0]?.domicilioFiscal) || clasif.inmuebles.map(c => inmMap.get(c)?.direccion).find((d: any) => d && String(d).trim().length > 3 && String(d).trim() !== '0 0') || '',
+          direccion: det.direccion || (Array.isArray(det.recibo_caja) && det.recibo_caja[0]?.domicilioFiscal) || clasif.inmuebles.map(c => inmMap.get(c)?.direccion).find((d: any) => d && String(d).trim().length > 3 && String(d).trim() !== '0 0') || cont?.direccion || '',
           detalles: det,
           retencionEstado: stRet,
           retencionDatosEnviados: fd?.retencion?.datos_enviados_at || null,

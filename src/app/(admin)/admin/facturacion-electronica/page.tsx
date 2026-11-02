@@ -466,7 +466,7 @@ export default function FacturacionElectronicaPage() {
         // Si hay una búsqueda activa por cédula/nombre/referencia, mostrar todos los documentos coincidentes
         // (incluyendo tanto las facturas emitidas activas como las anuladas con Nota de Crédito)
         if (searchTerm.trim()) {
-          if (filterTab === 'emitidas') return p.procesado || esAnulada;
+          if (filterTab === 'emitidas' || filterTab === 'pendientes') return p.procesado || esAnulada || !p.procesado;
           return true;
         }
         if (filterTab === 'pendientes') return !p.procesado && !esAnulada && p.estado !== 'Rechazado';
@@ -689,8 +689,10 @@ export default function FacturacionElectronicaPage() {
       multaCondo = pago.detalles.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
     }
 
-    // 1. Revisar si recibo_caja existe en el pago
-    if (pago.detalles?.recibo_caja) {
+    const esSoloAseo = Boolean(pago.detalles?.solo_aseo || pago.detalles?.sin_multas || pago.detalles?.incluir_multas === false);
+    if (esSoloAseo && multaCondo === 0) {
+      exentoRecibo = 0;
+    } else if (pago.detalles?.recibo_caja) {
       try {
         const rc = typeof pago.detalles.recibo_caja === 'string' ? JSON.parse(pago.detalles.recibo_caja) : pago.detalles.recibo_caja;
         if (Array.isArray(rc) && rc.length > 0) {
@@ -725,8 +727,8 @@ export default function FacturacionElectronicaPage() {
       } catch (_) {}
     }
 
-    // 2. Solo si NO hay recibo_caja (o recibo no tenía desglose claro), revisar fuentes secundarias de multa:
-    if (exentoRecibo === 0) {
+    // 2. Solo si NO hay recibo_caja (o recibo no tenía desglose claro) y no es solo_aseo, revisar fuentes secundarias de multa:
+    if (exentoRecibo === 0 && !(esSoloAseo && multaCondo === 0)) {
       if (multaCondo > 0) {
         exentoRecibo = multaCondo;
       } else {
@@ -945,6 +947,7 @@ export default function FacturacionElectronicaPage() {
           }],
           enviarCorreo: enviarCorreoAlEmitir,
           correoDestino: correoDestinoEmision,
+          reemitir: Boolean(selectedPagoForEmit.facturaEmitida || selectedPagoForEmit.facturaAnulada || selectedPagoForEmit.notaCredito || selectedPagoForEmit.estado === 'Anulado'),
           ...(editado ? { totalManual: total, motivoAjuste: motivoAjuste.trim(), usuario: usuarioActual } : {})
         })
       });
@@ -2521,6 +2524,8 @@ export default function FacturacionElectronicaPage() {
                       conceptoMultaOverride: emitConceptoMulta,
                       conRetencion: emitEsRetencion,
                       esRetencion: emitEsRetencion,
+                      fechaEmisionOverride: emitFechaEmision || undefined,
+                      fechaEmision: emitFechaEmision ? `${emitFechaEmision}T12:00:00-04:00` : selectedPagoForEmit.fechaEmision,
                       detalles: {
                         ...(selectedPagoForEmit.detalles || {}),
                         contribuyente: emitContribuyente.trim(),
@@ -2538,7 +2543,8 @@ export default function FacturacionElectronicaPage() {
                         agente_retencion: emitEsRetencion,
                         conRetencion: emitEsRetencion,
                         monto_factura: total,
-                        multa_bs: multa
+                        multa_bs: multa,
+                        fecha_emision_override: emitFechaEmision || undefined
                       }
                     };
                     setSelectedPagoForDemo(demoPago);

@@ -295,8 +295,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
   const montoRecibidoTotal = r2(Number(pago.montoRecibido) || 0);
   const totalDeudaCobro = cobro.totales.totalBs;
   
-  // Si no se definió saldo a favor generado pero lo recibido es superior a la deuda, asignar el excedente
-  if (!pago.saldoFavorGenerado && montoRecibidoTotal > totalDeudaCobro + 0.05) {
+  // Ignorar diferencias de redondeo menores a Bs. 1,00 para no generar notas de crédito de céntimos
+  if (pago.saldoFavorGenerado && pago.saldoFavorGenerado < 1.00) {
+    pago.saldoFavorGenerado = 0;
+  }
+  // Si no se definió saldo a favor generado pero lo recibido supera la deuda en al menos Bs. 1,00, asignar el excedente
+  if (!pago.saldoFavorGenerado && montoRecibidoTotal >= totalDeudaCobro + 1.00) {
     pago.saldoFavorGenerado = r2(montoRecibidoTotal - totalDeudaCobro);
   }
   
@@ -493,8 +497,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
 
     const pagoAgregadoCoincidente = pagosReales.find((pa: any) => pa.referencia === refFinal) || primerReal;
     const montoReportadoReal = (pagoAgregadoCoincidente && Number(pagoAgregadoCoincidente.monto) > 0)
-      ? Number(pagoAgregadoCoincidente.monto)
-      : (pago.montoRecibido && cobro.facturas.length === 1 ? pago.montoRecibido : f.totalBs);
+      ? r2(Number(pagoAgregadoCoincidente.monto))
+      : r2(pago.montoRecibido && cobro.facturas.length === 1 ? pago.montoRecibido : f.totalBs);
 
     const esMultiPago = cobro.facturas.length > 1 || pagosReales.length > 1;
     const grupoId = grupo || (esMultiPago ? (pago.pagoId || id) : null);
@@ -582,7 +586,7 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       periodos_pagados: periodoTexto,
       recibo_caja: [reciboCajaItem],
       deuda_previa: antes,
-      ...(i === 0 && (pago.saldoFavorGenerado || 0) > 0.01 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
+      ...(i === 0 && (pago.saldoFavorGenerado || 0) >= 1.00 ? { saldo_favor: r2(pago.saldoFavorGenerado || 0), saldo_favor_acreditado: true } : {}),
     };
 
     const fila: any = { 
@@ -703,13 +707,16 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
     || (idUnidades.length === 1 && porId.get(cobro.lineas[0].clave)?.propietario)
     || c.nombre;
 
+  const codigoInmuebleHijo = (unidadSel && unidadSel.inmueble) || cobro.lineas[0]?.inmueble || undefined;
+  const codigoTargetSF = cobro.modo === 'CONTRIBUYENTE' ? codigoInmuebleHijo : c?.codigo;
+
   if (montoSaldoFavor > 0 && pagadorIdentidad) {
-    const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor, c?.codigo, sb);
+    const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor, codigoTargetSF, sb);
     if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
   }
 
-  if (pago.saldoFavorGenerado && pago.saldoFavorGenerado > 0 && pagadorIdentidad) {
-    const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, r2(pago.saldoFavorGenerado), c?.codigo, sb);
+  if (pago.saldoFavorGenerado && pago.saldoFavorGenerado >= 1.00 && pagadorIdentidad) {
+    const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, r2(pago.saldoFavorGenerado), codigoTargetSF, sb);
     if (!resAcreditar.ok) throw new Error('Error al acreditar Saldo a Favor generado por exceso: ' + resAcreditar.error);
     // Nota de crédito visible en Caja / Conciliación
     await sb.from('documentos').insert([{
@@ -717,13 +724,21 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       contribuyente: pagadorNombre,
       tipo: 'Nota de Credito',
       estado: 'Vigente',
-      detalles: JSON.stringify({ monto: r2(pago.saldoFavorGenerado).toFixed(2), origen_referencia: `Excedente Caja de Condominios ${c.codigo}. Referencia: ${refFinal}`, fecha_emision: new Date().toISOString(), analista: pago.usuario }),
+      detalles: JSON.stringify({
+        monto: r2(pago.saldoFavorGenerado).toFixed(2),
+        monto_bs: r2(pago.saldoFavorGenerado),
+        codigo_inmueble: codigoInmuebleHijo || c?.codigo,
+        codigo_condominio: c?.codigo,
+        origen_referencia: `Excedente Caja de Condominios ${codigoInmuebleHijo || c.codigo}. Referencia: ${refFinal}`,
+        fecha_emision: new Date().toISOString(),
+        analista: pago.usuario,
+      }),
     }]);
     
     // Dejar rastro en auditoría
     await sb.from('auditoria').insert({
       accion: 'Saldo a Favor Generado Automáticamente', usuario: pago.usuario, modulo: '/admin/condominios/caja',
-      detalles: { identidad: pagadorIdentidad, monto: pago.saldoFavorGenerado, referencia: refFinal, _categoria: 'CONDOMINIOS', criticidad: 'MEDIA' },
+      detalles: { identidad: pagadorIdentidad, codigo_inmueble: codigoInmuebleHijo || c?.codigo, monto: pago.saldoFavorGenerado, referencia: refFinal, _categoria: 'CONDOMINIOS', criticidad: 'MEDIA' },
     });
   }
 
@@ -761,13 +776,14 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
       }
       // Sincronizar en inmuebles para evitar bloqueos de solvencia
       if (u.inmueble && l.meses > 0 && !sol.soloMultas) {
-        const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv').ilike('inmueble', u.inmueble).maybeSingle();
+        const { data: curInm } = await sb.from('inmuebles').select('meses_deuda, deuda_mmv, multa_bs').ilike('inmueble', u.inmueble).maybeSingle();
         const nMesesRest = l.meses >= l.mesesDeuda ? 0 : Math.max(0, (parseInt(curInm?.meses_deuda || 0) || 0) - l.meses);
+        const permitirMultasInm = sol.incluirMultas === true;
         await sb.from('inmuebles').update({
           meses_deuda: nMesesRest,
           deuda_mmv: nMesesRest === 0 ? 0 : (curInm?.deuda_mmv || 0),
           deuda_congelada_bs: nMesesRest === 0 ? 0 : undefined,
-          multa_bs: 0
+          multa_bs: permitirMultasInm ? 0 : (l.multaMesesQueQuedan > 0 ? Math.max(parseFloat(curInm?.multa_bs || '0') || 0, r2(l.multaBs + l.multasAparteBs)) : 0),
         }).ilike('inmueble', u.inmueble);
       }
     } else if (l.clave === M.SIN_REGISTRAR || l.clave === '__CONDOMINIO__') {

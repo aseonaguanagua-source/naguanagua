@@ -191,5 +191,66 @@ export async function descontarSaldoFavor(
     if (error) return { ok: false, error: error.message };
     pendiente = Math.round((pendiente - usa) * 100) / 100;
   }
+
+  // 3. Consumir / actualizar Notas de Crédito vigentes en tabla documentos para que no se vuelvan a sumar
+  try {
+    const docIdents = [...new Set([...variantes, ...(codigoCondominio ? [codigoCondominio.toUpperCase()] : [])].filter(Boolean))];
+    if (docIdents.length > 0) {
+      const { data: docsVigentes } = await client
+        .from('documentos')
+        .select('id, estado, detalles')
+        .eq('tipo', 'Nota de Credito')
+        .eq('estado', 'Vigente')
+        .in('identidad', docIdents)
+        .order('created_at', { ascending: true });
+
+      let porConsumirDoc = montoNum;
+      for (const doc of docsVigentes || []) {
+        if (porConsumirDoc <= 0.009) break;
+        let det: any = {};
+        try {
+          det = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {});
+        } catch {}
+        const montoDoc = parseFloat(String(det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;
+        if (montoDoc <= 0.009) continue;
+
+        if (porConsumirDoc >= montoDoc - 0.05) {
+          // Nota de crédito consumida en su totalidad
+          porConsumirDoc = Math.max(0, Math.round((porConsumirDoc - montoDoc) * 100) / 100);
+          await client
+            .from('documentos')
+            .update({
+              estado: 'Aplicada',
+              detalles: JSON.stringify({
+                ...det,
+                monto_original: det.monto_original ?? montoDoc,
+                monto_aplicado: montoDoc,
+                fecha_aplicacion: new Date().toISOString(),
+              }),
+            })
+            .eq('id', doc.id);
+        } else {
+          // Nota de crédito consumida parcialmente: actualizar saldo remanente
+          const remanente = Math.round((montoDoc - porConsumirDoc) * 100) / 100;
+          porConsumirDoc = 0;
+          await client
+            .from('documentos')
+            .update({
+              detalles: JSON.stringify({
+                ...det,
+                monto_original: det.monto_original ?? montoDoc,
+                monto: remanente.toFixed(2),
+                monto_bs: remanente,
+                ultima_aplicacion: new Date().toISOString(),
+              }),
+            })
+            .eq('id', doc.id);
+        }
+      }
+    }
+  } catch (eDoc) {
+    console.warn('Error actualizando documentos de Nota de Crédito al descontar saldo a favor:', eDoc);
+  }
+
   return { ok: true, nuevoSaldo: Math.max(0, Math.round((total - (Number(monto) || 0)) * 100) / 100) };
 }

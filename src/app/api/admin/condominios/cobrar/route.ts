@@ -36,60 +36,81 @@ export async function POST(req: Request) {
     if (b.accion !== 'cobrar' && b.accion !== 'interruptor') {
       const { _datos, ...cobro } = await prepararCobro(sol);
       
-      // Extraer saldo a favor con admin consolidando condominios, inmuebles y documentos
+      // Extraer saldo a favor consolidando según el modo (CONDOMINIO vs CONTRIBUYENTE individual)
       let saldoFavorDisp = 0;
-      const currId = cobro.modo === 'CONTRIBUYENTE' ? cobro.facturas[0]?.identidad : cobro.condo?.identidad;
+      const esModoContribuyente = cobro.modo === 'CONTRIBUYENTE';
+      const currId = esModoContribuyente
+        ? (cobro.facturas[0]?.identidad || sol.identidad || cobro.lineas[0]?.identidad)
+        : cobro.condo?.identidad;
       const condoCod = cobro.condo?.codigo;
+      const codigosUnidadesCobro = Array.from(
+        new Set((cobro.lineas || []).map((l: any) => String(l.inmueble || '').trim().toUpperCase()).filter(Boolean))
+      );
       const idVars = currId ? getIdentidadVariantsExact(currId) : [];
 
-      // 1. Saldo registrado en tabla condominios
+      // 1. Saldo registrado en tabla condominios (SOLO aplica cuando se cobra a nombre del CONDOMINIO matriz)
       let abonoCondo = 0;
-      if (condoCod) {
+      if (!esModoContribuyente && condoCod) {
         const { data: cRow } = await sb.from('condominios').select('abono_bs').eq('codigo', condoCod).maybeSingle();
         abonoCondo = parseFloat(cRow?.abono_bs) || 0;
       }
 
-      // 2. Saldo en tabla inmuebles (del condominio o del RIF/identidad de los locales o matriz)
+      // 2. Saldo en tabla inmuebles (si es CONTRIBUYENTE: solo sus unidades/RIF; si es CONDOMINIO: del condominio matriz)
       let saldoInm = 0;
-      let queryInm = sb.from('inmuebles').select('saldo_favor_bs');
-      if (idVars.length > 0 && condoCod) {
-        queryInm = queryInm.or(`${idVars.map(v => `identidad.eq.${v}`).join(',')},inmueble.eq.${condoCod}`);
-      } else if (idVars.length > 0) {
-        queryInm = queryInm.or(idVars.map(v => `identidad.eq.${v}`).join(','));
-      } else if (condoCod) {
-        queryInm = queryInm.eq('inmueble', condoCod);
+      if (esModoContribuyente) {
+        const orsInm: string[] = [];
+        if (idVars.length > 0) orsInm.push(...idVars.map(v => `identidad.eq.${v}`));
+        if (codigosUnidadesCobro.length > 0) orsInm.push(...codigosUnidadesCobro.map(c => `inmueble.eq.${c}`));
+        if (orsInm.length > 0) {
+          const { data: inmSF } = await sb.from('inmuebles').select('saldo_favor_bs, inmueble, condominio_padre_id').or(orsInm.join(','));
+          // Excluir la fila del condominio padre por si compartiera RIF
+          saldoInm = (inmSF || [])
+            .filter((x: any) => String(x.inmueble || '').toUpperCase() !== String(condoCod || '').toUpperCase())
+            .reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
+        }
+      } else {
+        let queryInm = sb.from('inmuebles').select('saldo_favor_bs, inmueble');
+        if (idVars.length > 0 && condoCod) {
+          queryInm = queryInm.or(`${idVars.map(v => `identidad.eq.${v}`).join(',')},inmueble.eq.${condoCod}`);
+        } else if (idVars.length > 0) {
+          queryInm = queryInm.or(idVars.map(v => `identidad.eq.${v}`).join(','));
+        } else if (condoCod) {
+          queryInm = queryInm.eq('inmueble', condoCod);
+        }
+        const { data: inmSF } = await queryInm;
+        saldoInm = (inmSF || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
       }
-      const { data: inmSF } = await queryInm;
-      saldoInm = (inmSF || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
 
-      // 3. Saldo en tabla documentos (Notas de Crédito vigentes asociadas al condominio o identidad)
+      // 3. Saldo en tabla documentos (Notas de Crédito VIGENTES)
       let saldoDocs = 0;
       try {
-        let qDocs = sb.from('documentos').select('*').eq('tipo', 'Nota de Credito').neq('estado', 'Anulado');
-        if (idVars.length > 0 && condoCod) {
-          qDocs = qDocs.or(`${idVars.map(v => `identidad.eq.${v}`).join(',')},identidad.eq.${condoCod}`);
-        } else if (idVars.length > 0) {
-          qDocs = qDocs.or(idVars.map(v => `identidad.eq.${v}`).join(','));
+        let qDocs = sb.from('documentos').select('*').eq('tipo', 'Nota de Credito').eq('estado', 'Vigente');
+        const orsDocs: string[] = [];
+        if (idVars.length > 0) orsDocs.push(...idVars.map(v => `identidad.eq.${v}`));
+        if (esModoContribuyente) {
+          if (codigosUnidadesCobro.length > 0) orsDocs.push(...codigosUnidadesCobro.map(c => `identidad.eq.${c}`));
         } else if (condoCod) {
-          qDocs = qDocs.eq('identidad', condoCod);
+          orsDocs.push(`identidad.eq.${condoCod}`);
         }
-        const { data: docsData } = await qDocs;
-        saldoDocs = (docsData || []).reduce((acc: number, n: any) => {
-          let det: any = {};
-          try { det = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
-          const m = parseLocalFloat(det.monto_bs ?? det.monto ?? 0);
-          return acc + (isNaN(m) ? 0 : m);
-        }, 0);
+        if (orsDocs.length > 0) {
+          const { data: docsData } = await qDocs.or(orsDocs.join(','));
+          saldoDocs = (docsData || []).reduce((acc: number, n: any) => {
+            let det: any = {};
+            try { det = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
+            const m = parseLocalFloat(det.monto_bs ?? det.monto ?? 0);
+            return acc + (isNaN(m) ? 0 : m);
+          }, 0);
+        }
       } catch (e) {
         console.warn('Error calculando saldo de notas de crédito en documentos:', e);
       }
 
-      // Saldo disponible consolidado
+      // Saldo disponible consolidado (ignorando residuos de redondeo menores a Bs. 1,00)
       saldoFavorDisp = Math.max(abonoCondo, saldoInm, saldoDocs);
-      saldoFavorDisp = Math.round(saldoFavorDisp * 100) / 100;
+      saldoFavorDisp = saldoFavorDisp >= 1.00 ? Math.round(saldoFavorDisp * 100) / 100 : 0;
 
-      // Mantener sincronizada la tabla condominios si estaba en 0 o desactualizada y hay saldo a favor real
-      if (condoCod && saldoFavorDisp > 0 && Math.abs(abonoCondo - saldoFavorDisp) > 0.05) {
+      // Mantener sincronizada la tabla condominios SOLO cuando se está en modo CONDOMINIO
+      if (!esModoContribuyente && condoCod && saldoFavorDisp >= 1.00 && Math.abs(abonoCondo - saldoFavorDisp) > 0.05) {
         try {
           await sb.from('condominios').update({ abono_bs: saldoFavorDisp }).eq('codigo', condoCod);
         } catch (eSync) {

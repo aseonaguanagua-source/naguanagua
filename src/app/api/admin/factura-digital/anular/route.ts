@@ -238,7 +238,7 @@ export async function POST(request: Request) {
 
     const { data: pagoRow } = await supabase
       .from('pagos_reportados')
-      .select('id, identidad, monto, banco, referencia, tipo, detalles, created_at, modulo')
+      .select('id, identidad, monto, banco, referencia, tipo, estado, detalles, created_at, modulo')
       .eq('id', pagoId)
       .maybeSingle();
 
@@ -297,8 +297,11 @@ export async function POST(request: Request) {
       dm.pago_id = dm.pago_id || pagoId;
       dm.identidad = dm.identidad || pagoRow.identidad;
       dm.referencia = dm.referencia || pagoRow.referencia;
-      await restaurarDeudaPreviaAnulacion(dm, recibosBody || dm.recibos || []);
-      await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
+      // IMPORTANTE: Al anular la factura fiscal (para reemitirla con corrección), NO se debe
+      // desconciliar el pago bancario ni restaurar la deuda en Caja si el pago ya estaba Aprobado.
+      // La restauración de deuda solo ocurre cuando se rechaza el pago en Conciliación Bancaria.
+      const estadoPreservado = pagoRow.estado === 'Aprobado' ? 'Aprobado' : 'Anulado';
+      await supabase.from('pagos_reportados').update({ estado: estadoPreservado, detalles: nuevosDetalles }).eq('id', pagoId);
 
       // Notificar por correo al contribuyente y copia a archivo fiscal
       const emailDestinoManual = (correoDestino || dm.factura_digital?.correo_utilizado || dm.correo || '').trim();
@@ -1398,8 +1401,11 @@ export async function POST(request: Request) {
     detPago.pago_id = detPago.pago_id || pagoId;
     detPago.identidad = detPago.identidad || pagoRow.identidad;
     detPago.referencia = detPago.referencia || pagoRow.referencia;
-    await restaurarDeudaPreviaAnulacion(detPago, recibos || []);
-    await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
+    // IMPORTANTE: Al emitir Nota de Crédito / anular factura fiscal en Facturación Electrónica,
+    // el pago bancario conciliado se mantiene en estado 'Aprobado' (con factura_digital.anulada = true)
+    // para no alterar la solvencia del contribuyente y permitir reemitir la factura corregida de inmediato.
+    const estadoPreservadoFinal = pagoRow.estado === 'Aprobado' ? 'Aprobado' : 'Anulado';
+    await supabase.from('pagos_reportados').update({ estado: estadoPreservadoFinal, detalles: nuevosDetalles }).eq('id', pagoId);
 
     // Enviar notificación de anulación por correo al contribuyente y copia al archivo fiscal
     if (enviarCorreo) {
