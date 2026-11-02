@@ -204,3 +204,124 @@ export function resolverConceptoPeriodoPago(pago: any): string {
 
   return 'Servicio de Aseo Urbano Comercial';
 }
+
+/**
+ * Resuelve la descripción con el período exacto de las multas liquidadas en el pago.
+ * Ejemplos:
+ * - "Multa por Mora - Aseo Urbano (Agosto 2026)"
+ * - "Multa por Mora - Aseo Urbano (Julio y Agosto 2026)"
+ * - "Multa por Mora - Aseo Urbano (Mayo a Agosto 2026)"
+ */
+export function resolverConceptoPeriodoMulta(pago: any): string {
+  if (!pago) return 'Multa por Mora - Aseo Urbano';
+  const det = pago.detalles || {};
+
+  // 1. Revisar si recibo_caja tiene conceptos explícitos de multa
+  if (det.recibo_caja) {
+    try {
+      const rc = typeof det.recibo_caja === 'string' ? JSON.parse(det.recibo_caja) : det.recibo_caja;
+      const arr = Array.isArray(rc) ? rc : [rc];
+      const mesesMulta: string[] = [];
+
+      for (const item of arr) {
+        if (item?.conceptos && Array.isArray(item.conceptos)) {
+          for (const c of item.conceptos) {
+            const desc = String(c.descripcion || c.concepto || '');
+            if (/multa|mora|sanci[oó]n/i.test(desc)) {
+              const ms = extraerMesesDeTextos([desc]);
+              for (const m of ms) {
+                if (!mesesMulta.includes(m)) mesesMulta.push(m);
+              }
+            }
+          }
+        }
+      }
+
+      if (mesesMulta.length > 0) {
+        return formatearListaMesesMulta(mesesMulta);
+      }
+    } catch (_) {}
+  }
+
+  // 2. Revisar si hay recibos MULTA- explícitos
+  if (Array.isArray(det.recibos)) {
+    const multasRecibos = det.recibos.filter((r: string) => /^MULTA-/i.test(String(r)));
+    if (multasRecibos.length > 0) {
+      const mesesRec: string[] = [];
+      for (const r of multasRecibos) {
+        const ms = extraerMesesDeTextos([r]);
+        for (const m of ms) {
+          if (!mesesRec.includes(m)) mesesRec.push(m);
+        }
+      }
+      if (mesesRec.length > 0) {
+        return formatearListaMesesMulta(mesesRec);
+      }
+    }
+  }
+
+  // 3. Revisar deuda_previa
+  if (Array.isArray(det.deuda_previa)) {
+    const inmsPagados = [...new Set([
+      ...(Array.isArray(det.recibos) ? det.recibos : []).map((r: string) => {
+        const m = String(r).match(/^(?:RECIB-HIST|CM|MULTA)-([A-Za-z0-9]+)/i);
+        return m ? m[1].toUpperCase() : '';
+      }).filter(Boolean),
+      det.codigo_inmueble,
+      det.cod_inmueble
+    ].filter(Boolean).map(x => String(x).trim().toUpperCase()))];
+
+    const dpFiltrada = inmsPagados.length > 0
+      ? det.deuda_previa.filter((dp: any) => inmsPagados.includes(String(dp.inmueble || '').trim().toUpperCase()))
+      : det.deuda_previa;
+
+    const dpConMulta = dpFiltrada.filter((dp: any) => (parseFloat(String(dp.multa_bs || 0)) || 0) > 0);
+    const mesesDp: string[] = [];
+    for (const dp of dpConMulta) {
+      const texto = `${dp.periodo || ''} ${dp.mes_aseo || ''} ${dp.notas || ''}`;
+      const ms = extraerMesesDeTextos([texto]);
+      for (const m of ms) {
+        if (!mesesDp.includes(m)) mesesDp.push(m);
+      }
+    }
+    if (mesesDp.length > 0) {
+      return formatearListaMesesMulta(mesesDp);
+    }
+  }
+
+  // 4. Si se liquidaron N meses de servicio, las multas por mora aplican a los meses vencidos
+  // (todos los meses anteriores al último mes que se está pagando)
+  const conceptoSrv = resolverConceptoPeriodoPago(pago);
+  const mesesEnSrv = extraerMesesDeTextos([conceptoSrv]);
+  if (mesesEnSrv.length > 1) {
+    // Si pagó por ejemplo Julio, Agosto y Septiembre, la mora aplica a Julio y Agosto
+    const mesesAnteriores = mesesEnSrv.slice(0, -1);
+    return formatearListaMesesMulta(mesesAnteriores);
+  } else if (mesesEnSrv.length === 1) {
+    // Si pagó un solo mes que ya estaba vencido y generó multa
+    return `Multa por Mora - Aseo Urbano (${mesesEnSrv[0]})`;
+  }
+
+  return 'Multa por Mora - Aseo Urbano';
+}
+
+function formatearListaMesesMulta(meses: string[]): string {
+  if (meses.length === 0) return 'Multa por Mora - Aseo Urbano';
+  if (meses.length === 1) return `Multa por Mora - Aseo Urbano (${meses[0]})`;
+  if (meses.length === 2) {
+    // Si ambos son del mismo año: "Julio y Agosto 2026"
+    const p1 = meses[0].split(' ');
+    const p2 = meses[1].split(' ');
+    if (p1.length === 2 && p2.length === 2 && p1[1] === p2[1]) {
+      return `Multa por Mora - Aseo Urbano (${p1[0]} y ${p2[0]} ${p1[1]})`;
+    }
+    return `Multa por Mora - Aseo Urbano (${meses[0]} y ${meses[1]})`;
+  }
+  // 3 o más meses: "Mayo a Agosto 2026"
+  const pInicio = meses[0].split(' ');
+  const pFin = meses[meses.length - 1].split(' ');
+  if (pInicio.length === 2 && pFin.length === 2 && pInicio[1] === pFin[1]) {
+    return `Multa por Mora - Aseo Urbano (${pInicio[0]} a ${pFin[0]} ${pFin[1]})`;
+  }
+  return `Multa por Mora - Aseo Urbano (${meses[0]} a ${meses[meses.length - 1]})`;
+}

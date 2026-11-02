@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { ReciboImprimible } from '@/components/ReciboImprimible';
 import { DemoFacturaModal } from '@/components/facturacion/DemoFacturaModal';
-import { resolverConceptoPeriodoPago } from '@/lib/facturaPeriodoHelper';
+import { resolverConceptoPeriodoPago, resolverConceptoPeriodoMulta } from '@/lib/facturaPeriodoHelper';
 import { extraerCodigoInmueble } from '@/lib/documentoPago';
 
 const MESES = [
@@ -773,7 +773,8 @@ export default function FacturacionElectronicaPage() {
     setAjusteMontoServicio(baseEstimada);
     setAjusteMontoMulta(exentoRecibo > 0 ? exentoRecibo.toFixed(2) : '0.00');
     setEmitLlevaMulta(exentoRecibo > 0);
-    setEmitConceptoMulta('Multa por Mora - Aseo Urbano');
+    const conceptoMultaCalculado = resolverConceptoPeriodoMulta(pago);
+    setEmitConceptoMulta(conceptoMultaCalculado);
     if (!totalOverride) setMotivoAjuste('');
     setTotalForzado(totalOverride && totalOverride > 0 ? totalOverride : null);
 
