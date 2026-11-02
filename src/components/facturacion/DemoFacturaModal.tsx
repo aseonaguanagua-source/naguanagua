@@ -405,8 +405,17 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             enviarCorreo: false,
             identidad: pago.identidad || det.identidad,
             contribuyente: pago.contribuyente || det.contribuyente,
+            direccionOverride: det.direccion || pago.direccion,
             referencia: pago.referencia || det.referencia,
             modulo: pago.modulo || det.modulo,
+            concepto: det.concepto || pago.concepto,
+            conceptoMultaOverride: det.conceptoMultaOverride || pago.conceptoMultaOverride,
+            montoServicio: det.montoServicio || pago.montoServicio,
+            montoMulta: det.montoMulta !== undefined ? det.montoMulta : (pago.montoMulta !== undefined ? pago.montoMulta : det.multa_bs),
+            llevaMulta: pago.llevaMulta !== undefined ? pago.llevaMulta : (det.llevaMulta !== undefined ? det.llevaMulta : (exento > 0)),
+            esRetencion: pago.esRetencion ?? det.es_retencion ?? det.conRetencion ?? esRetencion,
+            bancoOverride: det.banco || pago.banco,
+            formaPagoOverride: det.tipo || pago.tipo,
             montoTotal: totalFactura || pago.monto || det.monto_factura || pago.montoTotal || det.montoTotal
           })
         });
@@ -423,7 +432,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
 
     fetchSimulacion();
     return () => { cancel = true; };
-  }, [isOpen, pago?.id]);
+  }, [isOpen, pago]);
 
   if (!isOpen || !pago) return null;
 

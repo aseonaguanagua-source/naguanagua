@@ -431,7 +431,7 @@ export async function GET(request: Request) {
     for (let i = 0; i < idVariants.length; i += 300) {
       const { data: conts } = await supabase
         .from('contribuyentes')
-        .select('identidad, nombre, email, telefono')
+        .select('identidad, nombre, email, telefono, direccion')
         .in('identidad', idVariants.slice(i, i + 300));
       (conts || []).forEach(c => {
         contsMap.set(c.identidad, c);
@@ -850,6 +850,7 @@ export async function GET(request: Request) {
           pagoRetencionId: vincRet?.id || det.pago_retencion_id || null,
           modulo: pago.modulo || (infoCondo(pago, det) ? 'condominios' : 'caja'),
           grupo_pago: pago.grupo_pago || null,
+          direccion: cont?.direccion || det.direccion || (Array.isArray(det.recibo_caja) && det.recibo_caja[0]?.domicilioFiscal) || clasif.inmuebles.map(c => inmMap.get(c)?.direccion).find((d: any) => d && String(d).trim().length > 3 && String(d).trim() !== '0 0') || '',
           detalles: det,
           retencionEstado: stRet,
           retencionDatosEnviados: fd?.retencion?.datos_enviados_at || null,

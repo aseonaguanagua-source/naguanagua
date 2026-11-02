@@ -780,12 +780,12 @@ export default function FacturacionElectronicaPage() {
     // Dirección fiscal editable inicial
     const dirInicial = (() => {
       let d = '';
-      if (Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.domicilioFiscal) {
-        d = pago.detalles.recibo_caja[0].domicilioFiscal;
-      } else if (pago.detalles?.direccion) {
-        d = pago.detalles.direccion;
-      } else if (pago.direccion) {
+      if (pago.direccion && String(pago.direccion).trim().length > 3 && String(pago.direccion).trim() !== '0 0') {
         d = pago.direccion;
+      } else if (pago.detalles?.direccion && String(pago.detalles.direccion).trim().length > 3 && String(pago.detalles.direccion).trim() !== '0 0') {
+        d = pago.detalles.direccion;
+      } else if (Array.isArray(pago.detalles?.recibo_caja) && pago.detalles.recibo_caja[0]?.domicilioFiscal) {
+        d = pago.detalles.recibo_caja[0].domicilioFiscal;
       }
       return d || '';
     })();
@@ -2522,11 +2522,17 @@ export default function FacturacionElectronicaPage() {
                       ...selectedPagoForEmit,
                       contribuyente: emitContribuyente.trim(),
                       identidad: emitIdentidad.trim().toUpperCase(),
+                      direccion: emitDireccion.trim(),
                       referencia: emitReferencia.trim(),
+                      concepto: ajusteConcepto,
                       tipo: emitFormaPago || selectedPagoForEmit.tipo,
                       banco: emitBanco || selectedPagoForEmit.banco,
                       monto: total,
                       totalManual: total,
+                      montoServicio: base,
+                      montoMulta: multa,
+                      llevaMulta: emitLlevaMulta,
+                      conceptoMultaOverride: emitConceptoMulta,
                       conRetencion: emitEsRetencion,
                       esRetencion: emitEsRetencion,
                       detalles: {
@@ -2538,6 +2544,10 @@ export default function FacturacionElectronicaPage() {
                         banco: emitBanco.trim(),
                         tipo: emitFormaPago.trim(),
                         concepto: ajusteConcepto,
+                        conceptoMultaOverride: emitConceptoMulta,
+                        montoServicio: base,
+                        montoMulta: multa,
+                        llevaMulta: emitLlevaMulta,
                         es_retencion: emitEsRetencion,
                         agente_retencion: emitEsRetencion,
                         conRetencion: emitEsRetencion,
