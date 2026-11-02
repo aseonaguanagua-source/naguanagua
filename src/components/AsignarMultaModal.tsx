@@ -191,7 +191,11 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
       const multaActual = parseFloat(String(freshInm.multa_bs || 0)) || 0;
       const nuevaMultaTotal = Math.round((multaActual + montoNum) * 100) / 100;
 
-      const notaPrev = (freshInm.notas || '').trim();
+      // Limpiar marca de exoneración total o del mes específico para que la multa sea visible en Contribuyentes
+      let notaPrev = (freshInm.notas || '')
+        .replace(/Caso especial:\s*Exonerado de multas\n?/gi, '')
+        .replace(new RegExp(`\\[EXONERADO:${periodoFinal}\\]\\s*`, 'g'), '')
+        .trim();
       const registroMulta = `[${fechaHoy} ${hora}] ASIGNACIÓN DE MULTA: Período ${periodoTexto} (${periodoFinal}) - Monto Bs. ${montoNum.toFixed(2)} - Concepto: "${conceptoFinal}". Motivo: ${motivo.trim()} (Autorizado por: ${claveLimpia})`;
       const nuevaNota = notaPrev ? `${notaPrev}\n---\n${registroMulta}` : registroMulta;
 
@@ -206,42 +210,57 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
 
       if (errUpdateInm) throw errUpdateInm;
 
-      // 3. Si pertenece a un condominio, registrar también en condominio_multas
-      const condoCodigo = freshInm.condominio_padre_id || (freshInm.padre_id?.startsWith('CONDO-') ? freshInm.padre_id : null);
-      if (condoCodigo) {
-        try {
-          const { data: condoData } = await supabase
-            .from('condominios')
-            .select('id, codigo, nombre')
-            .eq('codigo', condoCodigo)
-            .maybeSingle();
+      // 3. Sincronizar con Condominios (condominios, condominio_unidades y condominio_multas)
+      try {
+        const perDate = /^\d{4}-\d{2}$/.test(String(periodoFinal).trim())
+          ? `${String(periodoFinal).trim()}-01`
+          : periodoFinal;
 
-          if (condoData) {
-            const { data: unidadData } = await supabase
-              .from('condominio_unidades')
-              .select('id')
-              .eq('condominio_id', condoData.id)
-              .eq('inmueble', freshInm.inmueble)
-              .maybeSingle();
+        // Buscar si el inmueble es una unidad en condominio_unidades
+        const { data: unidadDirecta } = await supabase
+          .from('condominio_unidades')
+          .select('id, condominio_id, multa_meses')
+          .eq('inmueble', freshInm.inmueble)
+          .maybeSingle();
 
-            const perDate = /^\d{4}-\d{2}$/.test(String(periodoFinal).trim())
-              ? `${String(periodoFinal).trim()}-01`
-              : periodoFinal;
+        const condoCodigo = freshInm.condominio_padre_id || (freshInm.padre_id?.startsWith('CONDO-') ? freshInm.padre_id.replace(/^CONDO-/, '') : null) || freshInm.inmueble;
+        const { data: condoData } = unidadDirecta?.condominio_id
+          ? await supabase.from('condominios').select('id, codigo, nombre, multa_meses').eq('id', unidadDirecta.condominio_id).maybeSingle()
+          : await supabase.from('condominios').select('id, codigo, nombre, multa_meses').eq('codigo', condoCodigo).maybeSingle();
 
-            await supabase.from('condominio_multas').insert({
-              condominio_id: condoData.id,
-              unidad_id: unidadData?.id || null,
-              identidad: identProp,
-              concepto: conceptoFinal.toUpperCase(),
-              monto_bs: montoNum,
-              periodo: perDate,
-              estado: 'Pendiente',
-              creada_por: claveLimpia
-            });
-          }
-        } catch (errCondo) {
-          console.warn('No se pudo sincronizar en condominio_multas:', errCondo);
+        if (unidadDirecta) {
+          await supabase
+            .from('condominio_unidades')
+            .update({
+              multa_meses: Math.max(1, Number(unidadDirecta.multa_meses || 0) + 1),
+              multa_exonerada_hasta: null
+            })
+            .eq('id', unidadDirecta.id);
         }
+
+        if (condoData) {
+          if (condoData.codigo === freshInm.inmueble) {
+            await supabase
+              .from('condominios')
+              .update({
+                multa_meses: Math.max(1, Number(condoData.multa_meses || 0) + 1),
+                multa_exonerada_hasta: null
+              })
+              .eq('id', condoData.id);
+          }
+          await supabase.from('condominio_multas').insert({
+            condominio_id: condoData.id,
+            unidad_id: unidadDirecta?.id || null,
+            identidad: identProp,
+            concepto: conceptoFinal.toUpperCase(),
+            monto_bs: montoNum,
+            periodo: perDate,
+            estado: 'Pendiente',
+            creada_por: claveLimpia
+          });
+        }
+      } catch (errCondo) {
+        console.warn('No se pudo sincronizar en condominio_multas:', errCondo);
       }
 
       // 4. Registrar en Auditoría

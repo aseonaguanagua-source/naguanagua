@@ -2,7 +2,18 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { supabase } from '@/lib/supabase';
 import { parseDet, montosPago, cargarInmMapPagos, codigosDePago } from './LibroVentas';
+import { obtenerNroReciboWeb } from './ReporteRecibosPagos';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
+
+const cleanId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+function ubicacionDeCaja(caja: string, cajero: string): string {
+  const cj = String(caja || '').toUpperCase().trim();
+  const op = String(cajero || '').toUpperCase().trim();
+  if (cj === 'CAJA R' || /DAMAR[IY]S|NANY|LOVERA|RIO\s*SIL/i.test(op)) return 'RIO SIL';
+  if (cj === 'CAJA C' || /DANIELA|TAQUILLA\s*M[OÓ]VIL/i.test(op)) return 'TAQUILLA MOVIL';
+  return 'C.C. PASEO LA GRANJA';
+}
 
 /**
  * Reportes de Caja con el formato del IAMEC (carpeta REPORTES):
@@ -42,14 +53,17 @@ function cab(ws: any, fila: number, valores: string[], desde = 1) {
 
 // ─────────────────────────── TOTAL PUNTOS DE VENTA ───────────────────────────
 export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string, fechaFin: string, contribuyentes: any[] = []) {
-  const deb = pagos.filter(p => !esAnulado(p) && esDebito(p));
+  const deb = pagos.filter(p => !esAnulado(p) && esDebito(p) && !esRetencion(p) && !/saldo a favor|nota de cr[eé]dito/i.test(String(p.tipo || '')));
   if (!deb.length) { alert('No hay pagos por punto de venta en el rango.'); return; }
   const inmMap = await cargarInmMapPagos(deb);
-  const nombreDe = (id: string, det: any, p: any) =>
-    contribuyentes.find((x: any) => (x.Identidad || x.identidad) === id)?.Contribuyente ||
-    det.recibo_caja?.[0]?.razonSocial ||
-    p.contribuyente ||
-    id;
+  const nombreDe = (id: string, det: any, p: any) => {
+    const raw =
+      contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cleanId(id))?.Contribuyente ||
+      det.recibo_caja?.[0]?.razonSocial ||
+      p.contribuyente ||
+      id;
+    return String(raw || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
+  };
 
   const porDia = new Map<string, Map<string, { cajero: string; monto: number; usuarios: Set<string> }>>();
   const todasCajas = new Map<string, string>();
@@ -143,7 +157,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
         c.value = v;
         c.border = BORDE;
         c.font = { size: 9 };
-        if ([8, 13, 15, 16].includes(i)) c.numFmt = '#,##0.00';
+        if ([8, 13, 15, 16].includes(i)) c.numFmt = '"Bs. "#,##0.00';
       });
       subCaja += mPagado;
       subBase += mt.base;
@@ -161,7 +175,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
       const cell = rSub.getCell(colIdx);
       cell.font = { bold: true, size: 9 };
       cell.border = BORDE;
-      if (colIdx !== 8) cell.numFmt = '#,##0.00';
+      if (colIdx !== 8) cell.numFmt = '"Bs. "#,##0.00';
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
     });
     fdRow++;
@@ -182,63 +196,179 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     const cell = rGran.getCell(colIdx);
     cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
     cell.border = BORDE;
-    if (colIdx !== 8) cell.numFmt = '#,##0.00';
+    if (colIdx !== 8) cell.numFmt = '"Bs. "#,##0.00';
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
   });
 
-  // Hoja 2: RESUMEN POR DIA
+  // Hoja 2: RESUMEN POR DIA (Total_MES + Total_semana lado a lado)
   const res = wb.addWorksheet('RESUMEN');
-  res.columns = [{ width: 10 }, { width: 8 }, { width: 18 }, { width: 12 }, { width: 10 }] as any;
+  res.columns = [
+    { width: 10 }, // A: Dia sem
+    { width: 8 },  // B: DIA
+    { width: 18 }, // C: MONTO (Bs.)
+    { width: 12 }, // D: USUARIOS
+    { width: 10 }, // E: ACTIVAS
+    { width: 4 },  // F: separador
+    { width: 14 }, // G: SEMANA
+    { width: 18 }, // H: MONTO
+    { width: 12 }, // I: USUARIOS
+    { width: 12 }, // J: CAJAS ACT
+  ] as any;
   res.mergeCells('A1:E1');
   res.getCell('A1').value = `TOTAL PUNTOS DE VENTA ${dmy(fechaInicio)} AL ${dmy(fechaFin)}`;
   res.getCell('A1').font = { bold: true, size: 12 };
   res.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
-  cab(res, 3, ['Dia sem', 'DIA', 'MONTO (Bs.)', 'USUARIOS', 'ACTIVAS']);
-  let f = 4; let tM = 0, tU = 0;
-  [...porDia.keys()].sort().forEach(dia => {
-    const m = porDia.get(dia)!;
-    const monto = [...m.values()].reduce((s, c) => s + c.monto, 0);
-    const usuarios = [...m.values()].reduce((s, c) => s + c.usuarios.size, 0);
+
+  const cabCyan = (wsTarget: any, fila: number, valores: string[], desde = 1) => {
+    const r = wsTarget.getRow(fila);
+    valores.forEach((v, i) => {
+      const c = r.getCell(desde + i);
+      c.value = v;
+      c.font = { bold: true, color: { argb: 'FF000000' }, size: 9 };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00FFFF' } };
+      c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      c.border = BORDE;
+    });
+    r.height = 24;
+  };
+
+  cabCyan(res, 3, ['Dia sem', 'DIA', 'MONTO (Bs.)', 'USUARIOS', 'ACTIVAS'], 1);
+  cabCyan(res, 3, ['SEMANA', 'MONTO', 'USUARIOS', 'CAJAS ACT'], 7);
+
+  // Construir calendario completo del mes (o rango seleccionado) para Total_MES y agrupar por semana para Total_semana
+  const startDt = new Date(`${fechaInicio.slice(0, 10)}T12:00:00`);
+  const endDt = new Date(`${fechaFin.slice(0, 10)}T12:00:00`);
+  const diasCalendario: string[] = [];
+  if (!isNaN(startDt.getTime()) && !isNaN(endDt.getTime()) && startDt <= endDt) {
+    const cur = new Date(startDt);
+    while (cur <= endDt) {
+      diasCalendario.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+  } else {
+    diasCalendario.push(...[...porDia.keys()].sort());
+  }
+
+  let f = 4;
+  let tM = 0, tU = 0;
+  const semanasResumen: { label: string; monto: number; usuarios: number; cajasAct: number }[] = [];
+  let semIdx = 1;
+  let curSem = { label: `SEMANA ${semIdx}`, monto: 0, usuarios: 0, cajasAct: 0, hasDays: false };
+
+  diasCalendario.forEach((dia, idx) => {
+    const m = porDia.get(dia);
+    const monto = m ? [...m.values()].reduce((s, c) => s + c.monto, 0) : 0;
+    const usuarios = m ? [...m.values()].reduce((s, c) => s + c.usuarios.size, 0) : 0;
+    const activas = m ? m.size : 0;
     const d = new Date(`${dia}T12:00:00`);
+    const dow = d.getDay(); // 0=dom, 6=sáb
+    const esFinDeSemana = dow === 0 || dow === 6;
+
     const row = res.getRow(f++);
-    [DIAS[d.getDay()], d.getDate(), r2(monto), usuarios, m.size].forEach((v, i) => {
+    const valsMes: any[] = [
+      DIAS[dow],
+      d.getDate(),
+      r2(monto),
+      usuarios > 0 ? usuarios : null,
+      activas > 0 ? activas : null,
+    ];
+    valsMes.forEach((v, i) => {
       const c = row.getCell(i + 1);
       c.value = v;
       c.border = BORDE;
+      c.font = { size: 9 };
+      if (i === 0 || i === 1 || i === 3 || i === 4) c.alignment = { horizontal: 'center' };
       if (i === 2) {
         c.numFmt = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"';
       }
+      if (esFinDeSemana && monto === 0) {
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFAEAAAA' } };
+      }
     });
-    tM += monto; tU += usuarios;
+
+    tM += monto;
+    tU += usuarios;
+
+    curSem.monto += monto;
+    curSem.usuarios += usuarios;
+    curSem.cajasAct += activas;
+    curSem.hasDays = true;
+
+    if (dow === 0 || idx === diasCalendario.length - 1) {
+      semanasResumen.push({ ...curSem });
+      semIdx++;
+      curSem = { label: `SEMANA ${semIdx}`, monto: 0, usuarios: 0, cajasAct: 0, hasDays: false };
+    }
   });
+
   const tr = res.getRow(f);
   ['TOTAL', '', r2(tM), tU, ''].forEach((v, i) => {
     const c = tr.getCell(i + 1);
     c.value = v;
-    c.font = { bold: true };
+    c.font = { bold: true, size: 9 };
     c.border = BORDE;
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } };
     if (i === 2) {
       c.numFmt = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"';
     }
   });
 
+  // Llenar tabla derecha Total_semana (columnas G..J)
+  let fSem = 4;
+  semanasResumen.forEach(sem => {
+    const row = res.getRow(fSem++);
+    [sem.label, r2(sem.monto), sem.usuarios, sem.cajasAct].forEach((v, i) => {
+      const c = row.getCell(7 + i);
+      c.value = v as any;
+      c.border = BORDE;
+      c.font = { size: 9, bold: i === 0 };
+      if (i === 0 || i === 2 || i === 3) c.alignment = { horizontal: 'center' };
+      if (i === 1) c.numFmt = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"';
+    });
+  });
+  const trSem = res.getRow(fSem);
+  ['TOTAL', r2(tM), tU, ''].forEach((v, i) => {
+    const c = trSem.getCell(7 + i);
+    c.value = v as any;
+    c.font = { bold: true, size: 9 };
+    c.border = BORDE;
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } };
+    if (i === 1) c.numFmt = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"';
+  });
+
   [...porDia.keys()].sort().forEach(dia => {
     const [, mm, dd] = dia.split('-');
     const ws = wb.addWorksheet(`${dd}-${mm}`);
-    ws.columns = [{ width: 12 }, { width: 18 }, { width: 9 }, { width: 22 }, { width: 18 }, { width: 11 }] as any;
+    ws.columns = [{ width: 12 }, { width: 18 }, { width: 9 }, { width: 24 }, { width: 18 }, { width: 11 }] as any;
     ws.mergeCells('A1:F1'); ws.getCell('A1').value = `PUNTOS DE VENTA ${dmy(dia)}`; ws.getCell('A1').font = { bold: true, size: 12 };
-    cab(ws, 3, ['CAJAS', 'CAJERO', 'ACTIVA', 'UBICACION', 'MONTO (Bs.)', 'USUARIOS']);
+    cabCyan(ws, 3, ['CAJAS', 'CAJERO', 'ACTIVA', 'UBICACION', 'MONTO (Bs.)', 'USUARIOS'], 1);
     const m = porDia.get(dia)!;
     let r = 4; let sm = 0, su = 0;
     cajasOrden.forEach(caja => {
       const c = m.get(caja);
+      const nomCajero = c?.cajero || todasCajas.get(caja) || '';
+      const ubic = ubicacionDeCaja(caja, nomCajero);
       const row = ws.getRow(r++);
-      [caja, c?.cajero || todasCajas.get(caja) || '', c ? '✔️' : '❌', '', c ? r2(c.monto) : null, c ? c.usuarios.size : null]
-        .forEach((v, i) => { const cell = row.getCell(i + 1); cell.value = v as any; cell.border = BORDE; if (i === 4) cell.numFmt = '#,##0.00'; });
+      [caja, nomCajero, c ? '✔️' : '❌', ubic, c ? r2(c.monto) : 0, c ? c.usuarios.size : null]
+        .forEach((v, i) => {
+          const cell = row.getCell(i + 1);
+          cell.value = v as any;
+          cell.border = BORDE;
+          cell.font = { size: 9 };
+          if (i === 0 || i === 2 || i === 3 || i === 5) cell.alignment = { horizontal: 'center' };
+          if (i === 4) cell.numFmt = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"';
+        });
       if (c) { sm += c.monto; su += c.usuarios.size; }
     });
     const t = ws.getRow(r);
-    ['TOTAL', '', m.size, '', r2(sm), su].forEach((v, i) => { const cell = t.getCell(i + 1); cell.value = v; cell.font = { bold: true }; cell.border = BORDE; if (i === 4) cell.numFmt = '#,##0.00'; });
+    ['TOTAL', '', m.size, '', r2(sm), su].forEach((v, i) => {
+      const cell = t.getCell(i + 1);
+      cell.value = v;
+      cell.font = { bold: true, size: 9 };
+      cell.border = BORDE;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } };
+      if (i === 4) cell.numFmt = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"';
+    });
   });
 
   const buf = await wb.xlsx.writeBuffer();
@@ -255,15 +385,32 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
   const retPorPago = new Map<string, number>();
   vivos.filter(esRetencion).forEach(p => { const d = parseDet(p); if (d.pago_vinculado) retPorPago.set(String(d.pago_vinculado), Number(p.monto) || 0); });
   const inmMap = await cargarInmMapPagos(transf);
-  const nombreDe = (id: string, det: any) => contribuyentes.find((x: any) => x.Identidad === id)?.Contribuyente || det.recibo_caja?.[0]?.razonSocial || id;
 
-  // Mapa de facturas y recibos desde auditoría para pagos cuyo JSON no tenga el número grabado
+  // Mapas adicionales de condominios, inmuebles por RIF y retenciones_iva para completar códigos y números de factura
+  const condoByIdentidad = new Map<string, any>();
+  const inmByIdentidad = new Map<string, any>();
+  const docByControlFromRet = new Map<string, string>();
   const mapaDocsAudit = new Map<string, string>();
+
   try {
-    const { data: auditRows } = await supabase
-      .from('auditoria')
-      .select('*')
-      .or('accion.ilike.%factura%,accion.ilike.%comprobante%');
+    const [{ data: auditRows }, { data: condos }, { data: retRows }] = await Promise.all([
+      supabase.from('auditoria').select('*').or('accion.ilike.%factura%,accion.ilike.%comprobante%'),
+      supabase.from('condominios').select('codigo, identidad, nombre, tipo'),
+      supabase.from('retenciones_iva').select('factura_control, codigo_retencion'),
+    ]);
+
+    (condos || []).forEach((c: any) => {
+      if (c.identidad) condoByIdentidad.set(cleanId(c.identidad), c);
+    });
+
+    (retRows || []).forEach((r: any) => {
+      const ctrl = String(r.factura_control || '').trim();
+      const cod = String(r.codigo_retencion || '').trim();
+      if (ctrl && /^FAC-\d+/i.test(cod)) {
+        docByControlFromRet.set(ctrl, cod.replace(/^FAC-/i, '').trim());
+      }
+    });
+
     if (Array.isArray(auditRows)) {
       auditRows.forEach((a: any) => {
         const d = typeof a.detalles === 'string' ? JSON.parse(a.detalles || '{}') : (a.detalles || {});
@@ -274,9 +421,46 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         }
       });
     }
+
+    const idsSinCodigo = [...new Set(
+      transf
+        .filter(p => codigosDePago(parseDet(p), p).length === 0)
+        .map(p => String(p.identidad || '').trim())
+        .filter(Boolean)
+    )];
+    if (idsSinCodigo.length > 0) {
+      for (let i = 0; i < idsSinCodigo.length; i += 200) {
+        const { data: inmsExtra } = await supabase
+          .from('inmuebles')
+          .select('inmueble, identidad, contribuyente, padre_id')
+          .in('identidad', idsSinCodigo.slice(i, i + 200));
+        (inmsExtra || []).forEach((r: any) => {
+          const cid = cleanId(r.identidad);
+          if (cid && (!inmByIdentidad.has(cid) || !r.padre_id)) {
+            inmByIdentidad.set(cid, r);
+          }
+        });
+      }
+    }
   } catch (errAudit) {
-    console.warn('No se pudo cargar auditoría para números de factura en conciliación:', errAudit);
+    console.warn('No se pudo cargar datos auxiliares en conciliación:', errAudit);
   }
+
+  const nombreDe = (id: string, det: any) => {
+    const cid = cleanId(id);
+    const c = contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cid);
+    const cnd = condoByIdentidad.get(cid);
+    const inm = inmByIdentidad.get(cid);
+    const raw =
+      c?.Contribuyente ||
+      cnd?.nombre ||
+      inm?.contribuyente ||
+      det.condominio?.nombre ||
+      det.recibo_caja?.[0]?.razonSocial ||
+      (det.contribuyente && det.contribuyente !== id ? det.contribuyente : '') ||
+      id;
+    return String(raw || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
+  };
 
   // Mapas de referencia cruzada (para pagos combinados o abonos que liquidaron un recibo con factura/recibo final)
   const docMapPorRef = new Map<string, string>();
@@ -415,10 +599,26 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
 
       let subGrupo = 0;
       g.items.forEach(({ p, det, fPago, esSubPago, montoTotalReportado, yaExistenComoFilasSeparadas }) => {
+        const fpMatch = (Array.isArray(det.formasPago) ? det.formasPago : []).find(
+          (fp: any) => String(fp?.referencia || '').trim() === String(p.referencia || '').trim()
+        );
+        const paMatch = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : []).find(
+          (pa: any) => String(pa?.referencia || '').trim() === String(p.referencia || '').trim()
+        );
+        const mPagado = r2(
+          Number(
+            (esSubPago || det.es_pago_adicional || yaExistenComoFilasSeparadas)
+              ? (det.monto_conciliado || fpMatch?.monto || paMatch?.monto || p.monto)
+              : (det.monto_conciliado || fpMatch?.monto || (Array.isArray(det.formasPago) && det.formasPago.length === 1 ? det.formasPago[0]?.monto : 0) || p.monto)
+          ) || 0
+        );
+
         const ret = retPorPago.get(String(p.id)) ?? Number(det.monto_retencion_iva || 0);
         const mtTotal = montosPago(p, det, inmMap, ret);
-        const factor = esSubPago && montoTotalReportado > 0 ? (Number(p.monto) || 0) / montoTotalReportado : 1;
-        const mt = esSubPago ? {
+        const esPagoMultipleSeparado = Boolean(esSubPago || det.es_pago_adicional || yaExistenComoFilasSeparadas || (mtTotal.total > mPagado + 1 && mtTotal.ret === 0));
+        const baseDenom = esSubPago && montoTotalReportado > 0 ? montoTotalReportado : (mtTotal.total > 0 ? mtTotal.total : 1);
+        const factor = esPagoMultipleSeparado && baseDenom > 0 ? mPagado / baseDenom : 1;
+        const mt = esPagoMultipleSeparado ? {
           base: r2(mtTotal.base * factor),
           iva: r2(mtTotal.iva * factor),
           ret: r2(mtTotal.ret * factor),
@@ -426,7 +626,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         } : mtTotal;
         const fd = det.factura_digital || {};
         const ncTotal = Number(det.saldo_favor || 0) > 0 ? Number(det.saldo_favor) : 0;
-        const nc = esSubPago ? r2(ncTotal * factor) : ncTotal;
+        const nc = esPagoMultipleSeparado ? r2(ncTotal * factor) : ncTotal;
         const cajero = det.cajero || det.usuario || p.usuario || '';
         const bClass = clasificarBancoDestino(p);
         const bDestLabel = bClass === 'Banesco' ? 'Banesco' : bClass === 'Bancamiga' ? 'Bancamiga' : (det.banco_destino || det.banco_receptor || 'Otro');
@@ -447,27 +647,31 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           }
         }
 
-        const mPagado = r2(
-          Number(det.monto_conciliado || (Array.isArray(det.formasPago) && det.formasPago[0]?.monto) || p.monto) || 0
-        );
         const row = wsBan.getRow(f++);
 
         // Requisito 2: Para usuarios con recibo o factura, sale el número de factura o recibo asociado
+        const ctrlStr = String(fd.numero_control || '').trim();
         let nroDoc = fd.numero_documento || 
+                     (ctrlStr ? docByControlFromRet.get(ctrlStr) : '') ||
+                     mapaDocsAudit.get(String(p.id)) ||
+                     mapaDocsAudit.get(String(det.pago_principal_id || '')) ||
                      det.recibo_caja?.[0]?.controlWeb || 
                      det.recibo_caja?.[0]?.reciboNo || 
                      det.recibo_no || 
-                     mapaDocsAudit.get(String(p.id)) ||
-                     mapaDocsAudit.get(String(det.pago_principal_id || '')) ||
                      det.recibo_digital?.numero ||
                      '';
+
+        if (nroDoc && (String(nroDoc).includes('M') || String(nroDoc).startsWith('RC-'))) {
+          nroDoc = '';
+        }
 
         // Si no tiene nroDoc directo (ej. pago combinado o abono parcial), buscar por referencia bancaria o recibos asociados
         if (!nroDoc && p.referencia) {
           const partes = String(p.referencia).split(/[\s,()\/+]+/).map(x => x.trim()).filter(Boolean);
           for (const pt of partes) {
-            if (docMapPorRef.has(pt)) {
-              nroDoc = docMapPorRef.get(pt)!;
+            const candidate = docMapPorRef.get(pt);
+            if (candidate && !candidate.includes('M') && !candidate.startsWith('RC-')) {
+              nroDoc = candidate;
               break;
             }
           }
@@ -475,16 +679,29 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
         if (!nroDoc && Array.isArray(det.recibos)) {
           for (const rec of det.recibos) {
             const rStr = String(rec || '').trim();
-            if (rStr && docMapPorRecibo.has(rStr)) {
-              nroDoc = docMapPorRecibo.get(rStr)!;
+            const candidate = rStr ? docMapPorRecibo.get(rStr) : '';
+            if (candidate && !candidate.includes('M') && !candidate.startsWith('RC-')) {
+              nroDoc = candidate;
               break;
             }
           }
         }
+        if (!nroDoc) {
+          nroDoc = ctrlStr || obtenerNroReciboWeb(p, det);
+        }
 
-        // Requisito 3: En condominios sólo debe salir el código principal (URB005770)
+        // Requisito 3: En condominios residenciales sale el código principal; en locales hijos su código propio
         const codigosList = codigosDePago(det, p);
-        const codPrincipal = codigosList[0] || det.codigo_inmueble || det.cod_inmueble || p.inmueble || '';
+        const cid = cleanId(p.identidad);
+        const codPrincipal =
+          codigosList[0] ||
+          det.codigo_inmueble ||
+          det.cod_inmueble ||
+          p.inmueble ||
+          condoByIdentidad.get(cid)?.codigo ||
+          contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cid)?.CodCont ||
+          inmByIdentidad.get(cid)?.inmueble ||
+          '';
 
         const vals: any[] = [
           dmy(fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fechaVE(p.created_at)),

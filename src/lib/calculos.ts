@@ -492,7 +492,15 @@ export const isMesExoneradoMulta = (notasOrInm?: any, dateOrMonthKey?: string | 
   }
 
   if (!key) return false;
-  return (String(notasOrInm).toUpperCase()).includes(`[EXONERADO:${key}]`);
+  const strNotas = String(notasOrInm);
+  if (strNotas.toUpperCase().includes(`[EXONERADO:${key}]`)) return true;
+  if (strNotas.includes('periodos_custom')) {
+    try {
+      const parsed = JSON.parse(strNotas);
+      if (parsed?.periodos_custom?.[key]?.exonerar_multa === true) return true;
+    } catch {}
+  }
+  return false;
 };
 
 /**
@@ -500,8 +508,23 @@ export const isMesExoneradoMulta = (notasOrInm?: any, dateOrMonthKey?: string | 
  */
 export const getMesesExoneradosCount = (notas?: string | null): number => {
   if (!notas) return 0;
-  const matches = (notas.toUpperCase()).match(/\[EXONERADO:\d{4}-\d{2}\]/g);
-  return matches ? matches.length : 0;
+  const setKeys = new Set<string>();
+  const matches = (notas.toUpperCase()).match(/\[EXONERADO:(\d{4}-\d{2})\]/g) || [];
+  for (const m of matches) {
+    const k = m.replace(/\[EXONERADO:|\]/g, '');
+    if (k) setKeys.add(k);
+  }
+  if (notas.includes('periodos_custom')) {
+    try {
+      const parsed = JSON.parse(notas);
+      if (parsed?.periodos_custom && typeof parsed.periodos_custom === 'object') {
+        for (const [k, v] of Object.entries(parsed.periodos_custom) as [string, any][]) {
+          if (v && v.exonerar_multa === true) setKeys.add(k);
+        }
+      }
+    } catch {}
+  }
+  return setKeys.size;
 };
 
 /**

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
-import { pendienteDesdeParaMeses, mesesPendientes } from '@/lib/condominios/motor';
+import { pendienteDesdeParaMeses, mesesPendientes, periodosPendientes, isResidencialInm } from '@/lib/condominios/motor';
+import { tasaVigente } from '@/lib/condominios/servicio';
+import { calcularMensualidad } from '@/lib/calculos';
 
 export const dynamic = 'force-dynamic';
 
@@ -180,6 +182,64 @@ export async function PATCH(req: Request) {
         inmUpd.meses_deuda = m;
         const mmvTarifa = upd.tarifa_mmv ?? antes.tarifa_mmv ?? 1.98;
         inmUpd.deuda_mmv = parseFloat((m * Number(mmvTarifa)).toFixed(5));
+        if (m === 0) {
+          inmUpd.multa_bs = 0;
+          inmUpd.deuda_congelada_bs = 0;
+        }
+        if (!('multa_meses' in upd)) {
+          upd.multa_meses = Math.max(0, m - 1);
+          if (m === 0) upd.multa_exonerada_hasta = null;
+        }
+      }
+      if ('multa_meses' in upd) {
+        const mMulta = Math.max(0, Number(upd.multa_meses) || 0);
+        const desdeEfectivo = 'aseo_pendiente_desde' in upd ? upd.aseo_pendiente_desde : antes.aseo_pendiente_desde;
+        const mDeudaEfectivo = mesesPendientes(desdeEfectivo);
+        const mesesConMoraAseo = Math.max(0, mDeudaEfectivo - 1);
+        const periodosEfectivos = periodosPendientes(desdeEfectivo);
+        const exoneradosCount = Math.max(0, mesesConMoraAseo - mMulta);
+
+        if (mMulta === 0) {
+          upd.multa_exonerada_hasta = '2099-12-31';
+        } else if (exoneradosCount > 0 && periodosEfectivos[exoneradosCount - 1]) {
+          upd.multa_exonerada_hasta = `${periodosEfectivos[exoneradosCount - 1]}-01`;
+        } else {
+          upd.multa_exonerada_hasta = null;
+        }
+
+        const { data: currInmMulta } = await sb.from('inmuebles').select('*').eq('inmueble', inmuebleAActualizar).maybeSingle();
+        let notaStr = String(inmUpd.notas !== undefined ? (inmUpd.notas || '') : (currInmMulta?.notas || '')).trim();
+        if (mMulta === 0) {
+          inmUpd.multa_bs = 0;
+          if (!notaStr.startsWith('{') && !notaStr.includes('Caso especial: Exonerado de multas')) {
+            notaStr = notaStr ? `Caso especial: Exonerado de multas\n${notaStr}` : 'Caso especial: Exonerado de multas';
+            inmUpd.notas = notaStr;
+          }
+          await sb.from('condominio_multas').update({ estado: 'Anulada' }).eq('unidad_id', id).eq('estado', 'Pendiente');
+        } else {
+          // Calcular multa extra remanente si mMulta > mesesConMoraAseo
+          const mesesExtraMulta = Math.max(0, mMulta - mesesConMoraAseo);
+          if (mesesExtraMulta > 0 && currInmMulta) {
+            const tasaAct = await tasaVigente();
+            const esResU = isResidencialInm(currInmMulta);
+            const bMesU = calcularMensualidad(currInmMulta, tasaAct > 0 ? tasaAct : 1);
+            const tMoraU = esResU ? 0.10 : 0.12;
+            inmUpd.multa_bs = Math.round(bMesU * tMoraU * mesesExtraMulta * 100) / 100;
+          } else {
+            inmUpd.multa_bs = 0;
+          }
+          if (!notaStr.startsWith('{')) {
+            notaStr = notaStr
+              .replace(/Caso especial:\s*Exonerado de multas\n?/gi, '')
+              .replace(/\[EXONERADO:\d{4}-\d{2}\]\s*/g, '')
+              .trim();
+            if (exoneradosCount > 0) {
+              const tagsExo = periodosEfectivos.slice(0, exoneradosCount).map(k => `[EXONERADO:${k}]`).join(' ');
+              notaStr = notaStr ? `${notaStr}\n${tagsExo}` : tagsExo;
+            }
+            inmUpd.notas = notaStr || null;
+          }
+        }
       }
       if (upd.estado === 'Eliminada') {
         inmUpd.estado = 'Eliminado';

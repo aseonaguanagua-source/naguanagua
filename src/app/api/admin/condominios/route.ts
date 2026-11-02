@@ -133,18 +133,61 @@ export async function PATCH(req: Request) {
     }
 
     // Sincronizar meses en todas las unidades del condominio y en la tabla inmuebles
+    const { data: uHijasSync } = await sb.from('condominio_unidades').select('inmueble').eq('condominio_id', antes.id).neq('estado', 'Eliminada');
+    const codigosHijosSync = Array.from(new Set([antes.codigo, ...(uHijasSync || []).map((x: any) => x.inmueble).filter(Boolean)]));
+
     if ('aseo_pendiente_desde' in upd) {
-      await sb.from('condominio_unidades').update({ aseo_pendiente_desde: upd.aseo_pendiente_desde }).eq('condominio_id', antes.id);
       const mesesCalc = mesesPendientes(upd.aseo_pendiente_desde);
-      await sb.from('inmuebles').update({ meses_deuda: mesesCalc }).eq('inmueble', antes.codigo);
-      await sb.from('inmuebles').update({ meses_deuda: mesesCalc }).eq('condominio_padre_id', antes.codigo);
+      const nuevosMesesMulta = Math.max(0, mesesCalc - 1);
+      await sb.from('condominio_unidades').update({
+        aseo_pendiente_desde: upd.aseo_pendiente_desde,
+        ...(!('multa_meses' in upd) ? { multa_meses: nuevosMesesMulta } : {})
+      }).eq('condominio_id', antes.id);
+      if (!('multa_meses' in upd)) {
+        await sb.from('condominios').update({ multa_meses: nuevosMesesMulta }).eq('id', antes.id);
+      }
+      await sb.from('inmuebles').update({ meses_deuda: mesesCalc, ...(mesesCalc === 0 ? { multa_bs: 0, deuda_congelada_bs: 0, deuda_mmv: 0 } : {}) }).eq('inmueble', antes.codigo);
+      await sb.from('inmuebles').update({ meses_deuda: mesesCalc, ...(mesesCalc === 0 ? { multa_bs: 0, deuda_congelada_bs: 0, deuda_mmv: 0 } : {}) }).eq('condominio_padre_id', antes.codigo);
+      for (let i = 0; i < codigosHijosSync.length; i += 200) {
+        const { data: inmsLote } = await sb.from('inmuebles').select('id, mmv_mes').in('inmueble', codigosHijosSync.slice(i, i + 200));
+        for (const ir of (inmsLote || [])) {
+          const mmv = Number(ir.mmv_mes) || 0;
+          await sb.from('inmuebles').update({
+            meses_deuda: mesesCalc,
+            deuda_mmv: parseFloat((mesesCalc * mmv).toFixed(5)),
+            ...(mesesCalc === 0 ? { multa_bs: 0, deuda_congelada_bs: 0 } : {})
+          }).eq('id', ir.id);
+        }
+      }
     }
     if ('multa_meses' in upd) {
-      if (Number(upd.multa_meses) === 0) {
-        await sb.from('condominio_unidades').update({ multa_meses: 0, multa_exonerada_hasta: upd.aseo_pendiente_desde || antes.aseo_pendiente_desde }).eq('condominio_id', antes.id);
+      const mMulta = Math.max(0, Number(upd.multa_meses) || 0);
+      if (mMulta === 0) {
+        await sb.from('condominio_unidades').update({ multa_meses: 0, multa_exonerada_hasta: '2099-12-31' }).eq('condominio_id', antes.id);
+        await sb.from('condominios').update({ multa_exonerada_hasta: '2099-12-31' }).eq('id', antes.id);
         await sb.from('condominio_multas').update({ estado: 'Anulada', motivo_anulacion: motivo }).eq('condominio_id', antes.id).eq('estado', 'Pendiente');
-      } else if (Number(upd.multa_meses) > 0) {
-        await sb.from('condominio_unidades').update({ multa_meses: Number(upd.multa_meses), multa_exonerada_hasta: null }).eq('condominio_id', antes.id).neq('estado', 'Eliminada');
+      } else if (mMulta > 0) {
+        await sb.from('condominio_unidades').update({ multa_meses: mMulta, multa_exonerada_hasta: null }).eq('condominio_id', antes.id).neq('estado', 'Eliminada');
+      }
+      for (let i = 0; i < codigosHijosSync.length; i += 200) {
+        const { data: inmsLote } = await sb.from('inmuebles').select('id, notas').in('inmueble', codigosHijosSync.slice(i, i + 200));
+        for (const ir of (inmsLote || [])) {
+          let notaStr = String(ir.notas || '').trim();
+          if (mMulta === 0) {
+            if (!notaStr.startsWith('{') && !notaStr.includes('Caso especial: Exonerado de multas')) {
+              notaStr = notaStr ? `Caso especial: Exonerado de multas\n${notaStr}` : 'Caso especial: Exonerado de multas';
+            }
+            await sb.from('inmuebles').update({ multa_bs: 0, notas: notaStr || null }).eq('id', ir.id);
+          } else {
+            if (!notaStr.startsWith('{')) {
+              notaStr = notaStr
+                .replace(/Caso especial:\s*Exonerado de multas\n?/gi, '')
+                .replace(/\[EXONERADO:\d{4}-\d{2}\]\s*/g, '')
+                .trim();
+              await sb.from('inmuebles').update({ notas: notaStr || null }).eq('id', ir.id);
+            }
+          }
+        }
       }
     }
 

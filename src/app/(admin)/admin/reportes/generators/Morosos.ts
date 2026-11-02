@@ -1,15 +1,26 @@
-import * as xlsx from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { supabase } from '@/lib/supabase';
+import {
+  isResidencialInm,
+  isTerrenoInm,
+  calcularMensualidad,
+  isExoneradoTotalMultas,
+  getMesesExoneradosCount,
+} from '@/lib/calculos';
 
 const MESES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
 export function generarPeriodosPorMeses(mesesDeuda: number): string {
-  const m = Math.max(0, Math.floor(Number(mesesDeuda) || 0));
-  if (m <= 0) return '—';
+  const m = Math.max(1, Math.floor(Number(mesesDeuda) || 1));
   const now = new Date();
-  const curYear = now.getFullYear();
-  const curMonth = now.getMonth(); // 0-11
+  // El último mes facturado al corte actual (noviembre 2026) es octubre 2026 (mes anterior al mes en curso)
+  const baseDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const curYear = baseDate.getFullYear();
+  const curMonth = baseDate.getMonth(); // 0-11 (9 = OCT)
 
   const getLabel = (offsetBack: number) => {
     const d = new Date(curYear, curMonth - offsetBack, 1);
@@ -136,57 +147,169 @@ export async function generarMorososExcel(
   tcmmv: number
 ): Promise<void> {
   const rows = construirListaMorosos(facturasPendientesOrMorosos, contribuyentes, tcmmv);
+  const tasa = tcmmv > 0 ? tcmmv : 1;
 
-  const today = new Date().toLocaleDateString('es-VE');
-  const wsData = [
-    ['REPORTE DE MOROSOS — IAMEC Naguanagua'],
-    [`Fecha: ${today}  |  Tasa BCV: ${tcmmv ? tcmmv + ' Bs/EUR' : 'N/D'}  |  Total morosos: ${rows.length}`],
-    [],
-    ['N°', 'CÓDIGO', 'CONTRIBUYENTE', 'IDENTIDAD', 'TELÉFONO', 'CLASIFICACIÓN', 'MESES PENDIENTES', 'PERÍODOS', 'DEUDA TOTAL (Bs)'],
-    ...rows.map((r, i) => [
-      i + 1,
-      r.cod_cont,
-      r.contribuyente,
-      r.identidad,
-      r.telefono || '—',
-      r.clasificacion,
-      r.mesesPendientes,
-      r.periodos,
-      Number(r.totalDeudaBs || 0),
-    ]),
-    [],
-    ['', '', '', '', '', '', 'TOTAL MOROSOS:', rows.length, ''],
-    [
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      'TOTAL DEUDA (Bs):',
-      '',
-      Number(rows.reduce((s, r) => s + (Number(r.totalDeudaBs) || 0), 0).toFixed(2)),
-    ],
+  // Enriquecer con datos de la tabla inmuebles si faltan columnas del formato "Record de deudas"
+  const codigos = [...new Set(rows.map((r: any) => String(r.cod_cont || '').trim()).filter(Boolean))];
+  const inmByCode = new Map<string, any>();
+  if (codigos.length > 0) {
+    for (let i = 0; i < codigos.length; i += 250) {
+      const { data: chunk } = await supabase
+        .from('inmuebles')
+        .select(
+          'id,inmueble,identidad,contribuyente,direccion,telefono,actividad_principal,clasificacion,tipo,agente_retencion,meses_deuda,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,multa_bs,saldo_favor_bs,es_condominio,notas'
+        )
+        .in('inmueble', codigos.slice(i, i + 250));
+      (chunk || []).forEach((inm: any) => {
+        if (inm.inmueble) inmByCode.set(String(inm.inmueble).trim(), inm);
+      });
+    }
+  }
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Record de deudas');
+
+  const headers = [
+    'id',
+    'Código',
+    'Documento',
+    'Nombre / Razón Social',
+    'Dir. fiscal',
+    'Telefono',
+    'Actividad',
+    'Uso',
+    'Tipo',
+    'Agente de retencion',
+    'Meses pendientes',
+    'Monto x mes',
+    'Deuda total Ves',
+    'Multa total Ves',
+    'Total Ves',
   ];
-  const wb = xlsx.utils.book_new();
-  const ws = xlsx.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [
-    { wch: 6 },
-    { wch: 14 },
-    { wch: 42 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 36 },
-    { wch: 20 },
+
+  ws.columns = headers.map(() => ({ width: 30 }));
+
+  const hRow = ws.getRow(1);
+  hRow.height = 18;
+  headers.forEach((h, idx) => {
+    const cell = hRow.getCell(idx + 1);
+    cell.value = h;
+    cell.font = { name: 'Calibri', size: 10, bold: true };
+  });
+
+  let sumMontoMes = 0;
+  let sumDeudaSinMulta = 0;
+  let sumMulta = 0;
+  let sumTotal = 0;
+
+  rows.forEach((r: any, idx: number) => {
+    const cod = String(r.cod_cont || '').trim();
+    const inm = inmByCode.get(cod) || r._rawInm || {};
+    const esRes = inm.inmueble ? isResidencialInm(inm) : String(r.clasificacion || '').toLowerCase() !== 'comercial';
+    const meses = Math.max(1, parseInt(String(r.mesesPendientes || inm.meses_deuda || 1), 10) || 1);
+
+    // Calcular Monto x mes, Deuda total Ves (sin multa), Multa total Ves y Total Ves
+    let montoMes = Number(r.montoMes || 0);
+    let deudaSinMulta = Number(r.deudaSinMultaBs || 0);
+    let multaVes = Number(r.multaTotalBs ?? -1);
+    let totalVes = r2(Number(r.totalDeudaBs || 0));
+
+    if (!montoMes || multaVes < 0) {
+      const bMes = inm.inmueble ? calcularMensualidad(inm, tasa) : 0;
+      const ivaMes = esRes ? 0 : bMes * 0.16;
+      const retMes = !esRes && inm.agente_retencion === true ? ivaMes * 0.75 : 0;
+      const netoMes = r2(bMes + ivaMes - retMes);
+
+      const exoneradoTotal = isExoneradoTotalMultas(inm.notas);
+      const exoneradosCount = getMesesExoneradosCount(inm.notas);
+      const mesesConMora = exoneradoTotal ? 0 : Math.max(0, meses - 1 - exoneradosCount);
+      const tasaMora = esRes ? 0.1 : 0.12;
+      const multaCalc = exoneradoTotal
+        ? 0
+        : r2(bMes * tasaMora * mesesConMora + (parseFloat(String(inm.multa_bs || 0)) || 0));
+
+      montoMes = netoMes > 0 ? netoMes : r2(totalVes / meses);
+      multaVes = Math.min(totalVes, Math.max(0, multaCalc));
+      deudaSinMulta = r2(Math.max(0, totalVes - multaVes));
+    }
+
+    const uso =
+      r.uso ||
+      inm.clasificacion ||
+      (inm.es_condominio ? 'Condominio' : esRes ? 'Residencial' : 'Comercial');
+    const tipoInm =
+      r.tipoInm ||
+      inm.tipo ||
+      (esRes ? 'Unifamiliar' : 'Comercial');
+    const dirFiscal = r.direccion || inm.direccion || 'NAGUANAGUA';
+    const actividad = r.actividad || inm.actividad_principal || (esRes ? 'VIVIENDA UNIFAMILIAR' : 'COMERCIAL');
+    const agenteRet = Boolean(r.agenteRetencion ?? inm.agente_retencion ?? false);
+    const idNum = typeof inm.id === 'number' ? inm.id : typeof r.id === 'number' ? r.id : idx + 1;
+    const cleanNombre = String(r.contribuyente || inm.contribuyente || '—')
+      .replace(/^\d+\s*-\s*(?=[A-Za-z])/, '')
+      .trim();
+
+    const row = ws.getRow(idx + 2);
+    row.height = 15;
+    const vals = [
+      idNum,
+      cod || '—',
+      r.identidad || inm.identidad || '—',
+      cleanNombre,
+      dirFiscal,
+      r.telefono && r.telefono !== '—' ? r.telefono : inm.telefono || 'Sin Telefono',
+      actividad,
+      uso,
+      tipoInm,
+      agenteRet,
+      meses,
+      r2(montoMes),
+      r2(deudaSinMulta),
+      r2(multaVes),
+      r2(totalVes),
+    ];
+
+    vals.forEach((v, cIdx) => {
+      const cell = row.getCell(cIdx + 1);
+      cell.value = v as any;
+      if (cIdx >= 11) {
+        cell.font = { name: 'Calibri', size: 11, bold: true };
+        cell.numFmt = '"Bs." #,##0.00';
+      } else {
+        cell.font = { name: 'Calibri', size: 10 };
+      }
+    });
+
+    sumMontoMes += r2(montoMes);
+    sumDeudaSinMulta += r2(deudaSinMulta);
+    sumMulta += r2(multaVes);
+    sumTotal += r2(totalVes);
+  });
+
+  // Fila de totales al final
+  const totRow = ws.getRow(rows.length + 2);
+  totRow.height = 18;
+  totRow.getCell(10).value = 'TOTAL GENERAL:';
+  totRow.getCell(10).font = { name: 'Calibri', size: 11, bold: true };
+  totRow.getCell(11).value = rows.length;
+  totRow.getCell(11).font = { name: 'Calibri', size: 11, bold: true };
+
+  const totalsCols: [number, number][] = [
+    [12, r2(sumMontoMes)],
+    [13, r2(sumDeudaSinMulta)],
+    [14, r2(sumMulta)],
+    [15, r2(sumTotal)],
   ];
-  ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
-  ];
-  xlsx.utils.book_append_sheet(wb, ws, 'Morosos');
-  xlsx.writeFile(wb, `Reporte_Morosos_${today.replace(/\//g, '-')}.xlsx`);
+  totalsCols.forEach(([colIdx, val]) => {
+    const cell = totRow.getCell(colIdx);
+    cell.value = val;
+    cell.font = { name: 'Calibri', size: 11, bold: true };
+    cell.numFmt = '"Bs." #,##0.00';
+  });
+
+  const today = new Date().toLocaleDateString('es-VE').replace(/\//g, '-');
+  const buf = await wb.xlsx.writeBuffer();
+  saveAs(new Blob([buf]), `Record_de_Morosos_${today}.xlsx`);
 }
 
 export async function generarMorososPDF(
@@ -237,11 +360,11 @@ export async function generarMorososPDF(
     body: rows.map((r, i) => [
       i + 1,
       r.cod_cont || '—',
-      r.contribuyente || 'N/D',
+      String(r.contribuyente || 'N/D').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim(),
       r.identidad || 'N/D',
       r.telefono || 'N/D',
       r.mesesPendientes,
-      Number(r.totalDeudaBs || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      'Bs. ' + Number(r.totalDeudaBs || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     ]),
     theme: 'striped',
     headStyles: {

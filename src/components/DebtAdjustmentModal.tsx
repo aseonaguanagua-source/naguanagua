@@ -402,11 +402,47 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
         try {
           const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
           const nuevoDesde = pendienteDesdeParaMeses(selectedCount);
-          await supabase.from('condominios').update({ aseo_pendiente_desde: nuevoDesde }).eq('codigo', inm.inmueble);
-          await supabase.from('condominio_unidades').update({ aseo_pendiente_desde: nuevoDesde }).eq('inmueble', inm.inmueble);
+          const nuevosMesesMulta = Math.max(0, selectedCount - 1);
+          const updCondoFields: any = { aseo_pendiente_desde: nuevoDesde, multa_meses: nuevosMesesMulta };
+          if (selectedCount === 0) updCondoFields.multa_exonerada_hasta = null;
+
+          await supabase.from('condominios').update(updCondoFields).eq('codigo', inm.inmueble);
+          const { data: uRows } = await supabase
+            .from('condominio_unidades')
+            .select('id, condominio_id')
+            .eq('inmueble', inm.inmueble);
+
+          await supabase.from('condominio_unidades').update(updCondoFields).eq('inmueble', inm.inmueble);
+
+          if (selectedCount === 0 && uRows && uRows.length > 0) {
+            await supabase
+              .from('condominio_multas')
+              .update({ estado: 'Anulada' })
+              .in('unidad_id', uRows.map((u: any) => u.id))
+              .eq('estado', 'Pendiente');
+          }
+
+          // Si la unidad pertenece a un condominio por condominio_id (incluso si condominio_padre_id estaba vacío)
+          const parentCondoId = uRows?.[0]?.condominio_id;
+          if (parentCondoId) {
+            const { data: allUnidadesCondo } = await supabase
+              .from('condominio_unidades')
+              .select('aseo_pendiente_desde')
+              .eq('condominio_id', parentCondoId)
+              .neq('estado', 'Eliminada');
+            if (allUnidadesCondo && allUnidadesCondo.length > 0) {
+              const fechasValidas = allUnidadesCondo.map((u: any) => u.aseo_pendiente_desde).filter(Boolean).sort();
+              const minDesde = fechasValidas[0] || null;
+              await supabase.from('condominios').update({ aseo_pendiente_desde: minDesde }).eq('id', parentCondoId);
+            }
+          }
+
           const { data: cPadre } = await supabase.from('condominios').select('id').eq('codigo', inm.inmueble).maybeSingle();
           if (cPadre) {
-            await supabase.from('condominio_unidades').update({ aseo_pendiente_desde: nuevoDesde }).eq('condominio_id', cPadre.id);
+            await supabase.from('condominio_unidades').update(updCondoFields).eq('condominio_id', cPadre.id);
+            if (selectedCount === 0) {
+              await supabase.from('condominio_multas').update({ estado: 'Anulada' }).eq('condominio_id', cPadre.id).eq('estado', 'Pendiente');
+            }
           }
         } catch (errMotor) {
           console.warn('Error sincronizando módulo condominios:', errMotor);

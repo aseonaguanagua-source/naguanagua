@@ -225,6 +225,76 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
           .eq('id', inm.id);
 
         if (errInm) throw errInm;
+
+        // Sincronizar con módulo de Condominios (condominios, condominio_unidades, condominio_multas)
+        try {
+          const nuevosMesesMulta = (yaExoneradoTodo || nuevaMultaBsInm <= 0)
+            ? 0
+            : Math.max(0, Math.round(nuevaMultaBsInm / (baseMultaMes || 1)));
+          const sortedSel = [...selectedMonths].sort();
+          const lastSelKey = sortedSel[sortedSel.length - 1];
+          const exoneradaHasta = (yaExoneradoTodo || nuevosMesesMulta === 0)
+            ? '2099-12-31'
+            : (lastSelKey ? `${lastSelKey}-01` : null);
+
+          if (inm.inmueble) {
+            // Si el código es un condominio matriz
+            const { data: cMatriz } = await supabase
+              .from('condominios')
+              .select('id, codigo')
+              .eq('codigo', inm.inmueble)
+              .maybeSingle();
+
+            if (cMatriz) {
+              await supabase
+                .from('condominios')
+                .update({ multa_meses: nuevosMesesMulta, multa_exonerada_hasta: exoneradaHasta })
+                .eq('id', cMatriz.id);
+              await supabase
+                .from('condominio_unidades')
+                .update({ multa_meses: nuevosMesesMulta, multa_exonerada_hasta: exoneradaHasta })
+                .eq('condominio_id', cMatriz.id);
+              if (nuevosMesesMulta === 0) {
+                await supabase
+                  .from('condominio_multas')
+                  .update({ estado: 'Anulada' })
+                  .eq('condominio_id', cMatriz.id)
+                  .eq('estado', 'Pendiente');
+              }
+            }
+
+            // Si el código es una unidad dentro de condominio_unidades
+            const { data: uRows } = await supabase
+              .from('condominio_unidades')
+              .select('id, condominio_id')
+              .eq('inmueble', inm.inmueble);
+
+            if (uRows && uRows.length > 0) {
+              const uIds = uRows.map((u: any) => u.id);
+              await supabase
+                .from('condominio_unidades')
+                .update({ multa_meses: nuevosMesesMulta, multa_exonerada_hasta: exoneradaHasta })
+                .in('id', uIds);
+              if (nuevosMesesMulta === 0) {
+                await supabase
+                  .from('condominio_multas')
+                  .update({ estado: 'Anulada' })
+                  .in('unidad_id', uIds)
+                  .eq('estado', 'Pendiente');
+              } else if (selectedMonths.length > 0) {
+                const periodosDates = selectedMonths.map(k => `${k}-01`);
+                await supabase
+                  .from('condominio_multas')
+                  .update({ estado: 'Anulada' })
+                  .in('unidad_id', uIds)
+                  .in('periodo', periodosDates)
+                  .eq('estado', 'Pendiente');
+              }
+            }
+          }
+        } catch (syncErr) {
+          console.warn('Advertencia sincronizando exoneración con condominios:', syncErr);
+        }
       }
 
       // 2. Si hay notas en contribuyentes, registrar también

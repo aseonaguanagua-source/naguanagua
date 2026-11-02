@@ -38,6 +38,25 @@ export async function POST(req: Request) {
 
     if (errInm) return NextResponse.json({ error: errInm.message }, { status: 500 });
 
+    // Sincronizar también en condominio_unidades si todos los periodos custom tienen exonerar_multa
+    try {
+      if (periodos_custom && typeof periodos_custom === 'object') {
+        const vals = Object.values(periodos_custom) as any[];
+        const conExo = vals.filter(v => v && v.exonerar_multa === true);
+        if (vals.length > 0 && conExo.length === vals.length) {
+          await sb.from('condominio_unidades')
+            .update({ multa_meses: 0, multa_exonerada_hasta: '2099-12-31' })
+            .eq('inmueble', inmCode);
+        } else if (vals.some(v => v && v.exonerar_multa === false)) {
+          await sb.from('condominio_unidades')
+            .update({ multa_exonerada_hasta: null })
+            .eq('inmueble', inmCode);
+        }
+      }
+    } catch (syncErr) {
+      console.warn('Advertencia sincronizando periodos_custom con condominio_unidades:', syncErr);
+    }
+
     // 3. Registrar en Auditoría
     await sb.from('auditoria').insert({
       accion: 'Ajuste de actividad y multas por mes',

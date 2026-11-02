@@ -25,15 +25,29 @@ const fechaISO = (d: any) => {
 };
 const dmy = (iso: string) => { const [y, m, d] = String(iso || '').split('-'); return d ? `${d}/${m}/${y}` : iso; };
 
+const cleanId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 export const codigosDePago = (det: any, p?: any): string[] => {
   const s = new Set<string>();
   if (!det && !p) return [];
   const d = det || {};
 
-  // 1. Condominios: siempre priorizar el código principal del condominio (ej. Torre Cristal URB005770)
-  if (d.condominio?.codigo) s.add(String(d.condominio.codigo).trim().toUpperCase());
-  if (d.condominio_codigo) s.add(String(d.condominio_codigo).trim().toUpperCase());
-  if (d.cod_condominio) s.add(String(d.cod_condominio).trim().toUpperCase());
+  // Determinar si es un pago individual de un local/hijo (modo CONTRIBUYENTE o RIF distinto al del condominio padre)
+  const pIdClean = cleanId(p?.identidad);
+  const condoIdClean = cleanId(d.condominio?.identidad);
+  const esComercialHijo =
+    d.modo === 'CONTRIBUYENTE' ||
+    (String(d.condominio?.tipo || '').toUpperCase().includes('COMERCIAL') &&
+      Array.isArray(d.condominio?.lineas) &&
+      d.condominio.lineas.length === 1) ||
+    (pIdClean && condoIdClean && pIdClean !== condoIdClean);
+
+  if (!esComercialHijo) {
+    // 1. Condominios residenciales / cobro general de junta: priorizar el código principal del condominio (ej. URB005770)
+    if (d.condominio?.codigo) s.add(String(d.condominio.codigo).trim().toUpperCase());
+    if (d.condominio_codigo) s.add(String(d.condominio_codigo).trim().toUpperCase());
+    if (d.cod_condominio) s.add(String(d.cod_condominio).trim().toUpperCase());
+  }
 
   // 2. Campos directos de inmueble principal
   if (d.cod_inmueble) s.add(String(d.cod_inmueble).trim().toUpperCase());
@@ -41,12 +55,19 @@ export const codigosDePago = (det: any, p?: any): string[] => {
   if (d.inmueble) s.add(String(d.inmueble).trim().toUpperCase());
   if (p?.inmueble) s.add(String(p.inmueble).trim().toUpperCase());
 
+  // 3. Si es local/hijo individual, buscar primero en las líneas hijas antes de usar el código del condominio padre
+  if (esComercialHijo && Array.isArray(d.condominio?.lineas)) {
+    d.condominio.lineas.forEach((l: any) => {
+      if (l?.inmueble) s.add(String(l.inmueble).trim().toUpperCase());
+    });
+  }
+
   // Si ya tenemos el código principal (o de condominio), NO expandir las líneas hijas individuales
   if (s.size > 0) {
     return [...s].filter(Boolean);
   }
 
-  // 3. Solo si no hay código principal, buscar en líneas hijas
+  // 3b. Solo si no hay código principal, buscar en líneas hijas
   if (Array.isArray(d.condominio?.lineas)) {
     d.condominio.lineas.forEach((l: any) => {
       if (l?.inmueble) s.add(String(l.inmueble).trim().toUpperCase());
@@ -108,6 +129,13 @@ export const codigosDePago = (det: any, p?: any): string[] => {
       s.add(cuo.trim().toUpperCase());
     }
   });
+
+  // Fallback al código del condominio si no se halló código de local individual
+  if (s.size === 0 && esComercialHijo) {
+    if (d.condominio?.codigo) s.add(String(d.condominio.codigo).trim().toUpperCase());
+    if (d.condominio_codigo) s.add(String(d.condominio_codigo).trim().toUpperCase());
+    if (d.cod_condominio) s.add(String(d.cod_condominio).trim().toUpperCase());
+  }
 
   return [...s].filter(Boolean);
 };
@@ -207,15 +235,48 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     if (d.pago_vinculado) retPorPago.set(String(d.pago_vinculado), { monto: Number(p.monto) || 0, ref: String(p.referencia || ''), fecha: fechaISO(p.created_at) });
   });
 
-  // Consultar auditoría para cruzar todas las anulaciones de facturas electrónicas y comprobantes de retención cargados
+  // Consultar auditoría y retenciones_iva para cruzar anulaciones, números de factura y comprobantes de retención SENIAT
   const mapaAnulacionesAudit = new Map<string, any>();
   const mapaComprobantesRetAudit = new Map<string, { comp: string; fecha: string }>();
+  const retIvaById = new Map<string, any>();
+  const retIvaByControl = new Map<string, any>();
+  const retIvaByDoc = new Map<string, any>();
+  const retIvaByRif = new Map<string, any[]>();
+  const docByControlFromRet = new Map<string, string>();
+
   try {
-    const { data: auditRows } = await supabase
-      .from('auditoria')
-      .select('*')
-      .or('accion.ilike.%anula%,accion.ilike.%retenci%')
-      .order('created_at', { ascending: false });
+    const [{ data: auditRows }, { data: retRows }] = await Promise.all([
+      supabase
+        .from('auditoria')
+        .select('*')
+        .or('accion.ilike.%anula%,accion.ilike.%retenci%')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('retenciones_iva')
+        .select('*')
+        .order('created_at', { ascending: false }),
+    ]);
+
+    if (Array.isArray(retRows)) {
+      retRows.forEach((r: any) => {
+        if (r.id) retIvaById.set(String(r.id), r);
+        const ctrl = String(r.factura_control || '').trim();
+        const cod = String(r.codigo_retencion || '').trim();
+        const docNum = /^FAC-/i.test(cod) ? cod.replace(/^FAC-/i, '').trim() : '';
+        if (ctrl) {
+          if (!retIvaByControl.has(ctrl)) retIvaByControl.set(ctrl, r);
+          if (docNum && !docByControlFromRet.has(ctrl)) docByControlFromRet.set(ctrl, docNum);
+        }
+        if (docNum && !retIvaByDoc.has(docNum)) {
+          retIvaByDoc.set(docNum, r);
+        }
+        const rifKey = cleanId(r.contribuyente_rif);
+        if (rifKey) {
+          if (!retIvaByRif.has(rifKey)) retIvaByRif.set(rifKey, []);
+          retIvaByRif.get(rifKey)!.push(r);
+        }
+      });
+    }
 
     if (Array.isArray(auditRows)) {
       auditRows.forEach((a: any) => {
@@ -249,7 +310,7 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       });
     }
   } catch (errAudit) {
-    console.warn('No se pudo cargar auditoría:', errAudit);
+    console.warn('No se pudo cargar auditoría/retenciones:', errAudit);
   }
 
   const ventas = pagosFiltrados
@@ -263,8 +324,8 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       // Requisito: En el Libro de Ventas solo van operaciones que tengan Factura Digital emitida o anulada por NC
       return Boolean(
         esAnuladaAudit ||
-        (fd && (fd.emitida || fd.numero_documento || fd.anulada || fd.nota_credito)) ||
-        (String(p.estado || '').toLowerCase().includes('anulad') && (fd?.numero_documento || infoAudit?.numero_factura))
+        (fd && (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada || fd.nota_credito)) ||
+        (String(p.estado || '').toLowerCase().includes('anulad') && (fd?.numero_documento || fd?.numero_control || infoAudit?.numero_factura))
       );
     })
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
@@ -273,8 +334,9 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
   const inmMap = await cargarInmMapPagos(ventas);
 
   const nombreDe = (id: string, det: any) => {
-    const c = contribuyentes.find((x: any) => x.Identidad === id);
-    return c?.Contribuyente || det.contribuyente_nombre || det.recibo_caja?.[0]?.razonSocial || (det.contribuyente && det.contribuyente !== id ? det.contribuyente : '') || id;
+    const c = contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cleanId(id));
+    const raw = c?.Contribuyente || det.contribuyente_nombre || det.recibo_caja?.[0]?.razonSocial || (det.contribuyente && det.contribuyente !== id ? det.contribuyente : '') || id;
+    return String(raw || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
   };
 
   const wb = new ExcelJS.Workbook();
@@ -352,8 +414,13 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     const esAnulada = Boolean(infoAudit || fd.anulada || String(p.estado || '').toLowerCase().includes('anulad'));
     const ncInfo = fd.nota_credito;
     
-    // N° Factura / Doc
-    const nroDoc = fd.numero_documento || infoAudit?.numero_factura || '';
+    // N° Factura / Doc (recuperando también desde retenciones_iva cuando una factura anulada perdió numero_documento)
+    const ctrlStr = String(fd.numero_control || '').trim();
+    const nroDoc =
+      fd.numero_documento ||
+      infoAudit?.numero_factura ||
+      (ctrlStr ? docByControlFromRet.get(ctrlStr) : '') ||
+      '';
     if (nroDoc && !esAnulada) facturas++;
     (m.iva > 0 ? usuariosCom : usuariosRes).add(String(p.identidad || ''));
 
@@ -372,14 +439,33 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
     const ivaN = contrib ? 0 : r2(m.iva * factorSigno);
     const retFiscal = esAnulada ? 0 : retMonto;
 
+    // Buscar registro en retenciones_iva
+    const retRow =
+      (fd.retencion?.retencion_id ? retIvaById.get(String(fd.retencion.retencion_id)) : null) ||
+      (ctrlStr ? retIvaByControl.get(ctrlStr) : null) ||
+      (nroDoc ? retIvaByDoc.get(String(nroDoc).trim()) : null) ||
+      (() => {
+        const listRif = retIvaByRif.get(cleanId(p.identidad));
+        if (!listRif || !listRif.length) return null;
+        return listRif.find(r => Math.abs((Number(r.monto_retenido) || 0) - retMonto) < 5) || listRif[0];
+      })();
+
     // Número y fecha de comprobante de retención
     const auditCompInfo = mapaComprobantesRetAudit.get(String(p.id)) || (nroDoc ? mapaComprobantesRetAudit.get(String(nroDoc)) : null);
     let compRetFinal = '';
     let fechaCompRetFinal = '';
 
-    if (retMonto > 0 || auditCompInfo) {
+    const esPlanillaValida = (s: string) => {
+      if (!s) return false;
+      const u = s.toUpperCase();
+      if (u === 'CAJA' || u === 'COBRO CAJA' || u === 'PENDIENTE' || u === 'S/N' || u === 'N/A' || u.startsWith('RET-')) return false;
+      return true;
+    };
+
+    if (retMonto > 0 || auditCompInfo || retRow) {
       const posiblesComprobantes = [
         auditCompInfo?.comp,
+        retRow?.numero_planilla,
         det.comprobante_retencion,
         det.numero_comprobante_retencion,
         fd.retencion?.comprobante,
@@ -391,20 +477,22 @@ export const generarLibroVentas = async (pagosFiltrados: any[], contribuyentes: 
       for (const cand of posiblesComprobantes) {
         if (!cand) continue;
         const candStr = String(cand).trim();
-        // Si es el formato oficial de 14 dígitos (ej: 20261000000001) o cualquier número sin prefijo RET-
-        if (candStr && !candStr.startsWith('RET-')) {
+        if (esPlanillaValida(candStr)) {
           compRetFinal = candStr;
           break;
         }
       }
 
-      // Fallback si solo existe la referencia interna RET-XXXXXX
-      if (!compRetFinal && ret?.ref) {
+      // Fallback si solo existe código de retención o referencia interna
+      if (!compRetFinal && retRow?.codigo_retencion) {
+        compRetFinal = String(retRow.codigo_retencion).trim();
+      } else if (!compRetFinal && ret?.ref) {
         compRetFinal = ret.ref;
       }
 
       fechaCompRetFinal = (
         auditCompInfo?.fecha ||
+        (retRow?.fecha_planilla ? String(retRow.fecha_planilla).slice(0, 10) : '') ||
         det.fecha_comprobante_retencion ||
         fd.retencion?.fecha_comprobante ||
         ret?.fecha ||

@@ -1,8 +1,39 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { codigosDePago, parseDet } from './LibroVentas';
+import { supabase } from '@/lib/supabase';
+import { isResidencialInm } from '@/lib/calculos';
+import { codigosDePago, cargarInmMapPagos, parseDet } from './LibroVentas';
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+const cleanId = (s: any) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+export function obtenerNroReciboWeb(p: any, det: any): string {
+  const candidatos = [
+    det?.recibo_caja?.[0]?.controlWeb,
+    det?.recibo_caja?.[0]?.reciboNo,
+    det?.recibo_no,
+    det?.recibo_digital?.numero,
+  ];
+  for (const raw of candidatos) {
+    const s = String(raw || '').trim().toUpperCase();
+    if (!s) continue;
+    if (s.includes('M') || s.startsWith('RC-') || s.startsWith('RECIB-')) continue;
+    if (s.startsWith('WEB-')) return s;
+    const onlyDigits = s.replace(/\D/g, '');
+    if (onlyDigits.length >= 3) {
+      return `WEB-${onlyDigits.slice(-7).padStart(7, '0')}`;
+    }
+  }
+  const ref = String(p?.referencia || '').trim();
+  if (ref && !ref.toUpperCase().startsWith('RECIB-')) {
+    const digits = ref.replace(/\D/g, '').slice(-7);
+    if (digits.length >= 3) {
+      return `WEB-${digits.padStart(7, '0')}`;
+    }
+  }
+  const idDigits = String(p?.id || '').replace(/\D/g, '').slice(0, 7).padStart(7, '0');
+  return `WEB-${idDigits}`;
+}
 const dmy = (iso: string) => {
   const [y, m, d] = String(iso || '').split('-');
   return d ? `${d}/${m}/${y}` : iso;
@@ -44,16 +75,120 @@ export async function generarReporteRecibosPagos(
   fechaInicio: string,
   fechaFin: string
 ) {
-  // Filtrar pagos que sean recibos (no tienen factura digital con número de documento emitido)
-  // y que no sean retenciones puras o pagos anulados
+  // Cargar mapa de inmuebles y condominios para identificar código principal y excluir comerciales
+  const inmMap = await cargarInmMapPagos(pagos);
+  const condoByIdentidad = new Map<string, any>();
+  const condoByCodigo = new Map<string, any>();
+  const inmByIdentidad = new Map<string, any>();
+
+  try {
+    const { data: condos } = await supabase.from('condominios').select('codigo, identidad, nombre, tipo');
+    (condos || []).forEach((c: any) => {
+      if (c.identidad) condoByIdentidad.set(cleanId(c.identidad), c);
+      if (c.codigo) condoByCodigo.set(String(c.codigo).trim().toUpperCase(), c);
+    });
+
+    const idsSinCodigo = [...new Set(
+      pagos
+        .filter(p => codigosDePago(parseDet(p), p).length === 0)
+        .map(p => String(p.identidad || '').trim())
+        .filter(Boolean)
+    )];
+    if (idsSinCodigo.length > 0) {
+      for (let i = 0; i < idsSinCodigo.length; i += 200) {
+        const { data: inmsExtra } = await supabase
+          .from('inmuebles')
+          .select('inmueble, identidad, contribuyente, tipo, clasificacion, actividad_principal, es_condominio, padre_id')
+          .in('identidad', idsSinCodigo.slice(i, i + 200));
+        (inmsExtra || []).forEach((r: any) => {
+          const cid = cleanId(r.identidad);
+          if (cid && (!inmByIdentidad.has(cid) || !r.padre_id)) {
+            inmByIdentidad.set(cid, r);
+          }
+          if (r.inmueble) inmMap.set(String(r.inmueble).trim().toUpperCase(), r);
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('No se pudo cargar mapa adicional para ReporteRecibosPagos:', e);
+  }
+
+  const resolverCodigo = (p: any, det: any): string => {
+    const codigos = codigosDePago(det, p);
+    if (codigos[0]) return codigos[0];
+    const directo = det.codigo_inmueble || det.cod_inmueble || p.inmueble;
+    if (directo) return String(directo).trim().toUpperCase();
+    const cid = cleanId(p.identidad);
+    if (cid) {
+      const cnd = condoByIdentidad.get(cid);
+      if (cnd?.codigo) return String(cnd.codigo).trim().toUpperCase();
+      const cnt = contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cid);
+      const codCnt = cnt?.CodCont || cnt?.cod_cont || cnt?.inmueble;
+      if (codCnt) return String(codCnt).trim().toUpperCase();
+      const inm = inmByIdentidad.get(cid);
+      if (inm?.inmueble) return String(inm.inmueble).trim().toUpperCase();
+    }
+    return '-';
+  };
+
+  const nombreDe = (id: string, det: any) => {
+    const cid = cleanId(id);
+    const c = contribuyentes.find((x: any) => cleanId(x.Identidad || x.identidad) === cid);
+    const cnd = condoByIdentidad.get(cid);
+    const inm = inmByIdentidad.get(cid);
+    const raw =
+      c?.Contribuyente ||
+      c?.contribuyente ||
+      cnd?.nombre ||
+      inm?.contribuyente ||
+      det.contribuyente_nombre ||
+      det.condominio?.nombre ||
+      det.recibo_caja?.[0]?.razonSocial ||
+      (det.contribuyente && det.contribuyente !== id ? det.contribuyente : '') ||
+      id;
+    return String(raw || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
+  };
+
+  // Filtrar pagos que sean recibos residenciales / condominios residenciales
+  // (excluir pagos anulados, retenciones, facturas emitidas y contribuyentes comerciales)
   const recibosList = pagos.filter(p => {
     const estado = String(p.estado || '').toLowerCase();
     if (estado.includes('anulad') || estado.includes('rechaz') || estado.includes('revers')) return false;
-    if (/retenci/i.test(String(p.tipo || ''))) return false;
+    if (/retenci|nota de cr[eé]dito|saldo a favor/i.test(String(p.tipo || ''))) return false;
     const det = parseDet(p);
     const fd = det.factura_digital || {};
-    // Si tiene factura digital formal con número de documento y no está anulada, es factura (va al Libro de Ventas)
-    if (fd.emitida && fd.numero_documento && !fd.anulada) {
+    // Si tiene factura digital formal o control fiscal, va al Libro de Ventas
+    if (fd.emitida || fd.numero_documento || fd.numero_control || fd.anulada) {
+      return false;
+    }
+    // Excluir si tiene IVA o retención o recibo marcado como Comercial
+    if (Number(det.iva || det.monto_iva || det.monto_retencion_iva || 0) > 0) return false;
+    if (Array.isArray(det.recibo_caja) && det.recibo_caja.some((rc: any) => String(rc?.tipoContribuyente || '').toLowerCase() === 'comercial' || Number(rc?.iva || 0) > 0)) {
+      return false;
+    }
+    if (det.condominio?.tipo && String(det.condominio.tipo).toUpperCase().includes('COMERCIAL')) {
+      return false;
+    }
+
+    const cod = resolverCodigo(p, det);
+    const cnd = (cod !== '-' ? condoByCodigo.get(cod) : null) || condoByIdentidad.get(cleanId(p.identidad));
+    if (cnd) {
+      if (String(cnd.tipo || '').toUpperCase().includes('COMERCIAL')) return false;
+      return true; // Condominio residencial
+    }
+
+    const inm = (cod !== '-' ? inmMap.get(cod) : null) || inmByIdentidad.get(cleanId(p.identidad));
+    if (inm) {
+      if (inm.es_condominio || String(inm.clasificacion || '').toLowerCase().includes('condominio')) {
+        return !String(inm.tipo || '').toUpperCase().includes('COMERCIAL');
+      }
+      if (!isResidencialInm(inm)) return false;
+      return true;
+    }
+
+    // Si no se encontró inmueble ni condominio pero el RIF es J/G y el nombre no es de condominio/residencia, es comercial
+    const nom = nombreDe(p.identidad, det);
+    if (/^[JG]/i.test(String(p.identidad || '').trim()) && !/condominio|residencia|conjunto|asociaci[oó]n|junta/i.test(nom)) {
       return false;
     }
     return true;
@@ -119,11 +254,6 @@ export async function generarReporteRecibosPagos(
     cell.border = BORDE;
   });
 
-  const nombreDe = (id: string, det: any) => {
-    const c = contribuyentes.find((x: any) => String(x.Identidad || x.identidad).trim().toUpperCase() === String(id).trim().toUpperCase());
-    return c?.Contribuyente || c?.contribuyente || det.contribuyente_nombre || det.recibo_caja?.[0]?.razonSocial || (det.contribuyente && det.contribuyente !== id ? det.contribuyente : '') || id;
-  };
-
   let rowIdx = 4;
   let totalAseo = 0;
   let totalMultas = 0;
@@ -183,16 +313,10 @@ export async function generarReporteRecibosPagos(
     montoAseo = r2(Math.max(0, montoTotal - montoMultas));
 
     // Código del inmueble o condominio principal (sin desglosar hijos)
-    const codigos = codigosDePago(det, p);
-    const codigoPrincipal = codigos[0] || det.codigo_inmueble || det.cod_inmueble || p.inmueble || '-';
+    const codigoPrincipal = resolverCodigo(p, det);
 
-    // Número de recibo
-    const nroRecibo = det.recibo_caja?.[0]?.controlWeb || 
-                      det.recibo_caja?.[0]?.reciboNo || 
-                      det.recibo_no || 
-                      det.recibo_digital?.numero ||
-                      p.referencia || 
-                      '-';
+    // Número de recibo limpio (WEB-XXXXXXX)
+    const nroRecibo = obtenerNroReciboWeb(p, det);
 
     const fechaDoc = fechaISO(p.created_at);
     const rifCi = p.identidad || '-';

@@ -47,9 +47,32 @@ export async function POST(req: Request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Limpiar también las multas heredadas en la tabla inmuebles
-    for (let i = 0; i < inms.length; i += 300) {
-      await sb.from('inmuebles').update({ multa_bs: 0 }).in('inmueble', inms.slice(i, i + 300));
+    // Limpiar también las multas heredadas en la tabla inmuebles y marcar exoneración en notas para Contribuyentes
+    const codigosInm = Array.from(new Set([...(unidad_id ? [] : [c.codigo]), ...inms].filter(Boolean)));
+    const fechaHoy = new Date().toLocaleDateString('es-VE');
+    const registroExo = `[${fechaHoy}] EXONERACIÓN DE MULTAS (Condominios): ${String(motivo).trim()}`;
+    for (let i = 0; i < codigosInm.length; i += 200) {
+      const loteCodigos = codigosInm.slice(i, i + 200);
+      const { data: rowsInm } = await sb.from('inmuebles').select('id, notas').in('inmueble', loteCodigos);
+      for (const rInm of (rowsInm || [])) {
+        let notaStr = String(rInm.notas || '').trim();
+        if (notaStr.startsWith('{') && notaStr.endsWith('}')) {
+          try {
+            const parsed = JSON.parse(notaStr);
+            parsed.exonerado_multas = 'Caso especial: Exonerado de multas';
+            parsed.ultima_exoneracion = registroExo;
+            notaStr = JSON.stringify(parsed);
+          } catch {
+            notaStr = `Caso especial: Exonerado de multas\n${notaStr}\n${registroExo}`;
+          }
+        } else {
+          if (!notaStr.includes('Caso especial: Exonerado de multas')) {
+            notaStr = notaStr ? `Caso especial: Exonerado de multas\n${notaStr}` : 'Caso especial: Exonerado de multas';
+          }
+          notaStr += `\n---\n${registroExo}`;
+        }
+        await sb.from('inmuebles').update({ multa_bs: 0, notas: notaStr }).eq('id', rInm.id);
+      }
     }
 
     if (!unidad_id) {
