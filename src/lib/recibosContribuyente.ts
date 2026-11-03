@@ -40,6 +40,7 @@ export interface RecibosContribuyente {
  */
 export function isCondominioInm(inm: any, allInms: any[] = []): boolean {
   if (!inm) return false;
+  if (isCondominioPagoIndividual(inm)) return false;
   if (inm.condominio_padre_id && String(inm.condominio_padre_id).trim() !== '') return true;
   if (inm.es_condominio === true) return true;
   const act = String(inm.actividad_principal || '').toLowerCase();

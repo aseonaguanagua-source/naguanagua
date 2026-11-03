@@ -704,6 +704,9 @@ export default function CajaPage() {
   const handleSearch = async () => {
     setIsSearching(true);
     setFoundUser(null);
+    setIsCondominio(false);
+    setCondominioHijos([]);
+    setSelectedHijos([]);
     setSelectedRecibos([]);
     setSelectedCuotas([]);
     setSelectedServicios([]);
@@ -1096,11 +1099,7 @@ export default function CajaPage() {
         const st = String(i.estado || '').trim().toLowerCase();
         if (st === 'eliminado' || st === 'inactivo' || st === 'desactivado' || st === 'baja') return false;
         if (i.es_condominio === true) return false;
-        // Si es el código específico buscado se permite (siempre que no esté eliminado),
-        // pero todos los demás inmuebles del RIF deben ser estrictamente Activos para no mezclar inactivos
-        const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
-        if (esEspecifico) return true;
-        return st === 'activo';
+        return true;
       }).map((i: any) => {
         const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
         // Si se buscó específicamente por este código, respetar exactamente sus meses_deuda ajustados
@@ -1254,6 +1253,32 @@ export default function CajaPage() {
         )
         .map((i: any) => i.inmueble);
 
+      // Consultar modalidad de condominios padres (si existen) para permitir pago individual cuando modalidad === 'INDIVIDUAL' o permite_pago_por_unidad === true
+      const condoParentCodesToCheck = Array.from(new Set(
+        activeInmFresh
+          .map((i: any) => String(i.condominio_padre_id || '').trim().toUpperCase())
+          .filter((c: string) => c.length > 0 && !naParentCodesFresh.includes(c))
+      ));
+      const dynamicIndividualCondos = new Set<string>();
+      if (condoParentCodesToCheck.length > 0) {
+        try {
+          const { data: condosCfg } = await supabase
+            .from('condominios')
+            .select('codigo, modalidad, permite_pago_por_unidad')
+            .in('codigo', condoParentCodesToCheck);
+          (condosCfg || []).forEach((c: any) => {
+            if (c.modalidad === 'INDIVIDUAL' || c.permite_pago_por_unidad === true) {
+              dynamicIndividualCondos.add(String(c.codigo || '').trim().toUpperCase());
+            }
+          });
+        } catch (eCondoCfg) {
+          console.warn('Error consultando modalidad de condominios:', eCondoCfg);
+        }
+      }
+      const isPagoIndInm = (inm: any) =>
+        isCondominioPagoIndividual(inm) ||
+        dynamicIndividualCondos.has(String(inm?.condominio_padre_id || '').trim().toUpperCase());
+
       // Calcular deuda total fresca (excluyendo contenedores N/A para evitar duplicar montos con sus actividades hijas)
       const billableActiveInms = activeInmFresh.filter(
         (i: any) => (i.actividad_principal || '').trim().toUpperCase() !== 'N/A' && !isTerrenoInm(i)
@@ -1263,7 +1288,7 @@ export default function CajaPage() {
           // Si el inmueble es de condominio centralizado: ninguna información de condominios sale por sistema,
           // solo la multa del usuario si la tiene (todo lo demás lo hace condominio por oficina).
           const isCondoInm = (i.condominio_padre_id || i.es_condominio) && !naParentCodesFresh.includes(i.condominio_padre_id);
-          if (isCondoInm && !isCondominioPagoIndividual(i)) {
+          if (isCondoInm && !isPagoIndInm(i)) {
             const multa = parseFloat(i.multa_bs || '0') || 0;
             return sum + multa;
           }
@@ -1298,8 +1323,7 @@ export default function CajaPage() {
           } else {
             subtotalInm = parseFloat(i.deuda_mmv || '0') * currentBcvRate;
           }
-          const abonoInm = parseFloat(i.saldo_favor_bs || '0') || 0;
-          return sum + Math.max(0, subtotalInm - abonoInm);
+          return sum + Math.max(0, subtotalInm);
         }, 0
       );
       
@@ -1445,11 +1469,11 @@ export default function CajaPage() {
         // (ya filtrados en activeInmFresh para no mezclar inmuebles inactivos ni condominios)
 
         const hasDeuda = billableInms.some((i: any) => parseFloat(i.deuda_mmv || '0') > 0 || parseFloat(i.deuda_congelada_bs || '0') > 0 || parseInt(i.meses_deuda || '0') > 0);
-        if (hasDeuda && !isCondominio) {
+        if (hasDeuda) {
           const now = new Date();
           billableInms.forEach((inm: any) => {
             if (isTerrenoInm(inm)) return; // Terrenos no pagan ni generan multas
-            const esCondoPagoInd = isCondominioPagoIndividual(inm);
+            const esCondoPagoInd = isPagoIndInm(inm);
 
             const isParentContainerNA = inm.condominio_padre_id && naParentCodes.includes(inm.condominio_padre_id);
 

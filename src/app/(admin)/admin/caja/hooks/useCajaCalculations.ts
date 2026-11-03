@@ -95,11 +95,7 @@ export function useCajaCalculations({
             const esMesExonCustom = isMesExoneradoMulta((inm as any).notas, p, omitirMultaSeptiembre);
             const montoMulta = cfg.lleva_multa && !isUltimoMes && !esMesExonCustom ? Math.round((baseMonto * (esRes ? 0.10 : 0.12) + Number.EPSILON) * 100) / 100 : 0;
             const totalMes = Math.round((baseMonto + montoIVA + montoMulta + Number.EPSILON) * 100) / 100;
-            let montoFinal = Math.max(0, totalMes);
-            if (mNum === 1 && parseFloat(String(inm.saldo_favor_bs || '0')) > 0) {
-              const saldoFavor = parseFloat(String(inm.saldo_favor_bs));
-              montoFinal = Math.max(0, montoFinal - saldoFavor);
-            }
+            const montoFinal = Math.max(0, totalMes);
             return String(montoFinal.toFixed(2));
           }
         }
@@ -156,13 +152,7 @@ export function useCajaCalculations({
           totalMes = baseMonto + montoIVA + montoMulta;
         }
 
-        let montoFinal = Math.max(0, totalMes);
-
-        // ABONO PARCIAL VISUAL: Si es el primer mes de deuda, se le resta el saldo a favor
-        if (mNum === 1 && parseFloat(String(inm.saldo_favor_bs || '0')) > 0) {
-          const saldoFavor = parseFloat(String(inm.saldo_favor_bs));
-          montoFinal = Math.max(0, montoFinal - saldoFavor);
-        }
+        const montoFinal = Math.max(0, totalMes);
 
         return String(montoFinal.toFixed(2));
       }
