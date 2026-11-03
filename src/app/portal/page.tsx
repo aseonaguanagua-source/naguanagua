@@ -477,8 +477,8 @@ export default function PortalLogin() {
                   className="gl-sidebar-brand-card bg-white border-[2.5px] border-[#84cc16] rounded-2xl px-4 py-2.5 flex flex-col items-center justify-center text-center shadow-[0_6px_18px_rgba(132,204,22,0.35)]"
                 >
                   <img
-                    src="/logos/logo_global_rec.png"
-                    alt="Global Rec"
+                    src="/logos/brand_gr_oficial.png"
+                    alt="GR Collection System"
                     className="h-12 w-auto max-w-[210px] object-contain"
                   />
                 </div>
