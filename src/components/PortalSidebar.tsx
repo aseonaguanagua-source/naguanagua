@@ -4,11 +4,12 @@ import { usePathname } from 'next/navigation';
 import { 
   Home, Building2, FileText, CreditCard, History,
   Award, CalendarDays, MessageSquareWarning, Wrench,
-  ShieldCheck, SearchCheck, User as UserIcon, LogOut, Menu, X, TreePine, Receipt
+  ShieldCheck, SearchCheck, User as UserIcon, LogOut, Menu, X, TreePine, Receipt, Sparkles
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { isResidencialInm } from '@/lib/calculos';
 
 interface PortalSidebarProps {
   isOpen?: boolean;
@@ -48,11 +49,17 @@ const menuSections = [
     title: 'SERVICIOS',
     items: [
       { name: 'Horarios de Rutas', icon: CalendarDays, href: '/portal/rutas' },
-      { name: 'Reclamos', icon: MessageSquareWarning, href: '/portal/denuncias' },
-      { name: 'Servicios Ext.', icon: Wrench, href: '/portal/servicios-extraordinarios' },
+      { name: 'Servicio Especial', icon: Sparkles, href: '/portal/servicios-extraordinarios?tipo=especial' },
+      { name: 'Servicios Ext.', icon: Wrench, href: '/portal/servicios-extraordinarios?tipo=extraordinario' },
       { name: 'Permiso Tala/Poda', icon: TreePine, href: '/portal/tala-y-poda' },
       { name: 'Visto Bueno', icon: ShieldCheck, href: '/portal/visto-bueno' },
       { name: 'Inspección', icon: SearchCheck, href: '/portal/inspeccion' },
+    ]
+  },
+  {
+    title: 'ATENCIÓN CIUDADANA',
+    items: [
+      { name: 'Denuncias y Reclamos', icon: MessageSquareWarning, href: '/portal/denuncias' },
     ]
   }
 ];
@@ -70,6 +77,7 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<string>('Contribuyente');
+  const [categoriaUso, setCategoriaUso] = useState<'RESIDENCIAL' | 'COMERCIAL' | 'MIXTO'>('RESIDENCIAL');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isAgente, setIsAgente] = useState(false);
 
@@ -78,6 +86,9 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
     if (portalUser) setUser(portalUser);
     const doc = localStorage.getItem('portal_doc') || localStorage.getItem('portal_codigo') || '';
     if (doc) {
+      if (doc.startsWith('J') || doc.startsWith('G')) {
+        setCategoriaUso('COMERCIAL');
+      }
       const docClean = doc.replace(/-/g,'');
       supabase.from('contribuyentes').select('nombre')
         .or(`identidad.eq.${doc},identidad.eq.${docClean}`)
@@ -90,10 +101,26 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
           }
         });
 
-      supabase.from('inmuebles').select('agente_retencion')
+      supabase.from('inmuebles').select('agente_retencion, tipo, clasificacion, actividad_principal, estado')
         .or(`identidad.eq.${doc},identidad.eq.${docClean}`)
-        .eq('agente_retencion', true).limit(1)
-        .then(({ data }) => { if (data && data.length > 0) setIsAgente(true); });
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            const activos = data.filter((i: any) => {
+              const est = (i.estado || 'Activo').trim().toLowerCase();
+              return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
+            });
+            if (activos.some((i: any) => i.agente_retencion)) setIsAgente(true);
+            let hasRes = false;
+            let hasCom = false;
+            activos.forEach((i: any) => {
+              if (isResidencialInm(i)) hasRes = true;
+              else hasCom = true;
+            });
+            if (hasRes && hasCom) setCategoriaUso('MIXTO');
+            else if (hasCom) setCategoriaUso('COMERCIAL');
+            else if (hasRes) setCategoriaUso('RESIDENCIAL');
+          }
+        });
     }
   }, []);
 
@@ -116,14 +143,29 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
         />
       </div>
 
-      {/* Profile */}
+      {/* Profile + Categorización Residencial / Comercial */}
       <div className="flex flex-col items-center pt-5 pb-5 border-b border-slate-700/50">
         <div className="w-14 h-14 rounded-full bg-gradient-to-br from-green-600 to-green-800 mb-2 flex items-center justify-center shadow-lg">
           <UserIcon className="w-7 h-7 text-white" />
         </div>
-        <h3 className="text-white font-semibold text-xs uppercase tracking-wider px-4 text-center leading-snug">
-          {user}
-        </h3>
+        <div className="flex flex-col items-center px-3 text-center">
+          <h3 className="text-white font-semibold text-xs uppercase tracking-wider leading-snug">
+            {user}
+          </h3>
+          <span className={`mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide ${
+            categoriaUso === 'COMERCIAL'
+              ? 'bg-sky-500/20 text-sky-300 border border-sky-400/40'
+              : categoriaUso === 'MIXTO'
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40'
+              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+          }`}>
+            {categoriaUso === 'COMERCIAL'
+              ? '🏪 COMERCIAL'
+              : categoriaUso === 'MIXTO'
+              ? '🏠 RES. / 🏪 COM.'
+              : '🏠 RESIDENCIAL'}
+          </span>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -138,7 +180,8 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
             </h4>
             <ul className="space-y-0.5">
               {visibleItems.map((item) => {
-                const isActive = pathname === item.href;
+                const baseHref = item.href.split('?')[0];
+                const isActive = pathname === baseHref && (!item.href.includes('tipo=especial'));
                 return (
                   <li key={item.name}>
                     <Link

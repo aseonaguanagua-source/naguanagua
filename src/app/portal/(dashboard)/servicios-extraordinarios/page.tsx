@@ -46,12 +46,29 @@ export default function ServiciosExtraordinariosPage() {
   };
 
   useEffect(() => {
+    const syncCatFromUrl = () => {
+      if (typeof window === 'undefined') return;
+      const sp = new URLSearchParams(window.location.search);
+      const tParam = sp.get('tipo');
+      if (tParam === 'extraordinario') setCat('extraordinario');
+      else if (tParam === 'especial') setCat('especial');
+    };
+    syncCatFromUrl();
     fetch('/api/bcv').then(r => r.json()).then(d => { if (d?.tcmmv > 0) setTasa(d.tcmmv); }).catch(() => {});
     cargar();
+    const id = setInterval(syncCatFromUrl, 500);
+    return () => clearInterval(id);
   }, []);
 
   const viajes = Math.max(1, parseInt(nve || '1') || 1);
-  const cambiarCat = (c: Cat) => { setCat(c); setVehiculo(''); setMsg(null); };
+  const cambiarCat = (c: Cat) => {
+    setCat(c);
+    setVehiculo('');
+    setMsg(null);
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState(null, '', `/portal/servicios-extraordinarios?tipo=${c}`);
+    }
+  };
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,10 +134,13 @@ export default function ServiciosExtraordinariosPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {([['especial', 'Servicio Especial', 'Eventos: limpieza y recolección antes, durante y después'], ['extraordinario', 'Servicio Extraordinario', 'Recolección de desechos fuera de la ruta (escombros, poda, etc.)']] as const).map(([k, t, d]) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {([
+          ['especial', '🎪 Servicio Especial (Eventos y Otros)', 'Eventos, conciertos, ferias, operativos especiales, limpiezas antes/durante/después y otros requerimientos'],
+          ['extraordinario', '🚛 Servicio Extraordinario', 'Recolección de desechos fuera de la ruta ordinaria (escombros, poda, cachivaches, etc.)']
+        ] as const).map(([k, t, d]) => (
           <button key={k} type="button" onClick={() => cambiarCat(k)}
-            className={`text-left rounded-2xl border p-4 transition-all ${cat === k ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' : 'border-slate-200 bg-white hover:border-emerald-300'}`}>
+            className={`text-left rounded-2xl border p-4 transition-all cursor-pointer ${cat === k ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' : 'border-slate-200 bg-white hover:border-emerald-300'}`}>
             <p className="font-black text-slate-800 text-sm">{t}</p><p className="text-xs text-slate-500 mt-0.5">{d}</p>
           </button>
         ))}
