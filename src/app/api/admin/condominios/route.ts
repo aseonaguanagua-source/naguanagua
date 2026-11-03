@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 
     // Lista ligera (Conciliación / Facturación): para reconocer pagos de condominios por su RIF
     if (url.searchParams.get('ligero')) {
-      const { data, error } = await sb.from('condominios').select('codigo,identidad,nombre,tipo').limit(5000);
+      const { data, error } = await sb.from('condominios').select('codigo,identidad,nombre,tipo').neq('estado', 'Eliminado').limit(5000);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ condominios: data || [] });
     }

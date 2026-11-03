@@ -70,19 +70,19 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
 async function resolveCondo(identidad?: string, codigoCondominio?: string, client?: any): Promise<{ id: string; codigo: string; abono_bs: number } | null> {
   const sb = client || supabase;
   if (codigoCondominio) {
-    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', String(codigoCondominio).trim().toUpperCase()).maybeSingle();
+    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', String(codigoCondominio).trim().toUpperCase()).neq('estado', 'Eliminado').maybeSingle();
     if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
   }
   if (!identidad) return null;
   const idTrim = String(identidad).trim().toUpperCase();
   if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(idTrim)) {
-    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', idTrim).maybeSingle();
+    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', idTrim).neq('estado', 'Eliminado').maybeSingle();
     if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
   }
   const sinGuion = idTrim.replace(/[^A-Z0-9]/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : idTrim;
   const variantes = [...new Set([idTrim, sinGuion, conGuion].filter(Boolean))];
-  const { data } = await sb.from('condominios').select('id, codigo, abono_bs').in('identidad', variantes).order('created_at', { ascending: true }).limit(1).maybeSingle();
+  const { data } = await sb.from('condominios').select('id, codigo, abono_bs').in('identidad', variantes).neq('estado', 'Eliminado').order('created_at', { ascending: true }).limit(1).maybeSingle();
   if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
   return null;
 }

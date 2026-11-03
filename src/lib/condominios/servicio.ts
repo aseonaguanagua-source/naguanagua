@@ -399,7 +399,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
 }
 
 export async function cargarCondominio(codigo: string) {
-  let { data: condo, error } = await sb.from('condominios').select('*').eq('codigo', codigo.toUpperCase()).maybeSingle();
+  let { data: condo, error } = await sb.from('condominios').select('*').eq('codigo', codigo.toUpperCase()).neq('estado', 'Eliminado').maybeSingle();
   if (error) throw new Error(error.message);
 
   if (!condo) {
@@ -407,11 +407,12 @@ export async function cargarCondominio(codigo: string) {
     const { data: unidad } = await sb.from('condominio_unidades')
       .select('condominio_id')
       .ilike('inmueble', codigo.trim())
+      .neq('estado', 'Eliminada')
       .limit(1)
       .maybeSingle();
 
     if (unidad?.condominio_id) {
-      const { data: condoByUnidad } = await sb.from('condominios').select('*').eq('id', unidad.condominio_id).maybeSingle();
+      const { data: condoByUnidad } = await sb.from('condominios').select('*').eq('id', unidad.condominio_id).neq('estado', 'Eliminado').maybeSingle();
       condo = condoByUnidad;
     }
   }
@@ -421,10 +422,11 @@ export async function cargarCondominio(codigo: string) {
     const { data: inmHijo } = await sb.from('inmuebles')
       .select('condominio_padre_id')
       .ilike('inmueble', codigo.trim())
+      .neq('estado', 'Eliminado')
       .maybeSingle();
 
     if (inmHijo?.condominio_padre_id) {
-      const { data: condoByPadre } = await sb.from('condominios').select('*').eq('codigo', inmHijo.condominio_padre_id.toUpperCase()).maybeSingle();
+      const { data: condoByPadre } = await sb.from('condominios').select('*').eq('codigo', inmHijo.condominio_padre_id.toUpperCase()).neq('estado', 'Eliminado').maybeSingle();
       condo = condoByPadre;
     }
   }
@@ -604,8 +606,8 @@ export async function buscarPorDueno(identidad: string) {
  * Devuelve el detalle de lo que cambiaría; solo escribe con `aplicar`.
  */
 export async function refrescarDesdeInmuebles(aplicar = false) {
-  const condos = await todas((a, b) => sb.from('condominios').select('*').order('id').range(a, b));
-  const unidades = await todas((a, b) => sb.from('condominio_unidades').select('id,condominio_id,inmueble,aseo_pendiente_desde').order('id').range(a, b));
+  const condos = await todas((a, b) => sb.from('condominios').select('*').neq('estado', 'Eliminado').order('id').range(a, b));
+  const unidades = await todas((a, b) => sb.from('condominio_unidades').select('id,condominio_id,inmueble,aseo_pendiente_desde').neq('estado', 'Eliminada').order('id').range(a, b));
   const meses = await mesesInmuebles();
   const por = new Map<string, any[]>(); unidades.forEach(u => { if (!por.has(u.condominio_id)) por.set(u.condominio_id, []); por.get(u.condominio_id)!.push(u); });
   const cambiosC: any[] = [], cambiosU: any[] = [];
