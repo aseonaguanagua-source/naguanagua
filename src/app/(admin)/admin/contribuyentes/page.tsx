@@ -2144,10 +2144,23 @@ function ContribuyentesPageContent() {
         return;
       }
       
+      // 1. Asegurar que el RIF/Cédula destino exista primero en la tabla contribuyentes (evita error de llave foránea inmuebles_identidad_fkey)
+      const { error: errUpsertCont } = await supabase.from('contribuyentes').upsert([{
+        identidad: rifDestino,
+        nombre: nombreDest,
+        telefono: contDest?.telefono || local.telefono || formData.Telefono || null,
+        email: contDest?.email || local.correo_electronico || formData.Correo || null,
+        direccion: contDest?.direccion || local.direccion || formData.Direccion || null,
+      }], { onConflict: 'identidad' });
+
+      if (errUpsertCont) throw errUpsertCont;
+
+      // 2. Actualizar el inmueble desvinculado y asegurar cant_inmuebles = 1
       const updPayload: any = {
         identidad: rifDestino,
         padre_id: null,
         contribuyente: nombreDest,
+        cant_inmuebles: 1,
       };
       if (contDest?.telefono) updPayload.telefono = contDest.telefono;
       if (contDest?.email) updPayload.correo_electronico = contDest.email;
@@ -2160,14 +2173,6 @@ function ContribuyentesPageContent() {
       if (error) throw error;
 
       if (rifDestino !== String(formData.Identidad || '').trim().toUpperCase()) {
-        await supabase.from('contribuyentes').upsert([{
-          identidad: rifDestino,
-          nombre: nombreDest,
-          telefono: contDest?.telefono || local.telefono || formData.Telefono || null,
-          email: contDest?.email || local.correo_electronico || formData.Correo || null,
-          direccion: contDest?.direccion || local.direccion || formData.Direccion || null,
-        }], { onConflict: 'identidad' });
-
         const newLocales = (formData.locales || []).filter((_: any, i: number) => i !== index);
         const newCodes = (formData.__inmuebleCodes || []).filter((c: string) => c !== local.codigo);
 
