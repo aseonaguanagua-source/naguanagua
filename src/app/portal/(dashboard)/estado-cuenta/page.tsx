@@ -749,7 +749,7 @@ export default function EstadoCuentaPage() {
 
         autoTable(doc, {
           startY: y,
-          head: [['ACTIVIDAD ECONÓMICAS', 'F.O.', 'BASE MES (Bs.)', 'IVA 16% (Bs.)', 'TOTAL MES (Bs.)']],
+          head: [['ACTIVIDAD ECONÓMICA', 'F.O.', 'BASE MES (Bs.)', 'IVA 16% (Bs.)', 'TOTAL MES (Bs.)']],
           body: actRows,
           foot: [[
             'TOTAL MENSUAL UNIFICADO DEL LOCAL', '',
@@ -1224,7 +1224,7 @@ export default function EstadoCuentaPage() {
                     <table className="w-full text-left text-sm text-slate-600">
                       <thead className="bg-slate-50/50 border-b border-slate-100 text-[11px] uppercase text-slate-400 font-semibold">
                         <tr>
-                          <th className="px-4 py-2.5">Código Actividad</th>
+                          <th className="px-4 py-2.5">Código Principal</th>
                           <th className="px-4 py-2.5">Actividad / Uso</th>
                           <th className="px-4 py-2.5 text-right">Factor MMV</th>
                         </tr>
@@ -1238,7 +1238,7 @@ export default function EstadoCuentaPage() {
                           return (
                             <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
                               <td className="px-4 py-2.5 font-mono text-xs font-bold text-slate-700">
-                                {inm.inmueble || inm.cod_cont || '-'}
+                                {cluster.localId || inm.padre_id || inm.inmueble || '-'}
                                 {cant > 1 && <span className="text-[10px] text-slate-400 font-normal ml-1">({cant} Unds)</span>}
                               </td>
                               <td className="px-4 py-2.5 text-xs font-medium text-slate-700">

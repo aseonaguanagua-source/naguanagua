@@ -1976,7 +1976,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                           {g.hijos.map((h: any, hIdx: number) => (
                             <li key={hIdx} className="flex items-center justify-between">
                               <span className="truncate pr-2 font-medium text-slate-800">
-                                • <span className="font-mono font-bold text-slate-600">{h.inmueble}</span>: {cleanClasificacionActividad(h.actividad_principal)}
+                                • {cleanClasificacionActividad(h.actividad_principal)}
                               </span>
                               <span className="font-mono font-bold text-indigo-900 shrink-0">
                                 {parseFloat(h.mmv_mes || 0).toFixed(2)} MMV
