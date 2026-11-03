@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { extraerCodigoInmueble, parseDetalles } from '@/lib/documentoPago';
 import { calcularMensualidad } from '@/lib/calculos';
+import { descontarSaldoFavor } from '@/lib/saldoFavor';
 
 export const dynamic = 'force-dynamic';
 
@@ -201,6 +202,55 @@ export async function POST(req: Request) {
     }
     if (facturasReabrir.length) {
       await supabase.from('facturas').update({ estado: 'Pendiente' }).in('id', facturasReabrir.map((f: any) => f.id));
+    }
+
+    // 7.1 Eliminar Notas de Crédito generadas por este pago en documentos
+    try {
+      const rawIdent = String(pago.identidad || det.identidad || '').trim().toUpperCase();
+      const sinG = rawIdent.replace(/-/g, '');
+      const conG = /^[VEJPG]\d/.test(sinG) ? `${sinG[0]}-${sinG.slice(1)}` : rawIdent;
+      const identVariants = Array.from(new Set([rawIdent, sinG, conG].filter(Boolean)));
+      const ident = conG || rawIdent;
+      const codCondo = String(det.codigo_condominio || det.condominio?.codigo || det.cod_inmueble || '').trim().toUpperCase() || undefined;
+
+      const addRefTokens = (set: Set<string>, val: any) => {
+        const s = String(val || '').trim();
+        if (!s) return;
+        set.add(s);
+        const sinRech = s.replace(/^RECH-/i, '').replace(/-[0-9a-f]{6}$/i, '').trim();
+        if (sinRech) set.add(sinRech);
+        const baseSinPlus = sinRech.replace(/\s*\(\+[^)]*\)/g, '').trim();
+        if (baseSinPlus) set.add(baseSinPlus);
+        const plusMatches = sinRech.matchAll(/\(\+\s*([^)]+)\)/g);
+        for (const m of plusMatches) {
+          if (m[1]) m[1].split(/[,\s+]+/).map(x => x.trim()).filter(Boolean).forEach(x => set.add(x));
+        }
+      };
+
+      const refsToCheck = new Set<string>([String(pago.id)]);
+      addRefTokens(refsToCheck, pago.referencia);
+      addRefTokens(refsToCheck, det.referencia);
+      addRefTokens(refsToCheck, det.referencia_original);
+
+      if (identVariants.length > 0) {
+        const { data: docsNC } = await supabase.from('documentos').select('*').eq('tipo', 'Nota de Credito').in('identidad', identVariants);
+        const matchingDocs = (docsNC || []).filter((d: any) => {
+          const raw = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
+          return [...refsToCheck].some(r => r.length >= 4 && raw.includes(r));
+        });
+        for (const dNC of matchingDocs) {
+          let dDet: any = {};
+          try { dDet = typeof dNC.detalles === 'string' ? JSON.parse(dNC.detalles) : (dNC.detalles || {}); } catch {}
+          const rawM = String(dDet.monto_bs ?? dDet.monto ?? 0);
+          const mNC = (rawM.includes(',') ? parseFloat(rawM.replace(/\./g, '').replace(',', '.')) : parseFloat(rawM.replace(/[^\d.]/g, ''))) || 0;
+          if (mNC > 0 && ident && previaFiltrada.length === 0) {
+            try { await descontarSaldoFavor(ident, mNC, codCondo, supabase); } catch {}
+          }
+          await supabase.from('documentos').delete().eq('id', dNC.id);
+        }
+      }
+    } catch (eNC) {
+      console.warn('Error eliminando nota de credito en eliminar-pago:', eNC);
     }
 
     // 8. Borrar el pago

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
+import { descontarSaldoFavor } from '@/lib/saldoFavor';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
       : pago.monto;
 
     const nuevaIdentidad = String(identidad || pago.identidad || '').trim().toUpperCase();
-    const nuevaRef = String(referencia || pago.referencia || '').trim();
+    const nuevaRef = String(referencia || pago.referencia || '').replace(/\s*\(\+.*$/, '').trim() || String(pago.referencia || '').trim();
     const nuevoModulo = modulo === 'condominios' ? 'condominios' : 'caja';
     const nuevoNombre = String(contribuyente || det.contribuyente || det.contribuyente_nombre || '').trim();
     const flagRetencion = esRetencion !== undefined ? !!esRetencion : (det.agente_retencion || det.es_retencion || false);
@@ -111,6 +112,13 @@ export async function POST(req: Request) {
       modulo: nuevoModulo,
       ...calculoRetencion,
       ...(marcarAnulada ? {
+        saldo_favor: 0,
+        saldo_a_favor_nuevo: 0,
+        monto_sobrante: 0,
+        saldo_favor_generado: 0,
+        saldo_favor_bs: 0,
+        monto_saldo_favor: 0,
+        saldo_favor_acreditado: false,
         factura_digital: {
           ...(det.factura_digital || {}),
           anulada: true,
@@ -258,6 +266,57 @@ export async function POST(req: Request) {
     const { error: upErr } = await sb.from('pagos_reportados').update(updatePayload).eq('id', pagoId);
     if (upErr) {
       return NextResponse.json({ error: 'Error al actualizar pago: ' + upErr.message }, { status: 500 });
+    }
+
+    if (marcarAnulada) {
+      try {
+        const rawIdent = String(nuevaIdentidad || pago.identidad || det.identidad || '').trim().toUpperCase();
+        const sinG = rawIdent.replace(/-/g, '');
+        const conG = /^[VEJPG]\d/.test(sinG) ? `${sinG[0]}-${sinG.slice(1)}` : rawIdent;
+        const identVariants = Array.from(new Set([rawIdent, sinG, conG].filter(Boolean)));
+        const ident = conG || rawIdent;
+        const codCondo = String(det.codigo_condominio || det.condominio?.codigo || det.cod_inmueble || '').trim().toUpperCase() || undefined;
+
+        const addRefTokens = (set: Set<string>, val: any) => {
+          const s = String(val || '').trim();
+          if (!s) return;
+          set.add(s);
+          const sinRech = s.replace(/^RECH-/i, '').replace(/-[0-9a-f]{6}$/i, '').trim();
+          if (sinRech) set.add(sinRech);
+          const baseSinPlus = sinRech.replace(/\s*\(\+[^)]*\)/g, '').trim();
+          if (baseSinPlus) set.add(baseSinPlus);
+          const plusMatches = sinRech.matchAll(/\(\+\s*([^)]+)\)/g);
+          for (const m of plusMatches) {
+            if (m[1]) m[1].split(/[,\s+]+/).map(x => x.trim()).filter(Boolean).forEach(x => set.add(x));
+          }
+        };
+
+        const refsToCheck = new Set<string>([String(pagoId)]);
+        addRefTokens(refsToCheck, pago.referencia);
+        addRefTokens(refsToCheck, nuevaRef);
+        addRefTokens(refsToCheck, det.referencia);
+        addRefTokens(refsToCheck, det.referencia_original);
+
+        if (identVariants.length > 0) {
+          const { data: docsNC } = await sb.from('documentos').select('*').eq('tipo', 'Nota de Credito').in('identidad', identVariants);
+          const matchingDocs = (docsNC || []).filter((d: any) => {
+            const raw = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
+            return [...refsToCheck].some(r => r.length >= 4 && raw.includes(r));
+          });
+          for (const dNC of matchingDocs) {
+            let dDet: any = {};
+            try { dDet = typeof dNC.detalles === 'string' ? JSON.parse(dNC.detalles) : (dNC.detalles || {}); } catch {}
+            const rawM = String(dDet.monto_bs ?? dDet.monto ?? 0);
+            const mNC = (rawM.includes(',') ? parseFloat(rawM.replace(/\./g, '').replace(',', '.')) : parseFloat(rawM.replace(/[^\d.]/g, ''))) || 0;
+            if (mNC > 0 && ident) {
+              try { await descontarSaldoFavor(ident, mNC, codCondo, sb); } catch {}
+            }
+            await sb.from('documentos').delete().eq('id', dNC.id);
+          }
+        }
+      } catch (eNC) {
+        console.warn('Error eliminando nota de credito en editar-pago:', eNC);
+      }
     }
 
     // Registrar en auditoría

@@ -142,30 +142,59 @@ async function restaurarDeudaPreviaAnulacion(detPago: any, recibos: string[]) {
       }
     }
 
-    // Revertir y borrar/anular Notas de Crédito de saldo a favor generadas por este pago
-    const pId = String(detPago?.id || detPago?.pago_id || '');
-    const ident = String(detPago?.identidad || '').trim().toUpperCase();
+    await revertirNotaCreditoYSaldoFavorGenerado(detPago);
+  } catch (eRest) {
+    console.error('Error restaurando deuda previa en anulación:', eRest);
+  }
+}
+
+async function revertirNotaCreditoYSaldoFavorGenerado(detPago: any, pagoRow?: any, nuevosDetalles?: any) {
+  try {
+    const pId = String(pagoRow?.id || detPago?.id || detPago?.pago_id || '');
+    const rawIdent = String(pagoRow?.identidad || detPago?.identidad || '').trim().toUpperCase();
+    const sinG = rawIdent.replace(/-/g, '');
+    const conG = /^[VEJPG]\d/.test(sinG) ? `${sinG[0]}-${sinG.slice(1)}` : rawIdent;
+    const identVariants = Array.from(new Set([rawIdent, sinG, conG].filter(Boolean)));
+    const ident = conG || rawIdent;
     const codCondo = String(detPago?.codigo_condominio || detPago?.condominio?.codigo || detPago?.cod_inmueble || '').trim().toUpperCase() || undefined;
+
+    const addRefTokens = (set: Set<string>, val: any) => {
+      const s = String(val || '').trim();
+      if (!s) return;
+      set.add(s);
+      // Limpiar prefijo RECH-...-hex y sufijos (+ ...)
+      const sinRech = s.replace(/^RECH-/i, '').replace(/-[0-9a-f]{6}$/i, '').trim();
+      if (sinRech) set.add(sinRech);
+      const baseSinPlus = sinRech.replace(/\s*\(\+[^)]*\)/g, '').trim();
+      if (baseSinPlus) set.add(baseSinPlus);
+      const plusMatches = sinRech.matchAll(/\(\+\s*([^)]+)\)/g);
+      for (const m of plusMatches) {
+        if (m[1]) {
+          m[1].split(/[,\s+]+/).map(x => x.trim()).filter(Boolean).forEach(x => set.add(x));
+        }
+      }
+    };
 
     const refsToCheck = new Set<string>();
     if (pId) refsToCheck.add(pId);
-    if (detPago?.referencia) refsToCheck.add(String(detPago.referencia).trim());
-    if (detPago?.referencia_original) refsToCheck.add(String(detPago.referencia_original).trim());
+    addRefTokens(refsToCheck, pagoRow?.referencia);
+    addRefTokens(refsToCheck, detPago?.referencia);
+    addRefTokens(refsToCheck, detPago?.referencia_original);
+    addRefTokens(refsToCheck, detPago?.referencia_origen);
     if (Array.isArray(detPago?.formasPago)) {
-      detPago.formasPago.forEach((fp: any) => fp?.referencia && refsToCheck.add(String(fp.referencia).trim()));
+      detPago.formasPago.forEach((fp: any) => addRefTokens(refsToCheck, fp?.referencia));
     }
     if (Array.isArray(detPago?.pagos_agregados)) {
-      detPago.pagos_agregados.forEach((pa: any) => pa?.referencia && refsToCheck.add(String(pa.referencia).trim()));
+      detPago.pagos_agregados.forEach((pa: any) => addRefTokens(refsToCheck, pa?.referencia));
     }
 
-    // Buscar notas de crédito vinculadas en la tabla documentos
     let docsParaAnular: any[] = [];
-    if (ident) {
+    if (identVariants.length > 0) {
       const { data: docsContrib } = await supabase
         .from('documentos')
         .select('*')
         .eq('tipo', 'Nota de Credito')
-        .eq('identidad', ident);
+        .in('identidad', identVariants);
 
       if (docsContrib && docsContrib.length > 0) {
         docsParaAnular = docsContrib.filter((d: any) => {
@@ -175,35 +204,57 @@ async function restaurarDeudaPreviaAnulacion(detPago: any, recibos: string[]) {
       }
     }
 
+    let totalDescontadoDocs = 0;
     if (docsParaAnular.length > 0) {
       for (const docNC of docsParaAnular) {
         let detNC: any = {};
         try {
           detNC = typeof docNC.detalles === 'string' ? JSON.parse(docNC.detalles) : (docNC.detalles || {});
         } catch {}
-        const montoNC = parseFloat(String(detNC.monto_bs ?? detNC.monto ?? 0).replace(/[^\d.]/g, '')) || 0;
+        const rawM = String(detNC.monto_bs ?? detNC.monto ?? 0);
+        const montoNC = (rawM.includes(',') ? parseFloat(rawM.replace(/\./g, '').replace(',', '.')) : parseFloat(rawM.replace(/[^\d.]/g, ''))) || 0;
         if (montoNC > 0 && ident) {
           try {
             await descontarSaldoFavor(ident, montoNC, codCondo, supabase);
+            totalDescontadoDocs += montoNC;
           } catch (eDesc) {
             console.warn('Error descontando saldo a favor de NC eliminada:', eDesc);
           }
         }
         await supabase.from('documentos').delete().eq('id', docNC.id);
       }
-    } else {
-      // Si no hubo documento pero el pago tenía saldo a favor generado registrado
-      const excedenteGenerado = parseFloat(String(detPago?.saldo_favor || detPago?.saldo_favor_bs || detPago?.monto_saldo_favor || 0)) || 0;
-      if (excedenteGenerado > 0 && ident) {
-        try {
-          await descontarSaldoFavor(ident, excedenteGenerado, codCondo, supabase);
-        } catch (eDesc) {
-          console.warn('Error descontando excedente en anulación:', eDesc);
-        }
+    }
+
+    const excedenteGenerado = parseFloat(String(
+      detPago?.saldo_a_favor_nuevo ||
+      detPago?.monto_sobrante ||
+      detPago?.saldo_favor ||
+      detPago?.saldo_favor_generado ||
+      detPago?.saldo_favor_bs ||
+      detPago?.monto_saldo_favor ||
+      0
+    )) || 0;
+
+    if (excedenteGenerado > totalDescontadoDocs + 0.05 && ident) {
+      const diffDesc = Math.round((excedenteGenerado - totalDescontadoDocs) * 100) / 100;
+      try {
+        await descontarSaldoFavor(ident, diffDesc, codCondo, supabase);
+      } catch (eDesc) {
+        console.warn('Error descontando excedente en anulación:', eDesc);
       }
     }
-  } catch (eRest) {
-    console.error('Error restaurando deuda previa en anulación:', eRest);
+
+    for (const target of [detPago, nuevosDetalles].filter(Boolean)) {
+      target.saldo_favor = 0;
+      target.saldo_a_favor_nuevo = 0;
+      target.monto_sobrante = 0;
+      target.saldo_favor_generado = 0;
+      target.saldo_favor_bs = 0;
+      target.monto_saldo_favor = 0;
+      target.saldo_favor_acreditado = false;
+    }
+  } catch (eNC) {
+    console.error('Error revirtiendo nota de crédito/saldo a favor en anulación:', eNC);
   }
 }
 
@@ -297,6 +348,7 @@ export async function POST(request: Request) {
       dm.pago_id = dm.pago_id || pagoId;
       dm.identidad = dm.identidad || pagoRow.identidad;
       dm.referencia = dm.referencia || pagoRow.referencia;
+      await revertirNotaCreditoYSaldoFavorGenerado(dm, pagoRow, nuevosDetalles);
       // IMPORTANTE: Al anular la factura fiscal (para reemitirla con corrección), NO se debe
       // desconciliar el pago bancario ni restaurar la deuda en Caja si el pago ya estaba Aprobado.
       // La restauración de deuda solo ocurre cuando se rechaza el pago en Conciliación Bancaria.
@@ -1376,6 +1428,7 @@ export async function POST(request: Request) {
             raw_response: { error: errMsg }
           };
           await restaurarDeudaPreviaAnulacion(detPago, recibos || []);
+          await revertirNotaCreditoYSaldoFavorGenerado(detPago, pagoRow, nuevosDetalles);
           await supabase.from('pagos_reportados').update({ estado: 'Anulado', detalles: nuevosDetalles }).eq('id', pagoId);
           return NextResponse.json({ success: true, yaAnuladaEnTfhka: true, message: 'La factura ya estaba anulada en The Factory HKA y fue sincronizada en el sistema.' });
         }
@@ -1401,6 +1454,7 @@ export async function POST(request: Request) {
     detPago.pago_id = detPago.pago_id || pagoId;
     detPago.identidad = detPago.identidad || pagoRow.identidad;
     detPago.referencia = detPago.referencia || pagoRow.referencia;
+    await revertirNotaCreditoYSaldoFavorGenerado(detPago, pagoRow, nuevosDetalles);
     // IMPORTANTE: Al emitir Nota de Crédito / anular factura fiscal en Facturación Electrónica,
     // el pago bancario conciliado se mantiene en estado 'Aprobado' (con factura_digital.anulada = true)
     // para no alterar la solvencia del contribuyente y permitir reemitir la factura corregida de inmediato.

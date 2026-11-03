@@ -174,60 +174,104 @@ export async function GET(request: Request) {
       }
     });
 
-    // 1.1) Detectar abonos parciales previos que fueron absorbidos por un pago posterior que liquidó el mismo recibo o incorporó saldo_favor_bs
+    // 1.1) Detectar abonos parciales / transferencias complementarias que fueron absorbidos por un pago principal
     const abonosAbsorbidosIds = new Set<string>();
-    const abonosInfoPorPagoPrincipal = new Map<string, { montoTotal: number; referencias: string[]; formasPago: any[] }>();
+    const abonosInfoPorPagoPrincipal = new Map<string, { montoTotal: number; referencias: string[]; formasPago: any[]; ids: string[] }>();
 
-    (rawPagos || []).forEach(pPrincipal => {
+    // Ordenar para evaluar primero los pagos ya emitidos y luego los más recientes como principales
+    const candidatosPrincipales = [...(rawPagos || [])].sort((a, b) => {
+      const dA = parseDetalles(a.detalles);
+      const dB = parseDetalles(b.detalles);
+      const emA = Boolean(dA?.factura_digital?.emitida || dA?.factura_digital?.numero_control || dA?.factura_digital?.numero_documento) ? 1 : 0;
+      const emB = Boolean(dB?.factura_digital?.emitida || dB?.factura_digital?.numero_control || dB?.factura_digital?.numero_documento) ? 1 : 0;
+      if (emB !== emA) return emB - emA;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    candidatosPrincipales.forEach(pPrincipal => {
       if (pPrincipal.tipo === 'Retencion de IVA') return;
+      if (pPrincipal.estado !== 'Aprobado') return;
+      if (String(pPrincipal.referencia || '').startsWith('RECH-')) return;
+      if (abonosAbsorbidosIds.has(pPrincipal.id)) return;
+
       const dP = parseDetalles(pPrincipal.detalles);
-      const saldoPrevio = parseFloat(String(dP?.deuda_previa?.[0]?.saldo_favor_bs || dP?.abono_previo_descontado || 0)) || 0;
+      if (dP?.factura_digital?.anulada || dP?.factura_digital?.nota_credito || dP?.factura_digital?.rechazada) return;
+
+      const sumSfDeudaPrevia = Array.isArray(dP?.deuda_previa)
+        ? dP.deuda_previa.reduce((acc: number, x: any) => acc + (parseFloat(String(x?.saldo_favor_bs || 0)) || 0), 0)
+        : 0;
+      const saldoPrevio = Math.max(
+        sumSfDeudaPrevia,
+        parseFloat(String(dP?.abono_previo_descontado || 0)) || 0
+      );
       const recibosP = (dP?.recibos || []).map((r: any) => String(r).toUpperCase());
       const esAbonoP = dP?.es_abono === true || dP?.abono === true || pPrincipal.tipo === 'Abono' || dP?.pago_parcial === true;
+      const yaEmitidoP = Boolean(dP?.factura_digital?.emitida || dP?.factura_digital?.numero_documento || dP?.factura_digital?.numero_control || dP?.factura_digital?.url);
+
+      // Extraer referencias explícitas si el pago principal ya tiene "(+ ref1, ref2)" en su referencia
+      const refPrinRaw = `${pPrincipal.referencia || ''} ${dP?.referencia || ''} ${dP?.referencia_origen || ''}`;
+      const refsExplicitasSet = new Set<string>();
+      const plusMatches = refPrinRaw.matchAll(/\(\+\s*([^)]+)\)/g);
+      for (const m of plusMatches) {
+        if (m[1]) {
+          m[1].split(/[,\s+]+/).map(s => s.trim()).filter(Boolean).forEach(r => refsExplicitasSet.add(r));
+        }
+      }
+
+      const montoSoloP = parseFloat(String(pPrincipal.monto || 0)) || 0;
+      const montoNetoReqP = parseFloat(String(dP?.monto_neto_factura || dP?.total_seleccionado || dP?.monto_factura || 0)) || 0;
 
       (rawPagos || []).forEach(pAbono => {
         if (pAbono.id === pPrincipal.id || pAbono.tipo === 'Retencion de IVA') return;
         if (pAbono.estado !== 'Aprobado') return;
         if (String(pAbono.referencia || '').startsWith('RECH-')) return;
+        if (abonosAbsorbidosIds.has(pAbono.id)) return;
         if (normId(pAbono.identidad) !== normId(pPrincipal.identidad)) return;
 
         const dA = parseDetalles(pAbono.detalles);
-        const yaEmitidoA = Boolean(dA?.factura_digital?.emitida || dA?.factura_digital?.numero_documento || dA?.factura_digital?.url);
+        const yaEmitidoA = Boolean(dA?.factura_digital?.emitida || dA?.factura_digital?.numero_documento || dA?.factura_digital?.numero_control || dA?.factura_digital?.url);
         if (yaEmitidoA) return;
 
-        const esAbonoA = dA?.es_abono === true || dA?.abono === true || pAbono.tipo === 'Abono' || dA?.pago_parcial === true;
-        if (!esAbonoA) return;
+        const refAbonoBase = String(pAbono.referencia || dA?.referencia || '').replace(/\s*\(\+[^)]*\)/g, '').trim();
+        const esExplicitoPorRef = Boolean(refAbonoBase && refsExplicitasSet.has(refAbonoBase));
+        const esExplicitoPorId = dA?.pago_principal_id === pPrincipal.id || dA?.completado_con_pago_id === pPrincipal.id;
 
-        // Si el supuesto pago principal es TAMBIÉN un abono sin saldo previo descontado ni absorción explícita, no debe anular al otro abono
-        if (esAbonoP && saldoPrevio === 0 && !dP?.pago_principal_id) {
-          return;
-        }
+        const esAbonoA = dA?.es_abono === true || dA?.abono === true || pAbono.tipo === 'Abono' || dA?.pago_parcial === true;
+        if (!esAbonoA && !esExplicitoPorRef && !esExplicitoPorId) return;
 
         const montoSoloA = parseFloat(String(pAbono.monto || 0)) || 0;
         const recibosA = (dA?.recibos || []).map((r: any) => String(r).toUpperCase());
-        // Un abono previo solo se considera genuinamente absorbido por un pago principal posterior si:
-        // 1. Todos los recibos liquidados por el abono están contenidos dentro del pago principal posterior Y el pago principal no es otro abono independiente.
-        // 2. O si el saldo previo registrado en el pago posterior coincide exactamente con el monto del abono Y no quedan recibos huérfanos.
         const todosRecibosEnPrincipal = recibosA.length > 0 && recibosA.every((r: string) => recibosP.includes(r));
-        const coincideSaldo = saldoPrevio > 0 && Math.abs(saldoPrevio - montoSoloA) < 0.05;
-        const absorcionValida = (todosRecibosEnPrincipal && !esAbonoP) || (coincideSaldo && (recibosA.length === 0 || todosRecibosEnPrincipal));
+        const coincideSaldo = saldoPrevio > 0 && (Math.abs(saldoPrevio - montoSoloA) < 0.05 || saldoPrevio >= montoSoloA - 0.05);
 
-        // Si el abono ocurrió antes o igual que el pago principal y fue genuinamente absorbido
-        if (absorcionValida && new Date(pAbono.created_at) <= new Date(pPrincipal.created_at)) {
+        // Dos transferencias para los mismos recibos donde ambas quedaron con es_abono=true porque cada una por separado era menor al total neto
+        const sumaCubreFactura = todosRecibosEnPrincipal && montoNetoReqP > 0 && (montoSoloP + montoSoloA) >= (montoNetoReqP - 1.00);
+        const absorcionValida =
+          esExplicitoPorRef ||
+          esExplicitoPorId ||
+          (todosRecibosEnPrincipal && (!esAbonoP || yaEmitidoP || sumaCubreFactura || saldoPrevio > 0)) ||
+          (coincideSaldo && (recibosA.length === 0 || todosRecibosEnPrincipal));
+
+        const ordenTemporalValido = esExplicitoPorRef || esExplicitoPorId || yaEmitidoP || new Date(pAbono.created_at) <= new Date(pPrincipal.created_at);
+
+        if (absorcionValida && ordenTemporalValido) {
           abonosAbsorbidosIds.add(pAbono.id);
-          const current = abonosInfoPorPagoPrincipal.get(pPrincipal.id) || { montoTotal: 0, referencias: [], formasPago: [] };
-          if (!current.referencias.includes(pAbono.referencia)) {
+          const current = abonosInfoPorPagoPrincipal.get(pPrincipal.id) || { montoTotal: 0, referencias: [], formasPago: [], ids: [] };
+          if (!current.ids.includes(pAbono.id)) {
+            current.ids.push(pAbono.id);
             current.montoTotal += montoSoloA;
-            if (pAbono.referencia) current.referencias.push(pAbono.referencia);
+            if (refAbonoBase && !current.referencias.includes(refAbonoBase)) {
+              current.referencias.push(refAbonoBase);
+            }
             if (Array.isArray(dA?.formasPago) && dA.formasPago.length > 0) {
               current.formasPago.push(...dA.formasPago);
             } else {
               current.formasPago.push({
                 forma: '03',
-                descripcion: `${pAbono.tipo || 'Transferencia'} ${pAbono.banco || ''} ${pAbono.referencia || ''}`.trim(),
+                descripcion: `${pAbono.tipo || 'Transferencia'} ${pAbono.banco || ''} ${refAbonoBase || ''}`.trim(),
                 monto: montoSoloA,
                 banco: pAbono.banco,
-                referencia: pAbono.referencia
+                referencia: refAbonoBase
               });
             }
           }
@@ -826,10 +870,17 @@ export async function GET(request: Request) {
         : (fd?.retencion?.estado || (retRow ? (retRow.estado === 'Pendiente' ? 'planilla_recibida' : String(retRow.estado).toLowerCase()) : null));
 
       const infoAbonos = abonosInfoPorPagoPrincipal.get(pago.id);
-      const montoPagadoEfectivo = parseFloat(pago.monto || '0') + (infoAbonos?.montoTotal || 0);
-      const refFinal = infoAbonos && infoAbonos.referencias.length > 0
-        ? `${pago.referencia || 'N/A'} (+ ${infoAbonos.referencias.join(', ')})`
-        : (pago.referencia || 'N/A');
+      const montoPagadoEfectivo = Math.round(((parseFloat(pago.monto || '0') || 0) + (infoAbonos?.montoTotal || 0)) * 100) / 100;
+      const refRawStr = String(pago.referencia || 'N/A');
+      const refBaseClean = refRawStr.replace(/\s*\(\+[^)]*\)/g, '').trim() || 'N/A';
+      const existingPlusMatch = refRawStr.match(/\(\+\s*([^)]+)\)/);
+      const existingPlusRefs = existingPlusMatch
+        ? existingPlusMatch[1].split(/[,\s+]+/).map(s => s.trim()).filter(Boolean)
+        : [];
+      const mergedPlusRefs = Array.from(new Set([...existingPlusRefs, ...(infoAbonos?.referencias || [])])).filter(r => r && r !== refBaseClean);
+      const refFinal = mergedPlusRefs.length > 0
+        ? `${refBaseClean} (+ ${mergedPlusRefs.join(', ')})`
+        : refRawStr;
 
       return {
         id: pago.id,

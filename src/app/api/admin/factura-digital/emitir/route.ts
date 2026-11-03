@@ -2043,6 +2043,11 @@ export async function POST(request: Request) {
     }
     nuevosDetalles.factura_digital_error = null;
 
+    if (nuevosDetalles.es_abono === true) {
+      nuevosDetalles.es_abono = false;
+      nuevosDetalles.abono_completado = true;
+    }
+
     const updatePayload: any = { detalles: nuevosDetalles };
     if (pm?.estado === 'Anulado') updatePayload.estado = 'Aprobado';
     if (identidad && String(identidad).trim()) updatePayload.identidad = String(identidad).trim().toUpperCase();
@@ -2055,7 +2060,7 @@ export async function POST(request: Request) {
 
     await supabase.from('pagos_reportados').update(updatePayload).eq('id', pagoId);
 
-    // Sincronizar pagos adicionales vinculados a esta transacción múltiple (SOLO si comparten grupo_pago explícito)
+    // Sincronizar pagos adicionales / abonos parciales vinculados a esta transacción múltiple
     try {
       const idsHijos = new Set<string>();
       if (pagoRow?.grupo_pago) {
@@ -2068,6 +2073,43 @@ export async function POST(request: Request) {
           .eq('grupo_pago', pagoRow.grupo_pago)
           .neq('id', pagoId);
         (pagosHijosDb || []).forEach(ph => idsHijos.add(ph.id));
+      }
+
+      // También vincular abonos parciales previos del mismo contribuyente que fueron absorbidos en esta factura
+      const refComp = `${referencia || ''} ${pagoRow?.referencia || ''} ${detPago?.referencia || ''}`;
+      const plusMatch = refComp.match(/\(\+\s*([^)]+)\)/);
+      const refsAbsorbidas = plusMatch
+        ? plusMatch[1].split(/[,\s+]+/).map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      const recibosPrin = Array.isArray(recibos) ? recibos.map((r: any) => String(r).toUpperCase()) : [];
+
+      if (finalIdentidad) {
+        const { data: abonosCand } = await supabase
+          .from('pagos_reportados')
+          .select('id, referencia, estado, created_at, detalles')
+          .in('identidad', idVariants)
+          .eq('estado', 'Aprobado')
+          .neq('id', pagoId);
+
+        for (const cand of abonosCand || []) {
+          let dCand: any = cand.detalles || {};
+          if (typeof dCand === 'string') { try { dCand = JSON.parse(dCand); } catch { dCand = {}; } }
+          const yaEmitidoCand = Boolean(dCand?.factura_digital?.emitida || dCand?.factura_digital?.numero_control || dCand?.factura_digital?.numero_documento);
+          if (yaEmitidoCand) continue;
+          const refCandClean = String(cand.referencia || '').replace(/\s*\(\+.*$/, '').trim();
+          const esExplicito = Boolean(refCandClean && refsAbsorbidas.includes(refCandClean)) || dCand?.completado_con_pago_id === pagoId || dCand?.pago_principal_id === pagoId;
+          const esAbonoCand = dCand?.es_abono === true || dCand?.abono === true || dCand?.pago_parcial === true;
+          const recibosCand = Array.isArray(dCand?.recibos) ? dCand.recibos.map((r: any) => String(r).toUpperCase()) : [];
+          const comparteRecibos = esAbonoCand && recibosCand.length > 0 && recibosCand.every((r: string) => recibosPrin.includes(r)) && new Date(cand.created_at) <= new Date(pagoRow?.created_at || new Date());
+
+          if (esExplicito || comparteRecibos) {
+            dCand.pago_principal_id = pagoId;
+            dCand.completado_con_pago_id = pagoId;
+            dCand.abono_completado = true;
+            dCand.es_pago_adicional = true;
+            await supabase.from('pagos_reportados').update({ detalles: dCand }).eq('id', cand.id);
+          }
+        }
       }
 
       if (idsHijos.size > 0) {

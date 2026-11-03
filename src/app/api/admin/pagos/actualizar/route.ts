@@ -67,6 +67,9 @@ export async function POST(req: Request) {
           d.facturas_digitales_previas = detP.facturas_digitales_previas;
         }
         d.saldo_favor = 0;
+        d.saldo_a_favor_nuevo = 0;
+        d.monto_sobrante = 0;
+        d.saldo_favor_generado = 0;
         d.saldo_favor_bs = 0;
         d.monto_saldo_favor = 0;
         d.saldo_favor_acreditado = false;
@@ -241,26 +244,49 @@ export async function POST(req: Request) {
 
           // Revertir y borrar/anular notas de crédito creadas por exceso o saldo a favor
           try {
-            const ident = String(actualP.identidad || detMerged.identidad || '').trim().toUpperCase();
+            const rawIdent = String(actualP.identidad || detMerged.identidad || '').trim().toUpperCase();
+            const sinG = rawIdent.replace(/-/g, '');
+            const conG = /^[VEJPG]\d/.test(sinG) ? `${sinG[0]}-${sinG.slice(1)}` : rawIdent;
+            const identVariants = Array.from(new Set([rawIdent, sinG, conG].filter(Boolean)));
+            const ident = conG || rawIdent;
             const codCondo = String(detMerged.codigo_condominio || detMerged.condominio?.codigo || detMerged.cod_inmueble || '').trim().toUpperCase() || undefined;
+
+            const addRefTokens = (set: Set<string>, val: any) => {
+              const s = String(val || '').trim();
+              if (!s) return;
+              set.add(s);
+              const sinRech = s.replace(/^RECH-/i, '').replace(/-[0-9a-f]{6}$/i, '').trim();
+              if (sinRech) set.add(sinRech);
+              const baseSinPlus = sinRech.replace(/\s*\(\+[^)]*\)/g, '').trim();
+              if (baseSinPlus) set.add(baseSinPlus);
+              const plusMatches = sinRech.matchAll(/\(\+\s*([^)]+)\)/g);
+              for (const m of plusMatches) {
+                if (m[1]) {
+                  m[1].split(/[,\s+]+/).map(x => x.trim()).filter(Boolean).forEach(x => set.add(x));
+                }
+              }
+            };
+
             const refsToCheck = new Set<string>();
             if (pagoId) refsToCheck.add(String(pagoId));
-            if (actualP.referencia) refsToCheck.add(String(actualP.referencia).trim());
-            if (detMerged.referencia) refsToCheck.add(String(detMerged.referencia).trim());
-            if (detMerged.referencia_original) refsToCheck.add(String(detMerged.referencia_original).trim());
+            addRefTokens(refsToCheck, actualP.referencia);
+            addRefTokens(refsToCheck, detMerged.referencia);
+            addRefTokens(refsToCheck, detMerged.referencia_original);
+            addRefTokens(refsToCheck, detMerged.referencia_origen);
             if (Array.isArray(detMerged.formasPago)) {
-              detMerged.formasPago.forEach((fp: any) => fp?.referencia && refsToCheck.add(String(fp.referencia).trim()));
+              detMerged.formasPago.forEach((fp: any) => addRefTokens(refsToCheck, fp?.referencia));
             }
             if (Array.isArray(detMerged.pagos_agregados)) {
-              detMerged.pagos_agregados.forEach((pa: any) => pa?.referencia && refsToCheck.add(String(pa.referencia).trim()));
+              detMerged.pagos_agregados.forEach((pa: any) => addRefTokens(refsToCheck, pa?.referencia));
             }
 
-            if (ident) {
+            let totalDescontadoDocs = 0;
+            if (identVariants.length > 0) {
               const { data: docsNC } = await sb
                 .from('documentos')
                 .select('*')
                 .eq('tipo', 'Nota de Credito')
-                .eq('identidad', ident);
+                .in('identidad', identVariants);
 
               const matchingDocs = (docsNC || []).filter((d: any) => {
                 const raw = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
@@ -272,15 +298,35 @@ export async function POST(req: Request) {
                 try {
                   dDet = typeof dNC.detalles === 'string' ? JSON.parse(dNC.detalles) : (dNC.detalles || {});
                 } catch {}
-                const mNC = parseFloat(String(dDet.monto_bs ?? dDet.monto ?? 0).replace(/[^\d.]/g, '')) || 0;
+                const rawM = String(dDet.monto_bs ?? dDet.monto ?? 0);
+                const mNC = (rawM.includes(',') ? parseFloat(rawM.replace(/\./g, '').replace(',', '.')) : parseFloat(rawM.replace(/[^\d.]/g, ''))) || 0;
                 if (mNC > 0 && ident) {
                   try {
                     await descontarSaldoFavor(ident, mNC, codCondo, sb);
+                    totalDescontadoDocs += mNC;
                   } catch (eDesc) {
                     console.warn('Error descontando saldo a favor en pagos/actualizar:', eDesc);
                   }
                 }
                 await sb.from('documentos').delete().eq('id', dNC.id);
+              }
+            }
+
+            const excedentePrevio = parseFloat(String(
+              detP?.saldo_a_favor_nuevo ||
+              detP?.monto_sobrante ||
+              detP?.saldo_favor ||
+              detP?.saldo_favor_generado ||
+              detP?.saldo_favor_bs ||
+              detP?.monto_saldo_favor ||
+              0
+            )) || 0;
+            if (excedentePrevio > totalDescontadoDocs + 0.05 && ident && prevLista.length === 0) {
+              const diffDesc = Math.round((excedentePrevio - totalDescontadoDocs) * 100) / 100;
+              try {
+                await descontarSaldoFavor(ident, diffDesc, codCondo, sb);
+              } catch (eDesc) {
+                console.warn('Error descontando excedente previo en pagos/actualizar:', eDesc);
               }
             }
           } catch(e) {}

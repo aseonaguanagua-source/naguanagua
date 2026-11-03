@@ -2789,6 +2789,7 @@ export default function CajaPage() {
       // Para pagos inmediatos (efectivo, punto auto-aprobado) se emite aquí;
       // para transferencias/depósitos por conciliar, se emite al conciliarse para evitar duplicación
       if (saldoAFavorNuevo > 0 && (!reqRef || isAutoAprobado)) {
+        const refParaNC = (referencia || '').trim() || `CAJA-${Date.now()}`;
         await supabase.from('documentos').insert([{
           identidad: foundUser.Identidad,
           contribuyente: foundUser.Contribuyente,
@@ -2796,7 +2797,7 @@ export default function CajaPage() {
           estado: 'Vigente',
           detalles: JSON.stringify({
             monto: (Math.round(saldoAFavorNuevo * 100) / 100).toFixed(2),
-            origen_referencia: reqRef ? referencia : 'Debito/Punto',
+            origen_referencia: reqRef ? `Excedente en Caja. Ref: ${refParaNC}` : `Excedente Debito/Punto. Ref: ${refParaNC}`,
             fecha_emision: new Date().toISOString()
           })
         }]);

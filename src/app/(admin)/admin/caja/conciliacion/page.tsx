@@ -1057,6 +1057,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         (updatedDet as any).saldo_favor = 0;
         (updatedDet as any).saldo_favor_bs = 0;
         (updatedDet as any).monto_saldo_favor = 0;
+        (updatedDet as any).saldo_a_favor_nuevo = 0;
+        (updatedDet as any).monto_sobrante = 0;
+        (updatedDet as any).saldo_favor_generado = 0;
         (updatedDet as any).saldo_favor_acreditado = false;
         (updatedDet as any).referencia_original = pago.referencia;
       }
@@ -1461,7 +1464,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   saldo_favor_bs: parseFloat(nuevoSaldo.toFixed(2)),
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                 }).eq('id', inm.id);
-                if (nuevoSaldo - sAct > 0.01) {
+                // Solo emitir Nota de Crédito si ya liquidó todos los meses (nuevoMeses === 0) y quedó un excedente real.
+                // Cuando nuevoMeses > 0 es un abono parcial en espera de una segunda transferencia, NO un excedente.
+                if (nuevoMeses === 0 && nuevoSaldo - sAct > 0.01) {
+                  updatedDet.saldo_favor_acreditado = true;
                   await supabase.from('documentos').insert([{
                     identidad: pago.identidad,
                     contribuyente: contribInfo?.contribuyente || contribInfo?.Contribuyente || pago.contribuyente || '',
@@ -1469,6 +1475,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                     estado: 'Vigente',
                     detalles: JSON.stringify({
                       monto: (nuevoSaldo - sAct).toFixed(2),
+                      pago_id: pago.id,
                       origen_referencia: `Excedente conciliado. Referencia: ${pago.referencia || pago.id}`,
                       fecha_emision: new Date().toISOString(),
                       analista: updatedDet.analista,
