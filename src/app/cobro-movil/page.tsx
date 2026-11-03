@@ -687,7 +687,7 @@ export default function KioskPage() {
     setPosStatusMsg(`¡PAGO APROBADO EN POS BANCAMIGA A75 PRO! (Ref: ${refFinal})`);
     setPosAlertState('approved');
 
-    await new Promise((resolve) => setTimeout(resolve, 2800));
+    await new Promise((resolve) => setTimeout(resolve, 4500));
     setPosAlertState('idle');
     setStep('success');
   };
@@ -719,12 +719,12 @@ export default function KioskPage() {
       'Esperando lectura de tarjeta (NFC / Chip) en el Punto Bancamiga A75 Pro...'
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 4000));
+    await new Promise((resolve) => setTimeout(resolve, 8000));
     setPosStatusMsg(
       'Tarjeta detectada en A75 Pro · Verificando clave y autorización con Bancamiga...'
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 7000));
     const refAuto = `00${String(Date.now()).slice(-6)}`;
     const aprobAuto = String(Date.now()).slice(-6);
     await confirmarAprobadoA75Pro(refAuto, aprobAuto, '001');
