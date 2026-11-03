@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Presentación Ejecutiva IAMEC — 10 Minutos</title>
+  <style>
+    :root {
+      --bg-dark: #0b132b;
+      --bg-card: #131f42;
+      --emerald: #10b981;
+      --emerald-light: #34d399;
+      --blue: #3b82f6;
+      --amber: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #cbd5e1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: radial-gradient(circle at top right, #1e293b, #090f1f 70%);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Top Bar */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 28px;
+      background: rgba(15, 23, 42, 0.85);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      z-index: 20;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand img {
+      height: 38px;
+      border-radius: 6px;
+      background: #fff;
+      padding: 3px 8px;
+    }
+    .brand-title {
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: 0.3px;
+      color: #fff;
+    }
+    .brand-sub {
+      font-size: 11px;
+      color: var(--emerald-light);
+      font-weight: 600;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .timer-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 14px;
+      color: var(--emerald-light);
+      font-variant-numeric: tabular-nums;
+    }
+    button.btn {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    button.btn:hover {
+      background: var(--emerald);
+      border-color: var(--emerald);
+      color: #06281e;
+    }
+    /* Slide Container */
+    main {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 42px;
+      overflow: hidden;
+    }
+    .slide {
+      display: none;
+      width: 100%;
+      max-width: 1360px;
+      height: 100%;
+      grid-template-columns: 1.05fr 1.25fr;
+      gap: 32px;
+      align-items: center;
+      animation: fadeIn 0.3s ease-out;
+    }
+    .slide.active {
+      display: grid;
+    }
+    .slide.full-col {
+      grid-template-columns: 1fr;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .badge-time {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(59, 130, 246, 0.18);
+      border: 1px solid rgba(59, 130, 246, 0.45);
+      color: #93c5fd;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    h1 {
+      font-size: 34px;
+      line-height: 1.15;
+      font-weight: 900;
+      margin-bottom: 14px;
+      color: #fff;
+    }
+    h1 span {
+      color: var(--emerald-light);
+    }
+    p.lead {
+      font-size: 16px;
+      line-height: 1.55;
+      color: var(--text-muted);
+      margin-bottom: 18px;
+    }
+    ul.points {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      margin-bottom: 18px;
+    }
+    ul.points li {
+      background: rgba(255, 255, 255, 0.04);
+      border-left: 3px solid var(--emerald);
+      padding: 10px 14px;
+      border-radius: 0 10px 10px 0;
+      font-size: 14px;
+      line-height: 1.45;
+      color: #e2e8f0;
+    }
+    ul.points li strong {
+      color: #fff;
+    }
+    .speaker-note {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #fde68a;
+    }
+    .speaker-note b {
+      color: #fbbf24;
+      display: block;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+    .visual-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+    }
+    .img-card {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 10px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55);
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .img-card img {
+      max-width: 100%;
+      max-height: 56vh;
+      object-fit: contain;
+      border-radius: 10px;
+    }
+    .img-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      width: 100%;
+    }
+    .img-grid-2 .img-card img {
+      max-height: 50vh;
+    }
+    .caption {
+      font-size: 11.5px;
+      color: #94a3b8;
+      margin-top: 8px;
+      font-weight: 600;
+      text-align: center;
+    }
+    /* Footer Progress */
+    footer {
+      padding: 10px 28px;
+      background: rgba(15, 23, 42, 0.9);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .dots {
+      display: flex;
+      gap: 8px;
+    }
+    .dot {
+      width: 28px;
+      height: 6px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.18);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dot.active {
+      background: var(--emerald);
+      width: 44px;
+    }
+    @media print {
+      body { height: auto; overflow: visible; background: #0b132b; }
+      header, footer { display: none; }
+      main { display: block; padding: 0; }
+      .slide { display: grid !important; page-break-after: always; height: 95vh; padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <img src="/presentacion/institucional_banner.png" alt="Alcaldía de Naguanagua — IAMEC" />
+      <div>
+        <div class="brand-title">ECOSISTEMA DIGITAL IAMEC · NAGUANAGUA</div>
+        <div class="brand-sub">Exposición Ejecutiva Guiada (10 Minutos)</div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="timer-box">
+        <span>⏱️ Tiempo Restante:</span>
+        <span id="timerDisplay">10:00</span>
+      </div>
+      <button class="btn" onclick="toggleTimer()" id="timerBtn">▶ Iniciar Reloj 10m</button>
+      <button class="btn" onclick="prevSlide()">◀ Anterior</button>
+      <button class="btn" onclick="nextSlide()">Siguiente ▶</button>
+      <button class="btn" onclick="window.print()">🖨️ Imprimir / PDF</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- SLIDE 1: PORTADA Y ARQUITECTURA (00:00 - 01:30) -->
+    <section class="slide active">
+      <div>
+        <div class="badge-time"> Diapositiva 1 de 6 · Minuto 00:00 – 01:30 (1.5 min)</div>
+        <h1>Transformación Digital <span>IAMEC — Global Rec</span></h1>
+        <p class="lead">
+          Plataforma integral en tiempo real que unifica el catastro de aseo urbano, autogestión ciudadana web/móvil, recaudación en taquilla con POS integrado, condominios, conciliación bancaria y facturación fiscal SENIAT.
+        </p>
+        <ul class="points">
+          <li><strong>Sincronización Automática BCV:</strong> Cálculo exacto en MMV / Euros (€) y UCD sin errores manuales.</li>
+          <li><strong>Cero Discrecionalidad:</strong> Reglas tributarias blindadas (residencial exento de IVA, comercial gravado 16%, retención 75%).</li>
+          <li><strong>Ecosistema Multiplataforma:</strong> Portal Administrativo + Portal Web Ciudadano + App Móvil <em>Soy Contribuyente</em>.</li>
+        </ul>
+        <div class="speaker-note">
+          <b>🎙️ Guion sugerido para el expositor (90 seg):</b>
+          "Buenos días. En estos 10 minutos recorreremos con pantallas reales el ecosistema tecnológico del IAMEC en Naguanagua: una sola base de datos en tiempo real que conecta al contribuyente desde su teléfono con nuestras cajas de recaudación, el departamento de condominios, conciliación bancaria y facturación digital SENIAT."
+        </div>
+      </div>
+      <div class="visual-panel">
+        <div class="img-card">
+          <img src="/presentacion/institucional_banner.png" alt="Identidad Institucional" style="max-height:110px; margin-bottom:10px;" />
+          <img src="/presentacion/pos_cards.png" alt="Pilares Tecnológicos IAMEC" />
+          <div class="caption">Pilares Operativos: POS Bancamiga Directo · Conciliación en Línea · Solvencia Inmediata</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: APP MÓVIL Y PORTAL SOY CONTRIBUYENTE (01:30 - 03:30) -->
+    <section class="slide">
+      <div>
+        <div class="badge-time">📱 Diapositiva 2 de 6 · Minuto 01:30 – 03:30 (2 min)</div>
+        <h1>App Móvil y Portal Web <span>"Soy Contribuyente"</span></h1>
+        <p class="lead">
+          Autogestión ciudadana 24/7 desde cualquier teléfono inteligente o computadora usando únicamente su Cédula o RIF.
+        </p>
+        <ul class="points">
+          <li><strong>Inmuebles y Estado de Cuenta:</strong> Visualización de locales/viviendas y descarga de Estado de Cuenta oficial en PDF.</li>
+          <li><strong>Pagos en Línea:</strong> Cobro inmediato por Punto Virtual Bancamiga o reporte de Transferencia con captura.</li>
+          <li><strong>Servicios y Solvencias QR:</strong> Descarga de Facturas Fiscales, Certificados de Solvencia, Horarios de Rutas, Tala/Poda, Visto Bueno e Inspecciones.</li>
+        </ul>
+        <div class="speaker-note">
+          <b>🎙️ Guion sugerido para el expositor (2 min):</b>
+          "A la derecha vemos capturas reales de la App Móvil Soy Contribuyente. El ciudadano entra con su RIF o Cédula, consulta sus inmuebles, descarga su estado de cuenta al día, reporta su pago o paga con tarjeta, descarga su factura SENIAT y solicita permisos ambientales o servicios especiales sin hacer filas."
+        </div>
+      </div>
+      <div class="visual-panel">
+        <div class="img-grid-2">
+          <div class="img-card">
+            <img src="/presentacion/app_login.png" alt="Login App Soy Contribuyente" />
+            <div class="caption">Acceso Móvil Soy Contribuyente (Cédula / RIF)</div>
+          </div>
+          <div class="img-card">
+            <img src="/presentacion/app_menu.png" alt="Menú App Móvil IAMEC" />
+            <div class="caption">Menú Ciudadano: Pagos, Facturación, Rutas y Permisos</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: CAJA RECAUDADORA Y PUNTO DE VENTA POS (03:30 - 05:30) -->
+    <section class="slide">
+      <div>
+        <div class="badge-time">💳 Diapositiva 3 de 6 · Minuto 03:30 – 05:30 (2 min)</div>
+        <h1>Taquilla Inteligente + <span>POS Bancamiga Directo</span></h1>
+        <p class="lead">
+          Liquidación automatizada en Caja con integración directa al Punto de Venta físico por Cable USB o Red Wi-Fi local.
+        </p>
+        <ul class="points">
+          <li><strong>Liquidación Integral:</strong> Selección de meses de aseo, aplicación automática de <strong>Agente de Retención (75% IVA)</strong> y uso de <strong>Notas de Crédito / Saldo a Favor</strong>.</li>
+          <li><strong>Integración POS Bancamiga:</strong> El punto queda conectado toda la jornada; transmite el monto sin errores de digitación.</li>
+          <li><strong>Pago Múltiple y Convenios:</strong> Permite combinar métodos de pago y cobrar cuotas de Convenios de Pago.</li>
+        </ul>
+        <div class="speaker-note">
+          <b>🎙️ Guion sugerido para el expositor (2 min):</b>
+          "En Taquilla, el cajero busca al contribuyente y el sistema calcula Base, IVA 16%, Multas, Retenciones del 75% y Saldos a Favor. Al cobrar con tarjeta, el sistema se comunica directo por USB o Wi-Fi con el POS Bancamiga, aprueba el cobro y libera la solvencia al instante."
+        </div>
+      </div>
+      <div class="visual-panel">
+        <div class="img-card">
+          <img src="/presentacion/caja_recaudacion.jpg" alt="Módulo de Caja IAMEC" style="max-height:33vh;" />
+          <div class="caption">Módulo de Caja: Recibos Mensuales, Agente de Retención, Notas de Crédito y Pago Múltiple</div>
+        </div>
+        <div class="img-card">
+          <img src="/presentacion/pos_conexion.png" alt="Conexión POS Bancamiga USB y Wi-Fi" style="max-height:19vh;" />
+          <div class="caption">Vinculación Permanente con Punto de Venta Bancamiga (Cable USB o IP Local Wi-Fi)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: CONDOMINIOS Y CENTROS COMERCIALES (05:30 - 07:00) -->
+    <section class="slide">
+      <div>
+        <div class="badge-time">🏢 Diapositiva 4 de 6 · Minuto 05:30 – 07:00 (1.5 min)</div>
+        <h1>Módulo Especializado de <span>Condominios y Centros Comerciales</span></h1>
+        <p class="lead">
+          Control jerárquico de urbanizaciones residenciales, condominios mixtos y centros comerciales con cientos de locales.
+        </p>
+        <ul class="points">
+          <li><strong>Desglose Real por Unidad / Local:</strong> Cada local posee su propio historial de meses, actividades económicas (incluyendo múltiples actividades N/A) y estado (Activo / Desocupado).</li>
+          <li><strong>Estados de Cuenta en Bs. y Euros (€):</strong> Exportación en PDF y Excel con cuadratura exacta al céntimo con la Caja de Condominios.</li>
+          <li><strong>Cobro Flexible:</strong> Permite cobrar todo el condominio, seleccionar locales específicos o cobrar solo multas.</li>
+        </ul>
+        <div class="speaker-note">
+          <b>🎙️ Guion sugerido para el expositor (90 seg):</b>
+          "Para las juntas de condominio y centros comerciales desarrollamos un módulo dedicado que controla tanto el código matriz como el desglose individual de cada apartamento o local comercial, emitiendo estados de cuenta en Bolívares y Euros y solvencias por unidad."
+        </div>
+      </div>
+      <div class="visual-panel">
+        <div class="img-card">
+          <img src="/presentacion/condominios_panel.jpg" alt="Panel de Condominios IAMEC" />
+          <div class="caption">Panel de Condominios: Control de Modalidad, Unidades Declaradas/Registradas, Mensualidad y Deuda</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: CONCILIACIÓN BANCARIA Y FACTURACIÓN SENIAT (07:00 - 09:00) -->
+    <section class="slide">
+      <div>
+        <div class="badge-time">🏛️ Diapositiva 5 de 6 · Minuto 07:00 – 09:00 (2 min)</div>
+        <h1>Conciliación Bancaria + <span>Facturación Fiscal SENIAT</span></h1>
+        <p class="lead">
+          Auditoría transparente de cada bolívar ingresado y emisión de Facturas Electrónicas homologadas con The Factory HKA.
+        </p>
+        <ul class="points">
+          <li><strong>Conciliación Multicriterio:</strong> Filtros por fecha, estatus, banco receptor (<strong>Bancamiga 0172</strong> / <strong>Banesco 0134</strong>), forma de pago y trazabilidad de Cajero y Analista.</li>
+          <li><strong>Imprenta Digital SENIAT (The Factory HKA):</strong> Asignación automática de Número de Control Fiscal, edición previa de fecha/período y envío por correo electrónico.</li>
+          <li><strong>Notas de Crédito y Retenciones:</strong> Anulación fiscal normada mediante Nota de Crédito y control de comprobantes de retención IVA (75%).</li>
+        </ul>
+        <div class="speaker-note">
+          <b>🎙️ Guion sugerido para el expositor (2 min):</b>
+          "Cada pago pasa por Conciliación Bancaria identificando banco origen, cuenta receptora oficial (Bancamiga o Banesco), cajero y analista. Al aprobarse, la bandeja de Facturación Electrónica emite la factura oficial SENIAT mediante The Factory HKA y la envía al correo del contribuyente."
+        </div>
+      </div>
+      <div class="visual-panel">
+        <div class="img-card">
+          <img src="/presentacion/conciliacion_bancaria.jpg" alt="Conciliación Bancaria IAMEC" style="max-height:27vh;" />
+          <div class="caption">Módulo de Conciliación Bancaria con Trazabilidad de Cajero, Analista y Banco Receptor</div>
+        </div>
+        <div class="img-card">
+          <img src="/presentacion/facturacion_hka.jpg" alt="Facturación Electrónica SENIAT" style="max-height:27vh;" />
+          <div class="caption">Bandeja de Facturación Fiscal SENIAT (The Factory HKA), Retenciones 75% y Notas de Crédito</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: REPORTES GERENCIALES Y CIERRE (09:00 - 10:00) -->
+    <section class="slide">
+      <div>
+        <div class="badge-time">📊 Diapositiva 6 de 6 · Minuto 09:00 – 10:00 (1 min)</div>
+        <h1>Inteligencia Fiscal, <span>Auditoría y Resultados</span></h1>
+        <p class="lead">
+          Toma de decisiones respaldada por reportes ejecutivos en tiempo real, bitácora de auditoría inmutable y alertas de cobranza.
+        </p>
+        <ul class="points">
+          <li><strong>Control de Morosidad Crítica (3+ meses):</strong> Identificación inmediata de casos prioritarios de cobranza comercial y residencial.</li>
+          <li><strong>Exportación Ejecutiva (Excel y PDF):</strong> Cierres diarios por cajero, recaudación por cuenta bancaria e historial de solvencias.</li>
+          <li><strong>Seguridad y Respaldo:</strong> Bitácora completa de quién editó, exoneró, concilió o facturó cada operación en el municipio.</li>
+        </ul>
+        <div class="speaker-note">
+          <b>🎙️ Guion sugerido para el expositor (60 seg):</b>
+          "Cerramos con el módulo de Reportes y Morosidad: la directiva exporta en un clic en Excel o PDF el cierre de recaudación y los casos de morosidad crítica. Con esto, Naguanagua cuenta con un sistema moderno, auditable y 100% alineado con el SENIAT y el BCV. Muchas gracias."
+        </div>
+      </div>
+      <div class="visual-panel">
+        <div class="img-card">
+          <img src="/presentacion/reportes_morosidad.png" alt="Reporte de Morosos y KPIs" style="max-height:32vh;" />
+          <div class="caption">Tablero de Control de Morosidad y Exportación Directa a Excel (.xlsx) y PDF</div>
+        </div>
+        <div class="img-card">
+          <img src="/presentacion/modal_factura_fiscal.png" alt="Control de Emisión Fiscal" style="max-height:20vh;" />
+          <div class="caption">Control de Datos Fiscales y Auditoría Previa a la Emisión SENIAT</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>Use las teclas <b>←</b> y <b>→</b> para cambiar de diapositiva · Diseñado para exposición en <b>≤ 10 minutos</b></div>
+    <div class="dots" id="dotsContainer"></div>
+    <div id="slideCounter">Diapositiva 1 / 6</div>
+  </footer>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const dotsContainer = document.getElementById('dotsContainer');
+    const slideCounter = document.getElementById('slideCounter');
+    let current = 0;
+
+    function renderDots() {
+      dotsContainer.innerHTML = '';
+      slides.forEach((_, idx) => {
+        const d = document.createElement('div');
+        d.className = 'dot' + (idx === current ? ' active' : '');
+        d.onclick = () => goToSlide(idx);
+        dotsContainer.appendChild(d);
+      });
+      slideCounter.textContent = `Diapositiva ${current + 1} / ${slides.length}`;
+    }
+
+    function goToSlide(idx) {
+      slides[current].classList.remove('active');
+      current = (idx + slides.length) % slides.length;
+      slides[current].classList.add('active');
+      renderDots();
+    }
+
+    function nextSlide() { goToSlide(current + 1); }
+    function prevSlide() { goToSlide(current - 1); }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') nextSlide();
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') prevSlide();
+    });
+
+    // 10-minute countdown timer
+    let remainingSec = 600;
+    let timerInterval = null;
+    function toggleTimer() {
+      const btn = document.getElementById('timerBtn');
+      const disp = document.getElementById('timerDisplay');
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        btn.textContent = '▶ Reanudar Reloj';
+      } else {
+        btn.textContent = '⏸ Pausar Reloj';
+        timerInterval = setInterval(() => {
+          if (remainingSec > 0) remainingSec--;
+          const m = String(Math.floor(remainingSec / 60)).padStart(2, '0');
+          const s = String(remainingSec % 60).padStart(2, '0');
+          disp.textContent = `${m}:${s}`;
+        }, 1000);
+      }
+    }
+
+    renderDots();
+  </script>
+</body>
+</html>

@@ -3064,7 +3064,7 @@ export default function CajaPage() {
           servicios: selectedServicios,
           tala_poda: selectedTalaPoda,
           cajero: cajero_id,
-          banco_destino: bancoDestino,
+          banco_destino: (paymentMethod === 'Transferencia' || paymentMethod === 'Deposito') ? bancoDestino : undefined,
           es_abono: esAbonoDebito,
           monto_abonado: esAbonoDebito ? montoReal : undefined,
           tasa_bcv: currentBcvRate,

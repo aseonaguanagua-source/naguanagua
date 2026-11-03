@@ -90,7 +90,7 @@ export async function POST(request: Request) {
         estado: 'Por Verificar',
         detalles: JSON.stringify({
           origen: 'Portal Web (Soy Contribuyente)',
-          banco_destino: bancoDestino || 'BANCAMIGA - 0172 - 0717',
+          banco_destino: bancoDestino || (String(banco || '').includes('0134') ? 'BANESCO - 0134 - 8636' : 'BANCAMIGA - 0172 - 0717'),
           recibos: finalRecibos,
           recibosIds: facturaIds,
           conveniosIds: convenioIds,

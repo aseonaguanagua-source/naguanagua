@@ -123,24 +123,42 @@ export function generarPdfEstadoCuentaCondominio(
   // ── PREPARAR LOS DATOS ──
   // Si la unidad es grupo (padre) agrupamos sus hijos debajo
   const rows: any[] = [];
-  const renderRenglon = (r: RenglonEstado, indent: string = '') => {
+  const renderRenglon = (r: RenglonEstado, indent: string = '', children: RenglonEstado[] = []) => {
     let prop = r.propietario || '';
     let id = r.identidad || '';
     if (mostrarNA) {
       if (!prop || prop === '') prop = 'N/A';
       if (!id || id === '') id = 'N/A';
     }
-    const multasMonto = (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
-    const aseoMonto = (r.deuda?.baseBs || 0) + (r.deuda?.ivaBs || 0);
+    const isParentGroup = children.length > 0 && r.totalBs === 0;
+    const multasMonto = isParentGroup
+      ? children.reduce((acc, ch) => acc + (ch.deuda?.multaBs || 0) + (ch.multaExtraBs || 0) + (ch.multasManualesBs || 0), 0)
+      : (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
+    const aseoMonto = isParentGroup
+      ? children.reduce((acc, ch) => acc + (ch.deuda?.baseBs || 0) + (ch.deuda?.ivaBs || 0), 0)
+      : (r.deuda?.baseBs || 0) + (r.deuda?.ivaBs || 0);
+    const totalRowBs = isParentGroup
+      ? children.reduce((acc, ch) => acc + (ch.totalBs || 0), 0)
+      : r.totalBs;
+    const periodosRow = (r.periodos && r.periodos.length > 0)
+      ? r.periodos
+      : (children[0]?.periodos || []);
+    const actShort = indent && r.actividad && !/^N\/?A$/i.test(String(r.actividad))
+      ? cleanClasificacionActividad(r.actividad).slice(0, 32)
+      : (isParentGroup ? ` [${children.length} act.]` : '');
+    const codeDisplay = indent
+      ? `${indent}${actShort || r.inmueble || ''}`
+      : (r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'SIN REGISTRAR' : '')) + actShort;
+
     rows.push([
-      indent + (r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'SIN REGISTRAR' : '')),
+      codeDisplay,
       r.numero || (mostrarNA ? 'N/A' : ''),
       prop,
       id,
-      r.periodos.map(fmtPeriodo).join(', '),
+      periodosRow.map(fmtPeriodo).join(', '),
       fmtM(aseoMonto),
       fmtM(multasMonto),
-      fmtM(r.totalBs)
+      fmtM(totalRowBs)
     ]);
   };
 
@@ -164,8 +182,8 @@ export function generarPdfEstadoCuentaCondominio(
   }
 
   for (const root of validRoots) {
-    renderRenglon(root);
     const children = e.renglones.filter(r => r.padreId === root.clave);
+    renderRenglon(root, '', children);
     for (const child of children) {
       renderRenglon(child, '  ↳ ');
     }
@@ -356,8 +374,11 @@ export async function generarPdfEstadoCuentaUnidad(
   tasa: number | string, 
   cajero: string,
   direccionContribuyente?: string,
-  moneda: 'BS' | 'EUR' = 'BS'
+  moneda: 'BS' | 'EUR' = 'BS',
+  allRenglones?: RenglonEstado[]
 ) {
+  const childRenglones = (allRenglones || []).filter(x => x.padreId === r.clave);
+  const isParentGroup = childRenglones.length > 0 && r.totalBs === 0;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const docNro = Math.floor(100000 + Math.random() * 900000).toString();
   const esEur = moneda === 'EUR';
@@ -463,9 +484,9 @@ export async function generarPdfEstadoCuentaUnidad(
 
   const tasaNum = parseFloat(String(tasa || 0)) || 993.21;
   const ucdValor = tasaNum * 57;
-  const periodos = r.periodos || [];
-  const porMes = r.deuda?.porMes || [];
-  const mesesVencidos = periodos.length > 0 ? periodos.length : (r.deuda?.meses || 0);
+  const periodos = (r.periodos && r.periodos.length > 0) ? r.periodos : (childRenglones[0]?.periodos || []);
+  const porMes = (r.deuda?.porMes && r.deuda.porMes.length > 0) ? r.deuda.porMes : [];
+  const mesesVencidos = periodos.length > 0 ? periodos.length : (isParentGroup ? Math.max(...childRenglones.map(ch => ch.deuda?.meses || 0), 0) : (r.deuda?.meses || 0));
   const periodoDesde = periodos.length > 0 ? fmtPeriodo(periodos[0]).toUpperCase() : '---';
   const periodoHasta = periodos.length > 0 ? fmtPeriodo(periodos[periodos.length - 1]).toUpperCase() : '---';
 
@@ -495,12 +516,22 @@ export async function generarPdfEstadoCuentaUnidad(
   y += 5;
 
   // ── RESUMEN OFICIAL DE LIQUIDACIÓN ──
-  const sumMultas = (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
-  const baseAseo = r.deuda?.baseBs || 0;
-  const ivaBs = r.deuda?.ivaBs || 0;
-  const retencionBs = r.deuda?.retencionBs || 0;
+  const sumMultas = isParentGroup
+    ? childRenglones.reduce((acc, ch) => acc + (ch.deuda?.multaBs || 0) + (ch.multaExtraBs || 0) + (ch.multasManualesBs || 0), 0)
+    : (r.deuda?.multaBs || 0) + (r.multaExtraBs || 0) + (r.multasManualesBs || 0);
+  const baseAseo = isParentGroup
+    ? childRenglones.reduce((acc, ch) => acc + (ch.deuda?.baseBs || 0), 0)
+    : (r.deuda?.baseBs || 0);
+  const ivaBs = isParentGroup
+    ? childRenglones.reduce((acc, ch) => acc + (ch.deuda?.ivaBs || 0), 0)
+    : (r.deuda?.ivaBs || 0);
+  const retencionBs = isParentGroup
+    ? childRenglones.reduce((acc, ch) => acc + (ch.deuda?.retencionBs || 0), 0)
+    : (r.deuda?.retencionBs || 0);
   const totalBrutoBs = Math.round((baseAseo + sumMultas + ivaBs) * 100) / 100;
-  const totalNetoBs = r.totalBs || (totalBrutoBs - retencionBs);
+  const totalNetoBs = isParentGroup
+    ? childRenglones.reduce((acc, ch) => acc + (ch.totalBs || 0), 0)
+    : (r.totalBs || (totalBrutoBs - retencionBs));
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -552,7 +583,31 @@ export async function generarPdfEstadoCuentaUnidad(
 
   // ── TABLA OFICIAL DETALLADA MES A MES ──
   const oficialRows: any[] = [];
-  if (porMes.length > 0) {
+  if (isParentGroup && childRenglones.length > 0) {
+    childRenglones.forEach((ch) => {
+      const chPorMes = ch.deuda?.porMes || [];
+      const chPeriodos = ch.periodos || [];
+      const chAct = cleanClasificacionActividad(ch.actividad || '').slice(0, 28);
+      const chLabel = `${r.inmueble || r.numero || 'Local'}${chAct ? ` (${chAct})` : ''}`;
+      chPorMes.forEach((m: any, idx: number) => {
+        const p = chPeriodos[idx] || '';
+        const [py, pm] = p.split('-');
+        const mesFmt = pm && py ? `${pm}/${py}` : `Mes ${m.n}`;
+        const totM = m.baseBs + m.multaBs + m.ivaBs;
+        const ucdM = ucdValor > 0 ? (totM / ucdValor).toLocaleString('es-VE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : '-';
+        oficialRows.push([
+          { content: chLabel, styles: { fontStyle: 'bold' } },
+          mesFmt,
+          fmtBs(toCurr(m.baseBs)),
+          '-',
+          m.multaBs > 0 ? fmtBs(toCurr(m.multaBs)) : '-',
+          fmtBs(toCurr(m.ivaBs)),
+          fmtBs(toCurr(totM)),
+          ucdM
+        ]);
+      });
+    });
+  } else if (porMes.length > 0) {
     porMes.forEach((m: any, idx: number) => {
       const p = periodos[idx] || '';
       const [py, pm] = p.split('-');

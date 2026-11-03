@@ -222,9 +222,10 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
       if (inm.inmueble && c.inms.some((i: any) => i.padre_id === inm.inmueble)) {
         return true;
       }
-      // 3. Coincidencia por dirección física SOLO si NINGUNO pertenece a un contenedor padre N/A
+      // 3. Coincidencia por dirección física SOLO si NINGUNO pertenece a un contenedor padre N/A ni tienen códigos URB distintos independientes
       const cHasPadre = c.inms.some((i: any) => i.padre_id || (i.actividad_principal || '').toUpperCase() === 'N/A');
-      if (!localPadreId && !isNA && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
+      const hasDistinctUrbCode = Boolean(inm.inmueble && c.inms.some((i: any) => i.inmueble && i.inmueble !== inm.inmueble));
+      if (!hasDistinctUrbCode && !localPadreId && !isNA && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
         return true;
       }
       return false;
@@ -347,9 +348,10 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
       if (inm.inmueble && c.inms.some((i: any) => i.padre_id === inm.inmueble)) {
         return true;
       }
-      // 3. Coincidencia por dirección física SOLO si NINGUNO pertenece a un contenedor padre N/A
+      // 3. Coincidencia por dirección física SOLO si NINGUNO pertenece a un contenedor padre N/A ni tienen códigos URB distintos independientes
       const cHasPadre = c.inms.some((i: any) => i.padre_id || (i.actividad_principal || '').toUpperCase() === 'N/A' || (i.actividad_principal || '').toLowerCase().includes('padre en sigyr'));
-      if (!localPadreId && !isNA && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
+      const hasDistinctUrbCode = Boolean(inm.inmueble && c.inms.some((i: any) => i.inmueble && i.inmueble !== inm.inmueble));
+      if (!hasDistinctUrbCode && !localPadreId && !isNA && !cHasPadre && rawDir && rawDir !== '0 0' && c.direccion && c.direccion !== '0 0' && isSameLocal(rawDir, c.direccion)) {
         return true;
       }
       return false;

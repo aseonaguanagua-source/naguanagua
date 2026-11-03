@@ -1634,7 +1634,15 @@ export default function DondePagarPage() {
                     </label>
                     <select 
                       value={formData.bancoOrigen}
-                      onChange={(e) => setFormData({...formData, bancoOrigen: e.target.value})}
+                      onChange={(e) => {
+                        const nuevoOrigen = e.target.value;
+                        const autoDestino = nuevoOrigen.includes('0134')
+                          ? 'BANESCO - 0134 - 8636'
+                          : nuevoOrigen.includes('0172')
+                            ? 'BANCAMIGA - 0172 - 0717'
+                            : formData.bancoDestino;
+                        setFormData({...formData, bancoOrigen: nuevoOrigen, bancoDestino: autoDestino});
+                      }}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:border-emerald-500 bg-white"
                       required
                     >

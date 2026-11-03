@@ -232,8 +232,8 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       try {
         let query = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo');
         if (codes.length > 0) {
-          // Solo cargar la cuenta/inmueble seleccionada y sus actividades/padres N/A.
-          query = query.or(`${codes.map(c => `inmueble.eq.${c}`).join(',')},${codes.map(c => `padre_id.eq.${c}`).join(',')}`);
+          // Solo cargar la cuenta/inmueble seleccionada y sus actividades/padres N/A o locales de condominio matriz.
+          query = query.or(`${codes.map(c => `inmueble.eq.${c}`).join(',')},${codes.map(c => `padre_id.eq.${c}`).join(',')},${codes.map(c => `condominio_padre_id.eq.${c}`).join(',')}`);
         } else if (idVariants.length > 0) {
           query = query.or(idVariants.map(v => `identidad.eq.${v}`).join(','));
         }
@@ -243,7 +243,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           return st !== 'eliminado' && st !== 'inactivo' && st !== 'desactivado';
         });
 
-        // 1.1 Si encontramos inmuebles, buscar si alguno tiene locales hijos asociados por padre_id
+        // 1.1 Si encontramos inmuebles, buscar si alguno tiene locales hijos asociados por padre_id o condominio_padre_id
         const foundCodes = allInms.map((i: any) => i.inmueble).filter(Boolean);
         if (foundCodes.length > 0) {
           const { data: hijosData } = await supabase
@@ -251,7 +251,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             .select('*')
             .neq('estado', 'Eliminado')
             .neq('estado', 'Inactivo')
-            .in('padre_id', foundCodes);
+            .or(`padre_id.in.(${foundCodes.join(',')}),condominio_padre_id.in.(${foundCodes.join(',')})`);
           if (hijosData && hijosData.length > 0) {
             const existingCodes = new Set(allInms.map((i: any) => i.inmueble));
             hijosData.forEach((h: any) => {
@@ -260,6 +260,28 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                 existingCodes.add(h.inmueble);
               }
             });
+          }
+          // Si alguno de los hijos cargados es a su vez un contenedor N/A con sub-actividades por padre_id, traerlas también
+          const naHijosCodes = (hijosData || [])
+            .filter((h: any) => /^(N\/?A|NA)$/i.test(String(h.actividad_principal || '').trim()))
+            .map((h: any) => h.inmueble)
+            .filter(Boolean);
+          if (naHijosCodes.length > 0) {
+            const { data: nietosData } = await supabase
+              .from('inmuebles')
+              .select('*')
+              .neq('estado', 'Eliminado')
+              .neq('estado', 'Inactivo')
+              .in('padre_id', naHijosCodes);
+            if (nietosData && nietosData.length > 0) {
+              const existingCodes = new Set(allInms.map((i: any) => i.inmueble));
+              nietosData.forEach((n: any) => {
+                if (!existingCodes.has(n.inmueble)) {
+                  allInms.push(n);
+                  existingCodes.add(n.inmueble);
+                }
+              });
+            }
           }
         }
 
@@ -698,7 +720,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
   // Unificación jerárquica: Inmuebles N/A con sus locales e hijos
   const unifiedInmuebles = useMemo(() => {
-    // 1. Agrupar hijos por su padre_id
+    // 1. Agrupar hijos por su padre_id (no agrupar todo un centro comercial bajo su matriz condominio_padre_id para que cada local salga desglosado)
     const hijosByPadre = new Map<string, any[]>();
     userInms.forEach(i => {
       const p = i.padre_id;
@@ -708,7 +730,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       }
     });
 
-    // 2. Identificar cuáles inmuebles son hijos de un padre presente en userInms
+    // 2. Identificar cuáles inmuebles son hijos de un padre N/A presente en userInms
     const childCodesSet = new Set<string>();
     userInms.forEach(i => {
       if (i.padre_id && userInms.some(p => p.inmueble === i.padre_id && p.inmueble !== i.inmueble)) {

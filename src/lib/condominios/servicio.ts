@@ -457,7 +457,7 @@ export async function cargarCondominio(codigo: string) {
   const agentes = new Map<string, any>();
   if (codigosUnidades.length > 0) {
     for (let i = 0; i < codigosUnidades.length; i += 300) {
-      const { data: inm } = await sb.from('inmuebles').select('inmueble, agente_retencion, multa_bs, saldo_favor_bs, telefono, correo_electronico, direccion, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
+      const { data: inm } = await sb.from('inmuebles').select('inmueble, identidad, contribuyente, actividad_principal, numero_local, agente_retencion, multa_bs, saldo_favor_bs, telefono, correo_electronico, direccion, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
       (inm || []).forEach(r => agentes.set(r.inmueble, r));
     }
   }
@@ -485,6 +485,10 @@ export async function cargarCondominio(codigo: string) {
     const rawSF = parseFloat(inf.saldo_favor_bs || '0') || 0;
     return {
       ...u,
+      identidad: u.identidad || inf.identidad || null,
+      propietario: u.propietario || inf.contribuyente || null,
+      actividad: u.actividad || inf.actividad_principal || null,
+      numero: u.numero || inf.numero_local || null,
       padre_inmueble: inf.padre_id || null,
       agente_retencion: !!inf.agente_retencion,
       multa_bs: parseFloat(inf.multa_bs || '0'),

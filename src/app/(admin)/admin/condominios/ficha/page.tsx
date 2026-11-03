@@ -129,9 +129,36 @@ function Ficha() {
   const renglones = useMemo(() => {
     if (!e) return [];
     const t = q.trim().toUpperCase();
-    return e.renglones.filter((r: any) =>
+    const enriched = e.renglones.map((r: any) => {
+      const hijosR = e.renglones.filter((x: any) => x.padreId === r.clave);
+      if (hijosR.length > 0 && r.totalBs === 0) {
+        const sumMensual = hijosR.reduce((acc: number, ch: any) => acc + (ch.mensualBs || 0), 0);
+        const sumBase = hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.baseBs || 0), 0);
+        const sumMulta = hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.multaBs || 0), 0);
+        const sumIva = hijosR.reduce((acc: number, ch: any) => acc + (ch.deuda?.ivaBs || 0), 0);
+        const sumTotal = hijosR.reduce((acc: number, ch: any) => acc + (ch.totalBs || 0), 0);
+        const maxMeses = Math.max(...hijosR.map((ch: any) => ch.deuda?.meses || 0), 0);
+        return {
+          ...r,
+          mensualBs: sumMensual,
+          periodos: (r.periodos && r.periodos.length > 0) ? r.periodos : (hijosR[0]?.periodos || []),
+          deuda: {
+            ...r.deuda,
+            meses: maxMeses,
+            baseBs: sumBase,
+            multaBs: sumMulta,
+            ivaBs: sumIva,
+            totalBs: sumTotal,
+          },
+          totalBs: sumTotal,
+          _hijosRenglones: hijosR,
+        };
+      }
+      return r;
+    });
+    return enriched.filter((r: any) =>
       (!soloDeuda || r.totalBs > 0.01) &&
-      (!t || [r.inmueble, r.numero, r.propietario, r.identidad].some((x: any) => String(x || '').toUpperCase().includes(t))));
+      (!t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t))));
   }, [e, q, soloDeuda]);
   const paginas = Math.max(1, Math.ceil(renglones.length / POR_PAGINA));
   const visibles = renglones.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
@@ -264,7 +291,7 @@ function Ficha() {
     ev.stopPropagation();
     const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
     const cajero = usuarioActual() || 'Administrador';
-    await generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero, undefined, moneda);
+    await generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero, undefined, moneda, e?.renglones);
   };
 
   /** Renglón del estado de cuenta de una unidad */
@@ -272,6 +299,9 @@ function Ficha() {
   /** Meses con multa: toma los meses con recargo en mora (o multaMeses si es remanente) sin duplicar */
   const mesesMultaDe = (r: any) => {
     const enAseo = (r?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length;
+    if (enAseo === 0 && r?._hijosRenglones?.length) {
+      return Math.max(...r._hijosRenglones.map((ch: any) => (ch?.deuda?.porMes || []).filter((m: any) => m.multaBs > 0).length), 0);
+    }
     return Math.max(enAseo, Number(r?.multaMeses) || 0);
   };
 
@@ -282,7 +312,7 @@ function Ficha() {
     if (!r) { alert('Esta unidad no tiene renglones de deuda calculados.'); return; }
     const { generarPdfEstadoCuentaUnidad } = await import('@/lib/condominios/pdfCondominio');
     const cajero = usuarioActual() || 'Administrador';
-    await generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero, undefined, moneda);
+    await generarPdfEstadoCuentaUnidad(c, r, e.tasa, cajero, undefined, moneda, e?.renglones);
   };
 
   const exportarMultas = async () => {

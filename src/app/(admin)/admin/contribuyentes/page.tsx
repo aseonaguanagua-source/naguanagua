@@ -858,6 +858,32 @@ function ContribuyentesPageContent() {
   const imprimirEstadoDeCuenta = async (targetInmueble?: string, modo: 'separados' | 'unificado' = 'separados') => {
     if (!viewData) return;
 
+    // Si la cuenta consultada es una Matriz de Condominio / Centro Comercial (ej. URB016119 - A.S 24 VALENCIA, C.A / Sambil),
+    // generar el Estado de Cuenta oficial del Condominio con el desglose completo de todos sus locales.
+    const mainCode = targetInmueble || String(viewData.Inmueble || viewData.Catastro || '').split(',')[0].trim();
+    const isCondoMatriz = Boolean(
+      viewData.es_condominio ||
+      viewData.isCondominio ||
+      String(viewData.Clasificacion || '').toLowerCase().includes('condominio') ||
+      mainCode === 'URB016119'
+    );
+    if (isCondoMatriz && mainCode && (!targetInmueble || targetInmueble === mainCode)) {
+      try {
+        const resCondo = await fetch(`/api/admin/condominios?codigo=${encodeURIComponent(mainCode)}`);
+        if (resCondo.ok) {
+          const dataCondo = await resCondo.json();
+          if (dataCondo?.condo && dataCondo?.estado && (dataCondo.unidades?.length || 0) > 0) {
+            const { generarPdfEstadoCuentaCondominio } = await import('@/lib/condominios/pdfCondominio');
+            const cajero = localStorage.getItem('user_name') || localStorage.getItem('user_email') || 'Administrador';
+            generarPdfEstadoCuentaCondominio(dataCondo.condo, dataCondo.estado, cajero, true, 'BS');
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('[PDF] Fallback a estado de cuenta estándar:', err);
+      }
+    }
+
     const tasaValida = tcmmv && tcmmv > 0 ? tcmmv : 982.75895071;
     const idLimpio = (viewData.Identidad || '').replace(/-/g, '').toUpperCase();
 
@@ -1084,8 +1110,10 @@ function ContribuyentesPageContent() {
             if (localPadreId && (ci.inmueble === localPadreId || ci.padre_id === localPadreId)) return true;
             if (inm.inmueble && ci.padre_id === inm.inmueble) return true;
             // 2. Solo agrupar por misma dirección física si NINGUNO de los dos pertenece a un contenedor padre N/A
+            // y NO son códigos de inmueble distintos dentro de un condominio (ej. URB034333 y URB034337 en Via Veneto)
             const ciIsNA = (ci.actividad_principal || '').trim().toUpperCase() === 'N/A';
-            if (!localPadreId && !ci.padre_id && !isNA && !ciIsNA && dirKey && ci.direccion && ci.direccion !== '0 0') {
+            const ambosTienenCodigoDistinto = Boolean(inm.inmueble && ci.inmueble && inm.inmueble !== ci.inmueble);
+            if (!ambosTienenCodigoDistinto && !localPadreId && !ci.padre_id && !isNA && !ciIsNA && dirKey && ci.direccion && ci.direccion !== '0 0') {
               const ciDir = normDir(ci.direccion);
               return ciDir === dirKey;
             }
@@ -1373,17 +1401,23 @@ function ContribuyentesPageContent() {
       doc.text(viewData.Identidad || '', 165, y);
       y += Math.max(5, splitContrib.length * 4);
 
+      const codigoPrincipalCluster =
+        cluster.inmuebles.find((i: any) => (i.actividad_principal || '').trim().toUpperCase() === 'N/A')?.inmueble ||
+        cluster.inmuebles.find((i: any) => i.padre_id)?.padre_id ||
+        cluster.clusterId ||
+        cluster.inmuebles[0]?.inmueble ||
+        'Principal';
+
       if (cluster.isMultiActivity) {
-        const codigoPrincipal = cluster.inmuebles[0]?.condominio_padre_id || cluster.clusterId || cluster.inmuebles[0]?.inmueble || 'Principal';
         doc.setFont('helvetica', 'normal');
         doc.text('Código Inmueble:', 14, y);
         doc.setFont('helvetica', 'bold');
-        doc.text(codigoPrincipal, 42, y);
+        doc.text(codigoPrincipalCluster, 42, y);
 
         doc.setFont('helvetica', 'normal');
         doc.text('Actividades:', 145, y);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${cluster.inmuebles.length} Actividades`, 165, y);
+        doc.text(`${clusterInmBreakdown.length} Actividades`, 165, y);
         y += 5;
       } else {
         const inmSingle = cluster.inmuebles[0];
@@ -1452,7 +1486,6 @@ function ContribuyentesPageContent() {
           const inmOriginal = cluster.inmuebles.find((i: any) => i.inmueble === b.inmueble);
           const fo = inmOriginal?.mmv_mes ? parseFloat(inmOriginal.mmv_mes) : getFO(b.actividad, false);
           return [
-            b.inmueble || '—',
             b.actividad,
             fo.toFixed(2),
             `Bs. ${b.bMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -1463,10 +1496,10 @@ function ContribuyentesPageContent() {
 
         autoTable(doc, {
           startY: y,
-          head: [['CÓDIGO', 'ACTIVIDAD ECONÓMICA', 'F.O.', 'BASE MES (Bs.)', 'IVA 16% (Bs.)', 'TOTAL MES (Bs.)']],
+          head: [['ACTIVIDAD ECONÓMICA', 'F.O.', 'BASE MES (Bs.)', 'IVA 16% (Bs.)', 'TOTAL MES (Bs.)']],
           body: actRows,
           foot: [[
-            'TOTAL MENSUAL UNIFICADO DEL LOCAL', '', '',
+            'TOTAL MENSUAL UNIFICADO DEL LOCAL', '',
             `Bs. ${baseMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             `Bs. ${ivaMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             `Bs. ${totalMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -1482,12 +1515,11 @@ function ContribuyentesPageContent() {
           },
           styles: { fontSize: 7, cellPadding: 1.5 },
           columnStyles: {
-            0: { cellWidth: 24, fontStyle: 'bold' },
-            1: { cellWidth: 70 },
-            2: { cellWidth: 16, halign: 'center' },
+            0: { cellWidth: 94, fontStyle: 'bold' },
+            1: { cellWidth: 16, halign: 'center' },
+            2: { cellWidth: 24, halign: 'right' },
             3: { cellWidth: 24, halign: 'right' },
-            4: { cellWidth: 24, halign: 'right' },
-            5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
+            4: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
           }
         });
 
@@ -1503,10 +1535,7 @@ function ContribuyentesPageContent() {
       y += 4;
 
       const resumenRows: Array<[string, string]> = [
-        [`Períodos Calculados:`, cluster.isMultiActivity
-          ? clusterInmBreakdown.map((b: any) => `${b.inmueble}: ${b.meses > 0 ? `${b.meses}m` : 'Al Día'}`).join(' | ')
-          : (numMesesTotal > 0 ? `${periodoDesde} a ${periodoHasta} (${numMesesTotal} meses)` : 'Solvente / Al Día')
-        ],
+        [`Períodos Calculados:`, mesesVencidosDisplay > 0 ? `${periodoDesde} a ${periodoHasta} (${mesesVencidosDisplay} ${mesesVencidosDisplay === 1 ? 'mes' : 'meses'})` : 'Solvente / Al Día'],
         ['Monto Recolección Aseo Urbano Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
       ];
 
@@ -1580,7 +1609,7 @@ function ContribuyentesPageContent() {
             const dFin = new Date(today.getFullYear(), today.getMonth() - 1, 1);
             periodoStr = `${formatPeriodo(dIni)} a ${formatPeriodo(dFin)} (${item.meses} ${item.meses === 1 ? 'mes' : 'meses'})`;
           }
-          const concepto = `${item.actividad} [${item.inmueble}]${item.esCasoSinMulta ? ' — Caso Especial Sin Multa' : (item.meses <= 1 ? ' — Período al Día (Sin Multa)' : '')}`;
+          const concepto = `${item.actividad}${item.esCasoSinMulta ? ' — Caso Especial Sin Multa' : (item.meses <= 1 ? ' — Período al Día (Sin Multa)' : '')}`;
           detalleRows.push([
             periodoStr,
             concepto,
@@ -1680,7 +1709,7 @@ function ContribuyentesPageContent() {
         }
       });
       const codigoProp = cluster.isMultiActivity
-        ? (cluster.inmuebles[0]?.condominio_padre_id || cluster.inmuebles[0]?.padre_id || cluster.clusterId || cluster.inmuebles[0]?.inmueble)
+        ? codigoPrincipalCluster
         : (cluster.inmuebles[0]?.inmueble || '');
       const oficialRows: any[] = [];
       const mostrarActs = cluster.isMultiActivity || cluster.inmuebles.length > 1;
@@ -1694,7 +1723,7 @@ function ContribuyentesPageContent() {
         ]);
         if (mostrarActs) {
           m.acts.forEach(a => oficialRows.push([
-            { content: `   Actividad: ${a.act} [${a.cod}]  –  Monto: ${f2(a.monto)}`, colSpan: 8, styles: { fontSize: 6.3, textColor: [71, 85, 105], fontStyle: 'italic' } },
+            { content: `   Actividad: ${a.act}  –  Monto: ${f2(a.monto)}`, colSpan: 8, styles: { fontSize: 6.3, textColor: [71, 85, 105], fontStyle: 'italic' } },
           ]));
         }
       });

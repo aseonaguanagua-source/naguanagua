@@ -739,7 +739,6 @@ export default function EstadoCuentaPage() {
           const inmOriginal = cluster.inms.find((i: any) => i.inmueble === b.inmueble);
           const fo = inmOriginal?.mmv_mes ? parseFloat(String(inmOriginal.mmv_mes)) : getFAR(b.actividad);
           return [
-            b.inmueble || '—',
             b.actividad,
             fo.toFixed(2),
             `Bs. ${b.bMes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -750,10 +749,10 @@ export default function EstadoCuentaPage() {
 
         autoTable(doc, {
           startY: y,
-          head: [['CÓDIGO', 'ACTIVIDAD ECONÓMICA', 'F.O.', 'BASE MES (Bs.)', 'IVA 16% (Bs.)', 'TOTAL MES (Bs.)']],
+          head: [['ACTIVIDAD ECONÓMICAS', 'F.O.', 'BASE MES (Bs.)', 'IVA 16% (Bs.)', 'TOTAL MES (Bs.)']],
           body: actRows,
           foot: [[
-            'TOTAL MENSUAL UNIFICADO DEL LOCAL', '', '',
+            'TOTAL MENSUAL UNIFICADO DEL LOCAL', '',
             `Bs. ${baseMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             `Bs. ${ivaMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             `Bs. ${totalMensualLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -769,12 +768,11 @@ export default function EstadoCuentaPage() {
           },
           styles: { fontSize: 7, cellPadding: 1.5 },
           columnStyles: {
-            0: { cellWidth: 24, fontStyle: 'bold' },
-            1: { cellWidth: 70 },
-            2: { cellWidth: 16, halign: 'center' },
+            0: { cellWidth: 94, fontStyle: 'bold' },
+            1: { cellWidth: 16, halign: 'center' },
+            2: { cellWidth: 24, halign: 'right' },
             3: { cellWidth: 24, halign: 'right' },
-            4: { cellWidth: 24, halign: 'right' },
-            5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
+            4: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
           }
         });
 
@@ -790,10 +788,7 @@ export default function EstadoCuentaPage() {
       y += 4;
 
       const resumenRows: Array<[string, string]> = [
-        [`Períodos Calculados:`, isMultiActivity
-          ? clusterInmBreakdown.map((b: any) => `${b.inmueble}: ${b.meses > 0 ? `${b.meses}m` : 'Al Día'}`).join(' | ')
-          : (numMesesTotal > 0 ? `${periodoDesde} a ${periodoHasta} (${numMesesTotal} meses)` : 'Solvente / Al Día')
-        ],
+        [`Períodos Calculados:`, numMesesTotal > 0 ? `${periodoDesde} a ${periodoHasta} (${numMesesTotal} ${numMesesTotal === 1 ? 'mes' : 'meses'})` : 'Solvente / Al Día'],
         ['Monto Recolección Aseo Urbano Bs.:', `Bs. ${subtotalBaseLocal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
       ];
 
@@ -874,7 +869,7 @@ export default function EstadoCuentaPage() {
       });
 
       const codigoProp = isMultiActivity
-        ? (cluster.inms[0]?.condominio_padre_id || cluster.inms[0]?.padre_id || cluster.localId || cluster.inms[0]?.inmueble)
+        ? (cluster.inms.find((i: any) => (i.actividad_principal || '').trim().toUpperCase() === 'N/A')?.inmueble || cluster.inms.find((i: any) => i.padre_id)?.padre_id || cluster.localId || cluster.inms[0]?.inmueble)
         : (cluster.inms[0]?.inmueble || cluster.localId || '');
       const oficialRows: any[] = [];
       const mostrarActs = isMultiActivity || cluster.inms.length > 1;
@@ -888,7 +883,7 @@ export default function EstadoCuentaPage() {
         ]);
         if (mostrarActs) {
           m.acts.forEach(a => oficialRows.push([
-            { content: `   Actividad: ${a.act} [${a.cod}]  –  Monto: ${f2(a.monto)}`, colSpan: 8, styles: { fontSize: 6.3, textColor: [71, 85, 105], fontStyle: 'italic' } },
+            { content: `   Actividad: ${a.act}  –  Monto: ${f2(a.monto)}`, colSpan: 8, styles: { fontSize: 6.3, textColor: [71, 85, 105], fontStyle: 'italic' } },
           ]));
         }
       });

@@ -219,7 +219,10 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
 
   byLocalRif.forEach(grupo => {
     if (grupo.length > 1) {
-      const parent = grupo.find(g => g.esGrupo || /^N\/?A$/i.test(String(g.actividad || ''))) || grupo[0];
+      // Solo agrupar como sub-actividades cuando exista un contenedor explícito (esGrupo o actividad N/A).
+      // Si son códigos independientes (ej. URB034333 y URB034337 en Via Veneto con distinta actividad y propio código), se mantienen individuales.
+      const parent = grupo.find(g => g.esGrupo || /^N\/?A$/i.test(String(g.actividad || '')));
+      if (!parent) return;
       const children = grupo.filter(g => g.clave !== parent.clave);
       if (children.length > 0 && !hijosPorPadre.has(parent.clave)) {
         hijosPorPadre.set(parent.clave, children);

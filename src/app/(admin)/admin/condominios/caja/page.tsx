@@ -695,7 +695,7 @@ function Caja() {
             referencia: primerPagoReal?.referencia || '', 
             montoRecibido: sumaRealPagos > totalAPagarCobro ? sumaRealPagos : totalAPagarCobro, 
             cajero: getCajeroId(),
-            bancoDestino: primerPagoReal?.bancoDestino || '',
+            bancoDestino: (primerPagoReal?.metodo === 'Transferencia' || primerPagoReal?.metodo === 'Depósito') ? (primerPagoReal?.bancoDestino || '') : '',
             pagosAgregados: realPagosSubidos,
             saldoFavorGenerado: excedenteGenerado
           },
