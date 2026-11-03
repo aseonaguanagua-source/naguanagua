@@ -1099,28 +1099,34 @@ export default function KioskPage() {
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white font-sans select-none" style={{ WebkitTapHighlightColor: 'transparent' }}>
 
       {/* Barra superior Institucional con todos los Logos Oficiales GRANDES (Lacava, Naguanagua, Elizabeth, Instituto, IAMEC) */}
-      <header className="bg-slate-900/95 border-b border-slate-800/90 px-4 py-3.5 sticky top-0 z-40 backdrop-blur-xl shadow-lg">
-        <div className="max-w-4xl mx-auto flex flex-col gap-3">
-          {/* Cintillo Institucional de Logos Grandes */}
-          <div className="flex items-center justify-between gap-3 bg-white px-4 sm:px-7 py-3 sm:py-4 rounded-3xl shadow-xl border border-slate-200 overflow-x-auto">
-            <div className="relative h-14 sm:h-20 md:h-24 w-28 sm:w-36 md:w-44 shrink-0">
-              <Image src="/logos/LACAVA.png" alt="Lacava" fill className="object-contain" priority />
+      <header className="bg-slate-900/95 border-b border-slate-800/90 px-3 sm:px-6 py-3.5 sticky top-0 z-40 backdrop-blur-xl shadow-lg">
+        <div className="max-w-6xl w-full mx-auto flex flex-col gap-3">
+          {/* Cintillo Institucional de 5 Logos Grandes (100% visibles sin cortarse) */}
+          <div className="grid grid-cols-5 items-center divide-x divide-slate-200 bg-white px-2 sm:px-6 py-3 sm:py-4 rounded-3xl shadow-xl border border-slate-200 w-full">
+            <div className=" px-1.5 sm:px-3">
+              <div className="relative h-12 sm:h-16 md:h-20 w-full">
+                <Image src="/logos/LACAVA.png" alt="Lacava" fill className="object-contain" priority />
+              </div>
             </div>
-            <div className="h-10 sm:h-14 w-[1.5px] bg-slate-200 shrink-0" />
-            <div className="relative h-14 sm:h-20 md:h-24 w-32 sm:w-40 md:w-48 shrink-0">
-              <Image src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" fill className="object-contain" priority />
+            <div className="px-1.5 sm:px-3">
+              <div className="relative h-12 sm:h-16 md:h-20 w-full">
+                <Image src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" fill className="object-contain" priority />
+              </div>
             </div>
-            <div className="h-10 sm:h-14 w-[1.5px] bg-slate-200 shrink-0" />
-            <div className="relative h-14 sm:h-20 md:h-24 w-28 sm:w-36 md:w-44 shrink-0">
-              <Image src="/logos/ELIZABETH.png" alt="Alcaldía Naguanagua" fill className="object-contain" priority />
+            <div className="px-1.5 sm:px-3">
+              <div className="relative h-12 sm:h-16 md:h-20 w-full">
+                <Image src="/logos/ELIZABETH.png" alt="Alcaldía Naguanagua" fill className="object-contain" priority />
+              </div>
             </div>
-            <div className="h-10 sm:h-14 w-[1.5px] bg-slate-200 shrink-0" />
-            <div className="relative h-14 sm:h-20 md:h-24 w-32 sm:w-40 md:w-48 shrink-0">
-              <Image src="/logos/INSTITUTO.png" alt="Instituto de Ecosocialismo" fill className="object-contain" priority />
+            <div className="px-1.5 sm:px-3">
+              <div className="relative h-12 sm:h-16 md:h-20 w-full">
+                <Image src="/logos/INSTITUTO.png" alt="Instituto de Ecosocialismo" fill className="object-contain" priority />
+              </div>
             </div>
-            <div className="h-10 sm:h-14 w-[1.5px] bg-slate-200 shrink-0" />
-            <div className="relative h-14 sm:h-20 md:h-24 w-28 sm:w-36 md:w-44 shrink-0">
-              <Image src="/logos/IAMEC.png" alt="IAMEC Naguanagua" fill className="object-contain" priority />
+            <div className="px-1.5 sm:px-3">
+              <div className="relative h-12 sm:h-16 md:h-20 w-full">
+                <Image src="/logos/IAMEC.png" alt="IAMEC Naguanagua" fill className="object-contain" priority />
+              </div>
             </div>
           </div>
 
@@ -2089,21 +2095,31 @@ export default function KioskPage() {
           <div className="bg-slate-800/95 rounded-3xl border-2 border-emerald-500/40 p-6 sm:p-8 w-full shadow-2xl relative overflow-hidden backdrop-blur-md">
             {/* Header del Recibo con todos los logos institucionales GRANDES */}
             <div className="flex flex-col gap-3 pb-4 border-b border-slate-700/80">
-              <div className="flex items-center justify-between gap-2.5 bg-white px-4 py-3 rounded-2xl shadow-md">
-                <div className="relative h-12 sm:h-16 w-24 sm:w-32 shrink-0">
-                  <Image src="/logos/LACAVA.png" alt="Lacava" fill className="object-contain" />
+              <div className="grid grid-cols-5 items-center divide-x divide-slate-200 bg-white px-2 sm:px-4 py-3 rounded-2xl shadow-md w-full">
+                <div className="px-1 sm:px-2">
+                  <div className="relative h-10 sm:h-14 w-full">
+                    <Image src="/logos/LACAVA.png" alt="Lacava" fill className="object-contain" />
+                  </div>
                 </div>
-                <div className="relative h-12 sm:h-16 w-28 sm:w-36 shrink-0">
-                  <Image src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua" fill className="object-contain" />
+                <div className="px-1 sm:px-2">
+                  <div className="relative h-10 sm:h-14 w-full">
+                    <Image src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua" fill className="object-contain" />
+                  </div>
                 </div>
-                <div className="relative h-12 sm:h-16 w-24 sm:w-32 shrink-0">
-                  <Image src="/logos/ELIZABETH.png" alt="Alcaldía" fill className="object-contain" />
+                <div className="px-1 sm:px-2">
+                  <div className="relative h-10 sm:h-14 w-full">
+                    <Image src="/logos/ELIZABETH.png" alt="Alcaldía" fill className="object-contain" />
+                  </div>
                 </div>
-                <div className="relative h-12 sm:h-16 w-28 sm:w-36 shrink-0">
-                  <Image src="/logos/INSTITUTO.png" alt="Instituto" fill className="object-contain" />
+                <div className="px-1 sm:px-2">
+                  <div className="relative h-10 sm:h-14 w-full">
+                    <Image src="/logos/INSTITUTO.png" alt="Instituto" fill className="object-contain" />
+                  </div>
                 </div>
-                <div className="relative h-12 sm:h-16 w-24 sm:w-32 shrink-0">
-                  <Image src="/logos/IAMEC.png" alt="IAMEC" fill className="object-contain" />
+                <div className="px-1 sm:px-2">
+                  <div className="relative h-10 sm:h-14 w-full">
+                    <Image src="/logos/IAMEC.png" alt="IAMEC" fill className="object-contain" />
+                  </div>
                 </div>
               </div>
               <div className="text-center">
