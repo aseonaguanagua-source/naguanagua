@@ -5,7 +5,6 @@ import {
   Navigation,
   MapPin,
   Wrench,
-  AlertTriangle,
   CheckCircle2,
   Clock,
   Play,
@@ -15,14 +14,17 @@ import {
   Gauge,
   Fuel,
   Activity,
-  ShieldAlert,
   Calendar,
-  UserCheck,
   Layers,
   Recycle,
   Radio,
   ChevronRight,
   Settings,
+  Maximize2,
+  Minimize2,
+  Eye,
+  X,
+  Compass,
 } from 'lucide-react';
 import { RUTAS_NAGUANAGUA } from '@/data/rutasNaguanagua';
 
@@ -59,12 +61,10 @@ export interface CamionFlota {
   cedulaChofer: string;
   telefonoChofer: string;
   ayudantes: number;
-  // Telemetría y taller
   presionHidraulicaPsi: number;
   tempMotorC: number;
   viajesHoy: number;
   toneladasHoy: number;
-  // Datos de Vertedero / Mantenimiento / Reparación
   horaIngresoEstado?: string;
   tiempoEnEstado?: string;
   tiempoEstimadoSalida?: string;
@@ -72,9 +72,8 @@ export interface CamionFlota {
   detalleTecnico?: string;
   mecanicoResponsable?: string;
   progresoTallerPct?: number;
-  // Waypoints para simulación GPS en vivo
   waypoints: PuntoMapa[];
-  progresoInicial: number; // 0 a 1
+  progresoInicial: number;
 }
 
 const FLOTA_INICIAL: CamionFlota[] = [
@@ -87,7 +86,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 9.8,
     porcentajeCarga: 70,
     combustiblePct: 82,
-    velocidadKmh: 28,
+    velocidadKmh: 32,
     estado: 'EN_RUTA',
     operativo: true,
     rutaId: 'DIARIA-DIU',
@@ -102,13 +101,14 @@ const FLOTA_INICIAL: CamionFlota[] = [
     viajesHoy: 2,
     toneladasHoy: 23.4,
     waypoints: [
-      { x: 66, y: 58, sector: 'Mañongo Calle 102 (Sambil / Hoteles)', lat: 10.2465, lng: -68.0012 },
-      { x: 54, y: 55, sector: 'Av. Salvador Feo La Cruz', lat: 10.2512, lng: -68.0068 },
-      { x: 46, y: 48, sector: 'Av. Universidad (Crucero de Naguanagua)', lat: 10.2584, lng: -68.0105 },
-      { x: 45, y: 62, sector: 'Av. Bolívar de Naguanagua', lat: 10.2491, lng: -68.0114 },
-      { x: 52, y: 68, sector: 'Av. 190 (Corta y Larga)', lat: 10.2418, lng: -68.0085 },
+      { x: 68, y: 56, sector: 'Mañongo Calle 102 (Sambil / Hoteles)', lat: 10.2465, lng: -68.0012 },
+      { x: 56, y: 53, sector: 'Av. Salvador Feo La Cruz', lat: 10.2512, lng: -68.0068 },
+      { x: 46, y: 46, sector: 'Av. Universidad (Crucero de Naguanagua)', lat: 10.2584, lng: -68.0105 },
+      { x: 44, y: 60, sector: 'Av. Bolívar de Naguanagua', lat: 10.2491, lng: -68.0114 },
+      { x: 54, y: 67, sector: 'Av. 190 (Corta y Larga)', lat: 10.2418, lng: -68.0085 },
+      { x: 64, y: 63, sector: 'Av. Valencia / Retorno Mañongo', lat: 10.2442, lng: -68.0035 },
     ],
-    progresoInicial: 0.15,
+    progresoInicial: 0.1,
   },
   {
     id: 'IAMEC-02',
@@ -119,7 +119,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 8.2,
     porcentajeCarga: 75,
     combustiblePct: 68,
-    velocidadKmh: 22,
+    velocidadKmh: 26,
     estado: 'EN_RUTA',
     operativo: true,
     rutaId: 'VIII-MARJUE',
@@ -134,12 +134,12 @@ const FLOTA_INICIAL: CamionFlota[] = [
     viajesHoy: 2,
     toneladasHoy: 19.6,
     waypoints: [
-      { x: 40, y: 60, sector: 'C.C. Free Market / C.C. Cristal', lat: 10.2478, lng: -68.0142 },
-      { x: 35, y: 64, sector: 'C.C. La Granja · Zona Comercial', lat: 10.2452, lng: -68.0169 },
-      { x: 31, y: 58, sector: 'Urb. La Granja · Res. Villa Olímpica', lat: 10.2495, lng: -68.0191 },
-      { x: 36, y: 54, sector: 'Polideportivo Imdenaguanagua', lat: 10.2528, lng: -68.0158 },
+      { x: 42, y: 59, sector: 'C.C. Free Market / C.C. Cristal', lat: 10.2478, lng: -68.0142 },
+      { x: 34, y: 65, sector: 'C.C. La Granja · Zona Comercial', lat: 10.2452, lng: -68.0169 },
+      { x: 28, y: 58, sector: 'Urb. La Granja · Res. Villa Olímpica', lat: 10.2495, lng: -68.0191 },
+      { x: 35, y: 52, sector: 'Polideportivo Imdenaguanagua', lat: 10.2528, lng: -68.0158 },
     ],
-    progresoInicial: 0.42,
+    progresoInicial: 0.35,
   },
   {
     id: 'IAMEC-03',
@@ -150,7 +150,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 6.4,
     porcentajeCarga: 46,
     combustiblePct: 91,
-    velocidadKmh: 25,
+    velocidadKmh: 29,
     estado: 'EN_RUTA',
     operativo: true,
     rutaId: 'II-LUNMIÉ',
@@ -165,12 +165,12 @@ const FLOTA_INICIAL: CamionFlota[] = [
     viajesHoy: 1,
     toneladasHoy: 13.8,
     waypoints: [
-      { x: 58, y: 26, sector: 'Vivienda Rural de Bárbula · 1era Av.', lat: 10.2785, lng: -68.0042 },
-      { x: 64, y: 24, sector: 'Vivienda Rural de Bárbula · 2da Av. (Próceres)', lat: 10.2812, lng: -68.0018 },
-      { x: 68, y: 29, sector: 'Vivienda Rural de Bárbula · 4ta y 5ta Av.', lat: 10.2764, lng: -67.9995 },
-      { x: 61, y: 32, sector: 'Transversal Bárbula / Hospital González Plaza', lat: 10.2738, lng: -68.0031 },
+      { x: 56, y: 24, sector: 'Vivienda Rural de Bárbula · 1era Av.', lat: 10.2785, lng: -68.0042 },
+      { x: 66, y: 20, sector: 'Vivienda Rural de Bárbula · 2da Av. (Próceres)', lat: 10.2812, lng: -68.0018 },
+      { x: 72, y: 28, sector: 'Vivienda Rural de Bárbula · 4ta y 5ta Av.', lat: 10.2764, lng: -67.9995 },
+      { x: 60, y: 33, sector: 'Transversal Bárbula / Hospital González Plaza', lat: 10.2738, lng: -68.0031 },
     ],
-    progresoInicial: 0.68,
+    progresoInicial: 0.6,
   },
   {
     id: 'IAMEC-04',
@@ -181,7 +181,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 5.1,
     porcentajeCarga: 54,
     combustiblePct: 74,
-    velocidadKmh: 24,
+    velocidadKmh: 27,
     estado: 'EN_RUTA',
     operativo: true,
     rutaId: 'IX-MARJUE',
@@ -196,12 +196,12 @@ const FLOTA_INICIAL: CamionFlota[] = [
     viajesHoy: 2,
     toneladasHoy: 16.2,
     waypoints: [
-      { x: 38, y: 48, sector: 'Urb. Las Quintas I · Av. Principal', lat: 10.2591, lng: -68.0155 },
-      { x: 33, y: 45, sector: 'Urb. Las Quintas II y Quintas Norte', lat: 10.2618, lng: -68.0184 },
-      { x: 36, y: 41, sector: 'UNEFA Núcleo Naguanagua / Los Claveles', lat: 10.2649, lng: -68.0162 },
-      { x: 42, y: 44, sector: 'Urb. Cantapiedra y La Paz', lat: 10.2621, lng: -68.0131 },
+      { x: 39, y: 49, sector: 'Urb. Las Quintas I · Av. Principal', lat: 10.2591, lng: -68.0155 },
+      { x: 31, y: 45, sector: 'Urb. Las Quintas II y Quintas Norte', lat: 10.2618, lng: -68.0184 },
+      { x: 35, y: 39, sector: 'UNEFA Núcleo Naguanagua / Los Claveles', lat: 10.2649, lng: -68.0162 },
+      { x: 43, y: 43, sector: 'Urb. Cantapiedra y La Paz', lat: 10.2621, lng: -68.0131 },
     ],
-    progresoInicial: 0.28,
+    progresoInicial: 0.25,
   },
   {
     id: 'IAMEC-05',
@@ -212,7 +212,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 11.9,
     porcentajeCarga: 85,
     combustiblePct: 60,
-    velocidadKmh: 31,
+    velocidadKmh: 34,
     estado: 'EN_RUTA',
     operativo: true,
     rutaId: 'VIII-LUNMIÉ',
@@ -227,12 +227,12 @@ const FLOTA_INICIAL: CamionFlota[] = [
     viajesHoy: 2,
     toneladasHoy: 25.1,
     waypoints: [
-      { x: 72, y: 54, sector: 'Urb. Palma Real y El Rincón (Mañongo)', lat: 10.2524, lng: -67.9978 },
-      { x: 69, y: 63, sector: 'Jardín Mañongo / C.C. Il Pórtico', lat: 10.2448, lng: -67.9992 },
-      { x: 65, y: 72, sector: 'Tazajal · Res. Monte Alegre y Los Azulejos', lat: 10.2365, lng: -68.0019 },
-      { x: 60, y: 65, sector: 'Autopista del Este · Retorno Mañongo', lat: 10.2421, lng: -68.0045 },
+      { x: 75, y: 50, sector: 'Urb. Palma Real y El Rincón (Mañongo)', lat: 10.2524, lng: -67.9978 },
+      { x: 71, y: 62, sector: 'Jardín Mañongo / C.C. Il Pórtico', lat: 10.2448, lng: -67.9992 },
+      { x: 66, y: 74, sector: 'Tazajal · Res. Monte Alegre y Los Azulejos', lat: 10.2365, lng: -68.0019 },
+      { x: 59, y: 64, sector: 'Autopista del Este · Retorno Mañongo', lat: 10.2421, lng: -68.0045 },
     ],
-    progresoInicial: 0.55,
+    progresoInicial: 0.5,
   },
   {
     id: 'IAMEC-06',
@@ -243,7 +243,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 4.3,
     porcentajeCarga: 39,
     combustiblePct: 87,
-    velocidadKmh: 26,
+    velocidadKmh: 28,
     estado: 'EN_RUTA',
     operativo: true,
     rutaId: 'X-MARJUE',
@@ -258,11 +258,12 @@ const FLOTA_INICIAL: CamionFlota[] = [
     viajesHoy: 1,
     toneladasHoy: 10.8,
     waypoints: [
-      { x: 48, y: 52, sector: 'Urb. El Cafetal · Av. Principal', lat: 10.2552, lng: -68.0098 },
-      { x: 44, y: 55, sector: 'La Campiña II y Edificios Campiña', lat: 10.2529, lng: -68.0122 },
-      { x: 50, y: 57, sector: 'Los Candiles y Urb. Rotafe', lat: 10.2508, lng: -68.0089 },
+      { x: 49, y: 50, sector: 'Urb. El Cafetal · Av. Principal', lat: 10.2552, lng: -68.0098 },
+      { x: 43, y: 55, sector: 'La Campiña II y Edificios Campiña', lat: 10.2529, lng: -68.0122 },
+      { x: 52, y: 59, sector: 'Los Candiles y Urb. Rotafe', lat: 10.2508, lng: -68.0089 },
+      { x: 55, y: 51, sector: 'Av. Salvador Feo La Cruz · Tramo Este', lat: 10.2541, lng: -68.0072 },
     ],
-    progresoInicial: 0.81,
+    progresoInicial: 0.75,
   },
   {
     id: 'IAMEC-07',
@@ -273,7 +274,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 7.5,
     porcentajeCarga: 68,
     combustiblePct: 76,
-    velocidadKmh: 23,
+    velocidadKmh: 25,
     estado: 'EN_RUTA',
     operativo: true,
     rutaId: 'VI-LUNMIÉ',
@@ -288,11 +289,12 @@ const FLOTA_INICIAL: CamionFlota[] = [
     viajesHoy: 2,
     toneladasHoy: 18.0,
     waypoints: [
-      { x: 43, y: 36, sector: 'Urb. Carialinda (Sectores A, B, C y D)', lat: 10.2688, lng: -68.0124 },
-      { x: 38, y: 33, sector: 'Sector Los Chorros y Callejón Pecoraro', lat: 10.2712, lng: -68.0156 },
-      { x: 45, y: 39, sector: 'Las Flores y Carialinda E, F y G', lat: 10.2665, lng: -68.0112 },
+      { x: 44, y: 34, sector: 'Urb. Carialinda (Sectores A, B, C y D)', lat: 10.2688, lng: -68.0124 },
+      { x: 36, y: 30, sector: 'Sector Los Chorros y Callejón Pecoraro', lat: 10.2712, lng: -68.0156 },
+      { x: 46, y: 38, sector: 'Las Flores y Carialinda E, F y G', lat: 10.2665, lng: -68.0112 },
+      { x: 51, y: 33, sector: 'Av. Universidad · Sector Puente Bárbula', lat: 10.2695, lng: -68.0091 },
     ],
-    progresoInicial: 0.35,
+    progresoInicial: 0.3,
   },
   {
     id: 'IAMEC-08',
@@ -303,7 +305,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 6.1,
     porcentajeCarga: 64,
     combustiblePct: 79,
-    velocidadKmh: 27,
+    velocidadKmh: 29,
     estado: 'EN_RUTA',
     operativo: true,
     rutaId: 'XIII-MARJUE',
@@ -318,9 +320,10 @@ const FLOTA_INICIAL: CamionFlota[] = [
     viajesHoy: 2,
     toneladasHoy: 14.9,
     waypoints: [
-      { x: 26, y: 46, sector: 'Urb. Tarapío · Av. Principal', lat: 10.2602, lng: -68.0218 },
-      { x: 22, y: 42, sector: 'Colinas de Tarapío y Tarapío III', lat: 10.2634, lng: -68.0241 },
-      { x: 29, y: 49, sector: 'Sector Caprenco y La Begoña', lat: 10.2581, lng: -68.0201 },
+      { x: 26, y: 45, sector: 'Urb. Tarapío · Av. Principal', lat: 10.2602, lng: -68.0218 },
+      { x: 19, y: 40, sector: 'Colinas de Tarapío y Tarapío III', lat: 10.2634, lng: -68.0241 },
+      { x: 24, y: 51, sector: 'Sector Caprenco y La Begoña', lat: 10.2581, lng: -68.0201 },
+      { x: 30, y: 47, sector: 'Brisas de Tarapío y Barrio Oeste', lat: 10.2594, lng: -68.0189 },
     ],
     progresoInicial: 0.62,
   },
@@ -333,7 +336,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 8.9,
     porcentajeCarga: 64,
     combustiblePct: 84,
-    velocidadKmh: 34,
+    velocidadKmh: 36,
     estado: 'EN_RUTA',
     operativo: true,
     rutaId: 'XIV-MARJUE',
@@ -348,13 +351,14 @@ const FLOTA_INICIAL: CamionFlota[] = [
     viajesHoy: 1,
     toneladasHoy: 13.5,
     waypoints: [
-      { x: 46, y: 20, sector: 'Carretera Nacional · Res. Los Mangos', lat: 10.2855, lng: -68.0108 },
+      { x: 48, y: 22, sector: 'Carretera Nacional · Res. Los Mangos', lat: 10.2855, lng: -68.0108 },
       { x: 42, y: 14, sector: 'Pueblo de La Entrada y Lomas del Roscio', lat: 10.2921, lng: -68.0135 },
-      { x: 37, y: 10, sector: 'Trincheras · Av. Principal y Las Terrazas', lat: 10.2984, lng: -68.0169 },
+      { x: 35, y: 9, sector: 'Trincheras · Av. Principal y Las Terrazas', lat: 10.2984, lng: -68.0169 },
+      { x: 44, y: 17, sector: 'Retorno Carretera Nacional La Entrada', lat: 10.2891, lng: -68.0121 },
     ],
-    progresoInicial: 0.48,
+    progresoInicial: 0.45,
   },
-  // ── UNIDADES EN VERTEDERO (DESCARGA EN LA GUÁSIMA) ──
+  // ── UNIDADES EN VERTEDERO (EN MOVIMIENTO EN LA VÍA Y MANIOBRA DE DESCARGA) ──
   {
     id: 'IAMEC-10',
     placa: 'A12UV6Y',
@@ -364,7 +368,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 13.8,
     porcentajeCarga: 99,
     combustiblePct: 64,
-    velocidadKmh: 0,
+    velocidadKmh: 38,
     estado: 'EN_VERTEDERO',
     operativo: true,
     rutaId: 'I-LUNMIÉ',
@@ -383,10 +387,11 @@ const FLOTA_INICIAL: CamionFlota[] = [
     tiempoEstimadoSalida: '12 min (Descargando en Romana #2)',
     detalleTecnico: 'Descarga de 13.8 Toneladas completando 2do viaje del turno diurno.',
     waypoints: [
-      { x: 16, y: 84, sector: 'Vertedero La Guásima · Romana de Pesaje #2', lat: 10.1412, lng: -68.0485 },
-      { x: 19, y: 82, sector: 'Vertedero La Guásima · Patio de Descarga', lat: 10.1425, lng: -68.0468 },
+      { x: 24, y: 78, sector: 'Acceso Vertedero La Guásima · Romana #2', lat: 10.1412, lng: -68.0485 },
+      { x: 16, y: 84, sector: 'Vertedero La Guásima · Patio de Descarga', lat: 10.1425, lng: -68.0468 },
+      { x: 21, y: 81, sector: 'Retorno de Romana · Vertedero La Guásima', lat: 10.1452, lng: -68.0441 },
     ],
-    progresoInicial: 0.5,
+    progresoInicial: 0.2,
   },
   {
     id: 'IAMEC-11',
@@ -397,7 +402,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 10.9,
     porcentajeCarga: 99,
     combustiblePct: 58,
-    velocidadKmh: 52,
+    velocidadKmh: 54,
     estado: 'EN_VERTEDERO',
     operativo: true,
     rutaId: 'VII-MARJUE',
@@ -414,12 +419,13 @@ const FLOTA_INICIAL: CamionFlota[] = [
     horaIngresoEstado: 'Hace 25 min',
     tiempoEnEstado: '25 min en tránsito / descarga',
     tiempoEstimadoSalida: '20 min para reincorporarse a Ruta VII',
-    detalleTecnico: 'En maniobra de vaciado hidráulico de tolva (10.9 Ton recolectadas).',
+    detalleTecnico: 'En traslado y maniobra de vaciado hidráulico de tolva (10.9 Ton recolectadas).',
     waypoints: [
+      { x: 38, y: 69, sector: 'Distribuidor Naguanagua hacia Autopista Sur', lat: 10.2145, lng: -68.0211 },
       { x: 28, y: 76, sector: 'Autopista Sur · Vía Vertedero La Guásima', lat: 10.1785, lng: -68.0312 },
       { x: 18, y: 84, sector: 'Vertedero La Guásima · Zona de Descarga', lat: 10.1418, lng: -68.0475 },
     ],
-    progresoInicial: 0.72,
+    progresoInicial: 0.65,
   },
   {
     id: 'IAMEC-12',
@@ -449,10 +455,11 @@ const FLOTA_INICIAL: CamionFlota[] = [
     tiempoEstimadoSalida: '25 min para retorno a Naguanagua',
     detalleTecnico: 'Unidad al 96% de capacidad (13.5 Ton). Pesaje de entrada registrado.',
     waypoints: [
+      { x: 32, y: 74, sector: 'Tramo Tocuyito · Vía La Guásima', lat: 10.1612, lng: -68.0375 },
       { x: 22, y: 80, sector: 'Acceso Principal Vertedero La Guásima', lat: 10.1512, lng: -68.0412 },
       { x: 15, y: 86, sector: 'Celda de Disposición Final #4 · La Guásima', lat: 10.1398, lng: -68.0499 },
     ],
-    progresoInicial: 0.35,
+    progresoInicial: 0.4,
   },
   {
     id: 'IAMEC-13',
@@ -463,7 +470,7 @@ const FLOTA_INICIAL: CamionFlota[] = [
     cargaActualTon: 15.2,
     porcentajeCarga: 95,
     combustiblePct: 69,
-    velocidadKmh: 45,
+    velocidadKmh: 50,
     estado: 'EN_VERTEDERO',
     operativo: true,
     rutaId: 'DIARIA-NOC',
@@ -483,9 +490,10 @@ const FLOTA_INICIAL: CamionFlota[] = [
     detalleTecnico: 'Descarga completada (15.2 Ton). Retornando vacío para 4to operativo.',
     waypoints: [
       { x: 17, y: 83, sector: 'Salida Romana Vertedero La Guásima', lat: 10.1431, lng: -68.0461 },
-      { x: 32, y: 72, sector: 'Distribuidor Naguanagua · Retorno de Vertedero', lat: 10.2115, lng: -68.0214 },
+      { x: 33, y: 72, sector: 'Autopista Sur · Retorno a Naguanagua', lat: 10.2115, lng: -68.0214 },
+      { x: 45, y: 63, sector: 'Entrada Sur Naguanagua · Av. Bolívar', lat: 10.2412, lng: -68.0125 },
     ],
-    progresoInicial: 0.6,
+    progresoInicial: 0.55,
   },
   // ── UNIDADES EN MANTENIMIENTO PREVENTIVO ──
   {
@@ -671,22 +679,36 @@ const FLOTA_INICIAL: CamionFlota[] = [
   },
 ];
 
-// Interpolación lineal sobre la polilínea de waypoints del camión
-function calcularPosicionEnRuta(waypoints: PuntoMapa[], progreso: number) {
+// Interpolación en circuito cerrado continuo (loop sin pausas en los extremos)
+function calcularPosicionEnCircuito(waypoints: PuntoMapa[], progreso: number) {
   if (!waypoints || waypoints.length === 0) {
-    return { x: 50, y: 50, sector: 'Naguanagua', lat: 10.258, lng: -68.011, proximoSector: 'Naguanagua' };
+    return {
+      x: 50,
+      y: 50,
+      sector: 'Naguanagua',
+      lat: 10.258,
+      lng: -68.011,
+      proximoSector: 'Naguanagua',
+      indiceParadaActual: 0,
+      progresoTramoPct: 0,
+    };
   }
   if (waypoints.length === 1) {
-    return { ...waypoints[0], proximoSector: waypoints[0].sector };
+    return {
+      ...waypoints[0],
+      proximoSector: waypoints[0].sector,
+      indiceParadaActual: 0,
+      progresoTramoPct: 100,
+    };
   }
-  // Ciclo ida y vuelta suave (ping-pong) para que el camión recorra la ruta continuamente
-  const ciclo = progreso % 2;
-  const tNorm = ciclo <= 1 ? ciclo : 2 - ciclo;
-  const totalSegmentos = waypoints.length - 1;
-  const posExacta = tNorm * totalSegmentos;
-  const idxActual = Math.min(Math.floor(posExacta), totalSegmentos - 1);
-  const idxSiguiente = idxActual + 1;
-  const frac = posExacta - idxActual;
+
+  // Circuito cerrado continuo: pasa por 0 -> 1 -> 2 -> ... -> N-1 -> 0 sin detenerse jamás
+  const n = waypoints.length;
+  const posLoop = ((progreso % 1) + 1) % 1; // siempre entre 0 y 1
+  const posExacta = posLoop * n;
+  const idxActual = Math.floor(posExacta) % n;
+  const idxSiguiente = (idxActual + 1) % n;
+  const frac = posExacta - Math.floor(posExacta);
 
   const p1 = waypoints[idxActual];
   const p2 = waypoints[idxSiguiente];
@@ -696,18 +718,24 @@ function calcularPosicionEnRuta(waypoints: PuntoMapa[], progreso: number) {
     y: p1.y + (p2.y - p1.y) * frac,
     lat: p1.lat + (p2.lat - p1.lat) * frac,
     lng: p1.lng + (p2.lng - p1.lng) * frac,
-    sector: frac < 0.5 ? p1.sector : p2.sector,
-    proximoSector: ciclo <= 1 ? p2.sector : p1.sector,
+    sector: frac < 0.65 ? p1.sector : p2.sector,
+    proximoSector: p2.sector,
+    indiceParadaActual: idxActual,
+    progresoTramoPct: Math.round(frac * 100),
   };
 }
 
 export default function PresidenciaFlotaRutasTracker() {
-  const [vistaInterna, setVistaInterna] = useState<'TODAS' | 'TRACKER' | 'ESTATUS_FLOTA' | 'CRONOGRAMA_RUTAS'>('TODAS');
+  const [vistaInterna, setVistaInterna] = useState<'TRACKER' | 'ESTATUS_FLOTA' | 'CRONOGRAMA_RUTAS'>('TRACKER');
   const [filtroEstado, setFiltroEstado] = useState<'TODOS' | 'OPERATIVOS' | EstadoCamion>('TODOS');
   const [busquedaCamion, setBusquedaCamion] = useState<string>('');
-  const [camionSeleccionadoId, setCamionSeleccionadoId] = useState<string>('IAMEC-01');
 
-  // Controles del simulador GPS en vivo
+  // Selección de camión: 'TODOS' muestra todos en el mapa; un ID específico ('IAMEC-01') muestra SOLO ese camión en el mapa
+  const [camionFiltroMapa, setCamionFiltroMapa] = useState<string>('TODOS');
+  const [camionSeleccionadoId, setCamionSeleccionadoId] = useState<string>('IAMEC-01');
+  const [mapaPantallaCompleta, setMapaPantallaCompleta] = useState<boolean>(false);
+
+  // Controles del simulador GPS en vivo (movimiento fluido a 20 FPS sin pausas)
   const [simulacionActiva, setSimulacionActiva] = useState<boolean>(true);
   const [velocidadSim, setVelocidadSim] = useState<1 | 2 | 4>(1);
   const [tickTiempo, setTickTiempo] = useState<number>(0);
@@ -716,28 +744,30 @@ export default function PresidenciaFlotaRutasTracker() {
   const [filtroFrecuenciaRuta, setFiltroFrecuenciaRuta] = useState<string>('TODAS');
   const [busquedaRuta, setBusquedaRuta] = useState<string>('');
 
-  // Animación continua del Tracker GPS
+  // Reloj de animación continua a 60ms para que el movimiento GPS nunca se detenga
   useEffect(() => {
     if (!simulacionActiva) return;
     const interval = setInterval(() => {
-      setTickTiempo((prev) => prev + 0.012 * velocidadSim);
-    }, 250);
+      setTickTiempo((prev) => prev + 0.0022 * velocidadSim);
+    }, 60);
     return () => clearInterval(interval);
   }, [simulacionActiva, velocidadSim]);
 
   // Calcular posición y telemetría dinámica de cada camión
   const flotaEnVivo = useMemo(() => {
     return FLOTA_INICIAL.map((camion, idx) => {
-      const enMovimiento = camion.estado === 'EN_RUTA' || (camion.estado === 'EN_VERTEDERO' && camion.velocidadKmh > 0);
-      const avance = enMovimiento ? camion.progresoInicial + tickTiempo * (0.75 + (idx % 4) * 0.15) : camion.progresoInicial;
-      const pos = calcularPosicionEnRuta(camion.waypoints, avance);
+      const enMovimiento = camion.estado === 'EN_RUTA' || camion.estado === 'EN_VERTEDERO';
+      const factorVelocidadUnidad = 0.85 + (idx % 5) * 0.14;
+      const avance = enMovimiento
+        ? camion.progresoInicial + tickTiempo * factorVelocidadUnidad
+        : camion.progresoInicial;
+      const pos = calcularPosicionEnCircuito(camion.waypoints, avance);
 
-      // Pequeña variación realista de velocidad y carga durante la simulación
-      const deltaVel = enMovimiento ? Math.round(Math.sin(tickTiempo * 5 + idx) * 3) : 0;
-      const velocidadActual = enMovimiento ? Math.max(12, camion.velocidadKmh + deltaVel) : 0;
+      const deltaVel = enMovimiento ? Math.round(Math.sin(tickTiempo * 18 + idx) * 4) : 0;
+      const velocidadActual = enMovimiento ? Math.max(15, camion.velocidadKmh + deltaVel) : 0;
       const incrementoCarga =
         camion.estado === 'EN_RUTA'
-          ? Math.min(98, Math.round(camion.porcentajeCarga + ((tickTiempo * 4) % 12)))
+          ? Math.min(98, Math.round(camion.porcentajeCarga + ((tickTiempo * 12) % 15)))
           : camion.porcentajeCarga;
       const cargaTonActual =
         camion.estado === 'EN_RUTA'
@@ -778,7 +808,7 @@ export default function PresidenciaFlotaRutasTracker() {
     };
   }, [flotaEnVivo]);
 
-  // Camiones filtrados para el listado
+  // Camiones filtrados por estatus/búsqueda
   const camionesFiltrados = useMemo(() => {
     return flotaEnVivo.filter((c) => {
       if (filtroEstado === 'OPERATIVOS' && !c.operativo) return false;
@@ -805,13 +835,28 @@ export default function PresidenciaFlotaRutasTracker() {
     });
   }, [flotaEnVivo, filtroEstado, busquedaCamion]);
 
+  // Camiones que se dibujan en el mapa: si el usuario eligió un camión específico, se ve SOLO ese camión
+  const camionesEnMapa = useMemo(() => {
+    if (camionFiltroMapa !== 'TODOS') {
+      return flotaEnVivo.filter((c) => c.id === camionFiltroMapa);
+    }
+    return camionesFiltrados;
+  }, [flotaEnVivo, camionFiltroMapa, camionesFiltrados]);
+
   const camionSeleccionado = useMemo(() => {
+    const targetId = camionFiltroMapa !== 'TODOS' ? camionFiltroMapa : camionSeleccionadoId;
     return (
-      flotaEnVivo.find((c) => c.id === camionSeleccionadoId) ||
+      flotaEnVivo.find((c) => c.id === targetId) ||
       camionesFiltrados[0] ||
       flotaEnVivo[0]
     );
-  }, [flotaEnVivo, camionSeleccionadoId, camionesFiltrados]);
+  }, [flotaEnVivo, camionFiltroMapa, camionSeleccionadoId, camionesFiltrados]);
+
+  // Al seleccionar un camión específico (en el mapa o en el selector), enfocar solo ese camión
+  const handleSelectSingleTruck = (id: string) => {
+    setCamionSeleccionadoId(id);
+    setCamionFiltroMapa(id);
+  };
 
   // Rutas de Naguanagua enriquecidas con unidad asignada en la maqueta
   const rutasEnriquecidas = useMemo(() => {
@@ -903,26 +948,25 @@ export default function PresidenciaFlotaRutasTracker() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  SIMULACIÓN INTERACTIVA EN VIVO · MODO MAQUETA PRESIDENCIAL
+                  SIMULACIÓN GPS EN TIEMPO REAL · MODO MAQUETA PRESIDENCIAL
                 </span>
                 <span className="text-xs text-slate-400 font-semibold">
                   • 29 Rutas Oficiales Naguanagua · 18 Unidades Monitoreadas
                 </span>
               </div>
               <h2 className="text-lg sm:text-xl font-black text-white mt-1">
-                CONTROL DE RUTAS, ESTATUS DE FLOTA Y TRACKER GPS EN TIEMPO REAL
+                CONTROL DE RUTAS, ESTATUS DE FLOTA Y TRACKER GPS EN VIVO
               </h2>
               <p className="text-xs text-emerald-100/75 mt-0.5">
-                Supervisión ejecutiva de camiones operativos, unidades recolectando en ruta, descargas en Vertedero La Guásima, mantenimientos preventivos y taller de reparaciones con diagnóstico y tiempos de entrega.
+                Seleccione qué camión desea monitorear de forma exclusiva o toque el mapa para abrir el Tracker Satelital en Pantalla Completa.
               </p>
             </div>
           </div>
 
-          {/* Selector de Sub-Vistas Rápidas */}
+          {/* Selector de Sub-Vistas Directas */}
           <div className="flex flex-wrap items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-xl border border-emerald-800/60 self-start lg:self-center">
             {[
-              { id: 'TODAS', label: 'Vista Integral 360°' },
-              { id: 'TRACKER', label: '🛰️ Tracker GPS en Vivo' },
+              { id: 'TRACKER', label: '🛰️ Mapa Tracker GPS' },
               { id: 'ESTATUS_FLOTA', label: '🚛 Estatus & Reparaciones' },
               { id: 'CRONOGRAMA_RUTAS', label: '🗺️ 29 Rutas Oficiales' },
             ].map((v) => (
@@ -946,9 +990,12 @@ export default function PresidenciaFlotaRutasTracker() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* 1. Total Unidades */}
         <button
-          onClick={() => setFiltroEstado('TODOS')}
+          onClick={() => {
+            setFiltroEstado('TODOS');
+            setCamionFiltroMapa('TODOS');
+          }}
           className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
-            filtroEstado === 'TODOS'
+            filtroEstado === 'TODOS' && camionFiltroMapa === 'TODOS'
               ? 'bg-slate-900 border-[#B8CD29] shadow-lg shadow-[#B8CD29]/10'
               : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
           }`}
@@ -967,7 +1014,10 @@ export default function PresidenciaFlotaRutasTracker() {
 
         {/* 2. Total Operativos */}
         <button
-          onClick={() => setFiltroEstado('OPERATIVOS')}
+          onClick={() => {
+            setFiltroEstado('OPERATIVOS');
+            setCamionFiltroMapa('TODOS');
+          }}
           className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
             filtroEstado === 'OPERATIVOS'
               ? 'bg-emerald-950/60 border-emerald-400 shadow-lg shadow-emerald-500/10'
@@ -993,7 +1043,10 @@ export default function PresidenciaFlotaRutasTracker() {
 
         {/* 3. Camiones en Ruta */}
         <button
-          onClick={() => setFiltroEstado('EN_RUTA')}
+          onClick={() => {
+            setFiltroEstado('EN_RUTA');
+            setCamionFiltroMapa('TODOS');
+          }}
           className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
             filtroEstado === 'EN_RUTA'
               ? 'bg-emerald-950/70 border-[#B8CD29] shadow-lg shadow-[#B8CD29]/15'
@@ -1014,7 +1067,10 @@ export default function PresidenciaFlotaRutasTracker() {
 
         {/* 4. Camiones en Vertedero */}
         <button
-          onClick={() => setFiltroEstado('EN_VERTEDERO')}
+          onClick={() => {
+            setFiltroEstado('EN_VERTEDERO');
+            setCamionFiltroMapa('TODOS');
+          }}
           className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
             filtroEstado === 'EN_VERTEDERO'
               ? 'bg-sky-950/60 border-sky-400 shadow-lg shadow-sky-500/15'
@@ -1035,7 +1091,11 @@ export default function PresidenciaFlotaRutasTracker() {
 
         {/* 5. En Mantenimiento Preventivo */}
         <button
-          onClick={() => setFiltroEstado('MANTENIMIENTO')}
+          onClick={() => {
+            setFiltroEstado('MANTENIMIENTO');
+            setCamionFiltroMapa('TODOS');
+            setVistaInterna('ESTATUS_FLOTA');
+          }}
           className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
             filtroEstado === 'MANTENIMIENTO'
               ? 'bg-amber-950/60 border-amber-400 shadow-lg shadow-amber-500/15'
@@ -1058,7 +1118,11 @@ export default function PresidenciaFlotaRutasTracker() {
 
         {/* 6. En Reparación (Taller) */}
         <button
-          onClick={() => setFiltroEstado('REPARACION')}
+          onClick={() => {
+            setFiltroEstado('REPARACION');
+            setCamionFiltroMapa('TODOS');
+            setVistaInterna('ESTATUS_FLOTA');
+          }}
           className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
             filtroEstado === 'REPARACION'
               ? 'bg-rose-950/60 border-rose-400 shadow-lg shadow-rose-500/15'
@@ -1075,92 +1139,238 @@ export default function PresidenciaFlotaRutasTracker() {
             {resumenFlota.enReparacion}
           </div>
           <div className="text-[11px] text-rose-200/80 mt-1">
-            Con motivo y tiempo taller
+            Ver motivo y tiempo taller
           </div>
         </button>
       </div>
 
-      {/* ══ SECCIÓN 1: SIMULADOR / TRACKER GPS SATELITAL EN VIVO ══ */}
-      {(vistaInterna === 'TODAS' || vistaInterna === 'TRACKER') && (
-        <div className="bg-slate-900/95 border border-emerald-800/60 rounded-2xl overflow-hidden shadow-2xl">
-          {/* Barra superior de control del Tracker GPS */}
-          <div className="bg-slate-950/90 border-b border-emerald-900/60 px-4 sm:px-6 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-                <Radio className={`w-5 h-5 ${simulacionActiva ? 'animate-pulse' : ''}`} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm sm:text-base font-black text-white">
-                    TRACKER GPS SATELITAL EN TIEMPO REAL · MUNICIPIO NAGUANAGUA
-                  </h3>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                      simulacionActiva
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    }`}
-                  >
-                    {simulacionActiva ? '● TELEMETRÍA EN VIVO' : '⏸ PAUSADO'}
-                  </span>
+      {/* ══ SECCIÓN 1: SIMULADOR / TRACKER GPS SATELITAL EN VIVO (CON PANTALLA COMPLETA Y FILTRO DE UN SOLO CAMIÓN) ══ */}
+      {vistaInterna === 'TRACKER' && (
+        <div
+          className={
+            mapaPantallaCompleta
+              ? 'fixed inset-0 z-50 bg-[#04110c] flex flex-col overflow-y-auto'
+              : 'bg-slate-900/95 border border-emerald-800/60 rounded-2xl overflow-hidden shadow-2xl'
+          }
+        >
+          {/* Barra superior de control del Tracker GPS + Selector de Camión */}
+          <div className="bg-slate-950/95 border-b border-emerald-900/60 px-4 sm:px-6 py-3 flex flex-col gap-3">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Radio className={`w-5 h-5 ${simulacionActiva ? 'animate-pulse' : ''}`} />
                 </div>
-                <p className="text-[11px] text-slate-400">
-                  Toque cualquier camión en el mapa o en la lista para inspeccionar su recorrido, velocidad, nivel de compactación, chofer o estado en taller.
-                </p>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm sm:text-base font-black text-white">
+                      TRACKER GPS SATELITAL EN VIVO · NAGUANAGUA
+                    </h3>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        simulacionActiva
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      }`}
+                    >
+                      {simulacionActiva ? '● MOVIMIENTO EN VIVO' : '⏸ PAUSADO'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    {camionFiltroMapa === 'TODOS'
+                      ? `Mostrando ${camionesEnMapa.length} unidades en el mapa. Seleccione un camión abajo o tóquelo en el mapa para ver solo su recorrido.`
+                      : `Monitoreo exclusivo de ${camionSeleccionado.id} (${camionSeleccionado.rutaNombre})`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Botones de reproducción, velocidad y Pantalla Completa */}
+              <div className="flex flex-wrap items-center gap-2">
+                {camionFiltroMapa !== 'TODOS' && (
+                  <button
+                    onClick={() => setCamionFiltroMapa('TODOS')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black shadow cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    Ver Todos los Camiones ({flotaEnVivo.length})
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setSimulacionActiva((prev) => !prev)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                    simulacionActiva
+                      ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
+                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-400'
+                  }`}
+                >
+                  {simulacionActiva ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5" /> Pausar
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5" /> Reanudar
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl p-0.5">
+                  {([1, 2, 4] as const).map((vel) => (
+                    <button
+                      key={vel}
+                      onClick={() => setVelocidadSim(vel)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                        velocidadSim === vel
+                          ? 'bg-[#B8CD29] text-slate-950'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {vel}x
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setMapaPantallaCompleta((prev) => !prev)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                    mapaPantallaCompleta
+                      ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400'
+                      : 'bg-[#B8CD29] hover:bg-[#c8de38] text-slate-950 border-[#B8CD29]'
+                  }`}
+                >
+                  {mapaPantallaCompleta ? (
+                    <>
+                      <Minimize2 className="w-3.5 h-3.5" /> Cerrar Pantalla Completa
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="w-3.5 h-3.5" /> Abrir Mapa Completo
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
-            {/* Botones de reproducción y velocidad */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setSimulacionActiva((prev) => !prev)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
-                  simulacionActiva
-                    ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
-                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-400'
-                }`}
-              >
-                {simulacionActiva ? (
-                  <>
-                    <Pause className="w-3.5 h-3.5" /> Pausar GPS
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5" /> Reanudar GPS
-                  </>
-                )}
-              </button>
-
-              <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl p-0.5">
-                {([1, 2, 4] as const).map((vel) => (
-                  <button
-                    key={vel}
-                    onClick={() => setVelocidadSim(vel)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                      velocidadSim === vel
-                        ? 'bg-[#B8CD29] text-slate-950'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {vel}x
-                  </button>
-                ))}
+            {/* BARRA SELECTORA DE CAMIÓN: Permite elegir qué camión ver en solitario o ver todos */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center gap-2 shrink-0">
+                <Compass className="w-4 h-4 text-[#B8CD29]" />
+                <span className="text-xs font-black text-[#B8CD29] uppercase tracking-wider">
+                  Seleccionar Camión a Ver:
+                </span>
               </div>
 
-              <button
-                onClick={() => setTickTiempo(0)}
-                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer"
-                title="Reiniciar ciclo de ruta"
+              {/* Dropdown directo + Botones rápidos */}
+              <select
+                value={camionFiltroMapa}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCamionFiltroMapa(val);
+                  if (val !== 'TODOS') setCamionSeleccionadoId(val);
+                }}
+                className="bg-slate-900 border border-[#B8CD29]/50 rounded-xl px-3 py-1.5 text-xs font-bold text-white outline-none focus:border-[#B8CD29] sm:w-80"
               >
-                <RotateCcw className="w-4 h-4" />
-              </button>
+                <option value="TODOS">🌐 VER TODOS LOS CAMIONES EN EL MAPA ({flotaEnVivo.length})</option>
+                <optgroup label="🚛 Camiones Recolectando en Ruta (9)">
+                  {flotaEnVivo
+                    .filter((c) => c.estado === 'EN_RUTA')
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        🚛 {c.id} ({c.placa}) · {c.rutaNombre}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="♻️ Camiones en Vertedero La Guásima (4)">
+                  {flotaEnVivo
+                    .filter((c) => c.estado === 'EN_VERTEDERO')
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        ♻️ {c.id} ({c.placa}) · {c.rutaNombre}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="🟡 En Mantenimiento Preventivo (2)">
+                  {flotaEnVivo
+                    .filter((c) => c.estado === 'MANTENIMIENTO')
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        🟡 {c.id} ({c.placa}) · {c.motivoTaller?.slice(0, 42)}...
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="🔴 En Reparación en Taller (3)">
+                  {flotaEnVivo
+                    .filter((c) => c.estado === 'REPARACION')
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        🔴 {c.id} ({c.placa}) · {c.motivoTaller?.slice(0, 42)}...
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+
+              {/* Píldoras rápidas de unidades */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                <button
+                  onClick={() => setCamionFiltroMapa('TODOS')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black border shrink-0 cursor-pointer transition-all ${
+                    camionFiltroMapa === 'TODOS'
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
+                  }`}
+                >
+                  Todos ({flotaEnVivo.length})
+                </button>
+                {flotaEnVivo.map((u) => {
+                  const isSolo = camionFiltroMapa === u.id;
+                  const b = getBadgeEstado(u.estado);
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => handleSelectSingleTruck(u.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black border flex items-center gap-1 shrink-0 cursor-pointer transition-all ${
+                        isSolo
+                          ? 'bg-[#B8CD29] text-slate-950 border-[#B8CD29] shadow'
+                          : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-600'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${b.dot}`} />
+                      {u.id.replace('IAMEC-', 'U-')}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {/* Cuerpo del Tracker: Mapa Táctico + Panel de Telemetría de la Unidad Seleccionada */}
-          <div className="grid grid-cols-1 lg:grid-cols-12">
+          <div className="grid grid-cols-1 lg:grid-cols-12 flex-1">
             {/* MAPA TÁCTICO INTERACTIVO DE NAGUANAGUA (8 COLUMNAS) */}
-            <div className="lg:col-span-8 relative min-h-[460px] sm:min-h-[540px] bg-[#04110c] overflow-hidden select-none border-b lg:border-b-0 lg:border-r border-emerald-900/50">
+            <div
+              onClick={(e) => {
+                // Si toca el lienzo del mapa en vista normal, se abre el mapa completo para mejor visualización
+                if (!mapaPantallaCompleta && (e.target as HTMLElement).tagName !== 'BUTTON') {
+                  setMapaPantallaCompleta(true);
+                }
+              }}
+              className={`lg:col-span-8 relative ${
+                mapaPantallaCompleta ? 'min-h-[62vh] lg:min-h-[78vh]' : 'min-h-[460px] sm:min-h-[540px]'
+              } bg-[#04110c] overflow-hidden select-none border-b lg:border-b-0 lg:border-r border-emerald-900/50 cursor-pointer`}
+            >
+              {/* Banner flotante superior en el mapa */}
+              <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex items-center justify-between pointer-events-none">
+                <div className="bg-slate-950/85 backdrop-blur-md border border-emerald-500/40 rounded-xl px-3 py-1.5 text-[11px] font-bold text-emerald-300 shadow-lg">
+                  {camionFiltroMapa === 'TODOS' ? (
+                    <span>🛰️ Viendo toda la flota · Toque un camión para aislar su ruta o toque el mapa para ampliar</span>
+                  ) : (
+                    <span>
+                      🎯 Modo Enfoque Exclusivo: <strong className="text-[#B8CD29]">{camionSeleccionado.id}</strong> ·{' '}
+                      {camionSeleccionado.pos.sector} ({camionSeleccionado.velocidadActual} km/h)
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Retícula radar y arterias viales de Naguanagua en SVG */}
               <svg
                 viewBox="0 0 100 100"
@@ -1177,8 +1387,8 @@ export default function PresidenciaFlotaRutasTracker() {
                     />
                   </pattern>
                   <radialGradient id="radarGlow" cx="50%" cy="48%" r="50%">
-                    <stop offset="0%" stopColor="rgba(184, 205, 41, 0.10)" />
-                    <stop offset="60%" stopColor="rgba(16, 185, 129, 0.04)" />
+                    <stop offset="0%" stopColor="rgba(184, 205, 41, 0.12)" />
+                    <stop offset="60%" stopColor="rgba(16, 185, 129, 0.05)" />
                     <stop offset="100%" stopColor="rgba(4, 17, 12, 0)" />
                   </radialGradient>
                 </defs>
@@ -1187,7 +1397,7 @@ export default function PresidenciaFlotaRutasTracker() {
                 <rect width="100" height="100" fill="url(#gridNaguanagua)" />
                 <circle cx="50" cy="48" r="44" fill="url(#radarGlow)" />
 
-                {/* Contorno estilizado de zonas del Municipio Naguanagua y Corredor Vial */}
+                {/* Contorno estilizado del Municipio Naguanagua */}
                 <polygon
                   points="18,12 45,6 76,16 84,48 76,75 40,86 12,88 10,52"
                   fill="rgba(16, 185, 129, 0.03)"
@@ -1218,32 +1428,35 @@ export default function PresidenciaFlotaRutasTracker() {
                   strokeWidth="0.7"
                 />
 
-                {/* Trazos de las rutas activas de los camiones */}
-                {flotaEnVivo.map((camion) => {
+                {/* Trazos de las rutas activas de los camiones visibles en el mapa */}
+                {camionesEnMapa.map((camion) => {
                   if (camion.waypoints.length < 2) return null;
-                  const isSelected = camion.id === camionSeleccionado?.id;
-                  const pointsStr = camion.waypoints.map((w) => `${w.x},${w.y}`).join(' ');
+                  const isFocused =
+                    camionFiltroMapa !== 'TODOS' || camion.id === camionSeleccionado?.id;
+                  // Cerrar el polígono del circuito para que se vea toda la vuelta de la ruta
+                  const closedWaypoints = [...camion.waypoints, camion.waypoints[0]];
+                  const pointsStr = closedWaypoints.map((w) => `${w.x},${w.y}`).join(' ');
                   const badge = getBadgeEstado(camion.estado);
                   return (
                     <g key={`route-${camion.id}`}>
                       <polyline
                         points={pointsStr}
                         fill="none"
-                        stroke={isSelected ? '#B8CD29' : badge.hex}
-                        strokeWidth={isSelected ? '1.1' : '0.45'}
-                        strokeOpacity={isSelected ? '0.95' : '0.35'}
-                        strokeDasharray={isSelected ? 'none' : '1.2 0.8'}
+                        stroke={isFocused ? '#B8CD29' : badge.hex}
+                        strokeWidth={isFocused ? '1.3' : '0.5'}
+                        strokeOpacity={isFocused ? '0.95' : '0.4'}
+                        strokeDasharray={isFocused ? '2 1' : '1.2 0.8'}
                       />
-                      {isSelected &&
+                      {isFocused &&
                         camion.waypoints.map((wp, idx) => (
                           <circle
                             key={idx}
                             cx={wp.x}
                             cy={wp.y}
-                            r="1.1"
+                            r="1.3"
                             fill="#04110c"
                             stroke="#B8CD29"
-                            strokeWidth="0.5"
+                            strokeWidth="0.6"
                           />
                         ))}
                     </g>
@@ -1288,32 +1501,46 @@ export default function PresidenciaFlotaRutasTracker() {
                 >
                   ♻️ VERTEDERO LA GUÁSIMA (DESCARGA Y ROMANA)
                 </div>
+
+                {/* Si hay 1 solo camión enfocado, mostrar etiquetas de todas sus paradas en la ruta */}
+                {camionFiltroMapa !== 'TODOS' &&
+                  camionSeleccionado.waypoints.map((wp, idx) => (
+                    <div
+                      key={`stop-label-${idx}`}
+                      style={{ left: `${wp.x}%`, top: `${Math.max(6, wp.y - 4.5)}%` }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 px-2 py-0.5 rounded-md bg-[#0f291e]/95 border border-[#B8CD29]/70 text-[9px] font-extrabold text-[#B8CD29] shadow-md whitespace-nowrap z-20"
+                    >
+                      Parada #{idx + 1}: {wp.sector}
+                    </div>
+                  ))}
               </div>
 
               {/* Marcadores Interactivos de los Camiones en Tiempo Real */}
-              {camionesFiltrados.map((camion) => {
+              {camionesEnMapa.map((camion) => {
                 const isSelected = camion.id === camionSeleccionado?.id;
                 const badge = getBadgeEstado(camion.estado);
                 return (
                   <button
                     key={camion.id}
                     type="button"
-                    onClick={() => setCamionSeleccionadoId(camion.id)}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      handleSelectSingleTruck(camion.id);
+                    }}
                     style={{
                       left: `${camion.pos.x}%`,
                       top: `${camion.pos.y}%`,
-                      transition: 'left 240ms linear, top 240ms linear',
                     }}
                     className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer focus:outline-none ${
-                      isSelected ? 'z-30 scale-110' : 'z-20 hover:z-30 hover:scale-105'
+                      isSelected ? 'z-30 scale-115' : 'z-20 hover:z-30 hover:scale-110'
                     }`}
                   >
-                    {/* Pulso radar para unidades seleccionadas o en ruta */}
-                    {(isSelected || camion.estado === 'EN_RUTA') && (
+                    {/* Pulso radar para unidades en movimiento o seleccionadas */}
+                    {(isSelected || camion.velocidadActual > 0) && (
                       <span
                         style={{ borderColor: isSelected ? '#B8CD29' : badge.hex }}
-                        className={`absolute -inset-2 rounded-full border-2 animate-ping ${
-                          isSelected ? 'opacity-75' : 'opacity-35'
+                        className={`absolute -inset-2.5 rounded-full border-2 animate-ping ${
+                          isSelected ? 'opacity-85' : 'opacity-40'
                         }`}
                       />
                     )}
@@ -1323,18 +1550,18 @@ export default function PresidenciaFlotaRutasTracker() {
                         borderColor: isSelected ? '#B8CD29' : badge.hex,
                         backgroundColor: isSelected ? '#0f291e' : '#091512',
                       }}
-                      className="relative flex items-center gap-1 px-2 py-1 rounded-full border-2 shadow-xl"
+                      className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 shadow-2xl"
                     >
-                      <span className={`w-2 h-2 rounded-full ${badge.dot}`} />
+                      <span className="text-xs">🚛</span>
                       <span
-                        className={`text-[10px] font-black tracking-tight ${
+                        className={`text-[10px] sm:text-[11px] font-black tracking-tight ${
                           isSelected ? 'text-[#B8CD29]' : 'text-white'
                         }`}
                       >
                         {camion.id.replace('IAMEC-', 'U-')}
                       </span>
                       {camion.velocidadActual > 0 && (
-                        <span className="hidden sm:inline text-[8px] font-extrabold text-emerald-300 bg-emerald-950/90 px-1 rounded">
+                        <span className="text-[9px] font-extrabold text-emerald-300 bg-emerald-950/90 px-1.5 py-0.5 rounded-full">
                           {camion.velocidadActual}km/h
                         </span>
                       )}
@@ -1344,24 +1571,45 @@ export default function PresidenciaFlotaRutasTracker() {
               })}
 
               {/* Leyenda inferior del mapa */}
-              <div className="absolute bottom-2.5 right-2.5 left-2.5 sm:left-auto bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-2 flex flex-wrap items-center justify-between sm:justify-end gap-3 text-[10px] font-bold">
-                <span className="flex items-center gap-1.5 text-emerald-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" /> En Ruta ({resumenFlota.enRuta})
-                </span>
-                <span className="flex items-center gap-1.5 text-sky-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block" /> En Vertedero ({resumenFlota.enVertedero})
-                </span>
-                <span className="flex items-center gap-1.5 text-amber-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> Mantenimiento ({resumenFlota.enMantenimiento})
-                </span>
-                <span className="flex items-center gap-1.5 text-rose-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> En Reparación ({resumenFlota.enReparacion})
-                </span>
+              <div className="absolute bottom-2.5 right-2.5 left-2.5 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+                <button
+                  type="button"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    setMapaPantallaCompleta((prev) => !prev);
+                  }}
+                  className="pointer-events-auto flex items-center gap-1.5 bg-[#B8CD29] hover:bg-[#c8de38] text-slate-950 font-black text-[11px] px-3 py-1.5 rounded-xl shadow-lg cursor-pointer"
+                >
+                  {mapaPantallaCompleta ? (
+                    <>
+                      <Minimize2 className="w-3.5 h-3.5" /> Salir de Pantalla Completa
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="w-3.5 h-3.5" /> Ampliar Mapa Completo
+                    </>
+                  )}
+                </button>
+
+                <div className="bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-1.5 flex flex-wrap items-center gap-3 text-[10px] font-bold">
+                  <span className="flex items-center gap-1.5 text-emerald-300">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" /> En Ruta ({resumenFlota.enRuta})
+                  </span>
+                  <span className="flex items-center gap-1.5 text-sky-300">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block" /> En Vertedero ({resumenFlota.enVertedero})
+                  </span>
+                  <span className="flex items-center gap-1.5 text-amber-300">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> Mantenimiento ({resumenFlota.enMantenimiento})
+                  </span>
+                  <span className="flex items-center gap-1.5 text-rose-300">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> En Reparación ({resumenFlota.enReparacion})
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* PANEL DE TELEMETRÍA EN VIVO DE LA UNIDAD SELECCIONADA (4 COLUMNAS) */}
-            <div className="lg:col-span-4 bg-slate-950/80 p-4 sm:p-5 flex flex-col justify-between space-y-4">
+            <div className="lg:col-span-4 bg-slate-950/90 p-4 sm:p-5 flex flex-col justify-between space-y-4">
               {camionSeleccionado && (
                 <>
                   <div className="space-y-3">
@@ -1384,13 +1632,29 @@ export default function PresidenciaFlotaRutasTracker() {
                           {camionSeleccionado.modelo} · {camionSeleccionado.tipo}
                         </p>
                       </div>
+
+                      {camionFiltroMapa !== 'TODOS' ? (
+                        <button
+                          onClick={() => setCamionFiltroMapa('TODOS')}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 text-[10px] font-black cursor-pointer"
+                        >
+                          Ver Todos
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleSelectSingleTruck(camionSeleccionado.id)}
+                          className="px-2.5 py-1 rounded-lg bg-[#B8CD29]/20 hover:bg-[#B8CD29]/30 text-[#B8CD29] border border-[#B8CD29]/40 text-[10px] font-black cursor-pointer"
+                        >
+                          Aislar en Mapa
+                        </button>
+                      )}
                     </div>
 
-                    {/* Ubicación GPS Actual */}
+                    {/* Ubicación GPS Actual en movimiento */}
                     <div className="bg-slate-900/90 border border-emerald-900/60 rounded-xl p-3 space-y-1.5">
                       <div className="flex items-center justify-between text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5" /> Posición GPS en Tiempo Real
+                          <MapPin className="w-3.5 h-3.5" /> Ubicación GPS en Vivo
                         </span>
                         <span className="font-mono text-slate-400">
                           {camionSeleccionado.pos.lat.toFixed(4)}° N, {camionSeleccionado.pos.lng.toFixed(4)}° W
@@ -1399,10 +1663,19 @@ export default function PresidenciaFlotaRutasTracker() {
                       <div className="text-xs sm:text-sm font-black text-white">
                         {camionSeleccionado.pos.sector}
                       </div>
-                      {camionSeleccionado.estado === 'EN_RUTA' && (
-                        <div className="text-[11px] text-[#B8CD29] font-semibold flex items-center gap-1">
-                          <ChevronRight className="w-3.5 h-3.5" />
-                          Próximo punto: {camionSeleccionado.pos.proximoSector}
+                      {(camionSeleccionado.estado === 'EN_RUTA' ||
+                        camionSeleccionado.estado === 'EN_VERTEDERO') && (
+                        <div className="space-y-1 pt-1">
+                          <div className="text-[11px] text-[#B8CD29] font-semibold flex items-center gap-1">
+                            <ChevronRight className="w-3.5 h-3.5" />
+                            Dirigiéndose a: {camionSeleccionado.pos.proximoSector}
+                          </div>
+                          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                              style={{ width: `${camionSeleccionado.pos.progresoTramoPct}%` }}
+                              className="h-full bg-[#B8CD29] transition-all duration-100"
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1520,33 +1793,6 @@ export default function PresidenciaFlotaRutasTracker() {
                       </div>
                     )}
                   </div>
-
-                  {/* Selector rápido de unidades debajo de la telemetría */}
-                  <div className="pt-2 border-t border-slate-800">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">
-                      Seleccionar Unidad en el Tracker ({flotaEnVivo.length}):
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                      {flotaEnVivo.map((u) => {
-                        const active = u.id === camionSeleccionado.id;
-                        const b = getBadgeEstado(u.estado);
-                        return (
-                          <button
-                            key={u.id}
-                            onClick={() => setCamionSeleccionadoId(u.id)}
-                            className={`px-2 py-1 rounded-lg text-[10px] font-black border flex items-center gap-1 cursor-pointer transition-all ${
-                              active
-                                ? 'bg-[#B8CD29] text-slate-950 border-[#B8CD29]'
-                                : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-600'
-                            }`}
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${b.dot}`} />
-                            {u.id.replace('IAMEC-', 'U-')}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
                 </>
               )}
             </div>
@@ -1555,7 +1801,7 @@ export default function PresidenciaFlotaRutasTracker() {
       )}
 
       {/* ══ SECCIÓN 2: DETALLE DE CAMIONES EN REPARACIÓN Y MANTENIMIENTO (CON TIEMPO Y MOTIVO) + TABLA DE FLOTA ══ */}
-      {(vistaInterna === 'TODAS' || vistaInterna === 'ESTATUS_FLOTA') && (
+      {vistaInterna === 'ESTATUS_FLOTA' && (
         <div className="space-y-6">
           {/* Bloque Destacado: Unidades en Reparación y Mantenimiento Preventivo */}
           <div className="bg-slate-900/95 border border-rose-500/40 rounded-2xl p-4 sm:p-6 shadow-xl">
@@ -1582,7 +1828,10 @@ export default function PresidenciaFlotaRutasTracker() {
                   return (
                     <div
                       key={unidad.id}
-                      onClick={() => setCamionSeleccionadoId(unidad.id)}
+                      onClick={() => {
+                        handleSelectSingleTruck(unidad.id);
+                        setVistaInterna('TRACKER');
+                      }}
                       className={`rounded-2xl p-4 border transition-all cursor-pointer ${
                         esReparacion
                           ? 'bg-rose-950/25 border-rose-500/40 hover:border-rose-400'
@@ -1680,7 +1929,7 @@ export default function PresidenciaFlotaRutasTracker() {
                   PADRÓN COMPLETO DE UNIDADES Y ESTADO OPERATIVO ({camionesFiltrados.length} de {flotaEnVivo.length})
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Estado en tiempo real de cada camión compactador, ubicación GPS, ruta asignada, nivel de carga y condición mecánica.
+                  Toque cualquier camión de la tabla para ver su recorrido exclusivo en el Mapa Tracker GPS.
                 </p>
               </div>
 
@@ -1708,7 +1957,7 @@ export default function PresidenciaFlotaRutasTracker() {
                     <th className="py-3 px-3">Ubicación GPS / Detalle Taller</th>
                     <th className="py-3 px-3">Carga Tolva</th>
                     <th className="py-3 px-3">Chofer Responsable</th>
-                    <th className="py-3 px-3 text-right">Hoy (Ton)</th>
+                    <th className="py-3 px-3 text-right">Acción GPS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/70 text-xs">
@@ -1717,7 +1966,10 @@ export default function PresidenciaFlotaRutasTracker() {
                     return (
                       <tr
                         key={c.id}
-                        onClick={() => setCamionSeleccionadoId(c.id)}
+                        onClick={() => {
+                          handleSelectSingleTruck(c.id);
+                          setVistaInterna('TRACKER');
+                        }}
                         className="hover:bg-slate-800/50 transition-colors cursor-pointer"
                       >
                         <td className="py-3 px-3">
@@ -1775,8 +2027,9 @@ export default function PresidenciaFlotaRutasTracker() {
                           </div>
                         </td>
                         <td className="py-3 px-3 text-right">
-                          <div className="font-black text-emerald-400">{c.toneladasHoy} Ton</div>
-                          <div className="text-[10px] text-slate-400">{c.viajesHoy} viajes</div>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#B8CD29] text-slate-950 font-black text-[10px]">
+                            🛰️ Ver en Mapa
+                          </span>
                         </td>
                       </tr>
                     );
@@ -1789,7 +2042,7 @@ export default function PresidenciaFlotaRutasTracker() {
       )}
 
       {/* ══ SECCIÓN 3: CRONOGRAMA Y DIRECTORIO OFICIAL DE LAS 29 RUTAS DE NAGUANAGUA ══ */}
-      {(vistaInterna === 'TODAS' || vistaInterna === 'CRONOGRAMA_RUTAS') && (
+      {vistaInterna === 'CRONOGRAMA_RUTAS' && (
         <div className="bg-slate-900/95 border border-emerald-800/60 rounded-2xl p-4 sm:p-6 shadow-xl space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-4 border-b border-slate-800">
             <div>
@@ -1869,13 +2122,21 @@ export default function PresidenciaFlotaRutasTracker() {
                       <span className="text-slate-400 font-semibold">
                         🚛 Unidad: <strong className="text-white">{ruta.unidadAsignada}</strong> ({ruta.placaUnidad})
                       </span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${badge.bg}`}>
-                        {badge.shortLabel}
-                      </span>
+                      <button
+                        onClick={() => {
+                          handleSelectSingleTruck(ruta.unidadAsignada);
+                          setVistaInterna('TRACKER');
+                        }}
+                        className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#B8CD29] text-slate-950 cursor-pointer"
+                      >
+                        🛰️ Ver en Tracker
+                      </button>
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-400">
                       <span>👨‍✈️ {ruta.choferAsignado}</span>
-                      <span className="text-emerald-400 font-bold">~{ruta.toneladasEstimadas} Ton/día</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${badge.bg}`}>
+                        {badge.shortLabel}
+                      </span>
                     </div>
                     <div>
                       <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1">
