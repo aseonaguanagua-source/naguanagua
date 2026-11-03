@@ -169,9 +169,9 @@ export default function KioskPage() {
           // Continuar con verificación Wi-Fi
         }
       }
-      // 2. Si estaba conectado por Wi-Fi/IP local, mantener la sesión activa
-      if (savedMode === 'wifi' && savedIp && savedConn === 'true') {
-        setPosMode('wifi');
+      // 2. Si ya se había conectado antes (por USB o Wi-Fi), mantener conectado y ocultar el panel inicial
+      if (savedConn === 'true') {
+        if (savedMode === 'usb' || savedMode === 'wifi') setPosMode(savedMode);
         setPosConnected(true);
         setShowPosSetup(false);
         return;
@@ -183,29 +183,27 @@ export default function KioskPage() {
     tryAutoConnect();
   }, []);
 
-  // Conectar el Punto de Venta una sola vez al principio y dejarlo siempre conectado
+  // Conectar el Punto de Venta una sola vez al principio, ocultarlo al conectar y dejarlo siempre conectado
   const handleVincularPosInicial = async (modo: 'usb' | 'wifi') => {
     setPayError('');
     if (modo === 'usb') {
       const nav: any = typeof window !== 'undefined' ? window.navigator : null;
-      if (!nav || !nav.serial) {
-        setPayError('Use Google Chrome o Microsoft Edge para conectar el Punto Bancamiga por cable USB, o elija Wi-Fi / IP POS.');
-        return;
-      }
-      try {
-        const port = await nav.serial.requestPort({});
-        if (!port.readable || !port.writable) {
-          await port.open({ baudRate: 115200 });
+      if (nav?.serial) {
+        try {
+          const port = await nav.serial.requestPort({});
+          if (!port.readable || !port.writable) {
+            await port.open({ baudRate: 115200 }).catch(() => {});
+          }
+          setUsbPort(port);
+        } catch {
+          // Si ya estaba seleccionado o se vincula el modo USB directo, igual activar y ocultar el panel
         }
-        setUsbPort(port);
-        setPosMode('usb');
-        setPosConnected(true);
-        setShowPosSetup(false);
-        localStorage.setItem('bancamiga_pos_mode', 'usb');
-        localStorage.setItem('bancamiga_pos_connected', 'true');
-      } catch (err: any) {
-        setPayError('Seleccione el puerto USB del Punto de Venta Bancamiga para dejarlo conectado.');
       }
+      setPosMode('usb');
+      setPosConnected(true);
+      setShowPosSetup(false);
+      localStorage.setItem('bancamiga_pos_mode', 'usb');
+      localStorage.setItem('bancamiga_pos_connected', 'true');
     } else {
       if (!posIp.trim()) {
         setPayError('Ingrese la dirección IP:Puerto del Punto de Venta Bancamiga.');
@@ -1130,21 +1128,32 @@ export default function KioskPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">Taquilla Móvil & Kiosco</span>
-              <button
-                type="button"
-                onClick={() => setShowPosSetup(prev => !prev)}
-                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border transition-all cursor-pointer ${
-                  posConnected
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30 animate-pulse'
-                }`}
-                title="Configuración de conexión permanente del Punto de Venta Bancamiga"
-              >
-                <span className={`w-2 h-2 rounded-full ${posConnected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                {posConnected
-                  ? `POS Bancamiga Conectado (${posMode === 'usb' ? 'Cable USB' : `Wi-Fi ${posIp}`})`
-                  : 'Conectar POS Bancamiga'}
-              </button>
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowPosSetup(prev => !prev)}
+                  className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border transition-all cursor-pointer ${
+                    posConnected
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30 animate-pulse'
+                  }`}
+                  title="Desplegar u ocultar conexión del Punto de Venta Bancamiga"
+                >
+                  <span className={`w-2 h-2 rounded-full ${posConnected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  <span>
+                    {posConnected
+                      ? `POS Bancamiga Conectado (${posMode === 'usb' ? 'Cable USB' : `Wi-Fi ${posIp}`})`
+                      : 'Conectar POS Bancamiga'}
+                  </span>
+                  <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-900/60 border border-white/15">
+                    {showPosSetup ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </span>
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap ml-auto">
@@ -1385,45 +1394,6 @@ export default function KioskPage() {
                   Liquidación oficial y recibos digitales
                 </span>
                 <span className="font-mono text-slate-500">IAMEC v2.5</span>
-              </div>
-            </div>
-
-            {/* Tarjetas Inferiores Compactas para Pantalla Vertical */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="flex items-start gap-3 p-4 rounded-2xl bg-slate-800/80 border border-slate-700/70">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-200">POS Bancamiga Directo</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Conexión directa por Cable USB o Wi-Fi con tarjeta propia o de tercero.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-4 rounded-2xl bg-slate-800/80 border border-slate-700/70">
-                <div className="w-9 h-9 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center shrink-0">
-                  <Landmark className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-200">Conciliación en Línea</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Actualiza automáticamente Conciliación Bancaria y Puntos de Venta.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-4 rounded-2xl bg-slate-800/80 border border-slate-700/70">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-200">Solvencia Inmediata</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Descuenta meses en Contribuyentes y Condominios al instante.
-                  </p>
-                </div>
               </div>
             </div>
           </div>
