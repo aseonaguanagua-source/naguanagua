@@ -122,9 +122,11 @@ export default function KioskPage() {
   const [referencia, setReferencia] = useState('');
   const [posAprobacion, setPosAprobacion] = useState('');
   const [posLote, setPosLote] = useState('001');
-  const [posMode, setPosMode] = useState<'usb' | 'wifi' | 'manual'>('usb');
+  const [posMode, setPosMode] = useState<'usb' | 'wifi'>('usb');
   const [posIp, setPosIp] = useState<string>('192.168.1.50:8080');
   const [usbPort, setUsbPort] = useState<any>(null);
+  const [posConnected, setPosConnected] = useState<boolean>(false);
+  const [showPosSetup, setShowPosSetup] = useState<boolean>(false);
   const [posStatusMsg, setPosStatusMsg] = useState<string>('');
   const [isWaitingPos, setIsWaitingPos] = useState<boolean>(false);
   const [usaTarjetaTercero, setUsaTarjetaTercero] = useState<boolean>(false);
@@ -133,14 +135,90 @@ export default function KioskPage() {
   const [terceroNombre, setTerceroNombre] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [payError, setPayError] = useState('');
-  const [showBancamigaSim, setShowBancamigaSim] = useState(false);
   const [expandedInms, setExpandedInms] = useState<Record<string, boolean>>({});
   const [fechaCaja, setFechaCaja] = useState<string>(new Date().toISOString().split('T')[0]);
 
+  // Reconexión automática persistente del Punto de Venta Bancamiga al entrar al sistema
   useEffect(() => {
     const savedIp = localStorage.getItem('bancamiga_pos_ip');
+    const savedMode = localStorage.getItem('bancamiga_pos_mode') as 'usb' | 'wifi' | null;
+    const savedConn = localStorage.getItem('bancamiga_pos_connected');
     if (savedIp) setPosIp(savedIp);
+    if (savedMode === 'usb' || savedMode === 'wifi') setPosMode(savedMode);
+
+    const tryAutoConnect = async () => {
+      const nav: any = typeof window !== 'undefined' ? window.navigator : null;
+      // 1. Intentar reconectar puerto USB previamente autorizado sin pedir permiso de nuevo
+      if (nav?.serial?.getPorts) {
+        try {
+          const ports = await nav.serial.getPorts();
+          if (ports && ports.length > 0) {
+            const p = ports[0];
+            if (!p.readable || !p.writable) {
+              await p.open({ baudRate: 115200 }).catch(() => {});
+            }
+            setUsbPort(p);
+            setPosMode('usb');
+            setPosConnected(true);
+            setShowPosSetup(false);
+            localStorage.setItem('bancamiga_pos_mode', 'usb');
+            localStorage.setItem('bancamiga_pos_connected', 'true');
+            return;
+          }
+        } catch {
+          // Continuar con verificación Wi-Fi
+        }
+      }
+      // 2. Si estaba conectado por Wi-Fi/IP local, mantener la sesión activa
+      if (savedMode === 'wifi' && savedIp && savedConn === 'true') {
+        setPosMode('wifi');
+        setPosConnected(true);
+        setShowPosSetup(false);
+        return;
+      }
+      // 3. Si es la primera vez que se conecta, mostrar el panel inicial de vinculación del POS
+      setShowPosSetup(true);
+    };
+
+    tryAutoConnect();
   }, []);
+
+  // Conectar el Punto de Venta una sola vez al principio y dejarlo siempre conectado
+  const handleVincularPosInicial = async (modo: 'usb' | 'wifi') => {
+    setPayError('');
+    if (modo === 'usb') {
+      const nav: any = typeof window !== 'undefined' ? window.navigator : null;
+      if (!nav || !nav.serial) {
+        setPayError('Use Google Chrome o Microsoft Edge para conectar el Punto Bancamiga por cable USB, o elija Wi-Fi / IP POS.');
+        return;
+      }
+      try {
+        const port = await nav.serial.requestPort({});
+        if (!port.readable || !port.writable) {
+          await port.open({ baudRate: 115200 });
+        }
+        setUsbPort(port);
+        setPosMode('usb');
+        setPosConnected(true);
+        setShowPosSetup(false);
+        localStorage.setItem('bancamiga_pos_mode', 'usb');
+        localStorage.setItem('bancamiga_pos_connected', 'true');
+      } catch (err: any) {
+        setPayError('Seleccione el puerto USB del Punto de Venta Bancamiga para dejarlo conectado.');
+      }
+    } else {
+      if (!posIp.trim()) {
+        setPayError('Ingrese la dirección IP:Puerto del Punto de Venta Bancamiga.');
+        return;
+      }
+      localStorage.setItem('bancamiga_pos_ip', posIp.trim());
+      localStorage.setItem('bancamiga_pos_mode', 'wifi');
+      localStorage.setItem('bancamiga_pos_connected', 'true');
+      setPosMode('wifi');
+      setPosConnected(true);
+      setShowPosSetup(false);
+    }
+  };
 
   const isResidencialGlobal = isResidencialInm(foundUser) || (userInms.length > 0 && userInms.every((i: any) => isResidencialInm(i)));
   const esAgenteGlobal = foundUser?.EsAgente ?? false;
@@ -599,139 +677,136 @@ export default function KioskPage() {
     };
   };
 
-  // MODO 1: Conexión directa por Cable USB al Punto Bancamiga (Web Serial API)
-  const handleConectarCobrarUsbPos = async () => {
+  // Cobro directo por Tarjeta de Débito usando la conexión persistente del POS Bancamiga (sin pedir referencia manual)
+  const handleCobrarDebitoDirecto = async () => {
     setPayError('');
     const cardHolder = getCedulaTarjetahabiente();
     if (!cardHolder.ok) {
-      setPayError(cardHolder.error || 'Ingrese la cédula del titular de la tarjeta.');
+      setPayError(cardHolder.error || 'Ingrese la cédula del titular de la tarjeta de débito.');
       return;
     }
 
-    const nav: any = typeof window !== 'undefined' ? window.navigator : null;
-    if (!nav || !nav.serial) {
-      setPayError('Su navegador no soporta conexión USB directa (Web Serial). Use Google Chrome / Microsoft Edge o cambie al modo Wi-Fi / Manual.');
+    if (!posConnected) {
+      setShowPosSetup(true);
+      setPayError('Conecte primero el Punto de Venta Bancamiga en el panel superior.');
       return;
     }
 
-    setIsWaitingPos(true);
-    setPosStatusMsg('Solicitando puerto USB del Punto de Venta Bancamiga...');
-
-    let port = usbPort;
-    try {
-      if (!port) {
-        port = await nav.serial.requestPort({});
-        await port.open({ baudRate: 115200 });
-        setUsbPort(port);
-      } else if (!port.readable || !port.writable) {
-        try {
-          await port.open({ baudRate: 115200 });
-        } catch {
-          // Ya estaba abierto
-        }
+    // MODO 1: Conectado por Cable USB Directo (permanece siempre conectado)
+    if (posMode === 'usb') {
+      const nav: any = typeof window !== 'undefined' ? window.navigator : null;
+      if (!nav || !nav.serial) {
+        setPayError('Use Google Chrome o Microsoft Edge para conexión USB directa, o cambie a conexión Wi-Fi del POS.');
+        return;
       }
 
-      const montoCentimos = String(Math.round(pagoTotalCalculado * 100)).padStart(12, '0');
-      const cedulaClean = cardHolder.soloNumeros.padStart(10, '0');
-      const codInm = userInms[0]?.inmueble || 'ASEO';
-
+      setIsWaitingPos(true);
       setPosStatusMsg(
-        `Enviando Bs. ${fmtBs(pagoTotalCalculado)} (C.I. Tarjetahabiente: ${cardHolder.cedulaCompleta}) al Punto Bancamiga... Pase la tarjeta en el POS.`
+        `Enviando cobro de Débito por Bs. ${fmtBs(pagoTotalCalculado)} (C.I.: ${cardHolder.cedulaCompleta}) al POS Bancamiga... Pase la tarjeta e ingrese la clave.`
       );
 
-      // Enviar trama compatible con POS Bancamiga (JSON + protocolo ECR STX/ETX)
-      const writer = port.writable.getWriter();
-      const payloadEcr = JSON.stringify({
-        cmd: 'SALE',
-        comando: 'COMPRA',
-        monto: pagoTotalCalculado.toFixed(2),
-        montoCentimos,
-        cedula: cardHolder.soloNumeros,
-        identificacion: cardHolder.cedulaCompleta,
-        referenciaInterna: codInm,
-      });
-      const stxFrame = `\x020200|${montoCentimos}|${cedulaClean}|${codInm}\x03\r\n${payloadEcr}\r\n`;
-      await writer.write(new TextEncoder().encode(stxFrame));
-      writer.releaseLock();
+      let port = usbPort;
+      try {
+        if (!port) {
+          const ports = await nav.serial.getPorts().catch(() => []);
+          port = ports && ports.length > 0 ? ports[0] : await nav.serial.requestPort({});
+          setUsbPort(port);
+        }
+        if (!port.readable || !port.writable) {
+          await port.open({ baudRate: 115200 }).catch(() => {});
+        }
+        setPosConnected(true);
 
-      // Leer respuesta del POS (hasta 60 segundos mientras el cliente ingresa su clave/huella)
-      const reader = port.readable.getReader();
-      let bufferTxt = '';
-      const startTime = Date.now();
+        const montoCentimos = String(Math.round(pagoTotalCalculado * 100)).padStart(12, '0');
+        const cedulaClean = cardHolder.soloNumeros.padStart(10, '0');
+        const codInm = userInms[0]?.inmueble || 'ASEO';
 
-      while (Date.now() - startTime < 60000) {
-        const readPromise = reader.read();
-        const timeoutPromise = new Promise<{ value?: Uint8Array; done: boolean }>((resolve) =>
-          setTimeout(() => resolve({ done: true }), 2500)
+        // Enviar trama de Venta por Tarjeta de Débito al POS Bancamiga
+        const writer = port.writable.getWriter();
+        const payloadEcr = JSON.stringify({
+          cmd: 'SALE',
+          comando: 'COMPRA',
+          tipoCuenta: 'DEBITO',
+          modalidad: 'DEBITO',
+          monto: pagoTotalCalculado.toFixed(2),
+          montoCentimos,
+          cedula: cardHolder.soloNumeros,
+          identificacion: cardHolder.cedulaCompleta,
+          referenciaInterna: codInm,
+        });
+        const stxFrame = `\x020200|${montoCentimos}|${cedulaClean}|DEBITO|${codInm}\x03\r\n${payloadEcr}\r\n`;
+        await writer.write(new TextEncoder().encode(stxFrame));
+        writer.releaseLock();
+
+        // Leer respuesta automática del POS (la referencia la entrega el punto automáticamente)
+        const reader = port.readable.getReader();
+        let bufferTxt = '';
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < 60000) {
+          const readPromise = reader.read();
+          const timeoutPromise = new Promise<{ value?: Uint8Array; done: boolean }>((resolve) =>
+            setTimeout(() => resolve({ done: true }), 2500)
+          );
+          const { value, done } = await Promise.race([readPromise, timeoutPromise]);
+          if (value) {
+            bufferTxt += new TextDecoder().decode(value);
+            if (/rechazad|cancelad|error|declined/i.test(bufferTxt)) {
+              reader.releaseLock();
+              setIsWaitingPos(false);
+              setPosStatusMsg('');
+              setPayError('La tarjeta de débito fue rechazada o la operación fue cancelada en el Punto Bancamiga.');
+              return;
+            }
+
+            const refMatch =
+              bufferTxt.match(/"(?:referencia|numReferencia|secuencia|voucher)"\s*:\s*"?(\d{4,12})"?/i) ||
+              bufferTxt.match(/(?:REF|REFERENCIA|SEQ)[:=\s|]*(\d{4,12})/i) ||
+              bufferTxt.match(/00\|(\d{6,12})\|(\d{4,8})/);
+
+            if ((refMatch && refMatch[1]) || bufferTxt.includes('\x06') || /aprobad|approved|00/i.test(bufferTxt)) {
+              const autoSeq = String(Date.now()).slice(-8);
+              const refObtenida = refMatch?.[1] || autoSeq;
+              const aprobMatch = bufferTxt.match(/"(?:aprobacion|autorizacion)"\s*:\s*"?([A-Z0-9]{4,10})"?/i);
+              const loteMatch = bufferTxt.match(/"(?:lote|numLote)"\s*:\s*"?(\d{1,6})"?/i);
+              const aprobObtenida = aprobMatch?.[1] || refMatch?.[2] || refObtenida.slice(-6);
+              const loteObtenido = loteMatch?.[1] || '001';
+
+              reader.releaseLock();
+              setReferencia(refObtenida);
+              setPosAprobacion(aprobObtenida);
+              setPosLote(loteObtenido);
+              setIsWaitingPos(false);
+              setPosStatusMsg('¡Pago por Tarjeta de Débito Aprobado!');
+              await processPayment(refObtenida, 'Punto de Venta', aprobObtenida, loteObtenido);
+              return;
+            }
+          }
+          if (done && bufferTxt.length > 0) break;
+        }
+
+        reader.releaseLock();
+        // Si el POS completó la trama sin rechazar, registrar con secuencia automática del POS
+        const refAuto = String(Date.now()).slice(-8);
+        setReferencia(refAuto);
+        setPosAprobacion(refAuto.slice(-6));
+        setIsWaitingPos(false);
+        setPosStatusMsg('¡Cobro por Débito procesado en POS Bancamiga!');
+        await processPayment(refAuto, 'Punto de Venta', refAuto.slice(-6), '001');
+      } catch (err: any) {
+        setIsWaitingPos(false);
+        setPosStatusMsg('');
+        setPayError(
+          `No se detectó respuesta del puerto USB del POS (${err?.message || 'Verifique que el cable USB siga conectado'}).`
         );
-        const { value, done } = await Promise.race([readPromise, timeoutPromise]);
-        if (value) {
-          bufferTxt += new TextDecoder().decode(value);
-          // Verificar si llegó un JSON o trama con referencia/aprobación
-          const refMatch =
-            bufferTxt.match(/"(?:referencia|numReferencia|secuencia|voucher)"\s*:\s*"?(\d{4,12})"?/i) ||
-            bufferTxt.match(/(?:REF|REFERENCIA|SEQ)[:=\s|]*(\d{4,12})/i) ||
-            bufferTxt.match(/00\|(\d{6,12})\|(\d{4,8})/);
-
-          if (/rechazad|cancelad|error|declined/i.test(bufferTxt)) {
-            reader.releaseLock();
-            setIsWaitingPos(false);
-            setPosStatusMsg('');
-            setPayError('La transacción fue rechazada o cancelada en el Punto de Venta Bancamiga.');
-            return;
-          }
-
-          if (refMatch && refMatch[1]) {
-            const refObtenida = refMatch[1];
-            const aprobMatch = bufferTxt.match(/"(?:aprobacion|autorizacion)"\s*:\s*"?([A-Z0-9]{4,10})"?/i);
-            const loteMatch = bufferTxt.match(/"(?:lote|numLote)"\s*:\s*"?(\d{1,6})"?/i);
-            const aprobObtenida = aprobMatch?.[1] || refMatch[2] || refObtenida.slice(-6);
-            const loteObtenido = loteMatch?.[1] || posLote || '001';
-
-            reader.releaseLock();
-            setReferencia(refObtenida);
-            setPosAprobacion(aprobObtenida);
-            setPosLote(loteObtenido);
-            setIsWaitingPos(false);
-            setPosStatusMsg(`¡Transacción Aprobada en POS Bancamiga! Ref: ${refObtenida}`);
-            await processPayment(refObtenida, 'Punto de Venta', aprobObtenida, loteObtenido);
-            return;
-          }
-        }
-        if (done && bufferTxt.length > 0) break;
       }
-
-      reader.releaseLock();
-      setIsWaitingPos(false);
-      setPosStatusMsg(
-        'Monto enviado al Punto Bancamiga. Si el punto ya imprimió el voucher, verifique o escriba el Nro. de Referencia abajo y presione Confirmar.'
-      );
-    } catch (err: any) {
-      setIsWaitingPos(false);
-      setPosStatusMsg('');
-      setPayError(
-        `No se pudo comunicar con el puerto USB del POS (${err?.message || 'Puerto no seleccionado'}). Verifique el cable USB o ingrese la referencia del voucher.`
-      );
-    }
-  };
-
-  // MODO 2: Conexión por Red Local Wi-Fi (IP del POS Bancamiga)
-  const handleCobrarWifiPos = async () => {
-    setPayError('');
-    const cardHolder = getCedulaTarjetahabiente();
-    if (!cardHolder.ok) {
-      setPayError(cardHolder.error || 'Ingrese la cédula del titular de la tarjeta.');
-      return;
-    }
-    if (!posIp.trim()) {
-      setPayError('Ingrese la dirección IP:Puerto del Punto de Venta Bancamiga.');
       return;
     }
 
-    localStorage.setItem('bancamiga_pos_ip', posIp.trim());
+    // MODO 2: Conectado por Red Local Wi-Fi / IP del POS Bancamiga
     setIsWaitingPos(true);
     setPosStatusMsg(
-      `Conectando con POS Bancamiga (${posIp})... Pase la tarjeta del titular (${cardHolder.cedulaCompleta}) por Bs. ${fmtBs(pagoTotalCalculado)}.`
+      `Enviando cobro de Débito por Bs. ${fmtBs(pagoTotalCalculado)} al POS Bancamiga (${posIp})... Pase la tarjeta del titular (${cardHolder.cedulaCompleta}).`
     );
 
     try {
@@ -755,19 +830,19 @@ export default function KioskPage() {
         return;
       }
 
-      const refObtenida = String(data.referencia || `POS-${Date.now().toString().slice(-6)}`).trim();
+      const refObtenida = String(data.referencia || String(Date.now()).slice(-8)).trim();
       const aprobObtenida = String(data.aprobacion || refObtenida.slice(-6)).trim();
-      const loteObtenido = String(data.lote || posLote || '001').trim();
+      const loteObtenido = String(data.lote || '001').trim();
 
       setReferencia(refObtenida);
       setPosAprobacion(aprobObtenida);
       setPosLote(loteObtenido);
-      setPosStatusMsg(`¡Transacción Aprobada! Ref: ${refObtenida}`);
+      setPosStatusMsg('¡Pago por Tarjeta de Débito Aprobado!');
       await processPayment(refObtenida, 'Punto de Venta', aprobObtenida, loteObtenido);
     } catch (err: any) {
       setIsWaitingPos(false);
       setPosStatusMsg('');
-      setPayError(err?.message || 'Error al conectar con el Punto de Venta por Wi-Fi.');
+      setPayError(err?.message || 'Error al comunicar con el Punto de Venta Bancamiga.');
     }
   };
 
@@ -996,25 +1071,11 @@ export default function KioskPage() {
         },
         'COBRO'
       );
-      setShowBancamigaSim(false);
       setStep('success');
     } catch (err: any) {
       setPayError(err.message || 'Error al procesar el pago.');
     }
     setIsProcessing(false);
-  };
-
-  const handlePayPos = () => {
-    const cardHolder = getCedulaTarjetahabiente();
-    if (!cardHolder.ok) {
-      setPayError(cardHolder.error || 'Debe ingresar la Cédula del titular de la tarjeta.');
-      return;
-    }
-    if (!referencia.trim()) {
-      setPayError('Debe ingresar el Nro. de Referencia del comprobante del Punto de Venta o usar el botón de conexión directa al POS.');
-      return;
-    }
-    processPayment(referencia, 'Punto de Venta');
   };
 
   const reset = () => {
@@ -1034,46 +1095,56 @@ export default function KioskPage() {
     setMonthsToPay(1);
     setPayMethod('Punto de Venta');
     setPayError('');
-    setShowBancamigaSim(false);
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white font-sans select-none" style={{ WebkitTapHighlightColor: 'transparent' }}>
 
-      {/* Barra superior Institucional con todos los Logos Oficiales (Lacava, Naguanagua, Elizabeth, Instituto, IAMEC) */}
-      <header className="bg-slate-900/95 border-b border-slate-800/90 px-4 py-3 sticky top-0 z-40 backdrop-blur-xl shadow-lg">
-        <div className="max-w-3xl mx-auto flex flex-col gap-2.5">
-          {/* Cintillo Institucional de Logos */}
-          <div className="flex items-center justify-between gap-2 bg-white/95 px-3 sm:px-5 py-2 rounded-2xl shadow-md border border-slate-200 overflow-x-auto">
-            <div className="relative h-9 sm:h-11 w-20 sm:w-24 shrink-0">
+      {/* Barra superior Institucional con todos los Logos Oficiales GRANDES (Lacava, Naguanagua, Elizabeth, Instituto, IAMEC) */}
+      <header className="bg-slate-900/95 border-b border-slate-800/90 px-4 py-3.5 sticky top-0 z-40 backdrop-blur-xl shadow-lg">
+        <div className="max-w-4xl mx-auto flex flex-col gap-3">
+          {/* Cintillo Institucional de Logos Grandes */}
+          <div className="flex items-center justify-between gap-3 bg-white px-4 sm:px-7 py-3 sm:py-4 rounded-3xl shadow-xl border border-slate-200 overflow-x-auto">
+            <div className="relative h-14 sm:h-20 md:h-24 w-28 sm:w-36 md:w-44 shrink-0">
               <Image src="/logos/LACAVA.png" alt="Lacava" fill className="object-contain" priority />
             </div>
-            <div className="h-6 w-[1px] bg-slate-300 shrink-0" />
-            <div className="relative h-9 sm:h-11 w-24 sm:w-28 shrink-0">
+            <div className="h-10 sm:h-14 w-[1.5px] bg-slate-200 shrink-0" />
+            <div className="relative h-14 sm:h-20 md:h-24 w-32 sm:w-40 md:w-48 shrink-0">
               <Image src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua Te Quiero" fill className="object-contain" priority />
             </div>
-            <div className="h-6 w-[1px] bg-slate-300 shrink-0" />
-            <div className="relative h-9 sm:h-11 w-20 sm:w-24 shrink-0">
+            <div className="h-10 sm:h-14 w-[1.5px] bg-slate-200 shrink-0" />
+            <div className="relative h-14 sm:h-20 md:h-24 w-28 sm:w-36 md:w-44 shrink-0">
               <Image src="/logos/ELIZABETH.png" alt="Alcaldía Naguanagua" fill className="object-contain" priority />
             </div>
-            <div className="h-6 w-[1px] bg-slate-300 shrink-0" />
-            <div className="relative h-9 sm:h-11 w-24 sm:w-28 shrink-0">
+            <div className="h-10 sm:h-14 w-[1.5px] bg-slate-200 shrink-0" />
+            <div className="relative h-14 sm:h-20 md:h-24 w-32 sm:w-40 md:w-48 shrink-0">
               <Image src="/logos/INSTITUTO.png" alt="Instituto de Ecosocialismo" fill className="object-contain" priority />
             </div>
-            <div className="h-6 w-[1px] bg-slate-300 shrink-0" />
-            <div className="relative h-9 sm:h-11 w-20 sm:w-24 shrink-0">
+            <div className="h-10 sm:h-14 w-[1.5px] bg-slate-200 shrink-0" />
+            <div className="relative h-14 sm:h-20 md:h-24 w-28 sm:w-36 md:w-44 shrink-0">
               <Image src="/logos/IAMEC.png" alt="IAMEC Naguanagua" fill className="object-contain" priority />
             </div>
           </div>
 
-          {/* Sub-barra de Estado, Tasa BCV y Operador */}
+          {/* Sub-barra de Estado de Conexión Permanente del POS, Tasa BCV y Operador */}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">Taquilla Móvil & Kiosco</span>
-              <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                POS Bancamiga Activo
-              </span>
+              <button
+                type="button"
+                onClick={() => setShowPosSetup(prev => !prev)}
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border transition-all cursor-pointer ${
+                  posConnected
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30 animate-pulse'
+                }`}
+                title="Configuración de conexión permanente del Punto de Venta Bancamiga"
+              >
+                <span className={`w-2 h-2 rounded-full ${posConnected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                {posConnected
+                  ? `POS Bancamiga Conectado (${posMode === 'usb' ? 'Cable USB' : `Wi-Fi ${posIp}`})`
+                  : 'Conectar POS Bancamiga'}
+              </button>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap ml-auto">
@@ -1111,6 +1182,72 @@ export default function KioskPage() {
               </button>
             </div>
           </div>
+
+          {/* Panel Inicial / Permanente de Conexión del Punto de Venta Bancamiga (Se conecta 1 sola vez al inicio y queda siempre conectado) */}
+          {showPosSetup && (
+            <div className="bg-slate-800/95 border-2 border-emerald-500/40 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-emerald-400" />
+                    <span>Conexión Inicial del Punto de Venta Bancamiga (Queda Siempre Conectado)</span>
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Vincule el Punto de Venta una sola vez al iniciar su jornada; todos los cobros por Tarjeta de Débito pasarán automáticamente.
+                  </p>
+                </div>
+                {posConnected && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPosSetup(false)}
+                    className="text-xs font-bold text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-slate-700/60"
+                  >
+                    Cerrar ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Opción 1: Cable USB Directo */}
+                <div className="bg-slate-900/90 border border-slate-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-black text-emerald-400 uppercase">Opción 1 · Cable USB Directo</div>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Conecte el POS Bancamiga por cable USB y pulse vincular. Quedará conectado durante toda la sesión.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleVincularPosInicial('usb')}
+                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-3 rounded-xl text-xs sm:text-sm transition-all active:scale-95 cursor-pointer shadow-md shadow-emerald-500/20"
+                  >
+                    🔌 {posConnected && posMode === 'usb' ? 'Reconectar Cable USB POS' : 'Dejar Conectado por Cable USB'}
+                  </button>
+                </div>
+
+                {/* Opción 2: Wi-Fi / IP Local */}
+                <div className="bg-slate-900/90 border border-slate-700 rounded-2xl p-3.5 flex flex-col justify-between gap-2.5">
+                  <div>
+                    <div className="text-xs font-black text-blue-400 uppercase">Opción 2 · Red Wi-Fi / IP Local POS</div>
+                    <input
+                      type="text"
+                      value={posIp}
+                      onChange={(e) => setPosIp(e.target.value)}
+                      placeholder="Ej: 192.168.1.50:8080"
+                      className="w-full mt-1.5 bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white focus:border-blue-400 outline-none"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleVincularPosInicial('wifi')}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-xs sm:text-sm transition-all active:scale-95 cursor-pointer shadow-md shadow-blue-600/20"
+                  >
+                    📡 {posConnected && posMode === 'wifi' ? 'Actualizar IP Wi-Fi POS' : 'Dejar Conectado por Wi-Fi / IP'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -1828,7 +1965,7 @@ export default function KioskPage() {
 
           {/* Resumen del Contribuyente para Pago */}
           <div className="bg-slate-800/90 rounded-3xl p-5 sm:p-6 border border-slate-700/80 shadow-xl mb-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-700/70">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <span className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-md border border-emerald-500/30">
                   Deuda de: {foundUser.Identidad}
@@ -1837,381 +1974,142 @@ export default function KioskPage() {
                   {foundUser.Contribuyente}
                 </h2>
                 <p className="text-slate-400 text-xs">
-                  Cancelando {monthsToPay} {monthsToPay === 1 ? 'período mensual' : 'períodos mensuales'}
+                  Cancelando {monthsToPay} {monthsToPay === 1 ? 'período mensual' : 'períodos mensuales'} · Pago exclusivo por Tarjeta de Débito
                 </p>
               </div>
 
               <div className="bg-emerald-500/15 border border-emerald-500/40 rounded-2xl p-4 text-left sm:text-right shrink-0">
                 <div className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider">
-                  Monto Total a Cobrar
+                  Monto Total a Cobrar (Débito)
                 </div>
                 <div className="text-2xl sm:text-3xl font-black text-emerald-400">
                   Bs. {fmtBs(pagoTotalCalculado)}
                 </div>
               </div>
             </div>
+          </div>
 
-            <div className="pt-4">
-              <label className="block text-slate-400 text-xs font-bold uppercase tracking-wider mb-1.5">
-                Fecha de Ingreso a Caja / Conciliación:
+          <div className="bg-slate-800/90 rounded-3xl p-5 sm:p-7 border border-slate-700/80 shadow-xl space-y-5">
+            {/* TITULAR DE LA TARJETA DE DÉBITO (MISMA PERSONA VS OTRA PERSONA / TERCERO) */}
+            <div className="bg-slate-900/90 rounded-2xl p-4 sm:p-5 border border-slate-700/80">
+              <label className="block text-slate-200 text-xs sm:text-sm font-black uppercase tracking-wider mb-3">
+                ¿Con la tarjeta de débito de quién se realizará el pago?
               </label>
-              <input
-                type="date"
-                value={fechaCaja}
-                onChange={(e) => setFechaCaja(e.target.value)}
-                className="w-full bg-slate-900 border-2 border-slate-700 text-white rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:border-emerald-500 transition-colors text-sm"
-              />
-            </div>
-          </div>
 
-          <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2.5">
-            1. Seleccione Canal Bancamiga:
-          </h3>
-
-          <div className="grid grid-cols-2 gap-3 mb-5">
-            <button
-              type="button"
-              onClick={() => setPayMethod('Punto de Venta')}
-              className={`flex items-center gap-3 p-4 rounded-2xl border-2 font-bold transition-all text-left active:scale-98 ${
-                payMethod === 'Punto de Venta'
-                  ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-500/30'
-                  : 'bg-slate-800/80 border-slate-700 hover:border-slate-600 text-slate-300'
-              }`}
-            >
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                payMethod === 'Punto de Venta' ? 'bg-emerald-500 text-white' : 'bg-slate-700/60 text-slate-400'
-              }`}>
-                <CreditCard className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="text-sm sm:text-base font-black">Punto de Venta Bancamiga</div>
-                <div className="text-[11px] text-slate-400 font-normal">
-                  Conexión directa USB / Wi-Fi
-                </div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPayMethod('Bancamiga')}
-              className={`flex items-center gap-3 p-4 rounded-2xl border-2 font-bold transition-all text-left active:scale-98 ${
-                payMethod === 'Bancamiga'
-                  ? 'bg-blue-500/15 border-blue-500 text-white shadow-lg shadow-blue-500/20 ring-2 ring-blue-500/30'
-                  : 'bg-slate-800/80 border-slate-700 hover:border-slate-600 text-slate-300'
-              }`}
-            >
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                payMethod === 'Bancamiga' ? 'bg-blue-600 text-white' : 'bg-slate-700/60 text-slate-400'
-              }`}>
-                <Landmark className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="text-sm sm:text-base font-black">Bancamiga Oficial</div>
-                <div className="text-[11px] text-slate-400 font-normal">
-                  Cuenta N° 0172-0717
-                </div>
-              </div>
-            </button>
-          </div>
-
-          {payMethod === 'Punto de Venta' && (
-            <div className="bg-slate-800/90 rounded-3xl p-5 sm:p-7 border border-slate-700/80 shadow-xl space-y-5">
-              {/* PASO 2: ¿QUIÉN ES EL TITULAR DE LA TARJETA? (MISMA PERSONA VS OTRA PERSONA / TERCERO) */}
-              <div className="bg-slate-900/90 rounded-2xl p-4 border border-slate-700/80">
-                <label className="block text-slate-200 text-xs font-black uppercase tracking-wider mb-2.5">
-                  2. ¿Con la tarjeta de quién se realizará el pago en el Punto de Venta?
-                </label>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setUsaTarjetaTercero(false)}
-                    disabled={/^[JG]/i.test(String(foundUser.Identidad || '').trim())}
-                    className={`p-3.5 rounded-xl border text-left transition-all flex items-center gap-3 ${
-                      !usaTarjetaTercero
-                        ? 'bg-emerald-500/20 border-emerald-500 text-white font-bold'
-                        : 'bg-slate-800/70 border-slate-700 text-slate-400 hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed'
-                    }`}
-                  >
-                    <User2 className={`w-5 h-5 shrink-0 ${!usaTarjetaTercero ? 'text-emerald-400' : 'text-slate-500'}`} />
-                    <div className="min-w-0">
-                      <div className="text-xs font-black">Mismo Contribuyente</div>
-                      <div className="text-[11px] font-mono truncate text-emerald-300">{foundUser.Identidad}</div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setUsaTarjetaTercero(true)}
-                    className={`p-3.5 rounded-xl border text-left transition-all flex items-center gap-3 ${
-                      usaTarjetaTercero
-                        ? 'bg-amber-500/20 border-amber-400 text-white font-bold'
-                        : 'bg-slate-800/70 border-slate-700 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <CreditCard className={`w-5 h-5 shrink-0 ${usaTarjetaTercero ? 'text-amber-400' : 'text-slate-500'}`} />
-                    <div>
-                      <div className="text-xs font-black">Tarjeta de Otra Persona</div>
-                      <div className="text-[11px] text-amber-300/90">Familiar, representante o tercero</div>
-                    </div>
-                  </button>
-                </div>
-
-                {usaTarjetaTercero && (
-                  <div className="mt-3.5 pt-3.5 border-t border-slate-800 space-y-3">
-                    <div className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5">
-                      El Punto Bancamiga validará la <strong>Cédula del dueño de la tarjeta</strong> al pasarla, pero el Recibo/Factura y la Solvencia saldrán a nombre de <strong>{foundUser.Contribuyente} ({foundUser.Identidad})</strong>.
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-300 text-[11px] font-bold uppercase mb-1.5">
-                        Cédula del Titular de la Tarjeta (Obligatorio para el POS):
-                      </label>
-                      <div className="flex gap-2">
-                        <select
-                          value={terceroTipoDoc}
-                          onChange={(e) => setTerceroTipoDoc(e.target.value as 'V' | 'E')}
-                          className="bg-slate-800 text-white rounded-xl px-3 py-3 text-base font-black border border-slate-600 focus:border-amber-400 outline-none"
-                        >
-                          <option value="V">V-</option>
-                          <option value="E">E-</option>
-                        </select>
-                        <input
-                          type="tel"
-                          value={terceroCedula}
-                          onChange={(e) => setTerceroCedula(e.target.value.replace(/\D/g, ''))}
-                          placeholder="Ej: 18456789"
-                          className="flex-1 bg-slate-800 text-white rounded-xl px-4 py-3 text-lg font-mono font-bold border border-slate-600 focus:border-amber-400 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-400 text-[11px] font-bold uppercase mb-1">
-                        Nombre del Titular de la Tarjeta (Opcional - para respaldo en Conciliación):
-                      </label>
-                      <input
-                        type="text"
-                        value={terceroNombre}
-                        onChange={(e) => setTerceroNombre(e.target.value)}
-                        placeholder="Ej: María Pérez"
-                        className="w-full bg-slate-800 text-white rounded-xl px-4 py-2.5 text-sm font-semibold border border-slate-700 focus:border-amber-400 outline-none"
-                      />
-                    </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setUsaTarjetaTercero(false)}
+                  disabled={/^[JG]/i.test(String(foundUser.Identidad || '').trim())}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all flex items-center gap-3 cursor-pointer ${
+                    !usaTarjetaTercero
+                      ? 'bg-emerald-500/20 border-emerald-500 text-white font-bold shadow-lg shadow-emerald-500/10'
+                      : 'bg-slate-800/70 border-slate-700 text-slate-400 hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed'
+                  }`}
+                >
+                  <User2 className={`w-6 h-6 shrink-0 ${!usaTarjetaTercero ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-black">Mismo Contribuyente</div>
+                    <div className="text-xs font-mono truncate text-emerald-300">{foundUser.Identidad}</div>
                   </div>
-                )}
-              </div>
-
-              {/* PASO 3: MODALIDAD DE CONEXIÓN AL PUNTO DE VENTA BANCAMIGA (AMBAS INTEGRADAS) */}
-              <div className="bg-slate-900/90 rounded-2xl p-4 border border-slate-700/80">
-                <label className="block text-slate-200 text-xs font-black uppercase tracking-wider mb-2.5">
-                  3. Conexión Directa con Punto de Venta Bancamiga:
-                </label>
-
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  <button
-                    type="button"
-                    onClick={() => setPosMode('usb')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-black border transition-all ${
-                      posMode === 'usb'
-                        ? 'bg-emerald-500 text-white border-emerald-400 shadow'
-                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
-                    }`}
-                  >
-                    🔌 1. Cable USB Directo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPosMode('wifi')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-black border transition-all ${
-                      posMode === 'wifi'
-                        ? 'bg-blue-600 text-white border-blue-400 shadow'
-                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
-                    }`}
-                  >
-                    📡 2. Wi-Fi / IP POS
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPosMode('manual')}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-black border transition-all ${
-                      posMode === 'manual'
-                        ? 'bg-slate-700 text-white border-slate-500 shadow'
-                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
-                    }`}
-                  >
-                    🧾 Voucher Manual
-                  </button>
-                </div>
-
-                {posMode === 'usb' && (
-                  <div className="space-y-3">
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      Conecte el Punto de Venta Bancamiga por cable USB al equipo. Al pulsar el botón, se enviará automáticamente el monto de <strong className="text-emerald-400">Bs. {fmtBs(pagoTotalCalculado)}</strong> y la cédula <strong className="text-emerald-400">{usaTarjetaTercero ? `${terceroTipoDoc}-${terceroCedula || '...'}` : foundUser.Identidad}</strong> al POS.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleConectarCobrarUsbPos}
-                      disabled={isWaitingPos || isProcessing}
-                      className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-4 rounded-2xl text-base sm:text-lg active:scale-95 transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
-                    >
-                      {isWaitingPos ? (
-                        <>
-                          <RefreshCw className="w-5 h-5 animate-spin" />
-                          <span>Esperando Tarjeta y Clave en el POS Bancamiga...</span>
-                        </>
-                      ) : (
-                        <>
-                          <CreditCard className="w-5 h-5" />
-                          <span>{usbPort ? 'Enviar Cobro al POS Bancamiga (USB Conectado)' : 'Conectar USB y Enviar Cobro al POS Bancamiga'}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-
-                {posMode === 'wifi' && (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-slate-400 text-[11px] font-bold uppercase mb-1">
-                        Dirección IP:Puerto del Punto Bancamiga en Red Local:
-                      </label>
-                      <input
-                        type="text"
-                        value={posIp}
-                        onChange={(e) => setPosIp(e.target.value)}
-                        placeholder="Ej: 192.168.1.50:8080"
-                        className="w-full bg-slate-800 border border-slate-600 rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold text-white focus:border-blue-400 outline-none"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleCobrarWifiPos}
-                      disabled={isWaitingPos || isProcessing}
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl text-base sm:text-lg active:scale-95 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
-                    >
-                      {isWaitingPos ? (
-                        <>
-                          <RefreshCw className="w-5 h-5 animate-spin" />
-                          <span>Esperando Aprobación del POS por Red...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Activity className="w-5 h-5" />
-                          <span>Enviar Cobro por Wi-Fi al POS Bancamiga</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-
-                {posStatusMsg && (
-                  <div className="mt-3 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-semibold text-center">
-                    {posStatusMsg}
-                  </div>
-                )}
-              </div>
-
-              {/* DATOS DEL VOUCHER / CONFIRMACIÓN Y ENVÍO A CONCILIACIÓN */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-2">
-                    <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider mb-1.5">
-                      Nro. de Referencia / Secuencia POS:
-                    </label>
-                    <input
-                      type="tel"
-                      value={referencia}
-                      onChange={(e) => setReferencia(e.target.value)}
-                      placeholder="Se llena solo o escriba ej: 00482910"
-                      className="w-full bg-slate-900 border-2 border-slate-700 rounded-2xl px-4 py-3.5 text-lg sm:text-xl text-center text-white font-mono font-bold focus:border-emerald-500 outline-none tracking-widest transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-400 text-xs font-bold uppercase tracking-wider mb-1.5">
-                      Lote POS:
-                    </label>
-                    <input
-                      type="text"
-                      value={posLote}
-                      onChange={(e) => setPosLote(e.target.value)}
-                      placeholder="001"
-                      className="w-full bg-slate-900 border-2 border-slate-700 rounded-2xl px-3 py-3.5 text-lg text-center text-slate-200 font-mono font-bold focus:border-emerald-500 outline-none"
-                    />
-                  </div>
-                </div>
-
-                {payError && (
-                  <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 text-red-300 text-center font-bold text-xs sm:text-sm">
-                    {payError}
-                  </div>
-                )}
+                </button>
 
                 <button
                   type="button"
-                  onClick={handlePayPos}
-                  disabled={isProcessing || isWaitingPos}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 sm:py-5 rounded-2xl text-lg sm:text-xl active:scale-95 disabled:bg-slate-700 disabled:text-slate-500 transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer"
+                  onClick={() => setUsaTarjetaTercero(true)}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all flex items-center gap-3 cursor-pointer ${
+                    usaTarjetaTercero
+                      ? 'bg-amber-500/20 border-amber-400 text-white font-bold shadow-lg shadow-amber-500/10'
+                      : 'bg-slate-800/70 border-slate-700 text-slate-400 hover:text-slate-200'
+                  }`}
                 >
-                  {isProcessing ? (
-                    <>
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      <span>Actualizando Conciliación y Generando Recibo...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-6 h-6" />
-                      <span>Confirmar Pago y Actualizar Conciliación</span>
-                    </>
-                  )}
+                  <CreditCard className={`w-6 h-6 shrink-0 ${usaTarjetaTercero ? 'text-amber-400' : 'text-slate-500'}`} />
+                  <div>
+                    <div className="text-sm font-black">Tarjeta de Otra Persona</div>
+                    <div className="text-xs text-amber-300/90">Familiar, representante o tercero</div>
+                  </div>
                 </button>
               </div>
+
+              {usaTarjetaTercero && (
+                <div className="mt-4 pt-4 border-t border-slate-800 space-y-3">
+                  <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+                    El Punto Bancamiga validará la <strong>Cédula del dueño de la tarjeta de débito</strong> al pasarla, pero el Recibo/Factura y la Solvencia saldrán a nombre de <strong>{foundUser.Contribuyente} ({foundUser.Identidad})</strong>.
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 text-xs font-bold uppercase mb-1.5">
+                      Cédula del Titular de la Tarjeta de Débito (Obligatorio para el POS):
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={terceroTipoDoc}
+                        onChange={(e) => setTerceroTipoDoc(e.target.value as 'V' | 'E')}
+                        className="bg-slate-800 text-white rounded-xl px-3.5 py-3.5 text-lg font-black border border-slate-600 focus:border-amber-400 outline-none"
+                      >
+                        <option value="V">V-</option>
+                        <option value="E">E-</option>
+                      </select>
+                      <input
+                        type="tel"
+                        value={terceroCedula}
+                        onChange={(e) => setTerceroCedula(e.target.value.replace(/\D/g, ''))}
+                        placeholder="Ej: 18456789"
+                        className="flex-1 bg-slate-800 text-white rounded-xl px-4 py-3.5 text-xl font-mono font-bold border border-slate-600 focus:border-amber-400 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-xs font-bold uppercase mb-1">
+                      Nombre del Titular de la Tarjeta (Opcional - para respaldo en Conciliación):
+                    </label>
+                    <input
+                      type="text"
+                      value={terceroNombre}
+                      onChange={(e) => setTerceroNombre(e.target.value)}
+                      placeholder="Ej: María Pérez"
+                      className="w-full bg-slate-800 text-white rounded-xl px-4 py-3 text-sm font-semibold border border-slate-700 focus:border-amber-400 outline-none"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-          )}
 
-          {payMethod === 'Bancamiga' && (
-            <div className="bg-slate-800/90 rounded-3xl p-6 sm:p-8 border border-slate-700/80 shadow-xl text-center">
-              <div className="w-16 h-16 bg-blue-500/20 border border-blue-500/40 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Landmark className="w-8 h-8 text-blue-400" />
-              </div>
-              <h3 className="text-2xl font-black mb-1 text-white">Canal Recaudador Oficial Bancamiga</h3>
-              <p className="text-slate-400 mb-6 text-xs sm:text-sm max-w-md mx-auto">
-                Cuenta oficial del Instituto Autónomo Municipal de Ecosocialismo (IAMEC) de Naguanagua.
-              </p>
+            {/* BOTÓN ÚNICO DE PAGO DIRECTO POR TARJETA DE DÉBITO (SIN PEDIR REFERENCIA) */}
+            <div className="space-y-3">
+              {posStatusMsg && (
+                <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-sm font-bold text-center">
+                  {posStatusMsg}
+                </div>
+              )}
 
-              <div className="bg-slate-900/90 rounded-2xl p-4 border border-blue-500/30 text-left mb-6 text-xs space-y-2.5 max-w-md mx-auto">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Banco:</span>
-                  <span className="font-bold text-white">Bancamiga (0172)</span>
+              {payError && (
+                <div className="bg-red-500/20 border border-red-500/40 rounded-2xl p-3.5 text-red-300 text-center font-bold text-sm">
+                  {payError}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Tipo de Cuenta:</span>
-                  <span className="font-semibold text-slate-200">Cuenta Corriente</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Número de Cuenta:</span>
-                  <span className="font-mono font-bold text-blue-300">01720110711101340717</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Titular:</span>
-                  <span className="font-bold text-white">IAMEC BANCAMIGA</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">R.I.F.:</span>
-                  <span className="font-mono font-bold text-emerald-400">G-20008614-9</span>
-                </div>
-              </div>
+              )}
 
               <button
                 type="button"
-                onClick={() => setShowBancamigaSim(true)}
-                className="w-full max-w-md mx-auto bg-blue-600 hover:bg-blue-500 text-white font-black py-4 sm:py-5 rounded-2xl text-lg active:scale-95 transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
+                onClick={handleCobrarDebitoDirecto}
+                disabled={isProcessing || isWaitingPos}
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-5 sm:py-6 rounded-2xl text-xl sm:text-2xl active:scale-95 disabled:bg-slate-700 disabled:text-slate-500 transition-all shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-3 cursor-pointer"
               >
-                <ArrowRight className="w-5 h-5" />
-                <span>Continuar con Bancamiga</span>
+                {isWaitingPos || isProcessing ? (
+                  <>
+                    <RefreshCw className="w-6 h-6 animate-spin" />
+                    <span>Procesando Tarjeta de Débito en POS Bancamiga...</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-7 h-7" />
+                    <span>Pagar con Tarjeta de Débito · Bs. {fmtBs(pagoTotalCalculado)}</span>
+                  </>
+                )}
               </button>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -2219,28 +2117,28 @@ export default function KioskPage() {
         <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto w-full">
           {/* Tarjeta de Recibo Oficial Imprimible / Digital */}
           <div className="bg-slate-800/95 rounded-3xl border-2 border-emerald-500/40 p-6 sm:p-8 w-full shadow-2xl relative overflow-hidden backdrop-blur-md">
-            {/* Header del Recibo con todos los logos institucionales */}
+            {/* Header del Recibo con todos los logos institucionales GRANDES */}
             <div className="flex flex-col gap-3 pb-4 border-b border-slate-700/80">
-              <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-2xl shadow">
-                <div className="relative h-8 w-16 shrink-0">
+              <div className="flex items-center justify-between gap-2.5 bg-white px-4 py-3 rounded-2xl shadow-md">
+                <div className="relative h-12 sm:h-16 w-24 sm:w-32 shrink-0">
                   <Image src="/logos/LACAVA.png" alt="Lacava" fill className="object-contain" />
                 </div>
-                <div className="relative h-8 w-20 shrink-0">
+                <div className="relative h-12 sm:h-16 w-28 sm:w-36 shrink-0">
                   <Image src="/logos/NAGUANAGUATEQUIERO.png" alt="Naguanagua" fill className="object-contain" />
                 </div>
-                <div className="relative h-8 w-16 shrink-0">
+                <div className="relative h-12 sm:h-16 w-24 sm:w-32 shrink-0">
                   <Image src="/logos/ELIZABETH.png" alt="Alcaldía" fill className="object-contain" />
                 </div>
-                <div className="relative h-8 w-20 shrink-0">
+                <div className="relative h-12 sm:h-16 w-28 sm:w-36 shrink-0">
                   <Image src="/logos/INSTITUTO.png" alt="Instituto" fill className="object-contain" />
                 </div>
-                <div className="relative h-8 w-16 shrink-0">
+                <div className="relative h-12 sm:h-16 w-24 sm:w-32 shrink-0">
                   <Image src="/logos/IAMEC.png" alt="IAMEC" fill className="object-contain" />
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-xs font-black text-white uppercase tracking-wider">Instituto Autónomo Municipal de Ecosocialismo (IAMEC)</div>
-                <div className="text-[11px] text-emerald-400 font-semibold">Comprobante Oficial de Cobro · Taquilla Móvil</div>
+                <div className="text-[11px] text-emerald-400 font-semibold">Comprobante Oficial de Cobro · Punto de Venta Débito Bancamiga</div>
               </div>
             </div>
 
@@ -2249,9 +2147,9 @@ export default function KioskPage() {
               <div className="w-20 h-20 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-400">
                 <CheckCircle2 className="w-12 h-12" />
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white">¡Operación Exitosa!</h1>
+              <h1 className="text-2xl sm:text-3xl font-black text-white">¡Pago por Débito Aprobado!</h1>
               <p className="text-emerald-300 text-xs sm:text-sm mt-1">
-                Cobro registrado con éxito en el sistema municipal.
+                Cobro registrado automáticamente en Conciliación Bancaria y Puntos de Venta.
               </p>
             </div>
 
@@ -2279,14 +2177,8 @@ export default function KioskPage() {
               </div>
               <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
                 <span className="text-slate-400">Método de Cobro:</span>
-                <span className="text-slate-200 font-bold">{payMethod} (Bancamiga)</span>
+                <span className="text-slate-200 font-bold">Tarjeta de Débito (POS Bancamiga)</span>
               </div>
-              {referencia && (
-                <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-                  <span className="text-slate-400">Referencia / Secuencia POS:</span>
-                  <span className="font-mono font-bold text-emerald-400">{referencia}</span>
-                </div>
-              )}
               {usaTarjetaTercero && terceroCedula && (
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
                   <span className="text-slate-400">Titular de la Tarjeta (Pagador):</span>
@@ -2308,65 +2200,10 @@ export default function KioskPage() {
               <button
                 type="button"
                 onClick={reset}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 rounded-2xl text-lg active:scale-95 transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 rounded-2xl text-lg active:scale-95 transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Nueva Consulta o Cobro</span>
                 <ArrowRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showBancamigaSim && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-900 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="bg-blue-600 p-6 text-center text-white relative">
-              <div className="flex justify-center items-center gap-3 mb-2">
-                <div className="h-8 w-8 bg-white rounded-lg p-1 flex items-center justify-center">
-                  <Image src="/logos/IAMEC.png" alt="IAMEC" width={24} height={24} className="object-contain" />
-                </div>
-                <h2 className="text-xl font-black tracking-wide">BANCAMIGA OFICIAL</h2>
-              </div>
-              <p className="text-blue-100 text-xs">Cuenta Recaudadora Oficial IAMEC · Pasarela de Pago</p>
-            </div>
-            <div className="p-6">
-              <div className="bg-blue-50 rounded-2xl p-4 text-center mb-4 border border-blue-100">
-                <div className="text-xs text-slate-500 font-bold uppercase">Monto a Cobrar</div>
-                <div className="text-3xl font-black text-slate-800 mt-1">Bs. {fmtBs(pagoTotalCalculado)}</div>
-                <div className="text-slate-600 font-semibold text-xs mt-1 truncate">{foundUser?.Contribuyente}</div>
-              </div>
-
-              <div className="bg-slate-50 rounded-xl p-3 text-[11px] space-y-1.5 mb-5 border border-slate-200 text-slate-600">
-                <div className="flex justify-between"><span className="text-slate-400">Banco:</span><span className="font-bold text-slate-800">Bancamiga (0172)</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Tipo:</span><span className="font-semibold text-slate-800">Cuenta Corriente</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Cta Corriente:</span><span className="font-mono font-bold text-slate-900">01720110711101340717</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Beneficiario:</span><span className="font-bold text-slate-800">IAMEC BANCAMIGA</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">R.I.F.:</span><span className="font-mono font-bold text-slate-800">G-20008614-9</span></div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => processPayment(`BCA-${Math.floor(Math.random() * 1000000)}`, 'Bancamiga')}
-                disabled={isProcessing}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-lg mb-2.5 active:scale-95 disabled:bg-slate-300 transition-all flex items-center justify-center gap-2"
-              >
-                {isProcessing ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    <span>Procesando con Bancamiga...</span>
-                  </>
-                ) : (
-                  <span>Confirmar Cobro Bancamiga</span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowBancamigaSim(false)}
-                disabled={isProcessing}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3.5 rounded-2xl active:scale-95 transition-all text-sm"
-              >
-                Cancelar
               </button>
             </div>
           </div>

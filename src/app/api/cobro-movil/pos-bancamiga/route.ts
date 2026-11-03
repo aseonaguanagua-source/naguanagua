@@ -20,10 +20,12 @@ export async function POST(request: Request) {
     const montoCentimos = Math.round((Number(monto) || 0) * 100);
     const cedulaNums = String(cedulaTarjetahabiente || '').replace(/\D/g, '');
 
-    // Intentar los endpoints estándar de integración local POS Bancamiga / PAX / Credicard / MegaSoft
+    // Intentar los endpoints estándar de integración local POS Bancamiga / PAX / Credicard / MegaSoft (Solo Débito)
     const payloadPos = {
       comando: 'COMPRA',
       accion: 'venta',
+      tipoCuenta: 'DEBITO',
+      modalidad: 'DEBITO',
       monto: Number(monto).toFixed(2),
       montoCentimos,
       cedula: cedulaNums,
