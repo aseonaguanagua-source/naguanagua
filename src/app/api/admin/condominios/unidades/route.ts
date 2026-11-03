@@ -85,6 +85,12 @@ export async function POST(req: Request) {
     const mesesIniciales = fila.aseo_pendiente_desde ? mesesPendientes(fila.aseo_pendiente_desde) : 0;
     const mmvInicial = fila.tarifa_mmv != null ? Number(fila.tarifa_mmv) : 1.98;
     const esResidencial = String(fila.actividad || '').toUpperCase().includes('RESIDENCIAL');
+    if (fila.identidad) {
+      await sb.from('contribuyentes').upsert({
+        identidad: fila.identidad,
+        nombre: fila.propietario || c.nombre,
+      }, { onConflict: 'identidad' });
+    }
     await sb.from('inmuebles').upsert({
       inmueble: fila.inmueble,
       contribuyente: fila.propietario || c.nombre,
@@ -147,7 +153,13 @@ export async function PATCH(req: Request) {
       const inmUpd: any = {};
       if ('inmueble' in upd && upd.inmueble) inmUpd.inmueble = upd.inmueble;
       if ('propietario' in upd && upd.propietario) inmUpd.contribuyente = upd.propietario;
-      if ('identidad' in upd && upd.identidad) inmUpd.identidad = upd.identidad;
+      if ('identidad' in upd && upd.identidad) {
+        inmUpd.identidad = upd.identidad;
+        await sb.from('contribuyentes').upsert({
+          identidad: upd.identidad,
+          nombre: upd.propietario || antes.propietario || antes.condominios?.nombre || upd.identidad,
+        }, { onConflict: 'identidad' });
+      }
       if ('agente_retencion' in cambios) inmUpd.agente_retencion = esAgente;
       if (_tel !== undefined) inmUpd.telefono = _tel;
       if (_cor !== undefined) inmUpd.correo_electronico = _cor;
