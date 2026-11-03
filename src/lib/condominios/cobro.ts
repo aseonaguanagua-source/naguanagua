@@ -197,8 +197,8 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
       : (sol.meses && sol.meses > 0 ? Math.min(nMesesMax, Math.floor(sol.meses)) : nMesesMax);
     const meses = r.deuda.porMes.slice(0, nMeses);
     const s = (k: 'baseBs' | 'multaBs' | 'ivaBs' | 'retencionBs') => r2(meses.reduce((a, m) => a + m[k], 0));
-    // ¿Las multas van en este cobro? Solo si el usuario lo tilda (o en soloMultas)
-    const permitirMultas = sol.soloMultas || sol.incluirMultas === true;
+    // ¿Las multas van en este cobro? Incluidas por defecto salvo que se desmarque incluirMultas
+    const permitirMultas = sol.soloMultas || sol.incluirMultas !== false;
     const multaMora = !permitirMultas ? 0 : s('multaBs');
     const multaMesesQueQuedan = !permitirMultas ? r.multaMeses : 0;
     const incluirAparte = permitirMultas;

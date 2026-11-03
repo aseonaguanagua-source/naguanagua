@@ -54,7 +54,7 @@ function Caja() {
   const [abonoLocales, setAbonoLocales] = useState(false);
   const [identidad, setIdentidad] = useState(sp.get('cedula') || '');
   const [soloMultas, setSoloMultas] = useState(false);
-  const [incluirMultas, setIncluirMultas] = useState(false);
+  const [incluirMultas, setIncluirMultas] = useState(true);
   const [modalContacto, setModalContacto] = useState(false);
   const [contactoTelefono, setContactoTelefono] = useState('');
   const [contactoCorreo, setContactoCorreo] = useState('');
@@ -390,7 +390,7 @@ function Caja() {
 
   /** unidad + todos=false → solo ese local; todos=true → todos los locales de ese dueño */
   const elegir = (cod: string, unidad?: any, todos = false) => {
-    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(false); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
+    setCodigo(cod); setRes(null); setQ(''); setClaves([]); setAbonoLocales(false); setMeses(''); setRecibo(null); setSoloMultas(false); setIncluirMultas(true); setOmitirMultaSeptiembre(false); setContactoOmitido(false);
     if (unidad && todos && unidad.identidad) {
       setModo('CONTRIBUYENTE'); setIdentidad(String(unidad.identidad).toUpperCase());
       router.replace(`/admin/condominios/caja?codigo=${cod}&cedula=${encodeURIComponent(unidad.identidad)}`);
@@ -402,7 +402,7 @@ function Caja() {
       router.replace(`/admin/condominios/caja?codigo=${cod}`);
     }
   };
-  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setAbonoLocales(false); setSoloMultas(false); setIncluirMultas(false); if (m === 'CONDOMINIO') setIdentidad(''); };
+  const cambiarModo = (m: 'CONDOMINIO' | 'CONTRIBUYENTE') => { setModo(m); setClaves([]); setAbonoLocales(false); setSoloMultas(false); setIncluirMultas(true); if (m === 'CONDOMINIO') setIdentidad(''); };
 
   // Calcular (cada vez que cambia la selección)
   useEffect(() => {
@@ -1197,6 +1197,7 @@ function Caja() {
                     setModo('CONDOMINIO');
                     setAbonoLocales(false);
                     setSoloMultas(false);
+                    setIncluirMultas(true);
                     setClaves([]);
                     setIdentidad('');
                   }}
@@ -1235,7 +1236,7 @@ function Caja() {
                     setModo('CONDOMINIO');
                     setAbonoLocales(true);
                     setSoloMultas(false);
-                    setIncluirMultas(false);
+                    setIncluirMultas(true);
                     setIdentidad('');
                   }}
                   className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${
@@ -1272,6 +1273,7 @@ function Caja() {
                   onClick={() => {
                     setModo('CONTRIBUYENTE');
                     setSoloMultas(false);
+                    setIncluirMultas(true);
                     setAbonoLocales(false);
                   }}
                   className={`text-left rounded-xl border-2 p-3.5 transition-all cursor-pointer relative flex flex-col justify-between ${

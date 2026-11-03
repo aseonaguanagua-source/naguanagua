@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       meses: b.meses ? Number(b.meses) : null,
       mesesPorUnidad: (b.mesesPorUnidad && typeof b.mesesPorUnidad === 'object') ? b.mesesPorUnidad : undefined,
       soloMultas: !!b.soloMultas,
-      incluirMultas: !!b.incluirMultas,
+      incluirMultas: b.incluirMultas !== undefined ? !!b.incluirMultas : true,
       omitirMultaSeptiembre: !!b.omitirMultaSeptiembre,
       tasaOverride: b.tasaOverride ? Number(b.tasaOverride) : undefined,
       fechaOverride: b.fechaOverride ? String(b.fechaOverride) : undefined,
