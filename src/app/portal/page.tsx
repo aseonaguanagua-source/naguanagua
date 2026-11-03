@@ -234,8 +234,8 @@ export default function PortalLogin() {
           <div className="pt-10 pb-6 px-8 text-center">
             <div className="flex justify-center mb-3">
               <img 
-                src="/logos/logo_global_rec.png" 
-                alt="Global Rec" 
+                src={isMobileApp ? "/logos/IAMEC.png" : "/logos/logo_global_rec.png"} 
+                alt={isMobileApp ? "IAMEC" : "Global Rec"} 
                 className="h-16 w-auto object-contain cursor-pointer relative" 
                 onDoubleClick={handleLogoDoubleClick}
                 title="Doble clic para opciones de desarrollo"
@@ -246,8 +246,12 @@ export default function PortalLogin() {
                 </div>
               )}
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Global Rec</h1>
-            <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-400 uppercase mt-0.5">Collection System</p>
+            {!isMobileApp && (
+              <>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">Global Rec</h1>
+                <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-400 uppercase mt-0.5">Collection System</p>
+              </>
+            )}
             <p className="text-sm font-bold text-slate-700 mt-3 uppercase tracking-widest">
               {isSetupMode ? 'Configurar Cuenta' : 'Soy Contribuyente'}
             </p>
@@ -462,7 +466,7 @@ export default function PortalLogin() {
 
             {/* Botón directo para cambiar a Modo Presidencia (exclusivo en la App Móvil) */}
             {isMobileApp && (
-              <div className="mt-5 pt-4 border-t border-slate-100">
+              <div className="mt-5 pt-4 border-t border-slate-100 space-y-3">
                 <Link
                   href="/presidencia/login"
                   className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#0d2a1e] to-[#133b2b] hover:from-[#133b2b] hover:to-[#1a4f3a] text-[#B8CD29] font-extrabold text-xs uppercase tracking-wider shadow-md border border-[#B8CD29]/30 transition-all"
@@ -470,6 +474,21 @@ export default function PortalLogin() {
                   <span>🏛️</span>
                   <span>Cambiar a Modo Presidencia</span>
                 </Link>
+
+                {/* Insignia Inferior Oficial Global Rec en la App */}
+                <div
+                  id="gl-app-bottom-brand-card"
+                  className="gl-sidebar-brand-card bg-white border-[2.5px] border-[#84cc16] rounded-2xl px-4 py-2.5 flex flex-col items-center justify-center text-center shadow-[0_6px_18px_rgba(132,204,22,0.28)]"
+                >
+                  <img
+                    src="/logos/logo_global_rec.png"
+                    alt="Global Rec"
+                    className="h-12 w-auto max-w-[200px] object-contain"
+                  />
+                  <span className="text-[9px] font-extrabold tracking-widest text-[#065f46] uppercase mt-1">
+                    Global Rec · Collection System
+                  </span>
+                </div>
               </div>
             )}
           </div>
