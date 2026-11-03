@@ -22,23 +22,12 @@ export default function PortalLogin() {
   const [error, setError] = useState('');
 
   const [devMode, setDevMode] = useState(false);
-  const [isMobileApp, setIsMobileApp] = useState(false);
   // Interruptor GLOBAL (system_config). Arranca en el valor por defecto hasta leer el servidor.
   const [enMantenimiento, setEnMantenimiento] = useState<boolean>(PORTAL_EN_MANTENIMIENTO);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const searchParams = new URLSearchParams(window.location.search);
-      const w = window as any;
-      if (
-        w.AndroidBridge ||
-        w.__GLOBAL_APK_ENHANCER_V6__ ||
-        searchParams.get('app') === '1' ||
-        localStorage.getItem('gl_is_apk') === '1'
-      ) {
-        localStorage.setItem('gl_is_apk', '1');
-        setIsMobileApp(true);
-      }
       const adminParam = searchParams.get('admin') || searchParams.get('master');
       if (adminParam === 'Sehile18-' || adminParam === '1756762') {
         localStorage.setItem('dev_mode_active', '1');
@@ -47,31 +36,6 @@ export default function PortalLogin() {
       } else if (localStorage.getItem('dev_mode_active') === '1' || localStorage.getItem('portal_master_active') === '1') {
         setDevMode(true);
       }
-
-      // Garantizar en vivo que el logo inferior (#gl-app-bottom-brand-card) sea SIEMPRE Global Rec
-      // incluso si una versión previa del APK intentó inyectar Global Green abajo
-      const enforceBottomGlobalRecLogo = () => {
-        const bottomCards = document.querySelectorAll('.px-8.pb-8 .gl-sidebar-brand-card, #gl-app-bottom-brand-card');
-        bottomCards.forEach((card, idx) => {
-          if (idx > 0 && card.parentElement) {
-            card.parentElement.removeChild(card);
-            return;
-          }
-          const img = card.querySelector('img');
-          if (img) {
-            if (img.getAttribute('alt') !== 'GR Collection System') {
-              img.setAttribute('alt', 'GR Collection System');
-            }
-            if (img.getAttribute('src') !== '/logos/brand_gr_oficial.png') {
-              img.setAttribute('src', '/logos/brand_gr_oficial.png');
-            }
-          }
-        });
-      };
-
-      enforceBottomGlobalRecLogo();
-      const timer = setInterval(enforceBottomGlobalRecLogo, 150);
-      return () => clearInterval(timer);
     }
   }, []);
 
@@ -484,29 +448,6 @@ export default function PortalLogin() {
               )}
             </form>
             )}
-
-            {/* Botón directo para cambiar a Modo Presidencia y Logo Global Rec abajo (exclusivo en la App Móvil) */}
-            <div className={isMobileApp ? 'mt-5 pt-4 border-t border-slate-100 space-y-3' : 'hidden'}>
-              <Link
-                href="/presidencia/login"
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#0d2a1e] to-[#133b2b] hover:from-[#133b2b] hover:to-[#1a4f3a] text-[#B8CD29] font-extrabold text-xs uppercase tracking-wider shadow-md border border-[#B8CD29]/30 transition-all"
-              >
-                <span>🏛️</span>
-                <span>Cambiar a Modo Presidencia</span>
-              </Link>
-
-              {/* Logo Global Rec abajo con formato brillante en la pantalla principal de la App */}
-              <div
-                id="gl-app-bottom-brand-card"
-                className="gl-sidebar-brand-card bg-white border-[2.5px] border-[#84cc16] rounded-2xl px-4 py-2.5 flex flex-col items-center justify-center text-center shadow-[0_6px_18px_rgba(132,204,22,0.35)]"
-              >
-                <img
-                  src="/logos/brand_gr_oficial.png"
-                  alt="GR Collection System"
-                  className="h-12 w-auto max-w-[210px] object-contain"
-                />
-              </div>
-            </div>
           </div>
         </div>
       </div>
