@@ -86,7 +86,7 @@ export async function GET(request: Request) {
     }
 
     if (modo === 'report_datasets') {
-      const [rawInmuebles, rawContribs, saldosFavor, empleados] = await Promise.all([
+      const [rawInmuebles, rawContribs, saldosFavor, empleadosGestion, trabajadoresList] = await Promise.all([
         fetchAllRows(
           'inmuebles',
           'id,identidad,inmueble,contribuyente,tipo,clasificacion,direccion,actividad_principal,mmv_mes,cant_inmuebles,deuda_mmv,deuda_congelada_bs,saldo_favor_bs,multa_bs,meses_deuda,agente_retencion,estado,correo_electronico,telefono,es_condominio'
@@ -94,6 +94,7 @@ export async function GET(request: Request) {
         fetchAllRows('contribuyentes', '*'),
         fetchAllRows('saldos_favor', '*'),
         sb.from('gestion_empleados').select('*').then((r) => r.data || []),
+        sb.from('trabajadores').select('*').then((r) => r.data || []),
       ]);
       const contribMap = new Map<string, any>();
       rawContribs.forEach((c: any) => {
@@ -103,11 +104,41 @@ export async function GET(request: Request) {
         ...inm,
         contribuyentes: contribMap.get(inm.identidad) || null,
       }));
+      // Si saldos_favor no tiene registros sueltos, también incluir inmuebles con saldo_favor_bs > 0
+      const saldosCombinados = [...(saldosFavor || [])];
+      if (saldosCombinados.length === 0) {
+        mergedInmuebles.forEach((inm: any) => {
+          const sf = Number(inm.saldo_favor_bs) || 0;
+          if (sf > 0) {
+            saldosCombinados.push({
+              id: inm.id,
+              created_at: new Date().toISOString(),
+              identidad: inm.identidad,
+              nombre: inm.contribuyente || inm.contribuyentes?.nombre || inm.identidad,
+              concepto_original: `Saldo a favor en inmueble ${inm.inmueble || ''}`.trim(),
+              estado: 'Disponible',
+              monto_restante: sf,
+            });
+          }
+        });
+      }
+      const empleadosCombinados =
+        Array.isArray(empleadosGestion) && empleadosGestion.length > 0
+          ? empleadosGestion
+          : (trabajadoresList || []).map((t: any) => ({
+              cedula: t.cedula || t.usuario || '—',
+              nombre: t.nombre || t.usuario || 'Funcionario IAMEC',
+              cargo: t.rol || 'Operador',
+              departamento: 'IAMEC Naguanagua',
+              estatus: t.estado || 'Activo',
+              fecha_ingreso: t.created_at,
+              telefono: t.email || '—',
+            }));
       return NextResponse.json({
         success: true,
         contribuyentes: mergedInmuebles,
-        saldosFavor,
-        empleados,
+        saldosFavor: saldosCombinados,
+        empleados: empleadosCombinados,
       });
     }
 

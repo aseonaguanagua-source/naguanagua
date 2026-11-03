@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { descargarPdfBlob } from './PdfReports';
 import { supabase } from '@/lib/supabase';
 import {
   isResidencialInm,
@@ -419,5 +420,5 @@ export async function generarMorososPDF(
   doc.setTextColor(130, 130, 130);
   doc.text('* En rojo: 3 o más meses pendientes.', 14, finalY);
   doc.text('Sistema IAMEC Naguanagua  |  ' + todayStr, pageW - 14, finalY, { align: 'right' });
-  doc.save('CobranzasMorosos_' + todayStr.replace(/\//g, '-') + '.pdf');
+  descargarPdfBlob(doc, 'CobranzasMorosos_' + todayStr.replace(/\//g, '-') + '.pdf');
 }

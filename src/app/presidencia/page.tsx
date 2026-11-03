@@ -42,18 +42,18 @@ import {
 } from 'lucide-react';
 
 import { aplicarMontoReporte } from '@/app/(admin)/admin/reportes/montoReporte';
-import { generarMontoDiarioRecaudado } from '@/app/(admin)/admin/reportes/generators/MontoDiarioRecaudado';
-import { generarLibroVentas } from '@/app/(admin)/admin/reportes/generators/LibroVentas';
-import {
-  generarTotalPuntosVenta,
-  generarConciliacionTransferencias,
-} from '@/app/(admin)/admin/reportes/generators/ReportesCaja';
-import { generarReporteRecibosPagos } from '@/app/(admin)/admin/reportes/generators/ReporteRecibosPagos';
-import { generarMorososExcel, generarMorososPDF } from '@/app/(admin)/admin/reportes/generators/Morosos';
+import { generarMorososPDF } from '@/app/(admin)/admin/reportes/generators/Morosos';
 import { generarCorteCajaPDF, generarIngresoBancarioPDF } from '@/app/(admin)/admin/reportes/generators/PdfReports';
-import { generarSaldosFavorExcel } from '@/app/(admin)/admin/reportes/generators/SaldoAFavor';
-import { generarEmpleadosExcel } from '@/app/(admin)/admin/reportes/generators/Empleados';
-import { generarFiscalizacionExcel } from '@/app/(admin)/admin/reportes/generators/Fiscalizacion';
+import {
+  generarMontoDiarioRecaudadoPDF,
+  generarLibroVentasPDF,
+  generarTotalPuntosVentaPDF,
+  generarConciliacionTransferenciasPDF,
+  generarReporteRecibosPagosPDF,
+  generarSaldosFavorPDF,
+  generarEmpleadosPDF,
+  generarFiscalizacionPDF,
+} from '@/app/(admin)/admin/reportes/generators/PresidenciaPdfReports';
 
 type Moneda = 'BS' | 'EUR' | 'USD';
 type Periodo = 'hoy' | 'semana' | 'mes' | 'mes_pasado' | 'anio' | 'todo' | 'custom';
@@ -437,13 +437,13 @@ export default function PresidenciaDashboard() {
     return data;
   };
 
-  // Funciones de descarga de reportes oficiales del sistema interno
+  // Funciones de descarga de reportes oficiales del sistema interno (TODOS EN PDF EJECUTIVO)
   const handleDownloadReport = async (reportId: string, subTipo?: 'Diario' | 'Semanal' | 'Mensual') => {
     try {
       setDownloadingReport(subTipo ? `${reportId}_${subTipo}` : reportId);
 
       if (reportId === 'monto_diario') {
-        await generarMontoDiarioRecaudado({
+        await generarMontoDiarioRecaudadoPDF({
           pagos: pagosNormalizados,
           fechaInicio: fechaDesde,
           fechaFin: fechaHasta,
@@ -452,25 +452,21 @@ export default function PresidenciaDashboard() {
         return;
       }
 
-      if (reportId === 'morosos_excel' || reportId === 'morosos_pdf') {
+      if (reportId === 'morosos_pdf') {
         const res = await fetch('/api/presidencia/estadisticas?modo=morosos_export', {
           cache: 'no-store',
         });
         const json = await res.json();
         const facturasPendientes = json.facturasPendientes || [];
         const contribs = json.contribuyentes || [];
-        if (reportId === 'morosos_excel') {
-          await generarMorososExcel(facturasPendientes, contribs, tcmmv || 1);
-        } else {
-          await generarMorososPDF(facturasPendientes, contribs, tcmmv || 1);
-        }
+        await generarMorososPDF(facturasPendientes, contribs, tcmmv || 1);
         return;
       }
 
       const datasets = await ensureReportDatasets();
 
       if (reportId === 'libro_ventas') {
-        generarLibroVentas(
+        await generarLibroVentasPDF(
           pagosPeriodo,
           datasets.contribuyentes,
           subTipo || 'Mensual',
@@ -478,26 +474,32 @@ export default function PresidenciaDashboard() {
           fechaHasta
         );
       } else if (reportId === 'puntos_venta') {
-        generarTotalPuntosVenta(pagosPeriodo, fechaDesde, fechaHasta, datasets.contribuyentes);
+        await generarTotalPuntosVentaPDF(pagosPeriodo, fechaDesde, fechaHasta, datasets.contribuyentes);
       } else if (reportId === 'conciliacion_bancaria') {
-        generarConciliacionTransferencias(
+        await generarConciliacionTransferenciasPDF(
           pagosPeriodo,
           datasets.contribuyentes,
           fechaDesde,
           fechaHasta
         );
       } else if (reportId === 'recibos_pagos') {
-        generarReporteRecibosPagos(
+        await generarReporteRecibosPagosPDF(
           pagosPeriodo,
           datasets.contribuyentes,
           fechaDesde,
           fechaHasta
         );
       } else if (reportId === 'corte_caja_pdf') {
-        generarCorteCajaPDF(pagosPeriodo, datasets.contribuyentes, fechaDesde, fechaHasta);
+        generarCorteCajaPDF(
+          pagosPeriodo.length > 0 ? pagosPeriodo : pagosNormalizados,
+          datasets.contribuyentes,
+          fechaDesde,
+          fechaHasta,
+          tcmmv || 1
+        );
       } else if (reportId === 'ingreso_bancario_pdf') {
         generarIngresoBancarioPDF(
-          pagosPeriodo,
+          pagosPeriodo.length > 0 ? pagosPeriodo : pagosNormalizados,
           datasets.contribuyentes,
           subTipo || 'Mensual',
           fechaDesde,
@@ -505,17 +507,19 @@ export default function PresidenciaDashboard() {
         );
       } else if (reportId === 'saldos_favor') {
         const mesActual = new Date().toLocaleString('es-VE', { month: 'long' });
-        generarSaldosFavorExcel(datasets.saldosFavor, mesActual);
+        await generarSaldosFavorPDF(datasets.saldosFavor, mesActual);
       } else if (reportId === 'empleados') {
-        generarEmpleadosExcel(datasets.empleados);
+        await generarEmpleadosPDF(datasets.empleados);
       } else if (reportId === 'fiscalizacion_general') {
-        generarFiscalizacionExcel(datasets.contribuyentes.slice(0, 200), 'General');
+        await generarFiscalizacionPDF(datasets.contribuyentes.slice(0, 250), 'General', tcmmv || 1);
       } else if (reportId === 'fiscalizacion_pendientes') {
-        const morososList = datasets.contribuyentes.filter((c: any) => Number(c.deuda_mmv || 0) > 0);
-        generarFiscalizacionExcel(morososList.slice(0, 200), 'Pendientes');
+        const morososList = datasets.contribuyentes.filter(
+          (c: any) => Number(c.deuda_mmv || 0) > 0 || Number(c.meses_deuda || 0) > 0
+        );
+        await generarFiscalizacionPDF(morososList.slice(0, 250), 'Pendientes', tcmmv || 1);
       }
     } catch (err: any) {
-      alert('Error al generar el reporte: ' + (err?.message || 'Intente nuevamente'));
+      alert('Error al generar el reporte PDF: ' + (err?.message || 'Intente nuevamente'));
     } finally {
       setDownloadingReport(null);
     }
@@ -1654,12 +1658,12 @@ export default function PresidenciaDashboard() {
                       className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white outline-none"
                     />
                     <button
-                      onClick={() => handleDownloadReport('morosos_excel')}
+                      onClick={() => handleDownloadReport('morosos_pdf')}
                       disabled={downloadingReport !== null}
                       className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black flex items-center gap-1 cursor-pointer shrink-0"
                     >
-                      <Download className="w-3.5 h-3.5" />
-                      Excel Morosos
+                      <FileText className="w-3.5 h-3.5" />
+                      PDF Morosos
                     </button>
                   </div>
                 </div>
@@ -1761,8 +1765,8 @@ export default function PresidenciaDashboard() {
                   disabled={downloadingReport !== null}
                   className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer self-start"
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  Descargar Libro de Ventas SENIAT
+                  <FileText className="w-4 h-4" />
+                  Descargar Libro de Ventas SENIAT (PDF)
                 </button>
               </div>
 
@@ -2185,7 +2189,7 @@ export default function PresidenciaDashboard() {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════════════
-            TAB 5: CENTRO DE DESCARGA DE REPORTES OFICIALES (SISTEMA INTERNO)
+            TAB 5: CENTRO DE DESCARGA DE REPORTES OFICIALES EN PDF (SISTEMA INTERNO)
            ══════════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'reportes' && (
           <div className="space-y-5">
@@ -2193,13 +2197,13 @@ export default function PresidenciaDashboard() {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-[#B8CD29] text-slate-950">
-                    REPORTES OFICIALES DEL SISTEMA INTERNO IAMEC
+                    REPORTES OFICIALES DEL SISTEMA INTERNO IAMEC (FORMATO PDF)
                   </span>
                   <h2 className="text-lg sm:text-2xl font-black text-white mt-2">
-                    📥 Centro Ejecutivo de Descarga de Reportes (Excel & PDF)
+                    📥 Centro Ejecutivo de Descarga de Reportes Oficiales (PDF)
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                    Todos los reportes se generan con el formato oficial del Instituto, aplicando el rango de fechas seleccionado arriba (<b>{fechaDesde}</b> al <b>{fechaHasta}</b>).
+                    Todos los reportes oficiales del Instituto se generan y descargan directamente en <b>formato PDF ejecutivo</b> con membrete institucional, aplicando el rango seleccionado arriba (<b>{fechaDesde}</b> al <b>{fechaHasta}</b>).
                   </p>
                 </div>
                 <div className="bg-slate-950/90 border border-emerald-800/60 rounded-2xl px-4 py-3 text-right shrink-0">
@@ -2216,22 +2220,22 @@ export default function PresidenciaDashboard() {
               </div>
             </div>
 
-            {/* Grid de Tarjetas de Descarga de Reportes */}
+            {/* Grid de Tarjetas de Descarga de Reportes en PDF */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* 1. Monto Diario Recaudado */}
+              {/* 1. Monto Diario Recaudado (PDF) */}
               <div className="bg-slate-900/90 border border-slate-800 hover:border-[#B8CD29]/60 rounded-2xl p-5 flex flex-col justify-between transition-all">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-2xl">📅</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300">
-                      EXCEL OFICIAL CON LOGOS
+                      PDF OFICIAL CON LOGOS
                     </span>
                   </div>
                   <h3 className="text-base font-black text-white">
-                    Monto Diario Recaudado
+                    Monto Diario Recaudado (PDF)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Planilla gerencial con desglose diario y semanal por Punto de Venta (Bs y €), Transferencias (Bs y €), Estado de Cuenta consolidado y logos oficiales.
+                    Reporte gerencial en PDF con desglose diario por Punto de Venta (Bs y €), Transferencias (Bs y €), Banesco, Bancamiga y Totales consolidados.
                   </p>
                 </div>
                 <button
@@ -2239,27 +2243,27 @@ export default function PresidenciaDashboard() {
                   disabled={downloadingReport !== null}
                   className="mt-4 w-full py-2.5 px-4 rounded-xl bg-[#B8CD29] hover:bg-[#c9de38] text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4" />
+                  <FileText className="w-4 h-4" />
                   {downloadingReport === 'monto_diario'
-                    ? 'Generando Excel...'
-                    : 'Descargar Monto Diario Recaudado (Excel)'}
+                    ? 'Generando PDF...'
+                    : 'Descargar Monto Diario Recaudado (PDF)'}
                 </button>
               </div>
 
-              {/* 2. Libro de Ventas Fiscal SENIAT */}
+              {/* 2. Libro de Ventas Fiscal SENIAT (PDF) */}
               <div className="bg-slate-900/90 border border-slate-800 hover:border-[#B8CD29]/60 rounded-2xl p-5 flex flex-col justify-between transition-all">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-2xl">📊</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300">
-                      SENIAT 01-REG / 03-REG
+                      PDF SENIAT 01-REG / 03-REG
                     </span>
                   </div>
                   <h3 className="text-base font-black text-white">
-                    Libro de Ventas Fiscal SENIAT
+                    Libro de Ventas Fiscal SENIAT (PDF)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Reporte oficial de Facturas Digitales emitidas (01-REG), Notas de Crédito (03-REG) y comprobantes de retención IVA 75%.
+                    Reporte oficial en PDF de Facturas Digitales emitidas (01-REG), Notas de Crédito (03-REG) y comprobantes de retención IVA 75%.
                   </p>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-2">
@@ -2270,27 +2274,27 @@ export default function PresidenciaDashboard() {
                       disabled={downloadingReport !== null}
                       className="py-2 px-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-200 font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
                     >
-                      <Download className="w-3.5 h-3.5" />
-                      {t}
+                      <FileText className="w-3.5 h-3.5" />
+                      {t} (PDF)
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* 3. Total Puntos de Venta (Todas las Cajas) */}
+              {/* 3. Total Puntos de Venta (Todas las Cajas - PDF) */}
               <div className="bg-slate-900/90 border border-slate-800 hover:border-[#B8CD29]/60 rounded-2xl p-5 flex flex-col justify-between transition-all">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-2xl">💳</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-500/20 text-sky-300">
-                      EXCEL MULTICAJA
+                      PDF MULTICAJA & COBRO MÓVIL
                     </span>
                   </div>
                   <h3 className="text-base font-black text-white">
-                    Total Puntos de Venta (Débitos)
+                    Total Puntos de Venta (PDF)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Detalle completo de cobros por tarjeta de débito de todas las cajas y Cobro Móvil, con lote, referencia, contribuyente y resumen por caja.
+                    Detalle completo en PDF de cobros por tarjeta de débito de todas las cajas y Cobro Móvil Bancamiga, con lote, referencia, titular y resumen por caja.
                   </p>
                 </div>
                 <button
@@ -2298,27 +2302,27 @@ export default function PresidenciaDashboard() {
                   disabled={downloadingReport !== null}
                   className="mt-4 w-full py-2.5 px-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4" />
+                  <FileText className="w-4 h-4" />
                   {downloadingReport === 'puntos_venta'
-                    ? 'Generando Excel...'
-                    : 'Descargar Total Puntos de Venta (Excel)'}
+                    ? 'Generando PDF...'
+                    : 'Descargar Total Puntos de Venta (PDF)'}
                 </button>
               </div>
 
-              {/* 4. Conciliación Bancaria de Transferencias */}
+              {/* 4. Conciliación Bancaria de Transferencias (PDF) */}
               <div className="bg-slate-900/90 border border-slate-800 hover:border-[#B8CD29]/60 rounded-2xl p-5 flex flex-col justify-between transition-all">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-2xl">🏦</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-300">
-                      BANESCO & BANCAMIGA
+                      PDF BANESCO & BANCAMIGA
                     </span>
                   </div>
                   <h3 className="text-base font-black text-white">
-                    Conciliación Bancaria de Transferencias
+                    Conciliación Bancaria (PDF)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Hoja de cálculo de conciliación de transferencias separada por mes y banco receptor (Banesco y Bancamiga) con subtotales.
+                    Reporte oficial en PDF de conciliación de transferencias clasificadas por banco receptor (Banesco y Bancamiga) con subtotales.
                   </p>
                 </div>
                 <button
@@ -2326,27 +2330,27 @@ export default function PresidenciaDashboard() {
                   disabled={downloadingReport !== null}
                   className="mt-4 w-full py-2.5 px-4 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4" />
+                  <FileText className="w-4 h-4" />
                   {downloadingReport === 'conciliacion_bancaria'
-                    ? 'Generando Excel...'
-                    : 'Descargar Conciliación Bancaria (Excel)'}
+                    ? 'Generando PDF...'
+                    : 'Descargar Conciliación Bancaria (PDF)'}
                 </button>
               </div>
 
-              {/* 5. Reporte de Recibos de Pagos */}
+              {/* 5. Reporte de Recibos de Pagos (PDF) */}
               <div className="bg-slate-900/90 border border-slate-800 hover:border-[#B8CD29]/60 rounded-2xl p-5 flex flex-col justify-between transition-all">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-2xl">🧾</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-500/20 text-teal-300">
-                      PLANILLA OFICIAL EXCEL
+                      PDF PLANILLA OFICIAL
                     </span>
                   </div>
                   <h3 className="text-base font-black text-white">
-                    Reporte de Recibos de Pagos
+                    Reporte de Recibos de Pagos (PDF)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Relación detallada de recibos emitidos con Código Catastral, N° de Recibo, Servicio de Aseo Urbano, Multas y Totales.
+                    Relación detallada en PDF de recibos emitidos con Código de Inmueble, N° de Recibo, Servicio de Aseo Urbano, Multas y Totales.
                   </p>
                 </div>
                 <button
@@ -2354,47 +2358,39 @@ export default function PresidenciaDashboard() {
                   disabled={downloadingReport !== null}
                   className="mt-4 w-full py-2.5 px-4 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4" />
+                  <FileText className="w-4 h-4" />
                   {downloadingReport === 'recibos_pagos'
-                    ? 'Generando Excel...'
-                    : 'Descargar Recibos de Pagos (Excel)'}
+                    ? 'Generando PDF...'
+                    : 'Descargar Recibos de Pagos (PDF)'}
                 </button>
               </div>
 
-              {/* 6. Record Oficial de Morosos (Excel y PDF) */}
+              {/* 6. Record Oficial de Morosos (PDF) */}
               <div className="bg-slate-900/90 border border-slate-800 hover:border-rose-500/60 rounded-2xl p-5 flex flex-col justify-between transition-all">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-2xl">🔴</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300">
-                      15 COLUMNAS OFICIAL
+                      PDF PADRÓN DE COBRANZAS
                     </span>
                   </div>
                   <h3 className="text-base font-black text-white">
-                    Record Oficial de Morosos
+                    Record Oficial de Morosos (PDF)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Padrón completo de contribuyentes con deuda pendiente (15 columnas: RIF, Inmueble, Dirección, Teléfono, Meses, Deuda en € y Bs).
+                    Padrón completo en PDF de contribuyentes e inmuebles con deuda pendiente (Código, RIF/Cédula, Razón Social, Teléfono, Meses y Deuda Total en Bs).
                   </p>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleDownloadReport('morosos_excel')}
-                    disabled={downloadingReport !== null}
-                    className="py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    {downloadingReport === 'morosos_excel' ? 'Cargando...' : 'Excel (15 Col)'}
-                  </button>
-                  <button
-                    onClick={() => handleDownloadReport('morosos_pdf')}
-                    disabled={downloadingReport !== null}
-                    className="py-2.5 px-3 rounded-xl bg-rose-950 hover:bg-rose-900 border border-rose-500/50 text-rose-200 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <FileText className="w-4 h-4" />
-                    {downloadingReport === 'morosos_pdf' ? 'Cargando...' : 'PDF Oficial'}
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleDownloadReport('morosos_pdf')}
+                  disabled={downloadingReport !== null}
+                  className="mt-4 w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <FileText className="w-4 h-4" />
+                  {downloadingReport === 'morosos_pdf'
+                    ? 'Generando PDF...'
+                    : 'Descargar Record de Morosos (PDF)'}
+                </button>
               </div>
 
               {/* 7. Corte de Caja General (PDF) */}
@@ -2450,26 +2446,26 @@ export default function PresidenciaDashboard() {
                       className="py-2 px-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/40 text-indigo-200 font-bold text-xs flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <FileText className="w-3.5 h-3.5" />
-                      {t}
+                      {t} (PDF)
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* 9. Saldos a Favor, Empleados y Fiscalización */}
+              {/* 9. Saldos a Favor, Empleados y Fiscalización (PDF) */}
               <div className="bg-slate-900/90 border border-slate-800 hover:border-[#B8CD29]/60 rounded-2xl p-5 flex flex-col justify-between transition-all">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-2xl">🛡️</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300">
-                      GESTIÓN INTERNA EXCEL
+                      AUDITORÍA INTERNA PDF
                     </span>
                   </div>
                   <h3 className="text-base font-black text-white">
-                    Auditoría: Saldos, Personal y Fiscalización
+                    Auditoría: Saldos, Personal y Fiscalización (PDF)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Descarga directa de reportes administrativos de Saldos a Favor, Nómina de Empleados y Fiscalización Municipal.
+                    Descarga directa en PDF de los reportes administrativos de Saldos a Favor, Nómina de Personal y Fiscalización Municipal.
                   </p>
                 </div>
                 <div className="mt-4 space-y-2">
@@ -2478,24 +2474,24 @@ export default function PresidenciaDashboard() {
                     disabled={downloadingReport !== null}
                     className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs flex items-center justify-between cursor-pointer"
                   >
-                    <span>💰 Saldos a Favor Vigentes (Excel)</span>
-                    <Download className="w-3.5 h-3.5" />
+                    <span>💰 Saldos a Favor Vigentes (PDF)</span>
+                    <FileText className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleDownloadReport('empleados')}
                     disabled={downloadingReport !== null}
                     className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-xs flex items-center justify-between cursor-pointer"
                   >
-                    <span>👥 Gestión de Empleados (Excel)</span>
-                    <Download className="w-3.5 h-3.5" />
+                    <span>👥 Gestión de Personal / Empleados (PDF)</span>
+                    <FileText className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleDownloadReport('fiscalizacion_pendientes')}
                     disabled={downloadingReport !== null}
                     className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center justify-between cursor-pointer"
                   >
-                    <span>🛡️ Expedientes por Fiscalizar (Excel)</span>
-                    <Download className="w-3.5 h-3.5" />
+                    <span>🛡️ Expedientes por Fiscalizar (PDF)</span>
+                    <FileText className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>

@@ -3,21 +3,32 @@ import autoTable from 'jspdf-autotable';
 import { logos } from '@/lib/logosBase64';
 import { clasificarBancoDestino } from '@/lib/cuentasBancarias';
 
-// Helper para descarga confiable de PDF en todos los navegadores
+// Helper para descarga confiable de PDF en todos los navegadores y Android WebView (APK)
 export function descargarPdfBlob(doc: jsPDF, filename: string) {
+  const safeName = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
   try {
-    doc.save(filename);
+    const w = typeof window !== 'undefined' ? (window as any) : null;
+    if (w?.AndroidBridge && typeof w.AndroidBridge.saveBase64File === 'function') {
+      const dataUri = doc.output('datauristring');
+      w.AndroidBridge.saveBase64File(dataUri, safeName, 'application/pdf');
+      return;
+    }
+  } catch (eBridge) {
+    console.warn('Fallback descarga estándar tras puente Android:', eBridge);
+  }
+  try {
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
   } catch (err) {
     try {
-      const blob = doc.output('blob');
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      doc.save(safeName);
     } catch (e2) {
       console.error('Error al descargar PDF:', e2);
       window.open(doc.output('bloburl'), '_blank');
@@ -652,7 +663,7 @@ export const generarIngresoBancarioPDF = (
     doc.text(`Cajero: N/A`, pageWidth - 40, pageHeight - 15, { align: 'right' });
   }
 
-  doc.save(`Ingreso_Bancario_${tipo}_${new Date().getTime()}.pdf`);
+  descargarPdfBlob(doc, `Ingreso_Bancario_${tipo}_${new Date().getTime()}.pdf`);
 };
 
 
