@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getResendClient, DEFAULT_RESEND_FROM } from '@/lib/emailClient';
 import { getIdentidadVariantsExact } from '@/lib/formatters';
+import { esCondominioDoc, MENSAJE_CONDOMINIO_BLOQUEADO } from '@/lib/portalConfig';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_PRIVATE_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || (() => { throw new Error('JWT_PRIVATE_SECRET no configurado'); })();
@@ -12,6 +13,10 @@ export async function POST(request: Request) {
     
     if (!identidad || typeof identidad !== 'string' || !identidad.trim()) {
       return NextResponse.json({ error: 'Identidad requerida' }, { status: 400 });
+    }
+
+    if (await esCondominioDoc(identidad)) {
+      return NextResponse.json({ error: MENSAJE_CONDOMINIO_BLOQUEADO }, { status: 403 });
     }
 
     const term = identidad.trim().toUpperCase();

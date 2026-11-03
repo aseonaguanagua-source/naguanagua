@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getIdentidadVariantsExact, isFictitiousEmail, formatPhoneNumber } from '@/lib/formatters';
-import { checkPortalMantenimiento, MENSAJE_MANTENIMIENTO_PORTAL } from '@/lib/portalConfig';
+import { checkPortalMantenimiento, MENSAJE_MANTENIMIENTO_PORTAL, esCondominioDoc, MENSAJE_CONDOMINIO_BLOQUEADO } from '@/lib/portalConfig';
 
 export async function POST(request: Request) {
   try {
@@ -16,6 +16,10 @@ export async function POST(request: Request) {
     
     if (!identidad || !correo || !telefono || !clave) {
       return NextResponse.json({ error: 'Todos los campos son obligatorios: Correo, Teléfono y Contraseña.' }, { status: 400 });
+    }
+
+    if (await esCondominioDoc(identidad)) {
+      return NextResponse.json({ error: MENSAJE_CONDOMINIO_BLOQUEADO }, { status: 403 });
     }
 
     const cleanEmail = correo.trim().toLowerCase();
