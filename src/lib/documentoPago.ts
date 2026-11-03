@@ -46,12 +46,19 @@ export function parseDetalles(det: any): any {
  * @param det     detalles del pago (para heurística de IVA cuando no hay código)
  */
 export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det: any = {}): ClasificacionPago {
+  const sinMultaFlag = Boolean(
+    det?.llevaMulta === false ||
+    det?.sin_multas === true ||
+    det?.solo_aseo === true ||
+    det?.incluir_multas === false ||
+    (det?.montoMulta !== undefined && det?.montoMulta !== null && String(det.montoMulta).trim() !== '' && parseFloat(String(det.montoMulta)) <= 0)
+  );
   // Caja de Condominios: se clasifica por los renglones guardados en el pago (cada local / actividad)
   const lineasCondo: any[] | null = det?.modulo === 'condominios' && Array.isArray(det?.condominio?.lineas) ? det.condominio.lineas : null;
   if (lineasCondo) {
     const com = lineasCondo.filter(l => !l.residencial);
     const servicio = com.some(l => (Number(l.aseoBs) || 0) > 0);
-    const multa = com.some(l => (Number(l.multaBs) || 0) > 0);
+    const multa = !sinMultaFlag && com.some(l => (Number(l.multaBs) || 0) > 0);
     const comercial = servicio || multa;
     return {
       documento: comercial ? 'factura' : 'recibo',
@@ -59,7 +66,7 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
       mixto: comercial && lineasCondo.some(l => l.residencial),
       inmuebles: [...new Set(lineasCondo.map(l => l.inmueble).filter(Boolean))] as string[],
       mesesServicio: Math.max(0, ...lineasCondo.map(l => Number(l.meses) || 0)),
-      tieneMulta: lineasCondo.some(l => (Number(l.multaBs) || 0) > 0),
+      tieneMulta: !sinMultaFlag && lineasCondo.some(l => (Number(l.multaBs) || 0) > 0),
     };
   }
   let servicioComercial = false;
@@ -74,7 +81,7 @@ export function clasificarPago(recibos: string[], inmMap: Map<string, any>, det:
   for (const r of recibos || []) {
     const ref = String(r || '');
     const esMulta = /^MULTA-/i.test(ref);
-    if (esMulta) tieneMulta = true;
+    if (esMulta && !sinMultaFlag) tieneMulta = true;
 
     const mMatch = ref.match(/^(?:RECIB-HIST|CM)-([A-Za-z0-9]+)-M(\d+)$/i);
     if (mMatch) {

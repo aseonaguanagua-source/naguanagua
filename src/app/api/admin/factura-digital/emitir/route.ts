@@ -391,10 +391,19 @@ export async function POST(request: Request) {
         // 2. MONTO MULTA (Bolívares):
         // Si hay recibo_caja: manda lo registrado en caja (si exento es 0, no hubo multa).
         // Si hay deuda_previa: manda si previa.multa_bs es 0 (exonerado / sin multa).
-        // Si notas indica exoneración total o por mes: no hay multa.
+        // Si notas indica exoneración total o por mes, o si se eliminó la multa: no hay multa.
         const omitirSepPago = Boolean(detPago?.omitir_multa_septiembre);
+        const sinMultaGlobal = Boolean(
+          llevaMulta === false ||
+          detPago?.llevaMulta === false ||
+          detPago?.sin_multas === true ||
+          detPago?.solo_aseo === true ||
+          detPago?.incluir_multas === false ||
+          isExoneradoTotalMultas(inm?.notas) ||
+          (Number(inm?.multa_bs || 0) <= 0 && String(inm?.notas || '').includes('EXONERACIÓN DE MULTAS'))
+        );
         let montoMulta = 0;
-        if (isMesExoneradoMulta(inm?.notas, dPer, omitirSepPago)) {
+        if (sinMultaGlobal || isMesExoneradoMulta(inm?.notas, dPer, omitirSepPago)) {
           montoMulta = 0;
         } else if (detPago?.recibo_caja) {
           montoMulta = multaDeRc > 0 ? parseFloat((multaDeRc / histRecibos.length).toFixed(2)) : 0;
@@ -557,17 +566,27 @@ export async function POST(request: Request) {
     // Multas pagadas por referencia MULTA-{COD}: solo inmuebles comerciales, exentas de IVA.
     const multaRecibos = (recibos || []).filter((r: string) => /^MULTA-/i.test(String(r)));
     const itemsMulta: any[] = [];
-    if (multaRecibos.length > 0) {
+    const multaDescartadaGeneral = Boolean(
+      llevaMulta === false ||
+      detPago?.llevaMulta === false ||
+      detPago?.sin_multas === true ||
+      detPago?.solo_aseo === true ||
+      detPago?.incluir_multas === false
+    );
+    if (multaRecibos.length > 0 && !multaDescartadaGeneral) {
       const codsMulta = [...new Set(multaRecibos.map((r: string) => extraerCodigoInmueble(r)).filter(Boolean))] as string[];
       const { data: inmsMulta } = await supabase
         .from('inmuebles')
-        .select('inmueble, tipo, clasificacion, actividad_principal')
+        .select('inmueble, tipo, clasificacion, actividad_principal, multa_bs, notas')
         .in('inmueble', codsMulta.length ? codsMulta : ['__none__']);
       const soloMultas = multaRecibos.length === recibos.length;
       for (const ref of multaRecibos) {
         const cod = extraerCodigoInmueble(ref);
         const inm = (inmsMulta || []).find((i: any) => i.inmueble === cod);
         if (inm && isResidencialInm(inm)) { excluidosResidenciales++; continue; }
+        if (!soloMultas && inm && (isExoneradoTotalMultas(inm.notas) || (Number(inm.multa_bs || 0) <= 0 && String(inm.notas || '').includes('EXONERACIÓN DE MULTAS')))) {
+          continue;
+        }
         let monto = parseFloat(String(montosMulta[ref] ?? 0)) || 0;
         // Pago de una sola multa sin monto guardado: se toma el total cobrado
         if (monto <= 0 && soloMultas && multaRecibos.length === 1) monto = parseFloat(String(montoTotal || 0)) || 0;
@@ -630,7 +649,7 @@ export async function POST(request: Request) {
           const descAseo = (lineasCondo.length === 1 && descCustom && multa === 0) ? descCustom : `Servicio de Aseo Urbano - ${condoDet?.nombre || 'Condominio'} ${donde}${l.actividad ? ` - ${l.actividad}` : ''}${per}`;
           itemsCondoMod.push(it(descAseo, 'ASEO001', aseo, true));
         }
-        const sinMultas = detPago?.solo_aseo === true || detPago?.sin_multas === true || detPago?.incluir_multas === false || detPago?.modo_cobro === 'SOLO_ASEO';
+        const sinMultas = llevaMulta === false || detPago?.llevaMulta === false || detPago?.solo_aseo === true || detPago?.sin_multas === true || detPago?.incluir_multas === false || detPago?.modo_cobro === 'SOLO_ASEO';
         if (multa > 0 && !sinMultas) {
           const descMulta = (lineasCondo.length === 1 && descCustom && aseo === 0) ? descCustom : `Multa por Mora - Aseo Urbano ${donde}`;
           itemsCondoMod.push(it(descMulta, 'MULT001', multa, false));
@@ -865,8 +884,18 @@ export async function POST(request: Request) {
       multaCondoDirecta = r2(detPago.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0));
     }
 
-    const esSoloAseoDet = Boolean(detPago?.solo_aseo || detPago?.sin_multas || detPago?.incluir_multas === false);
-    if (llevaMulta === false || (esSoloAseoDet && multaCondoDirecta === 0 && !tieneMontoMultaExplicito)) {
+    const inmActiveExonerado = activeProps.length > 0 && activeProps.every((p: any) =>
+      isExoneradoTotalMultas(p?.notas) || (Number(p?.multa_bs || 0) <= 0 && String(p?.notas || '').includes('EXONERACIÓN DE MULTAS'))
+    );
+    const esSoloAseoDet = Boolean(
+      llevaMulta === false ||
+      detPago?.llevaMulta === false ||
+      detPago?.solo_aseo ||
+      detPago?.sin_multas ||
+      detPago?.incluir_multas === false ||
+      inmActiveExonerado
+    );
+    if (llevaMulta === false || detPago?.llevaMulta === false || detPago?.sin_multas === true || inmActiveExonerado || (esSoloAseoDet && multaCondoDirecta === 0 && !tieneMontoMultaExplicito)) {
       baseExenta = 0;
     } else if (tieneMontoMultaExplicito) {
       // Si el operador o payload indicó explícitamente el monto de multa (incluso 0)
@@ -1400,6 +1429,13 @@ export async function POST(request: Request) {
       ).trim();
     }
 
+    const fechaEmisionFinal = fechaEmisionOverride || detPago?.fecha_emision_override || detPago?.fecha_asignacion_override || (fecha ? String(fecha).slice(0, 10) : '') || fechaActual.toISOString();
+    const fechaEmisionYMD = /^\d{4}-\d{2}-\d{2}$/.test(String(fechaEmisionFinal).trim())
+      ? String(fechaEmisionFinal).trim()
+      : new Date(fechaEmisionFinal).toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
+    const fechaEmisionISO = `${fechaEmisionYMD}T12:00:00-04:00`;
+    const fechaEmisionDDMMYYYY = formatearFecha(fechaEmisionYMD);
+
     const jsonTFHKA = {
       documentoElectronico: {
         Encabezado: {
@@ -1416,8 +1452,8 @@ export async function POST(request: Request) {
             MontoFacturaAfectada:         null,
             ComentarioFacturaAfectada:    null,
             RegimenEspTributacion:        null,
-            FechaEmision:                 formatearFecha(fechaEmisionOverride || fecha || fechaActual.toISOString()),
-            FechaVencimiento:             formatearFecha(fechaEmisionOverride || fecha || fechaActual.toISOString()),
+            FechaEmision:                 fechaEmisionDDMMYYYY,
+            FechaVencimiento:             fechaEmisionDDMMYYYY,
             HoraEmision:                  horaStr,
             Moneda:                       "BSD",
             Anulado:                      false,
@@ -1863,13 +1899,21 @@ export async function POST(request: Request) {
             }
           ];
         }
+        if (tfhkaResponse?.resultado) {
+          tfhkaResponse.resultado.fechaAsignacion = fechaEmisionDDMMYYYY;
+          tfhkaResponse.resultado.fechaAsignacionNumeroControl = fechaEmisionDDMMYYYY;
+          tfhkaResponse.resultado.fechaEmision = fechaEmisionDDMMYYYY;
+        }
+        nuevosDetalles.fecha_emision_override = fechaEmisionYMD;
+        nuevosDetalles.fecha_asignacion_override = fechaEmisionYMD;
         nuevosDetalles.factura_digital = {
           emitida:          true,
           url:              finalUrl || null,
           numero_control:   finalControl,
           numero_documento: finalDoc,
           tfhka_seq:        parseInt(finalDoc, 10) || seq,
-          fecha_emision:    fechaEmisionOverride ? `${fechaEmisionOverride}T12:00:00-04:00` : new Date().toISOString(),
+          fecha_emision:    fechaEmisionISO,
+          fecha_asignacion: fechaEmisionISO,
           raw_response:     tfhkaResponse,
           ...(totalManualNum > 0 ? { total_manual: totalManualNum, monto_cobrado: montoCobrado, motivo_ajuste: motivoAjuste || null, ajustado_por: usuario || null } : {}),
         };
@@ -1891,11 +1935,14 @@ export async function POST(request: Request) {
     } else {
       console.log(`[SIMULACIÓN TFHKA] JSON generado:`, JSON.stringify(jsonTFHKA, null, 2));
 
+      nuevosDetalles.fecha_emision_override = fechaEmisionYMD;
+      nuevosDetalles.fecha_asignacion_override = fechaEmisionYMD;
       nuevosDetalles.factura_digital = {
         emitida:          true,
         url:              "https://democonsulta.thefactoryhka.com.ve/?doc=GhQVet4Fbe+vAHltz47VsoKrQ1NOzTmiOLp4jVe5oz4U01Z9FA/OdGcGnU9nU1co",
         numero_control:   `00-${(pagoId || '').replace(/-/g,'').slice(0,8).toUpperCase()}`,
-        fecha_emision:    fechaEmisionOverride ? `${fechaEmisionOverride}T12:00:00-04:00` : new Date().toISOString(),
+        fecha_emision:    fechaEmisionISO,
+        fecha_asignacion: fechaEmisionISO,
         simulated:        true,
         payload_generado: jsonTFHKA,
       };
@@ -1961,6 +2008,36 @@ export async function POST(request: Request) {
     nuevosDetalles.base_imponible = totalGravado;
     nuevosDetalles.iva_monto = totalIVA;
     nuevosDetalles.monto_factura = totalAPagar;
+    if (llevaMulta === false || totalExento <= 0) {
+      nuevosDetalles.sin_multas = true;
+      nuevosDetalles.llevaMulta = false;
+      nuevosDetalles.incluir_multas = false;
+      nuevosDetalles.multa_bs = 0;
+      nuevosDetalles.montoMulta = 0;
+      nuevosDetalles.monto_multa = 0;
+      if (Array.isArray(nuevosDetalles.deuda_previa)) {
+        nuevosDetalles.deuda_previa = nuevosDetalles.deuda_previa.map((dp: any) => dp ? { ...dp, multa_bs: 0 } : dp);
+      }
+      if (Array.isArray(nuevosDetalles.condominio?.lineas)) {
+        nuevosDetalles.condominio.lineas = nuevosDetalles.condominio.lineas.map((l: any) => l ? { ...l, multaBs: 0 } : l);
+      }
+      if (Array.isArray(nuevosDetalles.recibo_caja)) {
+        nuevosDetalles.recibo_caja = nuevosDetalles.recibo_caja.map((rc: any) => {
+          if (!rc) return rc;
+          return {
+            ...rc,
+            exento: 0,
+            conceptos: Array.isArray(rc.conceptos)
+              ? rc.conceptos.filter((c: any) => !/multa|mora|sanci[oó]n/i.test(String(c?.descripcion || c?.concepto || '')))
+              : rc.conceptos
+          };
+        });
+      }
+    } else {
+      nuevosDetalles.llevaMulta = true;
+      nuevosDetalles.multa_bs = totalExento;
+      nuevosDetalles.montoMulta = totalExento;
+    }
     if (nuevosDetalles.factura_digital) {
       nuevosDetalles.factura_digital.monto_total = totalAPagar;
     }

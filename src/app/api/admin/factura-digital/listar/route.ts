@@ -488,7 +488,7 @@ export async function GET(request: Request) {
     for (let i = 0; i < listaCodigos.length; i += 300) {
       const { data: inms } = await supabase
         .from('inmuebles')
-        .select('inmueble, tipo, clasificacion, actividad_principal, direccion, correo_electronico, contribuyente, identidad, agente_retencion')
+        .select('inmueble, tipo, clasificacion, actividad_principal, direccion, correo_electronico, contribuyente, identidad, agente_retencion, multa_bs, notas')
         .in('inmueble', listaCodigos.slice(i, i + 300));
       (inms || []).forEach((inm: any) => inmMap.set(inm.inmueble, inm));
     }
@@ -496,7 +496,7 @@ export async function GET(request: Request) {
     const fallbackEmail = process.env.TFHKA_FALLBACK_EMAIL?.trim() || 'facturacion.comercial@globalgreenca.com';
 
     // Condominios (para reconocer pagos viejos de condominios por su RIF y correo actualizado)
-    const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo,agente_retencion,correo').limit(5000);
+    const { data: condosRows } = await supabase.from('condominios').select('codigo,identidad,nombre,tipo,agente_retencion,correo,multa_meses,multa_exonerada_hasta').limit(5000);
     const condoPorRif = new Map<string, any>();
     (condosRows || []).forEach((c: any) => { if (c.identidad) condoPorRif.set(normId(c.identidad), c); });
     const infoCondo = (pago: any, det: any) => {
@@ -510,6 +510,8 @@ export async function GET(request: Request) {
         residencial: tipo ? String(tipo).toUpperCase() === 'RESIDENCIAL' : null,
         agente_retencion: Boolean(c.agente_retencion ?? porRif?.agente_retencion),
         correo: porRif?.correo || c.correo || null,
+        multa_meses: porRif?.multa_meses ?? null,
+        multa_exonerada_hasta: porRif?.multa_exonerada_hasta ?? null,
         facturaA: det.modo === 'CONTRIBUYENTE' ? 'CONTRIBUYENTE' : 'CONDOMINIO',
         grupo: det.grupo_pago ? { id: det.grupo_pago.id, parte: det.grupo_pago.parte, partes: det.grupo_pago.partes, montoTotal: Number(det.grupo_pago.monto_total) || 0 } : null,
       };
@@ -527,6 +529,37 @@ export async function GET(request: Request) {
       const rd = det.recibo_digital || null;
       const emitida = !!(fd && (fd.emitida || fd.url || fd.numero_control));
       const clasif = clasificarPago(det.recibos || [], inmMap, det);
+
+      // Si se eliminó o exoneró la multa del inmueble/condominio o en el propio pago, asegurar que no vuelva a aparecer
+      const inmsDelPago = clasif.inmuebles.map(c => inmMap.get(c)).filter(Boolean);
+      const inmExoneradoTotal = inmsDelPago.length > 0 && inmsDelPago.every((i: any) => {
+        const notasStr = String(i.notas || '');
+        const tieneTagExo = notasStr.includes('Caso especial: Exonerado de multas') || (notasStr.includes('EXONERACIÓN DE MULTAS') && Number(i.multa_bs || 0) <= 0);
+        return tieneTagExo;
+      });
+      const condoExonerado = Boolean(condo && (condo as any).multa_meses === 0 && (condo as any).multa_exonerada_hasta);
+      const sinMultaExplicito =
+        det.llevaMulta === false ||
+        det.sin_multas === true ||
+        det.solo_aseo === true ||
+        det.incluir_multas === false ||
+        (det.montoMulta !== undefined && det.montoMulta !== null && String(det.montoMulta).trim() !== '' && parseFloat(String(det.montoMulta)) <= 0);
+
+      if (sinMultaExplicito || (!emitida && (inmExoneradoTotal || condoExonerado))) {
+        det.sin_multas = true;
+        det.llevaMulta = false;
+        det.incluir_multas = false;
+        det.multa_bs = 0;
+        det.montoMulta = 0;
+        det.monto_multa = 0;
+        if (Array.isArray(det.deuda_previa)) {
+          det.deuda_previa = det.deuda_previa.map((dp: any) => dp ? { ...dp, multa_bs: 0 } : dp);
+        }
+        if (Array.isArray(det.condominio?.lineas)) {
+          det.condominio.lineas = det.condominio.lineas.map((l: any) => l ? { ...l, multaBs: 0 } : l);
+        }
+        clasif.tieneMulta = false;
+      }
       const correoInm = clasif.inmuebles.map(c => inmMap.get(c)?.correo_electronico).find((e: any) => e && String(e).includes('@'));
       
       // Si la factura va al CONDOMINIO centralizado, priorizar el correo oficial del condominio
@@ -832,7 +865,10 @@ export async function GET(request: Request) {
           facturaUrl: fd?.url || null,
           numeroControl: fd?.numero_control || null,
           numeroDocumento: fd?.numero_documento || null,
-          fechaEmision: fd?.fecha_emision || null,
+          fechaEmision: fd?.fecha_emision || (det.fecha_emision_override ? `${det.fecha_emision_override}T12:00:00-04:00` : null),
+          fechaAsignacion: fd?.fecha_asignacion || fd?.fecha_emision || (det.fecha_asignacion_override ? `${det.fecha_asignacion_override}T12:00:00-04:00` : (det.fecha_emision_override ? `${det.fecha_emision_override}T12:00:00-04:00` : null)),
+          fechaEmisionOverride: det.fecha_emision_override || null,
+          fechaAsignacionOverride: det.fecha_asignacion_override || det.fecha_emision_override || null,
           error: det.factura_digital_error || null,
           facturaAnulada: Boolean(
             fd?.anulada || 

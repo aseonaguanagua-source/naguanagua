@@ -20,6 +20,8 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   const [inmuebleLicencia, setInmuebleLicencia] = useState<string>('');
   const [simulacionTFHKA, setSimulacionTFHKA] = useState<any>(null);
   const [cargandoSimulacion, setCargandoSimulacion] = useState<boolean>(false);
+  const [fechaEditable, setFechaEditable] = useState<string>('');
+  const [guardandoFecha, setGuardandoFecha] = useState<boolean>(false);
 
   const det = pago?.detalles || {};
   const esRetencion = Boolean(
@@ -134,7 +136,21 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     multaCondoDirecta = parseFloat(det.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0).toFixed(2));
   }
 
-  if (multaCondoDirecta > 0) {
+  const sinMultaActiva = Boolean(
+    pago?.llevaMulta === false ||
+    pago?.tieneMulta === false ||
+    det?.llevaMulta === false ||
+    det?.sin_multas === true ||
+    det?.solo_aseo === true ||
+    det?.incluir_multas === false ||
+    (pago?.montoMulta !== undefined && parseFloat(String(pago.montoMulta)) <= 0) ||
+    (det?.montoMulta !== undefined && det?.montoMulta !== null && String(det.montoMulta).trim() !== '' && parseFloat(String(det.montoMulta)) <= 0)
+  );
+
+  if (sinMultaActiva) {
+    rcExento = 0;
+    exento = 0;
+  } else if (multaCondoDirecta > 0) {
     exento = multaCondoDirecta;
   } else if (tieneReciboCaja) {
     exento = rcExento;
@@ -251,7 +267,7 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
   });
 
-  const rawFechaEmision = pago?.fechaEmisionOverride || det?.fecha_emision_override || pago?.fechaEmision || det?.factura_digital?.fecha_emision;
+  const rawFechaEmision = fechaEditable || pago?.fechaEmisionOverride || det?.fecha_emision_override || det?.fecha_asignacion_override || pago?.fechaEmision || det?.factura_digital?.fecha_emision || det?.fecha_transaccion || pago?.created_at;
   const fechaEmisionDoc = rawFechaEmision
     ? (() => {
         const s = String(rawFechaEmision).trim();
@@ -300,6 +316,47 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
   const referencia = pago?.referencia && pago.referencia !== 'N/A' ? pago.referencia : (det.referencia || 'N/A');
   const tipoPago = pago?.tipo || det.tipo || 'Transferencia';
   const pagoIdCorto = String(pago?.id || det.pagoId || '').slice(0, 8).toUpperCase();
+
+  // Inicializar fecha editable al abrir el modal
+  useEffect(() => {
+    if (!isOpen || !pago) return;
+    const raw = pago?.fechaEmisionOverride || det?.fecha_emision_override || det?.fecha_asignacion_override || pago?.fechaEmision || det?.factura_digital?.fecha_emision || det?.fecha_transaccion || pago?.created_at || '';
+    const s = String(raw).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      setFechaEditable(s.slice(0, 10));
+    } else if (s) {
+      try {
+        setFechaEditable(new Date(s).toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }));
+      } catch {
+        setFechaEditable(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }));
+      }
+    } else {
+      setFechaEditable(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }));
+    }
+  }, [isOpen, pago]);
+
+  const handleGuardarFechaEnFactura = async (nuevaFecha: string) => {
+    setFechaEditable(nuevaFecha);
+    if (!pago?.id || !/^\d{4}-\d{2}-\d{2}$/.test(nuevaFecha)) return;
+    setGuardandoFecha(true);
+    try {
+      await fetch('/api/admin/factura-digital/editar-pago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagoId: pago.pagoId || pago.id,
+          fecha: nuevaFecha,
+          fechaEmision: nuevaFecha,
+          fechaAsignacion: nuevaFecha,
+          usuario: 'Administrador'
+        })
+      });
+    } catch (e) {
+      console.warn('Error guardando fecha de emisión/asignación:', e);
+    } finally {
+      setGuardandoFecha(false);
+    }
+  };
 
   // Obtener dirección y licencia de la base de datos si no viene en el pago
   useEffect(() => {
@@ -525,7 +582,20 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-slate-800/80 border border-slate-600 rounded-lg px-2.5 py-1">
+              <span className="text-[10px] font-bold text-emerald-300 uppercase whitespace-nowrap">
+                📅 Emisión y Asig.:
+              </span>
+              <input
+                type="date"
+                value={fechaEditable}
+                onChange={e => handleGuardarFechaEnFactura(e.target.value)}
+                className="bg-slate-900 text-white border border-slate-600 rounded px-1.5 py-0.5 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                title="Editar Fecha de Emisión y Fecha de Asignación (iguales)"
+              />
+              {guardandoFecha && <span className="text-[10px] text-amber-300 animate-pulse">Guardando...</span>}
+            </div>
             <button
               onClick={handlePrint}
               className="px-3.5 py-1.5 bg-[#EB5424] hover:bg-[#d4481c] text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"

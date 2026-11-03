@@ -295,6 +295,112 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
         } catch (syncErr) {
           console.warn('Advertencia sincronizando exoneración con condominios:', syncErr);
         }
+
+        // Sincronizar con pagos_reportados pendientes de facturación electrónica para que la multa eliminada no vuelva a salir
+        try {
+          const codInmUpper = String(inm.inmueble || '').trim().toUpperCase();
+          const identInm = String(inm.identidad || row?.Identidad || row?.identidad || '').trim().toUpperCase();
+          if (identInm || codInmUpper) {
+            const orFilters: string[] = [];
+            if (identInm) orFilters.push(`identidad.eq.${identInm}`);
+            if (codInmUpper) {
+              orFilters.push(`detalles->>codigo_inmueble.eq.${codInmUpper}`);
+              orFilters.push(`detalles->>cod_inmueble.eq.${codInmUpper}`);
+            }
+            const { data: pagosRel } = await supabase
+              .from('pagos_reportados')
+              .select('id, detalles')
+              .or(orFilters.join(','))
+              .order('created_at', { ascending: false })
+              .limit(30);
+
+            const multaRem = parseFloat(nuevaMultaBsInm.toFixed(2));
+            for (const pr of (pagosRel || [])) {
+              let detP: any = pr.detalles || {};
+              if (typeof detP === 'string') {
+                try { detP = JSON.parse(detP); } catch { detP = {}; }
+              }
+              const yaEmitida = Boolean(detP?.factura_digital?.emitida || detP?.factura_digital?.numero_control);
+              if (yaEmitida && !detP?.factura_digital?.anulada) continue;
+
+              const recibosArr: string[] = Array.isArray(detP.recibos) ? detP.recibos.map(String) : [];
+              const afectaInm = !codInmUpper ||
+                String(detP.codigo_inmueble || '').toUpperCase() === codInmUpper ||
+                String(detP.cod_inmueble || '').toUpperCase() === codInmUpper ||
+                recibosArr.some(r => r.toUpperCase().includes(codInmUpper)) ||
+                (Array.isArray(detP.deuda_previa) && detP.deuda_previa.some((dp: any) => String(dp?.inmueble || '').toUpperCase() === codInmUpper)) ||
+                (Array.isArray(detP.condominio?.lineas) && detP.condominio.lineas.some((l: any) => String(l?.inmueble || '').toUpperCase() === codInmUpper));
+
+              if (!afectaInm) continue;
+
+              const nuevosDet = { ...detP };
+              if (multaRem <= 0) {
+                nuevosDet.sin_multas = true;
+                nuevosDet.llevaMulta = false;
+                nuevosDet.incluir_multas = false;
+                nuevosDet.multa_bs = 0;
+                nuevosDet.montoMulta = 0;
+                nuevosDet.monto_multa = 0;
+                if (Array.isArray(nuevosDet.recibos)) {
+                  nuevosDet.recibos = nuevosDet.recibos.filter((r: any) => {
+                    const s = String(r).toUpperCase();
+                    if (!s.startsWith('MULTA-')) return true;
+                    return codInmUpper ? !s.includes(codInmUpper) : false;
+                  });
+                }
+                if (nuevosDet.montos && typeof nuevosDet.montos === 'object') {
+                  for (const k of Object.keys(nuevosDet.montos)) {
+                    const ku = k.toUpperCase();
+                    if (ku === 'MULTA' || (ku.startsWith('MULTA-') && (!codInmUpper || ku.includes(codInmUpper)))) {
+                      delete nuevosDet.montos[k];
+                    }
+                  }
+                }
+              } else {
+                nuevosDet.multa_bs = multaRem;
+                nuevosDet.montoMulta = multaRem;
+              }
+
+              if (Array.isArray(nuevosDet.deuda_previa)) {
+                nuevosDet.deuda_previa = nuevosDet.deuda_previa.map((dp: any) => {
+                  if (!dp) return dp;
+                  if (!codInmUpper || String(dp.inmueble || '').toUpperCase() === codInmUpper) {
+                    return { ...dp, multa_bs: multaRem };
+                  }
+                  return dp;
+                });
+              }
+              if (Array.isArray(nuevosDet.condominio?.lineas)) {
+                nuevosDet.condominio = {
+                  ...nuevosDet.condominio,
+                  lineas: nuevosDet.condominio.lineas.map((l: any) => {
+                    if (!l) return l;
+                    if (!codInmUpper || String(l.inmueble || '').toUpperCase() === codInmUpper) {
+                      return { ...l, multaBs: multaRem };
+                    }
+                    return l;
+                  })
+                };
+              }
+              if (multaRem <= 0 && Array.isArray(nuevosDet.recibo_caja)) {
+                nuevosDet.recibo_caja = nuevosDet.recibo_caja.map((rc: any) => {
+                  if (!rc) return rc;
+                  return {
+                    ...rc,
+                    exento: 0,
+                    conceptos: Array.isArray(rc.conceptos)
+                      ? rc.conceptos.filter((c: any) => !/multa|mora|sanci[oó]n/i.test(String(c?.descripcion || c?.concepto || '')))
+                      : rc.conceptos
+                  };
+                });
+              }
+
+              await supabase.from('pagos_reportados').update({ detalles: nuevosDet }).eq('id', pr.id);
+            }
+          }
+        } catch (syncPagosErr) {
+          console.warn('Advertencia sincronizando exoneración con pagos_reportados:', syncPagosErr);
+        }
       }
 
       // 2. Si hay notas en contribuyentes, registrar también

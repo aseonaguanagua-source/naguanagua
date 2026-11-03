@@ -341,6 +341,7 @@ export default function FacturacionElectronicaPage() {
   const [emitLlevaMulta, setEmitLlevaMulta] = useState(false);
   const [emitConceptoMulta, setEmitConceptoMulta] = useState('Multa por Mora - Aseo Urbano');
   const [emitFechaEmision, setEmitFechaEmision] = useState('');
+  const [emitFechaAsignacion, setEmitFechaAsignacion] = useState('');
   const [emitFechaPago, setEmitFechaPago] = useState('');
 
   // Modal de Edición de Datos Fiscales del Pago (monto, retención, nombre, cédula/RIF, referencia, caja)
@@ -353,6 +354,7 @@ export default function FacturacionElectronicaPage() {
     fecha: '',
     concepto: '',
     esRetencion: false,
+    sinMulta: false,
     modulo: 'caja',
     marcarAnulada: false
   });
@@ -689,8 +691,20 @@ export default function FacturacionElectronicaPage() {
       multaCondo = pago.detalles.condominio.lineas.reduce((acc: number, l: any) => acc + (parseFloat(String(l?.multaBs || 0)) || 0), 0);
     }
 
-    const esSoloAseo = Boolean(pago.detalles?.solo_aseo || pago.detalles?.sin_multas || pago.detalles?.incluir_multas === false);
-    if (esSoloAseo && multaCondo === 0) {
+    const sinMultaEliminada = Boolean(
+      pago.tieneMulta === false ||
+      pago.llevaMulta === false ||
+      pago.detalles?.llevaMulta === false ||
+      pago.detalles?.sin_multas === true ||
+      pago.detalles?.solo_aseo === true ||
+      pago.detalles?.incluir_multas === false ||
+      (pago.detalles?.montoMulta !== undefined && pago.detalles?.montoMulta !== null && String(pago.detalles.montoMulta).trim() !== '' && parseFloat(String(pago.detalles.montoMulta)) <= 0)
+    );
+    const esSoloAseo = sinMultaEliminada || Boolean(pago.detalles?.solo_aseo || pago.detalles?.sin_multas || pago.detalles?.incluir_multas === false);
+    if (sinMultaEliminada) {
+      multaCondo = 0;
+      exentoRecibo = 0;
+    } else if (esSoloAseo && multaCondo === 0) {
       exentoRecibo = 0;
     } else if (pago.detalles?.recibo_caja) {
       try {
@@ -805,14 +819,33 @@ export default function FacturacionElectronicaPage() {
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
     const fechaPagoOrig = (pago.detalles?.fecha_transaccion || pago.detalles?.fecha_banco || pago.fechaPago || pago.created_at || '').slice(0, 10);
-    setEmitFechaEmision(hoyCaracas());
+    const fechaEmisionGuardada = (
+      pago.fechaEmisionOverride ||
+      pago.detalles?.fecha_emision_override ||
+      pago.detalles?.fecha_asignacion_override ||
+      pago.fechaEmision ||
+      pago.detalles?.factura_digital?.fecha_emision ||
+      ''
+    ).slice(0, 10) || hoyCaracas();
+    setEmitFechaEmision(fechaEmisionGuardada);
+    setEmitFechaAsignacion(fechaEmisionGuardada);
     setEmitFechaPago(fechaPagoOrig || hoyCaracas());
   };
 
   // Abrir Modal de Edición Directa de Datos Fiscales
   const handleOpenEditModal = (pago: any) => {
     setPagoAEditar(pago);
-    const fOrig = (pago.detalles?.fecha_transaccion || pago.created_at || pago.fecha || '').slice(0, 10);
+    const fOrig = (
+      pago.fechaEmisionOverride ||
+      pago.detalles?.fecha_emision_override ||
+      pago.detalles?.fecha_asignacion_override ||
+      pago.fechaEmision ||
+      pago.detalles?.factura_digital?.fecha_emision ||
+      pago.detalles?.fecha_transaccion ||
+      pago.created_at ||
+      pago.fecha ||
+      ''
+    ).slice(0, 10);
     const conceptoOrig = pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle || '';
     const montoPagadoReal = pago.montoPagado || 
       pago.detalles?.monto_conciliado || 
@@ -826,6 +859,7 @@ export default function FacturacionElectronicaPage() {
       fecha: fOrig || hoyCaracas(),
       concepto: conceptoOrig,
       esRetencion: !!(pago.esRetencion || pago.conRetencion || pago.detalles?.es_retencion || pago.detalles?.agente_retencion),
+      sinMulta: Boolean(pago.tieneMulta === false || pago.detalles?.llevaMulta === false || pago.detalles?.sin_multas === true),
       modulo: pago.modulo || (pago.condominio ? 'condominios' : 'caja'),
       marcarAnulada: false
     });
@@ -867,8 +901,11 @@ export default function FacturacionElectronicaPage() {
           monto: mNum,
           referencia: editForm.referencia.trim(),
           esRetencion: editForm.esRetencion,
+          sinMulta: editForm.sinMulta,
           modulo: editForm.modulo,
           fecha: editForm.fecha,
+          fechaEmision: editForm.fecha,
+          fechaAsignacion: editForm.fecha,
           concepto: editForm.concepto,
           marcarAnulada: editForm.marcarAnulada,
           usuario: usuarioActual || 'Administrador'
@@ -1520,7 +1557,15 @@ export default function FacturacionElectronicaPage() {
                         })()}
                       </td>
                       <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
-                        {new Date(pago.created_at).toLocaleDateString('es-VE')}
+                        {(() => {
+                          const rawF = pago.fechaEmisionOverride || pago.detalles?.fecha_emision_override || pago.fechaEmision || pago.detalles?.fecha_transaccion || pago.created_at;
+                          const s = String(rawF || '').trim();
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                            const [y, m, d] = s.split('-');
+                            return `${d}/${m}/${y}`;
+                          }
+                          return new Date(s || pago.created_at).toLocaleDateString('es-VE', { timeZone: 'America/Caracas' });
+                        })()}
                       </td>
                       <td className="py-3.5 px-4">
                         {pago.documento === 'recibo' ? (
@@ -1638,16 +1683,23 @@ export default function FacturacionElectronicaPage() {
                             </>
                           ) : (pago.facturaEmitida || pago.facturaAnulada) ? (
                             <>
+                              <button
+                                onClick={() => setSelectedPagoForDemo(pago)}
+                                className="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-slate-200 transition-colors cursor-pointer"
+                                title="Ver e imprimir formato oficial con Fecha de Emisión y Asignación iguales y editables"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-blue-600" />
+                                <span>{pago.facturaAnulada ? 'Factura' : 'PDF'}</span>
+                              </button>
                               {pago.facturaUrl && (
                                 <a
                                   href={pago.facturaUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-slate-200 transition-colors"
-                                  title="Ver factura oficial en formato PDF del SENIAT"
+                                  className="text-[11px] bg-white hover:bg-slate-100 text-slate-600 font-bold px-2 py-1.5 rounded-lg flex items-center gap-1 border border-slate-200 transition-colors"
+                                  title="Abrir enlace en portal The Factory HKA"
                                 >
-                                  <Eye className="w-3.5 h-3.5 text-blue-600" />
-                                  <span>{pago.facturaAnulada ? 'Factura' : 'PDF'}</span>
+                                  <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
                                 </a>
                               )}
                               {pago.notaCreditoUrl && (
@@ -2231,29 +2283,49 @@ export default function FacturacionElectronicaPage() {
                       className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 bg-white"
                     />
                   </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-[10px] font-bold text-emerald-900 uppercase mb-0.5 flex items-center justify-between">
-                      <span>📅 Fecha de Emisión Factura (TFHKA)</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={emitFechaEmision}
-                      onChange={e => setEmitFechaEmision(e.target.value)}
-                      className="w-full border border-emerald-400 bg-emerald-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
-                    />
-                    <p className="text-[9px] text-slate-500 mt-0.5">Fecha impresa de la factura</p>
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-0.5 flex items-center justify-between">
-                      <span>💳 Fecha del Pago / Transacción</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={emitFechaPago}
-                      onChange={e => setEmitFechaPago(e.target.value)}
-                      className="w-full border border-indigo-400 bg-indigo-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <p className="text-[9px] text-slate-500 mt-0.5">Fecha del movimiento bancario</p>
+                  <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold text-emerald-900 uppercase mb-0.5 flex items-center justify-between">
+                        <span>📅 Fecha de Emisión Factura</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={emitFechaEmision}
+                        onChange={e => {
+                          setEmitFechaEmision(e.target.value);
+                          setEmitFechaAsignacion(e.target.value);
+                        }}
+                        className="w-full border border-emerald-400 bg-emerald-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                      />
+                      <p className="text-[9px] text-emerald-700 font-semibold mt-0.5">Sincronizada con Fecha de Asignación</p>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-emerald-900 uppercase mb-0.5 flex items-center justify-between">
+                        <span>📅 Fecha de Asignación (Ctrl)</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={emitFechaAsignacion || emitFechaEmision}
+                        onChange={e => {
+                          setEmitFechaAsignacion(e.target.value);
+                          setEmitFechaEmision(e.target.value);
+                        }}
+                        className="w-full border border-emerald-400 bg-emerald-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                      />
+                      <p className="text-[9px] text-emerald-700 font-semibold mt-0.5">Igual a la Fecha de Emisión</p>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-0.5 flex items-center justify-between">
+                        <span>💳 Fecha del Pago / Transacción</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={emitFechaPago}
+                        onChange={e => setEmitFechaPago(e.target.value)}
+                        className="w-full border border-indigo-400 bg-indigo-50/40 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <p className="text-[9px] text-slate-500 mt-0.5">Fecha del movimiento bancario</p>
+                    </div>
                   </div>
                 </div>
 
@@ -2342,11 +2414,50 @@ export default function FacturacionElectronicaPage() {
                       <input
                         type="checkbox"
                         checked={emitLlevaMulta}
-                        onChange={e => {
+                        onChange={async e => {
                           const val = e.target.checked;
                           setEmitLlevaMulta(val);
                           if (!val) {
                             setAjusteMontoMulta('0.00');
+                            // Persistir eliminación de la multa en el pago para que no vuelva a aparecer
+                            const pId = selectedPagoForEmit?.pagoId || selectedPagoForEmit?.id;
+                            if (pId) {
+                              setSelectedPagoForEmit((prev: any) => prev ? {
+                                ...prev,
+                                tieneMulta: false,
+                                llevaMulta: false,
+                                detalles: {
+                                  ...(prev.detalles || {}),
+                                  sin_multas: true,
+                                  llevaMulta: false,
+                                  incluir_multas: false,
+                                  multa_bs: 0,
+                                  montoMulta: 0
+                                }
+                              } : prev);
+                              setPagosList(prev => prev.map(item => (item.id === pId || item.pagoId === pId) ? {
+                                ...item,
+                                tieneMulta: false,
+                                llevaMulta: false,
+                                detalles: {
+                                  ...(item.detalles || {}),
+                                  sin_multas: true,
+                                  llevaMulta: false,
+                                  incluir_multas: false,
+                                  multa_bs: 0,
+                                  montoMulta: 0
+                                }
+                              } : item));
+                              fetch('/api/admin/factura-digital/editar-pago', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  pagoId: pId,
+                                  sinMulta: true,
+                                  usuario: adminUser?.usuario || 'Administrador'
+                                })
+                              }).catch(() => {});
+                            }
                           }
                         }}
                         className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
@@ -2674,8 +2785,8 @@ export default function FacturacionElectronicaPage() {
                   </div>
                 </div>
 
-                {/* 3. Referencia Bancaria, Fecha & Selección de Caja */}
-                <div className="grid grid-cols-3 gap-2.5">
+                {/* 3. Referencia Bancaria, Fecha de Emisión y Asignación & Selección de Caja */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Nro. de Referencia
@@ -2690,14 +2801,26 @@ export default function FacturacionElectronicaPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Fecha de Emisión / Operación <span className="text-rose-500">*</span>
+                    <label className="block text-xs font-bold text-emerald-900 mb-1">
+                      Fecha de Emisión <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="date"
                       value={editForm.fecha}
                       onChange={e => setEditForm(prev => ({ ...prev, fecha: e.target.value }))}
-                      className="w-full border border-slate-300 rounded-xl px-2 py-2 text-xs font-semibold focus:ring-2 focus:ring-indigo-500 bg-white"
+                      className="w-full border border-emerald-400 bg-emerald-50/40 rounded-xl px-2 py-2 text-xs font-semibold focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-emerald-900 mb-1">
+                      Fecha de Asignación <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={editForm.fecha}
+                      onChange={e => setEditForm(prev => ({ ...prev, fecha: e.target.value }))}
+                      className="w-full border border-emerald-400 bg-emerald-50/40 rounded-xl px-2 py-2 text-xs font-semibold focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
 
@@ -2734,7 +2857,7 @@ export default function FacturacionElectronicaPage() {
                 </div>
 
                 {/* 4. Retención de IVA (75%) */}
-                <div className="pt-1">
+                <div className="pt-1 space-y-2">
                   <label className="flex items-start gap-3 p-3 rounded-xl border border-amber-300 bg-amber-50/70 hover:bg-amber-100/60 transition-colors cursor-pointer">
                     <input
                       type="checkbox"
@@ -2746,6 +2869,21 @@ export default function FacturacionElectronicaPage() {
                       <span className="font-bold text-amber-950 block">¿Es Pago con Retención de IVA (75%)?</span>
                       <span className="text-[11px] text-amber-800 leading-snug block mt-0.5">
                         Indica si el contribuyente retuvo el 75% del IVA como contribuyente especial. La factura se emitirá con la retención y retendrá el envío automático de correo hasta cargar el comprobante.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100/80 transition-colors cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editForm.sinMulta}
+                      onChange={e => setEditForm(prev => ({ ...prev, sinMulta: e.target.checked }))}
+                      className="mt-0.5 rounded border-slate-400 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-slate-900 block">Eliminar / Exonerar Multa por Mora en Facturación Electrónica</span>
+                      <span className="text-[11px] text-slate-600 leading-snug block mt-0.5">
+                        Al activar esta opción, cualquier multa asociada a este pago se elimina permanentemente para que no vuelva a aparecer en la factura electrónica.
                       </span>
                     </div>
                   </label>

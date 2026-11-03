@@ -15,6 +15,9 @@ export async function POST(req: Request) {
       modulo,
       marcarAnulada,
       fecha,
+      fechaEmision,
+      fechaAsignacion,
+      sinMulta,
       concepto,
       usuario
     } = await req.json();
@@ -145,11 +148,78 @@ export async function POST(req: Request) {
       ]
     };
 
-    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-      nuevosDetalles.fecha_transaccion = fecha;
-      nuevosDetalles.fecha_banco = fecha;
+    const fechaUnificada = [fechaEmision, fechaAsignacion, fecha].find(f => f && /^\d{4}-\d{2}-\d{2}$/.test(String(f).trim()))?.trim();
+    if (fechaUnificada) {
+      const [yyyy, mm, dd] = fechaUnificada.split('-');
+      const ddmmyyyy = `${dd}/${mm}/${yyyy}`;
+      const isoCaracas = `${fechaUnificada}T12:00:00-04:00`;
+
+      nuevosDetalles.fecha_transaccion = fechaUnificada;
+      nuevosDetalles.fecha_banco = fechaUnificada;
+      nuevosDetalles.fecha_emision_override = fechaUnificada;
+      nuevosDetalles.fecha_asignacion_override = fechaUnificada;
+
       if (Array.isArray(nuevosDetalles.recibo_caja) && nuevosDetalles.recibo_caja[0]) {
-        nuevosDetalles.recibo_caja[0].fechaTransaccion = fecha;
+        nuevosDetalles.recibo_caja[0].fechaTransaccion = fechaUnificada;
+      }
+      if (nuevosDetalles.factura_digital && typeof nuevosDetalles.factura_digital === 'object') {
+        nuevosDetalles.factura_digital = {
+          ...nuevosDetalles.factura_digital,
+          fecha_emision: isoCaracas,
+          fecha_asignacion: isoCaracas,
+        };
+        if (nuevosDetalles.factura_digital.raw_response?.resultado) {
+          nuevosDetalles.factura_digital.raw_response = {
+            ...nuevosDetalles.factura_digital.raw_response,
+            resultado: {
+              ...nuevosDetalles.factura_digital.raw_response.resultado,
+              fechaAsignacion: ddmmyyyy,
+              fechaAsignacionNumeroControl: ddmmyyyy,
+              fechaEmision: ddmmyyyy,
+            }
+          };
+        }
+        if (nuevosDetalles.factura_digital.payload_generado?.documentoElectronico?.Encabezado?.IdentificacionDocumento) {
+          nuevosDetalles.factura_digital.payload_generado.documentoElectronico.Encabezado.IdentificacionDocumento.FechaEmision = ddmmyyyy;
+          nuevosDetalles.factura_digital.payload_generado.documentoElectronico.Encabezado.IdentificacionDocumento.FechaVencimiento = ddmmyyyy;
+        }
+      }
+    }
+
+    if (sinMulta === true) {
+      nuevosDetalles.sin_multas = true;
+      nuevosDetalles.llevaMulta = false;
+      nuevosDetalles.incluir_multas = false;
+      nuevosDetalles.multa_bs = 0;
+      nuevosDetalles.montoMulta = 0;
+      nuevosDetalles.monto_multa = 0;
+      if (Array.isArray(nuevosDetalles.recibos)) {
+        nuevosDetalles.recibos = nuevosDetalles.recibos.filter((r: any) => !/^MULTA-/i.test(String(r)));
+      }
+      if (nuevosDetalles.montos && typeof nuevosDetalles.montos === 'object') {
+        for (const k of Object.keys(nuevosDetalles.montos)) {
+          if (/^MULTA-/i.test(k) || k.toLowerCase() === 'multa') {
+            delete nuevosDetalles.montos[k];
+          }
+        }
+      }
+      if (Array.isArray(nuevosDetalles.deuda_previa)) {
+        nuevosDetalles.deuda_previa = nuevosDetalles.deuda_previa.map((dp: any) => dp ? { ...dp, multa_bs: 0 } : dp);
+      }
+      if (Array.isArray(nuevosDetalles.condominio?.lineas)) {
+        nuevosDetalles.condominio.lineas = nuevosDetalles.condominio.lineas.map((l: any) => l ? { ...l, multaBs: 0 } : l);
+      }
+      if (Array.isArray(nuevosDetalles.recibo_caja)) {
+        nuevosDetalles.recibo_caja = nuevosDetalles.recibo_caja.map((rc: any) => {
+          if (!rc) return rc;
+          return {
+            ...rc,
+            exento: 0,
+            conceptos: Array.isArray(rc.conceptos)
+              ? rc.conceptos.filter((c: any) => !/multa|mora|sanci[oó]n/i.test(String(c?.descripcion || c?.concepto || '')))
+              : rc.conceptos
+          };
+        });
       }
     }
 
@@ -182,7 +252,7 @@ export async function POST(req: Request) {
       referencia: nuevaRef,
       modulo: nuevoModulo,
       detalles: nuevosDetalles,
-      ...(fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? { created_at: `${fecha}T12:00:00-04:00` } : {})
+      ...(fechaUnificada ? { created_at: `${fechaUnificada}T12:00:00-04:00` } : {})
     };
 
     const { error: upErr } = await sb.from('pagos_reportados').update(updatePayload).eq('id', pagoId);
