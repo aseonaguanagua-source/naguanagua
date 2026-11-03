@@ -1196,27 +1196,55 @@ export default function CajaPage() {
       // Guardar inmuebles frescos para que getReciboMonto los use
       setFreshInmuebles(activeInmFresh);
       
-      // Inmuebles con saldo_favor_bs cuando tienen meses_deuda representan abonos previos ya aprobados en Conciliación
-      const abonoPrevioInmuebles = isCodeFormat && searchedInm
-        ? (parseInt(String(searchedInm.meses_deuda || '0')) > 0 ? (parseFloat(searchedInm.saldo_favor_bs || '0') || 0) : 0)
+      // Consultar Notas de Crédito vigentes en tabla documentos para este contribuyente
+      let saldoNotasVigentes = 0;
+      try {
+        const docIdentSearch = Array.from(new Set([
+          ...userIdentVariants,
+          user.Identidad,
+          user.CodCont,
+          user.cod_cont,
+          ...(activeInmFresh || []).map((i: any) => i.inmueble)
+        ].filter(Boolean)));
+        if (docIdentSearch.length > 0) {
+          const { data: docsNC } = await supabase
+            .from('documentos')
+            .select('id, estado, detalles')
+            .eq('tipo', 'Nota de Credito')
+            .eq('estado', 'Vigente')
+            .in('identidad', docIdentSearch);
+          if (docsNC && docsNC.length > 0) {
+            saldoNotasVigentes = docsNC.reduce((acc: number, d: any) => {
+              let det: any = {};
+              try { det = typeof d.detalles === 'string' ? JSON.parse(d.detalles) : (d.detalles || {}); } catch {}
+              const m = parseFloat(String(det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;
+              return acc + (m > 0 ? m : 0);
+            }, 0);
+          }
+        }
+      } catch (eNC) {
+        console.warn('Error consultando notas de credito vigentes:', eNC);
+      }
+
+      // Todo saldo_favor_bs o Nota de Crédito vigente se consolida en SaldoFavor para permitir cancelar con Notas de Crédito / Saldo a Favor
+      const saldoInmuebles = isCodeFormat && searchedInm
+        ? Math.max(
+            parseFloat(searchedInm.saldo_favor_bs || '0') || 0,
+            activeInmFresh.reduce((sum: number, i: any) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0), 0)
+          )
         : activeInmFresh.reduce(
-            (sum: number, i: any) => {
-              const mesesDeuda = parseInt(String(i.meses_deuda || '0'));
-              if (mesesDeuda > 0) return sum + (parseFloat(i.saldo_favor_bs || '0') || 0);
-              return sum;
-            }, 0
+            (sum: number, i: any) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0),
+            0
           );
 
-      const saldoFavorFresh = isCodeFormat && searchedInm
-        ? (parseInt(String(searchedInm.meses_deuda || '0')) > 0 ? 0 : (parseFloat(searchedInm.saldo_favor_bs || '0') || 0))
-        : activeInmFresh.reduce(
-            (sum: number, i: any) => {
-              const mesesDeuda = parseInt(String(i.meses_deuda || '0'));
-              // Si tiene meses_deuda, el saldo a favor es un abono previo que reduce la deuda
-              if (mesesDeuda > 0) return sum;
-              return sum + (parseFloat(i.saldo_favor_bs || '0') || 0);
-            }, 0
-          );
+      const saldoFavorFresh = Math.round(Math.max(saldoInmuebles, saldoNotasVigentes) * 100) / 100;
+      const abonoPrevioInmuebles = 0;
+      if (saldoFavorFresh > 0) {
+        setPaymentMethod('Saldo a Favor');
+        if (user.Identidad) fetchContribNotas(user.Identidad);
+      } else {
+        setPaymentMethod(prev => prev === 'Saldo a Favor' ? 'Debito' : prev);
+      }
       
       // Identificar contenedores N/A propios para no tratarlos como condominios externos
       const naParentCodesFresh = activeInmFresh
@@ -1992,20 +2020,6 @@ export default function CajaPage() {
       const multaMes = Math.round((bMes * tasaMora) * 100) / 100;
       const multaInm = Math.round((multaMes * mesesConMora) * 100) / 100;
       smulta4 += multaInm;
-
-      // Abono previo aprobado en conciliación para este inmueble (o en su contenedor padre N/A)
-      const saldoAbonoInm = parseFloat(inm.saldo_favor_bs || '0') || 0;
-      if (saldoAbonoInm > 0) {
-        totalAbonoPrevio += saldoAbonoInm;
-      }
-      if (inm.padre_id && !padresAbonoContados.has(inm.padre_id)) {
-        const padreObj = inmueblesMap.get(inm.padre_id);
-        const saldoPadre = parseFloat(padreObj?.saldo_favor_bs || '0') || 0;
-        if (saldoPadre > 0) {
-          padresAbonoContados.add(inm.padre_id);
-          totalAbonoPrevio += saldoPadre;
-        }
-      }
     });
 
     selectedCuotas.forEach(sc => {
@@ -2174,9 +2188,15 @@ export default function CajaPage() {
     const realMontoRetencionIVA = Math.round((sumIVARetencionable * (retencionIVA / 100)) * 100) / 100;
     const totalConImpuestos = Math.round((calculatedTotalBs - realMontoRetencionIVA + ajusteMontoAcordado) * 100) / 100;
     const maxSaldoUsable = foundUser?.SaldoFavor || 0;
+    // Si tiene Nota de Crédito / Saldo a Favor suficiente para cubrir toda la deuda seleccionada y tiene activo usar saldo, procesar como Saldo a Favor
+    const cubreTodoConNota = !isAbonoCondo && useSaldoFavor && maxSaldoUsable >= totalConImpuestos - 0.02 && totalConImpuestos > 0;
+    const effectivePaymentMethod = (paymentMethod === 'Saldo a Favor' || cubreTodoConNota) ? 'Saldo a Favor' : paymentMethod;
+    if (cubreTodoConNota && paymentMethod !== 'Saldo a Favor') {
+      setPaymentMethod('Saldo a Favor');
+    }
     // Cuando el método de pago ES Saldo a Favor, el checkbox no aplica
     // (evita doble deducción: una por descuento + otra por el método)
-    const descuentoSaldoFavor = (paymentMethod !== 'Saldo a Favor' && useSaldoFavor)
+    const descuentoSaldoFavor = (effectivePaymentMethod !== 'Saldo a Favor' && useSaldoFavor)
       ? Math.round(Math.min(totalConImpuestos, maxSaldoUsable) * 100) / 100
       : 0;
     const finalTotal = Math.max(0, Math.round((totalConImpuestos - abonoPrevioAprobado - descuentoSaldoFavor) * 100) / 100);
@@ -2185,7 +2205,7 @@ export default function CajaPage() {
     let esAbono = isAbonoCondo;
     let montoReal = isAbonoCondo ? parseLocalFloat(montoAbonoCondo) : finalTotal;
     
-    const reqRef = ['Transferencia', 'Deposito'].includes(paymentMethod);
+    const reqRef = ['Transferencia', 'Deposito'].includes(effectivePaymentMethod);
 
     if (reqRef) {
       if (!banco) return alert("Debe seleccionar el banco emisor.");
@@ -2225,8 +2245,8 @@ export default function CajaPage() {
         esAbono = false;
         montoReal = transferido;
       }
-    } else if (['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod)) {
-      const cardLabel = paymentMethod === 'TMD' ? 'Tarjeta Master (TMD)' : paymentMethod === 'TVD' ? 'Tarjeta Visa (TVD)' : paymentMethod === 'Credito' ? 'Tarjeta de Crédito' : 'Punto de Venta';
+    } else if (['Debito', 'Credito', 'TMD', 'TVD'].includes(effectivePaymentMethod)) {
+      const cardLabel = effectivePaymentMethod === 'TMD' ? 'Tarjeta Master (TMD)' : effectivePaymentMethod === 'TVD' ? 'Tarjeta Visa (TVD)' : effectivePaymentMethod === 'Credito' ? 'Tarjeta de Crédito' : 'Punto de Venta';
       if (!referenciaDebito.trim()) return alert(`Debe ingresar el número de comprobante o referencia del pago por ${cardLabel}.`);
       if (referenciaDebito.trim().length !== 8) return alert(`El número de referencia para ${cardLabel} debe tener exactamente 8 caracteres.`);
       if (montoDebito && (parseLocalFloat(montoDebito) <= 0 || isNaN(parseLocalFloat(montoDebito)))) {
@@ -2245,14 +2265,17 @@ export default function CajaPage() {
           esAbono = false;
         }
       }
-    } else if (paymentMethod === 'Saldo a Favor') {
-      // El método paga con el saldo directamente (totalBs completo, sin descuento previo)
+    } else if (effectivePaymentMethod === 'Saldo a Favor') {
+      // El método paga con Nota de Crédito / Saldo a Favor directamente
       const saldoDisponible = foundUser?.SaldoFavor || 0;
-      if (saldoDisponible <= 0) return alert("El contribuyente no tiene Saldo a Favor disponible.");
-      if (saldoDisponible < totalConImpuestos) {
-        return alert(`Saldo a Favor insuficiente. Disponible: Bs. ${formatBs(saldoDisponible)}. Deuda total: Bs. ${formatBs(totalConImpuestos)}.\nUse otro método de pago o combínelo con el descuento de saldo parcial.`);
+      if (saldoDisponible <= 0) return alert("El contribuyente no tiene Notas de Crédito ni Saldo a Favor disponible.");
+      if (saldoDisponible < totalConImpuestos - 0.02) {
+        esAbono = true;
+        montoReal = saldoDisponible;
+      } else {
+        esAbono = false;
+        montoReal = totalConImpuestos; // Paga la deuda completa con la Nota de Crédito / Saldo a Favor
       }
-      montoReal = totalConImpuestos; // Paga la deuda completa con el saldo
     }
     
     if (customBcvRate && !justificacionBcv.trim()) {
@@ -2760,13 +2783,13 @@ export default function CajaPage() {
       
       // ─ Descontar Saldo a Favor usado como descuento (fix I-6) ─
       if (descuentoSaldoFavor > 0) {
-        const result = await descontarSaldoFavor(foundUser.Identidad, descuentoSaldoFavor);
+        const result = await descontarSaldoFavor(foundUser.Identidad, descuentoSaldoFavor, foundUser.CodCont || foundUser.cod_cont);
         if (!result.ok) console.error('Error descontando saldo:', result.error);
       }
 
       // ─ Pago con método Saldo a Favor: descontar el monto completo (fix I-6) ─
       if (paymentMethod === 'Saldo a Favor') {
-        const result = await descontarSaldoFavor(foundUser.Identidad, montoReal);
+        const result = await descontarSaldoFavor(foundUser.Identidad, montoReal, foundUser.CodCont || foundUser.cod_cont);
         if (!result.ok) console.error('Error al pagar con Saldo a Favor:', result.error);
       }
 
@@ -2958,8 +2981,18 @@ export default function CajaPage() {
           digitalMontos = { [refCondo]: (realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos };
         }
 
+        const refNotaCredito = `NC-${Date.now().toString().slice(-6)}`;
+        const refEfectiva = reqRef ? referencia : (paymentMethod === 'Saldo a Favor' ? refNotaCredito : referenciaDebito);
         const fpsList: any[] = [];
-        if (finalTotal > 0 || paymentMethod !== 'Saldo a Favor') {
+        if (paymentMethod === 'Saldo a Favor') {
+          fpsList.push({
+            descripcion: 'COMPENSACIÓN (NOTA DE CRÉDITO / SALDO A FAVOR)',
+            fecha: new Date().toISOString(),
+            forma: '99',
+            referencia: refNotaCredito,
+            monto: montoReal
+          });
+        } else if (finalTotal > 0) {
           fpsList.push({
             descripcion: paymentMethod === 'TMD' ? 'TARJETA DE CRÉDITO MASTER (TMD)' : paymentMethod === 'TVD' ? 'TARJETA DE CRÉDITO VISA (TVD)' : paymentMethod === 'Credito' ? 'TARJETA DE CRÉDITO' : paymentMethod === 'Debito' ? 'TARJETA DE DÉBITO' : paymentMethod,
             fecha: new Date().toISOString(),
@@ -2994,6 +3027,7 @@ export default function CajaPage() {
           ? inmPagoSeleccionado.contribuyente
           : foundUser.Contribuyente;
         const codInmuebleFinal = inmPagoSeleccionado?.inmueble || inmPagoSeleccionado?.cod_cont || undefined;
+        const totalSaldoUsado = paymentMethod === 'Saldo a Favor' ? montoReal : descuentoSaldoFavor;
 
         const fullDetalles: any = {
           contribuyente: contribuyenteFinalPago,
@@ -3033,12 +3067,12 @@ export default function CajaPage() {
           saldo_favor: saldoAFavorNuevo,
           saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
           monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
-          saldo_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
-          descuento_saldo_favor: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
-          saldo_favor_usado: descuentoSaldoFavor > 0 ? descuentoSaldoFavor : undefined,
+          saldo_usado: totalSaldoUsado > 0 ? totalSaldoUsado : undefined,
+          descuento_saldo_favor: totalSaldoUsado > 0 ? totalSaldoUsado : undefined,
+          saldo_favor_usado: totalSaldoUsado > 0 ? totalSaldoUsado : undefined,
           abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
           monto_factura: (realMontoRetencionIVA > 0) ? totalFacturaBruto : totalConImpuestos, // Monto total bruto de la factura fiscal
-          monto_neto_factura: finalTotal,
+          monto_neto_factura: paymentMethod === 'Saldo a Favor' ? 0 : finalTotal,
           montoTotal: totalFacturaBruto,
           total_seleccionado: totalBs,
           monto_retencion_iva: realMontoRetencionIVA,
@@ -3059,20 +3093,20 @@ export default function CajaPage() {
           id: pagoId,
           identidad: foundUser.Identidad,
           monto: montoReal,
-          banco: paymentMethod === 'TMD' ? 'PUNTO TMD (MASTER)' : paymentMethod === 'TVD' ? 'PUNTO TVD (VISA)' : paymentMethod === 'Credito' ? 'PUNTO CRÉDITO' : paymentMethod,
-          referencia: reqRef ? referencia : referenciaDebito,
+          banco: paymentMethod === 'TMD' ? 'PUNTO TMD (MASTER)' : paymentMethod === 'TVD' ? 'PUNTO TVD (VISA)' : paymentMethod === 'Credito' ? 'PUNTO CRÉDITO' : paymentMethod === 'Saldo a Favor' ? 'NOTA DE CRÉDITO / SALDO A FAVOR' : paymentMethod,
+          referencia: refEfectiva,
           tipo: paymentMethod,
           estado: 'Aprobado',
           created_at: fechaUTC,
           detalles: JSON.stringify(fullDetalles)
         });
         if (insertErr && (insertErr.code === '23505' || String(insertErr.message).includes('referencia_key') || String(insertErr.message).includes('duplicate'))) {
-          const refUnica = `${(reqRef ? referencia : referenciaDebito)}-${Date.now().toString().slice(-4)}`;
+          const refUnica = `${refEfectiva}-${Date.now().toString().slice(-4)}`;
           const r2 = await supabase.from('pagos_reportados').insert({
             id: pagoId,
             identidad: foundUser.Identidad,
             monto: montoReal,
-            banco: paymentMethod === 'TMD' ? 'PUNTO TMD (MASTER)' : paymentMethod === 'TVD' ? 'PUNTO TVD (VISA)' : paymentMethod === 'Credito' ? 'PUNTO CRÉDITO' : paymentMethod,
+            banco: paymentMethod === 'TMD' ? 'PUNTO TMD (MASTER)' : paymentMethod === 'TVD' ? 'PUNTO TVD (VISA)' : paymentMethod === 'Credito' ? 'PUNTO CRÉDITO' : paymentMethod === 'Saldo a Favor' ? 'NOTA DE CRÉDITO / SALDO A FAVOR' : paymentMethod,
             referencia: refUnica,
             tipo: paymentMethod,
             estado: 'Aprobado',
@@ -3126,16 +3160,17 @@ export default function CajaPage() {
 
           if (!esAbonoDebito) {
             // === PAGO COMPLETO DE LOS MESES SELECCIONADOS ===
+            // NOTA: saldo_favor_bs ya fue actualizado atómicamente por descontarSaldoFavor / acreditarSaldoFavor arriba,
+            // por lo que NO se debe sobreescribir a 0 aquí (para preservar el saldo a favor restante de Notas de Crédito).
             for (const inm of userInmsClean) {
               const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
               const numMesesInm = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
-              if (selectedRecibos.includes('RECIB-DEUDA') || (histRefsThisInm.length >= numMesesInm && (numMesesInm > 0 || histRefsThisInm.length > 0 || (inm.saldo_favor_bs || 0) > 0))) {
+              if (selectedRecibos.includes('RECIB-DEUDA') || (histRefsThisInm.length >= numMesesInm && (numMesesInm > 0 || histRefsThisInm.length > 0))) {
                 await supabase.from('inmuebles').update({
                   deuda_mmv: 0,
                   deuda_congelada_bs: 0,
                   multa_bs: 0,
                   meses_deuda: 0,
-                  saldo_favor_bs: saldoAFavorNuevo > 0 ? parseFloat(saldoAFavorNuevo.toFixed(2)) : 0
                 }).eq('id', inm.id);
               } else if (histRefsThisInm.length > 0) {
                 const nuevoMeses = Math.max(0, numMesesInm - histRefsThisInm.length);
@@ -3147,7 +3182,6 @@ export default function CajaPage() {
                   meses_deuda: nuevoMeses,
                   deuda_mmv: nuevaDeudaMMV,
                   multa_bs: nuevaMultaBs,
-                  saldo_favor_bs: saldoAFavorNuevo > 0 ? parseFloat(saldoAFavorNuevo.toFixed(2)) : 0,
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                 }).eq('id', inm.id);
               }
@@ -5144,12 +5178,25 @@ export default function CajaPage() {
               )}
             </div>
             {foundUser.SaldoFavor > 0 && (
-              <div className="bg-emerald-100 border-2 border-emerald-500 p-4 rounded-xl flex flex-col items-center justify-center min-w-[200px]">
-                <span className="text-emerald-700 font-bold text-sm uppercase">Saldo a Favor</span>
-                <span className="text-2xl font-black text-emerald-600">Bs. {formatBs(foundUser.SaldoFavor)}</span>
-                <label className="text-[10px] flex items-center gap-1 mt-2 text-emerald-800 cursor-pointer">
-                  <input type="checkbox" checked={useSaldoFavor} onChange={e => setUseSaldoFavor(e.target.checked)} />
-                  Aplicar en este pago
+              <div className="bg-emerald-100 border-2 border-emerald-500 p-4 rounded-xl flex flex-col items-center justify-center min-w-[220px]">
+                <span className="text-emerald-800 font-bold text-xs uppercase flex items-center gap-1 text-center">
+                  <span>📜</span> Notas de Crédito / Saldo a Favor
+                </span>
+                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(foundUser.SaldoFavor)}</span>
+                <label className="text-[11px] font-semibold flex items-center gap-1.5 mt-2 text-emerald-900 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useSaldoFavor || paymentMethod === 'Saldo a Favor'}
+                    onChange={e => {
+                      setUseSaldoFavor(e.target.checked);
+                      if (!e.target.checked && paymentMethod === 'Saldo a Favor') {
+                        setPaymentMethod('Debito');
+                      } else if (e.target.checked && (foundUser?.SaldoFavor || 0) > 0) {
+                        setPaymentMethod('Saldo a Favor');
+                      }
+                    }}
+                  />
+                  Aplicar / Cancelar con este saldo
                 </label>
               </div>
             )}
@@ -6422,10 +6469,12 @@ export default function CajaPage() {
                 </div>
               )}
 
-              {useSaldoFavor && foundUser?.SaldoFavor > 0 && (
-                <div className="flex justify-between items-center text-emerald-600 font-medium mt-2">
-                  <span>Saldo a Favor Aplicado:</span>
-                  <span>- Bs. {formatBs(Math.min((sumBase + sumIVA + sumMulta) - (sumIVARetencionable * (retencionIVA / 100)), foundUser.SaldoFavor))}</span>
+              {(useSaldoFavor || paymentMethod === 'Saldo a Favor') && foundUser?.SaldoFavor > 0 && (
+                <div className="flex justify-between items-center text-emerald-700 font-semibold mt-2 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+                  <span className="flex items-center gap-1.5">
+                    <span>📜</span> Nota de Crédito / Saldo a Favor Aplicado:
+                  </span>
+                  <span className="font-bold">- Bs. {formatBs(Math.min(Math.max(0, (sumBase + sumIVA + sumMulta) - montoRetencionIVARounded + ajusteMontoAcordado), foundUser.SaldoFavor))}</span>
                 </div>
               )}
               {abonoPrevioAprobado > 0 && (
@@ -6437,8 +6486,16 @@ export default function CajaPage() {
                 </div>
               )}
               <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-200">
-                <span className="text-slate-800 font-bold text-base">Total Neto a Pagar:</span>
-                <span className="text-2xl font-black text-emerald-700">Bs. {formatBs(totalNetoAPagar)}</span>
+                <span className="text-slate-800 font-bold text-base">
+                  {paymentMethod === 'Saldo a Favor' ? 'Total a Descontar de Nota de Crédito:' : 'Total Neto a Pagar:'}
+                </span>
+                <span className="text-2xl font-black text-emerald-700">
+                  Bs. {formatBs(
+                    paymentMethod === 'Saldo a Favor'
+                      ? Math.min(Math.max(0, (sumBase + sumIVA + sumMulta) - montoRetencionIVARounded + ajusteMontoAcordado), foundUser?.SaldoFavor || 0)
+                      : totalNetoAPagar
+                  )}
+                </span>
               </div>
 
               {/* Si se está realizando un Abono (monto ingresado menor al total o abono de condominio) */}
@@ -6506,17 +6563,52 @@ export default function CajaPage() {
                   onChange={(e: any) => setPaymentMethod(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
                 >
+                  {(foundUser?.SaldoFavor || 0) > 0 && (
+                    <option value="Saldo a Favor">📜 Nota de Crédito / Saldo a Favor (Bs. {formatBs(foundUser?.SaldoFavor || 0)})</option>
+                  )}
                   <option value="Debito">Punto de Venta (Tarjeta de Débito)</option>
                   <option value="Credito">Punto de Venta (Tarjeta de Crédito)</option>
                   <option value="TMD">TMD (Tarjeta de Crédito Master)</option>
                   <option value="TVD">TVD (Tarjeta de Crédito Visa)</option>
                   <option value="Transferencia">Transferencia Bancaria</option>
                   <option value="Deposito">Depósito Bancario</option>
-                  {(foundUser?.SaldoFavor || 0) > 0 && (
-                    <option value="Saldo a Favor">💳 Saldo a Favor (Bs. {formatBs(foundUser?.SaldoFavor || 0)})</option>
-                  )}
                   </select>
               </label>
+
+                  {paymentMethod === 'Saldo a Favor' && (
+                    <div className="mt-4 bg-emerald-50 border-2 border-emerald-400 rounded-xl p-3.5 space-y-2 text-xs">
+                      <div className="flex items-center justify-between font-bold text-emerald-900">
+                        <span>📜 Disponible en Notas de Crédito:</span>
+                        <span className="text-sm font-black">Bs. {formatBs(foundUser?.SaldoFavor || 0)}</span>
+                      </div>
+                      {(() => {
+                        const deudaSel = Math.max(0, Math.round(((sumBase + sumIVA + sumMulta) - montoRetencionIVARounded + ajusteMontoAcordado) * 100) / 100);
+                        const montoADescontar = Math.min(deudaSel, foundUser?.SaldoFavor || 0);
+                        const saldoRestante = Math.max(0, Math.round(((foundUser?.SaldoFavor || 0) - montoADescontar) * 100) / 100);
+                        return (
+                          <>
+                            <div className="flex items-center justify-between text-emerald-800 pt-1.5 border-t border-emerald-200 font-semibold">
+                              <span>Monto a Descontar en este Pago:</span>
+                              <span className="font-black">- Bs. {formatBs(montoADescontar)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-emerald-950 pt-1.5 border-t border-emerald-300 font-black">
+                              <span>Saldo Restante a Favor:</span>
+                              <span className="text-sm text-emerald-700">Bs. {formatBs(saldoRestante)}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                      <label className="block pt-2 border-t border-emerald-200">
+                        <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide mb-1 block">Fecha de Ingreso a Caja (Corte)</span>
+                        <input
+                          type="date"
+                          value={fechaCorteCaja}
+                          onChange={(e) => setFechaCorteCaja(e.target.value)}
+                          className="w-full bg-white border border-emerald-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                      </label>
+                    </div>
+                  )}
 
                   {['Debito', 'Credito', 'TMD', 'TVD'].includes(paymentMethod) && (
                     <div className="mt-4 space-y-3">
