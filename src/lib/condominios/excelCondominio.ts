@@ -21,16 +21,25 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   }
 
   const { logos } = await import('@/lib/logosBase64');
-  const tasaNum = Number(e?.tasa) || 0;
+  const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  const r4 = (n: number) => Math.round((n + Number.EPSILON) * 10000) / 10000;
+  const tasaNum = r2(Number(e?.tasa) || 0);
   const ucd = valorUCD(tasaNum);
   const enUCD = moneda === 'UCD' && ucd > 0;
   const enEUR = moneda === 'EUR' && tasaNum > 0;
+  const rnd = (n: number) => enUCD ? r4(n) : r2(n);
   const conv = (bs: number) => {
     const v = Number(bs) || 0;
-    if (enUCD) return v / ucd;
-    if (enEUR) return v / tasaNum;
-    return Math.round(v * 100) / 100;
+    if (enUCD) return r4(v / ucd);
+    if (enEUR) return r2(v / tasaNum);
+    return r2(v);
   };
+  const convMensualConIva = (mensualBaseBs: number, residencial?: boolean) => {
+    const b = conv(mensualBaseBs);
+    const iv = residencial ? 0 : (enEUR || enUCD ? rnd(b * 0.16) : conv(r2((Number(mensualBaseBs) || 0) * 0.16)));
+    return rnd(b + iv);
+  };
+  const tasaStr = tasaNum.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const numFmt = enUCD ? '#,##0.0000' : (enEUR ? '€ #,##0.00' : '#,##0.00');
   const bsFmt = '"Bs" #,##0.00';
   const mon = enUCD ? 'UCD' : (enEUR ? '€' : 'Bs');
@@ -72,7 +81,7 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     ws.mergeCells(3, 4, 3, ancho); ws.getCell(3, 4).value = `CONDOMINIO: ${c?.nombre || ''} (${c?.codigo || ''})${c?.identidad ? ' · RIF ' + c.identidad : ''}`;
     ws.getCell(3, 4).font = { bold: true, size: 10 };
     ws.mergeCells(4, 4, 4, ancho);
-    ws.getCell(4, 4).value = `Fecha: ${new Date().toLocaleString('es-VE')} · Tasa Euro BCV: ${tasaNum.toLocaleString('es-VE', { minimumFractionDigits: 2 })} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
+    ws.getCell(4, 4).value = `Fecha: ${new Date().toLocaleString('es-VE')} · Tasa Euro BCV: ${tasaStr} · Valor UCD (Euro × 57): ${ucd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Emitido por: ${cajero || 'Administrador'}`;
     ws.getCell(4, 4).font = { size: 9 };
   };
 
@@ -87,25 +96,31 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   const multaExtra = renglones.reduce((s, r) => s + (r.multaExtraBs || 0), 0);
   const totales = e?.totales || { baseBs: 0, multaBs: 0, ivaBs: 0, retencionBs: 0, totalBs: 0, mesesMax: 0, unidadesConDeuda: 0 };
   const totalBrutoResumenBs = (totales.baseBs || 0) + (totales.multaBs || 0) + (totales.ivaBs || 0);
+  const resBase = conv(totales.baseBs || 0);
+  const resMulta = conv(totales.multaBs || 0);
+  const resIva = conv(totales.ivaBs || 0);
+  const resBruto = rnd(resBase + resMulta + resIva);
+  const resRet = conv(totales.retencionBs || 0);
+  const resNeto = rnd(resBruto - resRet);
   const filasRes: [string, number | string, string?][] = [
     ['Unidades registradas', renglones.filter(r => r.clave !== '__SIN_REGISTRAR__').length],
     ['Unidades con deuda', totales.unidadesConDeuda || 0],
     ['Meses máximos adeudados', totales.mesesMax || 0],
-    [`Servicio de aseo (${mon})`, conv(totales.baseBs || 0), numFmt],
-    [`Multas por mora (${mon})`, conv(totales.multaBs || 0), numFmt],
-    [`IVA 16% (${mon})`, conv(totales.ivaBs || 0), numFmt],
+    [`Servicio de aseo (${mon})`, resBase, numFmt],
+    [`Multas por mora (${mon})`, resMulta, numFmt],
+    [`IVA 16% (${mon})`, resIva, numFmt],
     ...(totales.retencionBs ? [
-      [`Subtotal Bruto (${mon})`, conv(totalBrutoResumenBs), numFmt] as [string, number, string],
-      [`(-) Retención IVA 75% (${mon})`, -conv(totales.retencionBs), numFmt] as [string, number, string],
+      [`Subtotal Bruto (${mon})`, resBruto, numFmt] as [string, number, string],
+      [`(-) Retención IVA 75% (${mon})`, -resRet, numFmt] as [string, number, string],
     ] : []),
-    [`TOTAL NETO A COBRAR (${mon})`, conv(totales.totalBs || 0), numFmt],
+    [`TOTAL NETO A COBRAR (${mon})`, resNeto, numFmt],
     ...((enEUR || enUCD) ? [
       ['Tasa Euro BCV aplicada (Bs/€)', tasaNum, bsFmt] as [string, number, string],
       ...(totales.retencionBs ? [
-        ['Subtotal Bruto en Caja (Bs)', Math.round(totalBrutoResumenBs * 100) / 100, bsFmt] as [string, number, string],
-        ['(-) Retención IVA 75% en Caja (Bs)', -Math.round((totales.retencionBs || 0) * 100) / 100, bsFmt] as [string, number, string],
+        ['Subtotal Bruto en Caja (Bs)', r2(totalBrutoResumenBs), bsFmt] as [string, number, string],
+        ['(-) Retención IVA 75% en Caja (Bs)', -r2(totales.retencionBs || 0), bsFmt] as [string, number, string],
       ] : []),
-      ['MONTO EXACTO A COBRAR EN CAJA (Bs)', Math.round((totales.totalBs || 0) * 100) / 100, bsFmt] as [string, number, string],
+      ['MONTO EXACTO A COBRAR EN CAJA (Bs)', r2(totales.totalBs || 0), bsFmt] as [string, number, string],
     ] : []),
   ];
   let f = 7;
@@ -154,18 +169,23 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   [...porPeriodo.keys()].sort().forEach(per => {
     const p = porPeriodo.get(per)!;
     const r = ws2.getRow(f2++);
-    const vals = [fmtPeriodo(per), p.unidades, conv(p.base), conv(p.multa), conv(p.iva), conv(p.total)];
+    const cB = conv(p.base);
+    const cM = conv(p.multa);
+    const cI = conv(p.iva);
+    const cT = rnd(cB + cM + cI);
+    const vals = [fmtPeriodo(per), p.unidades, cB, cM, cI, cT];
     vals.forEach((v, i) => { const cell = r.getCell(i + 4); cell.value = v; cell.border = borde; if (i >= 2) cell.numFmt = numFmt; });
-    tot2.base += p.base; tot2.multa += p.multa; tot2.iva += p.iva; tot2.total += p.total;
+    tot2.base = rnd(tot2.base + cB); tot2.multa = rnd(tot2.multa + cM); tot2.iva = rnd(tot2.iva + cI); tot2.total = rnd(tot2.total + cT);
   });
   if (multasManuales + multaExtra > 0) {
     const r = ws2.getRow(f2++);
-    r.getCell(4).value = 'Multas adicionales / manuales'; r.getCell(7).value = conv(multasManuales + multaExtra); r.getCell(9).value = conv(multasManuales + multaExtra);
+    const cMExtra = conv(multasManuales + multaExtra);
+    r.getCell(4).value = 'Multas adicionales / manuales'; r.getCell(7).value = cMExtra; r.getCell(9).value = cMExtra;
     [4, 5, 6, 7, 8, 9].forEach(k => { r.getCell(k).border = borde; if (k >= 6) r.getCell(k).numFmt = numFmt; });
-    tot2.multa += multasManuales + multaExtra; tot2.total += multasManuales + multaExtra;
+    tot2.multa = rnd(tot2.multa + cMExtra); tot2.total = rnd(tot2.total + cMExtra);
   }
   const rt2 = ws2.getRow(f2);
-  ['TOTAL', '', conv(tot2.base), conv(tot2.multa), conv(tot2.iva), conv(tot2.total)].forEach((v, i) => {
+  ['TOTAL', '', tot2.base, tot2.multa, tot2.iva, tot2.total].forEach((v, i) => {
     const cell = rt2.getCell(i + 4); cell.value = v; cell.font = { bold: true }; cell.border = borde;
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
     if (i >= 2) cell.numFmt = numFmt;
@@ -227,45 +247,48 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     'Meses Aseo', 'Meses Multa', `Serv. Aseo (${mon})`, `Multa (${mon})`, `IVA (${mon})`, `Multas Manuales (${mon})`, `Total (${mon})`,
   ]);
   let f3 = 8;
+  let sumBaseCol = 0;
+  let sumMultaCol = 0;
+  let sumIvaCol = 0;
+  let sumManualesCol = 0;
+  let sumTotalCol = 0;
   for (const r of raices) {
     const hijos = hijosPorPadre.get(r.clave) || [];
     const sinReg = r.clave === '__SIN_REGISTRAR__';
     const cleanAct = cleanClasificacionActividad(r.actividad);
 
     let actividadStr = cleanAct || 'N/A';
-    let mensualBs = (Number(r.mensualBs) || 0) * (r.residencial ? 1 : 1.16);
+    let cMensual = convMensualConIva(Number(r.mensualBs) || 0, r.residencial);
     let mesesAseo = Number(r.deuda?.meses) || 0;
     let mesesMulta = Number(r.multaMeses) || 0;
-    let baseBs = Number(r.deuda?.baseBs) || 0;
-    let multaBs = (Number(r.deuda?.multaBs) || 0) + (Number(r.multaExtraBs) || 0);
-    let ivaBs = Number(r.deuda?.ivaBs) || 0;
-    let manualesBs = Number(r.multasManualesBs) || 0;
-    let totalBs = Number(r.totalBs) || 0;
+    let cBase = conv(Number(r.deuda?.baseBs) || 0);
+    let cMulta = conv((Number(r.deuda?.multaBs) || 0) + (Number(r.multaExtraBs) || 0));
+    let cIva = conv(Number(r.deuda?.ivaBs) || 0);
+    let cManuales = conv(Number(r.multasManualesBs) || 0);
 
     if (hijos.length > 0) {
       // Consolidar la suma completa de todas las sub-actividades en las columnas de la unidad/local
       const actsHijos = [...new Set(hijos.map(h => cleanClasificacionActividad(h.actividad)).filter(Boolean))];
       actividadStr = actsHijos.length > 0 ? actsHijos.join(' / ') : (cleanAct || 'Múltiples Actividades');
 
-      mensualBs += hijos.reduce((acc, h) => acc + ((Number(h.mensualBs) || 0) * (h.residencial ? 1 : 1.16)), 0);
+      cMensual = rnd(cMensual + hijos.reduce((acc, h) => rnd(acc + convMensualConIva(Number(h.mensualBs) || 0, h.residencial)), 0));
       mesesAseo = Math.max(mesesAseo, ...hijos.map(h => Number(h.deuda?.meses) || 0));
       mesesMulta = Math.max(mesesMulta, ...hijos.map(h => Number(h.multaMeses) || 0));
-      baseBs += hijos.reduce((acc, h) => acc + (Number(h.deuda?.baseBs) || 0), 0);
-      multaBs += hijos.reduce((acc, h) => acc + ((Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0)), 0);
-      ivaBs += hijos.reduce((acc, h) => acc + (Number(h.deuda?.ivaBs) || 0), 0);
-      manualesBs += hijos.reduce((acc, h) => acc + (Number(h.multasManualesBs) || 0), 0);
-      totalBs += hijos.reduce((acc, h) => acc + (Number(h.totalBs) || 0), 0);
+      cBase = rnd(cBase + hijos.reduce((acc, h) => rnd(acc + conv(Number(h.deuda?.baseBs) || 0)), 0));
+      cMulta = rnd(cMulta + hijos.reduce((acc, h) => rnd(acc + conv((Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0))), 0));
+      cIva = rnd(cIva + hijos.reduce((acc, h) => rnd(acc + conv(Number(h.deuda?.ivaBs) || 0)), 0));
+      cManuales = rnd(cManuales + hijos.reduce((acc, h) => rnd(acc + conv(Number(h.multasManualesBs) || 0)), 0));
     }
 
     // Total por fila asegurando cuadre perfecto con la suma de las columnas: Serv. Aseo + Multa + IVA + Multas Manuales
-    const totalFilaBs = baseBs + multaBs + ivaBs + manualesBs;
+    const cTotalFila = rnd(cBase + cMulta + cIva + cManuales);
+    sumBaseCol = rnd(sumBaseCol + cBase);
+    sumMultaCol = rnd(sumMultaCol + cMulta);
+    sumIvaCol = rnd(sumIvaCol + cIva);
+    sumManualesCol = rnd(sumManualesCol + cManuales);
+    sumTotalCol = rnd(sumTotalCol + cTotalFila);
 
     const row = ws3.getRow(f3++);
-    const cBase = conv(baseBs);
-    const cMulta = conv(multaBs);
-    const cIva = conv(ivaBs);
-    const cManuales = conv(manualesBs);
-    const cTotalFila = conv(totalFilaBs);
     const vals: any[] = [
       sinReg ? 'Declaradas sin registrar' : (r.inmueble || r.clave),
       r.numero || (hijos.map(h => h.numero).find(Boolean) || ''),
@@ -273,7 +296,7 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
       r.identidad || '',
       actividadStr,
       r.estado,
-      conv(mensualBs),
+      cMensual,
       mesesAseo,
       mesesMulta,
       cBase,
@@ -292,12 +315,12 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   }
   const rt3 = ws3.getRow(f3++);
   rt3.getCell(1).value = totales.retencionBs > 0 ? 'SUBTOTAL BRUTO' : 'TOTALES';
-  const totalBrutoBs = totales.baseBs + totales.multaBs + totales.ivaBs;
   const tvConv: Record<number, number> = {
-    10: conv(totales.baseBs),
-    11: conv(totales.multaBs),
-    12: conv(totales.ivaBs),
-    14: conv(totalBrutoBs)
+    10: sumBaseCol,
+    11: sumMultaCol,
+    12: sumIvaCol,
+    13: sumManualesCol,
+    14: sumTotalCol
   };
   for (let k = 1; k <= 14; k++) {
     const cell = rt3.getCell(k);
@@ -307,12 +330,14 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   }
 
   // Si aplica Retención de IVA (75%), mostrar el descuento y el TOTAL NETO A COBRAR igual que en Caja
+  const cRetTotal = conv(totales.retencionBs);
+  const cNetoTotal = rnd(sumTotalCol - cRetTotal);
   if (totales.retencionBs > 0) {
     const rRet = ws3.getRow(f3++);
     rRet.getCell(1).value = '(-) RETENCIÓN IVA 75%';
-    rRet.getCell(12).value = -conv(totales.retencionBs);
+    rRet.getCell(12).value = -cRetTotal;
     rRet.getCell(12).numFmt = numFmt;
-    rRet.getCell(14).value = -conv(totales.retencionBs);
+    rRet.getCell(14).value = -cRetTotal;
     rRet.getCell(14).numFmt = numFmt;
     for (let k = 1; k <= 14; k++) {
       const cell = rRet.getCell(k);
@@ -323,13 +348,15 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
 
     const rNeto = ws3.getRow(f3++);
     rNeto.getCell(1).value = `TOTAL A COBRAR (${mon})`;
-    rNeto.getCell(10).value = conv(totales.baseBs);
+    rNeto.getCell(10).value = sumBaseCol;
     rNeto.getCell(10).numFmt = numFmt;
-    rNeto.getCell(11).value = conv(totales.multaBs);
+    rNeto.getCell(11).value = sumMultaCol;
     rNeto.getCell(11).numFmt = numFmt;
-    rNeto.getCell(12).value = conv(totales.ivaBs - totales.retencionBs);
+    rNeto.getCell(12).value = rnd(sumIvaCol - cRetTotal);
     rNeto.getCell(12).numFmt = numFmt;
-    rNeto.getCell(14).value = conv(totales.totalBs);
+    rNeto.getCell(13).value = sumManualesCol;
+    rNeto.getCell(13).numFmt = numFmt;
+    rNeto.getCell(14).value = cNetoTotal;
     rNeto.getCell(14).numFmt = numFmt;
     for (let k = 1; k <= 14; k++) {
       const cell = rNeto.getCell(k);
@@ -339,17 +366,19 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     }
   }
 
-  // Si el reporte fue emitido en Euros o UCD, agregar fila con el equivalente exacto en Bolívares de Caja
+  // Si el reporte fue emitido en Euros o UCD, dejar una fila en blanco y mostrar el equivalente en Bolívares (Total × Tasa)
   if (enEUR || enUCD) {
+    f3++; // fila separadora en blanco para no confundir con la columna en Euros al seleccionar
+    const factorBs = enUCD ? ucd : tasaNum;
     const rBs = ws3.getRow(f3++);
-    rBs.getCell(1).value = `MONTO EN CAJA (Bs · Tasa ${tasaNum.toLocaleString('es-VE', { minimumFractionDigits: 2 })})`;
-    rBs.getCell(10).value = Math.round(totales.baseBs * 100) / 100;
+    rBs.getCell(1).value = `EQUIVALENTE EN CAJA (Bs · × Tasa ${tasaStr})`;
+    rBs.getCell(10).value = r2(sumBaseCol * factorBs);
     rBs.getCell(10).numFmt = bsFmt;
-    rBs.getCell(11).value = Math.round(totales.multaBs * 100) / 100;
+    rBs.getCell(11).value = r2((sumMultaCol + sumManualesCol) * factorBs);
     rBs.getCell(11).numFmt = bsFmt;
-    rBs.getCell(12).value = Math.round((totales.ivaBs - (totales.retencionBs || 0)) * 100) / 100;
+    rBs.getCell(12).value = r2(rnd(sumIvaCol - cRetTotal) * factorBs);
     rBs.getCell(12).numFmt = bsFmt;
-    rBs.getCell(14).value = Math.round(totales.totalBs * 100) / 100;
+    rBs.getCell(14).value = r2(cNetoTotal * factorBs);
     rBs.getCell(14).numFmt = bsFmt;
     for (let k = 1; k <= 14; k++) {
       const cell = rBs.getCell(k);
@@ -381,13 +410,10 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
         const hBaseBs = Number(h.deuda?.baseBs) || 0;
         const hMultaBs = (Number(h.deuda?.multaBs) || 0) + (Number(h.multaExtraBs) || 0);
         const hIvaBs = Number(h.deuda?.ivaBs) || 0;
-        const hTotalBrutoBs = hBaseBs + hMultaBs + hIvaBs;
         const chBase = conv(hBaseBs);
         const chMulta = conv(hMultaBs);
         const chIva = conv(hIvaBs);
-        const chTotal = mon === '€'
-          ? Math.round((chBase + chMulta + chIva) * 10000) / 10000
-          : conv(hTotalBrutoBs);
+        const chTotal = rnd(chBase + chMulta + chIva);
         const vals: any[] = [
           numLocal,
           padre?.inmueble || padre?.clave || '—',
@@ -396,7 +422,7 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
           h.identidad || padre?.identidad || '',
           cleanClasificacionActividad(h.actividad) || 'Actividad Comercial',
           h.estado,
-          conv((Number(h.mensualBs) || 0) * (h.residencial ? 1 : 1.16)),
+          convMensualConIva(Number(h.mensualBs) || 0, h.residencial),
           Number(h.deuda?.meses) || 0,
           Number(h.multaMeses) || 0,
           chBase,

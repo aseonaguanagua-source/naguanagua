@@ -107,7 +107,8 @@ const n = (s: any) => M.normId(s);
 export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _datos: any }> {
   const datos = await cargarCondominio(sol.codigo);
   if (!datos) throw new Error('Condominio no encontrado');
-  const tasa = sol.tasaOverride && sol.tasaOverride > 0 ? sol.tasaOverride : await tasaVigente();
+  const rawTasa = sol.tasaOverride && sol.tasaOverride > 0 ? sol.tasaOverride : await tasaVigente();
+  const tasa = r2(Number(rawTasa) || 0);
   if (!(tasa > 0)) throw new Error('No hay tasa BCV vigente configurada.');
   const fecha = sol.fechaOverride
     ? new Date(sol.fechaOverride.includes('T') ? sol.fechaOverride : `${sol.fechaOverride}T12:00:00-04:00`)
@@ -211,6 +212,54 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
       ivaBs: iva, retencionBs: ret, totalBs: r2(base + multaMora + iva - ret + aparte), multaMesesQueQuedan,
     };
   }).filter(l => l.totalBs > 0.01);
+
+  if (lineas.length > 0 && tasa > 0) {
+    const sumEur = (fn: (l: LineaCobro) => number) => r2(lineas.reduce((acc, l) => acc + r2(fn(l) / tasa), 0));
+    const totBaseEur = sumEur(l => l.baseBs);
+    const totMultaMoraEur = sumEur(l => l.multaBs);
+    const totAparteEur = sumEur(l => l.multasAparteBs);
+    const totIvaEur = sumEur(l => l.ivaBs);
+    const totRetEur = sumEur(l => l.retencionBs);
+    const totBrutoEur = r2(totBaseEur + totMultaMoraEur + totAparteEur + totIvaEur);
+    const totNetoEur = r2(totBrutoEur - totRetEur);
+
+    const targetBaseBs = r2(totBaseEur * tasa);
+    const targetMultaMoraBs = r2(totMultaMoraEur * tasa);
+    const targetAparteBs = r2(totAparteEur * tasa);
+    const targetBrutoBs = r2(totBrutoEur * tasa);
+    const targetIvaBs = r2(targetBrutoBs - targetBaseBs - targetMultaMoraBs - targetAparteBs);
+    const targetRetBs = r2(totRetEur * tasa);
+    const targetNetoBs = r2(totNetoEur * tasa);
+
+    const curBaseBs = r2(lineas.reduce((a, l) => a + l.baseBs, 0));
+    const curMultaMoraBs = r2(lineas.reduce((a, l) => a + l.multaBs, 0));
+    const curAparteBs = r2(lineas.reduce((a, l) => a + l.multasAparteBs, 0));
+    const curIvaBs = r2(lineas.reduce((a, l) => a + l.ivaBs, 0));
+    const curRetBs = r2(lineas.reduce((a, l) => a + l.retencionBs, 0));
+
+    const diffBase = r2(targetBaseBs - curBaseBs);
+    const diffMultaMora = r2(targetMultaMoraBs - curMultaMoraBs);
+    const diffAparte = r2(targetAparteBs - curAparteBs);
+    const diffIva = r2(targetIvaBs - curIvaBs);
+    const diffRet = r2(targetRetBs - curRetBs);
+
+    const last = lineas[lineas.length - 1];
+    if (Math.abs(diffBase) <= 2.0 && Math.abs(diffIva) <= 2.0) {
+      if (last.baseBs > 0) last.baseBs = r2(last.baseBs + diffBase);
+      if (diffMultaMora !== 0 && last.multaBs > 0) last.multaBs = r2(last.multaBs + diffMultaMora);
+      if (diffAparte !== 0 && last.multasAparteBs > 0) last.multasAparteBs = r2(last.multasAparteBs + diffAparte);
+      if (diffIva !== 0 && !last.residencial && last.ivaBs > 0) last.ivaBs = r2(last.ivaBs + diffIva);
+      if (diffRet !== 0 && last.retencionBs > 0) last.retencionBs = r2(last.retencionBs + diffRet);
+      last.totalBs = r2(last.baseBs + last.multaBs + last.ivaBs - last.retencionBs + last.multasAparteBs);
+      const curNetoBs = r2(lineas.reduce((a, l) => a + l.totalBs, 0));
+      const diffNetoRem = r2(targetNetoBs - curNetoBs);
+      if (diffNetoRem !== 0 && Math.abs(diffNetoRem) <= 0.5) {
+        if (last.baseBs > 0) last.baseBs = r2(last.baseBs + diffNetoRem);
+        else if (last.multasAparteBs > 0) last.multasAparteBs = r2(last.multasAparteBs + diffNetoRem);
+        last.totalBs = r2(last.baseBs + last.multaBs + last.ivaBs - last.retencionBs + last.multasAparteBs);
+      }
+    }
+  }
 
   if (modo === 'CONDOMINIO' && porAct && !sol.incluirMultas && conDeuda.some(r => r.deuda.multaBs + r.multaExtraBs + r.multasManualesBs > 0))
     avisos.push('Las multas están desactivadas por defecto en el pago del condominio; marque "Cobrar Aseo + Multas" si el condominio desea pagarlas.');

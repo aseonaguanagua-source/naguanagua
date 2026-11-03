@@ -15,7 +15,7 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 export async function tasaVigente(): Promise<number> {
   const { data } = await sb.from('sistema_config').select('id, valor').in('id', ['tasa_bcv_manual', 'tasa_bcv_semanal']);
   const v = (id: string) => parseFloat(String(data?.find((c: any) => c.id === id)?.valor || 0)) || 0;
-  return v('tasa_bcv_manual') || v('tasa_bcv_semanal');
+  return r2(v('tasa_bcv_manual') || v('tasa_bcv_semanal'));
 }
 
 /** Lee todas las filas de una consulta paginando de 1000 en 1000. */
@@ -159,10 +159,16 @@ export interface EstadoCuenta {
 }
 
 /** Monto en Bs de una multa manual. */
-export const montoMulta = (m: any, tasa: number) => r2(m.monto_bs != null ? Number(m.monto_bs) : (Number(m.monto_mmv) || 0) * 57 * tasa);
+export const montoMulta = (m: any, tasa: number) => {
+  const t = r2(Number(tasa) || 0);
+  if (m.monto_bs != null) return r2(Number(m.monto_bs));
+  const eur = r2((Number(m.monto_mmv) || 0) * 57);
+  return t > 0 ? r2(eur * t) : r2(eur * tasa);
+};
 
 /** Estado de cuenta de un condominio con la tarifa vigente. */
-export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number, hoy = new Date(), multasRows: any[] = [], omitirMultaSeptiembre = false): EstadoCuenta {
+export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: number, hoy = new Date(), multasRows: any[] = [], omitirMultaSeptiembre = false): EstadoCuenta {
+  const tasa = r2(Number(tasaRaw) || 0);
   const c = aMotorCondo(condoRow);
   const grupos = idsGrupo(unidadesRows);
   const unidades = unidadesRows.map(u => aMotorUnidad(u, grupos));
@@ -265,7 +271,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
       });
     }
 
-    const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes);
+    const deuda = M.deudaPorMeses(meses, basesPorMes, res, esAgente, exonerados, multasPorMes, tasa);
     const mesesMultaEnAseo = (r.montoBs > 0 && deuda.meses > 0) ? (deuda.porMes || []).filter(m => m.multaBs > 0).length : 0;
     const mesesMoraCubiertosPorAseo = Math.max(0, meses - 1);
 
@@ -277,7 +283,10 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
       mesesMultaRemanente = Math.max(0, mesesMultaRemanente - 1);
     }
     const multaMeses = mesesMultaEnAseo + mesesMultaRemanente;
-    const multaExtraBs = (!mu?.es_grupo && u) ? r2(baseParaMultaExtra * tMulta * mesesMultaRemanente) : 0;
+    const multaExtraUnitEur = tasa > 0 ? r2(r2(baseParaMultaExtra / tasa) * tMulta) : 0;
+    const multaExtraBs = (!mu?.es_grupo && u)
+      ? (tasa > 0 ? r2(r2(multaExtraUnitEur * mesesMultaRemanente) * tasa) : r2(baseParaMultaExtra * tMulta * mesesMultaRemanente))
+      : 0;
     const manuales = multasPend
       .filter(m => (u ? m.unidad_id === u.id : !m.unidad_id) && !(omitirMultaSeptiembre && m.periodo === '2026-09'))
       .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
@@ -302,6 +311,75 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasa: number,
       estado: 'Condominio', cantidad: 0, esGrupo: false, padreId: null, residencial: M.esResidencial(c), mensualBs: 0, pendienteDesde: null, periodos: [],
       deuda: M.deudaPorMeses(0, 0, true), multaMeses: 0, multaExtraBs: 0, multasManuales: manuales, multasManualesBs: tot, totalBs: tot,
     });
+  }
+
+  // Alinear céntimos de Bolívares para que (Total en € × Tasa) coincida exactamente al céntimo con la suma en Bs y Caja
+  if (tasa > 0) {
+    const cobrables = renglones.filter(x => !x.esGrupo && x.totalBs > 0.01);
+    if (cobrables.length > 0) {
+      const sumEur = (fn: (x: RenglonEstado) => number) => r2(cobrables.reduce((acc, x) => acc + r2(fn(x) / tasa), 0));
+      const totBaseEur = sumEur(x => x.deuda.baseBs);
+      const totMultaEur = sumEur(x => x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs);
+      const totIvaEur = sumEur(x => x.deuda.ivaBs);
+      const totRetEur = sumEur(x => x.deuda.retencionBs);
+      const totBrutoEur = r2(totBaseEur + totMultaEur + totIvaEur);
+      const totNetoEur = r2(totBrutoEur - totRetEur);
+
+      const targetBaseBs = r2(totBaseEur * tasa);
+      const targetMultaBs = r2(totMultaEur * tasa);
+      const targetBrutoBs = r2(totBrutoEur * tasa);
+      const targetIvaBs = r2(targetBrutoBs - targetBaseBs - targetMultaBs);
+      const targetRetBs = r2(totRetEur * tasa);
+      const targetNetoBs = r2(totNetoEur * tasa);
+
+      const curBaseBs = r2(renglones.reduce((a, x) => a + x.deuda.baseBs, 0));
+      const curMultaBs = r2(renglones.reduce((a, x) => a + x.deuda.multaBs + x.multaExtraBs + x.multasManualesBs, 0));
+      const curIvaBs = r2(renglones.reduce((a, x) => a + x.deuda.ivaBs, 0));
+      const curRetBs = r2(renglones.reduce((a, x) => a + x.deuda.retencionBs, 0));
+
+      const diffBase = r2(targetBaseBs - curBaseBs);
+      const diffMulta = r2(targetMultaBs - curMultaBs);
+      const diffIva = r2(targetIvaBs - curIvaBs);
+      const diffRet = r2(targetRetBs - curRetBs);
+
+      const last = cobrables[cobrables.length - 1];
+      if (Math.abs(diffBase) <= 2.0 && Math.abs(diffIva) <= 2.0) {
+        last.deuda.baseBs = r2(last.deuda.baseBs + diffBase);
+        if (diffMulta !== 0 && last.deuda.multaBs > 0) {
+          last.deuda.multaBs = r2(last.deuda.multaBs + diffMulta);
+        } else if (diffMulta !== 0 && last.multaExtraBs > 0) {
+          last.multaExtraBs = r2(last.multaExtraBs + diffMulta);
+        }
+        if (diffIva !== 0 && !last.residencial) {
+          last.deuda.ivaBs = r2(last.deuda.ivaBs + diffIva);
+        }
+        if (diffRet !== 0 && last.deuda.retencionBs > 0) {
+          last.deuda.retencionBs = r2(last.deuda.retencionBs + diffRet);
+        }
+        if (last.deuda.porMes && last.deuda.porMes.length > 0) {
+          const pm = last.deuda.porMes[last.deuda.porMes.length - 1];
+          pm.baseBs = r2(pm.baseBs + diffBase);
+          if (diffMulta !== 0 && pm.multaBs > 0) pm.multaBs = r2(pm.multaBs + diffMulta);
+          if (diffIva !== 0 && !last.residencial) pm.ivaBs = r2(pm.ivaBs + diffIva);
+          if (diffRet !== 0 && pm.retencionBs > 0) pm.retencionBs = r2(pm.retencionBs + diffRet);
+          pm.totalBs = r2(pm.baseBs + pm.multaBs + pm.ivaBs - pm.retencionBs);
+        }
+        last.deuda.totalBs = r2(last.deuda.baseBs + last.deuda.multaBs + last.deuda.ivaBs - last.deuda.retencionBs);
+        last.totalBs = r2(last.deuda.totalBs + last.multaExtraBs + last.multasManualesBs);
+        const curNetoBs = r2(renglones.reduce((a, x) => a + x.totalBs, 0));
+        const diffNetoRem = r2(targetNetoBs - curNetoBs);
+        if (diffNetoRem !== 0 && Math.abs(diffNetoRem) <= 0.5) {
+          last.deuda.baseBs = r2(last.deuda.baseBs + diffNetoRem);
+          if (last.deuda.porMes && last.deuda.porMes.length > 0) {
+            const pm = last.deuda.porMes[last.deuda.porMes.length - 1];
+            pm.baseBs = r2(pm.baseBs + diffNetoRem);
+            pm.totalBs = r2(pm.baseBs + pm.multaBs + pm.ivaBs - pm.retencionBs);
+          }
+          last.deuda.totalBs = r2(last.deuda.baseBs + last.deuda.multaBs + last.deuda.ivaBs - last.deuda.retencionBs);
+          last.totalBs = r2(last.deuda.totalBs + last.multaExtraBs + last.multasManualesBs);
+        }
+      }
+    }
   }
 
   const s = (f: (x: RenglonEstado) => number) => r2(renglones.reduce((a, x) => a + f(x), 0));
