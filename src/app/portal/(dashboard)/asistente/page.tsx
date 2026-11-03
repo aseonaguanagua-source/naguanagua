@@ -1,24 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Sparkles,
   Send,
   Bot,
   User as UserIcon,
-  CreditCard,
-  FileText,
-  Truck,
-  Building2,
-  AlertTriangle,
-  CheckCircle2,
   HelpCircle,
   RefreshCw,
-  Landmark,
-  Receipt,
-  ShieldCheck,
   ArrowRight,
+  Download,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/store/AppContext';
@@ -26,7 +18,6 @@ import { getIdentidadVariantsExact } from '@/lib/formatters';
 import { isResidencialInm, isTerrenoInm, calcularMensualidad, cleanClasificacionActividad } from '@/lib/calculos';
 import { calcularDeudaInmueble, porMesConRetencion, esUltimoMesHist } from '@/lib/deudaMensual';
 import { construirRecibosContribuyente, desgloseReciboCM } from '@/lib/recibosContribuyente';
-import { RUTAS_NAGUANAGUA } from '@/data/rutasNaguanagua';
 
 interface AccionSugerida {
   label: string;
@@ -63,7 +54,6 @@ function renderFormattedText(text: string) {
       );
     }
 
-    // Parse **bold** and `code`
     const parts = line.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
     return (
       <p key={idx} className={`${line.trim() === '' ? 'h-2' : 'leading-relaxed mb-1'}`}>
@@ -93,21 +83,23 @@ function renderFormattedText(text: string) {
 }
 
 const PREGUNTAS_RAPIDAS = [
+  { label: '📥 Descargar mi Estado de Cuenta (PDF)', query: 'Quiero descargar mi estado de cuenta en PDF' },
   { label: '💰 ¿Cuánto debo actualmente?', query: '¿Cuánto debo actualmente y cuál es mi estado de cuenta?' },
+  { label: '🧭 Orientación: ¿Cómo usar la app y cámara?', query: 'Oriéntame sobre cómo usar el sistema, reportar pagos y usar la cámara' },
   { label: '⚠️ ¿Tengo multas o recargos?', query: '¿Tengo multas o recargos por mora en mi cuenta?' },
   { label: '🏦 Cuentas y formas de pago', query: '¿Cuáles son las cuentas bancarias y formas de pago?' },
   { label: '🚛 ¿Cuándo pasa el aseo por mi ruta?', query: '¿Qué días pasa el camión de aseo por mi sector?' },
   { label: '🏢 Ver mis inmuebles y códigos', query: 'Muéstrame mis inmuebles registrados y sus códigos' },
-  { label: '🎁 ¿Tengo saldo a favor?', query: '¿Tengo saldo a favor o notas de crédito disponibles?' },
   { label: '🧾 Mis últimos pagos y facturas', query: 'Muéstrame mis últimos pagos y facturas electrónicas' },
   { label: '🏅 Solvencia, Tala y Reclamos', query: '¿Cómo descargo mi solvencia o solicito permiso de tala y poda?' },
 ];
 
-export default function AsistenteVirtualPage() {
+export default function AsistenteGlobalPage() {
   const { tcmmv: contextTcmmv } = useAppContext();
   const [tasaBcv, setTasaBcv] = useState<number>(contextTcmmv || 0);
   const [loadingContext, setLoadingContext] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [inputMsg, setInputMsg] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -219,7 +211,6 @@ export default function AsistenteVirtualPage() {
           return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado' && !isTerrenoInm(i);
         });
 
-        // Deduplicar por código de inmueble
         const seenCodes = new Set<string>();
         const distinctInms = allInms.filter((i: any) => {
           if (!i.inmueble || seenCodes.has(i.inmueble)) return false;
@@ -239,7 +230,6 @@ export default function AsistenteVirtualPage() {
           condoUnits?.[0]?.direccion ||
           '';
 
-        // Construir recibos pendientes con la misma lógica oficial de Estado de Cuenta y Caja
         const rc = construirRecibosContribuyente({
           inmuebles: distinctInms,
           facturas: facturasDB || [],
@@ -317,7 +307,6 @@ export default function AsistenteVirtualPage() {
           }
         }
 
-        // Saldo a favor total
         const saldoInms = distinctInms.reduce((s: number, i: any) => s + (parseFloat(i.saldo_favor_bs) || 0), 0);
         const notasVigentes = (docsNC || []).map((d: any) => {
           const det = typeof d.detalles === 'string' ? JSON.parse(d.detalles || '{}') : d.detalles || {};
@@ -400,11 +389,11 @@ export default function AsistenteVirtualPage() {
 
         setContextoCuenta(nuevoCtx);
 
-        // Generar saludo inicial personalizado con el nombre del contribuyente
+        // Saludo inicial personalizado de "Global"
         const netoAPagar = Math.max(0, nuevoCtx.deudaTotalBs - nuevoCtx.totalRetencionBs - nuevoCtx.saldoFavorBs);
         const saludoTexto =
-          `¡Hola, **${nombreReal}**! 👋 Bienvenido(a) a tu **Asistente Inteligente del IAMEC**.\n\n` +
-          `Estoy conectado en tiempo real con tu cuenta (**${fullDoc}** · **${categoria}**):\n` +
+          `¡Hola, **${nombreReal}**! 👋 Soy **Global**, tu **Asistente Inteligente con IA del IAMEC**.\n\n` +
+          `Estoy conectado en tiempo real con tu cuenta (**${fullDoc}** · **${categoria}**) para orientarte en todo el sistema:\n` +
           `• 💰 **Saldo Neto Pendiente:** ${
             netoAPagar > 0.01 ? `**${fmtBs(netoAPagar)}** (${recibosPend.length} período/s)` : '✅ **Bs. 0,00 (Solvente)**'
           }\n` +
@@ -415,7 +404,7 @@ export default function AsistenteVirtualPage() {
             inmueblesResumen.map((x: any) => x.codigo).slice(0, 4).join(', ') || 'Ninguno'
           })\n` +
           (nuevoCtx.saldoFavorBs > 0.01 ? `• 🎁 **Saldo a Favor:** **${fmtBs(nuevoCtx.saldoFavorBs)}**\n` : '') +
-          `\n¿En qué te puedo ayudar hoy? Selecciona una consulta rápida abajo o escríbeme tu pregunta:`;
+          `\n¿En qué te puedo orientar hoy? Puedes **descargar tu Estado de Cuenta en PDF** con un clic o preguntarme lo que necesites:`;
 
         setMessages([
           {
@@ -423,15 +412,15 @@ export default function AsistenteVirtualPage() {
             role: 'assistant',
             content: saludoTexto,
             acciones: [
-              { label: '💳 Ir a Pagar', href: '/portal/pagos', variant: 'primary' },
-              { label: '📄 Estado de Cuenta', href: '/portal/estado-cuenta', variant: 'secondary' },
+              { label: '📥 Descargar mi Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'primary' },
+              { label: '💳 Ir a Pagar', href: '/portal/pagos', variant: 'secondary' },
               { label: '🚛 Rutas y Horarios', href: '/portal/rutas', variant: 'secondary' },
             ],
             createdAt: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }),
           },
         ]);
       } catch (err) {
-        console.error('Error cargando contexto del asistente:', err);
+        console.error('Error cargando contexto de Global:', err);
       }
       setLoadingContext(false);
     };
@@ -442,6 +431,165 @@ export default function AsistenteVirtualPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isSending]);
+
+  const loadBase64Image = (url: string): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } else {
+          resolve('');
+        }
+      };
+      img.onerror = () => resolve('');
+      img.src = url;
+    });
+
+  const descargarEstadoCuentaPDF = async () => {
+    if (isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+    try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+
+      const [logoNaguanagua, logoInstituto, logoIamec] = await Promise.all([
+        loadBase64Image('/NAGUANAGUATEQUIERO.png'),
+        loadBase64Image('/INSTITUTO.png'),
+        loadBase64Image('/IAMEC.png'),
+      ]);
+
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const fechaHoy = new Date().toLocaleDateString('es-VE');
+
+      if (logoNaguanagua) doc.addImage(logoNaguanagua, 'PNG', 14, 8, 28, 16);
+      if (logoInstituto) doc.addImage(logoInstituto, 'PNG', pageWidth / 2 - 25, 8, 50, 14);
+      if (logoIamec) doc.addImage(logoIamec, 'PNG', pageWidth - 38, 8, 24, 16);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text('ESTADO DE CUENTA OFICIAL DEL CONTRIBUYENTE', pageWidth / 2, 31, { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(
+        `Emitido por Global (Asistente IA IAMEC) · Fecha: ${fechaHoy} · Tasa BCV Referencial: Bs. ${(contextoCuenta.tasaBcv || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        pageWidth / 2,
+        36,
+        { align: 'center' }
+      );
+
+      // Caja de datos del contribuyente
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(14, 41, pageWidth - 28, 24, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`Contribuyente: ${contextoCuenta.nombre}`, 18, 48);
+      doc.text(`R.I.F. / C.I.: ${contextoCuenta.doc}`, pageWidth - 18, 48, { align: 'right' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.text(`Categoría: ${contextoCuenta.categoria}`, 18, 54);
+      doc.text(`Inmuebles Activos: ${contextoCuenta.inmuebles.length}`, pageWidth - 18, 54, { align: 'right' });
+
+      const dirRecortada = String(contextoCuenta.direccion || 'Municipio Naguanagua, Edo. Carabobo').slice(0, 95);
+      doc.text(`Dirección Fiscal: ${dirRecortada}`, 18, 60);
+
+      // Tabla de Inmuebles
+      const rows = (contextoCuenta.inmuebles || []).map((i: any) => [
+        i.codigo || '—',
+        i.tipo || '—',
+        i.actividad || 'Residencial',
+        `${Number(i.mmvMes || 0).toFixed(2)} UCD`,
+        fmtBs(i.mensualidadBs || 0),
+        String(i.mesesDeuda || 0),
+        fmtBs(i.multaBs || 0),
+        fmtBs(i.deudaBs || 0),
+      ]);
+
+      autoTable(doc, {
+        startY: 70,
+        head: [['Código', 'Tipo', 'Actividad / Uso', 'F.O.', 'Tarifa Mes', 'Meses', 'Multas', 'Subtotal Deuda']],
+        body: rows.length > 0 ? rows : [['—', '—', 'Sin inmuebles pendientes', '—', 'Bs. 0,00', '0', 'Bs. 0,00', 'Bs. 0,00']],
+        theme: 'grid',
+        headStyles: {
+          fillColor: [13, 42, 30],
+          textColor: [255, 255, 255],
+          fontSize: 8,
+          fontStyle: 'bold',
+        },
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 2.5,
+        },
+      });
+
+      const finalY = ((doc as any).lastAutoTable?.finalY || 95) + 8;
+      const neto = Math.max(
+        0,
+        contextoCuenta.deudaTotalBs - contextoCuenta.totalRetencionBs - contextoCuenta.saldoFavorBs
+      );
+
+      doc.setFillColor(236, 253, 245);
+      doc.setDrawColor(16, 185, 129);
+      doc.roundedRect(14, finalY, pageWidth - 28, 38, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(6, 95, 70);
+      doc.text('RESUMEN FINANCIERO DE LA CUENTA', 18, finalY + 7);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Servicio de Aseo Urbano (Base): ${fmtBs(contextoCuenta.totalBaseBs)}`, 18, finalY + 14);
+      doc.text(`Multas / Recargos por Mora: ${fmtBs(contextoCuenta.totalMultaBs)}`, 18, finalY + 20);
+      doc.text(`IVA (16%): ${fmtBs(contextoCuenta.totalIvaBs)}`, 18, finalY + 26);
+
+      if (contextoCuenta.esAgenteRetencion && contextoCuenta.totalRetencionBs > 0.01) {
+        doc.text(`Retención IVA (75%): -${fmtBs(contextoCuenta.totalRetencionBs)}`, pageWidth - 18, finalY + 14, {
+          align: 'right',
+        });
+      }
+      if (contextoCuenta.saldoFavorBs > 0.01) {
+        doc.text(`Saldo a Favor: -${fmtBs(contextoCuenta.saldoFavorBs)}`, pageWidth - 18, finalY + 20, {
+          align: 'right',
+        });
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(13, 42, 30);
+      doc.text(`MONTO NETO A PAGAR: ${fmtBs(neto)}`, pageWidth - 18, finalY + 32, { align: 'right' });
+
+      const fileName = `Estado_De_Cuenta_${String(contextoCuenta.doc || 'IAMEC').replace(/[^a-zA-Z0-9_-]/g, '')}.pdf`;
+      const win = window as any;
+      if (win.AndroidBridge && typeof win.AndroidBridge.downloadBase64Pdf === 'function') {
+        const dataUri = doc.output('datauristring');
+        win.AndroidBridge.downloadBase64Pdf(dataUri, fileName);
+      } else {
+        doc.save(fileName);
+      }
+    } catch (e) {
+      console.error('Error generando PDF de Estado de Cuenta:', e);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   const enviarPregunta = async (texto?: string) => {
     const pregunta = (texto ?? inputMsg).trim();
@@ -474,11 +622,15 @@ export default function AsistenteVirtualPage() {
         role: 'assistant',
         content:
           data?.respuesta ||
-          'Puedo ayudarte con tus deudas, multas, cuentas bancarias, rutas de recolección e inmuebles.',
+          'Soy Global. Puedo ayudarte con tus deudas, descargar tu estado de cuenta, multas, cuentas bancarias, rutas de recolección e inmuebles.',
         acciones: data?.acciones || [],
         createdAt: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, botMsg]);
+
+      if (data?.accionEspecial === 'DESCARGAR_ESTADO_CUENTA') {
+        await descargarEstadoCuentaPDF();
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -501,7 +653,7 @@ export default function AsistenteVirtualPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      {/* Cabecera Institucional con Resumen en Vivo */}
+      {/* Cabecera Institucional de GLOBAL con Resumen en Vivo y Descarga Directa */}
       <div className="bg-gradient-to-r from-[#0d2a1e] via-[#123828] to-[#0f172a] rounded-2xl p-5 text-white shadow-lg border border-emerald-500/30">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-start gap-3.5">
@@ -511,41 +663,52 @@ export default function AsistenteVirtualPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-lime-400/20 text-lime-300 border border-lime-400/30">
-                  🤖 Asistente Virtual IA · En Línea 24/7
+                  🤖 GLOBAL · Asistente Inteligente IA (Gratis 24/7)
                 </span>
                 <span className="text-[11px] font-bold text-emerald-200/80">
                   {contextoCuenta.doc} · {contextoCuenta.categoria}
                 </span>
               </div>
               <h1 className="text-lg sm:text-xl font-black tracking-tight mt-1">
-                Hola, {contextoCuenta.nombre}
+                Hola, {contextoCuenta.nombre} — Soy Global
               </h1>
               <p className="text-xs text-emerald-100/80 mt-0.5">
-                Consulta al instante tus deudas, multas, formas de pago, rutas de recolección, solvencias e inmuebles.
+                Te oriento en todo el sistema, conozco tus inmuebles y deudas, y descargo tu Estado de Cuenta al instante.
               </p>
             </div>
           </div>
 
-          {/* Tarjetas Resumen Rápido */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 min-w-[260px]">
-            <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl px-3 py-2">
-              <div className="text-[10px] font-bold uppercase text-emerald-200/80">Por Pagar</div>
-              <div className="text-xs sm:text-sm font-black text-white truncate">
-                {loadingContext ? '...' : fmtBs(netoAPagar)}
+          {/* Tarjetas Resumen Rápido + Botón Descargar PDF */}
+          <div className="flex flex-col gap-2 min-w-[270px]">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl px-3 py-1.5">
+                <div className="text-[10px] font-bold uppercase text-emerald-200/80">Por Pagar</div>
+                <div className="text-xs sm:text-sm font-black text-white truncate">
+                  {loadingContext ? '...' : fmtBs(netoAPagar)}
+                </div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl px-3 py-1.5">
+                <div className="text-[10px] font-bold uppercase text-amber-200/90">Multas</div>
+                <div className="text-xs sm:text-sm font-black text-amber-300 truncate">
+                  {loadingContext ? '...' : fmtBs(contextoCuenta.totalMultaBs)}
+                </div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl px-3 py-1.5">
+                <div className="text-[10px] font-bold uppercase text-sky-200/90">Inmuebles</div>
+                <div className="text-xs sm:text-sm font-black text-sky-300">
+                  {loadingContext ? '...' : `${contextoCuenta.inmuebles.length} activo(s)`}
+                </div>
               </div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl px-3 py-2">
-              <div className="text-[10px] font-bold uppercase text-amber-200/90">Multas</div>
-              <div className="text-xs sm:text-sm font-black text-amber-300 truncate">
-                {loadingContext ? '...' : fmtBs(contextoCuenta.totalMultaBs)}
-              </div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl px-3 py-2">
-              <div className="text-[10px] font-bold uppercase text-sky-200/90">Inmuebles</div>
-              <div className="text-xs sm:text-sm font-black text-sky-300">
-                {loadingContext ? '...' : `${contextoCuenta.inmuebles.length} activo(s)`}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={descargarEstadoCuentaPDF}
+              disabled={loadingContext || isDownloadingPdf}
+              className="w-full py-2 px-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {isDownloadingPdf ? 'Generando Estado de Cuenta PDF...' : 'Descargar Estado de Cuenta (PDF)'}
+            </button>
           </div>
         </div>
       </div>
@@ -554,7 +717,7 @@ export default function AsistenteVirtualPage() {
       <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm">
         <div className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
           <HelpCircle className="w-3.5 h-3.5 text-emerald-600" />
-          Consultas Rápidas en 1 Clic:
+          Pregúntale a Global en 1 Clic:
         </div>
         <div className="flex flex-wrap gap-2">
           {PREGUNTAS_RAPIDAS.map((item, idx) => (
@@ -571,14 +734,14 @@ export default function AsistenteVirtualPage() {
         </div>
       </div>
 
-      {/* Ventana Principal de Conversación */}
+      {/* Ventana Principal de Conversación con GLOBAL */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[520px] sm:h-[560px] overflow-hidden">
         {/* Área de Mensajes */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/60">
           {loadingContext ? (
             <div className="flex items-center justify-center h-full text-slate-500 gap-2 text-sm font-semibold">
               <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
-              Sincronizando datos de tu cuenta en tiempo real...
+              Global está sincronizando los datos de tu cuenta en tiempo real...
             </div>
           ) : (
             messages.map((m) => (
@@ -603,26 +766,48 @@ export default function AsistenteVirtualPage() {
                       : 'bg-emerald-700 text-white font-medium'
                   }`}
                 >
+                  {m.role === 'assistant' && (
+                    <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700 mb-1 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Global · Asistente IA
+                    </div>
+                  )}
                   <div className={m.role === 'user' ? 'text-white' : 'text-slate-700'}>
                     {m.role === 'assistant' ? renderFormattedText(m.content) : m.content}
                   </div>
 
                   {m.acciones && m.acciones.length > 0 && (
                     <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-2">
-                      {m.acciones.map((acc, i) => (
-                        <Link
-                          key={i}
-                          href={acc.href}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
-                            acc.variant === 'primary'
-                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                          }`}
-                        >
-                          {acc.label}
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
-                      ))}
+                      {m.acciones.map((acc, i) =>
+                        acc.href === '#descargar-estado-cuenta' ? (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={descargarEstadoCuentaPDF}
+                            disabled={isDownloadingPdf}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                              acc.variant === 'primary'
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                            }`}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            {isDownloadingPdf ? 'Descargando PDF...' : acc.label}
+                          </button>
+                        ) : (
+                          <Link
+                            key={i}
+                            href={acc.href}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
+                              acc.variant === 'primary'
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                            }`}
+                          >
+                            {acc.label}
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        )
+                      )}
                     </div>
                   )}
 
@@ -643,7 +828,7 @@ export default function AsistenteVirtualPage() {
               <div className="w-7 h-7 rounded-xl bg-emerald-700 text-lime-300 flex items-center justify-center">
                 <Bot className="w-4 h-4 animate-pulse" />
               </div>
-              <span>El Asistente IAMEC está analizando tu consulta...</span>
+              <span>Global está analizando tu consulta...</span>
             </div>
           )}
 
@@ -662,7 +847,7 @@ export default function AsistenteVirtualPage() {
             type="text"
             value={inputMsg}
             onChange={(e) => setInputMsg(e.target.value)}
-            placeholder="Escribe tu pregunta (ej: ¿Cuánto debo?, ¿Cuándo pasa el aseo?, ¿Cuentas bancarias?)..."
+            placeholder="Escríbele a Global (ej: Descargar mi estado de cuenta, ¿Cuánto debo?, ¿Cómo uso la cámara?)..."
             className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm text-slate-800 outline-none transition-all"
           />
           <button

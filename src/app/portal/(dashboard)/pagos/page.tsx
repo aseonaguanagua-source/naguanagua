@@ -15,6 +15,7 @@ import { construirRecibosContribuyente, desgloseReciboCM } from '@/lib/recibosCo
 import { getIdentidadVariants, getIdentidadVariantsExact } from '@/lib/formatters';
 import { clusterInmueblesByLocal, formatActividad } from '@/lib/cajaHelpers';
 import { LISTA_BANCOS } from '@/lib/bancos';
+import ComprobantePickerWithCamera from '@/components/portal/ComprobantePickerWithCamera';
 
 type Metodo = 'transferencia' | '';
 
@@ -1702,36 +1703,13 @@ export default function DondePagarPage() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Comprobante de Transferencia <span className="text-red-500">*</span>
-                    </label>
-                    <div className="border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center text-center relative border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors">
-                      <input 
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={async (e) => {
-                          if (e.target.files?.[0]) {
-                            const file = e.target.files[0];
-                            try { setFormData({...formData, comprobante: await compressImage(file)}); }
-                            catch { setFormData({...formData, comprobante: file}); }
-                          }
-                        }}
-                        required={!formData.comprobante}
-                      />
-                      <Upload className={`w-6 h-6 mb-1.5 ${formData.comprobante ? 'text-emerald-500' : 'text-slate-400'}`} />
-                      {formData.comprobante ? (
-                        <>
-                          <span className="text-xs font-bold text-emerald-600 truncate max-w-full px-2">{formData.comprobante.name}</span>
-                          <span className="text-[10px] text-slate-400 mt-0.5">Haz clic para reemplazar archivo</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-xs font-semibold text-slate-700">Adjuntar Comprobante</span>
-                          <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG o PDF</span>
-                        </>
-                      )}
-                    </div>
+                    <ComprobantePickerWithCamera
+                      file={formData.comprobante}
+                      onSelectFile={(f) => setFormData({ ...formData, comprobante: f })}
+                      compressImage={compressImage}
+                      label="Comprobante de Transferencia"
+                      required
+                    />
                   </div>
 
                   {/* Botón de Enviar */}

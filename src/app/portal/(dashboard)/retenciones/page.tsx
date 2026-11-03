@@ -7,6 +7,7 @@ import { calcularDeudaInmueble, esUltimoMesHist, porMesConRetencion, r2 } from '
 import { construirRecibosContribuyente, desgloseReciboCM } from '@/lib/recibosContribuyente';
 import { Download } from 'lucide-react';
 import { Upload, FileText, CheckCircle2, AlertCircle, Clock, ShieldAlert, Receipt, Send } from 'lucide-react';
+import ComprobantePickerWithCamera from '@/components/portal/ComprobantePickerWithCamera';
 
 interface Retencion {
   id: string;
@@ -387,15 +388,12 @@ export default function RetencionesDashboard() {
                       className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white" />
                   </div>
                 </div>
-                <div className="border-2 border-dashed border-slate-300 rounded-xl px-4 py-4 text-center hover:border-emerald-400 transition-colors cursor-pointer bg-white"
-                  onClick={() => document.getElementById(`file-${f.pagoId}`)?.click()}>
-                  {archivo ? (
-                    <div className="flex items-center justify-center gap-2 text-emerald-700 font-bold text-sm"><FileText className="w-5 h-5" /> {archivo.name}</div>
-                  ) : (
-                    <><Upload className="w-7 h-7 text-slate-400 mx-auto mb-1" /><p className="text-slate-500 text-sm">Adjunte el comprobante (PDF o imagen) *</p></>
-                  )}
-                </div>
-                <input id={`file-${f.pagoId}`} type="file" accept="application/pdf,image/*" className="hidden" onChange={e => setArchivo(e.target.files?.[0] || null)} />
+                <ComprobantePickerWithCamera
+                  file={archivo}
+                  onSelectFile={(f) => setArchivo(f)}
+                  label="Comprobante de Retención (75% IVA)"
+                  required
+                />
                 <div className="flex gap-2">
                   <button id={`btn-enviar-comp-${f.pagoId}`} onClick={() => enviar(f)} disabled={saving}
                     className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-2.5 rounded-xl transition-all">

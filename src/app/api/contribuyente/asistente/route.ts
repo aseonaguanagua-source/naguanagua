@@ -29,7 +29,6 @@ function buscarRutasPorTexto(textoDireccionOSector: string) {
   const q = normalizar(textoDireccionOSector);
   if (!q) return [];
 
-  // Extraer palabras clave relevantes de sectores de Naguanagua
   const stopWords = new Set([
     'calle', 'avenida', 'av', 'sector', 'urbanizacion', 'urb', 'conjunto', 'residencial',
     'res', 'casa', 'nro', 'numero', 'local', 'piso', 'edificio', 'edif', 'naguanagua',
@@ -50,7 +49,6 @@ function buscarRutasPorTexto(textoDireccionOSector: string) {
     const secNorm = normalizar(`${r.nombre} ${r.sectores}`);
     let score = 0;
 
-    // Coincidencia de frases conocidas
     for (const tok of tokens) {
       if (secNorm.includes(tok)) {
         score += tok.length >= 5 ? 3 : 1;
@@ -92,16 +90,21 @@ export async function POST(req: NextRequest) {
 
     const q = normalizar(mensajeUsuario);
     const acciones: AccionSugerida[] = [];
+    let accionEspecial: string | undefined = undefined;
 
     // 1. Detectar rutas asociadas a la consulta o a la dirección del contribuyente
     const rutasDeConsulta = buscarRutasPorTexto(mensajeUsuario);
     const rutasDeDireccion = buscarRutasPorTexto(direccion);
     const rutasSugeridas = rutasDeConsulta.length > 0 ? rutasDeConsulta : rutasDeDireccion;
 
-    // 2. Clasificación inteligente de intención (NLU en Español)
-    const pideSaludoOResumen =
-      /^(hola|buenos dias|buenas tardes|buenas noches|saludos|hey|ayuda|menu|inicio|resumen|mi cuenta|estado general|que puedes hacer|quien eres)\b/.test(q) ||
-      q.length <= 3;
+    // 2. Clasificación inteligente de intención (NLU en Español para "Global")
+    const pideDescargarEstadoCuenta =
+      /(descargar|bajar|descarga|generar|obtener|enviar|dame|quiero).*(estado de cuenta|pdf|recibo de deuda|planilla de deuda)/.test(q) ||
+      q === 'descargar estado de cuenta' ||
+      q === 'estado de cuenta pdf';
+
+    const pideOrientacion =
+      /orienta|orientacion|como usar|como funciona|guia|paso a paso|tutorial|explicame|como reporto|como subo|montar comprobante|usar la camara|tomar foto|foto al comprobante|navegar|secciones del sistema|que puedo hacer en la app/.test(q);
 
     const pideMulta =
       /multa|mora|recargo|sancion|exonerad|penalidad|intereses/.test(q);
@@ -128,16 +131,70 @@ export async function POST(req: NextRequest) {
       /solvencia|certificado|tala|poda|arbol|visto bueno|inspeccion|servicio especial|servicios extraordinarios|escombros|denuncia|reclamo/.test(q);
 
     let respuesta = '';
+    const netoAPagar = Math.max(0, deudaTotalBs - totalRetencionBs - saldoFavorBs);
 
-    // ── INTENCIÓN: MULTAS ──
-    if (pideMulta && !pideFormasPago && !pideRutas) {
+    // ── INTENCIÓN 1: DESCARGAR ESTADO DE CUENTA EN PDF ──
+    if (pideDescargarEstadoCuenta) {
+      accionEspecial = 'DESCARGAR_ESTADO_CUENTA';
+      respuesta =
+        `¡Por supuesto, **${nombre}**! 📄✨\n\n` +
+        `Soy **Global**, tu asistente inteligente. Ya mismo estoy generando y descargando tu **Estado de Cuenta Oficial en PDF** correspondiente a **${doc}** (${inmuebles.length} inmueble/s activo/s).\n\n` +
+        `📊 **Resumen incluido en tu PDF:**\n` +
+        `• **Servicio Base:** ${fmtBs(totalBaseBs)}\n` +
+        `• **Multas / Mora:** ${fmtBs(totalMultaBs)}\n` +
+        (totalIvaBs > 0.01 ? `• **IVA (16%):** ${fmtBs(totalIvaBs)}\n` : '') +
+        (esAgenteRetencion && totalRetencionBs > 0.01
+          ? `• **Retención 75% IVA:** -${fmtBs(totalRetencionBs)}\n`
+          : '') +
+        (saldoFavorBs > 0.01 ? `• **Saldo a Favor:** -${fmtBs(saldoFavorBs)}\n` : '') +
+        `• **Total Neto a Pagar:** **${fmtBs(netoAPagar)}**\n\n` +
+        `👇 Si la descarga no inició automáticamente en tu dispositivo, toca el botón **"📥 Descargar mi Estado de Cuenta (PDF)"** aquí abajo:`;
+
+      acciones.push(
+        { label: '📥 Descargar mi Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'primary' },
+        { label: '📄 Abrir vista completa de Estado de Cuenta', href: '/portal/estado-cuenta', variant: 'secondary' },
+        { label: '💳 Ir a Pagar', href: '/portal/pagos', variant: 'secondary' }
+      );
+    }
+    // ── INTENCIÓN 2: ORIENTACIÓN PASO A PASO DEL SISTEMA Y USO DE CÁMARA ──
+    else if (pideOrientacion) {
+      respuesta =
+        `¡Con mucho gusto te oriento, **${nombre}**! 🧭 Soy **Global**, tu asistente dentro de **Soy Contribuyente IAMEC**.\n\n` +
+        `Aquí tienes la **Guía Paso a Paso** para usar todas las funciones de tu aplicación:\n\n` +
+        `### 1️⃣ ¿Cómo reportar un pago y usar tu Cámara? 📸\n` +
+        `1. Entra en el menú **Pagar**.\n` +
+        `2. Selecciona los períodos o inmuebles que deseas cancelar (por defecto ya están marcados).\n` +
+        `3. Elige el banco destino (**Banesco** o **Bancamiga**), escribe tu **referencia de 8 dígitos** y la fecha.\n` +
+        `4. En **Comprobante de Transferencia** ahora tienes **dos opciones**:\n` +
+        `   • 📂 **Subir Comprobante:** para elegir una imagen o PDF desde tu galería o archivos.\n` +
+        `   • 📷 **Usar Cámara:** para tomarle una foto directa al capture o recibo bancario al instante.\n` +
+        `5. Presiona **Reportar Pago** y ¡listo! Nuestro equipo conciliará tu pago y emitirá tu factura.\n\n` +
+        `---\n` +
+        `### 2️⃣ ¿Dónde descargo mi Estado de Cuenta, Recibos y Facturas SENIAT? 🧾\n` +
+        `• **Desde este chat conmigo (Global):** solo toca **"📥 Descargar mi Estado de Cuenta (PDF)"** y te lo descargo al instante.\n` +
+        `• **En Facturación:** descargas tus **Facturas Fiscales Digitales SENIAT** y tus **Recibos de Caja**.\n` +
+        `• **En Retención (Agentes Especiales):** puedes subir o tomar foto a tu comprobante del **75% de IVA**.\n\n` +
+        `---\n` +
+        `### 3️⃣ Otros módulos útiles de tu menú lateral 📱\n` +
+        `• **Mis Inmuebles:** consulta tus códigos catastrales, actividades económicas y tarifas en UCD/Bs.\n` +
+        `• **Rutas y Horarios:** revisa qué días pasa el camión compactador por tu urbanización o comercio.\n` +
+        `• **Historial Certificados / Tala y Poda / Reclamos:** solicita solvencias, permisos ambientales o reporta incidencias.`;
+
+      acciones.push(
+        { label: '💳 Ir a Pagar (Subir o Usar Cámara)', href: '/portal/pagos', variant: 'primary' },
+        { label: '📥 Descargar mi Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'secondary' },
+        { label: '🧾 Ver mis Facturas SENIAT', href: '/portal/facturacion', variant: 'secondary' }
+      );
+    }
+    // ── INTENCIÓN 3: MULTAS ──
+    else if (pideMulta && !pideFormasPago && !pideRutas) {
       const inmsConMulta = inmuebles.filter((i) => Number(i.multaBs) > 0.01);
       if (totalMultaBs <= 0.01 && inmsConMulta.length === 0) {
         respuesta =
           `¡Buenas noticias, **${nombre}**! 🎉\n\n` +
-          `Actualmente **no presentas multas ni recargos por mora activos** en tu cuenta (**Bs. 0,00**).\n\n` +
+          `Soy **Global** y acabo de verificar tu cuenta (**${doc}**): actualmente **no presentas multas ni recargos por mora activos** (**Bs. 0,00**).\n\n` +
           (deudaTotalBs > 0.01
-            ? `• Tu saldo pendiente corresponde únicamente al servicio de aseo urbano por **${fmtBs(deudaTotalBs)}**.\n• Recuerda cancelar dentro del mes en curso para mantener tu cuenta libre de recargos.`
+            ? `• Tu saldo pendiente corresponde únicamente al servicio de aseo urbano por **${fmtBs(netoAPagar)}**.\n• Recuerda cancelar dentro del mes en curso para mantener tu cuenta libre de recargos.`
             : `• Tu cuenta se encuentra **totalmente solvente y al día**.`);
       } else {
         const desgloseMultas = inmsConMulta
@@ -148,24 +205,24 @@ export async function POST(req: NextRequest) {
           .join('\n');
 
         respuesta =
-          `Hola **${nombre}**, revisé el detalle de multas y recargos en tu cuenta:\n\n` +
+          `Hola **${nombre}**, soy **Global**. Revisé el detalle de multas y recargos en tu cuenta:\n\n` +
           `⚠️ **Total en Multas / Mora:** **${fmtBs(totalMultaBs)}**\n\n` +
           (desgloseMultas ? `**Desglose por inmueble:**\n${desgloseMultas}\n\n` : '') +
           `📌 **¿Por qué se genera este cargo?**\n` +
           `De acuerdo con la ordenanza municipal vigente, los meses vencidos no cancelados oportunamente generan un recargo por mora o sanción administrativa.\n\n` +
-          `💡 Puedes pagar tu deuda y regularizar tus inmuebles directamente desde la sección **Pagar** o consultar el detalle mes a mes en **Estado de Cuenta**.`;
+          `💡 Puedes descargar tu Estado de Cuenta en PDF aquí mismo o ir a **Pagar** para regularizar tu cuenta.`;
       }
       acciones.push(
-        { label: '📄 Ver Estado de Cuenta', href: '/portal/estado-cuenta', variant: 'primary' },
+        { label: '📥 Descargar Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'primary' },
         { label: '💳 Ir a Pagar', href: '/portal/pagos', variant: 'secondary' }
       );
     }
-    // ── INTENCIÓN: DEUDA / CUÁNTO DEBO ──
+    // ── INTENCIÓN 4: DEUDA / CUÁNTO DEBO ──
     else if (pideDeuda) {
       if (deudaTotalBs <= 0.01) {
         respuesta =
           `¡Felicitaciones, **${nombre}**! ✅\n\n` +
-          `Tu cuenta (**${doc}**) se encuentra **SOLVENTE (Al Día)**.\n\n` +
+          `Soy **Global** y te confirmo que tu cuenta (**${doc}**) se encuentra **SOLVENTE (Al Día)**.\n\n` +
           `• **Deuda Total Pendiente:** **Bs. 0,00**\n` +
           `• **Multas Activas:** **Bs. 0,00**\n` +
           (saldoFavorBs > 0.01
@@ -173,13 +230,13 @@ export async function POST(req: NextRequest) {
             : '') +
           (pagosPorVerificar.length > 0
             ? `\n⏳ Tienes **${pagosPorVerificar.length} pago(s) en proceso de verificación bancaria** por parte del equipo de conciliación.`
-            : `\nPuedes descargar tus recibos y certificados de solvencia cuando lo desees.`);
+            : `\nPuedes descargar tu Estado de Cuenta en cero o tus certificados de solvencia cuando lo desees.`);
         acciones.push(
-          { label: '🏅 Descargar Solvencia', href: '/portal/solvencia', variant: 'primary' },
+          { label: '📥 Descargar Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'primary' },
+          { label: '🏅 Descargar Solvencia', href: '/portal/solvencia', variant: 'secondary' },
           { label: '🧾 Historial de Documentos', href: '/portal/documentos', variant: 'secondary' }
         );
       } else {
-        const netoAPagar = Math.max(0, deudaTotalBs - totalRetencionBs - saldoFavorBs);
         const equivEur = tasaBcv > 0 ? (netoAPagar / tasaBcv).toFixed(2) : null;
         const detalleInms = inmuebles
           .map(
@@ -191,7 +248,7 @@ export async function POST(req: NextRequest) {
           .join('\n');
 
         respuesta =
-          `Hola **${nombre}** (**${doc}**), aquí tienes el estado actualizado de tu deuda al día de hoy:\n\n` +
+          `Hola **${nombre}** (**${doc}**), soy **Global**. Aquí tienes el estado actualizado de tu deuda al día de hoy:\n\n` +
           `📊 **Resumen Financiero de tu Cuenta:**\n` +
           `• **Servicio de Aseo Urbano (Base):** ${fmtBs(totalBaseBs)}\n` +
           (totalMultaBs > 0.01 ? `• **Multas / Mora:** ${fmtBs(totalMultaBs)}\n` : '') +
@@ -209,15 +266,16 @@ export async function POST(req: NextRequest) {
           (detalleInms ? `🏠 **Desglose por Inmueble / Local:**\n${detalleInms}\n\n` : '') +
           (pagosPorVerificar.length > 0
             ? `⏳ *Nota: Tienes ${pagosPorVerificar.length} pago(s) reportado(s) en revisión bancaria.*`
-            : `Puedes reportar tu transferencia bancaria ahora mismo desde el botón **Ir a Pagar**.`);
+            : `Puedes descargar tu Estado de Cuenta en PDF aquí abajo o reportar tu transferencia (subiendo archivo o usando tu cámara).`);
 
         acciones.push(
-          { label: '💳 Pagar Ahora', href: '/portal/pagos', variant: 'primary' },
-          { label: '📄 Ver Estado de Cuenta Detallado', href: '/portal/estado-cuenta', variant: 'secondary' }
+          { label: '📥 Descargar mi Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'primary' },
+          { label: '💳 Pagar Ahora', href: '/portal/pagos', variant: 'secondary' },
+          { label: '📄 Ver Estado de Cuenta', href: '/portal/estado-cuenta', variant: 'secondary' }
         );
       }
     }
-    // ── INTENCIÓN: FORMAS DE PAGO Y CUENTAS BANCARIAS ──
+    // ── INTENCIÓN 5: FORMAS DE PAGO Y CUENTAS BANCARIAS ──
     else if (pideFormasPago) {
       const cuentasTxt = CUENTAS_BANCARIAS_OFICIALES.map(
         (c) =>
@@ -228,9 +286,9 @@ export async function POST(req: NextRequest) {
       ).join('\n\n');
 
       respuesta =
-        `¡Con gusto, **${nombre}**! Estas son todas las **Formas de Pago Oficiales del IAMEC**:\n\n` +
+        `¡Con gusto, **${nombre}**! Soy **Global** y te comparto las **Formas de Pago Oficiales del IAMEC**:\n\n` +
         `### 1️⃣ Transferencia Bancaria Online (Desde el Portal o App)\n` +
-        `Realiza tu transferencia desde cualquier banco a nuestras cuentas recaudadoras oficiales y repórtala en la sección **Pagar**:\n\n` +
+        `Realiza tu transferencia desde cualquier banco a nuestras cuentas recaudadoras oficiales y repórtala en la sección **Pagar** (puedes **subir el comprobante** o **usar tu cámara** para tomarle foto):\n\n` +
         `${cuentasTxt}\n\n` +
         `---\n` +
         `### 2️⃣ Puntos de Venta Presenciales (Débito / Crédito)\n` +
@@ -241,10 +299,10 @@ export async function POST(req: NextRequest) {
 
       acciones.push(
         { label: '💳 Reportar Pago en Línea', href: '/portal/pagos', variant: 'primary' },
-        { label: '📄 Ver Monto Exacto a Pagar', href: '/portal/estado-cuenta', variant: 'secondary' }
+        { label: '📥 Descargar Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'secondary' }
       );
     }
-    // ── INTENCIÓN: RUTAS Y HORARIOS DE RECOLECCIÓN ──
+    // ── INTENCIÓN 6: RUTAS Y HORARIOS DE RECOLECCIÓN ──
     else if (pideRutas) {
       if (rutasSugeridas.length > 0) {
         const listaRutas = rutasSugeridas
@@ -257,14 +315,14 @@ export async function POST(req: NextRequest) {
           .join('\n\n');
 
         respuesta =
-          `Hola **${nombre}**, según ${
+          `Hola **${nombre}**, soy **Global**. Según ${
             rutasDeConsulta.length > 0 ? 'el sector que consultaste' : `tu dirección registrada (*${direccion || 'Naguanagua'}*)`
           }, estas son las **Rutas y Horarios de Recolección de Aseo Urbano**:\n\n` +
           `${listaRutas}\n\n` +
           `💡 *Tip: También puedes escribirme el nombre de cualquier urbanización o sector (por ejemplo: "¿Cuándo pasa por La Granja?" o "Ruta de Mañongo") y te diré los días exactos.*`;
       } else {
         respuesta =
-          `Hola **${nombre}**, el IAMEC cuenta con **${RUTAS_NAGUANAGUA.length} rutas activas** de recolección diurna y nocturna en todo el Municipio Naguanagua.\n\n` +
+          `Hola **${nombre}**, soy **Global**. El IAMEC cuenta con **${RUTAS_NAGUANAGUA.length} rutas activas** de recolección diurna y nocturna en todo el Municipio Naguanagua.\n\n` +
           `• **Avenidas Principales y Comercios:** Recolección **Diaria** (Lunes a Sábado / Domingo).\n` +
           `• **Zonas Residenciales y Urbanizaciones:** Recolección interdiaria (**Lun-Mié-Vie** o **Mar-Jue-Sáb**).\n\n` +
           `📌 Dime el nombre de tu **urbanización, comunidad o sector** (ej. *Las Quintas, Mañongo, La Granja, El Rincón, Tarapio, Guayabal*) o abre el cronograma completo abajo:`;
@@ -275,11 +333,11 @@ export async function POST(req: NextRequest) {
         variant: 'primary',
       });
     }
-    // ── INTENCIÓN: INMUEBLES Y CÓDIGOS ──
+    // ── INTENCIÓN 7: INMUEBLES Y CÓDIGOS ──
     else if (pideInmuebles) {
       if (inmuebles.length === 0) {
         respuesta =
-          `Hola **${nombre}**, actualmente no visualizo inmuebles activos cargados bajo el documento **${doc}**. Puedes verificar tus datos en la sección **Mis Inmuebles**.`;
+          `Hola **${nombre}**, soy **Global**. Actualmente no visualizo inmuebles activos cargados bajo el documento **${doc}**. Puedes verificar tus datos en la sección **Mis Inmuebles**.`;
       } else {
         const detalle = inmuebles
           .map(
@@ -293,31 +351,31 @@ export async function POST(req: NextRequest) {
           .join('\n\n');
 
         respuesta =
-          `Hola **${nombre}**, tienes **${inmuebles.length} inmueble(s) / código(s)** activo(s) asociados a tu RIF/Cédula **${doc}** (${categoria}):\n\n` +
+          `Hola **${nombre}**, soy **Global**. Tienes **${inmuebles.length} inmueble(s) / código(s)** activo(s) asociados a tu RIF/Cédula **${doc}** (${categoria}):\n\n` +
           `${detalle}`;
       }
       acciones.push(
         { label: '🏢 Ir a Mis Inmuebles', href: '/portal/inmuebles', variant: 'primary' },
-        { label: '📄 Estado de Cuenta', href: '/portal/estado-cuenta', variant: 'secondary' }
+        { label: '📥 Descargar Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'secondary' }
       );
     }
-    // ── INTENCIÓN: SALDO A FAVOR / NOTAS DE CRÉDITO ──
+    // ── INTENCIÓN 8: SALDO A FAVOR / NOTAS DE CRÉDITO ──
     else if (pideSaldoFavor) {
       if (saldoFavorBs > 0.01 || notasCredito.length > 0) {
         respuesta =
-          `Hola **${nombre}**, actualmente cuentas con un **Saldo a Favor / Nota de Crédito disponible de ${fmtBs(saldoFavorBs)}**.\n\n` +
+          `Hola **${nombre}**, soy **Global**. Actualmente cuentas con un **Saldo a Favor / Nota de Crédito disponible de ${fmtBs(saldoFavorBs)}**.\n\n` +
           `✅ **¿Cómo se utiliza?**\n` +
           `Al momento de reportar tu próximo pago en el portal o pagar en taquilla, el sistema descuenta automáticamente tu saldo a favor del total a cancelar.`;
       } else {
         respuesta =
-          `Hola **${nombre}**, revisé tu cuenta (**${doc}**) y actualmente tienes **Bs. 0,00** en Saldo a Favor o Notas de Crédito vigentes.`;
+          `Hola **${nombre}**, soy **Global**. Revisé tu cuenta (**${doc}**) y actualmente tienes **Bs. 0,00** en Saldo a Favor o Notas de Crédito vigentes.`;
       }
       acciones.push(
         { label: '🧾 Ver Historial de Documentos', href: '/portal/documentos', variant: 'primary' },
-        { label: '📄 Estado de Cuenta', href: '/portal/estado-cuenta', variant: 'secondary' }
+        { label: '📥 Descargar Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'secondary' }
       );
     }
-    // ── INTENCIÓN: HISTORIAL DE PAGOS / FACTURACIÓN / RETENCIONES ──
+    // ── INTENCIÓN 9: HISTORIAL DE PAGOS / FACTURACIÓN / RETENCIONES ──
     else if (pideHistorialOFactura) {
       const ultimosTxt =
         pagosRecientes.length > 0
@@ -333,12 +391,12 @@ export async function POST(req: NextRequest) {
           : '• No se encontraron pagos reportados recientemente.';
 
       respuesta =
-        `Hola **${nombre}**, aquí tienes el resumen de tus **últimos pagos y facturación**:\n\n` +
+        `Hola **${nombre}**, soy **Global**. Aquí tienes el resumen de tus **últimos pagos y facturación**:\n\n` +
         `${ultimosTxt}\n\n` +
         `📌 **Recuerda:**\n` +
         `• En **Facturación** puedes descargar tus facturas electrónicas fiscales emitidas ante el SENIAT y tus recibos de caja.\n` +
         (esAgenteRetencion
-          ? `• Como **Agente de Retención Especial**, puedes cargar tu comprobante del 75% de IVA en la sección **Retención**.`
+          ? `• Como **Agente de Retención Especial**, puedes cargar tu comprobante del 75% de IVA (subiendo archivo o usando la cámara) en la sección **Retención**.`
           : '');
 
       acciones.push(
@@ -349,14 +407,14 @@ export async function POST(req: NextRequest) {
         acciones.push({ label: '📑 Cargar Retención IVA', href: '/portal/retenciones', variant: 'secondary' });
       }
     }
-    // ── INTENCIÓN: SOLVENCIA / TALA Y PODA / VISTO BUENO / RECLAMOS ──
+    // ── INTENCIÓN 10: SOLVENCIA / TALA Y PODA / VISTO BUENO / RECLAMOS ──
     else if (pideSolvenciaOServicios) {
       respuesta =
-        `Hola **${nombre}**, en tu portal tienes acceso directo a todos los **trámites y servicios ambientales del IAMEC**:\n\n` +
+        `Hola **${nombre}**, soy **Global**. En tu portal tienes acceso directo a todos los **trámites y servicios ambientales del IAMEC**:\n\n` +
         `• 🏅 **Certificado de Solvencia:** ${
           deudaTotalBs <= 0.01
             ? 'Tu cuenta está **Solvente**, puedes descargarlo en **Historial Certificados**.'
-            : `Debes cancelar primero el saldo pendiente de **${fmtBs(deudaTotalBs)}** para habilitar la descarga.`
+            : `Debes cancelar primero el saldo pendiente de **${fmtBs(netoAPagar)}** para habilitar la descarga.`
         }\n` +
         `• 🌳 **Permiso de Tala y Poda:** Solicita inspección y permiso ambiental en **Permiso Tala/Poda**.\n` +
         `• 🛡️ **Visto Bueno e Inspección Ambiental:** Tramita tu certificado para comercios e industrias.\n` +
@@ -371,12 +429,11 @@ export async function POST(req: NextRequest) {
     }
     // ── SALUDO O CONSULTA GENERAL CON RESUMEN COMPLETO DE LA CUENTA ──
     else {
-      const netoAPagar = Math.max(0, deudaTotalBs - totalRetencionBs - saldoFavorBs);
       const rutaPrincipal = rutasSugeridas[0];
 
       respuesta =
-        `¡Hola, **${nombre}**! 👋 Soy tu **Asistente Virtual con IA del IAMEC**.\n\n` +
-        `He consultado tu cuenta (**${doc}** · **${categoria}**) en tiempo real y aquí tienes tu resumen:\n\n` +
+        `¡Hola, **${nombre}**! 👋 Soy **Global**, tu **Asistente Inteligente con IA del IAMEC**.\n\n` +
+        `He consultado tu cuenta (**${doc}** · **${categoria}**) en tiempo real y aquí tienes tu resumen completo:\n\n` +
         `• 💰 **Estado de Deuda:** ${
           deudaTotalBs > 0.01
             ? `Tienes **${recibosPendientesCount} período(s) pendiente(s)** por un neto a pagar de **${fmtBs(netoAPagar)}**`
@@ -392,24 +449,25 @@ export async function POST(req: NextRequest) {
         (rutaPrincipal
           ? `• 🚛 **Ruta de Aseo estimada para tu sector:** **${rutaPrincipal.nombre}** (${rutaPrincipal.frecuencia})\n`
           : '') +
-        `\n¿Sobre qué deseas consultar hoy? Puedes preguntarme con tus propias palabras sobre:\n` +
-        `1. **Mis deudas y desglose por inmueble**\n` +
-        `2. **Multas y recargos**\n` +
-        `3. **Cuentas bancarias y formas de pago**\n` +
-        `4. **Rutas y días que pasa el camión de aseo por tu sector**\n` +
-        `5. **Facturas SENIAT, solvencias, tala y poda o reclamos**`;
+        `\n¿En qué te puedo orientar hoy? Puedo:\n` +
+        `1. **Descargar tu Estado de Cuenta en PDF** directamente desde aquí\n` +
+        `2. **Mostrarte tu deuda detallada, multas e inmuebles**\n` +
+        `3. **Explicarte cómo reportar tu pago (subiendo archivo o usando tu cámara)**\n` +
+        `4. **Indicarte las cuentas bancarias, rutas de aseo, facturas SENIAT o solvencias**`;
 
       acciones.push(
-        { label: '💳 Ir a Pagar', href: '/portal/pagos', variant: 'primary' },
-        { label: '📄 Ver Estado de Cuenta', href: '/portal/estado-cuenta', variant: 'secondary' },
+        { label: '📥 Descargar mi Estado de Cuenta (PDF)', href: '#descargar-estado-cuenta', variant: 'primary' },
+        { label: '💳 Ir a Pagar', href: '/portal/pagos', variant: 'secondary' },
         { label: '🚛 Rutas y Horarios', href: '/portal/rutas', variant: 'secondary' }
       );
     }
 
     return NextResponse.json({
       ok: true,
+      asistente: 'Global',
       respuesta,
       acciones,
+      accionEspecial,
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
@@ -417,8 +475,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
+        asistente: 'Global',
         respuesta:
-          'Disculpa, ocurrió un inconveniente temporal al consultar los datos. Por favor intenta nuevamente.',
+          'Disculpa, soy Global. Ocurrió un inconveniente temporal al consultar los datos. Por favor intenta nuevamente.',
         acciones: [],
       },
       { status: 500 }
