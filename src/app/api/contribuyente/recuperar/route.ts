@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 
     // Generar JWT token válido por 2 horas con propósito explícito (evita confusión de tokens)
     const token = jwt.sign({ identidad: user.identidad, purpose: 'portal_password_reset' }, JWT_SECRET, { expiresIn: '2h' });
-    const resetUrl = `https://aseonaguanagua.globalrecca.com/portal/reset?token=${token}`;
+    const resetUrl = `https://naguanagua.globalgreenrec.com/portal/reset?token=${token}`;
 
     const anio = new Date().getFullYear();
 

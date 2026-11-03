@@ -483,7 +483,7 @@ export function UnidadesModal({ condominioId, condominioNombre, condominioIdenti
       doc.text(splitDecl, 15, 150);
       
       // QR Code
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://aseonaguanagua.globalrecca.com';
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://naguanagua.globalgreenrec.com';
       const qrData = `${baseUrl}/validar?codigo=${codigoUnico}`;
       const qrDataUrl = await QRCode.toDataURL(qrData, { margin: 1, width: 100 });
       doc.addImage(qrDataUrl, 'PNG', 85, 180, 40, 40);

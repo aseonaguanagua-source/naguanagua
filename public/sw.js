@@ -3,13 +3,11 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(self.clients.claim());
+  e.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (e) => {
-  // A simple fetch handler is required by Chrome to trigger the install prompt
-  // We can just pass the request through to the network
-  e.respondWith(fetch(e.request).catch(() => {
-    // Optional offline fallback could go here
-  }));
+  e.respondWith(fetch(e.request));
 });

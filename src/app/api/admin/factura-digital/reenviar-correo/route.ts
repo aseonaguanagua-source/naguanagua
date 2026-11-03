@@ -13,7 +13,7 @@ function buildFacturaEmailHtml(data: {
   fecha: string;
   url: string;
 }): string {
-  const BASE = 'https://aseonaguanaguaad.globalrecca.com';
+  const BASE = 'https://naguanagua.globalgreenrec.com';
   return `
 <!DOCTYPE html>
 <html lang="es">

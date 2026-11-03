@@ -637,7 +637,7 @@ export default function SolvenciaPage() {
                 <div className="space-y-1.5 flex flex-col items-center justify-center">
                   <div className="w-16 h-16 border-2 border-dashed border-emerald-600 rounded-xl flex items-center justify-center bg-white p-1 shadow-sm">
                     <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://aseonaguanaguaad.globalrecca.com/validar?cert=${numeroCertificado}`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://naguanagua.globalgreenrec.com/validar?cert=${numeroCertificado}`}
                       alt="Código QR de Verificación"
                       className="w-full h-full object-contain"
                     />

@@ -3,7 +3,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin';
 import { getResendClient, DEFAULT_RESEND_FROM } from '@/lib/emailClient';
 
 function buildHtml(nombre: string): string {
-  const BASE = 'https://aseonaguanaguaad.globalrecca.com';
+  const BASE = 'https://naguanagua.globalgreenrec.com';
   return `
 <!DOCTYPE html>
 <html lang="es">
@@ -93,8 +93,8 @@ function buildHtml(nombre: string): string {
               Desde cualquier dispositivo m&oacute;vil o computador, acceda a consultar su estado de cuenta, efectuar pagos y gestionar su solvencia en el siguiente enlace oficial:
             </p>
             <p style="margin:0 0 12px;text-align:center;">
-              <a href="https://aseonaguanagua.globalrecca.com" style="display:inline-block;background:#1a7a40;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:24px;font-size:14px;font-weight:bold;letter-spacing:0.5px;">
-                &#x1F517; aseonaguanagua.globalrecca.com
+              <a href="https://naguanagua.globalgreenrec.com/portal" style="display:inline-block;background:#1a7a40;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:24px;font-size:14px;font-weight:bold;letter-spacing:0.5px;">
+                &#x1F517; naguanagua.globalgreenrec.com
               </a>
             </p>
             <table cellpadding="3" cellspacing="0" style="font-size:13px;color:#166534;">

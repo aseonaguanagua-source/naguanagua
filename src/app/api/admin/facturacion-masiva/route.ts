@@ -74,7 +74,7 @@ async function enviarCorreos(facturasGeneradas: any[]) {
             </ul>
             <p>Le invitamos a ingresar al Portal del Contribuyente para gestionar sus pagos.</p>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="https://aseonaguanagua.globalrecca.com/portal/login" style="background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Ir al Portal</a>
+              <a href="https://naguanagua.globalgreenrec.com/portal/login" style="background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Ir al Portal</a>
             </div>
           </div>
           <div style="background-color: #f8fafc; padding: 15px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #eaeaea;">

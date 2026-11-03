@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "IAMEC Naguanagua",
     description: "Accede al Sistema Integral de Recaudación Tributaria Municipal del Municipio Naguanagua. Autogestión en línea para contribuyentes y operadores.",
-    url: "https://aseonaguanagua.globalrecca.com",
+    url: "https://naguanagua.globalgreenrec.com",
     siteName: "IAMEC Naguanagua",
     locale: "es_VE",
     type: "website",
