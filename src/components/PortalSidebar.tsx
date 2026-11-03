@@ -49,8 +49,7 @@ const menuSections = [
     title: 'SERVICIOS',
     items: [
       { name: 'Horarios de Rutas', icon: CalendarDays, href: '/portal/rutas' },
-      { name: 'Servicio Especial', icon: Sparkles, href: '/portal/servicios-extraordinarios?tipo=especial' },
-      { name: 'Servicios', icon: Wrench, href: '/portal/servicios-extraordinarios?tipo=extraordinario' },
+      { name: 'Servicios', icon: Wrench, href: '/portal/servicios-extraordinarios' },
       { name: 'Permiso Tala/Poda', icon: TreePine, href: '/portal/tala-y-poda' },
       { name: 'Visto Bueno', icon: ShieldCheck, href: '/portal/visto-bueno' },
       { name: 'Inspección', icon: SearchCheck, href: '/portal/inspeccion' },
