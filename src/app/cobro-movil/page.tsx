@@ -672,11 +672,10 @@ export default function KioskPage() {
     };
   };
 
-  // Mostrar Aviso Grande de PAGO PROCESADO (APROBADO) en el Bancamiga A75 Pro y registrar cobro
+  // Mostrar Aviso Automático Grande de PAGO PROCESADO (APROBADO) recibido desde el Bancamiga A75 Pro
   const confirmarAprobadoA75Pro = async (refCustom?: string, aprobCustom?: string, loteCustom?: string) => {
     const autoSeq = String(Date.now()).slice(-8);
-    const cleanInput = posVoucherInput.replace(/\D/g, '');
-    const refFinal = (refCustom || (cleanInput.length >= 4 ? cleanInput : autoSeq)).trim();
+    const refFinal = (refCustom || autoSeq).trim();
     const aprobFinal = (aprobCustom || refFinal.slice(-6)).trim();
     const loteFinal = (loteCustom || '001').trim();
 
@@ -689,12 +688,12 @@ export default function KioskPage() {
     setPosStatusMsg(`¡PAGO PROCESADO Y APROBADO EN POS BANCAMIGA A75 PRO! (Ref: ${refFinal})`);
     setPosAlertState('approved');
 
-    await new Promise((resolve) => setTimeout(resolve, 1800));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     await processPayment(refFinal, 'Punto de Venta', aprobFinal, loteFinal);
     setPosAlertState('idle');
   };
 
-  // Mostrar Aviso Grande de PAGO RECHAZADO en el Bancamiga A75 Pro (sin registrar cobro)
+  // Mostrar Aviso Automático Grande de PAGO RECHAZADO recibido desde el Bancamiga A75 Pro
   const confirmarRechazadoA75Pro = (motivo?: string) => {
     const msg =
       motivo ||
@@ -706,7 +705,7 @@ export default function KioskPage() {
     setPosAlertState('rejected');
   };
 
-  // Cobro directo por Tarjeta de Débito usando el Punto de Venta Bancamiga A75 Pro
+  // Envío y respuesta 100% AUTOMÁTICA de Monto y Cédula con el Punto de Venta Bancamiga A75 Pro
   const handleCobrarDebitoDirecto = async () => {
     setPayError('');
     setPosRejectReason('');
@@ -716,67 +715,68 @@ export default function KioskPage() {
       return;
     }
 
-    setPosConnected(true);
     setIsWaitingPos(true);
     setPosAlertState('waiting');
     setPosStatusMsg(
-      `Enviando cobro de Débito por Bs. ${fmtBs(pagoTotalCalculado)} (C.I.: ${cardHolder.cedulaCompleta}) al POS Bancamiga A75 Pro... Acerque (NFC), inserte (Chip) o deslice la tarjeta e ingrese la clave.`
+      `Enviando automáticamente Monto (Bs. ${fmtBs(pagoTotalCalculado)}) y Cédula (${cardHolder.cedulaCompleta}) al POS Bancamiga A75 Pro...`
     );
 
-    // 1. Si corre dentro del propio terminal Android SmartPOS Bancamiga A75 Pro (Bridge Nativo)
+    const montoCentimos = String(Math.round(pagoTotalCalculado * 100)).padStart(12, '0');
+    const cedulaClean = cardHolder.soloNumeros.padStart(10, '0');
+    const codInm = userInms[0]?.inmueble || 'ASEO';
+    const payloadPosObj = {
+      cmd: 'SALE',
+      comando: 'COMPRA',
+      accion: 'venta',
+      modeloPos: 'Bancamiga A75 Pro',
+      tipoCuenta: 'DEBITO',
+      modalidad: 'DEBITO',
+      monto: pagoTotalCalculado.toFixed(2),
+      montoCentimos: Math.round(pagoTotalCalculado * 100),
+      cedula: cardHolder.soloNumeros,
+      identificacion: cardHolder.cedulaCompleta,
+      rifContribuyente: foundUser?.Identidad,
+      referenciaInterna: codInm,
+      moneda: 'VES',
+    };
+
+    // 1. Si corre dentro del propio terminal Android SmartPOS Bancamiga A75 Pro (Bridge Nativo SITCA / Vanstone)
     const winAny: any = typeof window !== 'undefined' ? window : null;
     const nativeBridge = winAny?.BancamigaA75Pro || winAny?.BancamigaPOS || winAny?.AndroidPOS;
     if (nativeBridge && typeof nativeBridge.procesarVentaDebito === 'function') {
       try {
-        const rawRes = await nativeBridge.procesarVentaDebito(
-          JSON.stringify({
-            modelo: 'A75 Pro',
-            banco: 'Bancamiga',
-            monto: pagoTotalCalculado,
-            montoCentimos: Math.round(pagoTotalCalculado * 100),
-            cedula: cardHolder.soloNumeros,
-            identificacion: cardHolder.cedulaCompleta,
-            referenciaInterna: userInms[0]?.inmueble || 'ASEO',
-          })
-        );
+        const rawRes = await nativeBridge.procesarVentaDebito(JSON.stringify(payloadPosObj));
         const parsed = typeof rawRes === 'string' ? JSON.parse(rawRes) : rawRes;
         if (parsed?.aprobado || parsed?.codigoRespuesta === '00' || parsed?.status === 'APPROVED') {
           await confirmarAprobadoA75Pro(parsed.referencia, parsed.aprobacion, parsed.lote);
           return;
         } else {
-          confirmarRechazadoA75Pro(parsed?.mensaje || 'Transacción rechazada en el terminal Bancamiga A75 Pro.');
+          confirmarRechazadoA75Pro(parsed?.mensaje || 'Transacción rechazada automáticamente por el POS Bancamiga A75 Pro.');
           return;
         }
-      } catch {
-        // Continúa en espera interactiva en el modal A75 Pro
+      } catch (err: any) {
+        confirmarRechazadoA75Pro(err?.message || 'Error en comunicación interna con el módulo POS A75 Pro.');
+        return;
       }
     }
 
-    // 2. Si tiene puerto USB-C activo con el A75 Pro
-    if (posMode === 'usb' && usbPort) {
+    // 2. MODO CABLE USB-C DIRECTO AL A75 PRO (Web Serial 115200 bps)
+    const nav: any = typeof window !== 'undefined' ? window.navigator : null;
+    if (posMode === 'usb' && nav?.serial) {
       try {
-        const port = usbPort;
+        let port = usbPort;
+        if (!port) {
+          const ports = await nav.serial.getPorts().catch(() => []);
+          port = ports && ports.length > 0 ? ports[0] : await nav.serial.requestPort({});
+          setUsbPort(port);
+        }
         if (!port.readable || !port.writable) {
           await port.open({ baudRate: 115200 }).catch(() => {});
         }
-        const montoCentimos = String(Math.round(pagoTotalCalculado * 100)).padStart(12, '0');
-        const cedulaClean = cardHolder.soloNumeros.padStart(10, '0');
-        const codInm = userInms[0]?.inmueble || 'ASEO';
+        setPosConnected(true);
 
         const writer = port.writable.getWriter();
-        const payloadEcr = JSON.stringify({
-          cmd: 'SALE',
-          comando: 'COMPRA',
-          modeloPos: 'Bancamiga A75 Pro',
-          tipoCuenta: 'DEBITO',
-          modalidad: 'DEBITO',
-          monto: pagoTotalCalculado.toFixed(2),
-          montoCentimos,
-          cedula: cardHolder.soloNumeros,
-          identificacion: cardHolder.cedulaCompleta,
-          referenciaInterna: codInm,
-        });
-        const stxFrame = `\x020200|${montoCentimos}|${cedulaClean}|DEBITO|${codInm}\x03\r\n${payloadEcr}\r\n`;
+        const stxFrame = `\x020200|${montoCentimos}|${cedulaClean}|DEBITO|${codInm}\x03\r\n${JSON.stringify(payloadPosObj)}\r\n`;
         await writer.write(new TextEncoder().encode(stxFrame));
         writer.releaseLock();
 
@@ -784,7 +784,7 @@ export default function KioskPage() {
         let bufferTxt = '';
         const startTime = Date.now();
 
-        while (Date.now() - startTime < 45000) {
+        while (Date.now() - startTime < 60000) {
           const readPromise = reader.read();
           const timeoutPromise = new Promise<{ value?: Uint8Array; done: boolean }>((resolve) =>
             setTimeout(() => resolve({ done: true }), 2500)
@@ -819,42 +819,81 @@ export default function KioskPage() {
           if (done && bufferTxt.length > 0) break;
         }
         reader.releaseLock();
-      } catch {
-        // Si no hay cable USB físico, permanece abierto el panel interactivo del A75 Pro
+        setIsWaitingPos(false);
+        setPosAlertState('idle');
+        setPayError('Tiempo de espera agotado: el Punto Bancamiga A75 Pro no devolvió respuesta por USB.');
+        return;
+      } catch (err: any) {
+        setIsWaitingPos(false);
+        setPosAlertState('idle');
+        setShowPosSetup(true);
+        setPayError(`No se pudo conectar por USB al Punto A75 Pro (${err?.message || 'Verifique el cable USB'}).`);
+        return;
       }
-      return;
     }
 
-    // 3. Intento automático por Red Wi-Fi / Localhost del A75 Pro (sin cerrar el modal si el A75 Pro opera por 4G independiente)
+    // 3. MODO RED LOCAL WI-FI DIRECTO DESDE EL DISPOSITIVO AL A75 PRO + PUENTE API
+    const cleanHost = posIp.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     try {
-      const res = await fetch('/api/cobro-movil/pos-bancamiga', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          posIp: posIp.trim(),
-          modeloPos: 'Bancamiga A75 Pro',
-          monto: pagoTotalCalculado,
-          cedulaTarjetahabiente: cardHolder.cedulaCompleta,
-          identidadContribuyente: foundUser?.Identidad,
-          referenciaInterna: userInms[0]?.inmueble || 'ASEO',
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
+      // Intento A: Conexión directa desde el navegador/app en la misma red Wi-Fi al A75 Pro
+      let posData: any = null;
+      let posOk = false;
 
-      if (res.ok && data?.success) {
-        const refObtenida = String(data.referencia || String(Date.now()).slice(-8)).trim();
-        const aprobObtenida = String(data.aprobacion || refObtenida.slice(-6)).trim();
-        const loteObtenido = String(data.lote || '001').trim();
+      try {
+        const directCtrl = new AbortController();
+        const directTimer = setTimeout(() => directCtrl.abort(), 55000);
+        const directRes = await fetch(`http://${cleanHost}/api/venta`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payloadPosObj),
+          signal: directCtrl.signal,
+        });
+        clearTimeout(directTimer);
+        posData = await directRes.json().catch(() => ({}));
+        posOk = directRes.ok;
+      } catch {
+        // Intento B: Fallback por endpoint servidor
+        const res = await fetch('/api/cobro-movil/pos-bancamiga', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            posIp: cleanHost,
+            modeloPos: 'Bancamiga A75 Pro',
+            monto: pagoTotalCalculado,
+            cedulaTarjetahabiente: cardHolder.cedulaCompleta,
+            identidadContribuyente: foundUser?.Identidad,
+            referenciaInterna: codInm,
+          }),
+        });
+        posData = await res.json().catch(() => ({}));
+        posOk = res.ok;
+      }
+
+      if (posOk && (posData?.success || posData?.aprobado || posData?.estatus === 'APROBADO' || posData?.codigo === '00')) {
+        const refObtenida = String(posData.referencia || posData.numReferencia || posData.secuencia || String(Date.now()).slice(-8)).trim();
+        const aprobObtenida = String(posData.aprobacion || posData.autorizacion || refObtenida.slice(-6)).trim();
+        const loteObtenido = String(posData.lote || posData.numLote || '001').trim();
         await confirmarAprobadoA75Pro(refObtenida, aprobObtenida, loteObtenido);
         return;
       }
 
-      if (res.status === 400 && data?.error) {
-        confirmarRechazadoA75Pro(data.error);
+      if (posData?.estatus === 'RECHAZADO' || posData?.status === 'rejected' || /rechazad|declinad|fondos|clave/i.test(String(posData?.error || posData?.mensaje || ''))) {
+        confirmarRechazadoA75Pro(posData?.mensaje || posData?.error || 'Pago rechazado automáticamente por el POS Bancamiga A75 Pro.');
         return;
       }
-    } catch {
-      // Si el A75 Pro está en modo inalámbrico 4G/Wi-Fi independiente, el modal del A75 Pro permanece activo en pantalla esperando confirmación del operador
+
+      setIsWaitingPos(false);
+      setPosAlertState('idle');
+      setShowPosSetup(true);
+      setPayError(
+        posData?.error ||
+          `No hubo respuesta del Punto Bancamiga A75 Pro en ${cleanHost}. Verifique que el A75 Pro tenga activo el modo Caja Integrada (SITCA) en la misma red Wi-Fi o por cable USB.`
+      );
+    } catch (err: any) {
+      setIsWaitingPos(false);
+      setPosAlertState('idle');
+      setShowPosSetup(true);
+      setPayError(err?.message || 'No se pudo establecer comunicación automática con el Punto Bancamiga A75 Pro.');
     }
   };
 
@@ -2107,18 +2146,18 @@ export default function KioskPage() {
           </div>
 
           {/* ══════════════════════════════════════════════════════════════════════════
-              MODAL INTERACTIVO DE AVISO DEL PUNTO DE VENTA BANCAMIGA A75 PRO
-              (EN ESPERA DE TARJETA -> ¡PAGO PROCESADO! / ¡PAGO RECHAZADO!)
+              MODAL AUTOMÁTICO DEL PUNTO DE VENTA BANCAMIGA A75 PRO
+              (ENVÍO AUTOMÁTICO DE DATOS -> RESPUESTA AUTOMÁTICA DE PAGO PROCESADO / RECHAZADO)
              ══════════════════════════════════════════════════════════════════════════ */}
           {posAlertState !== 'idle' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
               <div className="w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border-2 transition-all bg-slate-900 border-slate-700">
-                {/* ESTADO 1: ESPERANDO QUE PASE LA TARJETA EN EL BANCAMIGA A75 PRO */}
+                {/* ESTADO 1: ENVIANDO DATOS Y ESPERANDO RESPUESTA AUTOMÁTICA DEL BANCAMIGA A75 PRO */}
                 {posAlertState === 'waiting' && (
-                  <div className="p-6 text-center space-y-4">
+                  <div className="p-7 text-center space-y-5">
                     <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-black uppercase tracking-wider">
-                      <CreditCard className="w-4 h-4" />
-                      <span>POS Bancamiga · Modelo A75 Pro</span>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Conexión Automática · POS Bancamiga A75 Pro</span>
                     </div>
 
                     <div className="w-20 h-20 rounded-full bg-emerald-500/15 border-2 border-emerald-400 flex items-center justify-center mx-auto animate-pulse">
@@ -2129,84 +2168,35 @@ export default function KioskPage() {
                       <h3 className="text-xl sm:text-2xl font-black text-white">
                         Pase la Tarjeta en el Punto A75 Pro
                       </h3>
-                      <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                        Acerque (NFC Contactless), inserte (Chip) o deslice la tarjeta de débito en el <strong>Bancamiga A75 Pro</strong> e ingrese la clave.
+                      <p className="text-xs sm:text-sm text-slate-300 mt-1.5 leading-relaxed">
+                        El sistema envió automáticamente el monto y la cédula al <strong>Bancamiga A75 Pro</strong>. Acerque (NFC), inserte (Chip) o deslice la tarjeta e ingrese la clave; el resultado aparecerá aquí automáticamente.
                       </p>
                     </div>
 
-                    <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2 text-left text-xs">
+                    <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-left text-xs">
                       <div className="flex justify-between items-center">
                         <span className="text-slate-400">Terminal POS:</span>
-                        <span className="font-black text-emerald-400">Bancamiga A75 Pro</span>
+                        <span className="font-black text-emerald-400">Bancamiga A75 Pro ({posMode === 'usb' ? 'USB-C' : posIp})</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-400">Monto a Cobrar:</span>
+                        <span className="text-slate-400">Monto Enviado:</span>
                         <span className="text-lg font-black text-white">Bs. {fmtBs(pagoTotalCalculado)}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-400">Cédula Tarjetahabiente:</span>
+                        <span className="text-slate-400">Cédula Enviada:</span>
                         <span className="font-mono font-bold text-amber-300">
                           {getCedulaTarjetahabiente().cedulaCompleta}
                         </span>
                       </div>
                     </div>
 
-                    <div className="text-left">
-                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                        Nro. de Referencia / Secuencia Voucher A75 Pro (Opcional - se autogenera si lo deja vacío):
-                      </label>
-                      <input
-                        type="tel"
-                        value={posVoucherInput}
-                        onChange={(e) => setPosVoucherInput(e.target.value.replace(/\D/g, ''))}
-                        placeholder="Ej: 00184920 (o dejar vacío)"
-                        className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-400 rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold text-white outline-none"
-                      />
-                    </div>
-
-                    <div className="pt-2 space-y-2.5">
-                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                        Resultado en pantalla del Punto Bancamiga A75 Pro:
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => confirmarAprobadoA75Pro()}
-                          className="w-full py-3.5 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 cursor-pointer active:scale-95 transition-all"
-                        >
-                          <CheckCircle2 className="w-5 h-5" />
-                          <span>Pago Procesado (Aprobado)</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            confirmarRechazadoA75Pro(
-                              'Transacción Rechazada en el Punto de Venta Bancamiga A75 Pro (Fondos insuficientes, clave incorrecta o tarjeta declinada).'
-                            )
-                          }
-                          className="w-full py-3.5 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 cursor-pointer active:scale-95 transition-all"
-                        >
-                          <AlertCircle className="w-5 h-5" />
-                          <span>Pago Rechazado</span>
-                        </button>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsWaitingPos(false);
-                          setPosAlertState('idle');
-                        }}
-                        className="w-full py-2 text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
-                      >
-                        Cancelar operación
-                      </button>
+                    <div className="text-xs font-semibold text-emerald-400 animate-pulse">
+                      Esperando respuesta automática de aprobación o rechazo del punto...
                     </div>
                   </div>
                 )}
 
-                {/* ESTADO 2: GRAN AVISO DE PAGO PROCESADO / APROBADO */}
+                {/* ESTADO 2: GRAN AVISO AUTOMÁTICO DE PAGO PROCESADO / APROBADO */}
                 {posAlertState === 'approved' && (
                   <div className="p-7 text-center bg-gradient-to-b from-emerald-950 via-slate-900 to-slate-900 space-y-4">
                     <div className="w-24 h-24 rounded-full bg-emerald-500/20 border-4 border-emerald-400 flex items-center justify-center mx-auto text-emerald-400 shadow-xl shadow-emerald-500/30">
@@ -2225,12 +2215,12 @@ export default function KioskPage() {
                       Referencia A75 Pro: <strong className="text-emerald-400">{referencia}</strong> · Lote: <strong className="text-white">{posLote}</strong>
                     </div>
                     <p className="text-xs text-slate-400 animate-pulse">
-                      Generando recibo oficial y actualizando solvencia...
+                      Generando recibo oficial y actualizando solvencia automáticamente...
                     </p>
                   </div>
                 )}
 
-                {/* ESTADO 3: GRAN AVISO DE PAGO RECHAZADO */}
+                {/* ESTADO 3: GRAN AVISO AUTOMÁTICO DE PAGO RECHAZADO */}
                 {posAlertState === 'rejected' && (
                   <div className="p-7 text-center bg-gradient-to-b from-rose-950 via-slate-900 to-slate-900 space-y-4">
                     <div className="w-24 h-24 rounded-full bg-rose-500/20 border-4 border-rose-500 flex items-center justify-center mx-auto text-rose-400 shadow-xl shadow-rose-500/30">
@@ -2243,41 +2233,20 @@ export default function KioskPage() {
                       ¡PAGO RECHAZADO!
                     </h3>
                     <p className="text-xs sm:text-sm text-rose-200 bg-rose-950/70 border border-rose-500/40 rounded-2xl p-3.5 font-medium leading-relaxed">
-                      {posRejectReason || 'La tarjeta fue rechazada por el Punto de Venta Bancamiga A75 Pro.'}
+                      {posRejectReason || 'La tarjeta fue rechazada automáticamente por el Punto de Venta Bancamiga A75 Pro.'}
                     </p>
-
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      {[
-                        'Fondos Insuficientes (51)',
-                        'Clave / PIN Incorrecto (55)',
-                        'Tarjeta Inválida o Vencida',
-                        'Cancelado en el Punto A75 Pro',
-                      ].map((motivo) => (
-                        <button
-                          key={motivo}
-                          type="button"
-                          onClick={() => {
-                            setPosRejectReason(`PAGO RECHAZADO EN A75 PRO: ${motivo}`);
-                            setPayError(`PAGO RECHAZADO EN A75 PRO: ${motivo}`);
-                          }}
-                          className="px-2.5 py-2 rounded-xl bg-slate-950/80 hover:bg-rose-950/80 border border-slate-800 hover:border-rose-500/40 text-slate-300 font-semibold cursor-pointer"
-                        >
-                          {motivo}
-                        </button>
-                      ))}
-                    </div>
 
                     <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
                       <button
                         type="button"
                         onClick={() => {
-                          setPosAlertState('waiting');
-                          setIsWaitingPos(true);
-                          setPayError('');
+                          setPosAlertState('idle');
+                          setIsWaitingPos(false);
+                          handleCobrarDebitoDirecto();
                         }}
                         className="flex-1 py-3.5 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm cursor-pointer"
                       >
-                        🔄 Reintentar en A75 Pro
+                        🔄 Reintentar Cobro Automático
                       </button>
                       <button
                         type="button"
