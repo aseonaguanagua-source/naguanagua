@@ -448,6 +448,17 @@ export default function PortalLogin() {
               )}
             </form>
             )}
+
+            {/* Botón directo para cambiar a Modo Presidencia */}
+            <div className="mt-5 pt-4 border-t border-slate-100">
+              <Link
+                href="/presidencia/login"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#0d2a1e] to-[#133b2b] hover:from-[#133b2b] hover:to-[#1a4f3a] text-[#B8CD29] font-extrabold text-xs uppercase tracking-wider shadow-md border border-[#B8CD29]/30 transition-all"
+              >
+                <span>🏛️</span>
+                <span>Cambiar a Modo Presidencia</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

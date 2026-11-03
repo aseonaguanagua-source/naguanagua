@@ -421,6 +421,13 @@ export default function Home() {
                 <span style={{ fontSize: '10px', background: '#dc2626', color: '#fff', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', fontWeight: 'bold' }}>Mantenimiento</span>
               )}
             </button>
+            <button
+              className="toggle-btn"
+              onClick={() => handleSelectRole('/presidencia/login')}
+              style={{ color: '#B8CD29', fontWeight: 800 }}
+            >
+              🏛️ Modo Presidencia
+            </button>
           </div>
 
           <div className="main-card-container">
