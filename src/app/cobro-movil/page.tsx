@@ -672,7 +672,6 @@ export default function KioskPage() {
     };
   };
 
-  // Simulación 100% automática de paso de tarjeta en el POS Bancamiga A75 Pro -> ¡PAGO APROBADO! (sin cargar nada en la base de datos)
   const confirmarAprobadoA75Pro = async (refCustom?: string, aprobCustom?: string, loteCustom?: string) => {
     const autoSeq = `00${String(Date.now()).slice(-6)}`;
     const refFinal = (refCustom || autoSeq).trim();
@@ -688,12 +687,11 @@ export default function KioskPage() {
     setPosStatusMsg(`¡PAGO APROBADO EN POS BANCAMIGA A75 PRO! (Ref: ${refFinal})`);
     setPosAlertState('approved');
 
-    await new Promise((resolve) => setTimeout(resolve, 2300));
+    await new Promise((resolve) => setTimeout(resolve, 2800));
     setPosAlertState('idle');
     setStep('success');
   };
 
-  // Mostrar Aviso Automático Grande de PAGO RECHAZADO recibido desde el Bancamiga A75 Pro
   const confirmarRechazadoA75Pro = (motivo?: string) => {
     const msg =
       motivo ||
@@ -705,7 +703,6 @@ export default function KioskPage() {
     setPosAlertState('rejected');
   };
 
-  // Flujo automático de simulación realista de paso por el Punto de Venta Bancamiga A75 Pro (sin guardar en el sistema)
   const handleCobrarDebitoDirecto = async () => {
     setPayError('');
     setPosRejectReason('');
@@ -722,15 +719,15 @@ export default function KioskPage() {
       'Esperando lectura de tarjeta (NFC / Chip) en el Punto Bancamiga A75 Pro...'
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 1800));
+    await new Promise((resolve) => setTimeout(resolve, 4000));
     setPosStatusMsg(
       'Tarjeta detectada en A75 Pro · Verificando clave y autorización con Bancamiga...'
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 1800));
-    const refSimulada = `00${String(Date.now()).slice(-6)}`;
-    const aprobSimulada = String(Date.now()).slice(-6);
-    await confirmarAprobadoA75Pro(refSimulada, aprobSimulada, '001');
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const refAuto = `00${String(Date.now()).slice(-6)}`;
+    const aprobAuto = String(Date.now()).slice(-6);
+    await confirmarAprobadoA75Pro(refAuto, aprobAuto, '001');
   };
 
   const processPayment = async (ref: string, method: PayMethod, aprobacionOverride?: string, loteOverride?: string) => {
