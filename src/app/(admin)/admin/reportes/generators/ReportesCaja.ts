@@ -27,14 +27,21 @@ const BORDE = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const fechaVE = (d: any) => { const x = new Date(d); return isNaN(x.getTime()) ? '' : new Date(x.getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10); };
 const dmy = (iso: string) => { const [y, m, d] = String(iso || '').slice(0, 10).split('-'); return d ? `${d}/${m}/${y}` : iso; };
-const esAnulado = (p: any) => ['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''));
-const esDebito = (p: any) => /^(d[eé]bito|cr[eé]dito|tmd)\b|punto|tarjeta/i.test(String(p.tipo || '').trim());
+const esAnulado = (p: any) => {
+  if (['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''))) return true;
+  const det = parseDet(p);
+  const caj = String(det?.cajero || det?.analista || '').trim();
+  if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return true;
+  return false;
+};
+const esDebito = (p: any) => /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(String(p.tipo || '').trim());
 const esTransferencia = (p: any) => /transfer|m[oó]vil|pago m/i.test(String(p.tipo || ''));
 const esRetencion = (p: any) => /retenci/i.test(String(p.tipo || ''));
 
 /** "M-valentina" -> { caja: 'CAJA M', cajero: 'VALENTINA' } */
 function cajaDe(det: any) {
   const raw = String(det.cajero || det.analista || '').trim();
+  if (/dzara/i.test(raw)) return { caja: 'CAJA DZ', cajero: 'DZARA' };
   const m = raw.match(/^([A-Za-z]{1,2})-(.+)$/);
   if (m) return { caja: `CAJA ${m[1].toUpperCase()}`, cajero: m[2].toUpperCase() };
   return { caja: raw ? raw.toUpperCase() : 'SIN CAJA', cajero: raw.toUpperCase() };

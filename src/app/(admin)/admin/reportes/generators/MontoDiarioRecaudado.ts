@@ -29,7 +29,14 @@ const fechaVE = (d: any) => {
   return isNaN(x.getTime()) ? '' : new Date(x.getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10);
 };
 
-const esAnulado = (p: any) => ['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''));
+const esAnulado = (p: any) => {
+  if (['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''))) return true;
+  let det: any = {};
+  try { det = typeof p.detalles === 'string' ? JSON.parse(p.detalles) : (p.detalles || {}); } catch {}
+  const caj = String(det?.cajero || det?.analista || '').trim();
+  if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return true;
+  return false;
+};
 const esRetencion = (p: any) => /retenci/i.test(String(p.tipo || ''));
 const esSaldoFavor = (p: any) => /saldo a favor|nota de cr[eé]dito/i.test(String(p.tipo || ''));
 const esDebito = (p: any) => /^(d[eé]bito|cr[eé]dito|tmd|tvd)\b|punto|tarjeta/i.test(String(p.tipo || '').trim());

@@ -3,6 +3,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PortalSidebar from '@/components/PortalSidebar';
 import PortalHeader from '@/components/PortalHeader';
+import PortalAsistenteFloating from '@/components/PortalAsistenteFloating';
 import { PORTAL_EN_MANTENIMIENTO } from '@/lib/portalConfig';
 
 export default function PortalDashboardLayout({ children }: { children: ReactNode }) {
@@ -67,6 +68,7 @@ export default function PortalDashboardLayout({ children }: { children: ReactNod
         <main className="flex-1 p-3 md:p-6 pb-20 md:pb-6 overflow-x-hidden">
           {children}
         </main>
+        <PortalAsistenteFloating />
       </div>
     </div>
   );

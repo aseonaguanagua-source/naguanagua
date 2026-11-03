@@ -21,6 +21,7 @@ const menuSections = [
     title: 'CONTRIBUYENTE',
     items: [
       { name: 'Inicio', icon: Home, href: '/portal/dashboard' },
+      { name: 'Asistente', icon: Sparkles, href: '/portal/asistente', badge: 'IA' },
       { name: 'Rutas y Horarios', icon: CalendarDays, href: '/portal/rutas' },
     ]
   },
@@ -93,7 +94,7 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
           .replace(/nav a\[href="\/portal\/denuncias"\]\s*\{/g, 'nav a[href="/portal/__never__"] {');
       }
 
-      document.querySelectorAll('nav a[href*="/portal/denuncias"]').forEach((el) => {
+      document.querySelectorAll('nav a[href*="/portal/denuncias"], nav a[href*="/portal/asistente"]').forEach((el) => {
         const a = el as HTMLElement;
         a.style.display = 'flex';
         if (a.parentElement) {
@@ -245,8 +246,13 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
                       }`}
                     >
                       {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-400 rounded-r-md" />}
-                      <item.icon className={`w-4 h-4 mr-3 flex-shrink-0 ${isActive ? 'text-[#c8e64c]' : 'text-slate-500'}`} />
+                      <item.icon className={`w-4 h-4 mr-3 flex-shrink-0 ${isActive ? 'text-[#c8e64c]' : (item as any).badge ? 'text-lime-400' : 'text-slate-500'}`} />
                       <span className="truncate">{item.name}</span>
+                      {(item as any).badge && (
+                        <span className="ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-black bg-lime-400/20 text-lime-300 border border-lime-400/40">
+                          {(item as any).badge}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );

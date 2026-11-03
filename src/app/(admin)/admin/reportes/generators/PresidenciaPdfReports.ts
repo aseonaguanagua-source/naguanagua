@@ -26,8 +26,13 @@ const dmy = (iso: string) => {
   return d ? `${d}/${m}/${y}` : iso;
 };
 
-const esAnulado = (p: any) =>
-  ['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''));
+const esAnulado = (p: any) => {
+  if (['Anulado', 'Reversado', 'Condonado', 'Rechazado'].includes(String(p.estado || ''))) return true;
+  const det = parseDet(p);
+  const caj = String(det?.cajero || det?.analista || '').trim();
+  if (/^(dz-)?dzara$|^c-dzara$/i.test(caj)) return true;
+  return false;
+};
 const esRetencion = (p: any) => /retenci/i.test(String(p.tipo || ''));
 const esSaldoFavor = (p: any) => /saldo a favor|nota de cr[eé]dito/i.test(String(p.tipo || ''));
 const esDebito = (p: any) =>

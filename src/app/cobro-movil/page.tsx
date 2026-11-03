@@ -749,7 +749,9 @@ export default function KioskPage() {
       const cajeroTag = operatorUser
         ? operatorUser.includes('-')
           ? operatorUser
-          : `C-${operatorUser}`
+          : /dzara|admin/i.test(operatorUser)
+            ? `DZ-${operatorUser}`
+            : `C-${operatorUser}`
         : 'C-TAQUILLA MOVIL';
 
       // Foto de la deuda ANTES del pago (permite revertir el pago en Conciliación y restablecer la deuda exacta)
