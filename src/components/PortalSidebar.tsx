@@ -21,6 +21,7 @@ const menuSections = [
     title: 'CONTRIBUYENTE',
     items: [
       { name: 'Inicio', icon: Home, href: '/portal/dashboard' },
+      { name: 'Rutas y Horarios', icon: CalendarDays, href: '/portal/rutas' },
     ]
   },
   {
@@ -66,7 +67,7 @@ const menuSections = [
 // Bottom nav items (most used, for mobile)
 const bottomNavItems = [
   { name: 'Inicio', icon: Home, href: '/portal/dashboard' },
-  { name: 'Inmuebles', icon: Building2, href: '/portal/inmuebles' },
+  { name: 'Rutas', icon: CalendarDays, href: '/portal/rutas' },
   { name: 'Estado', icon: FileText, href: '/portal/estado-cuenta' },
   { name: 'Pagar', icon: CreditCard, href: '/portal/pagos' },
   { name: 'Más', icon: Menu, href: '#menu' },
