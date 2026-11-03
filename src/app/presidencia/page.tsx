@@ -40,6 +40,8 @@ import {
   Receipt,
   Calendar,
   Truck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import PresidenciaFlotaRutasTracker from '@/components/PresidenciaFlotaRutasTracker';
 
@@ -96,6 +98,23 @@ export default function PresidenciaDashboard() {
   const [filtroSector, setFiltroSector] = useState<string>('TODOS');
   const [busquedaDeudor, setBusquedaDeudor] = useState<string>('');
   const [busquedaCondominio, setBusquedaCondominio] = useState<string>('');
+  const [seccionTransaccionesAbierta, setSeccionTransaccionesAbierta] = useState<boolean>(true);
+  const [limiteTransacciones, setLimiteTransacciones] = useState<number>(6);
+  const [pagoExpandidoId, setPagoExpandidoId] = useState<string | number | null>(null);
+
+  // Evitar que el CSS de tablas claras de la APK móvil convierta las tablas oscuras de Presidencia en tarjetas blancas gigantes
+  useEffect(() => {
+    const cleanApkStyles = () => {
+      const apkStyle = document.getElementById('gl-apk-mobile-styles');
+      if (apkStyle) apkStyle.remove();
+    };
+    cleanApkStyles();
+    const obs = new MutationObserver(cleanApkStyles);
+    if (document.head) {
+      obs.observe(document.head, { childList: true });
+    }
+    return () => obs.disconnect();
+  }, []);
 
   // Estados de descarga de reportes
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
@@ -1280,123 +1299,292 @@ export default function PresidenciaDashboard() {
 
             {/* Tabla Interactiva de Transacciones del Período */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-                <div>
-                  <h3 className="text-sm sm:text-base font-black text-white">
-                    🧾 Detalle de Transacciones y Conciliación ({pagosTabla.length})
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Auditoría en tiempo real de todos los pagos registrados en el período
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={busquedaPago}
-                      onChange={(e) => setBusquedaPago(e.target.value)}
-                      placeholder="Buscar RIF, nombre, ref, inmueble..."
-                      className="bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white outline-none focus:border-[#B8CD29] w-56"
-                    />
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setSeccionTransaccionesAbierta((prev) => !prev)}
+                  className="flex items-center justify-between w-full md:w-auto text-left group cursor-pointer"
+                >
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                      <span>🧾 Detalle de Transacciones y Conciliación ({pagosTabla.length})</span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Auditoría en tiempo real de todos los pagos registrados en el período
+                    </p>
                   </div>
-                  <select
-                    value={filtroMetodo}
-                    onChange={(e) => setFiltroMetodo(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-200 outline-none"
-                  >
-                    <option value="TODOS">Todos los Métodos</option>
-                    <option value="DEBITO">Solo Débito / POS</option>
-                    <option value="TRANSFERENCIA">Solo Transferencias</option>
-                  </select>
-                  <select
-                    value={filtroSector}
-                    onChange={(e) => setFiltroSector(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-200 outline-none"
-                  >
-                    <option value="TODOS">Todos los Sectores</option>
-                    <option value="Residencial">Residencial</option>
-                    <option value="Comercial">Comercial</option>
-                    <option value="Industrial">Industrial</option>
-                  </select>
-                </div>
+                  <div className="ml-3 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 text-[#B8CD29] text-xs font-black shrink-0 group-hover:border-[#B8CD29]/60 transition-all">
+                    <span>{seccionTransaccionesAbierta ? 'Ocultar' : 'Desplegar'}</span>
+                    {seccionTransaccionesAbierta ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </div>
+                </button>
+
+                {seccionTransaccionesAbierta && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative flex-1 sm:flex-initial">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={busquedaPago}
+                        onChange={(e) => {
+                          setBusquedaPago(e.target.value);
+                          setLimiteTransacciones(6);
+                        }}
+                        placeholder="Buscar RIF, nombre, ref, inmueble..."
+                        className="bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white outline-none focus:border-[#B8CD29] w-full sm:w-56"
+                      />
+                    </div>
+                    <select
+                      value={filtroMetodo}
+                      onChange={(e) => {
+                        setFiltroMetodo(e.target.value);
+                        setLimiteTransacciones(6);
+                      }}
+                      className="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-200 outline-none"
+                    >
+                      <option value="TODOS">Todos los Métodos</option>
+                      <option value="DEBITO">Solo Débito / POS</option>
+                      <option value="TRANSFERENCIA">Solo Transferencias</option>
+                    </select>
+                    <select
+                      value={filtroSector}
+                      onChange={(e) => {
+                        setFiltroSector(e.target.value);
+                        setLimiteTransacciones(6);
+                      }}
+                      className="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-200 outline-none"
+                    >
+                      <option value="TODOS">Todos los Sectores</option>
+                      <option value="Residencial">Residencial</option>
+                      <option value="Comercial">Comercial</option>
+                      <option value="Industrial">Industrial</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-800 max-h-[420px]">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-950 text-slate-300 sticky top-0 z-10">
-                    <tr>
-                      <th className="py-2.5 px-3 font-bold">Fecha</th>
-                      <th className="py-2.5 px-3 font-bold">RIF / Cédula</th>
-                      <th className="py-2.5 px-3 font-bold">Contribuyente</th>
-                      <th className="py-2.5 px-3 font-bold">Inmueble</th>
-                      <th className="py-2.5 px-3 font-bold">Sector</th>
-                      <th className="py-2.5 px-3 font-bold">Canal / Caja</th>
-                      <th className="py-2.5 px-3 font-bold">Método / Banco</th>
-                      <th className="py-2.5 px-3 font-bold">Referencia</th>
-                      <th className="py-2.5 px-3 font-bold text-right">Monto ({simboloMoneda})</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/70">
-                    {pagosTabla.slice(0, 150).map((p: any) => {
+              {seccionTransaccionesAbierta && (
+                <>
+                  {/* Vista Móvil / App: Tarjetas compactas desplegables con flecha (no infinitas) */}
+                  <div className="md:hidden space-y-2 max-h-[430px] overflow-y-auto pr-1">
+                    {pagosTabla.slice(0, limiteTransacciones).map((p: any, idx: number) => {
                       const esDeb = isDebitoPago(p);
+                      const rowKey = p.id ?? idx;
+                      const isExpanded = pagoExpandidoId === rowKey;
                       return (
-                        <tr key={p.id} className="hover:bg-slate-800/40">
-                          <td className="py-2 px-3 whitespace-nowrap text-slate-300">
-                            {new Date(p.created_at).toLocaleDateString('es-VE')}
-                          </td>
-                          <td className="py-2 px-3 font-bold text-emerald-400 whitespace-nowrap">
-                            {p.identidad || '-'}
-                          </td>
-                          <td className="py-2 px-3 max-w-[200px] truncate text-white font-medium">
-                            {p.contribuyenteNombre || '-'}
-                          </td>
-                          <td className="py-2 px-3 text-slate-300 whitespace-nowrap">
-                            {p.codInmueble || '-'}
-                          </td>
-                          <td className="py-2 px-3 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                p.sector === 'Comercial'
-                                  ? 'bg-sky-500/20 text-sky-300'
-                                  : p.sector === 'Industrial'
-                                  ? 'bg-amber-500/20 text-amber-300'
-                                  : 'bg-emerald-500/20 text-emerald-300'
-                              }`}
-                            >
-                              {p.sector || 'Residencial'}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-slate-300 whitespace-nowrap">
-                            {p.origen || '-'}
-                          </td>
-                          <td className="py-2 px-3 whitespace-nowrap">
-                            <span
-                              className={`font-bold ${
-                                esDeb ? 'text-emerald-400' : 'text-sky-400'
-                              }`}
-                            >
-                              {esDeb ? '💳 Débito POS' : '🏦 Transf.'}
-                            </span>{' '}
-                            <span className="text-slate-400 text-[11px]">({p.bancoDestino})</span>
-                          </td>
-                          <td className="py-2 px-3 font-mono text-slate-300 whitespace-nowrap">
-                            {p.referencia || '-'}
-                          </td>
-                          <td className="py-2 px-3 text-right font-black text-white whitespace-nowrap">
-                            {fmtDinero(parseFloat(p.monto) || 0)}
-                          </td>
-                        </tr>
+                        <div
+                          key={rowKey}
+                          className="bg-slate-950/90 border border-slate-800 rounded-xl overflow-hidden transition-all"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setPagoExpandidoId(isExpanded ? null : rowKey)}
+                            className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left cursor-pointer hover:bg-slate-900/80"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-emerald-400 text-xs shrink-0">
+                                  {p.identidad || '-'}
+                                </span>
+                                <span className="text-[11px] text-slate-400 shrink-0">
+                                  • {new Date(p.created_at).toLocaleDateString('es-VE')}
+                                </span>
+                              </div>
+                              <div className="text-xs font-bold text-white truncate mt-0.5">
+                                {p.contribuyenteNombre || 'Contribuyente'}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="text-right">
+                                <div className="text-xs font-black text-[#B8CD29]">
+                                  {fmtDinero(parseFloat(p.monto) || 0)}
+                                </div>
+                                <div
+                                  className={`text-[10px] font-bold ${
+                                    esDeb ? 'text-emerald-400' : 'text-sky-400'
+                                  }`}
+                                >
+                                  {esDeb ? '💳 Débito POS' : '🏦 Transf.'}
+                                </div>
+                              </div>
+                              <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-200">
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4 text-[#B8CD29]" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-slate-300" />
+                                )}
+                              </div>
+                            </div>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="px-3.5 pb-3 pt-2 border-t border-slate-800/80 bg-slate-900/60 grid grid-cols-2 gap-2 text-[11px]">
+                              <div>
+                                <span className="text-slate-400 block">Inmueble:</span>
+                                <span className="font-bold text-white">{p.codInmueble || '-'}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block">Sector:</span>
+                                <span
+                                  className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold mt-0.5 ${
+                                    p.sector === 'Comercial'
+                                      ? 'bg-sky-500/20 text-sky-300'
+                                      : p.sector === 'Industrial'
+                                      ? 'bg-amber-500/20 text-amber-300'
+                                      : 'bg-emerald-500/20 text-emerald-300'
+                                  }`}
+                                >
+                                  {p.sector || 'Residencial'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block">Canal / Caja:</span>
+                                <span className="font-semibold text-slate-200">{p.origen || '-'}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block">Referencia:</span>
+                                <span className="font-mono font-bold text-emerald-300">
+                                  {p.referencia || '-'}
+                                </span>
+                              </div>
+                              <div className="col-span-2">
+                                <span className="text-slate-400 block">Banco Destino:</span>
+                                <span className="font-semibold text-slate-200">
+                                  {p.bancoDestino || '-'}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-              {pagosTabla.length > 150 && (
-                <p className="text-[11px] text-slate-400 mt-2 text-right">
-                  Mostrando las primeras 150 transacciones de {pagosTabla.length}. Para el listado completo descargue el Excel en la pestaña de Reportes.
-                </p>
+                  </div>
+
+                  {/* Vista Escritorio: Tabla compacta con scroll controlado */}
+                  <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-800 max-h-[420px]">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="bg-slate-950 text-slate-300 sticky top-0 z-10">
+                        <tr>
+                          <th className="py-2.5 px-3 font-bold">Fecha</th>
+                          <th className="py-2.5 px-3 font-bold">RIF / Cédula</th>
+                          <th className="py-2.5 px-3 font-bold">Contribuyente</th>
+                          <th className="py-2.5 px-3 font-bold">Inmueble</th>
+                          <th className="py-2.5 px-3 font-bold">Sector</th>
+                          <th className="py-2.5 px-3 font-bold">Canal / Caja</th>
+                          <th className="py-2.5 px-3 font-bold">Método / Banco</th>
+                          <th className="py-2.5 px-3 font-bold">Referencia</th>
+                          <th className="py-2.5 px-3 font-bold text-right">Monto ({simboloMoneda})</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/70">
+                        {pagosTabla.slice(0, limiteTransacciones).map((p: any) => {
+                          const esDeb = isDebitoPago(p);
+                          return (
+                            <tr key={p.id} className="hover:bg-slate-800/40">
+                              <td className="py-2 px-3 whitespace-nowrap text-slate-300">
+                                {new Date(p.created_at).toLocaleDateString('es-VE')}
+                              </td>
+                              <td className="py-2 px-3 font-bold text-emerald-400 whitespace-nowrap">
+                                {p.identidad || '-'}
+                              </td>
+                              <td className="py-2 px-3 max-w-[200px] truncate text-white font-medium">
+                                {p.contribuyenteNombre || '-'}
+                              </td>
+                              <td className="py-2 px-3 text-slate-300 whitespace-nowrap">
+                                {p.codInmueble || '-'}
+                              </td>
+                              <td className="py-2 px-3 whitespace-nowrap">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    p.sector === 'Comercial'
+                                      ? 'bg-sky-500/20 text-sky-300'
+                                      : p.sector === 'Industrial'
+                                      ? 'bg-amber-500/20 text-amber-300'
+                                      : 'bg-emerald-500/20 text-emerald-300'
+                                  }`}
+                                >
+                                  {p.sector || 'Residencial'}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-slate-300 whitespace-nowrap">
+                                {p.origen || '-'}
+                              </td>
+                              <td className="py-2 px-3 whitespace-nowrap">
+                                <span
+                                  className={`font-bold ${
+                                    esDeb ? 'text-emerald-400' : 'text-sky-400'
+                                  }`}
+                                >
+                                  {esDeb ? '💳 Débito POS' : '🏦 Transf.'}
+                                </span>{' '}
+                                <span className="text-slate-400 text-[11px]">({p.bancoDestino})</span>
+                              </td>
+                              <td className="py-2 px-3 font-mono text-slate-300 whitespace-nowrap">
+                                {p.referencia || '-'}
+                              </td>
+                              <td className="py-2 px-3 text-right font-black text-white whitespace-nowrap">
+                                {fmtDinero(parseFloat(p.monto) || 0)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Controles con flecha para desplegar más / desplegar todo / contraer */}
+                  {pagosTabla.length > 6 && (
+                    <div className="mt-3 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        Mostrando <strong className="text-white">{Math.min(limiteTransacciones, pagosTabla.length)}</strong> de{' '}
+                        <strong className="text-[#B8CD29]">{pagosTabla.length}</strong> transacciones
+                      </span>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {limiteTransacciones < pagosTabla.length && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLimiteTransacciones((prev) => Math.min(pagosTabla.length, prev + 20))
+                              }
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold cursor-pointer transition-all"
+                            >
+                              <span>Ver 20 más</span>
+                              <ChevronDown className="w-3.5 h-3.5 text-[#B8CD29]" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setLimiteTransacciones(pagosTabla.length)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#B8CD29]/15 hover:bg-[#B8CD29]/25 border border-[#B8CD29]/40 text-[#B8CD29] text-xs font-black cursor-pointer transition-all"
+                            >
+                              <span>Desplegar todo ({pagosTabla.length})</span>
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        {limiteTransacciones > 6 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLimiteTransacciones(6);
+                              setPagoExpandidoId(null);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold cursor-pointer transition-all"
+                          >
+                            <span>Contraer lista</span>
+                            <ChevronUp className="w-3.5 h-3.5 text-[#B8CD29]" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
