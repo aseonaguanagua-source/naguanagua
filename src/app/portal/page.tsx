@@ -58,6 +58,7 @@ export default function PortalLogin() {
       }
 
       // Garantizar en vivo que el logo inferior (#gl-app-bottom-brand-card) sea SIEMPRE Global Rec
+      // bloqueando cualquier intento del APK de reemplazarlo por Global Green
       const enforceBottomGlobalRecLogo = () => {
         const bottomCards = document.querySelectorAll('.px-8.pb-8 .gl-sidebar-brand-card, #gl-app-bottom-brand-card');
         bottomCards.forEach((card, idx) => {
@@ -65,20 +66,15 @@ export default function PortalLogin() {
             card.parentElement.removeChild(card);
             return;
           }
-          const img = card.querySelector('img');
-          if (img) {
-            if (img.getAttribute('alt') !== 'GR Collection System') {
-              img.setAttribute('alt', 'GR Collection System');
-            }
-            if (img.getAttribute('src') !== '/logos/brand_gr_oficial.png') {
-              img.setAttribute('src', '/logos/brand_gr_oficial.png');
-            }
-          }
+          // Si una versión anterior del APK insertó un <img> dentro de la tarjeta, lo eliminamos
+          card.querySelectorAll('img').forEach((oldImg) => {
+            if (oldImg.parentElement) oldImg.parentElement.removeChild(oldImg);
+          });
         });
       };
 
       enforceBottomGlobalRecLogo();
-      const timer = setInterval(enforceBottomGlobalRecLogo, 150);
+      const timer = setInterval(enforceBottomGlobalRecLogo, 100);
       return () => clearInterval(timer);
     }
   }, []);
@@ -508,10 +504,17 @@ export default function PortalLogin() {
                 id="gl-app-bottom-brand-card"
                 className="gl-sidebar-brand-card bg-white border-[2.5px] border-[#84cc16] rounded-2xl px-4 py-2.5 flex flex-col items-center justify-center text-center shadow-[0_6px_18px_rgba(132,204,22,0.35)]"
               >
-                <img
-                  src="/logos/brand_gr_oficial.png"
-                  alt="GR Collection System"
-                  className="h-12 w-auto max-w-[210px] object-contain"
+                <div
+                  role="img"
+                  aria-label="Global Rec Collection System"
+                  style={{
+                    width: '210px',
+                    height: '52px',
+                    backgroundImage: "url('/logos/brand_gr_oficial.png')",
+                    backgroundSize: 'contain',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'center',
+                  }}
                 />
               </div>
             </div>
