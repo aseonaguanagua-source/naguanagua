@@ -308,6 +308,11 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               setTodosInmueblesRif(todosRif);
               const otrosFiltrados = todosRif.filter((o: any) => !codes.includes(o.inmueble) && !o.padre_id);
               setOtrosInmuebles(otrosFiltrados);
+              if (otrosFiltrados.length > 0 && codes.length === 1) {
+                setFiltroInmueblePago(codes[0]);
+              } else {
+                setFiltroInmueblePago('todos');
+              }
             }
           } catch (_) {}
         }
@@ -2123,6 +2128,24 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                 const periodoTexto = formatPeriodosPagados(det, p);
                                 const codsPago = codigosDePago(det, p);
                                 const codsTexto = codsPago.length > 0 ? codsPago.join(', ') : (p.inmueble || '---');
+                                const desglosePorInm: Record<string, number> = {};
+                                if (det.montos && typeof det.montos === 'object') {
+                                  Object.entries(det.montos).forEach(([k, v]) => {
+                                    const m = String(k).match(/(?:RECIB-HIST|CM|MULTA)-([A-Za-z0-9]+)/i);
+                                    const num = parseFloat(String(v || 0)) || 0;
+                                    if (m && num > 0) {
+                                      const c = m[1].toUpperCase();
+                                      desglosePorInm[c] = Math.round(((desglosePorInm[c] || 0) + num) * 100) / 100;
+                                    }
+                                  });
+                                }
+                                const esPagoConjunto = codsPago.length > 1 && Object.keys(desglosePorInm).length > 1;
+                                const targetCodFiltro = filtroInmueblePago !== 'todos'
+                                  ? filtroInmueblePago.toUpperCase()
+                                  : (inmueblesList.length === 1 && inmueblesList[0]?.inmueble ? String(inmueblesList[0].inmueble).toUpperCase() : '');
+                                const montoInmuebleEspecifico = esPagoConjunto && targetCodFiltro && desglosePorInm[targetCodFiltro]
+                                  ? desglosePorInm[targetCodFiltro]
+                                  : null;
 
                                 return (
                                   <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
@@ -2133,6 +2156,11 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                       <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 text-[11px]">
                                         {codsTexto}
                                       </span>
+                                      {esPagoConjunto && (
+                                        <span className="block text-[10px] font-bold text-teal-700 mt-0.5">
+                                          Pago conjunto ({Object.entries(desglosePorInm).map(([c, m]) => `${c}: Bs. ${formatBs(m)}`).join(' + ')})
+                                        </span>
+                                      )}
                                     </td>
                                     <td className="px-4 py-2.5 font-mono font-bold text-slate-800">
                                       {p.referencia || p.id}
@@ -2156,7 +2184,23 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                 </span>
                               </td>
                               <td className="px-4 py-2.5 text-right font-black text-emerald-700 whitespace-nowrap">
-                                Bs. {formatBs(p.monto)}
+                                {montoInmuebleEspecifico !== null ? (
+                                  <div>
+                                    <span>Bs. {formatBs(montoInmuebleEspecifico)}</span>
+                                    <span className="block text-[10px] font-semibold text-slate-500">
+                                      ({targetCodFiltro} · Total Ref: Bs. {formatBs(p.monto)})
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <span>Bs. {formatBs(p.monto)}</span>
+                                    {esPagoConjunto && (
+                                      <span className="block text-[10px] font-semibold text-slate-500">
+                                        {Object.entries(desglosePorInm).map(([c, m]) => `${c}: Bs. ${formatBs(m)}`).join(' · ')}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-2.5 text-center">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${

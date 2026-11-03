@@ -137,21 +137,56 @@ export function resolverConceptoPeriodoPago(pago: any): string {
     if (fmt) return `Servicio de Aseo Urbano Comercial - ${fmt}`;
   }
 
-  // 6. Detectar cantidad de meses pagados (respetando múltiples inmuebles del mismo contribuyente)
+  // 6. Detectar cantidad de meses pagados y posición dentro de deuda_previa (respetando pagos parciales de meses antiguos, ej. M1 y M2 de 3 meses = Julio y Agosto)
+  const mesesNombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   let maxMesesPorInmueble = 0;
   if (Array.isArray(det.recibos)) {
-    const mesesPorInm: Record<string, number> = {};
+    const mesesPorInm: Record<string, number[]> = {};
     for (const r of det.recibos) {
       const match = String(r).match(/^(?:RECIB-HIST|CM)-([A-Za-z0-9]+)-M(\d+)$/i);
       if (match) {
         const cod = match[1].toUpperCase();
         const mIdx = parseInt(match[2], 10) || 1;
-        mesesPorInm[cod] = Math.max(mesesPorInm[cod] || 0, mIdx);
+        if (!mesesPorInm[cod]) mesesPorInm[cod] = [];
+        if (!mesesPorInm[cod].includes(mIdx)) mesesPorInm[cod].push(mIdx);
       }
     }
-    const vals = Object.values(mesesPorInm);
-    if (vals.length > 0) {
-      maxMesesPorInmueble = Math.max(...vals);
+    const entries = Object.entries(mesesPorInm);
+    if (entries.length > 0) {
+      maxMesesPorInmueble = Math.max(...entries.map(([, arr]) => arr.length));
+      // Si hay deuda_previa con meses_deuda, usar la posición exacta M{k} dentro de totalDeuda respecto a la fecha del snapshot
+      const [firstCod, mIndices] = entries[0];
+      const previaInm = Array.isArray(det.deuda_previa)
+        ? (det.deuda_previa.find((dp: any) => String(dp?.inmueble || '').toUpperCase() === firstCod) || det.deuda_previa[0])
+        : null;
+      const deudaPreviaMeses = parseInt(String(previaInm?.meses_deuda || 0), 10) || 0;
+      const snapRaw = det.fecha_conciliado || det.recibo_caja_at || pago.created_at || det.fecha_pago || det.fecha_transaccion;
+      if (deudaPreviaMeses > 0 && mIndices.length > 0 && snapRaw) {
+        const dSnap = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(snapRaw)) ? `${snapRaw}T12:00:00-04:00` : snapRaw);
+        if (!isNaN(dSnap.getTime())) {
+          const sortedIdx = [...mIndices].sort((a, b) => a - b);
+          const firstIdx = sortedIdx[0];
+          const lastIdx = sortedIdx[sortedIdx.length - 1];
+          const totalDeuda = Math.max(deudaPreviaMeses, lastIdx);
+          const dStart = new Date(Date.UTC(dSnap.getUTCFullYear(), dSnap.getUTCMonth() - totalDeuda + firstIdx - 1, 1));
+          const dEnd = new Date(Date.UTC(dSnap.getUTCFullYear(), dSnap.getUTCMonth() - totalDeuda + lastIdx - 1, 1));
+          const sMes = mesesNombres[dStart.getUTCMonth()];
+          const sAnio = dStart.getUTCFullYear();
+          const eMes = mesesNombres[dEnd.getUTCMonth()];
+          const eAnio = dEnd.getUTCFullYear();
+          const countPagados = sortedIdx.length;
+          if (countPagados <= 1 || (sMes === eMes && sAnio === eAnio)) {
+            return `Servicio de Aseo Urbano Comercial - ${eMes} ${eAnio}`;
+          }
+          if (countPagados === 2) {
+            return `Servicio de Aseo Urbano Comercial - ${sMes} ${sAnio} y ${eMes} ${eAnio}`;
+          }
+          if (sAnio === eAnio) {
+            return `Servicio de Aseo Urbano Comercial - ${sMes} a ${eMes} ${eAnio} (${countPagados} meses)`;
+          }
+          return `Servicio de Aseo Urbano Comercial - ${sMes} ${sAnio} a ${eMes} ${eAnio} (${countPagados} meses)`;
+        }
+      }
     }
   }
 
@@ -166,9 +201,9 @@ export function resolverConceptoPeriodoPago(pago: any): string {
   // 7. Fallback por fecha de pago/transacción respetando cantidad de meses
   const fPago = det.fecha_pago || det.fecha_transaccion || pago.created_at;
   if (fPago) {
-    const d = new Date(fPago);
+    const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(fPago)) ? `${fPago}T12:00:00-04:00` : fPago);
     if (!isNaN(d.getTime())) {
-      const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      const meses = mesesNombres;
       // En recaudación de aseo, el mes facturado al pagar en el mes M es M-1 (ej. en octubre se cancela septiembre)
       let endMonth = d.getMonth() - 1;
       let endYear = d.getFullYear();

@@ -1392,9 +1392,33 @@ export default function FacturacionElectronicaPage() {
                             📝 {pago.detalles?.concepto || pago.detalles?.mes_aseo || pago.detalles?.detalle}
                           </span>
                         )}
-                        {pago.inmuebles?.length > 0 && (
-                          <span className="block text-[10px] text-slate-400 font-mono">{pago.inmuebles.slice(0, 6).join(', ')}{pago.inmuebles.length > 6 ? ` +${pago.inmuebles.length - 6}` : ''}</span>
-                        )}
+                        {pago.inmuebles?.length > 0 && (() => {
+                          const montosObj = pago.detalles?.montos && typeof pago.detalles.montos === 'object' ? pago.detalles.montos : null;
+                          const porInm: Record<string, number> = {};
+                          if (montosObj && pago.inmuebles.length > 1) {
+                            Object.entries(montosObj).forEach(([k, v]) => {
+                              const m = String(k).match(/(?:RECIB-HIST|CM|MULTA)-([A-Za-z0-9]+)/i);
+                              const num = parseFloat(String(v || 0)) || 0;
+                              if (m && num > 0) {
+                                const c = m[1].toUpperCase();
+                                porInm[c] = Math.round(((porInm[c] || 0) + num) * 100) / 100;
+                              }
+                            });
+                          }
+                          const entriesDesglose = Object.entries(porInm);
+                          return (
+                            <div className="mt-0.5 space-y-0.5">
+                              <span className="block text-[10px] text-slate-400 font-mono">
+                                {pago.inmuebles.slice(0, 6).join(', ')}{pago.inmuebles.length > 6 ? ` +${pago.inmuebles.length - 6}` : ''}
+                              </span>
+                              {entriesDesglose.length > 1 && (
+                                <span className="inline-block text-[10px] font-bold text-teal-800 bg-teal-50 border border-teal-200 rounded px-1.5 py-0.5">
+                                  Pago conjunto: {entriesDesglose.map(([c, m]) => `${c} (Bs ${fmtBs(m)})`).join(' + ')}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {pago.condominio && (
                           <span className="flex flex-wrap gap-1 mt-1">
                             <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-600 text-white" title={pago.condominio.codigo || ''}>CONDOMINIO · {pago.condominio.nombre}</span>

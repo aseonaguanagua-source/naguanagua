@@ -323,7 +323,11 @@ export async function POST(request: Request) {
         const totalMeses = Math.max(1, parseInt(previa?.meses_deuda || inm?.meses_deuda || countHistThisInm || '1'));
         const isUltimoMes = mesNum >= totalMeses;
 
-        const fechaPagoBase = new Date(detPago?.fecha_transaccion || pagoRow?.created_at || fechaActual);
+        // Si hay deuda_previa, la cantidad de meses adeudados (previa.meses_deuda) fue capturada al momento de conciliar o registrar el pago
+        const rawBaseDate = previa?.meses_deuda
+          ? (detPago?.fecha_conciliado || detPago?.recibo_caja_at || pagoRow?.created_at || detPago?.fecha_transaccion || fechaActual)
+          : (detPago?.fecha_transaccion || pagoRow?.created_at || fechaActual);
+        const fechaPagoBase = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(rawBaseDate)) ? `${rawBaseDate}T12:00:00-04:00` : rawBaseDate);
         const dPer = new Date(Date.UTC(fechaPagoBase.getUTCFullYear(), fechaPagoBase.getUTCMonth() - totalMeses + mesNum - 1, 1));
         const periodoNombre = `${MESES_NOMBRES[dPer.getUTCMonth()]} ${dPer.getUTCFullYear()}`;
 
@@ -1192,9 +1196,16 @@ export async function POST(request: Request) {
 
     // Campos de la plantilla TFHKA (Guía de Mapeo §7): Campo/Valor en PascalCase
     const comRef: any = matchedPropEspecifico || activeProps.find((p: any) => !isResidencialInm(p)) || propRef;
+    const codsComercialesPago = Array.from(new Set(
+      (recibos || [])
+        .map((r: string) => extraerCodigoInmueble(r))
+        .filter((c): c is string => Boolean(c) && !codigosResidenciales.includes(String(c).toUpperCase()))
+    ));
     const codigoContribuyente = esCondoGlobal
       ? ((condoDet?.codigo) || (condoCode) || (matchedPropEspecifico?.inmueble) || codHist || comRef?.inmueble || '')
-      : ((matchedPropEspecifico?.inmueble) || (lineaCom?.inmueble) || (condoDet?.codigo) || (condoCode) || codHist || comRef?.inmueble || '');
+      : (codsComercialesPago.length > 1
+          ? codsComercialesPago.join(', ')
+          : ((matchedPropEspecifico?.inmueble) || (lineaCom?.inmueble) || (condoDet?.codigo) || (condoCode) || codHist || comRef?.inmueble || ''));
     // N° de Licencia de Actividades Económicas: el NÚMERO registrado en el inmueble (nunca el nombre de la actividad).
     // Si el sistema no lo tiene, el campo no se envía.
     let licenciaAE = '';
@@ -1967,22 +1978,29 @@ export async function POST(request: Request) {
 
     await supabase.from('pagos_reportados').update(updatePayload).eq('id', pagoId);
 
-    // Sincronizar pagos adicionales vinculados a esta transacción múltiple
+    // Sincronizar pagos adicionales vinculados a esta transacción múltiple (SOLO si comparten grupo_pago explícito)
     try {
       const idsHijos = new Set<string>();
-      if (Array.isArray((detPago as any)?.pagosVinculadosIds)) (detPago as any).pagosVinculadosIds.forEach((id: string) => idsHijos.add(id));
-      if (Array.isArray((detPago as any)?.pagos_vinculados_ids)) (detPago as any).pagos_vinculados_ids.forEach((id: string) => idsHijos.add(id));
+      if (pagoRow?.grupo_pago) {
+        if (Array.isArray((detPago as any)?.pagosVinculadosIds)) (detPago as any).pagosVinculadosIds.forEach((id: string) => idsHijos.add(id));
+        if (Array.isArray((detPago as any)?.pagos_vinculados_ids)) (detPago as any).pagos_vinculados_ids.forEach((id: string) => idsHijos.add(id));
 
-      const { data: pagosHijosDb } = await supabase
-        .from('pagos_reportados')
-        .select('id, detalles')
-        .contains('detalles', { pago_principal_id: pagoId });
-      (pagosHijosDb || []).forEach(ph => idsHijos.add(ph.id));
+        const { data: pagosHijosDb } = await supabase
+          .from('pagos_reportados')
+          .select('id, grupo_pago, detalles')
+          .eq('grupo_pago', pagoRow.grupo_pago)
+          .neq('id', pagoId);
+        (pagosHijosDb || []).forEach(ph => idsHijos.add(ph.id));
+      }
 
       if (idsHijos.size > 0) {
         for (const hId of idsHijos) {
-          const { data: rowHijo } = await supabase.from('pagos_reportados').select('detalles').eq('id', hId).maybeSingle();
+          const { data: rowHijo } = await supabase.from('pagos_reportados').select('grupo_pago, detalles').eq('id', hId).maybeSingle();
           const dHijo = rowHijo?.detalles || {};
+          // Salvaguarda: nunca propagar factura_digital a un pago independiente sin el mismo grupo_pago
+          if (!pagoRow?.grupo_pago || rowHijo?.grupo_pago !== pagoRow.grupo_pago || Boolean(dHijo?.vinculado_a_referencia)) {
+            continue;
+          }
           dHijo.pago_principal_id = pagoId;
           dHijo.es_pago_adicional = true;
           dHijo.factura_digital = {
