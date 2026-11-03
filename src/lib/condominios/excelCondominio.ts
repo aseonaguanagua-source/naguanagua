@@ -27,11 +27,12 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   const enEUR = moneda === 'EUR' && tasaNum > 0;
   const conv = (bs: number) => {
     const v = Number(bs) || 0;
-    if (enUCD) return Math.round((v / ucd) * 10000) / 10000;
-    if (enEUR) return Math.round((v / tasaNum) * 100) / 100;
+    if (enUCD) return v / ucd;
+    if (enEUR) return v / tasaNum;
     return Math.round(v * 100) / 100;
   };
   const numFmt = enUCD ? '#,##0.0000' : (enEUR ? '€ #,##0.00' : '#,##0.00');
+  const bsFmt = '"Bs" #,##0.00';
   const mon = enUCD ? 'UCD' : (enEUR ? '€' : 'Bs');
 
   const wb = new WorkbookClass();
@@ -85,24 +86,36 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
   const multasManuales = renglones.reduce((s, r) => s + (r.multasManualesBs || 0), 0);
   const multaExtra = renglones.reduce((s, r) => s + (r.multaExtraBs || 0), 0);
   const totales = e?.totales || { baseBs: 0, multaBs: 0, ivaBs: 0, retencionBs: 0, totalBs: 0, mesesMax: 0, unidadesConDeuda: 0 };
-  const filasRes: [string, number | string][] = [
+  const totalBrutoResumenBs = (totales.baseBs || 0) + (totales.multaBs || 0) + (totales.ivaBs || 0);
+  const filasRes: [string, number | string, string?][] = [
     ['Unidades registradas', renglones.filter(r => r.clave !== '__SIN_REGISTRAR__').length],
     ['Unidades con deuda', totales.unidadesConDeuda || 0],
     ['Meses máximos adeudados', totales.mesesMax || 0],
-    [`Servicio de aseo (${mon})`, conv(totales.baseBs || 0)],
-    [`Multas por mora (${mon})`, conv(totales.multaBs || 0)],
-    [`IVA 16% (${mon})`, conv(totales.ivaBs || 0)],
-    ...(totales.retencionBs ? [[`IVA retenido 75% (${mon})`, -conv(totales.retencionBs)] as [string, number]] : []),
-    [`TOTAL A PAGAR (${mon})`, conv(totales.totalBs || 0)],
+    [`Servicio de aseo (${mon})`, conv(totales.baseBs || 0), numFmt],
+    [`Multas por mora (${mon})`, conv(totales.multaBs || 0), numFmt],
+    [`IVA 16% (${mon})`, conv(totales.ivaBs || 0), numFmt],
+    ...(totales.retencionBs ? [
+      [`Subtotal Bruto (${mon})`, conv(totalBrutoResumenBs), numFmt] as [string, number, string],
+      [`(-) Retención IVA 75% (${mon})`, -conv(totales.retencionBs), numFmt] as [string, number, string],
+    ] : []),
+    [`TOTAL NETO A COBRAR (${mon})`, conv(totales.totalBs || 0), numFmt],
+    ...((enEUR || enUCD) ? [
+      ['Tasa Euro BCV aplicada (Bs/€)', tasaNum, bsFmt] as [string, number, string],
+      ...(totales.retencionBs ? [
+        ['Subtotal Bruto en Caja (Bs)', Math.round(totalBrutoResumenBs * 100) / 100, bsFmt] as [string, number, string],
+        ['(-) Retención IVA 75% en Caja (Bs)', -Math.round((totales.retencionBs || 0) * 100) / 100, bsFmt] as [string, number, string],
+      ] : []),
+      ['MONTO EXACTO A COBRAR EN CAJA (Bs)', Math.round((totales.totalBs || 0) * 100) / 100, bsFmt] as [string, number, string],
+    ] : []),
   ];
   let f = 7;
-  cabecera(ws1, f++, ['', '', '', 'CONCEPTO', mon === 'UCD' ? 'MONTO (UCD)' : 'MONTO (Bs)']);
-  filasRes.forEach(([k, v]) => {
+  cabecera(ws1, f++, ['', '', '', 'CONCEPTO', `MONTO (${mon})`]);
+  filasRes.forEach(([k, v, fmt]) => {
     const r = ws1.getRow(f++);
     r.getCell(4).value = k; r.getCell(4).border = borde;
     r.getCell(5).value = v; r.getCell(5).border = borde;
-    if (typeof v === 'number' && /\((Bs|UCD)\)/.test(k)) r.getCell(5).numFmt = numFmt;
-    if (/TOTAL/.test(k)) { r.getCell(4).font = { bold: true }; r.getCell(5).font = { bold: true }; }
+    if (typeof v === 'number' && fmt) r.getCell(5).numFmt = fmt;
+    if (/TOTAL|MONTO EXACTO/.test(k)) { r.getCell(4).font = { bold: true }; r.getCell(5).font = { bold: true }; }
   });
   f++;
   ws1.getCell(f++, 4).value = 'GLOSARIO';
@@ -252,9 +265,7 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
     const cMulta = conv(multaBs);
     const cIva = conv(ivaBs);
     const cManuales = conv(manualesBs);
-    const cTotalFila = mon === '€'
-      ? Math.round((cBase + cMulta + cIva + cManuales) * 10000) / 10000
-      : conv(totalFilaBs);
+    const cTotalFila = conv(totalFilaBs);
     const vals: any[] = [
       sinReg ? 'Declaradas sin registrar' : (r.inmueble || r.clave),
       r.numero || (hijos.map(h => h.numero).find(Boolean) || ''),
@@ -279,22 +290,73 @@ export async function exportarExcelEstadoCuenta(c: any, e: EstadoCuenta, cajero:
       if ([6, 9, 10, 11, 12, 13].includes(i)) cell.numFmt = numFmt;
     });
   }
-  const rt3 = ws3.getRow(f3);
-  rt3.getCell(1).value = 'TOTALES';
+  const rt3 = ws3.getRow(f3++);
+  rt3.getCell(1).value = totales.retencionBs > 0 ? 'SUBTOTAL BRUTO' : 'TOTALES';
   const totalBrutoBs = totales.baseBs + totales.multaBs + totales.ivaBs;
   const tvConv: Record<number, number> = {
     10: conv(totales.baseBs),
     11: conv(totales.multaBs),
     12: conv(totales.ivaBs),
-    14: mon === '€'
-      ? Math.round((conv(totales.baseBs) + conv(totales.multaBs) + conv(totales.ivaBs)) * 10000) / 10000
-      : conv(totalBrutoBs)
+    14: conv(totalBrutoBs)
   };
   for (let k = 1; k <= 14; k++) {
     const cell = rt3.getCell(k);
     if (tvConv[k] !== undefined) { cell.value = tvConv[k]; cell.numFmt = numFmt; }
     cell.font = { bold: true }; cell.border = borde;
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
+  }
+
+  // Si aplica Retención de IVA (75%), mostrar el descuento y el TOTAL NETO A COBRAR igual que en Caja
+  if (totales.retencionBs > 0) {
+    const rRet = ws3.getRow(f3++);
+    rRet.getCell(1).value = '(-) RETENCIÓN IVA 75%';
+    rRet.getCell(12).value = -conv(totales.retencionBs);
+    rRet.getCell(12).numFmt = numFmt;
+    rRet.getCell(14).value = -conv(totales.retencionBs);
+    rRet.getCell(14).numFmt = numFmt;
+    for (let k = 1; k <= 14; k++) {
+      const cell = rRet.getCell(k);
+      cell.font = { bold: true, color: { argb: 'FF7C3AED' } };
+      cell.border = borde;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F3FF' } };
+    }
+
+    const rNeto = ws3.getRow(f3++);
+    rNeto.getCell(1).value = `TOTAL A COBRAR (${mon})`;
+    rNeto.getCell(10).value = conv(totales.baseBs);
+    rNeto.getCell(10).numFmt = numFmt;
+    rNeto.getCell(11).value = conv(totales.multaBs);
+    rNeto.getCell(11).numFmt = numFmt;
+    rNeto.getCell(12).value = conv(totales.ivaBs - totales.retencionBs);
+    rNeto.getCell(12).numFmt = numFmt;
+    rNeto.getCell(14).value = conv(totales.totalBs);
+    rNeto.getCell(14).numFmt = numFmt;
+    for (let k = 1; k <= 14; k++) {
+      const cell = rNeto.getCell(k);
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.border = borde;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF166534' } };
+    }
+  }
+
+  // Si el reporte fue emitido en Euros o UCD, agregar fila con el equivalente exacto en Bolívares de Caja
+  if (enEUR || enUCD) {
+    const rBs = ws3.getRow(f3++);
+    rBs.getCell(1).value = `MONTO EN CAJA (Bs · Tasa ${tasaNum.toLocaleString('es-VE', { minimumFractionDigits: 2 })})`;
+    rBs.getCell(10).value = Math.round(totales.baseBs * 100) / 100;
+    rBs.getCell(10).numFmt = bsFmt;
+    rBs.getCell(11).value = Math.round(totales.multaBs * 100) / 100;
+    rBs.getCell(11).numFmt = bsFmt;
+    rBs.getCell(12).value = Math.round((totales.ivaBs - (totales.retencionBs || 0)) * 100) / 100;
+    rBs.getCell(12).numFmt = bsFmt;
+    rBs.getCell(14).value = Math.round(totales.totalBs * 100) / 100;
+    rBs.getCell(14).numFmt = bsFmt;
+    for (let k = 1; k <= 14; k++) {
+      const cell = rBs.getCell(k);
+      cell.font = { bold: true, color: { argb: 'FF065F46' } };
+      cell.border = borde;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+    }
   }
   ws3.views = [{ state: 'frozen', ySplit: 7 }];
 

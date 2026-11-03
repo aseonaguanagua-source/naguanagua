@@ -117,7 +117,7 @@ export function generarPdfEstadoCuentaCondominio(
   y += 5;
   doc.text(`Retenciones: ${fmtM(e.totales.retencionBs)}`, 14, y);
   doc.setFont('helvetica', 'bold');
-  doc.text(`TOTAL DEUDA: ${fmtM(e.totales.totalBs)}`, 130, y);
+  doc.text(`TOTAL A COBRAR: ${fmtM(e.totales.totalBs)}${esEur ? `  (En Caja: Bs. ${fmtBs(e.totales.totalBs)})` : ''}`, esEur ? 82 : 130, y);
   y += 6;
   
   // ── PREPARAR LOS DATOS ──
