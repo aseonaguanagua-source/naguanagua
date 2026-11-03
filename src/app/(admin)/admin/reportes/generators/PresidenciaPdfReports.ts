@@ -1210,3 +1210,4 @@ export async function generarFiscalizacionPDF(
   addExecutiveFooters(doc, `Reporte de Fiscalización (${tipo})`);
   descargarPdfBlob(doc, `Reporte_Fiscalizacion_${tipo}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+

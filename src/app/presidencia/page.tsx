@@ -39,7 +39,9 @@ import {
   Briefcase,
   Receipt,
   Calendar,
+  Truck,
 } from 'lucide-react';
+import PresidenciaFlotaRutasTracker from '@/components/PresidenciaFlotaRutasTracker';
 
 import { aplicarMontoReporte } from '@/app/(admin)/admin/reportes/montoReporte';
 import { generarMorososPDF } from '@/app/(admin)/admin/reportes/generators/Morosos';
@@ -57,7 +59,7 @@ import {
 
 type Moneda = 'BS' | 'EUR' | 'USD';
 type Periodo = 'hoy' | 'semana' | 'mes' | 'mes_pasado' | 'anio' | 'todo' | 'custom';
-type ActiveTab = 'recaudacion' | 'catastro' | 'condominios_seniat' | 'administrativo' | 'reportes';
+type ActiveTab = 'recaudacion' | 'flota_rutas' | 'catastro' | 'condominios_seniat' | 'administrativo' | 'reportes';
 
 const COLORS_SECTOR = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
 const COLORS_METODO = ['#10b981', '#38bdf8', '#a855f7'];
@@ -766,13 +768,19 @@ export default function PresidenciaDashboard() {
         )}
 
         {/* Pestañas principales adaptables */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {[
             {
               id: 'recaudacion' as ActiveTab,
               label: 'Recaudación & Finanzas',
               sub: 'Ingresos, Cajas y Bancos',
               icon: TrendingUp,
+            },
+            {
+              id: 'flota_rutas' as ActiveTab,
+              label: 'Rutas, Flota & GPS',
+              sub: 'Camiones, Taller y Tracker',
+              icon: Truck,
             },
             {
               id: 'catastro' as ActiveTab,
@@ -795,7 +803,7 @@ export default function PresidenciaDashboard() {
             {
               id: 'reportes' as ActiveTab,
               label: 'Descargar Reportes',
-              sub: 'Excel y PDF Oficiales',
+              sub: 'PDF Oficiales Ejecutivos',
               icon: Download,
             },
           ].map((tab) => {
@@ -2498,6 +2506,11 @@ export default function PresidenciaDashboard() {
             </div>
           </div>
         )}
+
+        {/* ══════════════════════════════════════════════════════════════════════════
+            PESTAÑA: RUTAS, ESTATUS DE CAMIONES Y TRACKER GPS EN VIVO (MODO MAQUETA)
+           ══════════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'flota_rutas' && <PresidenciaFlotaRutasTracker />}
       </div>
     </div>
   );
