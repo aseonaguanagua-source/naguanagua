@@ -49,8 +49,7 @@ const menuSections = [
     title: 'SERVICIOS',
     items: [
       { name: 'Horarios de Rutas', icon: CalendarDays, href: '/portal/rutas' },
-      { name: 'Servicio Especial', icon: Sparkles, href: '/portal/servicios-extraordinarios?tipo=especial' },
-      { name: 'Servicios Extraordinarios', icon: Wrench, href: '/portal/servicios-extraordinarios' },
+      { name: 'Servicios', icon: Wrench, href: '/portal/servicios-extraordinarios' },
       { name: 'Permiso Tala/Poda', icon: TreePine, href: '/portal/tala-y-poda' },
       { name: 'Visto Bueno', icon: ShieldCheck, href: '/portal/visto-bueno' },
       { name: 'Inspección', icon: SearchCheck, href: '/portal/inspeccion' },
@@ -59,7 +58,7 @@ const menuSections = [
   {
     title: 'ATENCIÓN CIUDADANA',
     items: [
-      { name: 'Denuncias y Reclamos', icon: MessageSquareWarning, href: '/portal/denuncias' },
+      { name: 'Denuncias y Reclamos', icon: MessageSquareWarning, href: '/portal/denuncias?seccion=reclamos' },
     ]
   }
 ];
@@ -80,6 +79,57 @@ export default function PortalSidebar({ isOpen = false, setIsOpen }: PortalSideb
   const [categoriaUso, setCategoriaUso] = useState<'RESIDENCIAL' | 'COMERCIAL' | 'MIXTO'>('RESIDENCIAL');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isAgente, setIsAgente] = useState(false);
+
+  useEffect(() => {
+    // Asegurar compatibilidad en vivo con cualquier versión del APK instalado:
+    // 1. Mantener "Denuncias y Reclamos" siempre visible bajo ATENCIÓN CIUDADANA
+    // 2. Actualizar el modal de "Servicios" para incluir Servicio Especial y sacar Denuncias de ese modal
+    const syncApkSidebarAndModal = () => {
+      const apkStyle = document.getElementById('gl-apk-mobile-styles');
+      if (apkStyle && apkStyle.textContent && apkStyle.textContent.includes('/portal/denuncias')) {
+        apkStyle.textContent = apkStyle.textContent
+          .replace(/nav ul li:has\(> a\[href="\/portal\/denuncias"\]\),?/g, '')
+          .replace(/nav a\[href="\/portal\/denuncias"\]\s*\{/g, 'nav a[href="/portal/__never__"] {');
+      }
+
+      document.querySelectorAll('nav a[href*="/portal/denuncias"]').forEach((el) => {
+        const a = el as HTMLElement;
+        a.style.display = 'flex';
+        if (a.parentElement) {
+          a.parentElement.style.display = 'list-item';
+        }
+      });
+
+      const modalSheet = document.getElementById('gl-services-modal-sheet');
+      if (modalSheet && !modalSheet.getAttribute('data-synced-v2')) {
+        modalSheet.setAttribute('data-synced-v2', '1');
+        const denCard = modalSheet.querySelector('[data-service-href="/portal/denuncias"]');
+        if (denCard && denCard.parentElement) {
+          denCard.parentElement.removeChild(denCard);
+        }
+        if (!modalSheet.querySelector('[data-service-href*="tipo=especial"]')) {
+          const firstCard = modalSheet.querySelector('[data-service-href]');
+          if (firstCard && firstCard.parentElement) {
+            const espCard = document.createElement('div');
+            espCard.className = 'gl-service-option-card';
+            espCard.setAttribute('data-service-href', '/portal/servicios-extraordinarios?tipo=especial');
+            espCard.innerHTML =
+              '<div class="gl-service-option-icon" style="background:#f5f3ff;color:#7c3aed;">🎪</div>' +
+              '<div style="flex:1;min-width:0;">' +
+              '<div style="font-size:13.5px;font-weight:800;color:#0f172a;">Servicio Especial (Eventos y Otros)</div>' +
+              '<div style="font-size:11.5px;color:#64748b;margin-top:2px;line-height:1.3;">Eventos, conciertos, ferias, operativos especiales y otras solicitudes</div>' +
+              '</div>' +
+              '<div style="font-size:18px;font-weight:900;color:#10b981;">›</div>';
+            firstCard.parentElement.insertBefore(espCard, firstCard);
+          }
+        }
+      }
+    };
+
+    syncApkSidebarAndModal();
+    const timer = setInterval(syncApkSidebarAndModal, 300);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const portalUser = localStorage.getItem('portal_user');
