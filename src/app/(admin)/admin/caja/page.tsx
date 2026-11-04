@@ -1093,12 +1093,23 @@ export default function CajaPage() {
       });
       padresConHijosIndividuales.forEach(p => naMesesMap.delete(p));
       
-      // Filtrar los inmuebles eliminados/inactivos y sincronizar meses de deuda heredados
+      // Filtrar los inmuebles eliminados/inactivos y sincronizar meses de deuda heredados.
+      // Además, si se busca por RIF/Nombre (!isCodeFormat) y el contribuyente tiene inmuebles propios fuera de condominio (ej. URB007835 Sambil)
+      // junto con locales dentro de un condominio centralizado (ej. A.S 24 URB016119 que se cobran por Caja de Condominios),
+      // excluir los locales del condominio centralizado (salvo que tengan multa propia pendiente) para NO unificarlos con el inmueble individual.
       const specificCode = (user.CodCont || user.cod_cont || '').toUpperCase();
-      const activeInmFresh = (inmFresh || []).filter((i: any) => {
+      const rawActiveInms = (inmFresh || []).filter((i: any) => {
         const st = String(i.estado || '').trim().toLowerCase();
         if (st === 'eliminado' || st === 'inactivo' || st === 'desactivado' || st === 'baja') return false;
         if (i.es_condominio === true) return false;
+        return true;
+      });
+      const hasStandaloneInm = rawActiveInms.some((i: any) => !i.condominio_padre_id);
+      const activeInmFresh = rawActiveInms.filter((i: any) => {
+        if (!isCodeFormat && hasStandaloneInm && i.condominio_padre_id && !isPagoIndInm(i)) {
+          const tieneMultaPropia = (parseFloat(String(i.multa_bs || '0')) || 0) > 0.01;
+          if (!tieneMultaPropia) return false;
+        }
         return true;
       }).map((i: any) => {
         const esEspecifico = isCodeFormat && String(i.inmueble || '').toUpperCase() === specificCode;
@@ -1236,7 +1247,10 @@ export default function CajaPage() {
             0
           );
 
-      const saldoFavorFresh = Math.round(Math.max(saldoInmuebles, saldoNotasVigentes) * 100) / 100;
+      // Si existen Notas de Crédito vigentes registradas en `documentos` (saldoNotasVigentes >= 1.00),
+      // usar ese monto exacto (que coincide con la factura SENIAT) para evitar que residuos en `saldo_favor_bs` alteren el monto en Caja.
+      const saldoFavorRaw = saldoNotasVigentes >= 1.00 ? saldoNotasVigentes : saldoInmuebles;
+      const saldoFavorFresh = saldoFavorRaw >= 1.00 ? Math.round(saldoFavorRaw * 100) / 100 : 0;
       const abonoPrevioInmuebles = 0;
       if (saldoFavorFresh > 0) {
         setPaymentMethod('Saldo a Favor');

@@ -232,26 +232,37 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       try {
         let query = supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo');
         if (codes.length > 0) {
-          // Solo cargar la cuenta/inmueble seleccionada y sus actividades/padres N/A o locales de condominio matriz.
-          query = query.or(`${codes.map(c => `inmueble.eq.${c}`).join(',')},${codes.map(c => `padre_id.eq.${c}`).join(',')},${codes.map(c => `condominio_padre_id.eq.${c}`).join(',')}`);
+          // Solo cargar la cuenta/inmueble seleccionada y sus actividades/padres N/A (o locales de condominio matriz si es_condominio).
+          const condParts = [
+            ...codes.map(c => `inmueble.eq.${c}`),
+            ...codes.map(c => `padre_id.eq.${c}`),
+            ...(viewData?.es_condominio ? codes.map(c => `condominio_padre_id.eq.${c}`) : []),
+          ];
+          query = query.or(condParts.join(','));
         } else if (idVariants.length > 0) {
           query = query.or(idVariants.map(v => `identidad.eq.${v}`).join(','));
         }
         const { data } = await query.order('inmueble', { ascending: true });
         let allInms = [...(data || [])].filter((i: any) => {
           const st = String(i.estado || '').trim().toLowerCase();
-          return st !== 'eliminado' && st !== 'inactivo' && st !== 'desactivado';
+          if (st === 'eliminado' || st === 'inactivo' || st === 'desactivado') return false;
+          if (!viewData?.condominio_padre_id && !viewData?.es_condominio && i.condominio_padre_id && !codes.includes(String(i.inmueble || '').toUpperCase())) return false;
+          return true;
         });
 
-        // 1.1 Si encontramos inmuebles, buscar si alguno tiene locales hijos asociados por padre_id o condominio_padre_id
+        // 1.1 Si encontramos inmuebles, buscar si alguno tiene locales hijos asociados por padre_id (o condominio_padre_id solo si es matriz de condominio)
         const foundCodes = allInms.map((i: any) => i.inmueble).filter(Boolean);
         if (foundCodes.length > 0) {
+          const hasCondoParent = Boolean(viewData?.es_condominio || allInms.some((i: any) => i.es_condominio));
+          const hijosOr = hasCondoParent
+            ? `padre_id.in.(${foundCodes.join(',')}),condominio_padre_id.in.(${foundCodes.join(',')})`
+            : `padre_id.in.(${foundCodes.join(',')})`;
           const { data: hijosData } = await supabase
             .from('inmuebles')
             .select('*')
             .neq('estado', 'Eliminado')
             .neq('estado', 'Inactivo')
-            .or(`padre_id.in.(${foundCodes.join(',')}),condominio_padre_id.in.(${foundCodes.join(',')})`);
+            .or(hijosOr);
           if (hijosData && hijosData.length > 0) {
             const existingCodes = new Set(allInms.map((i: any) => i.inmueble));
             hijosData.forEach((h: any) => {

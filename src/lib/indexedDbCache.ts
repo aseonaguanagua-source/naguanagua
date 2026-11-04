@@ -10,7 +10,7 @@ const DB_VERSION = 2;
 const STORE_NAME = 'app_cache';
 
 // Versión del caché: cambiar para invalidar y forzar refresco automático en todos los clientes
-export const CURRENT_CACHE_VERSION = 'v2026_10_22_direcciones_fiscales_v2';
+export const CURRENT_CACHE_VERSION = 'v2026_11_04_sambil_granja_v1';
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

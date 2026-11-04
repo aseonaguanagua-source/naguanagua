@@ -542,12 +542,23 @@ function ContribuyentesPageContent() {
         const est = (i.estado || 'Activo').trim().toLowerCase();
         return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
       };
+      const rawCodes = String(viewData.CodCont || viewData.cod_cont || '').split(/\s+/).map((c: string) => c.trim().toUpperCase()).filter(Boolean);
       const idClean = (viewData.Identidad || '').replace(/-/g, '').toUpperCase();
-      const idsBuscar = Array.from(new Set([viewData.Identidad, idClean, viewData.CodCont, viewData.cod_cont].filter(Boolean)));
+      const idsBuscar = Array.from(new Set([viewData.Identidad, idClean, ...rawCodes].filter(Boolean)));
+      const orClause = rawCodes.length > 0
+        ? `inmueble.in.(${rawCodes.join(',')}),padre_id.in.(${rawCodes.join(',')})`
+        : `identidad.in.(${idsBuscar.join(',')}),inmueble.in.(${idsBuscar.join(',')})`;
       supabase.from('inmuebles').select('*')
         .neq('estado', 'Eliminado').neq('estado', 'Inactivo').neq('estado', 'Desactivado')
-        .or(`identidad.in.(${idsBuscar.join(',')}),inmueble.in.(${idsBuscar.join(',')})`).then(({ data }) => {
-        if (data && data.length > 0) setViewInmuebles(data.filter(isActivo));
+        .or(orClause).then(({ data }) => {
+        if (data && data.length > 0) {
+          const filtered = data.filter((i: any) => {
+            if (!isActivo(i)) return false;
+            if (!viewData.condominio_padre_id && !viewData.es_condominio && i.condominio_padre_id && !rawCodes.includes(String(i.inmueble || '').toUpperCase())) return false;
+            return true;
+          });
+          setViewInmuebles(filtered);
+        }
         else setViewInmuebles([]);
       });
       calculateFactorForRow(viewData).then(detalle => {
@@ -929,9 +940,12 @@ function ContribuyentesPageContent() {
       return est !== 'eliminado' && est !== 'inactivo' && est !== 'desactivado';
     };
 
-    // 2. Inmuebles del contribuyente (solo activos)
+    // 2. Inmuebles del contribuyente (solo activos, sin mezclar locales dentro de condominio centralizado cuando se consulta un inmueble fuera del condominio)
+    const viewCodes = String(viewData.CodCont || viewData.cod_cont || '').split(/\s+/).map((c: string) => c.trim().toUpperCase()).filter(Boolean);
+    const shouldExcludeCondoUnits = !viewData.condominio_padre_id && !viewData.es_condominio;
     let inmueblesContribuyente: any[] = (inmuebles || []).filter((i: any) => {
       if (!isActivoInm(i)) return false; // misma regla que Caja
+      if (shouldExcludeCondoUnits && (i.condominio_padre_id || i.es_condominio) && !isCondominioPagoIndividual(i) && !viewCodes.includes(String(i.inmueble || '').toUpperCase())) return false;
       const iid = (i.identidad || '').replace(/-/g, '').toUpperCase();
       return iid === idLimpio || iid === viewData.Identidad;
     });
@@ -940,7 +954,11 @@ function ContribuyentesPageContent() {
       const vars = getIdentidadVariantsExact(viewData.Identidad || '');
       if (vars.length) {
         const { data: frescos } = await supabase.from('inmuebles').select('*').or(vars.map(v => `identidad.eq.${v}`).join(','));
-        let lista = (frescos || []).filter((i: any) => isActivoInm(i));
+        let lista = (frescos || []).filter((i: any) => {
+          if (!isActivoInm(i)) return false;
+          if (shouldExcludeCondoUnits && (i.condominio_padre_id || i.es_condominio) && !isCondominioPagoIndividual(i) && !viewCodes.includes(String(i.inmueble || '').toUpperCase())) return false;
+          return true;
+        });
         const naCodes = lista.filter((i: any) => (i.actividad_principal || '').trim().toUpperCase() === 'N/A').map((i: any) => i.inmueble).filter(Boolean);
         if (naCodes.length) {
           const { data: hijos } = await supabase.from('inmuebles').select('*').in('padre_id', naCodes);
@@ -2275,16 +2293,20 @@ function ContribuyentesPageContent() {
     const targetIdNum = targetIdClean.replace(/^[VEJPG]/i, '');
     const codes = String(row.CodCont || row.cod_cont || row.inmueble || '').split(/\s+/).map(c => c.trim().toUpperCase()).filter(Boolean);
 
-    // 1. Filtrar inmuebles de la memoria local
+    // 1. Filtrar inmuebles de la memoria local:
+    // Si la fila editada tiene código(s) específico(s) (ej. URB007835), cargar ÚNICAMENTE ese código y sus actividades hijas (padre_id),
+    // NUNCA unificar por RIF con locales pertenecientes a otros condominios (ej. A.S 24 URB016119).
     let misInmuebles = inmuebles.filter((i: any) => {
       if (i.estado === 'Eliminado' || i.estado === 'Inactivo') return false;
-      const iIdClean = (i.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      const iIdNum = iIdClean.replace(/^[VEJPG]/i, '');
-      if (targetIdClean && (iIdClean === targetIdClean || (targetIdNum && iIdNum === targetIdNum))) return true;
       if (codes.length > 0) {
         if (codes.includes(String(i.inmueble || '').toUpperCase())) return true;
         if (codes.includes(String(i.padre_id || '').toUpperCase())) return true;
+        return false;
       }
+      if (!row.condominio_padre_id && !row.es_condominio && i.condominio_padre_id) return false;
+      const iIdClean = (i.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      const iIdNum = iIdClean.replace(/^[VEJPG]/i, '');
+      if (targetIdClean && (iIdClean === targetIdClean || (targetIdNum && iIdNum === targetIdNum))) return true;
       return false;
     });
 

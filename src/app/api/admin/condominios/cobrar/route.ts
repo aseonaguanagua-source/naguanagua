@@ -105,16 +105,27 @@ export async function POST(req: Request) {
         console.warn('Error calculando saldo de notas de crédito en documentos:', e);
       }
 
-      // Saldo disponible consolidado (ignorando residuos de redondeo menores a Bs. 1,00)
-      saldoFavorDisp = Math.max(abonoCondo, saldoInm, saldoDocs);
+      // Saldo disponible consolidado:
+      // Si existen Notas de Crédito vigentes en `documentos` (saldoDocs >= 1.00), ese monto oficial (igual al de la factura SENIAT)
+      // es la fuente de verdad autoritativa, evitando que residuos en `saldo_favor_bs` o `abono_bs` cambien el monto en Caja.
+      saldoFavorDisp = saldoDocs >= 1.00 ? saldoDocs : Math.max(abonoCondo, saldoInm);
       saldoFavorDisp = saldoFavorDisp >= 1.00 ? Math.round(saldoFavorDisp * 100) / 100 : 0;
 
-      // Mantener sincronizada la tabla condominios SOLO cuando se está en modo CONDOMINIO
-      if (!esModoContribuyente && condoCod && saldoFavorDisp >= 1.00 && Math.abs(abonoCondo - saldoFavorDisp) > 0.05) {
-        try {
-          await sb.from('condominios').update({ abono_bs: saldoFavorDisp }).eq('codigo', condoCod);
-        } catch (eSync) {
-          console.warn('Error sincronizando condominios.abono_bs:', eSync);
+      // Mantener sincronizada la tabla condominios e inmuebles con el monto oficial de las Notas de Crédito vigentes
+      if (!esModoContribuyente && condoCod && saldoFavorDisp >= 1.00) {
+        if (Math.abs(abonoCondo - saldoFavorDisp) > 0.01) {
+          try {
+            await sb.from('condominios').update({ abono_bs: saldoFavorDisp }).eq('codigo', condoCod);
+          } catch (eSync) {
+            console.warn('Error sincronizando condominios.abono_bs:', eSync);
+          }
+        }
+        if (Math.abs(saldoInm - saldoFavorDisp) > 0.01) {
+          try {
+            await sb.from('inmuebles').update({ saldo_favor_bs: saldoFavorDisp }).eq('inmueble', condoCod);
+          } catch (eSyncInm) {
+            console.warn('Error sincronizando inmuebles.saldo_favor_bs:', eSyncInm);
+          }
         }
       }
 
