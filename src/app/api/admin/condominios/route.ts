@@ -77,9 +77,9 @@ export async function PATCH(req: Request) {
     const u = String(usuario || '').trim().toLowerCase();
     const { data: trab } = await sb.from('trabajadores').select('usuario, nombre, rol, estado').ilike('usuario', u).maybeSingle();
     
-    // Si solo modifica notas, teléfono, correo, dirección o clave_portal, permitir a cualquier operador o usuario autenticado
+    // Si solo modifica notas, teléfono, correo, dirección, clave_portal o agente_retencion, permitir a cualquier operador o usuario autenticado
     const keysModificadas = Object.keys(cambios || {});
-    const soloInfoContactoONotas = keysModificadas.length > 0 && keysModificadas.every(k => ['notas', 'telefono', 'correo', 'direccion', 'clave_portal'].includes(k));
+    const soloInfoContactoONotas = keysModificadas.length > 0 && keysModificadas.every(k => ['notas', 'telefono', 'correo', 'direccion', 'clave_portal', 'agente_retencion'].includes(k));
     
     if (!soloInfoContactoONotas) {
       if (!trab || !(trab.rol === 'Administrador' || u === 'dzara')) return NextResponse.json({ error: 'Solo un administrador puede modificar la configuración del condominio.' }, { status: 403 });
@@ -191,8 +191,7 @@ export async function PATCH(req: Request) {
       }
     }
 
-    // Sincronizar el campo agente_retencion únicamente en el inmueble matriz del condominio
-    // (NO en las unidades hijas, ya que cada propietario tiene sus propios inmuebles individuales fuera del condominio).
+    // Sincronizar el campo agente_retencion en el inmueble matriz y en las unidades del condominio
     if ('agente_retencion' in upd) {
       const nuevoAgente = !!upd.agente_retencion;
       
@@ -208,6 +207,18 @@ export async function PATCH(req: Request) {
           .update({ agente_retencion: nuevoAgente })
           .eq('identidad', condoIdent)
           .eq('es_condominio', true);
+      }
+
+      // 3. Si se desmarca agente_retencion en el condominio, o se actualiza a nivel del condominio,
+      // sincronizar también en las unidades hijas asociadas al condominio para que no queden con retención forzada
+      await sb.from('inmuebles')
+        .update({ agente_retencion: nuevoAgente })
+        .eq('condominio_padre_id', antes.codigo);
+
+      for (let i = 0; i < codigosHijosSync.length; i += 200) {
+        await sb.from('inmuebles')
+          .update({ agente_retencion: nuevoAgente })
+          .in('inmueble', codigosHijosSync.slice(i, i + 200));
       }
     }
 

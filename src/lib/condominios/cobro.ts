@@ -212,9 +212,13 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
         const multaMesesQueQuedan = !permitirMultas ? r.multaMeses : 0;
         const incluirAparte = permitirMultas;
         const aparte = incluirAparte ? r2((nMeses === r.deuda.meses ? r.multaExtraBs : 0) + r.multasManualesBs) : 0;
-        const base = s('baseBs'), iva = s('ivaBs'), ret = s('retencionBs');
+        const base = s('baseBs'), iva = s('ivaBs');
+        const ret = modo === 'CONDOMINIO'
+            ? (datos.condo.agente_retencion ? r2(iva * 0.75) : 0)
+            : s('retencionBs');
         return {
-            clave: r.clave, inmueble: r.inmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial, agenteRetencion: r.agenteRetencion,
+            clave: r.clave, inmueble: r.inmueble, numero: r.numero, propietario: r.propietario, identidad: r.identidad, actividad: r.actividad, residencial: r.residencial,
+            agenteRetencion: modo === 'CONDOMINIO' ? Boolean(datos.condo.agente_retencion) : r.agenteRetencion,
             meses: nMeses, mesesDeuda: r.deuda.meses, periodos: r.periodos.slice(0, nMeses),
             baseBs: base, multaBs: multaMora, multasAparteBs: aparte, multasManualesIds: incluirAparte ? r.multasManuales.map(m => m.id) : [],
             ivaBs: iva, retencionBs: ret, totalBs: r2(base + multaMora + iva - ret + aparte), multaMesesQueQuedan,

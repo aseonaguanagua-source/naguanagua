@@ -220,6 +220,10 @@ function Ficha() {
       const antes = k === 'meses' ? (e?.totales?.meses ?? mesesPendientes(c.aseo_pendiente_desde)) : (c[k] ?? (typeof form[k] === 'boolean' ? false : ''));
       if (String(form[k]) !== String(antes)) cambios[k] = form[k];
     });
+    // Si el usuario tiene desmarcado agente_retencion y aún hay unidades hijas con agenteRetencion, forzar envío de agente_retencion: false
+    if (!form.agente_retencion && !('agente_retencion' in cambios) && (e?.totales?.retencionBs > 0 || (e?.renglones || []).some((r: any) => r.agenteRetencion))) {
+      cambios.agente_retencion = false;
+    }
     if (!Object.keys(cambios).length) { setEditando(false); return; }
     if (motivo.trim().length < 5) { alert('Escriba el motivo del cambio.'); return; }
     setGuardando(true);
@@ -395,10 +399,43 @@ function Ficha() {
                   <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 shadow-2xs">
                     {MODALIDAD[c.modalidad] || c.modalidad}
                   </span>
-                  {c.agente_retencion && (
-                    <span className="px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-800 shadow-2xs">
-                      Agente de retención (75% IVA)
-                    </span>
+                  {c.tipo !== 'RESIDENCIAL' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const nuevo = !c.agente_retencion;
+                        setGuardando(true);
+                        try {
+                          const r = await fetch('/api/admin/condominios', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              codigo: c.codigo,
+                              cambios: { agente_retencion: nuevo },
+                              motivo: nuevo ? 'Activación de Agente de Retención desde Ficha' : 'Desactivación de Agente de Retención desde Ficha',
+                              usuario: usuarioActual()
+                            }),
+                          });
+                          const j = await r.json();
+                          if (!r.ok) throw new Error(j.error || 'No se pudo actualizar');
+                          await cargar();
+                        } catch (err: any) {
+                          alert(err.message);
+                        } finally {
+                          setGuardando(false);
+                        }
+                      }}
+                      disabled={guardando}
+                      title="Haga clic para activar o desactivar Agente de Retención (75% IVA) en este condominio"
+                      className={`px-2.5 py-1 rounded-lg border shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors ${
+                        c.agente_retencion
+                          ? 'bg-violet-100 border-violet-300 text-violet-900 hover:bg-violet-200'
+                          : 'bg-white border-slate-300 text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input type="checkbox" readOnly checked={!!c.agente_retencion} className="w-3.5 h-3.5 accent-violet-600 pointer-events-none" />
+                      <span>Agente de retención (75% IVA)</span>
+                    </button>
                   )}
                   {c.cobro_tarifa_por_unidad && (
                     <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 shadow-2xs">
