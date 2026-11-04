@@ -546,6 +546,8 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
 
         const fechaRegistro = new Date();
         const pagosReales = (pago.pagosAgregados || []).filter((pa: any) => pa && pa.metodo !== 'Saldo a Favor');
+        const pagosSF = (pago.pagosAgregados || []).filter((pa: any) => pa && pa.metodo === 'Saldo a Favor');
+        const montoSFUsado = r2(pagosSF.reduce((acc: number, pa: any) => acc + (Number(pa.monto) || 0), 0));
         const primerReal = pagosReales[0] || (pago.pagosAgregados && pago.pagosAgregados[0]);
 
         if (primerReal && refFinal.toLowerCase().includes('saldo favor') && primerReal.referencia && !primerReal.referencia.toLowerCase().includes('saldo favor')) {
@@ -586,10 +588,10 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             total: fTotalBruto,
             montoNeto: f.totalBs,
             montoCancelado: f.totalBs,
-            formaPago: formaPagoCodigo(pago.metodo) === '03' ? 'TRANSFERENCIA' : pago.metodo.toUpperCase(),
+            formaPago: formaPagoCodigo(metodoFila) === '03' ? 'TRANSFERENCIA' : metodoFila.toUpperCase(),
             banco: (pago.pagosAgregados && pago.pagosAgregados.length > 1)
                 ? pago.pagosAgregados.map((pa: any) => pa.banco || pa.metodo).filter(Boolean).join(' / ')
-                : (pago.banco || 'Banco'),
+                : (bancoFila || 'Banco'),
             referencia: (pago.pagosAgregados && pago.pagosAgregados.length > 1)
                 ? pago.pagosAgregados.map((pa: any) => pa.referencia).filter(Boolean).join(' / ')
                 : refFinal,
@@ -638,7 +640,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
             factura_digital: { emitida: false, pendiente: true, preparada_at: new Date().toISOString() },
             formasPago,
             pagos_agregados: pago.pagosAgregados,
-            banco_destino: pago.bancoDestino || (pago.pagosAgregados?.[0]?.bancoDestino) || undefined,
+            ...(montoSFUsado > 0 ? {
+                saldo_usado: montoSFUsado,
+                saldo_favor_usado: montoSFUsado,
+                descuento_saldo_favor: montoSFUsado,
+            } : {}),
+            banco_destino: (pagoAgregadoCoincidente || primerReal)?.bancoDestino || pago.bancoDestino || (pago.pagosAgregados || []).find((p: any) => p.bancoDestino)?.bancoDestino || undefined,
             comprobante_url: (pagoAgregadoCoincidente || primerReal)?.comprobante_url || (pago.pagosAgregados || []).find((p: any) => p.comprobante_url)?.comprobante_url || undefined,
             comprobante_nombre: (pagoAgregadoCoincidente || primerReal)?.comprobante_nombre || (pago.pagosAgregados || []).find((p: any) => p.comprobante_nombre)?.comprobante_nombre || undefined,
             fecha_transaccion: fechaTransaccion,

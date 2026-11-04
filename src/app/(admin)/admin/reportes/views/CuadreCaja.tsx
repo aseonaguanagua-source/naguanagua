@@ -31,6 +31,13 @@ function parseDet(p: any): any {
 function isSaldoPago(p: any) {
   const t = String(p.tipo || '').toUpperCase().trim();
   const det = parseDet(p);
+  if (t && !t.includes('SALDO') && !t.includes('NOTA DE CREDITO') && !t.includes('NOTA DE CRÉDITO')) {
+    return false;
+  }
+  const paList = Array.isArray(det.pagos_agregados) ? det.pagos_agregados : [];
+  if (paList.some((x: any) => x?.metodo && !String(x.metodo).toUpperCase().includes('SALDO'))) {
+    return false;
+  }
   const detTipo = String(det.tipo || '').toUpperCase();
   return t.includes('SALDO') || t.includes('NOTA DE CREDITO') || t.includes('NOTA DE CRÉDITO') ||
          detTipo.includes('SALDO') || detTipo.includes('NOTA DE CREDITO') || detTipo.includes('NOTA DE CRÉDITO') ||
