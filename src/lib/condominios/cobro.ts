@@ -134,9 +134,7 @@ export async function prepararCobro(sol: SolicitudCobro): Promise<Cobro & { _dat
         avisos.push(`Abono por locales al condominio: Cobrando ${elegidas.length} de ${conDeuda.length} unidades seleccionadas a nombre del condominio.`);
       }
     } else {
-        const ced = sol.identidad ? n(sol.identidad) : '';
-        elegidas = conDeuda.filter(r => pedidas.has(r.clave) || (ced && n(r.identidad) === ced));
-        if (!porAct && elegidas.some(r => r.deuda.meses > 0)) avisos.push('Residencial centralizado: al pagar una unidad por separado, se descuenta solo esa unidad.');
+      elegidas = conDeuda;
     }
   } else {
     const ced = sol.identidad ? n(sol.identidad) : '';
