@@ -564,7 +564,8 @@ export const isMesExoneradoMulta = (notasOrInm?: any, dateOrMonthKey?: string | 
   if (strNotas.includes('periodos_custom')) {
     try {
       const parsed = JSON.parse(strNotas);
-      if (parsed?.periodos_custom?.[key]?.exonerar_multa === true) return true;
+      const pc = parsed?.periodos_custom?.[key];
+      if (pc && (pc.exonerar_multa === true || pc.lleva_multa === false)) return true;
     } catch {}
   }
   return false;
@@ -586,7 +587,7 @@ export const getMesesExoneradosCount = (notas?: string | null): number => {
       const parsed = JSON.parse(notas);
       if (parsed?.periodos_custom && typeof parsed.periodos_custom === 'object') {
         for (const [k, v] of Object.entries(parsed.periodos_custom) as [string, any][]) {
-          if (v && v.exonerar_multa === true) setKeys.add(k);
+          if (v && (v.exonerar_multa === true || v.lleva_multa === false)) setKeys.add(k);
         }
       }
     } catch {}

@@ -196,6 +196,7 @@ export default function CajaPage() {
   const [notaTab, setNotaTab] = useState<'lista' | 'crear'>('lista');
   const [isPagoMultiple, setIsPagoMultiple] = useState(false);
   const [abonoPrevioAprobado, setAbonoPrevioAprobado] = useState<number>(0);
+  const [abonosAprobados, setAbonosAprobados] = useState<any[]>([]);
 
   // Modal de Confirmación de Pago
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -715,6 +716,7 @@ export default function CajaPage() {
     setPagosPorConciliar([]);
     setMontoPorConciliar(0);
     setAbonoPrevioAprobado(0);
+    setAbonosAprobados([]);
     setNotificacionConciliacion(null);
     setTotalBs(0);
 
@@ -1766,6 +1768,51 @@ export default function CajaPage() {
       setPagosPorConciliar(arrPagosPend);
       setMontoPorConciliar(totalPendConciliar);
 
+      // Consultar abonos parciales (Pago Múltiple) ya aprobados y pendientes de completar en Caja
+      let queryAbonosAprob = supabase
+        .from('pagos_reportados')
+        .select('id, referencia, monto, tipo, banco, identidad, created_at, estado, detalles')
+        .eq('estado', 'Aprobado');
+      if (identOrs.length > 0) {
+        queryAbonosAprob = queryAbonosAprob.or(identOrs.join(','));
+      }
+      const { data: allAprobados } = await queryAbonosAprob
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      const arrAbonosAprob = (allAprobados || []).filter((p: any) => {
+        const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
+        if (!detObj || detObj.es_abono !== true || detObj.abono_completado === true) return false;
+        if (detObj.anulado || detObj.factura_digital?.anulada || detObj.factura_anulada) return false;
+
+        const pIdentClean = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const pIdentNums = String(p.identidad || '').replace(/\D/g, '');
+        if (pIdentClean && cleanIdents.has(pIdentClean)) return true;
+        if (pIdentNums.length >= 4 && cleanIdents.has(pIdentNums)) return true;
+
+        const detStr = (typeof p.detalles === 'string' ? p.detalles : JSON.stringify(p.detalles || '')).toLowerCase();
+        if (userInmCodes.some(code => code && detStr.includes(code))) return true;
+        if (contribNombre && contribNombre.length > 5 && detStr.includes(contribNombre)) return true;
+        return false;
+      });
+      setAbonosAprobados(arrAbonosAprob);
+
+      if (arrAbonosAprob.length > 0) {
+        const recibosDeAbono = new Set<string>();
+        let omitirSepAbono = false;
+        arrAbonosAprob.forEach((p: any) => {
+          const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
+          if (detObj.omitir_multa_septiembre) omitirSepAbono = true;
+          if (Array.isArray(detObj.recibos)) {
+            detObj.recibos.forEach((r: string) => { if (r) recibosDeAbono.add(r); });
+          }
+        });
+        if (omitirSepAbono) setOmitirMultaSeptiembre(true);
+        if (recibosDeAbono.size > 0) {
+          setSelectedRecibos(prev => prev.length > 0 ? prev : Array.from(recibosDeAbono));
+        }
+      }
+
       // Buscar si es un Condominio (Padre)
       const parentCodes = (isCodeFormat && (user.CodCont || user.cod_cont))
         ? [user.CodCont || user.cod_cont]
@@ -1851,11 +1898,15 @@ export default function CajaPage() {
       } else {
         setIvaPercent(0.16); // 16% para comerciales
         // Detectar si el inmueble consultado (o los inmuebles cobrables en Caja) tienen Agente de Retención
+        const hasNonCondoInm = (activeInmFresh || []).some((i: any) => {
+          const isCondoInm = (i.condominio_padre_id || i.es_condominio) && !naParentCodesFresh.includes(i.condominio_padre_id);
+          return !isCondoInm;
+        });
         const esAgente = isCodeFormat && searchedInm
           ? searchedInm.agente_retencion === true
           : (activeInmFresh || []).some((i: any) => {
               const isCondoInm = (i.condominio_padre_id || i.es_condominio) && !naParentCodesFresh.includes(i.condominio_padre_id);
-              if (isCondoInm && !isPagoIndInm(i)) return false;
+              if (hasNonCondoInm && isCondoInm && !isPagoIndInm(i)) return false;
               return i.agente_retencion === true;
             });
         setEsAgenteRetencion(esAgente);
@@ -2041,6 +2092,18 @@ export default function CajaPage() {
 
     // Calcular con precisión canónica de 2 decimales idéntica a recibos y factura SENIAT
     let totalAbonoPrevio = 0;
+    const hayConceptosSeleccionados = selectedRecibos.length > 0 || selectedCuotas.length > 0 || selectedServicios.length > 0 || selectedTalaPoda.length > 0;
+    if (hayConceptosSeleccionados && abonosAprobados.length > 0) {
+      const selSet = new Set(selectedRecibos);
+      abonosAprobados.forEach((ap: any) => {
+        const detObj = typeof ap.detalles === 'string' ? (() => { try { return JSON.parse(ap.detalles); } catch { return {}; } })() : (ap.detalles || {});
+        const recsAbono: string[] = Array.isArray(detObj.recibos) ? detObj.recibos : [];
+        const coincide = recsAbono.length === 0 || recsAbono.some((r: string) => selSet.has(r)) || selectedRecibos.includes('RECIB-DEUDA');
+        if (coincide) {
+          totalAbonoPrevio = Math.round((totalAbonoPrevio + (parseFloat(ap.monto || detObj.monto_abonado || '0') || 0)) * 100) / 100;
+        }
+      });
+    }
     const padresAbonoContados = new Set<string>();
     inmSelectedMap.forEach(({ inm, totalMeses, mesesConMora }) => {
       const esRes = isResidencialInm(inm);
@@ -2124,7 +2187,7 @@ export default function CajaPage() {
       setComprobanteRetencion('');
     }
 
-  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, hijosMesesAPagar, getHijoDebt, reciboMontoMap, getReciboMonto, omitirMultaSeptiembre]);
+  }, [selectedRecibos, selectedCuotas, selectedServicios, selectedTalaPoda, recibos, cuotas, serviciosEsp, talaPoda, inmuebles, customBcvRate, tcmmv, ivaPercent, foundUser, isCondominio, condominioModo, selectedHijos, condominioHijos, montoAbonoCondo, hijosMesesAPagar, getHijoDebt, reciboMontoMap, getReciboMonto, omitirMultaSeptiembre, abonosAprobados]);
 
   // ─── useCajaSelection hook (Fase 2) ────────────────────────────────────────
   const { sortedRecibos, toggleRecibo, toggleCuota, toggleServicio, toggleTalaPoda } = useCajaSelection({
@@ -3060,6 +3123,33 @@ export default function CajaPage() {
             monto: descuentoSaldoFavor
           });
         }
+        const pagosAgregadosPrevios: any[] = [];
+        if (!esAbonoDebito && abonoPrevioAprobado > 0 && abonosAprobados.length > 0) {
+          abonosAprobados.forEach((ap: any) => {
+            const detAp = typeof ap.detalles === 'string' ? (() => { try { return JSON.parse(ap.detalles); } catch { return {}; } })() : (ap.detalles || {});
+            const mAp = parseFloat(ap.monto || detAp.monto_abonado || '0') || 0;
+            if (mAp > 0) {
+              const tipoAp = ap.tipo || 'Transferencia';
+              fpsList.unshift({
+                descripcion: tipoAp === 'Debito' ? 'TARJETA DE DÉBITO (ABONO PREVIO)' : `${tipoAp.toUpperCase()} (ABONO PREVIO)`,
+                fecha: ap.created_at || new Date().toISOString(),
+                forma: tipoAp === 'Debito' ? '05' : ['Credito', 'TMD', 'TVD'].includes(tipoAp) ? '06' : '03',
+                banco: ap.banco || undefined,
+                referencia: ap.referencia || undefined,
+                monto: mAp
+              });
+              pagosAgregadosPrevios.push({
+                id: ap.id,
+                metodo: tipoAp,
+                banco: ap.banco || '',
+                bancoDestino: detAp.banco_destino || '',
+                referencia: ap.referencia || '',
+                monto: mAp,
+                fechaTransaccion: detAp.fecha_transaccion || (ap.created_at ? String(ap.created_at).slice(0, 10) : fechaTransaccion)
+              });
+            }
+          });
+        }
 
         let inmPagoSeleccionado: any = null;
         if (selectedRecibos && selectedRecibos.length > 0) {
@@ -3129,6 +3219,18 @@ export default function CajaPage() {
           agente_retencion: (realMontoRetencionIVA > 0),
           omitir_multa_septiembre: omitirMultaSeptiembre || undefined,
           formasPago: fpsList,
+          ...(pagosAgregadosPrevios.length > 0 ? {
+            pagos_agregados: [
+              ...pagosAgregadosPrevios,
+              {
+                metodo: paymentMethod,
+                banco: banco || paymentMethod,
+                referencia: reqRef ? referencia : referenciaDebito,
+                monto: montoReal,
+                fechaTransaccion
+              }
+            ]
+          } : {}),
           ...(!esAbonoDebito ? {
             factura_digital: {
               emitida: false,
@@ -3239,22 +3341,26 @@ export default function CajaPage() {
             // Si se liquidó la deuda restante tras un abono previo, marcar abonos anteriores como completados
             if (abonoPrevioAprobado > 0) {
               try {
+                const variantesIdent = getIdentidadVariantsExact(foundUser.Identidad);
+                const idsAbonos = new Set<string>(abonosAprobados.map((ap: any) => ap.id).filter(Boolean));
                 const { data: abonosPrevios } = await supabase
                   .from('pagos_reportados')
                   .select('id, detalles')
-                  .eq('identidad', foundUser.Identidad)
+                  .in('identidad', variantesIdent)
                   .eq('estado', 'Aprobado');
-                if (abonosPrevios && abonosPrevios.length > 0) {
-                  for (const ap of abonosPrevios) {
-                    let parsedDet: any = {};
-                    try { parsedDet = typeof ap.detalles === 'string' ? JSON.parse(ap.detalles) : ap.detalles; } catch(e){}
-                    if (parsedDet?.es_abono && !parsedDet?.abono_completado) {
-                      parsedDet.abono_completado = true;
-                      parsedDet.completado_con_pago_id = pagoId;
-                      await supabase.from('pagos_reportados').update({
-                        detalles: JSON.stringify(parsedDet)
-                      }).eq('id', ap.id);
-                    }
+                const listaActualizar = [
+                  ...(abonosAprobados || []),
+                  ...((abonosPrevios || []).filter((ap: any) => !idsAbonos.has(ap.id)))
+                ];
+                for (const ap of listaActualizar) {
+                  let parsedDet: any = {};
+                  try { parsedDet = typeof ap.detalles === 'string' ? JSON.parse(ap.detalles) : ap.detalles; } catch(e){}
+                  if (parsedDet?.es_abono && !parsedDet?.abono_completado) {
+                    parsedDet.abono_completado = true;
+                    parsedDet.completado_con_pago_id = pagoId;
+                    await supabase.from('pagos_reportados').update({
+                      detalles: JSON.stringify(parsedDet)
+                    }).eq('id', ap.id);
                   }
                 }
               } catch (e) {
@@ -3262,153 +3368,31 @@ export default function CajaPage() {
               }
             }
           } else {
-            // === ABONO PARCIAL / PAGO MÚLTIPLE: DESCONTAR MES A MES LO QUE ALCANCE ===
-            let dineroParaInms = montoReal + (confirmPayload.realMontoRetencionIVA || 0) + (confirmPayload.descuentoSaldoFavor || 0);
-
-            // Descontar facturas formales no históricas
-            const formalRefs = selectedRecibos.filter(r => !r.startsWith('RECIB-HIST-') && !r.startsWith('MULTA-') && r !== 'RECIB-DEUDA');
-            for (const ref of formalRefs) {
-              const f = recibos.find((r: any) => r.referencia === ref);
-              if (f) {
-                const montoF = parseFloat(getReciboMonto(f) || '0');
-                dineroParaInms = Math.max(0, dineroParaInms - montoF);
-              }
-            }
-            // Descontar cuotas
-            for (const sc of selectedCuotas) {
-              const c = cuotas.find((q: any) => q.convId === sc.convId && q.cuotaId === sc.cuotaId);
-              if (c) dineroParaInms = Math.max(0, dineroParaInms - parseFloat(c.monto || '0'));
-            }
-            // Descontar servicios
-            for (const ref of selectedServicios) {
-              const s = serviciosEsp.find((sv: any) => sv.referencia === ref);
-              if (s) {
-                const ucd = Number(s.valor_ucd || 0);
-                const fac = Number(s.factor || 1);
-                const nve = Number(s.nve || 1);
-                const baseS = (ucd > 0 && currentBcvRate && currentBcvRate > 0) ? Math.round(ucd * fac * nve * currentBcvRate * 100) / 100 : parseFloat(s.monto || '0');
-                dineroParaInms = Math.max(0, dineroParaInms - baseS);
-              }
-            }
-
-            // Descontar multas separadas
-            const multaRefsAbono = selectedRecibos.filter(r => r.startsWith('MULTA-'));
-            for (const mRef of multaRefsAbono) {
-              const f = recibos.find((r: any) => r.referencia === mRef);
-              if (f) {
-                const montoM = parseFloat(getReciboMonto(f) || '0');
-                if (dineroParaInms >= montoM - 0.01) {
-                  dineroParaInms = Math.max(0, dineroParaInms - montoM);
-                  const inmCode = mRef.replace('MULTA-', '');
-                  await supabase.from('inmuebles').update({ multa_bs: 0, deuda_congelada_bs: 0 }).eq('inmueble', inmCode);
-                }
-              }
-            }
-
-            const inmsToProcess = userInmsClean.filter(inm => {
-              const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
-              return histRefsThisInm.length > 0 || selectedRecibos.includes('RECIB-DEUDA');
-            });
-
-            for (let idx = 0; idx < inmsToProcess.length; idx++) {
-              const inm = inmsToProcess[idx];
-              const isLastInm = idx === inmsToProcess.length - 1;
-
-              const histRefsThisInm = histRefs.filter(r => r.includes(`-${inm.inmueble || inm.codigo}-`));
-              const mesesBD = Math.max(0, parseInt(String(inm.meses_deuda || 0)));
-              // meses_deuda = 0 con deuda guardada (deuda_mmv / congelada) = 1 mes pendiente (misma regla que muestra la Caja).
-              const tieneResiduo = parseFloat(String(inm.deuda_mmv || 0)) > 0 || parseFloat(String(inm.deuda_congelada_bs || 0)) > 0;
-              const numMesesInm = mesesBD > 0 ? mesesBD : (tieneResiduo ? 1 : 0);
-              
-              if (numMesesInm <= 0) continue;
-
-              const bMes = calcularMensualidad(inm, currentBcvRate);
-              const esRes = isResidencialInm(inm);
-              const ivaMes = esRes ? 0 : Math.round((bMes * 0.16) * 100) / 100;
-              const tasaMora = esRes ? 0.10 : 0.12;
-
-              const saldoActual = parseFloat(String(inm.saldo_favor_bs || '0')) || 0;
-              let dineroLocal = dineroParaInms + saldoActual;
-
-              let mesesCubiertos = 0;
-              const maxMeses = Math.min(numMesesInm, histRefsThisInm.length > 0 ? histRefsThisInm.length : numMesesInm);
-              
-              for (let m = 1; m <= maxMeses; m++) {
-                const isUltimo = (m >= numMesesInm);
-                const nowM = new Date();
-                const targetM = new Date(nowM.getFullYear(), nowM.getMonth() - numMesesInm + m - 1, 1, 12, 0, 0);
-                const esExonM = isMesExoneradoMulta(inm?.notas, targetM, omitirMultaSeptiembre);
-                const multaMes = (isUltimo || esExonM) ? 0 : Math.round((bMes * tasaMora) * 100) / 100;
-                const costoMes = Math.round((bMes + ivaMes) * 100) / 100 + multaMes;
-
-                if (dineroLocal >= costoMes - 0.01) {
-                  dineroLocal = Math.max(0, dineroLocal - costoMes);
-                  mesesCubiertos++;
-                } else {
-                  break; 
-                }
-              }
-
-              const nuevoMeses = Math.max(0, numMesesInm - mesesCubiertos);
-              const d = parseFloat(String(inm.deuda_mmv || 0));
-              const m = parseFloat(String(inm.multa_bs || 0));
-              const nuevaDeudaMMV = nuevoMeses === 0 ? 0 : parseFloat(((d * nuevoMeses) / (numMesesInm || 1)).toFixed(6));
-              const nuevaMultaBs = nuevoMeses === 0 ? 0 : parseFloat(((m * nuevoMeses) / (numMesesInm || 1)).toFixed(2));
-
-              let nuevoSaldo = 0;
-              if (dineroLocal > dineroParaInms) {
-                // We didn't consume all of saldoActual
-                nuevoSaldo = dineroLocal - dineroParaInms;
-              } else {
-                // We consumed all of saldoActual, AND some of dineroParaInms
-                dineroParaInms = dineroLocal; // Remaining global money
-                nuevoSaldo = 0;
-              }
-
-              // Si es el último inmueble que estamos procesando, el sobrante global se le abona a él
-              if (isLastInm && dineroParaInms > 0.01) {
-                nuevoSaldo += dineroParaInms;
-                dineroParaInms = 0;
-              }
-              
-              nuevoSaldo = parseFloat(nuevoSaldo.toFixed(2));
-
-              const { error: eAbono } = await supabase.from('inmuebles').update({
-                meses_deuda: nuevoMeses,
-                deuda_mmv: nuevaDeudaMMV,
-                multa_bs: nuevaMultaBs,
-                saldo_favor_bs: nuevoSaldo,
-                ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
-              }).eq('id', inm.id);
-              if (eAbono) throw new Error(`El pago quedó registrado pero no se pudo descontar la deuda de ${inm.inmueble}: ${eAbono.message}. Avise a soporte.`);
-              if (inm.inmueble) {
-                try {
-                  const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
-                  await supabase.from('condominio_unidades').update({
-                    aseo_pendiente_desde: pendienteDesdeParaMeses(nuevoMeses),
-                    ...(nuevaMultaBs <= 0.01 ? { multa_meses: Math.max(0, nuevoMeses - 1) } : {})
-                  }).ilike('inmueble', inm.inmueble);
-                } catch {}
-              }
-            }
+            // === ABONO PARCIAL / PAGO MÚLTIPLE ===
+            // No descontar actividades individuales ni acreditar el monto en saldo_favor_bs.
+            // El pago queda aprobado con es_abono: true y abono_completado: false para que Caja
+            // descuente automáticamente este primer abono del monto total del recibo y muestre
+            // exactamente la diferencia restante para el siguiente método de pago.
           }
 
-          // Si algún inmueble pertenecía a un contenedor padre N/A (ej: URB033481) o condominio, limpiar también el contenedor padre si sus hijos ya no tienen deuda
-          const parentCodesToSync = Array.from(new Set(userInmsClean.map((i: any) => i.condominio_padre_id || i.padre_id).filter(Boolean)));
-          for (const pCode of parentCodesToSync) {
-            const { data: parentInm } = await supabase.from('inmuebles').select('id, inmueble').eq('inmueble', pCode).maybeSingle();
-            if (parentInm) {
-              const { data: currentChildren } = await supabase
-                .from('inmuebles')
-                .select('meses_deuda, deuda_mmv')
-                .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`)
-                .neq('estado', 'Eliminado');
-              const maxChildMonths = Math.max(0, ...(currentChildren || []).map((c: any) => parseInt(String(c.meses_deuda || 0))));
-              const sumDeudaMmv = Math.round((currentChildren || []).reduce((s: number, c: any) => s + parseFloat(String(c.deuda_mmv || 0)), 0) * 10000) / 10000;
-              if (maxChildMonths === 0 || selectedRecibos.includes('RECIB-DEUDA')) {
-                await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0, saldo_favor_bs: 0 }).eq('id', parentInm.id);
-              } else {
-                await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths, deuda_mmv: sumDeudaMmv }).eq('id', parentInm.id);
+          if (!esAbonoDebito) {
+            // Si algún inmueble pertenecía a un contenedor padre N/A (ej: URB033481) o condominio, limpiar también el contenedor padre si sus hijos ya no tienen deuda
+            const parentCodesToSync = Array.from(new Set(userInmsClean.map((i: any) => i.condominio_padre_id || i.padre_id).filter(Boolean)));
+            for (const pCode of parentCodesToSync) {
+              const { data: parentInm } = await supabase.from('inmuebles').select('id, inmueble').eq('inmueble', pCode).maybeSingle();
+              if (parentInm) {
+                const { data: currentChildren } = await supabase
+                  .from('inmuebles')
+                  .select('meses_deuda, deuda_mmv')
+                  .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`)
+                  .neq('estado', 'Eliminado');
+                const maxChildMonths = Math.max(0, ...(currentChildren || []).map((c: any) => parseInt(String(c.meses_deuda || 0))));
+                const sumDeudaMmv = Math.round((currentChildren || []).reduce((s: number, c: any) => s + parseFloat(String(c.deuda_mmv || 0)), 0) * 10000) / 10000;
+                if (maxChildMonths === 0 || selectedRecibos.includes('RECIB-DEUDA')) {
+                  await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0, saldo_favor_bs: 0 }).eq('id', parentInm.id);
+                } else {
+                  await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths, deuda_mmv: sumDeudaMmv }).eq('id', parentInm.id);
+                }
               }
             }
           }
@@ -4100,19 +4084,25 @@ export default function CajaPage() {
           setDocNumber('');
         } else {
           // refreshUserData: refresca SOLO este contribuyente, evita recargar todo el sistema
+          const prevSelectedRecibos = [...selectedRecibos];
           await refreshUserData(foundUser?.Identidad || '');
-          setSelectedRecibos([]);
-          setSelectedCuotas([]);
-          setSelectedServicios([]);
-          setSelectedTalaPoda([]);
+          if (!esAbono) {
+            setSelectedRecibos([]);
+            setSelectedCuotas([]);
+            setSelectedServicios([]);
+            setSelectedTalaPoda([]);
+            setTotalBs(0);
+          }
           setReferencia('');
           setReferenciaDebito('');
           setMontoDebito('');
           setMontoTransferido('');
           setComprobante(null);
-          setTotalBs(0);
           setConfirmPayload(null);
           await handleSearch();
+          if (esAbono && prevSelectedRecibos.length > 0) {
+            setSelectedRecibos(prevSelectedRecibos);
+          }
         }
       }, 600);
       

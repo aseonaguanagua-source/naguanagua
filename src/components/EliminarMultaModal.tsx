@@ -28,11 +28,22 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
   const { refreshData, refreshUserData } = useAppContext();
   const rawId = (row?.Identidad || row?.identidad || '').replace(/-/g, '').toUpperCase();
   
-  // Inmuebles del contribuyente
+  // Inmuebles del contribuyente (propagando meses_deuda desde contenedores N/A hacia actividades hijas)
   const userInms = useMemo(() => {
-    return inmuebles.filter((i: any) =>
+    const rawList = inmuebles.filter((i: any) =>
       (i.identidad || '').replace(/-/g, '').toUpperCase() === rawId
     );
+    const naParents = rawList.filter((i: any) => String(i.actividad_principal || '').trim().toUpperCase() === 'N/A');
+    const maxParentMonths = Math.max(0, ...naParents.map((p: any) => parseInt(String(p.meses_deuda || '0'), 10)));
+    const nonNa = rawList.filter((i: any) => String(i.actividad_principal || '').trim().toUpperCase() !== 'N/A');
+    const baseList = nonNa.length > 0 ? nonNa : rawList;
+    return baseList.map((i: any) => {
+      const m = parseInt(String(i.meses_deuda || '0'), 10);
+      if (m <= 0 && maxParentMonths > 0) {
+        return { ...i, meses_deuda: maxParentMonths };
+      }
+      return i;
+    });
   }, [inmuebles, rawId]);
 
   const [selectedInmCode, setSelectedInmCode] = useState<string>(
@@ -86,7 +97,14 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
         const yaExoneradoEsteMes = yaExoneradoTodo || isMesExoneradoMulta(inm.notas, key);
         if (!yaExoneradoEsteMes) allExonerados = false;
         sumBaseBs += baseUnMes;
-        sumMultaBs += (!isOverdue || yaExoneradoEsteMes) ? 0 : baseMultaMes;
+        let multaEsteMes = (!isOverdue || yaExoneradoEsteMes) ? 0 : baseMultaMes;
+        if (multaEsteMes === 0 && !yaExoneradoEsteMes && i === 1) {
+          const multaGuardada = parseFloat(String(inm.multa_bs || '0')) || 0;
+          if (multaGuardada > 0) {
+            multaEsteMes = multaGuardada;
+          }
+        }
+        sumMultaBs += multaEsteMes;
       }
 
       items.push({
@@ -94,7 +112,7 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
         label: monthName,
         baseBs: parseFloat(sumBaseBs.toFixed(2)),
         multaBs: parseFloat(sumMultaBs.toFixed(2)),
-        isOverdue,
+        isOverdue: isOverdue || sumMultaBs > 0,
         yaExoneradoPreviamente: isOverdue && allExonerados
       });
     }
@@ -167,30 +185,59 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
       
       const todosLosMesesConMulta = mesesAdeudados.filter(m => m.multaBs > 0);
       const exoneroTodos = selectedMonths.length >= todosLosMesesConMulta.length;
-      const targetInms = isTodosSelected ? userInms : [activeInm];
+      const rawAllInms = inmuebles.filter((i: any) =>
+        (i.identidad || '').replace(/-/g, '').toUpperCase() === rawId
+      );
+      const naParents = rawAllInms.filter((i: any) => String(i.actividad_principal || '').trim().toUpperCase() === 'N/A');
+      const targetInms = isTodosSelected
+        ? [...userInms, ...naParents.filter((p: any) => !userInms.some((u: any) => u.id === p.id))]
+        : [activeInm, ...naParents.filter((p: any) => p.inmueble === activeInm.condominio_padre_id || p.inmueble === activeInm.padre_id)];
       const registroExoneracion = `[${fechaHoy} ${hora}] EXONERACIÓN DE MULTAS: Se eliminaron las multas de ${selectedMonths.length} mes(es) (${selectedMonths.join(', ')}). Motivo: ${nota.trim()} (Autorizado por: dzara)`;
 
       const now = new Date();
       for (const inm of targetInms) {
         let nuevaNota = (inm.notas || '').trim();
-        if (nuevaNota) {
-          nuevaNota += `\n---\n${registroExoneracion}`;
-        } else {
-          nuevaNota = registroExoneracion;
-        }
+        const tagsNuevos = selectedMonths.map(k => `[EXONERADO:${k}]`);
 
-        if (exoneroTodos) {
-          if (!nuevaNota.includes('Caso especial: Exonerado de multas')) {
-            nuevaNota = `Caso especial: Exonerado de multas\n${nuevaNota}`;
+        if (nuevaNota.startsWith('{') && nuevaNota.endsWith('}')) {
+          try {
+            const parsed = JSON.parse(nuevaNota);
+            if (exoneroTodos) {
+              parsed.exonerado_multas = 'Caso especial: Exonerado de multas';
+            }
+            parsed.ultima_exoneracion = `${registroExoneracion} ${tagsNuevos.join(' ')}`;
+            if (!parsed.periodos_custom || typeof parsed.periodos_custom !== 'object') {
+              parsed.periodos_custom = {};
+            }
+            for (const k of selectedMonths) {
+              parsed.periodos_custom[k] = {
+                ...(parsed.periodos_custom[k] || {}),
+                lleva_multa: false,
+                exonerar_multa: true
+              };
+            }
+            nuevaNota = JSON.stringify(parsed);
+          } catch {
+            nuevaNota = `${ exoneroTodos ? 'Caso especial: Exonerado de multas\n' : '' }${nuevaNota}\n---\n${registroExoneracion}\n${tagsNuevos.join(' ')}`;
           }
-        }
+        } else {
+          if (nuevaNota) {
+            nuevaNota += `\n---\n${registroExoneracion}`;
+          } else {
+            nuevaNota = registroExoneracion;
+          }
 
-        const tagsExistentes = nuevaNota.match(/\[EXONERADO:\d{4}-\d{2}\]/g) || [];
-        const tagsNuevos = selectedMonths
-          .map(k => `[EXONERADO:${k}]`)
-          .filter(t => !tagsExistentes.includes(t));
-        if (tagsNuevos.length > 0) {
-          nuevaNota += `\n${tagsNuevos.join(' ')}`;
+          if (exoneroTodos) {
+            if (!nuevaNota.includes('Caso especial: Exonerado de multas')) {
+              nuevaNota = `Caso especial: Exonerado de multas\n${nuevaNota}`;
+            }
+          }
+
+          const tagsExistentes = nuevaNota.match(/\[EXONERADO:\d{4}-\d{2}\]/g) || [];
+          const tagsFaltantes = tagsNuevos.filter(t => !tagsExistentes.includes(t));
+          if (tagsFaltantes.length > 0) {
+            nuevaNota += `\n${tagsFaltantes.join(' ')}`;
+          }
         }
 
         // Calcular multa remanente para este inmueble específico
@@ -238,6 +285,13 @@ export function EliminarMultaModal({ row, inmuebles, tcmmv, recibos, onClose, on
             : (lastSelKey ? `${lastSelKey}-01` : null);
 
           if (inm.inmueble) {
+            if (nuevosMesesMulta === 0) {
+              fetch('/api/admin/condominios/quitar-multas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ codigo: inm.inmueble, usuario: 'administrador', motivo: nota.trim() })
+              }).catch(() => {});
+            }
             // Si el código es un condominio matriz
             const { data: cMatriz } = await supabase
               .from('condominios')

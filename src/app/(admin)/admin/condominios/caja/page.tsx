@@ -1678,6 +1678,11 @@ function Caja() {
                                     💳 Nota de Crédito: Bs {fmtBs(r.saldoFavorBs)}
                                   </span>
                                 )}
+                                {r.agenteRetencion && !r.residencial && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold font-sans bg-violet-100 text-violet-800 border border-violet-300">
+                                    🛡️ Agente Retención (75% IVA)
+                                  </span>
+                                )}
                               </div>
                               <div className="text-[11px] text-slate-500">{r.propietario || ''}{r.identidad ? ` · ${r.identidad}` : ''}</div>
                               {r.actividad && <div className="text-[10px] text-violet-700 font-bold truncate max-w-[340px]">{r.actividad}</div>}

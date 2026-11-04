@@ -147,6 +147,7 @@ export interface RenglonEstado {
   multasManualesBs: number;
   totalBs: number;
   saldoFavorBs?: number;
+  agenteRetencion?: boolean;
 }
 
 export interface EstadoCuenta {
@@ -197,8 +198,8 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     const tieneMultaMesesExplicito = (u && !esGrupoOuNA) ? (u.multa_meses !== null && u.multa_meses !== undefined) : (condoRow.multa_meses !== null && condoRow.multa_meses !== undefined);
     const exoneradosPorPagosParciales = tieneMultaMesesExplicito ? Math.max(0, (meses - 1) - multaMesesRaw) : 0;
     const exonerados = exoneradoTotalInm ? meses : Math.max(exoneradosPorHasta, exoneradosPorPagosParciales);
-    // En INDIVIDUAL, cada unidad paga lo suyo, así que se usa su retención. En las demás, el condominio factura el Aseo.
-    const esAgente = c.modalidad === 'INDIVIDUAL' ? (u ? !!u.agente_retencion : false) : !!c.agente_retencion;
+    // Se respeta la condición de Agente de Retención tanto de la unidad individual como del condominio matriz
+    const esAgente = Boolean((u && u.agente_retencion) || c.agente_retencion);
     const periodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
     let basesPorMes: number[] | number = r.montoBs;
     let multasPorMes: (boolean | number)[] | undefined = undefined;
@@ -299,6 +300,7 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       mensualBs: r.montoBs, pendienteDesde: desde || null, periodos: M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy),
       deuda, multaMeses, multaExtraBs, multasManuales: manuales, multasManualesBs, totalBs: r2(deuda.totalBs + multaExtraBs + multasManualesBs),
       saldoFavorBs: Number(u?.saldo_favor_bs) >= 1.00 ? r2(Number(u.saldo_favor_bs)) : 0,
+      agenteRetencion: esAgente,
     };
   });
   // Multas manuales del condominio (sin unidad) cuando no hay renglón de condominio
@@ -436,11 +438,7 @@ export async function cargarCondominio(codigo: string) {
   const { data: inm } = await sb.from('inmuebles').select('agente_retencion, telefono, correo_electronico, notas, clave_portal').eq('inmueble', condo.codigo).maybeSingle();
   if (inm) {
     condo.clave_portal = inm.clave_portal || '';
-    if (condo.agente_retencion !== undefined && condo.agente_retencion !== null) {
-      condo.agente_retencion = !!condo.agente_retencion;
-    } else {
-      condo.agente_retencion = !!inm.agente_retencion;
-    }
+    condo.agente_retencion = Boolean(condo.agente_retencion || inm.agente_retencion);
     condo.telefono = condo.telefono || inm.telefono || '';
     condo.correo = condo.correo || inm.correo_electronico || '';
     if (!condo.notas && inm.notas) {
@@ -453,19 +451,21 @@ export async function cargarCondominio(codigo: string) {
   const rawUnidades = await todas((a, b) => sb.from('condominio_unidades').select('*').eq('condominio_id', condo.id).neq('estado', 'Eliminada').order('inmueble').range(a, b));
   
   // Fetch agente_retencion manually since there's no FK relation
-  const codigosUnidades = rawUnidades.map((u: any) => u.inmueble).filter(Boolean);
+  const codigosUnidades = rawUnidades.map((u: any) => String(u.inmueble || '').trim().toUpperCase()).filter(Boolean);
   const agentes = new Map<string, any>();
   if (codigosUnidades.length > 0) {
     for (let i = 0; i < codigosUnidades.length; i += 300) {
       const { data: inm } = await sb.from('inmuebles').select('inmueble, identidad, contribuyente, actividad_principal, numero_local, agente_retencion, meses_deuda, multa_bs, saldo_favor_bs, telefono, correo_electronico, direccion, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
-      (inm || []).forEach(r => agentes.set(r.inmueble, r));
+      (inm || []).forEach(r => {
+        if (r.inmueble) agentes.set(String(r.inmueble).trim().toUpperCase(), r);
+      });
     }
   }
   const esUnidadesPropias = unidadesPropias(condo);
   const unidadesASincronizarBD: { id: string; aseo_pendiente_desde: string | null; multa_meses: number }[] = [];
 
   const unidades = rawUnidades.map((u: any) => {
-    const inf = agentes.get(u.inmueble) || {};
+    const inf = agentes.get(String(u.inmueble || '').trim().toUpperCase()) || {};
     let extras = [];
     let desocupada_desde = null;
     let desocupada_hasta = null;
@@ -583,12 +583,12 @@ export async function resumenGeneral() {
   const infoInmuebles = new Map<string, any>();
   (inmueblesGlobal || []).forEach((c: any) => {
     if (c.identidad && c.agente_retencion) agentes.set(c.identidad, true);
-    if (c.inmueble) infoInmuebles.set(c.inmueble, c);
+    if (c.inmueble) infoInmuebles.set(String(c.inmueble).trim().toUpperCase(), c);
   });
 
   const condosMap = new Map<string, any>(condos.map((c: any) => [c.id, c]));
   unidades.forEach(u => {
-    const inf = infoInmuebles.get(u.inmueble) || {};
+    const inf = infoInmuebles.get(String(u.inmueble || '').trim().toUpperCase()) || {};
     u.agente_retencion = !!inf.agente_retencion;
     u.multa_bs = parseFloat(inf.multa_bs || '0');
     u.padre_inmueble = inf.padre_id || null;
@@ -606,11 +606,9 @@ export async function resumenGeneral() {
 
   const filas = condos.map(c => {
     const us = porCondo.get(c.id) || [];
-    const infCondo = infoInmuebles.get(c.codigo);
+    const infCondo = infoInmuebles.get(String(c.codigo || '').trim().toUpperCase());
     c.notas_inmueble = infCondo?.notas || '';
-    c.agente_retencion = c.agente_retencion !== undefined && c.agente_retencion !== null 
-      ? !!c.agente_retencion 
-      : !!infCondo?.agente_retencion;
+    c.agente_retencion = Boolean(c.agente_retencion || infCondo?.agente_retencion);
     const e = calcularEstado(c, us, tasa, new Date(), multasPor.get(c.id) || []);
     return {
       codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, tipo: c.tipo, modalidad: c.modalidad, estado: c.estado,

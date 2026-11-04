@@ -25,11 +25,23 @@ function ultimoMesFacturado(): string {
  */
 export async function POST(req: Request) {
   try {
-    const { codigo, unidad_id, usuario, motivo } = await req.json();
+    const { codigo, unidad_id: reqUnidadId, usuario, motivo } = await req.json();
+    let unidad_id = reqUnidadId;
     const t = await adminActivo(usuario);
     if (!t) return NextResponse.json({ error: 'Solo un administrador puede quitar multas.' }, { status: 403 });
     if (String(motivo || '').trim().length < 5) return NextResponse.json({ error: 'Escriba el motivo (mínimo 5 caracteres).' }, { status: 400 });
-    const { data: c } = await sb.from('condominios').select('id, codigo, nombre, multa_meses, multa_exonerada_hasta').eq('codigo', String(codigo || '').toUpperCase()).maybeSingle();
+    const codUpper = String(codigo || '').trim().toUpperCase();
+    let { data: c } = await sb.from('condominios').select('id, codigo, nombre, multa_meses, multa_exonerada_hasta').eq('codigo', codUpper).maybeSingle();
+    if (!c && codUpper) {
+      const { data: uByInm } = await sb.from('condominio_unidades').select('id, condominio_id').ilike('inmueble', codUpper).maybeSingle();
+      if (uByInm?.condominio_id) {
+        const { data: cParent } = await sb.from('condominios').select('id, codigo, nombre, multa_meses, multa_exonerada_hasta').eq('id', uByInm.condominio_id).maybeSingle();
+        if (cParent) {
+          c = cParent;
+          if (!unidad_id) unidad_id = uByInm.id;
+        }
+      }
+    }
     if (!c) return NextResponse.json({ error: 'Condominio no encontrado' }, { status: 404 });
     const hasta = '2099-12-31';
 

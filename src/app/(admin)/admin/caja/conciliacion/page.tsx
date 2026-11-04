@@ -1423,82 +1423,10 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   }).ilike('inmueble', inmCod);
                 }
               } else if (esAbonoParcialConcil && numMesesInm > 0 && dineroConcil > 0) {
-                const bMes = calcularMensualidad(inm, tasaParaGuardar || 981.18);
-                const esRes = isResidencialInm(inm);
-                const ivaMes = esRes ? 0 : Math.round((bMes * 0.16) * 100) / 100;
-                // Agente de retención: el contribuyente paga el IVA menos el 75% retenido (igual que Caja)
-                const retMes = !esRes && inm.agente_retencion === true ? Math.round((ivaMes * 0.75) * 100) / 100 : 0;
-                const tasaMora = esRes ? 0.10 : 0.12;
-                
-                const sAct = parseFloat(String(inm.saldo_favor_bs || '0')) || 0;
-                let dineroLocal = dineroConcil + sAct;
-
-                let cubiertos = 0;
-                const maxM = histRefsThisInm.length > 0 ? histRefsThisInm.length : numMesesInm;
-                
-                for (let m = 1; m <= maxM; m++) {
-                  const isUltimo = (m >= numMesesInm);
-                  const multaMes = isUltimo ? 0 : Math.round((bMes * tasaMora) * 100) / 100;
-                  const costoMes = Math.round((bMes + ivaMes - retMes) * 100) / 100 + multaMes;
-                  if (dineroLocal >= costoMes - 0.05) {
-                    dineroLocal = Math.max(0, dineroLocal - costoMes);
-                    cubiertos++;
-                  } else {
-                    break;
-                  }
-                }
-                
-                const nuevoMeses = Math.max(0, numMesesInm - cubiertos);
-                const d = parseFloat(String(inm.deuda_mmv || 0));
-                const m = parseFloat(String(inm.multa_bs || 0));
-                const nuevaDeudaMMV = nuevoMeses === 0 ? 0 : parseFloat(((d * nuevoMeses) / (numMesesInm || 1)).toFixed(6));
-                const nuevaMultaBs = nuevoMeses === 0 ? 0 : parseFloat(((m * nuevoMeses) / (numMesesInm || 1)).toFixed(2));
-                
-                let nuevoSaldo = 0;
-                if (dineroLocal > dineroConcil) {
-                  nuevoSaldo = dineroLocal - dineroConcil;
-                } else {
-                  dineroConcil = dineroLocal;
-                  nuevoSaldo = 0;
-                }
-
-                if (isLastInm && dineroConcil > 0.01) {
-                  nuevoSaldo += dineroConcil;
-                  dineroConcil = 0;
-                }
-
-                await supabase.from('inmuebles').update({
-                  meses_deuda: nuevoMeses,
-                  deuda_mmv: nuevaDeudaMMV,
-                  multa_bs: nuevaMultaBs,
-                  saldo_favor_bs: parseFloat(nuevoSaldo.toFixed(2)),
-                  ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
-                }).eq('id', inm.id);
-                if (inmCod && nuevoMeses < numMesesInm) {
-                  const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
-                  await supabase.from('condominio_unidades').update({
-                    aseo_pendiente_desde: pendienteDesdeParaMeses(nuevoMeses),
-                    ...(nuevaMultaBs <= 0.01 ? { multa_meses: Math.max(0, nuevoMeses - 1) } : {})
-                  }).ilike('inmueble', inmCod);
-                }
-                // Solo emitir Nota de Crédito si ya liquidó todos los meses (nuevoMeses === 0) y quedó un excedente real.
-                // Cuando nuevoMeses > 0 es un abono parcial en espera de una segunda transferencia, NO un excedente.
-                if (nuevoMeses === 0 && nuevoSaldo - sAct > 0.01) {
-                  updatedDet.saldo_favor_acreditado = true;
-                  await supabase.from('documentos').insert([{
-                    identidad: pago.identidad,
-                    contribuyente: contribInfo?.contribuyente || contribInfo?.Contribuyente || pago.contribuyente || '',
-                    tipo: 'Nota de Credito',
-                    estado: 'Vigente',
-                    detalles: JSON.stringify({
-                      monto: (nuevoSaldo - sAct).toFixed(2),
-                      pago_id: pago.id,
-                      origen_referencia: `Excedente conciliado. Referencia: ${pago.referencia || pago.id}`,
-                      fecha_emision: new Date().toISOString(),
-                      analista: updatedDet.analista,
-                    })
-                  }]);
-                }
+                // PAGO MÚLTIPLE / ABONO PARCIAL:
+                // No descontar actividades individuales ni acreditar el remanente como Nota de Crédito / Saldo a Favor.
+                // El pago queda aprobado con es_abono: true y abono_completado: false para que Caja descuente
+                // automáticamente este primer abono del monto total del recibo y cobre únicamente la diferencia restante.
               }
             }
 
@@ -1512,29 +1440,28 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               }
             });
 
-            for (const pCode of Array.from(parentCodesToSync)) {
-              const { data: parentInm } = await supabase.from('inmuebles').select('id, inmueble, meses_deuda').eq('inmueble', pCode).maybeSingle();
-              if (parentInm) {
-                const parentMonths = parseInt(String(parentInm.meses_deuda || 0));
-                // Si el padre N/A quedó en 0 meses de deuda, todos sus hijos unificados quedan automáticamente en 0
-                if (parentMonths === 0 || recibos.includes('RECIB-DEUDA')) {
-                  await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 })
-                    .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`);
-                  await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 })
-                    .eq('id', parentInm.id);
-                } else {
-                  // Si el padre tiene deuda, verificar el estado de los hijos
-                  const { data: currentChildren } = await supabase
-                    .from('inmuebles')
-                    .select('meses_deuda, deuda_mmv')
-                    .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`)
-                    .neq('estado', 'Eliminado');
-                  const maxChildMonths = Math.max(0, ...(currentChildren || []).map((c: any) => parseInt(String(c.meses_deuda || 0))));
-                  const sumDeudaMmv = Math.round((currentChildren || []).reduce((s: number, c: any) => s + parseFloat(String(c.deuda_mmv || 0)), 0) * 10000) / 10000;
-                  if (maxChildMonths === 0) {
-                    await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', parentInm.id);
+            if (!esAbonoParcialConcil) {
+              for (const pCode of Array.from(parentCodesToSync)) {
+                const { data: parentInm } = await supabase.from('inmuebles').select('id, inmueble, meses_deuda').eq('inmueble', pCode).maybeSingle();
+                if (parentInm) {
+                  if (recibos.includes('RECIB-DEUDA')) {
+                    await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 })
+                      .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`);
+                    await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 })
+                      .eq('id', parentInm.id);
                   } else {
-                    await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths, deuda_mmv: sumDeudaMmv }).eq('id', parentInm.id);
+                    const { data: currentChildren } = await supabase
+                      .from('inmuebles')
+                      .select('meses_deuda, deuda_mmv')
+                      .or(`condominio_padre_id.eq.${pCode},padre_id.eq.${pCode}`)
+                      .neq('estado', 'Eliminado');
+                    const maxChildMonths = Math.max(0, ...(currentChildren || []).map((c: any) => parseInt(String(c.meses_deuda || 0))));
+                    const sumDeudaMmv = Math.round((currentChildren || []).reduce((s: number, c: any) => s + parseFloat(String(c.deuda_mmv || 0)), 0) * 10000) / 10000;
+                    if (maxChildMonths === 0) {
+                      await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', parentInm.id);
+                    } else {
+                      await supabase.from('inmuebles').update({ meses_deuda: maxChildMonths, deuda_mmv: sumDeudaMmv }).eq('id', parentInm.id);
+                    }
                   }
                 }
               }
@@ -1663,11 +1590,17 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           if (typeof curDet === 'string') {
             try { curDet = JSON.parse(curDet); } catch(e) { curDet = {}; }
           }
-          curDet.factura_digital = curDet.factura_digital || {
-            emitida: false,
-            pendiente: true,
-            preparada_at: new Date().toISOString()
-          };
+          const esAbonoEnEspera = Boolean(curDet.es_abono || det.es_abono) && !curDet.abono_completado;
+          if (!esAbonoEnEspera) {
+            curDet.factura_digital = curDet.factura_digital || {
+              emitida: false,
+              pendiente: true,
+              preparada_at: new Date().toISOString()
+            };
+          } else {
+            curDet.es_abono = true;
+            curDet.abono_completado = false;
+          }
           curDet.recibos = recibos;
           // Pagos de la Caja de Condominios o con saldo a favor: NO alterar montos originales de la factura
           const esCondo = curDet.modulo === 'condominios' || det.modulo === 'condominios';
@@ -1681,7 +1614,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           const sfUsadoConcil = parseFloat(String(curDet.saldo_usado || curDet.saldo_favor_usado || curDet.descuento_saldo_favor || saldoFavorUsado || 0)) || 0;
           const montoNetoSinExcedente = Math.max(0, Math.round((montoConciliadoNum - excedenteCaja) * 100) / 100);
           const montoBrutoConcil = Math.round((montoNetoSinExcedente + retDocConcil + sfUsadoConcil) * 100) / 100;
-          if (!esCondo) {
+          if (!esCondo && !esAbonoEnEspera) {
             if (!curDet.monto_factura || parseFloat(String(curDet.monto_factura)) < montoBrutoConcil - 0.5) {
               curDet.monto_factura = montoBrutoConcil;
             }
@@ -1689,7 +1622,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               curDet.monto_neto_factura = montoNetoSinExcedente;
             }
           }
-          if (!esCondo && excedenteCaja <= 0.01) {
+          if (!esCondo && !esAbonoEnEspera && excedenteCaja <= 0.01) {
             const hasPerReceiptMontos = curDet.montos && typeof curDet.montos === 'object' && Object.keys(curDet.montos).some((k: string) => k !== 'total');
             if (!hasPerReceiptMontos) {
               curDet.montos = { total: montoBrutoConcil };

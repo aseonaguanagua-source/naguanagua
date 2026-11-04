@@ -729,6 +729,11 @@ function Ficha() {
                                       💳 Nota de Crédito: Bs {fmtBs(r.saldoFavorBs || u?.saldo_favor_bs)}
                                     </span>
                                   )}
+                                  {(r.agenteRetencion || u?.agente_retencion) && !r.residencial && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-violet-100 text-violet-800 border border-violet-300 shadow-2xs">
+                                      🛡️ Agente Retención (75% IVA)
+                                    </span>
+                                  )}
                                   {convUnidad && (
                                     <Link
                                       href="/admin/convenios-pago"
@@ -821,7 +826,7 @@ function Ficha() {
                                     {r.deuda.porMes.map((m: any, i: number) => (
                                       <div key={i} className="rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[11px]">
                                         <div className="font-black text-slate-800">{fmtPeriodo(r.periodos[i] || '')}</div>
-                                        <div className="text-slate-500">Aseo {fmtBs(m.baseBs)}{m.multaBs > 0 ? ` + multa ${fmtBs(m.multaBs)}` : ''}{m.ivaBs > 0 ? ` + IVA ${fmtBs(m.ivaBs)}` : ''}</div>
+                                        <div className="text-slate-500">Aseo {fmtBs(m.baseBs)}{m.multaBs > 0 ? ` + multa ${fmtBs(m.multaBs)}` : ''}{m.ivaBs > 0 ? ` + IVA ${fmtBs(m.ivaBs)}` : ''}{m.retencionBs > 0 ? ` − Ret. ${fmtBs(m.retencionBs)}` : ''}</div>
                                         <div className="font-bold text-slate-900">Bs {fmtBs(m.totalBs)}</div>
                                       </div>
                                     ))}

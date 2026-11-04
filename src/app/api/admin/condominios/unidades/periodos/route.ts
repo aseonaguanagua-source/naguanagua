@@ -26,32 +26,66 @@ export async function POST(req: Request) {
     const { data: inm } = await sb.from('inmuebles').select('notas, contribuyente, actividad_principal').eq('inmueble', inmCode).maybeSingle();
     let existingNotas: any = {};
     try {
-      if (inm?.notas) existingNotas = typeof inm.notas === 'string' ? JSON.parse(inm.notas) : inm.notas;
-    } catch {}
+      if (inm?.notas) {
+        existingNotas = typeof inm.notas === 'string' ? JSON.parse(inm.notas) : inm.notas;
+        if (typeof existingNotas !== 'object' || existingNotas === null) existingNotas = { texto_previo: String(inm.notas) };
+      }
+    } catch {
+      if (inm?.notas) existingNotas = { texto_previo: String(inm.notas) };
+    }
 
-    existingNotas.periodos_custom = periodos_custom;
+    const normalizedPeriodos: Record<string, any> = {};
+    if (periodos_custom && typeof periodos_custom === 'object') {
+      for (const [k, v] of Object.entries(periodos_custom) as [string, any][]) {
+        if (v && typeof v === 'object') {
+          const sinM = v.lleva_multa === false || v.exonerar_multa === true;
+          normalizedPeriodos[k] = {
+            ...v,
+            lleva_multa: !sinM,
+            exonerar_multa: sinM,
+          };
+        }
+      }
+    }
+
+    existingNotas.periodos_custom = normalizedPeriodos;
+
+    // Verificar si todos los períodos con mora quedaron sin multa
+    const entries = Object.entries(normalizedPeriodos).sort(([a], [b]) => a.localeCompare(b));
+    const periodosMora = entries.length > 1 ? entries.slice(0, -1) : entries;
+    const todosSinMulta = entries.length > 0 && periodosMora.every(([_, v]) => v.exonerar_multa === true || v.lleva_multa === false);
 
     // Actualizar inmuebles
-    const { error: errInm } = await sb.from('inmuebles').update({
+    const inmUpd: any = {
       notas: JSON.stringify(existingNotas)
-    }).eq('inmueble', inmCode);
+    };
+    if (todosSinMulta) {
+      inmUpd.multa_bs = 0;
+    }
+
+    const { error: errInm } = await sb.from('inmuebles').update(inmUpd).eq('inmueble', inmCode);
 
     if (errInm) return NextResponse.json({ error: errInm.message }, { status: 500 });
 
-    // Sincronizar también en condominio_unidades si todos los periodos custom tienen exonerar_multa
+    // Sincronizar también en condominio_unidades y condominio_multas
     try {
-      if (periodos_custom && typeof periodos_custom === 'object') {
-        const vals = Object.values(periodos_custom) as any[];
-        const conExo = vals.filter(v => v && v.exonerar_multa === true);
-        if (vals.length > 0 && conExo.length === vals.length) {
-          await sb.from('condominio_unidades')
-            .update({ multa_meses: 0, multa_exonerada_hasta: '2099-12-31' })
-            .eq('inmueble', inmCode);
-        } else if (vals.some(v => v && v.exonerar_multa === false)) {
-          await sb.from('condominio_unidades')
-            .update({ multa_exonerada_hasta: null })
-            .eq('inmueble', inmCode);
+      if (todosSinMulta) {
+        const { data: uRows } = await sb.from('condominio_unidades')
+          .update({ multa_meses: 0, multa_exonerada_hasta: '2099-12-31' })
+          .eq('inmueble', inmCode)
+          .select('id');
+        if (uRows && uRows.length > 0) {
+          const uIds = uRows.map((r: any) => r.id);
+          await sb.from('condominio_multas')
+            .update({ estado: 'Anulada' })
+            .in('unidad_id', uIds)
+            .eq('estado', 'Pendiente');
         }
+      } else if (entries.some(([_, v]) => v.lleva_multa === true && v.exonerar_multa === false)) {
+        const conMultaCount = periodosMora.filter(([_, v]) => v.lleva_multa === true).length;
+        await sb.from('condominio_unidades')
+          .update({ multa_meses: conMultaCount, multa_exonerada_hasta: null })
+          .eq('inmueble', inmCode);
       }
     } catch (syncErr) {
       console.warn('Advertencia sincronizando periodos_custom con condominio_unidades:', syncErr);

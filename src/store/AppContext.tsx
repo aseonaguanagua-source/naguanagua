@@ -518,7 +518,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ActividadComercial: (clase.includes('Comercial') || clase === 'Industrial' || clase === 'Mixto') ? (act || '') : '',
             TipoResidencia: clase === 'Residencial' ? (act || '') : '',
             Clasificacion: clase,
-            esAgenteRetencion: !isCondoChild && row.agente_retencion === true,
+            esAgenteRetencion: row.agente_retencion === true,
+            _hasNonCondoInm: !isCondoChild,
+            _hasNonCondoAgente: !isCondoChild && row.agente_retencion === true,
+            _hasAnyAgente: row.agente_retencion === true,
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
             DeudaMMV: rowDeudaMMV,
             MultaBs: rowMultaBs,
@@ -548,7 +551,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           existing.DeudaCongelada += rowCongelada;
           existing.MultaBs = (existing.MultaBs || 0) + rowMultaBs;
           existing.DeudaBs = (existing.DeudaBs || 0) + rowDeudaBs;
-          if (!isCondoChild && row.agente_retencion === true) existing.esAgenteRetencion = true;
+          if (!isCondoChild) existing._hasNonCondoInm = true;
+          if (!isCondoChild && row.agente_retencion === true) existing._hasNonCondoAgente = true;
+          if (row.agente_retencion === true) existing._hasAnyAgente = true;
+          existing.esAgenteRetencion = existing._hasNonCondoInm ? Boolean(existing._hasNonCondoAgente) : Boolean(existing._hasAnyAgente);
           if (!existing.condominio_padre_id && row.condominio_padre_id) {
             existing.condominio_padre_id = row.condominio_padre_id;
             existing.condominio_padre_nombre = pInfo?.nombre || null;
@@ -771,7 +777,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
               Telefono: freshContrib.telefono || c.Telefono,
               Contribuyente: freshContrib.nombre || c.Contribuyente,
               Direccion: freshContrib.direccion || c.Direccion,
-              esAgenteRetencion: freshInms ? freshInms.some((i: any) => !i.condominio_padre_id && i.agente_retencion === true) : false
+              esAgenteRetencion: freshInms ? (
+                freshInms.some((i: any) => !i.condominio_padre_id)
+                  ? freshInms.some((i: any) => !i.condominio_padre_id && i.agente_retencion === true)
+                  : freshInms.some((i: any) => i.agente_retencion === true)
+              ) : false
             };
           }
           return c;
