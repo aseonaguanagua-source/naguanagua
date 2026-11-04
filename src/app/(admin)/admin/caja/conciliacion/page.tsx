@@ -1399,6 +1399,9 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
 
               if (recibos.includes('RECIB-DEUDA') && !esAbonoParcialConcil) {
                 await supabase.from('inmuebles').update({ deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0, meses_deuda: 0 }).eq('id', inm.id);
+                if (inmCod) {
+                  await supabase.from('condominio_unidades').update({ aseo_pendiente_desde: null, multa_meses: 0 }).ilike('inmueble', inmCod);
+                }
               } else if (!esAbonoParcialConcil && (histRefsThisInm.length > 0 || facsThisInm.length > 0)) {
                 const mesesPagados = histRefsThisInm.length > 0 ? histRefsThisInm.length : facsThisInm.length;
                 const nuevoMeses = Math.max(0, numMesesInm - mesesPagados);
@@ -1412,6 +1415,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   multa_bs: nuevaMultaBs,
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                 }).eq('id', inm.id);
+                if (inmCod) {
+                  const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
+                  await supabase.from('condominio_unidades').update({
+                    aseo_pendiente_desde: pendienteDesdeParaMeses(nuevoMeses),
+                    ...(nuevaMultaBs <= 0.01 ? { multa_meses: Math.max(0, nuevoMeses - 1) } : {})
+                  }).ilike('inmueble', inmCod);
+                }
               } else if (esAbonoParcialConcil && numMesesInm > 0 && dineroConcil > 0) {
                 const bMes = calcularMensualidad(inm, tasaParaGuardar || 981.18);
                 const esRes = isResidencialInm(inm);
@@ -1464,6 +1474,13 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
                   saldo_favor_bs: parseFloat(nuevoSaldo.toFixed(2)),
                   ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                 }).eq('id', inm.id);
+                if (inmCod && nuevoMeses < numMesesInm) {
+                  const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
+                  await supabase.from('condominio_unidades').update({
+                    aseo_pendiente_desde: pendienteDesdeParaMeses(nuevoMeses),
+                    ...(nuevaMultaBs <= 0.01 ? { multa_meses: Math.max(0, nuevoMeses - 1) } : {})
+                  }).ilike('inmueble', inmCod);
+                }
                 // Solo emitir Nota de Crédito si ya liquidó todos los meses (nuevoMeses === 0) y quedó un excedente real.
                 // Cuando nuevoMeses > 0 es un abono parcial en espera de una segunda transferencia, NO un excedente.
                 if (nuevoMeses === 0 && nuevoSaldo - sAct > 0.01) {
@@ -1545,18 +1562,29 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         if (det.modulo === 'condominios' || (pago as any).modulo === 'condominios') {
           const condoData = det.condominio || {};
           const lineasCondo: any[] = Array.isArray(condoData.lineas) ? condoData.lineas : [];
+          const { avanzarPendiente, mesesPendientes } = await import('@/lib/condominios/motor');
           for (const lc of lineasCondo) {
             if (lc.inmueble) {
-              await supabase.from('inmuebles').update({
-                meses_deuda: 0,
-                deuda_mmv: 0,
-                deuda_congelada_bs: 0,
-                multa_bs: 0
-              }).ilike('inmueble', lc.inmueble);
-              await supabase.from('condominio_unidades').update({
-                aseo_pendiente_desde: null,
-                multa_meses: 0
-              }).ilike('inmueble', lc.inmueble);
+              const periodosPagados: string[] = Array.isArray(lc.periodos) ? lc.periodos : [];
+              const ultimoPeriodoPagado = periodosPagados.length > 0 ? [...periodosPagados].sort().pop()! : '';
+              const { data: uRow } = await supabase.from('condominio_unidades').select('id, aseo_pendiente_desde, multa_meses').ilike('inmueble', lc.inmueble).maybeSingle();
+              if (uRow) {
+                const desdeAct = uRow.aseo_pendiente_desde ? String(uRow.aseo_pendiente_desde).slice(0, 7) : '';
+                if (desdeAct && (!ultimoPeriodoPagado || desdeAct <= ultimoPeriodoPagado)) {
+                  const nuevoDesde = ultimoPeriodoPagado
+                    ? avanzarPendiente(`${ultimoPeriodoPagado}-01`, 1)
+                    : null;
+                  const mesesRest = mesesPendientes(nuevoDesde);
+                  await supabase.from('condominio_unidades').update({
+                    aseo_pendiente_desde: nuevoDesde,
+                    multa_meses: Math.max(0, mesesRest - 1)
+                  }).eq('id', uRow.id);
+                  await supabase.from('inmuebles').update({
+                    meses_deuda: mesesRest,
+                    ...(mesesRest === 0 ? { deuda_mmv: 0, deuda_congelada_bs: 0, multa_bs: 0 } : { multa_bs: 0 })
+                  }).ilike('inmueble', lc.inmueble);
+                }
+              }
             }
           }
         }

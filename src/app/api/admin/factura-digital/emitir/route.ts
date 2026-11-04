@@ -2057,6 +2057,14 @@ export async function POST(request: Request) {
     }
     if (modulo) updatePayload.modulo = modulo;
     if (totalManualNum > 0) updatePayload.monto = totalManualNum;
+    // Si se emite la factura con fecha de un mes anterior (ej. cierre de Octubre facturado en Noviembre),
+    // sincronizar created_at del registro para que Conciliación, Libro de Ventas y Reportes lo ubiquen en ese mes.
+    if (fechaEmisionOverride && /^\d{4}-\d{2}-\d{2}$/.test(fechaEmisionYMD)) {
+      const fRegActual = pagoRow?.created_at ? new Date(new Date(pagoRow.created_at).getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10) : '';
+      if (!fRegActual || fechaEmisionYMD.slice(0, 7) < fRegActual.slice(0, 7)) {
+        updatePayload.created_at = `${fechaEmisionYMD}T16:00:00.000Z`;
+      }
+    }
 
     await supabase.from('pagos_reportados').update(updatePayload).eq('id', pagoId);
 

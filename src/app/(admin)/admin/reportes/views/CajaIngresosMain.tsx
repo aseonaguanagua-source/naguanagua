@@ -233,7 +233,9 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
       // Excluir pagos anulados, reversados o condonados de todos los reportes
       if (p.estado === 'Anulado' || p.estado === 'Reversado' || p.estado === 'Condonado' || p.estado === 'Rechazado') return false;
       const det = parseDet(p);
-      const d = new Date(p.created_at);
+      const fd = det.factura_digital || {};
+      const fOv = det.fecha_emision_override || det.fecha_asignacion_override || (fd.fecha_emision ? String(fd.fecha_emision).slice(0, 10) : '');
+      const d = (fOv && /^\d{4}-\d{2}-\d{2}$/.test(String(fOv))) ? new Date(`${String(fOv)}T12:00:00`) : new Date(p.created_at);
       const fTx = det.fecha_transaccion || det.fecha_banco || '';
       const fTxDate = fTx ? new Date(fTx + 'T12:00:00') : null;
       

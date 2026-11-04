@@ -372,18 +372,32 @@ export async function POST(req: Request) {
 
                 if (recibos.includes('RECIB-DEUDA') || (histInm.length >= curMeses && histInm.length > 0)) {
                   await sb.from('inmuebles').update({ meses_deuda: 0, deuda_mmv: 0, multa_bs: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
+                  if (cod) {
+                    await sb.from('condominio_unidades').update({ aseo_pendiente_desde: null, multa_meses: 0 }).ilike('inmueble', cod);
+                  }
                 } else if (histInm.length > 0) {
                   const nuevoMeses = Math.max(0, curMeses - histInm.length);
                   const dMmv = parseFloat(String(inm.deuda_mmv || 0));
                   const mBs = parseFloat(String(inm.multa_bs || 0));
+                  const nuevaMulta = multaInm.length > 0 ? 0 : (nuevoMeses === 0 ? 0 : parseFloat(((mBs * nuevoMeses) / (curMeses || 1)).toFixed(2)));
                   await sb.from('inmuebles').update({
                     meses_deuda: nuevoMeses,
                     deuda_mmv: nuevoMeses === 0 ? 0 : parseFloat(((dMmv * nuevoMeses) / (curMeses || 1)).toFixed(6)),
-                    multa_bs: multaInm.length > 0 ? 0 : (nuevoMeses === 0 ? 0 : parseFloat(((mBs * nuevoMeses) / (curMeses || 1)).toFixed(2))),
+                    multa_bs: nuevaMulta,
                     ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
                   }).eq('id', inm.id);
+                  if (cod) {
+                    const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
+                    await sb.from('condominio_unidades').update({
+                      aseo_pendiente_desde: pendienteDesdeParaMeses(nuevoMeses),
+                      ...(nuevaMulta <= 0.01 ? { multa_meses: Math.max(0, nuevoMeses - 1) } : {})
+                    }).ilike('inmueble', cod);
+                  }
                 } else if (multaInm.length > 0) {
                   await sb.from('inmuebles').update({ multa_bs: 0, deuda_congelada_bs: 0 }).eq('id', inm.id);
+                  if (cod) {
+                    await sb.from('condominio_unidades').update({ multa_meses: 0 }).ilike('inmueble', cod);
+                  }
                 }
               }
             }

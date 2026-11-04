@@ -516,15 +516,27 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       return paRef && paRef !== pRef && transf.some((otro: any) => String(otro?.referencia || '').trim().toLowerCase() === paRef);
     }));
 
+    const fd = det.factura_digital || {};
+    const rc0 = Array.isArray(det.recibo_caja) ? det.recibo_caja[0] : det.recibo_caja;
+    const fFacturaRaw =
+      det.fecha_emision_override ||
+      det.fecha_asignacion_override ||
+      (fd.fecha_emision ? String(fd.fecha_emision).slice(0, 10) : '') ||
+      (fd.fecha_asignacion ? String(fd.fecha_asignacion).slice(0, 10) : '') ||
+      (rc0?.fechaEmision && fRegistro && String(rc0.fechaEmision).slice(0, 7) < fRegistro.slice(0, 7) ? String(rc0.fechaEmision).slice(0, 10) : '') ||
+      fRegistro;
+    const fFactura = /^\d{4}-\d{2}-\d{2}$/.test(String(fFacturaRaw)) ? String(fFacturaRaw) : fRegistro;
+
     if (pagsAgregados && pagsAgregados.length > 1 && !yaExistenComoFilasSeparadas) {
       const totalBase = pagsAgregados.reduce((acc: number, x: any) => acc + (Number(x.monto) || 0), 0) || Number(p.monto) || 1;
       pagsAgregados.forEach((pa: any) => {
-        let fPagoSub = String(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fRegistro).slice(0, 10);
-        // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro del pago, usar la fecha de registro
-        if (fRegistro && fPagoSub > fRegistro) {
-          fPagoSub = fRegistro;
+        let fPagoSub = String(pa.fecha || pa.fechaTransaccion || det.fecha_transaccion || det.fecha_banco || fFactura || fRegistro).slice(0, 10);
+        // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro o factura, usar la fecha de factura/registro
+        const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
+        if (limiteFecha && fPagoSub > limiteFecha) {
+          fPagoSub = limiteFecha;
         }
-        const keySub = fPagoSub.slice(0, 7);
+        const keySub = (fFactura && fFactura.slice(0, 7) < fPagoSub.slice(0, 7) ? fFactura : fPagoSub).slice(0, 7);
         if (!porMes.has(keySub)) porMes.set(keySub, []);
         porMes.get(keySub)!.push({
           p: {
@@ -536,6 +548,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           },
           det,
           fPago: fPagoSub,
+          fFactura,
           esSubPago: true,
           montoTotalReportado: totalBase,
         });
@@ -545,14 +558,15 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       const paExacto = (Array.isArray(det.pagos_agregados) ? det.pagos_agregados : []).find((a: any) => String(a?.referencia || '').trim() === String(p.referencia || '').trim());
       const fPagoPropia = String(fpExacto?.fecha || paExacto?.fecha || paExacto?.fechaTransaccion || '').slice(0, 10);
       const fPagoBancaria = det.fecha_banco || (Array.isArray(det.formasPago) && det.formasPago[0]?.fecha ? String(det.formasPago[0].fecha).slice(0, 10) : '');
-      let fPago = fPagoPropia || String(fPagoBancaria || det.fecha_transaccion || fRegistro).slice(0, 10);
-      // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro del pago, usar la fecha de registro
-      if (fRegistro && fPago > fRegistro) {
-        fPago = fRegistro;
+      let fPago = fPagoPropia || String(fPagoBancaria || det.fecha_transaccion || fFactura || fRegistro).slice(0, 10);
+      // Si por error de tipeo la fecha del pago fue guardada en un mes futuro respecto al registro o factura, usar la fecha de factura/registro
+      const limiteFecha = fFactura && fFactura < fRegistro ? fFactura : fRegistro;
+      if (limiteFecha && fPago > limiteFecha) {
+        fPago = limiteFecha;
       }
-      const key = fPago.slice(0, 7);
+      const key = (fFactura && fFactura.slice(0, 7) < fPago.slice(0, 7) ? fFactura : fPago).slice(0, 7);
       if (!porMes.has(key)) porMes.set(key, []);
-      porMes.get(key)!.push({ p, det, fPago, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
+      porMes.get(key)!.push({ p, det, fPago, fFactura, esSubPago: false, montoTotalReportado: Number(p.monto) || 1, yaExistenComoFilasSeparadas: !!yaExistenComoFilasSeparadas });
     }
   });
 
@@ -605,7 +619,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
       wsBan.mergeCells(f - 1, 2, f - 1, 18);
 
       let subGrupo = 0;
-      g.items.forEach(({ p, det, fPago, esSubPago, montoTotalReportado, yaExistenComoFilasSeparadas }) => {
+      g.items.forEach(({ p, det, fPago, fFactura, esSubPago, montoTotalReportado, yaExistenComoFilasSeparadas }: any) => {
         const fpMatch = (Array.isArray(det.formasPago) ? det.formasPago : []).find(
           (fp: any) => String(fp?.referencia || '').trim() === String(p.referencia || '').trim()
         );
@@ -711,7 +725,7 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
           '';
 
         const vals: any[] = [
-          dmy(fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fechaVE(p.created_at)),
+          dmy(fPago), p.banco || '', bDestLabel, refTexto, p.tipo || 'Transferencia', mPagado, dmy(fFactura || fechaVE(p.created_at)),
           nroDoc, codPrincipal, nombreDe(p.identidad, det),
           cajero,
           mt.base, mt.iva > 0 ? 16 : 0, mt.iva, mt.ret, r2(nc), mt.exento,

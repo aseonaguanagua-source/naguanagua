@@ -145,11 +145,21 @@ export default function ReportesPage() {
   }, []);
 
   // --- Legacy export functions (kept for download buttons) ---
+  const fechaEfectivaPago = (p: any): Date => {
+    const det = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
+    const fd = det.factura_digital || {};
+    const fOv = det.fecha_emision_override || det.fecha_asignacion_override || (fd.fecha_emision ? String(fd.fecha_emision).slice(0, 10) : '');
+    if (fOv && /^\d{4}-\d{2}-\d{2}$/.test(String(fOv))) {
+      return new Date(`${String(fOv)}T12:00:00`);
+    }
+    return new Date(p.created_at);
+  };
+
   const generarLibroVentas = (tipo: 'Diario' | 'Semanal' | 'Mensual') => {
     let pf = pagos;
     if (fechaInicio && fechaFin) {
       const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
-      pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return d >= s && d <= e; });
+      pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
     }
     generarLibroVentasExcel(pf, contribuyentes, tipo, fechaInicio, fechaFin);
   };
@@ -224,7 +234,7 @@ export default function ReportesPage() {
 
   if (activeView === 'recibos-pagos') {
     const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
-    const pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return d >= s && d <= e; });
+    const pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -253,7 +263,7 @@ export default function ReportesPage() {
 
   if (activeView === 'conciliacion-bancaria') {
     const s = new Date(fechaInicio + 'T00:00:00'), e = new Date(fechaFin + 'T23:59:59');
-    const pf = pagos.filter((p: any) => { const d = new Date(p.created_at); return d >= s && d <= e; });
+    const pf = pagos.filter((p: any) => { const d = fechaEfectivaPago(p); return d >= s && d <= e; });
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">

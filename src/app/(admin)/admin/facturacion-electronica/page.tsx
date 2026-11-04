@@ -819,17 +819,25 @@ export default function FacturacionElectronicaPage() {
     setCorreoDestinoEmision(pago.correo || tfhkaConfig?.config?.fallbackEmail || 'facturacion.naguanagua@gmail.com');
     setEnviarCorreoAlEmitir(true);
     const fechaPagoOrig = (pago.detalles?.fecha_transaccion || pago.detalles?.fecha_banco || pago.fechaPago || pago.created_at || '').slice(0, 10);
+    const hoyYMD = hoyCaracas();
+    const txEnMesAnterior =
+      pago.detalles?.fecha_transaccion &&
+      /^\d{4}-\d{2}-\d{2}$/.test(String(pago.detalles.fecha_transaccion).slice(0, 10)) &&
+      String(pago.detalles.fecha_transaccion).slice(0, 7) < hoyYMD.slice(0, 7)
+        ? String(pago.detalles.fecha_transaccion).slice(0, 10)
+        : '';
     const fechaEmisionGuardada = (
       pago.fechaEmisionOverride ||
       pago.detalles?.fecha_emision_override ||
       pago.detalles?.fecha_asignacion_override ||
       pago.fechaEmision ||
       pago.detalles?.factura_digital?.fecha_emision ||
+      txEnMesAnterior ||
       ''
-    ).slice(0, 10) || hoyCaracas();
+    ).slice(0, 10) || hoyYMD;
     setEmitFechaEmision(fechaEmisionGuardada);
     setEmitFechaAsignacion(fechaEmisionGuardada);
-    setEmitFechaPago(fechaPagoOrig || hoyCaracas());
+    setEmitFechaPago(fechaPagoOrig || hoyYMD);
   };
 
   // Abrir Modal de Edición Directa de Datos Fiscales
@@ -1683,24 +1691,26 @@ export default function FacturacionElectronicaPage() {
                             </>
                           ) : (pago.facturaEmitida || pago.facturaAnulada) ? (
                             <>
-                              <button
-                                onClick={() => setSelectedPagoForDemo(pago)}
-                                className="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-slate-200 transition-colors cursor-pointer"
-                                title="Ver e imprimir formato oficial con Fecha de Emisión y Asignación iguales y editables"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-blue-600" />
-                                <span>{pago.facturaAnulada ? 'Factura' : 'PDF'}</span>
-                              </button>
-                              {pago.facturaUrl && (
+                              {pago.facturaUrl && !String(pago.facturaUrl).includes('democonsulta.thefactoryhka.com.ve') ? (
                                 <a
                                   href={pago.facturaUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-[11px] bg-white hover:bg-slate-100 text-slate-600 font-bold px-2 py-1.5 rounded-lg flex items-center gap-1 border border-slate-200 transition-colors"
-                                  title="Abrir enlace en portal The Factory HKA"
+                                  className="text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors"
+                                  title="Abrir Factura Digital Oficial en formato PDF del SENIAT (The Factory HKA)"
                                 >
-                                  <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  <span>{pago.facturaAnulada ? 'Factura PDF' : 'PDF'}</span>
                                 </a>
+                              ) : (
+                                <button
+                                  onClick={() => setSelectedPagoForDemo(pago)}
+                                  className="text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                  title="Ver e imprimir Factura Digital en formato PDF"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>{pago.facturaAnulada ? 'Factura PDF' : 'PDF'}</span>
+                                </button>
                               )}
                               {pago.notaCreditoUrl && (
                                 <a

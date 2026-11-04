@@ -3357,6 +3357,15 @@ export default function CajaPage() {
                 ...(nuevoMeses === 0 ? { deuda_congelada_bs: 0 } : {})
               }).eq('id', inm.id);
               if (eAbono) throw new Error(`El pago quedó registrado pero no se pudo descontar la deuda de ${inm.inmueble}: ${eAbono.message}. Avise a soporte.`);
+              if (inm.inmueble) {
+                try {
+                  const { pendienteDesdeParaMeses } = await import('@/lib/condominios/motor');
+                  await supabase.from('condominio_unidades').update({
+                    aseo_pendiente_desde: pendienteDesdeParaMeses(nuevoMeses),
+                    ...(nuevaMultaBs <= 0.01 ? { multa_meses: Math.max(0, nuevoMeses - 1) } : {})
+                  }).ilike('inmueble', inm.inmueble);
+                } catch {}
+              }
             }
           }
 

@@ -457,10 +457,13 @@ export async function cargarCondominio(codigo: string) {
   const agentes = new Map<string, any>();
   if (codigosUnidades.length > 0) {
     for (let i = 0; i < codigosUnidades.length; i += 300) {
-      const { data: inm } = await sb.from('inmuebles').select('inmueble, identidad, contribuyente, actividad_principal, numero_local, agente_retencion, multa_bs, saldo_favor_bs, telefono, correo_electronico, direccion, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
+      const { data: inm } = await sb.from('inmuebles').select('inmueble, identidad, contribuyente, actividad_principal, numero_local, agente_retencion, meses_deuda, multa_bs, saldo_favor_bs, telefono, correo_electronico, direccion, notas, padre_id').in('inmueble', codigosUnidades.slice(i, i + 300));
       (inm || []).forEach(r => agentes.set(r.inmueble, r));
     }
   }
+  const esUnidadesPropias = unidadesPropias(condo);
+  const unidadesASincronizarBD: { id: string; aseo_pendiente_desde: string | null; multa_meses: number }[] = [];
+
   const unidades = rawUnidades.map((u: any) => {
     const inf = agentes.get(u.inmueble) || {};
     let extras = [];
@@ -483,15 +486,37 @@ export async function cargarCondominio(codigo: string) {
       }
     } catch (e) {}
     const rawSF = parseFloat(inf.saldo_favor_bs || '0') || 0;
+    const multaBsInm = parseFloat(inf.multa_bs || '0') || 0;
+
+    // Auto-reconciliar si en tabla `inmuebles` ya se descontó el mes (ej. Septiembre 2026 pagado/facturado)
+    // pero `condominio_unidades` quedó rezagada con más meses pendientes
+    let aseoDesdeEfectivo = u.aseo_pendiente_desde;
+    let multaMesesEfectivo = u.multa_meses;
+    if (esUnidadesPropias && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
+      const mInm = Math.max(0, parseInt(String(inf.meses_deuda), 10) || 0);
+      const mUnid = M.mesesPendientes(u.aseo_pendiente_desde);
+      if (mUnid >= 2 && mInm === 1 && multaBsInm <= 0.01) {
+        aseoDesdeEfectivo = M.pendienteDesdeParaMeses(1);
+        multaMesesEfectivo = 0;
+        unidadesASincronizarBD.push({
+          id: u.id,
+          aseo_pendiente_desde: aseoDesdeEfectivo,
+          multa_meses: 0,
+        });
+      }
+    }
+
     return {
       ...u,
+      aseo_pendiente_desde: aseoDesdeEfectivo,
+      multa_meses: multaMesesEfectivo,
       identidad: u.identidad || inf.identidad || null,
       propietario: u.propietario || inf.contribuyente || null,
       actividad: u.actividad || inf.actividad_principal || null,
       numero: u.numero || inf.numero_local || null,
       padre_inmueble: inf.padre_id || null,
       agente_retencion: !!inf.agente_retencion,
-      multa_bs: parseFloat(inf.multa_bs || '0'),
+      multa_bs: multaBsInm,
       saldo_favor_bs: rawSF >= 1.00 ? r2(rawSF) : 0,
       telefono: inf.telefono || '',
       correo: inf.correo_electronico || '',
@@ -506,6 +531,16 @@ export async function cargarCondominio(codigo: string) {
       periodos_custom
     };
   });
+
+  if (unidadesASincronizarBD.length > 0) {
+    Promise.all(
+      unidadesASincronizarBD.map(item =>
+        sb.from('condominio_unidades')
+          .update({ aseo_pendiente_desde: item.aseo_pendiente_desde, multa_meses: item.multa_meses })
+          .eq('id', item.id)
+      )
+    ).catch(() => {});
+  }
   
   const { data: movimientos } = await sb.from('condominio_movimientos').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false }).limit(300);
   const { data: multas } = await sb.from('condominio_multas').select('*').eq('condominio_id', condo.id).order('created_at', { ascending: false });
@@ -543,7 +578,7 @@ export async function resumenGeneral() {
   (multas || []).forEach(m => { if (!multasPor.has(m.condominio_id)) multasPor.set(m.condominio_id, []); multasPor.get(m.condominio_id)!.push(m); });
 
   // Paginado: antes solo leía los primeros 1000 inmuebles (límite de Supabase)
-  const inmueblesGlobal = await todas((a, b) => sb.from('inmuebles').select('identidad, agente_retencion, inmueble, multa_bs, padre_id, notas').order('id').range(a, b));
+  const inmueblesGlobal = await todas((a, b) => sb.from('inmuebles').select('identidad, agente_retencion, inmueble, meses_deuda, multa_bs, padre_id, notas').order('id').range(a, b));
   const agentes = new Map<string, boolean>();
   const infoInmuebles = new Map<string, any>();
   (inmueblesGlobal || []).forEach((c: any) => {
@@ -551,12 +586,22 @@ export async function resumenGeneral() {
     if (c.inmueble) infoInmuebles.set(c.inmueble, c);
   });
 
+  const condosMap = new Map<string, any>(condos.map((c: any) => [c.id, c]));
   unidades.forEach(u => {
     const inf = infoInmuebles.get(u.inmueble) || {};
     u.agente_retencion = !!inf.agente_retencion;
     u.multa_bs = parseFloat(inf.multa_bs || '0');
     u.padre_inmueble = inf.padre_id || null;
     u.notas_inmueble = inf.notas || '';
+    const cPadre = condosMap.get(u.condominio_id);
+    if (cPadre && unidadesPropias(cPadre) && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
+      const mInm = Math.max(0, parseInt(String(inf.meses_deuda), 10) || 0);
+      const mUnid = M.mesesPendientes(u.aseo_pendiente_desde);
+      if (mUnid >= 2 && mInm === 1 && u.multa_bs <= 0.01) {
+        u.aseo_pendiente_desde = M.pendienteDesdeParaMeses(1);
+        u.multa_meses = 0;
+      }
+    }
   });
 
   const filas = condos.map(c => {

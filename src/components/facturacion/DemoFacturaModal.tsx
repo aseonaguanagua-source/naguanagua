@@ -570,7 +570,9 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-sm sm:text-base tracking-wide text-white">
-                  Demo y Formato Oficial — The Factory HKA
+                  {pago?.facturaEmitida && !pago?.facturaAnulada
+                    ? 'Formato Oficial de Factura Digital — The Factory HKA'
+                    : 'Demo y Formato Oficial — The Factory HKA'}
                 </h3>
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black">
                   Providencia SNAT
@@ -1020,9 +1022,9 @@ export function DemoFacturaModal({ isOpen, onClose, pago, onProcederEmitir }: De
               onClick={onClose}
               className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              Cerrar Vista Previa
+              {pago?.facturaEmitida && !pago?.facturaAnulada ? 'Cerrar' : 'Cerrar Vista Previa'}
             </button>
-            {onProcederEmitir && (
+            {onProcederEmitir && !(pago?.facturaEmitida && !pago?.facturaAnulada) && (
               <button
                 onClick={() => {
                   onClose();
