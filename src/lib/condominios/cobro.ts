@@ -35,6 +35,8 @@ export type ModoCobro = 'CONDOMINIO' | 'CONTRIBUYENTE';
 export interface SolicitudCobro {
     codigo: string;
     modo?: ModoCobro;
+    /** Modalidad explícita: 'completo' | 'abono_locales' (para Condominio) o 'individual' | 'multas_separadas' (para Local) */
+    modalidad?: 'completo' | 'abono_locales' | 'individual' | 'multas_separadas';
     /** Renglones a pagar en modo CONTRIBUYENTE (claves del estado de cuenta). */
     claves?: string[];
     /** Cédula/RIF del dueño: toma todas sus unidades en este condominio (modo CONTRIBUYENTE). */
@@ -762,25 +764,67 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         montoSaldoFavor = Number(pago.montoRecibido) || 0;
     }
 
+    const esModoCondominio = cobro.modo === 'CONDOMINIO' && !sol.soloMultas;
     const idUnidades = Array.from(new Set(cobro.lineas.map(l => porId.get(l.clave)?.identidad).filter(Boolean)));
-    const unidadSel = cobro.lineas.length === 1 ? porId.get(cobro.lineas[0].clave) : null;
-    const pagadorIdentidad = (cobro.modo === 'CONTRIBUYENTE' && cobro.facturas[0]?.identidad)
-        || (unidadSel && unidadSel.identidad)
-        || (idUnidades.length === 1 ? idUnidades[0] : null)
-        || (sol.identidad ? String(sol.identidad).trim() : null)
-        || c.identidad;
+    const unidadSel = !esModoCondominio && cobro.lineas.length === 1 ? porId.get(cobro.lineas[0].clave) : null;
 
-    const pagadorNombre = (cobro.modo === 'CONTRIBUYENTE' && cobro.facturas[0]?.nombre)
-        || (unidadSel && (unidadSel.propietario || unidadSel.nombre))
-        || (idUnidades.length === 1 && porId.get(cobro.lineas[0].clave)?.propietario)
-        || c.nombre;
+    const pagadorIdentidad = esModoCondominio
+        ? (c.identidad || c.codigo)
+        : (cobro.facturas[0]?.identidad
+            || (unidadSel && unidadSel.identidad)
+            || (idUnidades.length === 1 ? idUnidades[0] : null)
+            || (sol.identidad ? String(sol.identidad).trim() : null)
+            || c.identidad);
 
-    const codigoInmuebleHijo = (unidadSel && unidadSel.inmueble) || cobro.lineas[0]?.inmueble || undefined;
-    const codigoTargetSF = (cobro.modo === 'CONTRIBUYENTE' || unidadSel) ? codigoInmuebleHijo : c?.codigo;
+    const pagadorNombre = esModoCondominio
+        ? c.nombre
+        : (cobro.facturas[0]?.nombre
+            || (unidadSel && (unidadSel.propietario || unidadSel.nombre))
+            || (idUnidades.length === 1 && porId.get(cobro.lineas[0].clave)?.propietario)
+            || c.nombre);
+
+    const codigoInmuebleHijo = !esModoCondominio
+        ? ((unidadSel && unidadSel.inmueble) || cobro.lineas[0]?.inmueble || undefined)
+        : undefined;
+    const codigoTargetSF = esModoCondominio ? c?.codigo : codigoInmuebleHijo;
+    const ambitoNC = esModoCondominio ? 'CONDOMINIO' : 'LOCAL';
+    const modalidadOrigenNC = sol.modalidad || (esModoCondominio
+        ? (sol.claves && sol.claves.length > 0 ? 'abono_locales' : 'completo')
+        : (sol.soloMultas ? 'multas_separadas' : 'individual'));
 
     if (montoSaldoFavor > 0 && pagadorIdentidad) {
         const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor, codigoTargetSF, sb);
         if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
+    }
+
+    if (pago.saldoFavorGenerado && pago.saldoFavorGenerado >= 1.00 && pagadorIdentidad) {
+        const mGen = Math.round(pago.saldoFavorGenerado * 100) / 100;
+        const resAc = await acreditarSaldoFavor(pagadorIdentidad, mGen, codigoTargetSF, sb);
+        if (!resAc.ok) throw new Error('Error al acreditar Saldo a Favor: ' + resAc.error);
+
+        // Registrar Nota de Crédito automática por excedente diferenciando CONDOMINIO vs LOCAL
+        await sb.from('documentos').insert([{
+            identidad: pagadorIdentidad,
+            contribuyente: pagadorNombre || pagadorIdentidad,
+            tipo: 'Nota de Credito',
+            estado: 'Vigente',
+            detalles: JSON.stringify({
+                monto: mGen.toFixed(2),
+                monto_bs: mGen,
+                ambito: ambitoNC,
+                modalidad_origen: modalidadOrigenNC,
+                codigo_inmueble: esModoCondominio ? c?.codigo : codigoInmuebleHijo,
+                codigo_condominio: c?.codigo || undefined,
+                origen_referencia: esModoCondominio
+                    ? `Excedente Caja de Condominios (${modalidadOrigenNC === 'abono_locales' ? 'Abono por Locales' : 'Pago Completo'}) ${c.codigo}. Ref: ${ref}`
+                    : `Excedente Caja de Condominios Local ${codigoInmuebleHijo || ''} (${modalidadOrigenNC === 'multas_separadas' ? 'Multas' : 'Individual'}). Ref: ${ref}`,
+                motivo: esModoCondominio
+                    ? `Nota de crédito automática por excedente de pago del condominio (${modalidadOrigenNC === 'abono_locales' ? 'Abono por Locales' : 'Pago Completo'})`
+                    : `Nota de crédito automática por excedente de pago del local ${codigoInmuebleHijo || ''}`,
+                fecha_emision: hoy.toISOString(),
+                cajero: pago.cajero
+            })
+        }]);
     }
 
     // 2) Bajar la deuda en el módulo y sincronizar tabla inmuebles

@@ -18,6 +18,7 @@ export async function POST(req: Request) {
     const sol: SolicitudCobro = {
       codigo: String(b.codigo || '').toUpperCase(),
       modo: b.modo === 'CONTRIBUYENTE' ? 'CONTRIBUYENTE' : b.modo === 'CONDOMINIO' ? 'CONDOMINIO' : undefined,
+      modalidad: ['completo', 'abono_locales', 'individual', 'multas_separadas'].includes(b.modalidad) ? b.modalidad : undefined,
       claves: Array.isArray(b.claves) ? b.claves : [],
       identidad: b.identidad ? String(b.identidad).trim().toUpperCase() : null,
       meses: b.meses ? Number(b.meses) : null,
@@ -37,8 +38,9 @@ export async function POST(req: Request) {
       const { _datos, ...cobro } = await prepararCobro(sol);
       
       // Extraer saldo a favor consolidando únicamente Notas de Crédito VIGENTES autoritativas en `documentos`
+      // diferenciando estrictamente CONDOMINIO (Pago Completo / Abono por Locales) vs LOCAL (Individual / Multas)
       let saldoFavorDisp = 0;
-      const esModoContribuyente = cobro.modo === 'CONTRIBUYENTE';
+      const esModoContribuyente = cobro.modo === 'CONTRIBUYENTE' || !!sol.soloMultas;
       const currId = esModoContribuyente
         ? (cobro.facturas[0]?.identidad || sol.identidad || cobro.lineas[0]?.identidad)
         : cobro.condo?.identidad;
@@ -49,7 +51,6 @@ export async function POST(req: Request) {
       );
       const idVars = currId ? getIdentidadVariantsExact(currId) : [];
 
-      // Saldo en tabla documentos (Notas de Crédito VIGENTES creadas explícitamente)
       let saldoDocs = 0;
       try {
         let qDocs = sb.from('documentos').select('*').eq('tipo', 'Nota de Credito').eq('estado', 'Vigente');
@@ -65,25 +66,28 @@ export async function POST(req: Request) {
           saldoDocs = (docsData || []).reduce((acc: number, n: any) => {
             let det: any = {};
             try { det = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
-            const orig = String(det.origen_referencia || '').trim();
-            // Ignorar notas automáticas fantasma por excedente
-            if (orig.startsWith('Excedente Caja de Condominios') || orig.startsWith('Excedente conciliado')) return acc;
 
+            const docAmbito = String(det.ambito || '').trim().toUpperCase();
             const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
             const docCondo = String(det.codigo_condominio || '').trim().toUpperCase();
             const docIdentClean = String(n.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
 
             if (esModoContribuyente) {
-              // En modo contribuyente individual, si el documento tiene el RIF genérico del condominio matriz,
-              // solo aplica si apunta explícitamente al código de la unidad hija seleccionada.
+              // En modo Dueño Individual o Multas Separadas: NUNCA usar notas de crédito del Condominio matriz
+              if (docAmbito === 'CONDOMINIO' || (docInm && docInm === condoCod)) {
+                return acc;
+              }
               if (docIdentClean === condoRifClean && (!docInm || !codigosUnidadesCobro.includes(docInm))) {
                 return acc;
               }
-              if (docInm && docInm !== condoCod && !codigosUnidadesCobro.includes(docInm)) {
+              if (docInm && !codigosUnidadesCobro.includes(docInm)) {
                 return acc;
               }
             } else {
-              // En modo CONDOMINIO, no mezclar notas que pertenezcan a un local hijo específico distinto a la matriz
+              // En modo CONDOMINIO (Pago Completo o Abono por Locales): NUNCA mezclar notas de locales individuales
+              if (docAmbito === 'LOCAL') {
+                return acc;
+              }
               if (docInm && docInm !== condoCod) {
                 return acc;
               }
@@ -133,15 +137,28 @@ export async function POST(req: Request) {
     if (!activa) return NextResponse.json({ error: 'La Caja de Condominios está en MODO PRUEBA: solo calcula, no registra pagos. El administrador la activa en la fecha aprobada.' }, { status: 409 });
 
     const p = b.pago || {};
-    const montoAgregados = Array.isArray(p.pagosAgregados) && p.pagosAgregados.length > 0
-      ? p.pagosAgregados.reduce((a: number, x: any) => a + (Number(x?.monto) || 0), 0)
+    const cobroCalc = await prepararCobro(sol);
+    const sfUsado = Array.isArray(p.pagosAgregados)
+      ? p.pagosAgregados.filter((x: any) => x?.metodo === 'Saldo a Favor').reduce((a: number, x: any) => a + (Number(x?.monto) || 0), 0)
+      : (p.metodo === 'Saldo a Favor' ? (Number(p.montoRecibido) || 0) : 0);
+    // Monto pagado por medios reales (excluyendo Saldo a Favor para no duplicar la nota consumida)
+    const montoRealesAgregados = Array.isArray(p.pagosAgregados) && p.pagosAgregados.length > 0
+      ? p.pagosAgregados.filter((x: any) => x?.metodo !== 'Saldo a Favor').reduce((a: number, x: any) => a + (Number(x?.monto) || 0), 0)
+      : (p.metodo !== 'Saldo a Favor' ? (Number(p.montoRecibido) || 0) : 0);
+    const totalDeudaNeta = Math.max(0, Math.round(((Number(cobroCalc.totales.totalBs) || 0) - sfUsado) * 100) / 100);
+    const excedenteCalc = montoRealesAgregados > totalDeudaNeta + 0.99
+      ? Math.round((montoRealesAgregados - totalDeudaNeta) * 100) / 100
       : 0;
-    const recibido = montoAgregados > 0 ? montoAgregados : (Number(p.montoRecibido) || 0);
+    const excedenteFinal = Number(p.saldoFavorGenerado) >= 1.00
+      ? Math.round(Number(p.saldoFavorGenerado) * 100) / 100
+      : excedenteCalc;
+    const recibidoTotal = Math.round((montoRealesAgregados + sfUsado) * 100) / 100;
+
     const r = await registrarCobro(sol, {
       pagoId: String(p.pagoId || ''), metodo: String(p.metodo || ''), banco: p.banco, bancoDestino: p.bancoDestino, referencia: p.referencia,
-      montoRecibido: recibido, cajero: String(p.cajero || trab.usuario), usuario: `${trab.nombre || trab.usuario} (${trab.usuario})`,
+      montoRecibido: recibidoTotal, cajero: String(p.cajero || trab.usuario), usuario: `${trab.nombre || trab.usuario} (${trab.usuario})`,
       pagosAgregados: p.pagosAgregados,
-      saldoFavorGenerado: 0,
+      saldoFavorGenerado: excedenteFinal >= 1.00 ? excedenteFinal : 0,
     });
     const { _datos, ...cobro } = r.cobro as any;
     return NextResponse.json({ ...r, cobro });

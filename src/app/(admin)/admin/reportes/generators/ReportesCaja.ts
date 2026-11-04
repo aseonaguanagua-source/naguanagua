@@ -72,7 +72,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     return String(raw || '').replace(/^\d+\s*-\s*(?=[A-Za-z])/, '').trim();
   };
 
-  const porDia = new Map<string, Map<string, { cajero: string; monto: number; usuarios: Set<string> }>>();
+  const porDia = new Map<string, Map<string, { cajero: string; monto: number; usuarios: number }>>();
   const todasCajas = new Map<string, string>();
   deb.forEach(p => {
     const det = parseDet(p);
@@ -81,10 +81,10 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
     todasCajas.set(caja, cajero);
     if (!porDia.has(dia)) porDia.set(dia, new Map());
     const m = porDia.get(dia)!;
-    if (!m.has(caja)) m.set(caja, { cajero, monto: 0, usuarios: new Set() });
+    if (!m.has(caja)) m.set(caja, { cajero, monto: 0, usuarios: 0 });
     const c = m.get(caja)!;
     c.monto += Number(p.monto) || 0;
-    c.usuarios.add(String(p.identidad || ''));
+    c.usuarios += 1;
   });
   const cajasOrden = [...todasCajas.keys()].sort();
   const wb = new ExcelJS.Workbook();
@@ -265,7 +265,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
   diasCalendario.forEach((dia, idx) => {
     const m = porDia.get(dia);
     const monto = m ? [...m.values()].reduce((s, c) => s + c.monto, 0) : 0;
-    const usuarios = m ? [...m.values()].reduce((s, c) => s + c.usuarios.size, 0) : 0;
+    const usuarios = m ? [...m.values()].reduce((s, c) => s + c.usuarios, 0) : 0;
     const activas = m ? m.size : 0;
     const d = new Date(`${dia}T12:00:00`);
     const dow = d.getDay(); // 0=dom, 6=sáb
@@ -356,7 +356,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
       const nomCajero = c?.cajero || todasCajas.get(caja) || '';
       const ubic = ubicacionDeCaja(caja, nomCajero);
       const row = ws.getRow(r++);
-      [caja, nomCajero, c ? '✔️' : '❌', ubic, c ? r2(c.monto) : 0, c ? c.usuarios.size : null]
+      [caja, nomCajero, c ? '✔️' : '❌', ubic, c ? r2(c.monto) : 0, c ? c.usuarios : null]
         .forEach((v, i) => {
           const cell = row.getCell(i + 1);
           cell.value = v as any;
@@ -365,7 +365,7 @@ export async function generarTotalPuntosVenta(pagos: any[], fechaInicio: string,
           if (i === 0 || i === 2 || i === 3 || i === 5) cell.alignment = { horizontal: 'center' };
           if (i === 4) cell.numFmt = '"Bs. "#,##0.00;("Bs. "#,##0.00);"-"';
         });
-      if (c) { sm += c.monto; su += c.usuarios.size; }
+      if (c) { sm += c.monto; su += c.usuarios; }
     });
     const t = ws.getRow(r);
     ['TOTAL', '', m.size, '', r2(sm), su].forEach((v, i) => {
@@ -762,14 +762,14 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
 
   // Conciliación del punto: total del sistema por caja y día (cierre de lote lo completa el analista)
   wsPto.columns = [{ width: 14 }, { width: 14 }, { width: 24 }, { width: 18 }, { width: 14 }, { width: 14 }] as any;
-  const pto = new Map<string, Map<string, { monto: number; usuarios: Set<string> }>>();
+  const pto = new Map<string, Map<string, { monto: number; usuarios: number }>>();
   deb.forEach(p => {
     const { caja } = cajaDe(parseDet(p));
     const dia = fechaVE(p.created_at);
     if (!pto.has(caja)) pto.set(caja, new Map());
     const m = pto.get(caja)!;
-    if (!m.has(dia)) m.set(dia, { monto: 0, usuarios: new Set() });
-    const x = m.get(dia)!; x.monto += Number(p.monto) || 0; x.usuarios.add(String(p.identidad || ''));
+    if (!m.has(dia)) m.set(dia, { monto: 0, usuarios: 0 });
+    const x = m.get(dia)!; x.monto += Number(p.monto) || 0; x.usuarios += 1;
   });
   let fp = 1; let totalPunto = 0;
   [...pto.keys()].sort().forEach(caja => {
@@ -781,10 +781,10 @@ export async function generarConciliacionTransferencias(pagos: any[], contribuye
     [...m.keys()].sort().forEach(dia => {
       const x = m.get(dia)!;
       const row = wsPto.getRow(fp);
-      ['', dmy(dia), r2(x.monto), null, null, x.usuarios.size].forEach((v, i) => { const c = row.getCell(i + 1); c.value = v as any; c.border = BORDE; if (i === 2 || i === 3 || i === 4) c.numFmt = '#,##0.00'; });
+      ['', dmy(dia), r2(x.monto), null, null, x.usuarios].forEach((v, i) => { const c = row.getCell(i + 1); c.value = v as any; c.border = BORDE; if (i === 2 || i === 3 || i === 4) c.numFmt = '#,##0.00'; });
       row.getCell(5).value = { formula: `IF(D${fp}="","",D${fp}-C${fp})` } as any;
       totalCaja += x.monto;
-      totalPersonasCaja += x.usuarios.size;
+      totalPersonasCaja += x.usuarios;
       fp++;
     });
 

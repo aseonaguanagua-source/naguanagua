@@ -37,16 +37,32 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
   const variantes = [...new Set([id, sinGuion, conGuion].filter(Boolean))];
 
-  let query = client.from('inmuebles').select('id, saldo_favor_bs, estado, inmueble');
+  let data: any[] | null = null;
+  let error: any = null;
+
   if (codigoInmueble) {
-    query = query.or(`identidad.in.(${variantes.join(',')}),inmueble.eq.${codigoInmueble.toUpperCase()}`);
-  } else if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
-    query = query.or(`inmueble.eq.${id},identidad.in.(${variantes.join(',')})`);
-  } else {
-    query = query.in('identidad', variantes);
+    const codUpper = String(codigoInmueble).trim().toUpperCase();
+    const resCod = await client
+      .from('inmuebles')
+      .select('id, saldo_favor_bs, estado, inmueble')
+      .eq('inmueble', codUpper)
+      .order('id', { ascending: true });
+    if (!resCod.error && resCod.data && resCod.data.length > 0) {
+      data = resCod.data;
+    }
   }
 
-  const { data, error } = await query.order('id', { ascending: true });
+  if (!data) {
+    let query = client.from('inmuebles').select('id, saldo_favor_bs, estado, inmueble');
+    if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
+      query = query.or(`inmueble.eq.${id},identidad.in.(${variantes.join(',')})`);
+    } else {
+      query = query.in('identidad', variantes);
+    }
+    const resId = await query.order('id', { ascending: true });
+    data = resId.data;
+    error = resId.error;
+  }
 
   if (error || !data || data.length === 0) {
     return { total: 0, inmueblePrincipalId: null };
@@ -65,19 +81,25 @@ export async function getSaldoFavorTotal(identidad: string, codigoInmueble?: str
 }
 
 /**
- * Acredita saldo a favor al inmueble principal del contribuyente y/o condominio.
+ * Resuelve el registro en `condominios` SOLO si el código corresponde a la matriz del condominio
+ * (o si no se pasó un código de local hijo específico).
+ * Si `codigoCondominio` es el código de un local hijo (ej. URB003523), NO debe hacer fallback por RIF
+ * al condominio padre, para no mezclar el saldo del local individual con el saldo del condominio.
  */
 async function resolveCondo(identidad?: string, codigoCondominio?: string, client?: any): Promise<{ id: string; codigo: string; abono_bs: number } | null> {
   const sb = client || supabase;
   if (codigoCondominio) {
-    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', String(codigoCondominio).trim().toUpperCase()).neq('estado', 'Eliminado').maybeSingle();
+    const codUpper = String(codigoCondominio).trim().toUpperCase();
+    const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', codUpper).neq('estado', 'Eliminado').maybeSingle();
     if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
+    // Si se pasó un código específico de inmueble (URB/AURI) y NO está en `condominios`, es un local hijo individual: NO acreditar al condominio matriz
+    if (/^(URB|AURI|[A-Z]{2,})\d+/i.test(codUpper)) return null;
   }
   if (!identidad) return null;
   const idTrim = String(identidad).trim().toUpperCase();
   if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(idTrim)) {
     const { data } = await sb.from('condominios').select('id, codigo, abono_bs').eq('codigo', idTrim).neq('estado', 'Eliminado').maybeSingle();
-    if (data) return { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 };
+    return data ? { id: data.id, codigo: data.codigo, abono_bs: parseFloat(data.abono_bs || '0') || 0 } : null;
   }
   const sinGuion = idTrim.replace(/[^A-Z0-9]/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : idTrim;
@@ -163,17 +185,34 @@ export async function descontarSaldoFavor(
   const sinGuion = id.replace(/-/g, '');
   const conGuion = /^[VEJPG]\d/.test(sinGuion) ? `${sinGuion[0]}-${sinGuion.slice(1)}` : id;
   const variantes = [...new Set([id, sinGuion, conGuion].filter(Boolean))];
+  const codTargetUpper = codigoCondominio ? String(codigoCondominio).trim().toUpperCase() : '';
 
-  let q = client.from('inmuebles').select('id, saldo_favor_bs');
-  if (codigoCondominio) {
-    q = q.or(`identidad.in.(${variantes.join(',')}),inmueble.eq.${codigoCondominio.toUpperCase()}`);
-  } else if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
-    q = q.or(`inmueble.eq.${id},identidad.in.(${variantes.join(',')})`);
-  } else {
-    q = q.in('identidad', variantes);
+  let inms: any[] | null = null;
+  let e1: any = null;
+
+  if (codTargetUpper) {
+    const resCod = await client
+      .from('inmuebles')
+      .select('id, saldo_favor_bs, inmueble')
+      .eq('inmueble', codTargetUpper)
+      .order('id', { ascending: true });
+    if (!resCod.error && resCod.data && resCod.data.length > 0) {
+      inms = resCod.data;
+    }
   }
 
-  const { data: inms, error: e1 } = await q.order('id', { ascending: true });
+  if (!inms) {
+    let q = client.from('inmuebles').select('id, saldo_favor_bs, inmueble');
+    if (/^(URB|AURI|[A-Z]{3,})\d+/i.test(id)) {
+      q = q.or(`inmueble.eq.${id},identidad.in.(${variantes.join(',')})`);
+    } else {
+      q = q.in('identidad', variantes);
+    }
+    const resId = await q.order('id', { ascending: true });
+    inms = resId.data;
+    e1 = resId.error;
+  }
+
   if (e1) return { ok: false, error: e1.message };
   if (!inms || inms.length === 0) {
     if (condoActualizado || condoRow) return { ok: true, nuevoSaldo: 0 };
@@ -194,15 +233,18 @@ export async function descontarSaldoFavor(
 
   // 3. Consumir / actualizar Notas de Crédito vigentes en tabla documentos para que no se vuelvan a sumar
   try {
-    const docIdents = [...new Set([...variantes, ...(codigoCondominio ? [codigoCondominio.toUpperCase()] : [])].filter(Boolean))];
+    const docIdents = [...new Set([...variantes, ...(codTargetUpper ? [codTargetUpper] : [])].filter(Boolean))];
     if (docIdents.length > 0) {
       const { data: docsVigentes } = await client
         .from('documentos')
-        .select('id, estado, detalles')
+        .select('id, estado, identidad, detalles')
         .eq('tipo', 'Nota de Credito')
         .eq('estado', 'Vigente')
         .in('identidad', docIdents)
         .order('created_at', { ascending: true });
+
+      const esCondoMatriz = Boolean(condoRow && codTargetUpper && condoRow.codigo.toUpperCase() === codTargetUpper);
+      const esLocalHijo = Boolean(!condoRow && codTargetUpper && /^(URB|AURI|[A-Z]{2,})\d+/i.test(codTargetUpper));
 
       let porConsumirDoc = montoNum;
       for (const doc of docsVigentes || []) {
@@ -211,6 +253,17 @@ export async function descontarSaldoFavor(
         try {
           det = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {});
         } catch {}
+
+        const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
+        const docAmbito = String(det.ambito || '').trim().toUpperCase();
+
+        // Respetar separación estricta entre Nota de Crédito de Condominio Matriz vs Local Individual
+        if (esCondoMatriz) {
+          if (docAmbito === 'LOCAL' || (docInm && docInm !== codTargetUpper)) continue;
+        } else if (esLocalHijo) {
+          if (docAmbito === 'CONDOMINIO' || (docInm && docInm !== codTargetUpper)) continue;
+        }
+
         const montoDoc = parseFloat(String(det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;
         if (montoDoc <= 0.009) continue;
 

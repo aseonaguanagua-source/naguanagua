@@ -1522,8 +1522,98 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
 
-        // No generar notas de crédito automáticas por excedente en Conciliación (evita notas de crédito fantasma por diferencias de tasa, retención o multas)
-        const excedenteCaja = 0;
+        // ── ACREDITAR SALDO A FAVOR / NOTA DE CRÉDITO AUTOMÁTICA POR EXCEDENTE REAL (>= Bs 1.00) ──
+        // Reglas estrictas anti-fantasma y de separación Condominio vs Local:
+        // 1. Nunca restar `saldo_usado` dos veces (`monto_neto_factura` en Caja ya tiene descontado `saldo_usado` y `retencion_iva`).
+        // 2. Si el pago viene de Caja de Condominios y ya acreditó su excedente al registrarse (`saldo_favor_acreditado: true`), no volver a acreditarlo.
+        // 3. Si es pago de Condominio (Pago Completo / Abono por Locales), la Nota de Crédito se asigna al Condominio (`ambito: 'CONDOMINIO'`, `codigo_inmueble: codigoCondo`).
+        // 4. Si es pago de Local Individual o Multa (`modo === 'CONTRIBUYENTE'` o local específico), la Nota de Crédito se asigna a ese Local (`ambito: 'LOCAL'`, `codigo_inmueble: codigoLocal`).
+        const retencionDocCalc = parseFloat(String(det.monto_retencion_iva || det.retencion_iva || det.retencion_monto || montoRetencionDoc || 0)) || 0;
+        const sfUsadoDocCalc = parseFloat(String(det.saldo_usado || det.saldo_favor_usado || det.descuento_saldo_favor || saldoFavorUsado || 0)) || 0;
+        const abonoPrevDocCalc = parseFloat(String(det.abono_previo_descontado || 0)) || 0;
+
+        let deudaNetaBancaria = 0;
+        const totalSelNum = parseFloat(String(det.total_seleccionado || 0)) || 0;
+        const montoNetoFacNum = parseFloat(String(det.monto_neto_factura || 0)) || 0;
+        const montoBrutoFacNum = parseFloat(String(det.monto_factura || det.montoTotal || 0)) || 0;
+
+        if (totalSelNum > 0) {
+          deudaNetaBancaria = Math.max(0, Math.round((totalSelNum - retencionDocCalc - sfUsadoDocCalc - abonoPrevDocCalc) * 100) / 100);
+        } else if (montoNetoFacNum > 0 && det.modulo !== 'condominios') {
+          // En Caja regular, monto_neto_factura (finalTotal) YA tiene descontados retención, abono previo y saldo_usado
+          deudaNetaBancaria = Math.round(montoNetoFacNum * 100) / 100;
+        } else if (montoBrutoFacNum > 0) {
+          deudaNetaBancaria = Math.max(0, Math.round((montoBrutoFacNum - retencionDocCalc - sfUsadoDocCalc - abonoPrevDocCalc) * 100) / 100);
+        }
+
+        const yaAcreditadoEnCaja = det.saldo_favor_acreditado
+          ? (parseFloat(String(det.saldo_favor || det.saldo_a_favor_nuevo || 0)) || 0)
+          : 0;
+        const excedenteBrutoConcil = (!esAbonoParcialConcil && !det.es_abono && deudaNetaBancaria > 0 && montoConciliadoNum > deudaNetaBancaria + 0.99)
+          ? Math.round((montoConciliadoNum - deudaNetaBancaria) * 100) / 100
+          : 0;
+        const excedenteCaja = Math.max(0, Math.round((excedenteBrutoConcil - yaAcreditadoEnCaja) * 100) / 100);
+
+        if (excedenteCaja >= 1.00) {
+          const esPagoModuloCondo = det.modulo === 'condominios' || (pago as any).modulo === 'condominios' || Boolean(det.condominio);
+          const condoCodRef = String(det.condominio?.codigo || det.codigo_condominio || '').trim().toUpperCase();
+          const lineasCondoArr = Array.isArray(det.condominio?.lineas) ? det.condominio.lineas : [];
+          const esModoCondoGlobal = esPagoModuloCondo && det.modo === 'CONDOMINIO' && !det.soloMultas;
+
+          const targetInmNC = esModoCondoGlobal
+            ? condoCodRef
+            : String(
+                lineasCondoArr[0]?.inmueble ||
+                det.codigo_inmueble ||
+                det.cod_inmueble ||
+                Array.from(propertyCodesFromRefs)[0] ||
+                contribInfo?.inmueble ||
+                ''
+              ).trim().toUpperCase();
+
+          const ambitoConcil = esModoCondoGlobal
+            ? 'CONDOMINIO'
+            : (esPagoModuloCondo || condoCodRef || contribInfo?.condominio_padre_id ? 'LOCAL' : 'CONTRIBUYENTE');
+
+          const identNC = esModoCondoGlobal
+            ? (det.condominio?.identidad || pago.identidad)
+            : (lineasCondoArr[0]?.identidad || pago.identidad);
+
+          const nombreNC = esModoCondoGlobal
+            ? (det.condominio?.nombre || det.contribuyente || pago.identidad)
+            : (lineasCondoArr[0]?.propietario || det.contribuyente || contribInfo?.contribuyente || contribInfo?.Contribuyente || pago.identidad);
+
+          const { data: existingNC } = await supabase
+            .from('documentos')
+            .select('id')
+            .eq('tipo', 'Nota de Credito')
+            .eq('estado', 'Vigente')
+            .ilike('detalles', `%${refFinal || pago.referencia || pago.id}%`)
+            .limit(1);
+
+          if (!existingNC || existingNC.length === 0) {
+            await acreditarSaldoFavor(identNC, excedenteCaja, targetInmNC || condoCodRef || undefined);
+            await supabase.from('documentos').insert([{
+              identidad: identNC,
+              contribuyente: nombreNC,
+              tipo: 'Nota de Credito',
+              estado: 'Vigente',
+              detalles: JSON.stringify({
+                monto: excedenteCaja.toFixed(2),
+                monto_bs: excedenteCaja,
+                ambito: ambitoConcil,
+                codigo_inmueble: targetInmNC || undefined,
+                codigo_condominio: condoCodRef || contribInfo?.condominio_padre_id || undefined,
+                origen_referencia: `Excedente conciliado (${ambitoConcil === 'CONDOMINIO' ? `Condominio ${condoCodRef}` : `Local ${targetInmNC || identNC}`}). Ref: ${refFinal || pago.referencia || pago.id}`,
+                motivo: ambitoConcil === 'CONDOMINIO'
+                  ? `Nota de crédito automática por excedente de pago del condominio ${condoCodRef}`
+                  : `Nota de crédito automática por excedente de pago del local ${targetInmNC || identNC}`,
+                fecha_emision: new Date().toISOString(),
+                analista: updatedDet.analista,
+              })
+            }]);
+          }
+        }
         
         // ── FACTURACIÓN DIGITAL THE FACTORY HKA (EN COLA PARA REVISIÓN / EMISIÓN MANUAL) ──
         try {

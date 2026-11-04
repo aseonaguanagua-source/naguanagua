@@ -370,6 +370,22 @@ export default function CajaIngresosMain({ pagos, cajeros, isAdmin, currentUser,
         <div><b>Fecha:</b> Desde {new Date(fechaInicio).toLocaleString('es-VE', { hour: '2-digit', minute: '2-digit' })} hasta {new Date(fechaFin).toLocaleString('es-VE', { hour: '2-digit', minute: '2-digit' })}</div>
         <div style={{ marginTop: 4 }}><b>Cajero:</b> {cajeroLabel}</div>
         <div style={{ textAlign: 'right', marginTop: 4 }}>Total Registros: <b>{pagosFiltrados.length}</b></div>
+        <div style={{ textAlign: 'right', marginTop: 2, fontSize: 11, color: '#1e3a8a' }}>
+          Registros por Punto: <b>{debitos.length + creditos.length}</b>
+        </div>
+        <div style={{ textAlign: 'right', marginTop: 2, fontSize: 11, color: '#047857' }}>
+          Registros por Transferencia: <b>{transferencias.length}</b>
+        </div>
+        {saldosAFavor.length > 0 && (
+          <div style={{ textAlign: 'right', marginTop: 2, fontSize: 11, color: '#6d28d9' }}>
+            Registros por Saldo a Favor: <b>{saldosAFavor.length}</b>
+          </div>
+        )}
+        {retenciones.length > 0 && (
+          <div style={{ textAlign: 'right', marginTop: 2, fontSize: 11, color: '#64748b' }}>
+            Registros Retención IVA: <b>{retenciones.length}</b>
+          </div>
+        )}
       </div>
       <div style={{ padding: '10px 14px', background: '#edfaed', textAlign: 'center' }}>
         <div style={{ fontWeight: 700, color: '#2a5298', marginBottom: 4 }}>{title}:</div>

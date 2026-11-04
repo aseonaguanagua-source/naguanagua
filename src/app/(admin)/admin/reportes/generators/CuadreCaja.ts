@@ -123,23 +123,35 @@ export const generarCuadreCajaPDF = (
   const totalRetenciones = retenciones.reduce((acc: number, p: any) => acc + (parseFloat(p.monto) || 0), 0);
   const totalGeneral = totalDebito + totalCredito + totalTransf + totalDeposito + totalSaldo;
 
+  const totalPorPunto = debitos.length + creditos.length;
+  const totalPorTransf = transferencias.length + depositos.length;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text(
+    `Registros por Punto: ${totalPorPunto}   |   Registros por Transferencia: ${totalPorTransf}${saldosAFavor.length > 0 ? `   |   Saldo a Favor: ${saldosAFavor.length}` : ''}${retenciones.length > 0 ? `   |   Retenciones: ${retenciones.length}` : ''}`,
+    pageWidth - 40,
+    116,
+    { align: 'right' }
+  );
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
-  doc.text("RESUMEN DE OPERACIONES", pageWidth / 2, 130, { align: 'center' });
+  doc.text("RESUMEN DE OPERACIONES", pageWidth / 2, 134, { align: 'center' });
 
-  let curResY = 150;
+  let curResY = 152;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text("Tarjeta de Débito (POS)", 40, curResY);
+  doc.text(`Tarjeta de Débito (POS) (${debitos.length} reg.)`, 40, curResY);
   doc.text(formatBs(totalDebito), pageWidth - 40, curResY, { align: 'right' });
   curResY += 14;
 
-  doc.text("Tarjeta de Crédito (POS - TMD / TVD)", 40, curResY);
+  doc.text(`Tarjeta de Crédito (POS - TMD / TVD) (${creditos.length} reg.)`, 40, curResY);
   doc.text(formatBs(totalCredito), pageWidth - 40, curResY, { align: 'right' });
   curResY += 14;
 
   doc.setFont('helvetica', 'bold');
-  doc.text("Transferencias Conciliadas", 40, curResY);
+  doc.text(`Transferencias Conciliadas (${transferencias.length} reg.)`, 40, curResY);
   doc.text(formatBs(totalTransf), pageWidth - 40, curResY, { align: 'right' });
   curResY += 12;
 

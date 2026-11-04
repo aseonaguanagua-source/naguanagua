@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { identidad, contribuyente, monto, motivo, referencia, codigoCondominio, usuario } = body;
+    const { identidad, contribuyente, monto, motivo, referencia, codigoCondominio, codigoInmueble, ambito, modalidadOrigen, usuario } = body;
 
     if (!identidad) {
       return NextResponse.json({ error: 'Falta la cédula / RIF o código de identidad.' }, { status: 400 });
@@ -22,6 +22,8 @@ export async function POST(req: Request) {
     const refFinal = (referencia || '').trim() || `NC-${Date.now().toString().slice(-6)}`;
     const targetId = String(identidad).trim().toUpperCase();
     const condoCode = codigoCondominio ? String(codigoCondominio).trim().toUpperCase() : undefined;
+    const inmCode = codigoInmueble ? String(codigoInmueble).trim().toUpperCase() : condoCode;
+    const ambitoFinal = ambito || (inmCode && condoCode && inmCode !== condoCode ? 'LOCAL' : (condoCode ? 'CONDOMINIO' : 'CONTRIBUYENTE'));
 
     // 1. Insertar el documento oficial
     const { data: doc, error: errDoc } = await supabase
@@ -34,9 +36,12 @@ export async function POST(req: Request) {
         detalles: JSON.stringify({
           monto: montoNum.toFixed(2),
           monto_bs: montoNum,
+          ambito: ambitoFinal,
+          modalidad_origen: modalidadOrigen || undefined,
+          codigo_inmueble: inmCode,
+          codigo_condominio: condoCode,
           origen_referencia: refFinal,
           motivo: motivo || 'Nota de crédito / saldo a favor registrado administrativamente',
-          codigo_condominio: condoCode,
           creado_por: usuario || 'Admin',
           fecha_emision: new Date().toISOString()
         })
@@ -48,8 +53,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Error creando documento: ${errDoc.message}` }, { status: 500 });
     }
 
-    // 2. Acreditar saldo a favor en inmuebles o en condominios
-    const resAcreditar = await acreditarSaldoFavor(targetId, montoNum, condoCode, supabase);
+    // 2. Acreditar saldo a favor en el inmueble específico (local hijo) o en el condominio matriz
+    const resAcreditar = await acreditarSaldoFavor(targetId, montoNum, inmCode || condoCode, supabase);
     if (!resAcreditar.ok) {
       console.warn('Aviso acreditando saldo a favor:', resAcreditar.error);
     }

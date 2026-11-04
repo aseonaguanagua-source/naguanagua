@@ -1226,11 +1226,24 @@ export default function CajaPage() {
             .eq('estado', 'Vigente')
             .in('identidad', docIdentSearch);
           if (docsNC && docsNC.length > 0) {
+            const codBuscadoUpper = isCodeFormat && (user.CodCont || user.cod_cont)
+              ? String(user.CodCont || user.cod_cont).trim().toUpperCase()
+              : '';
+            const codigosPropiosUpper = new Set(
+              (activeInmFresh || []).map((i: any) => String(i.inmueble || '').trim().toUpperCase()).filter(Boolean)
+            );
+            if (codBuscadoUpper) codigosPropiosUpper.add(codBuscadoUpper);
+
             saldoNotasVigentes = docsNC.reduce((acc: number, d: any) => {
               let det: any = {};
               try { det = typeof d.detalles === 'string' ? JSON.parse(d.detalles) : (d.detalles || {}); } catch {}
-              const orig = String(det.origen_referencia || '').trim();
-              if (orig.startsWith('Excedente Caja de Condominios') || orig.startsWith('Excedente conciliado')) return acc;
+              const docAmbito = String(det.ambito || '').trim().toUpperCase();
+              const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
+              // En Caja individual no mezclar notas que pertenezcan exclusivamente a un Condominio matriz (Pago Completo / Abono)
+              if (docAmbito === 'CONDOMINIO' && !user.es_condominio) return acc;
+              // Si se buscó un código de local específico y la nota apunta a otro local distinto, no mezclarla
+              if (codBuscadoUpper && docInm && docInm !== codBuscadoUpper && !codigosPropiosUpper.has(docInm)) return acc;
+              if (!codBuscadoUpper && docInm && codigosPropiosUpper.size > 0 && !codigosPropiosUpper.has(docInm)) return acc;
               const m = parseFloat(String(det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;
               return acc + (m > 0 ? m : 0);
             }, 0);
@@ -2346,6 +2359,10 @@ export default function CajaPage() {
       if (diffTransferido < -0.10) {
         esAbono = true;
         montoReal = transferido;
+      } else if (diffTransferido >= 1.00) {
+        saldoAFavorNuevo = diffTransferido;
+        esAbono = false;
+        montoReal = transferido;
       } else {
         esAbono = false;
         montoReal = transferido;
@@ -2363,6 +2380,9 @@ export default function CajaPage() {
         const diffDeb = Math.round((montoReal - finalTotal) * 100) / 100;
         if (diffDeb < -0.10) {
           esAbono = true;
+        } else if (diffDeb >= 1.00) {
+          saldoAFavorNuevo = diffDeb;
+          esAbono = false;
         } else {
           esAbono = false;
         }
@@ -2863,24 +2883,31 @@ export default function CajaPage() {
         }
       }
 
-      // Si hay saldo a favor nuevo, generar Nota de Crédito
-      // Para pagos inmediatos (efectivo, punto auto-aprobado) se emite aquí;
+      // Si hay saldo a favor nuevo (>= Bs 1.00), generar Nota de Crédito automática
+      // Para pagos inmediatos (punto auto-aprobado) se emite aquí;
       // para transferencias/depósitos por conciliar, se emite al conciliarse para evitar duplicación
-      if (saldoAFavorNuevo > 0 && (!reqRef || isAutoAprobado)) {
-        const refParaNC = (referencia || '').trim() || `CAJA-${Date.now()}`;
+      if (saldoAFavorNuevo >= 1.00 && (!reqRef || isAutoAprobado)) {
+        const refParaNC = (reqRef ? referencia : referenciaDebito || '').trim() || `CAJA-${Date.now()}`;
+        const codInmNC = foundUser.CodCont || foundUser.cod_cont || (freshInmuebles?.[0]?.inmueble) || undefined;
+        const mRedondeado = Math.round(saldoAFavorNuevo * 100) / 100;
         await supabase.from('documentos').insert([{
           identidad: foundUser.Identidad,
           contribuyente: foundUser.Contribuyente,
           tipo: 'Nota de Credito',
           estado: 'Vigente',
           detalles: JSON.stringify({
-            monto: (Math.round(saldoAFavorNuevo * 100) / 100).toFixed(2),
+            monto: mRedondeado.toFixed(2),
+            monto_bs: mRedondeado,
+            ambito: foundUser.condominio_padre_id ? 'LOCAL' : 'CONTRIBUYENTE',
+            codigo_inmueble: codInmNC,
+            codigo_condominio: foundUser.condominio_padre_id || undefined,
             origen_referencia: reqRef ? `Excedente en Caja. Ref: ${refParaNC}` : `Excedente Debito/Punto. Ref: ${refParaNC}`,
+            motivo: `Nota de crédito automática por excedente de pago en Caja (${codInmNC || foundUser.Identidad})`,
             fecha_emision: new Date().toISOString()
           })
         }]);
         // ─ Acreditar nuevo Saldo a Favor para métodos inmediatos (débito, crédito, punto, etc.) ─
-        const result = await acreditarSaldoFavor(foundUser.Identidad, saldoAFavorNuevo, foundUser.CodCont || foundUser.cod_cont);
+        const result = await acreditarSaldoFavor(foundUser.Identidad, mRedondeado, codInmNC);
         if (!result.ok) console.error('Error acreditando saldo:', result.error);
       }
       
