@@ -247,7 +247,16 @@ export async function POST(req: Request) {
             const rawIdent = String(actualP.identidad || detMerged.identidad || '').trim().toUpperCase();
             const sinG = rawIdent.replace(/-/g, '');
             const conG = /^[VEJPG]\d/.test(sinG) ? `${sinG[0]}-${sinG.slice(1)}` : rawIdent;
-            const identVariants = Array.from(new Set([rawIdent, sinG, conG].filter(Boolean)));
+            const extraIdents: string[] = [];
+            if (Array.isArray(detMerged.condominio?.lineas)) {
+              for (const lc of detMerged.condominio.lineas) {
+                if (lc?.identidad) extraIdents.push(String(lc.identidad).trim().toUpperCase());
+                if (lc?.inmueble) extraIdents.push(String(lc.inmueble).trim().toUpperCase());
+              }
+            }
+            if (detMerged.cod_inmueble) extraIdents.push(String(detMerged.cod_inmueble).trim().toUpperCase());
+            if (detMerged.codigo_inmueble) extraIdents.push(String(detMerged.codigo_inmueble).trim().toUpperCase());
+            const identVariants = Array.from(new Set([rawIdent, sinG, conG, ...extraIdents].filter(Boolean)));
             const ident = conG || rawIdent;
             const codCondo = String(detMerged.codigo_condominio || detMerged.condominio?.codigo || detMerged.cod_inmueble || '').trim().toUpperCase() || undefined;
 

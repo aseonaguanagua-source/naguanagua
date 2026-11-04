@@ -36,52 +36,20 @@ export async function POST(req: Request) {
     if (b.accion !== 'cobrar' && b.accion !== 'interruptor') {
       const { _datos, ...cobro } = await prepararCobro(sol);
       
-      // Extraer saldo a favor consolidando según el modo (CONDOMINIO vs CONTRIBUYENTE individual)
+      // Extraer saldo a favor consolidando únicamente Notas de Crédito VIGENTES autoritativas en `documentos`
       let saldoFavorDisp = 0;
       const esModoContribuyente = cobro.modo === 'CONTRIBUYENTE';
       const currId = esModoContribuyente
         ? (cobro.facturas[0]?.identidad || sol.identidad || cobro.lineas[0]?.identidad)
         : cobro.condo?.identidad;
-      const condoCod = cobro.condo?.codigo;
+      const condoCod = String(cobro.condo?.codigo || '').trim().toUpperCase();
+      const condoRifClean = String(cobro.condo?.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
       const codigosUnidadesCobro = Array.from(
         new Set((cobro.lineas || []).map((l: any) => String(l.inmueble || '').trim().toUpperCase()).filter(Boolean))
       );
       const idVars = currId ? getIdentidadVariantsExact(currId) : [];
 
-      // 1. Saldo registrado en tabla condominios (SOLO aplica cuando se cobra a nombre del CONDOMINIO matriz)
-      let abonoCondo = 0;
-      if (!esModoContribuyente && condoCod) {
-        const { data: cRow } = await sb.from('condominios').select('abono_bs').eq('codigo', condoCod).maybeSingle();
-        abonoCondo = parseFloat(cRow?.abono_bs) || 0;
-      }
-
-      // 2. Saldo en tabla inmuebles (si es CONTRIBUYENTE: solo sus unidades/RIF; si es CONDOMINIO: del condominio matriz)
-      let saldoInm = 0;
-      if (esModoContribuyente) {
-        const orsInm: string[] = [];
-        if (idVars.length > 0) orsInm.push(...idVars.map(v => `identidad.eq.${v}`));
-        if (codigosUnidadesCobro.length > 0) orsInm.push(...codigosUnidadesCobro.map(c => `inmueble.eq.${c}`));
-        if (orsInm.length > 0) {
-          const { data: inmSF } = await sb.from('inmuebles').select('saldo_favor_bs, inmueble, condominio_padre_id').or(orsInm.join(','));
-          // Excluir la fila del condominio padre por si compartiera RIF
-          saldoInm = (inmSF || [])
-            .filter((x: any) => String(x.inmueble || '').toUpperCase() !== String(condoCod || '').toUpperCase())
-            .reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
-        }
-      } else {
-        let queryInm = sb.from('inmuebles').select('saldo_favor_bs, inmueble');
-        if (idVars.length > 0 && condoCod) {
-          queryInm = queryInm.or(`${idVars.map(v => `identidad.eq.${v}`).join(',')},inmueble.eq.${condoCod}`);
-        } else if (idVars.length > 0) {
-          queryInm = queryInm.or(idVars.map(v => `identidad.eq.${v}`).join(','));
-        } else if (condoCod) {
-          queryInm = queryInm.eq('inmueble', condoCod);
-        }
-        const { data: inmSF } = await queryInm;
-        saldoInm = (inmSF || []).reduce((acc: number, x: any) => acc + (parseFloat(x.saldo_favor_bs) || 0), 0);
-      }
-
-      // 3. Saldo en tabla documentos (Notas de Crédito VIGENTES)
+      // Saldo en tabla documentos (Notas de Crédito VIGENTES creadas explícitamente)
       let saldoDocs = 0;
       try {
         let qDocs = sb.from('documentos').select('*').eq('tipo', 'Nota de Credito').eq('estado', 'Vigente');
@@ -97,6 +65,33 @@ export async function POST(req: Request) {
           saldoDocs = (docsData || []).reduce((acc: number, n: any) => {
             let det: any = {};
             try { det = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
+            const orig = String(det.origen_referencia || '').trim();
+            // Ignorar notas automáticas fantasma por excedente
+            if (orig.startsWith('Excedente Caja de Condominios') || orig.startsWith('Excedente conciliado')) return acc;
+
+            const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
+            const docCondo = String(det.codigo_condominio || '').trim().toUpperCase();
+            const docIdentClean = String(n.identidad || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+            if (esModoContribuyente) {
+              // En modo contribuyente individual, si el documento tiene el RIF genérico del condominio matriz,
+              // solo aplica si apunta explícitamente al código de la unidad hija seleccionada.
+              if (docIdentClean === condoRifClean && (!docInm || !codigosUnidadesCobro.includes(docInm))) {
+                return acc;
+              }
+              if (docInm && docInm !== condoCod && !codigosUnidadesCobro.includes(docInm)) {
+                return acc;
+              }
+            } else {
+              // En modo CONDOMINIO, no mezclar notas que pertenezcan a un local hijo específico distinto a la matriz
+              if (docInm && docInm !== condoCod) {
+                return acc;
+              }
+              if (docCondo && condoCod && docCondo !== condoCod) {
+                return acc;
+              }
+            }
+
             const m = parseLocalFloat(det.monto_bs ?? det.monto ?? 0);
             return acc + (isNaN(m) ? 0 : m);
           }, 0);
@@ -105,29 +100,7 @@ export async function POST(req: Request) {
         console.warn('Error calculando saldo de notas de crédito en documentos:', e);
       }
 
-      // Saldo disponible consolidado:
-      // Si existen Notas de Crédito vigentes en `documentos` (saldoDocs >= 1.00), ese monto oficial (igual al de la factura SENIAT)
-      // es la fuente de verdad autoritativa, evitando que residuos en `saldo_favor_bs` o `abono_bs` cambien el monto en Caja.
-      saldoFavorDisp = saldoDocs >= 1.00 ? saldoDocs : Math.max(abonoCondo, saldoInm);
-      saldoFavorDisp = saldoFavorDisp >= 1.00 ? Math.round(saldoFavorDisp * 100) / 100 : 0;
-
-      // Mantener sincronizada la tabla condominios e inmuebles con el monto oficial de las Notas de Crédito vigentes
-      if (!esModoContribuyente && condoCod && saldoFavorDisp >= 1.00) {
-        if (Math.abs(abonoCondo - saldoFavorDisp) > 0.01) {
-          try {
-            await sb.from('condominios').update({ abono_bs: saldoFavorDisp }).eq('codigo', condoCod);
-          } catch (eSync) {
-            console.warn('Error sincronizando condominios.abono_bs:', eSync);
-          }
-        }
-        if (Math.abs(saldoInm - saldoFavorDisp) > 0.01) {
-          try {
-            await sb.from('inmuebles').update({ saldo_favor_bs: saldoFavorDisp }).eq('inmueble', condoCod);
-          } catch (eSyncInm) {
-            console.warn('Error sincronizando inmuebles.saldo_favor_bs:', eSyncInm);
-          }
-        }
-      }
+      saldoFavorDisp = saldoDocs >= 1.00 ? Math.round(saldoDocs * 100) / 100 : 0;
 
       // Convenios de pago activos formalizados
       let conveniosList: any[] = [];
@@ -160,18 +133,15 @@ export async function POST(req: Request) {
     if (!activa) return NextResponse.json({ error: 'La Caja de Condominios está en MODO PRUEBA: solo calcula, no registra pagos. El administrador la activa en la fecha aprobada.' }, { status: 409 });
 
     const p = b.pago || {};
-    // Excedente (nota de crédito): lo recibido de más sobre el total. Se calcula en el servidor.
     const montoAgregados = Array.isArray(p.pagosAgregados) && p.pagosAgregados.length > 0
       ? p.pagosAgregados.reduce((a: number, x: any) => a + (Number(x?.monto) || 0), 0)
       : 0;
     const recibido = montoAgregados > 0 ? montoAgregados : (Number(p.montoRecibido) || 0);
-    const previo = await prepararCobro(sol);
-    const excedente = Math.max(0, Math.round((recibido - previo.totales.totalBs) * 100) / 100);
     const r = await registrarCobro(sol, {
       pagoId: String(p.pagoId || ''), metodo: String(p.metodo || ''), banco: p.banco, bancoDestino: p.bancoDestino, referencia: p.referencia,
       montoRecibido: recibido, cajero: String(p.cajero || trab.usuario), usuario: `${trab.nombre || trab.usuario} (${trab.usuario})`,
       pagosAgregados: p.pagosAgregados,
-      saldoFavorGenerado: excedente > 0.05 ? excedente : (Number(p.saldoFavorGenerado) || 0),
+      saldoFavorGenerado: 0,
     });
     const { _datos, ...cobro } = r.cobro as any;
     return NextResponse.json({ ...r, cobro });

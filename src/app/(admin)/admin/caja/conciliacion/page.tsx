@@ -1319,11 +1319,7 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
               }
             }
 
-            // Si sobro saldo despues de pagar todo, registrar como saldo a favor (nota de crédito)
-            if (dineroDisponible > 0.01) {
-              const rSF = await acreditarSaldoFavor(pago.identidad, Math.round(dineroDisponible * 100) / 100);
-              if (!rSF.ok) throw new Error('No se pudo guardar la nota de crédito: ' + rSF.error);
-            }
+            // No generar notas de crédito automáticas por remanente al liquidar recibos en conciliación
           } else {
             // Pago completo: marcar todas como Pagado
             await supabase.from('facturas').update({ estado: 'Pagado' }).in('referencia', recibos);
@@ -1526,72 +1522,8 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
           }
         }
 
-        // Excedente de una transacción (transferido por encima de la deuda liquidada):
-        // Se calcula comparando el monto conciliado real con la deuda liquidada
-        const excedenteCalculado = (montoConciliadoNum > totalAPagarCalc + 0.05)
-          ? Math.round((montoConciliadoNum - totalAPagarCalc) * 100) / 100
-          : 0;
-        const excedenteCaja = Math.max(
-          parseFloat(String(det.saldo_favor || det.saldo_a_favor_nuevo || det.monto_sobrante || 0)) || 0,
-          excedenteCalculado
-        );
-        if (excedenteCaja > 0.01 && !det.saldo_favor_acreditado) {
-          updatedDet.saldo_favor = excedenteCaja;
-          updatedDet.saldo_a_favor_nuevo = excedenteCaja;
-          updatedDet.monto_sobrante = excedenteCaja;
-          const condoCod = (updatedDet.modulo === 'condominios' || det.modulo === 'condominios')
-            ? (det.condominio?.codigo || det.codigo_condominio || updatedDet?.condominio?.codigo)
-            : undefined;
-          const rSF = await acreditarSaldoFavor(pago.identidad, Math.round(excedenteCaja * 100) / 100, condoCod);
-          if (!rSF.ok) throw new Error('No se pudo acreditar la nota de crédito: ' + rSF.error);
-          try {
-            const refClean = String(pago.referencia || '').trim();
-            const { data: existingDocs } = await supabase
-              .from('documentos')
-              .select('id, detalles')
-              .eq('identidad', pago.identidad)
-              .ilike('tipo', '%nota%')
-              .ilike('estado', 'vigente');
-
-            const yaExiste = (existingDocs || []).find((d: any) => {
-              const detStr = typeof d.detalles === 'string' ? d.detalles : JSON.stringify(d.detalles || {});
-              return refClean && detStr.includes(refClean);
-            });
-
-            if (yaExiste) {
-              await supabase.from('documentos').update({
-                detalles: JSON.stringify({
-                  monto: (Math.round(excedenteCaja * 100) / 100).toFixed(2),
-                  origen_referencia: `Excedente conciliado. Ref: ${pago.referencia}`,
-                  fecha_emision: new Date().toISOString(),
-                  analista: updatedDet.analista || 'Administrador'
-                })
-              }).eq('id', yaExiste.id);
-            } else {
-              const esPagoUnidadNC = 
-                updatedDet.modo === 'CONTRIBUYENTE' || 
-                det.modo === 'CONTRIBUYENTE' ||
-                String(updatedDet.condominio?.modalidad || det.condominio?.modalidad || '').toUpperCase() === 'INDIVIDUAL' ||
-                (det.condominio?.lineas?.length === 1 && det.condominio?.lineas?.[0]?.inmueble && det.condominio?.lineas?.[0]?.inmueble !== (det.condominio?.codigo || det.codigo_condominio));
-              await supabase.from('documentos').insert([{
-                identidad: pago.identidad,
-                contribuyente: ((updatedDet.modulo === 'condominios' || det.modulo === 'condominios') && !esPagoUnidadNC)
-                  ? (det.condominio?.nombre || det.contribuyente || pago.identidad)
-                  : (contribInfo?.contribuyente || contribInfo?.nombre || det.contribuyente || pago.contribuyente || pago.identidad),
-                tipo: 'Nota de Credito',
-                estado: 'Vigente',
-                detalles: JSON.stringify({
-                  monto: (Math.round(excedenteCaja * 100) / 100).toFixed(2),
-                  origen_referencia: `Excedente conciliado. Ref: ${pago.referencia}`,
-                  fecha_emision: new Date().toISOString(),
-                  analista: updatedDet.analista || 'Administrador'
-                }),
-              }]);
-            }
-          } catch(e) { console.error('Error insertando nota de credito en documentos:', e); }
-          updatedDet.saldo_favor_acreditado = true;
-          await actualizarPago(pago.id, { detalles: { ...updatedDet, saldo_favor_acreditado: true } });
-        }
+        // No generar notas de crédito automáticas por excedente en Conciliación (evita notas de crédito fantasma por diferencias de tasa, retención o multas)
+        const excedenteCaja = 0;
         
         // ── FACTURACIÓN DIGITAL THE FACTORY HKA (EN COLA PARA REVISIÓN / EMISIÓN MANUAL) ──
         try {

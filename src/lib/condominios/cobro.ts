@@ -776,38 +776,11 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
         || c.nombre;
 
     const codigoInmuebleHijo = (unidadSel && unidadSel.inmueble) || cobro.lineas[0]?.inmueble || undefined;
-    const codigoTargetSF = cobro.modo === 'CONTRIBUYENTE' ? codigoInmuebleHijo : c?.codigo;
+    const codigoTargetSF = (cobro.modo === 'CONTRIBUYENTE' || unidadSel) ? codigoInmuebleHijo : c?.codigo;
 
     if (montoSaldoFavor > 0 && pagadorIdentidad) {
         const resSF = await descontarSaldoFavor(pagadorIdentidad, montoSaldoFavor, codigoTargetSF, sb);
         if (!resSF.ok) throw new Error('Error al descontar Saldo a Favor: ' + resSF.error);
-    }
-
-    if (pago.saldoFavorGenerado && pago.saldoFavorGenerado >= 1.00 && pagadorIdentidad) {
-        const resAcreditar = await acreditarSaldoFavor(pagadorIdentidad, r2(pago.saldoFavorGenerado), codigoTargetSF, sb);
-        if (!resAcreditar.ok) throw new Error('Error al acreditar Saldo a Favor generado por exceso: ' + resAcreditar.error);
-        // Nota de crédito visible en Caja / Conciliación
-        await sb.from('documentos').insert([{
-            identidad: pagadorIdentidad,
-            contribuyente: pagadorNombre,
-            tipo: 'Nota de Credito',
-            estado: 'Vigente',
-            detalles: JSON.stringify({
-                monto: r2(pago.saldoFavorGenerado).toFixed(2),
-                monto_bs: r2(pago.saldoFavorGenerado),
-                codigo_inmueble: codigoInmuebleHijo || c?.codigo,
-                codigo_condominio: c?.codigo,
-                origen_referencia: `Excedente Caja de Condominios ${codigoInmuebleHijo || c.codigo}. Referencia: ${refFinal}`,
-                fecha_emision: new Date().toISOString(),
-                analista: pago.usuario,
-            }),
-        }]);
-
-        // Dejar rastro en auditoría
-        await sb.from('auditoria').insert({
-            accion: 'Saldo a Favor Generado Automáticamente', usuario: pago.usuario, modulo: '/admin/condominios/caja',
-            detalles: { identidad: pagadorIdentidad, codigo_inmueble: codigoInmuebleHijo || c?.codigo, monto: pago.saldoFavorGenerado, referencia: refFinal, _categoria: 'CONDOMINIOS', criticidad: 'MEDIA' },
-        });
     }
 
     // 2) Bajar la deuda en el módulo y sincronizar tabla inmuebles

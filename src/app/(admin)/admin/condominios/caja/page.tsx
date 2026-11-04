@@ -191,10 +191,13 @@ function Caja() {
         return;
       }
 
-      const unidadesIdents = (cobro?.estado?.renglones || [])
-        .flatMap((r: any) => [r?.identidad, r?.inmueble])
-        .filter(Boolean);
-      const rawIdents = [condoIdent, condoCodigo, ...unidadesIdents].filter(Boolean);
+      const esModoContrib = cobro?.modo === 'CONTRIBUYENTE';
+      const unidadesIdents = esModoContrib
+        ? (cobro?.lineas || []).flatMap((l: any) => [l?.identidad, l?.inmueble]).filter(Boolean)
+        : [];
+      const rawIdents = esModoContrib
+        ? [...unidadesIdents, identidad].filter(Boolean)
+        : [condoIdent, condoCodigo].filter(Boolean);
       const allIdents = Array.from(new Set(rawIdents.flatMap(id => getIdentidadVariantsExact(id)))).slice(0, 300);
 
       const { data, error: errDocs } = await supabase
@@ -206,38 +209,19 @@ function Caja() {
 
       if (errDocs) console.error('Error fetching notas credito:', errDocs);
 
-      const validDocs = (data || []).filter((d: any) => d.estado !== 'Anulado');
-      const docsList = [...validDocs];
+      const condoCodUpper = String(condoCodigo || '').trim().toUpperCase();
+      const validDocs = (data || []).filter((d: any) => {
+        if (d.estado === 'Anulado') return false;
+        let det: any = {};
+        try { det = typeof d.detalles === 'string' ? JSON.parse(d.detalles) : (d.detalles || {}); } catch(e){}
+        const orig = String(det.origen_referencia || '').trim();
+        if (orig.startsWith('Excedente Caja de Condominios') || orig.startsWith('Excedente conciliado')) return false;
+        const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
+        if (!esModoContrib && docInm && condoCodUpper && docInm !== condoCodUpper) return false;
+        return true;
+      });
 
-      // Suma de notas vigentes registradas en documentos para el contexto actual
-      const sumaDocs = docsList
-        .filter((n: any) => n.estado === 'Vigente')
-        .reduce((acc: number, n: any) => {
-          let details: any = {};
-          try { details = typeof n.detalles === 'string' ? JSON.parse(n.detalles) : (n.detalles || {}); } catch(e){}
-          return acc + parseLocalFloat(details.monto_bs ?? details.monto ?? 0);
-        }, 0);
-
-      // Si en la ficha (inmuebles/condominios) hay saldo a favor que supera los documentos existentes en al menos Bs 1,00,
-      // sintetizamos una fila explícita (ignorando diferencias de céntimos < Bs 1,00 por redondeo).
-      const diferenciaDirecta = Math.round((saldoFavorActivo - sumaDocs) * 100) / 100;
-      if (diferenciaDirecta >= 1.00) {
-        docsList.unshift({
-          id: `__directo__${condoCodigo || condoIdent}`,
-          created_at: new Date().toISOString(),
-          identidad: condoIdent || condoCodigo,
-          contribuyente: curCondo?.nombre || 'Saldo a Favor en Ficha',
-          estado: 'Vigente',
-          isDirecto: true,
-          detalles: JSON.stringify({
-            monto_bs: diferenciaDirecta,
-            origen_referencia: 'Saldo a Favor en Ficha (Catastro / Condominio)',
-            motivo: 'Abono / Saldo registrado directamente en la ficha'
-          })
-        });
-      }
-
-      setNotasCredito(docsList);
+      setNotasCredito(validDocs);
     } catch (e) {
       console.error(e);
     } finally {

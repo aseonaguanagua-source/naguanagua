@@ -1229,6 +1229,8 @@ export default function CajaPage() {
             saldoNotasVigentes = docsNC.reduce((acc: number, d: any) => {
               let det: any = {};
               try { det = typeof d.detalles === 'string' ? JSON.parse(d.detalles) : (d.detalles || {}); } catch {}
+              const orig = String(det.origen_referencia || '').trim();
+              if (orig.startsWith('Excedente Caja de Condominios') || orig.startsWith('Excedente conciliado')) return acc;
               const m = parseFloat(String(det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;
               return acc + (m > 0 ? m : 0);
             }, 0);
@@ -1238,21 +1240,9 @@ export default function CajaPage() {
         console.warn('Error consultando notas de credito vigentes:', eNC);
       }
 
-      // Todo saldo_favor_bs o Nota de Crédito vigente se consolida en SaldoFavor para permitir cancelar con Notas de Crédito / Saldo a Favor
-      const saldoInmuebles = isCodeFormat && searchedInm
-        ? Math.max(
-            parseFloat(searchedInm.saldo_favor_bs || '0') || 0,
-            activeInmFresh.reduce((sum: number, i: any) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0), 0)
-          )
-        : activeInmFresh.reduce(
-            (sum: number, i: any) => sum + (parseFloat(i.saldo_favor_bs || '0') || 0),
-            0
-          );
-
-      // Si existen Notas de Crédito vigentes registradas en `documentos` (saldoNotasVigentes >= 1.00),
-      // usar ese monto exacto (que coincide con la factura SENIAT) para evitar que residuos en `saldo_favor_bs` alteren el monto en Caja.
-      const saldoFavorRaw = saldoNotasVigentes >= 1.00 ? saldoNotasVigentes : saldoInmuebles;
-      const saldoFavorFresh = saldoFavorRaw >= 1.00 ? Math.round(saldoFavorRaw * 100) / 100 : 0;
+      // Únicamente las Notas de Crédito vigentes registradas en `documentos` son la fuente autoritativa de SaldoFavor,
+      // evitando que residuos huérfanos en `saldo_favor_bs` muestren saldos a favor fantasma en Caja.
+      const saldoFavorFresh = saldoNotasVigentes >= 1.00 ? Math.round(saldoNotasVigentes * 100) / 100 : 0;
       const abonoPrevioInmuebles = 0;
       if (saldoFavorFresh > 0) {
         setPaymentMethod('Saldo a Favor');
@@ -2356,12 +2346,7 @@ export default function CajaPage() {
       if (diffTransferido < -0.10) {
         esAbono = true;
         montoReal = transferido;
-      } else if (diffTransferido > 0.10) {
-        esAbono = false;
-        saldoAFavorNuevo = diffTransferido;
-        montoReal = transferido;
       } else {
-        // Pago exacto o completación de Pago Múltiple (dentro de tolerancia de 10 céntimos por redondeo BCV)
         esAbono = false;
         montoReal = transferido;
       }
@@ -2376,12 +2361,9 @@ export default function CajaPage() {
       if (montoDebito && parseLocalFloat(montoDebito) > 0) {
         montoReal = parseLocalFloat(montoDebito);
         const diffDeb = Math.round((montoReal - finalTotal) * 100) / 100;
-        if (diffDeb > 0.10) {
-          saldoAFavorNuevo = diffDeb;
-        } else if (diffDeb < -0.10) {
+        if (diffDeb < -0.10) {
           esAbono = true;
         } else {
-          // Dentro de tolerancia de 10 céntimos: liquida la totalidad sin dejar residuo de céntimos
           esAbono = false;
         }
       }
