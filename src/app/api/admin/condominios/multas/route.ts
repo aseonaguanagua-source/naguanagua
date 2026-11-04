@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
+import { obtenerHistorialPagosMultasYPeriodos } from '@/lib/multasPagadas';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,13 +30,53 @@ export async function POST(req: Request) {
     if (!c) return NextResponse.json({ error: 'Condominio no encontrado' }, { status: 404 });
     let identidad = c.identidad;
     let unidadInm: string | null = null;
+    let uRowActual: any = null;
     if (unidad_id) {
       const { data: u } = await sb.from('condominio_unidades').select('id, identidad, condominio_id, inmueble, multa_meses').eq('id', unidad_id).maybeSingle();
       if (!u || u.condominio_id !== c.id) return NextResponse.json({ error: 'La unidad no pertenece a este condominio.' }, { status: 400 });
+      uRowActual = u;
       identidad = u.identidad;
       unidadInm = u.inmueble || null;
+    }
+
+    let periodoDate: string | null = null;
+    let periodoYm: string | null = null;
+    if (periodo && String(periodo).trim()) {
+      const pStr = String(periodo).trim();
+      const matchYm = pStr.match(/^(\d{4})-(0[1-9]|1[0-2])/);
+      if (matchYm) {
+        periodoYm = `${matchYm[1]}-${matchYm[2]}`;
+        periodoDate = `${periodoYm}-01`;
+      } else {
+        periodoDate = pStr;
+      }
+    }
+
+    // Verificar si el período ya tiene una multa cancelada o si fue cancelado junto con el mes
+    if (periodoYm) {
+      const historial = await obtenerHistorialPagosMultasYPeriodos({
+        inmueble: unidadInm || c.codigo,
+        unidad_id: unidad_id || null,
+        condominio_id: c.id,
+        codigo_condominio: c.codigo,
+        identidad,
+      });
+
+      const pagoExistente = historial.porPeriodo[periodoYm];
+      if (pagoExistente) {
+        return NextResponse.json(
+          {
+            error: `No se puede cargar la multa para el período ${periodoYm}: ya figura como "${pagoExistente.etiqueta}" (Ref: ${pagoExistente.referencia}).`,
+            pago_existente: pagoExistente,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    if (unidad_id && uRowActual) {
       await sb.from('condominio_unidades').update({
-        multa_meses: Math.max(1, Number(u.multa_meses || 0) + 1),
+        multa_meses: Math.max(1, Number(uRowActual.multa_meses || 0) + 1),
         multa_exonerada_hasta: null
       }).eq('id', unidad_id);
     } else {
@@ -43,15 +84,6 @@ export async function POST(req: Request) {
         multa_meses: Math.max(1, Number(c.multa_meses || 0) + 1),
         multa_exonerada_hasta: null
       }).eq('id', c.id);
-    }
-    let periodoDate: string | null = null;
-    if (periodo && String(periodo).trim()) {
-      const pStr = String(periodo).trim();
-      if (/^\d{4}-\d{2}$/.test(pStr)) {
-        periodoDate = `${pStr}-01`;
-      } else {
-        periodoDate = pStr;
-      }
     }
 
     const fila = {

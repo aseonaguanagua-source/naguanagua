@@ -611,9 +611,12 @@ export async function registrarCobro(sol: SolicitudCobro, pago: DatosPago) {
 
         const detalles = {
             modulo: 'condominios', modo: cobro.modo, cajero: pago.cajero, tasa_bcv: tasa, es_condominio: true, isCondominio: true,
+            soloMultas: !!sol.soloMultas,
+            solo_multas: !!sol.soloMultas,
             condominio: {
                 codigo: c.codigo, nombre: c.nombre, identidad: c.identidad, modalidad: c.modalidad, tipo: c.tipo,
-                lineas: ls.map(l => ({ inmueble: l.inmueble, numero: l.numero, propietario: l.propietario, identidad: l.identidad, actividad: l.actividad, residencial: l.residencial, meses: l.meses, periodos: l.periodos, aseoBs: l.baseBs, ivaBs: l.ivaBs, multaBs: r2(l.multaBs + l.multasAparteBs), retencionBs: l.retencionBs, totalBs: l.totalBs, totalBrutoBs: r2(l.baseBs + l.multaBs + l.multasAparteBs + l.ivaBs) }))
+                solo_multas: !!sol.soloMultas,
+                lineas: ls.map(l => ({ unidad_id: porId.get(l.clave)?.id || undefined, inmueble: l.inmueble, numero: l.numero, propietario: l.propietario, identidad: l.identidad, actividad: l.actividad, residencial: l.residencial, meses: l.meses, periodos: l.periodos, aseoBs: l.baseBs, ivaBs: l.ivaBs, multaBs: r2(l.multaBs + l.multasAparteBs), retencionBs: l.retencionBs, totalBs: l.totalBs, totalBrutoBs: r2(l.baseBs + l.multaBs + l.multasAparteBs + l.ivaBs), _multasDetalle: l._multasDetalle || undefined }))
             },
             ...(grupo ? { grupo_pago: { id: grupo, referencia: refFinal, monto_total: cobro.totales.totalBs, partes: cobro.facturas.length, parte: i + 1 } } : {}),
             solo_aseo: !sol.incluirMultas && !sol.soloMultas,

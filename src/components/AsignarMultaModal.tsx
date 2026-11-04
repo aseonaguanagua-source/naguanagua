@@ -100,6 +100,54 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
   const periodoFinal = usarMesCustom ? periodoCustom : periodoSeleccionado;
   const periodoTexto = fmtPeriodoLabel(periodoFinal);
 
+  // Historial de períodos y multas ya pagados para bloquear recarga de multas y mostrar referencias
+  const [pagosPorPeriodo, setPagosPorPeriodo] = useState<Record<string, any>>({});
+  const [listaPagosPeriodo, setListaPagosPeriodo] = useState<any[]>([]);
+  const [cargandoPagosPeriodo, setCargandoPagosPeriodo] = useState<boolean>(false);
+
+  useEffect(() => {
+    const codInm = activeInm?.inmueble || selectedInmCode || row?.inmueble || '';
+    if (!codInm && !identProp) {
+      setPagosPorPeriodo({});
+      setListaPagosPeriodo([]);
+      return;
+    }
+    let cancelado = false;
+    setCargandoPagosPeriodo(true);
+    const qs = new URLSearchParams();
+    if (codInm) qs.set('inmueble', String(codInm));
+    if (identProp) qs.set('identidad', String(identProp));
+
+    fetch(`/api/admin/multas/verificar-pagos?${qs.toString()}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelado) return;
+        if (data && data.ok) {
+          const mapa = data.porPeriodo || {};
+          setPagosPorPeriodo(mapa);
+          setListaPagosPeriodo(Array.isArray(data.lista) ? data.lista : Object.values(mapa));
+        } else {
+          setPagosPorPeriodo({});
+          setListaPagosPeriodo([]);
+        }
+      })
+      .catch(() => {
+        if (!cancelado) {
+          setPagosPorPeriodo({});
+          setListaPagosPeriodo([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoPagosPeriodo(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [activeInm?.inmueble, selectedInmCode, row?.inmueble, identProp]);
+
+  const pagoPeriodoSeleccionado = periodoFinal ? pagosPorPeriodo[periodoFinal] : null;
+
   // Estimación de 1 mes de multa
   const esRes = activeInm ? isResidencialInm(activeInm) : false;
   const tasaMora = esRes ? 0.10 : 0.12;
@@ -155,6 +203,14 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
       return;
     }
 
+    if (pagosPorPeriodo[periodoFinal]) {
+      const infoPago = pagosPorPeriodo[periodoFinal];
+      setErrorMsg(
+        `No se puede asignar multa al período ${periodoTexto} (${periodoFinal}): ya figura como "${infoPago.etiqueta}" con la Referencia: ${infoPago.referencia}.`
+      );
+      return;
+    }
+
     const montoNum = parseLocalFloat(montoBsStr);
     if (!montoNum || montoNum <= 0) {
       setErrorMsg('Debe ingresar un monto válido en Bolívares.');
@@ -173,6 +229,23 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
 
     setIsProcessing(true);
     try {
+      // Verificación en servidor antes de guardar para evitar duplicar multas ya canceladas o meses pagados
+      const qsCheck = new URLSearchParams();
+      if (activeInm?.inmueble) qsCheck.set('inmueble', String(activeInm.inmueble));
+      if (identProp) qsCheck.set('identidad', String(identProp));
+      const resCheck = await fetch(`/api/admin/multas/verificar-pagos?${qsCheck.toString()}`);
+      if (resCheck.ok) {
+        const jsonCheck = await resCheck.json();
+        const pExistente = jsonCheck?.porPeriodo?.[periodoFinal];
+        if (pExistente) {
+          setPagosPorPeriodo(jsonCheck.porPeriodo || {});
+          setListaPagosPeriodo(jsonCheck.lista || []);
+          throw new Error(
+            `No se puede asignar multa al período ${periodoTexto} (${periodoFinal}): ya fue cancelado (${pExistente.etiqueta}) · Referencia: ${pExistente.referencia}.`
+          );
+        }
+      }
+
       const fechaHoy = new Date().toLocaleDateString('es-VE');
       const hora = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
       const conceptoFinal = concepto.trim() || `Multa por mora ${periodoTexto}`;
@@ -368,29 +441,103 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
             {!usarMesCustom ? (
               <select
                 value={periodoSeleccionado}
-                onChange={e => setPeriodoSeleccionado(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 bg-white focus:border-red-500 focus:outline-none"
+                onChange={e => {
+                  setPeriodoSeleccionado(e.target.value);
+                  setErrorMsg('');
+                }}
+                className={`w-full border rounded-xl px-3 py-2 text-xs font-bold bg-white focus:outline-none ${
+                  pagoPeriodoSeleccionado
+                    ? 'border-red-400 text-red-800 bg-red-50/40 focus:border-red-600'
+                    : 'border-slate-300 text-slate-800 focus:border-red-500'
+                }`}
               >
-                {opcionesMeses.map(m => (
-                  <option key={m.key} value={m.key}>
-                    {m.label} ({m.key})
-                  </option>
-                ))}
+                {opcionesMeses.map(m => {
+                  const pInfo = pagosPorPeriodo[m.key];
+                  return (
+                    <option key={m.key} value={m.key}>
+                      {m.label} ({m.key}){pInfo ? ` — ✅ ${pInfo.etiqueta.toUpperCase()} (Ref: ${pInfo.referencia})` : ''}
+                    </option>
+                  );
+                })}
               </select>
             ) : (
               <input
                 type="month"
                 value={periodoCustom}
-                onChange={e => setPeriodoCustom(e.target.value)}
+                onChange={e => {
+                  setPeriodoCustom(e.target.value);
+                  setErrorMsg('');
+                }}
                 placeholder="YYYY-MM (ej: 2026-03)"
-                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 bg-white focus:border-red-500 focus:outline-none"
+                className={`w-full border rounded-xl px-3 py-2 text-xs font-bold bg-white focus:outline-none ${
+                  pagoPeriodoSeleccionado
+                    ? 'border-red-400 text-red-800 bg-red-50/40 focus:border-red-600'
+                    : 'border-slate-300 text-slate-800 focus:border-red-500'
+                }`}
               />
             )}
 
             <div className="text-[11px] text-slate-500 flex items-center justify-between">
               <span>Período seleccionado: <b className="text-slate-800">{periodoTexto || 'No definido'}</b></span>
-              <span className="text-[10px] text-slate-400 font-mono">[{periodoFinal}]</span>
+              <span className="text-[10px] text-slate-400 font-mono">
+                {cargandoPagosPeriodo ? 'Verificando pagos...' : `[${periodoFinal}]`}
+              </span>
             </div>
+
+            {pagoPeriodoSeleccionado && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-900 space-y-1.5 animate-in fade-in duration-150">
+                <div className="flex items-center gap-1.5 font-extrabold text-red-800 text-xs">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>Período bloqueado: {pagoPeriodoSeleccionado.etiqueta}</span>
+                </div>
+                <p className="text-[11px] text-red-700 leading-relaxed">
+                  No se permite cargar multa en <b>{periodoTexto} ({periodoFinal})</b> porque este período o su multa ya fue cancelado por el contribuyente.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-red-300 text-red-900 font-mono font-extrabold text-[11px]">
+                    Ref: {pagoPeriodoSeleccionado.referencia}
+                  </span>
+                  {pagoPeriodoSeleccionado.montoBs > 0 && (
+                    <span className="text-[10px] font-bold text-red-800 bg-red-100/80 px-2 py-0.5 rounded-md">
+                      Monto: Bs. {formatBs(pagoPeriodoSeleccionado.montoBs)}
+                    </span>
+                  )}
+                  {pagoPeriodoSeleccionado.fecha && (
+                    <span className="text-[10px] text-red-700">
+                      Fecha: {new Date(pagoPeriodoSeleccionado.fecha).toLocaleDateString('es-VE')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {listaPagosPeriodo.length > 0 && (
+              <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
+                <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Períodos / Multas ya cancelados ({listaPagosPeriodo.length})
+                </div>
+                <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                  {listaPagosPeriodo.map((item: any) => (
+                    <div
+                      key={item.periodo}
+                      className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-50/70 border border-emerald-200 text-[11px]"
+                    >
+                      <div className="font-bold text-emerald-950">
+                        {fmtPeriodoLabel(item.periodo)}{' '}
+                        <span className="font-mono text-[10px] text-emerald-700">({item.periodo})</span>
+                        <span className="ml-1.5 text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          {item.etiqueta}
+                        </span>
+                      </div>
+                      <span className="font-mono font-extrabold text-emerald-900 bg-white px-2 py-0.5 rounded border border-emerald-300 shrink-0">
+                        Ref: {item.referencia}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Monto de la Multa en Bs */}
@@ -481,10 +628,10 @@ export function AsignarMultaModal({ row, inmuebles, tcmmv, onClose, onSuccess }:
             </button>
             <button
               type="submit"
-              disabled={isProcessing}
-              className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-extrabold rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              disabled={isProcessing || Boolean(pagoPeriodoSeleccionado)}
+              className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-extrabold rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
-              {isProcessing ? 'Guardando...' : 'Asignar Multa'}
+              {isProcessing ? 'Guardando...' : pagoPeriodoSeleccionado ? 'Período ya Cancelado' : 'Asignar Multa'}
             </button>
           </div>
         </form>

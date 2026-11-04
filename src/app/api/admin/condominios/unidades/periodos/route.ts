@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
+import { obtenerHistorialPagosMultasYPeriodos } from '@/lib/multasPagadas';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,14 +36,27 @@ export async function POST(req: Request) {
     }
 
     const normalizedPeriodos: Record<string, any> = {};
+    const historialPagos = await obtenerHistorialPagosMultasYPeriodos({
+      inmueble: inmCode,
+      unidad_id: unidad_id || null,
+      codigo_condominio: codigo || null,
+    });
+
     if (periodos_custom && typeof periodos_custom === 'object') {
       for (const [k, v] of Object.entries(periodos_custom) as [string, any][]) {
         if (v && typeof v === 'object') {
-          const sinM = v.lleva_multa === false || v.exonerar_multa === true;
+          const yaPagado = Boolean(historialPagos.porPeriodo[k]);
+          const sinM = yaPagado || v.lleva_multa === false || v.exonerar_multa === true;
           normalizedPeriodos[k] = {
             ...v,
             lleva_multa: !sinM,
             exonerar_multa: sinM,
+            ...(yaPagado
+              ? {
+                  referencia_pago: historialPagos.porPeriodo[k].referencia,
+                  estado_pago: historialPagos.porPeriodo[k].etiqueta,
+                }
+              : {}),
           };
         }
       }

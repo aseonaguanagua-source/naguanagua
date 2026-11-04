@@ -100,6 +100,43 @@ export default function ModalAjusteMeses({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
+  // Historial de períodos y multas ya pagados para impedir activar multas en meses cancelados
+  const [pagosPorPeriodo, setPagosPorPeriodo] = useState<Record<string, any>>({});
+
+  React.useEffect(() => {
+    if (!unidad) return;
+    let cancelado = false;
+    const qs = new URLSearchParams();
+    if (unidad.id) qs.set('unidad_id', String(unidad.id));
+    if (unidad.inmueble) qs.set('inmueble', String(unidad.inmueble));
+    if (condo?.codigo) qs.set('codigo_condominio', String(condo.codigo));
+    if (unidad.identidad) qs.set('identidad', String(unidad.identidad));
+
+    fetch(`/api/admin/multas/verificar-pagos?${qs.toString()}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelado || !data?.ok) return;
+        const mapa = data.porPeriodo || {};
+        setPagosPorPeriodo(mapa);
+        if (Object.keys(mapa).length > 0) {
+          setMesesConfig(prev => {
+            const next = { ...prev };
+            for (const p of Object.keys(next)) {
+              if (mapa[p]) {
+                next[p] = { ...next[p], lleva_multa: false };
+              }
+            }
+            return next;
+          });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelado = true;
+    };
+  }, [unidad?.id, unidad?.inmueble, unidad?.identidad, condo?.codigo]);
+
   // Actualizar tarifa sugerida del rango cuando cambia actividad o nivel del rango
   const handleRangoActChange = (nuevaAct: string, nuevoNivel: number) => {
     setRangoAct(nuevaAct);
@@ -113,13 +150,15 @@ export default function ModalAjusteMeses({
   const aplicarRango = () => {
     if (!rangoDesde || !rangoHasta) return;
     const nuevo = { ...mesesConfig };
-    periodos.forEach(p => {
+    periodos.forEach((p, idx) => {
       if (p >= rangoDesde && p <= rangoHasta) {
+        const esUltimo = idx === periodos.length - 1;
+        const yaPagado = Boolean(pagosPorPeriodo[p]);
         nuevo[p] = {
           actividad: rangoAct,
           nivel: rangoNivel,
           tarifa_mmv: parseFloat(rangoTarifa) || 1.98,
-          lleva_multa: rangoMulta,
+          lleva_multa: rangoMulta && !esUltimo && !yaPagado,
         };
       }
     });
@@ -130,11 +169,12 @@ export default function ModalAjusteMeses({
   const toggleTodasMultas = (activar: boolean) => {
     const nuevo = { ...mesesConfig };
     periodos.forEach((p, idx) => {
-      // El último mes corriente nunca lleva multa
+      // El último mes corriente o un período con multa/mes ya pagado nunca lleva multa
       const esUltimo = idx === periodos.length - 1;
+      const yaPagado = Boolean(pagosPorPeriodo[p]);
       nuevo[p] = {
         ...nuevo[p],
-        lleva_multa: activar && !esUltimo,
+        lleva_multa: activar && !esUltimo && !yaPagado,
       };
     });
     setMesesConfig(nuevo);
@@ -422,6 +462,18 @@ export default function ModalAjusteMeses({
                         <td className="py-1.5 px-3 text-center">
                           {esUltimo ? (
                             <span className="text-[10px] text-slate-400 font-bold">Sin multa (mes actual)</span>
+                          ) : pagosPorPeriodo[p] ? (
+                            <div
+                              className="inline-flex flex-col items-center px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-900"
+                              title={`${pagosPorPeriodo[p].etiqueta} · Ref: ${pagosPorPeriodo[p].referencia}`}
+                            >
+                              <span className="text-[10px] font-extrabold text-emerald-800">
+                                ✓ {pagosPorPeriodo[p].etiqueta}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-emerald-900">
+                                Ref: {pagosPorPeriodo[p].referencia}
+                              </span>
+                            </div>
                           ) : (
                             <label className="inline-flex items-center gap-1.5 cursor-pointer">
                               <input

@@ -101,7 +101,49 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     setMultasLocales(multas || []);
   }, [multas]);
 
+  // Historial de períodos y multas ya cancelados (con sus referencias de pago)
+  const [pagosPorPeriodo, setPagosPorPeriodo] = useState<Record<string, any>>({});
+  const [listaPagosPeriodo, setListaPagosPeriodo] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (!unidad) {
+      setPagosPorPeriodo({});
+      setListaPagosPeriodo([]);
+      return;
+    }
+    let cancelado = false;
+    const qs = new URLSearchParams();
+    if (unidad.id) qs.set('unidad_id', String(unidad.id));
+    if (unidad.inmueble) qs.set('inmueble', String(unidad.inmueble));
+    if (condo?.codigo) qs.set('codigo_condominio', String(condo.codigo));
+    if (unidad.identidad) qs.set('identidad', String(unidad.identidad));
+
+    fetch(`/api/admin/multas/verificar-pagos?${qs.toString()}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelado) return;
+        if (data && data.ok) {
+          const mapa = data.porPeriodo || {};
+          setPagosPorPeriodo(mapa);
+          setListaPagosPeriodo(Array.isArray(data.lista) ? data.lista : Object.values(mapa));
+          setMultaPeriodosSeleccionados(prev => prev.filter(p => !mapa[p]));
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelado = true;
+    };
+  }, [unidad?.id, unidad?.inmueble, unidad?.identidad, condo?.codigo]);
+
   const togglePeriodoSeleccionado = (key: string) => {
+    const pagoInfo = pagosPorPeriodo[key];
+    if (pagoInfo) {
+      alert(
+        `No se puede asignar multa al período ${fmtPeriodo(key)} (${key}):\n\nEstado: ${pagoInfo.etiqueta}\nReferencia de pago: ${pagoInfo.referencia}`
+      );
+      return;
+    }
     setMultaPeriodosSeleccionados(prev => {
       const yaEsta = prev.includes(key);
       const nuevaLista = yaEsta ? prev.filter(p => p !== key) : [...prev, key].sort();
@@ -120,6 +162,14 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     if (!unidad?.id) return;
     if (multaPeriodosSeleccionados.length === 0) {
       alert('Seleccione al menos un período para asignar la multa.');
+      return;
+    }
+    const periodoYaPagado = multaPeriodosSeleccionados.find(p => Boolean(pagosPorPeriodo[p]));
+    if (periodoYaPagado) {
+      const pInfo = pagosPorPeriodo[periodoYaPagado];
+      alert(
+        `No se puede asignar multa al período ${fmtPeriodo(periodoYaPagado)} (${periodoYaPagado}): ya figura como "${pInfo.etiqueta}" con la Referencia: ${pInfo.referencia}.`
+      );
       return;
     }
     if (multaMotivo.trim().length < 5) {
@@ -580,6 +630,33 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
               </div>
             </div>
             <div className="text-[11px] text-slate-500">Los meses vencidos de aseo ya generan mora automática ({mesesMoraAuto} mes(es)). El valor indicado arriba agrega multas adicionales por períodos previos o sanciones específicas.</div>
+
+            {listaPagosPeriodo.length > 0 && (
+              <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-1.5">
+                <div className="text-[11px] font-extrabold text-emerald-900 uppercase tracking-wider">
+                  Períodos / Multas ya cancelados (No admiten recarga de multa)
+                </div>
+                <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                  {listaPagosPeriodo.map((item: any) => (
+                    <div
+                      key={item.periodo}
+                      className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-emerald-200 text-xs"
+                    >
+                      <span className="font-bold text-slate-800">
+                        {fmtPeriodo(item.periodo)}{' '}
+                        <span className="font-mono text-[10px] text-slate-500">({item.periodo})</span>
+                        <span className="ml-2 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          {item.etiqueta}
+                        </span>
+                      </span>
+                      <span className="font-mono font-extrabold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 text-[11px]">
+                        Ref: {item.referencia}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* Botón para asignar multa a un período específico */}
             {!nueva && (
@@ -590,15 +667,22 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                     onClick={() => {
                       setMostrarAgregarMulta(true);
                       if (multaPorMesBs > 0) setMultaMontoBs(fmtBs(multaPorMesBs));
-                      // Por defecto seleccionar los periodos que tienen deuda si existen, o el último mes
-                      const periodosRenglon: string[] = (renglon?.periodos || []).slice(0, -1); // El último mes corriente no lleva multa
+                      // Por defecto seleccionar los periodos que tienen deuda si existen (excluyendo los ya pagados)
+                      const periodosRenglon: string[] = ((renglon?.periodos || []).slice(0, -1) as string[]).filter(
+                        p => !pagosPorPeriodo[p]
+                      );
                       if (periodosRenglon.length > 0) {
                         setMultaPeriodosSeleccionados(periodosRenglon);
                         setMultaConcepto(`Multa por mora (${periodosRenglon.length} meses: ${periodosRenglon.map(fmtPeriodo).join(', ')})`);
                       } else if (listaMesesCondo.length > 0) {
-                        const def = listaMesesCondo[1]?.key || listaMesesCondo[0]?.key || '';
-                        setMultaPeriodosSeleccionados([def]);
-                        setMultaConcepto(`Multa por mora ${fmtPeriodo(def)}`);
+                        const candidato = listaMesesCondo.slice(1).find(m => !pagosPorPeriodo[m.key])?.key || '';
+                        if (candidato) {
+                          setMultaPeriodosSeleccionados([candidato]);
+                          setMultaConcepto(`Multa por mora ${fmtPeriodo(candidato)}`);
+                        } else {
+                          setMultaPeriodosSeleccionados([]);
+                          setMultaConcepto('');
+                        }
                       }
                     }}
                     className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -622,10 +706,14 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const periodosDeuda = (renglon.periodos as string[]).slice(0, -1);
+                                  const periodosDeuda = ((renglon.periodos as string[]).slice(0, -1)).filter(
+                                    p => !pagosPorPeriodo[p]
+                                  );
                                   setMultaPeriodosSeleccionados(periodosDeuda);
                                   if (periodosDeuda.length > 0) {
                                     setMultaConcepto(`Multa por mora (${periodosDeuda.length} meses: ${periodosDeuda.map(fmtPeriodo).join(', ')})`);
+                                  } else {
+                                    setMultaConcepto('');
                                   }
                                 }}
                                 className="text-[11px] font-bold text-amber-800 hover:text-amber-900 bg-amber-100/70 hover:bg-amber-100 px-2 py-0.5 rounded cursor-pointer transition-colors"
@@ -649,26 +737,45 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
                         </div>
 
                         {/* Chips seleccionables para meses */}
-                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl max-h-36 overflow-y-auto flex flex-wrap gap-1.5">
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl max-h-40 overflow-y-auto flex flex-wrap gap-1.5">
                           {listaMesesCondo.slice(0, 24).map(m => {
-                            const sel = multaPeriodosSeleccionados.includes(m.key);
+                            const pagoInfo = pagosPorPeriodo[m.key];
+                            const sel = !pagoInfo && multaPeriodosSeleccionados.includes(m.key);
                             const esDeuda = (renglon?.periodos || []).includes(m.key);
                             return (
                               <button
                                 key={m.key}
                                 type="button"
                                 onClick={() => togglePeriodoSeleccionado(m.key)}
-                                className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer ${
-                                  sel
-                                    ? 'bg-amber-600 border-amber-700 text-white shadow-xs'
+                                title={
+                                  pagoInfo
+                                    ? `${pagoInfo.etiqueta} · Ref: ${pagoInfo.referencia}`
+                                    : m.label
+                                }
+                                className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 ${
+                                  pagoInfo
+                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800 cursor-not-allowed opacity-90'
+                                    : sel
+                                    ? 'bg-amber-600 border-amber-700 text-white shadow-xs cursor-pointer'
                                     : esDeuda
-                                    ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
-                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                                    ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 cursor-pointer'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer'
                                 }`}
                               >
-                                {sel && <span>✓</span>}
-                                <span>{m.label}</span>
-                                {esDeuda && !sel && <span className="text-[9px] text-amber-700 opacity-75">(deuda)</span>}
+                                {pagoInfo ? (
+                                  <>
+                                    <span>✓ {m.label}</span>
+                                    <span className="text-[10px] font-mono bg-white px-1 py-0.2 rounded border border-emerald-200 text-emerald-900">
+                                      Ref: {pagoInfo.referencia}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    {sel && <span>✓</span>}
+                                    <span>{m.label}</span>
+                                    {esDeuda && !sel && <span className="text-[9px] text-amber-700 opacity-75">(deuda)</span>}
+                                  </>
+                                )}
                               </button>
                             );
                           })}
