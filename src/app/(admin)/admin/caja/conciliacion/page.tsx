@@ -1291,7 +1291,11 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         if (facs && facs.length > 0) {
           // Calcular deuda total de los recibos seleccionados
           const deudaTotal = facs.reduce((s, f) => s + parseFloat(f.monto || '0'), 0);
-          const esAbonoParcial = det.es_abono || (montoConciliadoNum > 0 && montoConciliadoNum < deudaTotal - 1.00);
+          const abonoPrevFac = parseFloat(String(det.abono_previo_descontado || 0)) || 0;
+          const retFac = parseFloat(String(det.monto_retencion_iva || det.retencion_monto || det.retencion || 0)) || 0;
+          const sfFac = parseFloat(String(det.saldo_usado || det.descuentoSaldoFavor || saldoFavorUsado || 0)) || 0;
+          const cubiertoFac = montoConciliadoNum + abonoPrevFac + retFac + sfFac;
+          const esAbonoParcial = det.es_abono || (montoConciliadoNum > 0 && cubiertoFac < deudaTotal - 1.00);
 
           if (esAbonoParcial && montoConciliadoNum > 0) {
             // Distribuir el monto entre recibos (mas antiguas primero)
@@ -1330,8 +1334,14 @@ function ModalConciliacion({ pago, onClose, onSuccess }: { pago: Pago; onClose: 
         const histRefsConcil = recibos.filter((r: string) => r.startsWith('RECIB-HIST-') || r.startsWith('dummy-hist-'));
         const multaRefsConcil = recibos.filter((r: string) => r.startsWith('MULTA-') || r.startsWith('multa-'));
         const retencionIvaPago = parseFloat(String(det.monto_retencion_iva || det.retencion_monto || det.retencion || 0)) || 0;
-        const saldoUsadoPago = parseFloat(String(det.saldo_usado || det.descuentoSaldoFavor || 0)) || 0;
-        const dineroTotalCubierto = montoConciliadoNum + retencionIvaPago + saldoUsadoPago;
+        const saldoUsadoPago = parseFloat(String(det.saldo_usado || det.descuentoSaldoFavor || saldoFavorUsado || 0)) || 0;
+        const abonoPrevioPago = parseFloat(String(det.abono_previo_descontado || 0)) || 0;
+        const otrosPagosGrupoMonto = pagosVinculados.length > 1
+          ? pagosVinculados
+              .filter((p: any) => p.id !== pago.id && (p.estado === 'Aprobado' || conciliarTodoElGrupo))
+              .reduce((acc: number, p: any) => acc + (parseFloat(String(p.monto || '0')) || 0), 0)
+          : 0;
+        const dineroTotalCubierto = montoConciliadoNum + retencionIvaPago + saldoUsadoPago + Math.max(abonoPrevioPago, otrosPagosGrupoMonto);
         const esAbonoParcialConcil = !!det.es_abono || (montoConciliadoNum > 0 && det.total_seleccionado && dineroTotalCubierto < parseFloat(det.total_seleccionado) - 1.00);
 
         // Recolectar códigos de inmuebles de referencias, detalles y del propio pago

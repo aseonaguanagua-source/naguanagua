@@ -3307,15 +3307,25 @@ export default function CajaPage() {
         if (selectedRecibos.includes('RECIB-DEUDA') || histRefs.length > 0 || esAbonoDebito) {
           // Leer la deuda ACTUAL de la BD (no la cargada en pantalla): en un pago múltiple el comprobante
           // anterior ya redujo la deuda, y usar datos viejos hacía que el siguiente no se aplicara bien.
+          const propCodesInRefs = histRefs
+            .map(r => extraerCodigoInmuebleRef(r) || '')
+            .filter(Boolean);
+          const idVarsBD = getIdentidadVariantsExact(foundUser.Identidad);
+          const orClausesBD = [
+            ...idVarsBD.map(v => `identidad.eq.${v}`),
+            ...propCodesInRefs.map(c => `inmueble.eq.${c}`)
+          ];
           const { data: inmsBD, error: inmsBDErr } = await supabase
             .from('inmuebles')
             .select('*')
-            .eq('identidad', foundUser.Identidad);
+            .or(orClausesBD.join(','));
           if (inmsBDErr) throw new Error('No se pudo leer la deuda actual del inmueble: ' + inmsBDErr.message);
           const sourceInms = (inmsBD && inmsBD.length > 0) ? inmsBD : (freshInmuebles.length > 0 ? freshInmuebles : inmuebles);
+          const propCodesSet = new Set(propCodesInRefs.map(c => c.toUpperCase()));
           const userInmsClean = sourceInms.filter((i: any) =>
             (i.identidad || '').replace(/-/g,'').toUpperCase() === 
-            (foundUser.Identidad || '').replace(/-/g,'').toUpperCase()
+            (foundUser.Identidad || '').replace(/-/g,'').toUpperCase() ||
+            propCodesSet.has(String(i.inmueble || i.codigo || '').toUpperCase())
           );
 
           if (!esAbonoDebito) {

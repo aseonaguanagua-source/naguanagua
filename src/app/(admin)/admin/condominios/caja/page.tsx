@@ -467,7 +467,7 @@ function Caja() {
     const ced = porContrib ? normId(identidad) : '';
     return conDeuda.filter((r: any) =>
       (!ced || ced.length < 5 || normId(r.identidad) === ced) &&
-      (!t || [r.inmueble, r.numero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t))));
+      (!t || [r.inmueble, r.padreInmueble, r.numero, r.padreNumero, r.propietario, r.identidad, r.actividad].some((x: any) => String(x || '').toUpperCase().includes(t))));
   }, [conDeuda, filtroU, identidad, porContrib]); // eslint-disable-line react-hooks/exhaustive-deps
   const enCobro = useMemo(() => new Set((cobro?.lineas || []).map((l: any) => l.clave)), [cobro]);
   const mapLineas = useMemo(() => new Map<string, any>((cobro?.lineas || []).map((l: any) => [l.clave, l])), [cobro]);
@@ -514,7 +514,16 @@ function Caja() {
     }
     return items;
   }, [soloMultas, unidadesParaMax]);
-  const toggle = (k: string) => setClaves(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k]);
+  const toggle = (k: string) => setClaves(cs => {
+    const row = conDeuda.find((r: any) => r.clave === k);
+    const parentSelected = Boolean(row?.padreId && cs.includes(row.padreId));
+    if (cs.includes(k)) return cs.filter(x => x !== k);
+    if (parentSelected && row?.padreId) {
+      const siblings = conDeuda.filter((r: any) => r.padreId === row.padreId && r.clave !== k).map((r: any) => r.clave);
+      return [...cs.filter(x => x !== row.padreId), ...siblings];
+    }
+    return [...cs, k];
+  });
   const sinSeleccion = (porContrib && !claves.length && !identidad.trim()) || (!porContrib && abonoLocales && !claves.length);
 
   const agregarPago = () => {
@@ -1614,10 +1623,11 @@ function Caja() {
                         const dMeses = lc ? lc.meses : mesActualFila;
                         const dMultas = lc ? (lc.multaBs + lc.multasAparteBs) : multasDe(r);
                         const dTotal = lc ? lc.totalBs : (soloMultas ? multasDe(r) : r.totalBs);
+                        const claveMarcada = claves.includes(r.clave) || Boolean(r.padreId && claves.includes(r.padreId)) || Boolean(r.padreInmueble && claves.includes(r.padreInmueble));
                         const seleccionada = porContrib
-                          ? (claves.includes(r.clave) || !!mismoDueno)
+                          ? (claveMarcada || !!mismoDueno)
                           : abonoLocales
-                            ? claves.includes(r.clave)
+                            ? claveMarcada
                             : true;
 
                         const handleRowClick = () => {
@@ -1672,7 +1682,12 @@ function Caja() {
                             </td>
                             <td className={`py-2 px-3 ${!seleccionada ? 'opacity-60' : ''}`}>
                               <div className="font-bold text-slate-900 font-mono text-xs flex items-center gap-1.5 flex-wrap">
-                                <span>{r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'Declaradas sin registrar' : 'Condominio')}{r.numero ? ` · ${r.numero}` : ''}</span>
+                                <span>
+                                  {r.padreInmueble && r.padreInmueble !== r.inmueble
+                                    ? `${r.padreInmueble} (${r.inmueble})`
+                                    : (r.inmueble || (r.clave === '__SIN_REGISTRAR__' ? 'Declaradas sin registrar' : 'Condominio'))}
+                                  {r.numero ? ` · ${r.numero}` : ''}
+                                </span>
                                 {Number(r.saldoFavorBs || 0) >= 1.00 && (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold font-sans bg-emerald-100 text-emerald-800 border border-emerald-300">
                                     💳 Nota de Crédito: Bs {fmtBs(r.saldoFavorBs)}

@@ -134,6 +134,8 @@ export interface RenglonEstado {
   /** Local contenedor: no cobra por sí mismo (cobran sus actividades) */
   esGrupo: boolean;
   padreId: string | null;
+  padreInmueble?: string | null;
+  padreNumero?: string | null;
   residencial: boolean;
   mensualBs: number;
   pendienteDesde: string | null;
@@ -174,32 +176,41 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
   const grupos = idsGrupo(unidadesRows);
   const unidades = unidadesRows.map(u => aMotorUnidad(u, grupos));
   const porId = new Map(unidadesRows.map((u: any) => [u.id, u]));
+  const porInmUpper = new Map<string, any>();
+  unidadesRows.forEach((u: any) => { if (u.inmueble) porInmUpper.set(String(u.inmueble).toUpperCase(), u); });
   const motorPorId = new Map(unidades.map(u => [u.id, u]));
   const reparto = M.cargosPorUnidad(c, unidades, tasa);
   const multasPend = multasRows.filter(m => m.estado === 'Pendiente');
 
   const renglones: RenglonEstado[] = reparto.map(r => {
     const u: any = porId.get(r.clave);
+    const padre: any = u?.padre_unidad_id
+      ? porId.get(u.padre_unidad_id)
+      : (u?.padre_inmueble ? porInmUpper.get(String(u.padre_inmueble).toUpperCase()) : null);
     const mu = motorPorId.get(r.clave);
     const res = M.unidadResidencial(c, mu || null);
     const tMulta = res ? M.TASA_MULTA_RES : M.TASA_MULTA_COM;
-    // Unidad registrada: sus propios meses. Grupo sin registrar / contenedor N/A / tarifa fija: los meses del condominio.
+    // Unidad registrada: sus propios meses. Si es actividad hija de un local contenedor (padre), hereda del padre cuando el padre fue actualizado.
     const esGrupoOuNA = Boolean(mu?.es_grupo || String(u?.actividad || '').trim().toUpperCase() === 'N/A');
-    const desde = (u && !esGrupoOuNA) ? u.aseo_pendiente_desde : condoRow.aseo_pendiente_desde;
+    const desde = (u && !esGrupoOuNA)
+      ? (padre && padre.aseo_pendiente_desde !== undefined ? padre.aseo_pendiente_desde : u.aseo_pendiente_desde)
+      : condoRow.aseo_pendiente_desde;
     const meses = r.montoBs > 0 ? M.mesesPendientes(desde, hoy) : 0;
-    const multaMesesRaw = Number((u && !esGrupoOuNA) ? (u.multa_meses ?? condoRow.multa_meses) : condoRow.multa_meses) || 0;
-    const notasInmCheck = String((u && !esGrupoOuNA) ? (u.notas_inmueble || '') : (condoRow.notas_inmueble || condoRow.notas || ''));
+    const multaMesesRaw = Number((u && !esGrupoOuNA) ? (padre && padre.multa_meses !== undefined && padre.multa_meses !== null ? padre.multa_meses : (u.multa_meses ?? condoRow.multa_meses)) : condoRow.multa_meses) || 0;
+    const notasInmCheck = String((u && !esGrupoOuNA) ? (u.notas_inmueble || padre?.notas_inmueble || '') : (condoRow.notas_inmueble || condoRow.notas || ''));
     const exoneradoTotalInm = isExoneradoTotalMultas(notasInmCheck);
     // Multas exoneradas o ya pagadas poco a poco por el contribuyente:
     // Se respetan tanto `multa_exonerada_hasta` como `multa_meses` y las notas de `inmuebles` para sincronización total con Contribuyentes.
-    const hastaRaw = String(((u && !esGrupoOuNA) ? u.multa_exonerada_hasta : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
+    const hastaRaw = String(((u && !esGrupoOuNA) ? (u.multa_exonerada_hasta || padre?.multa_exonerada_hasta) : condoRow.multa_exonerada_hasta) || '').slice(0, 7);
     const hasta = exoneradoTotalInm ? '2099-12' : hastaRaw;
     const exoneradosPorHasta = hasta ? M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy).filter(p => p <= hasta).length : 0;
-    const tieneMultaMesesExplicito = (u && !esGrupoOuNA) ? (u.multa_meses !== null && u.multa_meses !== undefined) : (condoRow.multa_meses !== null && condoRow.multa_meses !== undefined);
+    const tieneMultaMesesExplicito = (u && !esGrupoOuNA)
+      ? ((u.multa_meses !== null && u.multa_meses !== undefined) || (padre && padre.multa_meses !== null && padre.multa_meses !== undefined))
+      : (condoRow.multa_meses !== null && condoRow.multa_meses !== undefined);
     const exoneradosPorPagosParciales = tieneMultaMesesExplicito ? Math.max(0, (meses - 1) - multaMesesRaw) : 0;
     const exonerados = exoneradoTotalInm ? meses : Math.max(exoneradosPorHasta, exoneradosPorPagosParciales);
-    // Se respeta la condición de Agente de Retención tanto de la unidad individual como del condominio matriz
-    const esAgente = Boolean((u && u.agente_retencion) || c.agente_retencion);
+    // Se respeta la condición de Agente de Retención tanto de la unidad individual (o su local padre) como del condominio matriz
+    const esAgente = Boolean((u && u.agente_retencion) || (padre && padre.agente_retencion) || c.agente_retencion);
     const periodos = M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy);
     let basesPorMes: number[] | number = r.montoBs;
     let multasPorMes: (boolean | number)[] | undefined = undefined;
@@ -292,14 +303,27 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
       .filter(m => (u ? m.unidad_id === u.id : !m.unidad_id) && !(omitirMultaSeptiembre && m.periodo === '2026-09'))
       .map(m => ({ id: m.id, concepto: m.concepto, montoBs: montoMulta(m, tasa), periodo: m.periodo, creada_por: m.creada_por, created_at: m.created_at }));
     const multasManualesBs = r2(manuales.reduce((a, m) => a + m.montoBs, 0));
+    const idCondoNorm = M.normId(condoRow.identidad);
+    const idChildNorm = M.normId(u?.identidad);
+    const idPadreNorm = M.normId(padre?.identidad);
+    const usarDatosPadre = Boolean(padre && (!idChildNorm || idChildNorm === idCondoNorm) && idPadreNorm && idPadreNorm !== idCondoNorm);
+    const propEfectivo = usarDatosPadre
+      ? (padre.propietario || u?.propietario)
+      : (u?.propietario ?? (padre?.propietario || (r.clave === M.SIN_REGISTRAR ? `${r.cantidad} unidad(es) declaradas sin registrar` : condoRow.nombre)));
+    const identEfectiva = usarDatosPadre
+      ? (padre.identidad || u?.identidad)
+      : (u?.identidad ?? (padre?.identidad || (r.clave === M.SIN_REGISTRAR ? null : condoRow.identidad)));
+    const numEfectivo = padre?.numero || u?.numero || null;
     return {
-      clave: r.clave, inmueble: u?.inmueble ?? null, numero: u?.numero ?? null,
-      propietario: u?.propietario ?? (r.clave === M.SIN_REGISTRAR ? `${r.cantidad} unidad(es) declaradas sin registrar` : condoRow.nombre),
-      identidad: u?.identidad ?? (r.clave === M.SIN_REGISTRAR ? null : condoRow.identidad), actividad: u?.actividad ?? null,
-      estado: u?.estado ?? 'Declarada', cantidad: r.cantidad, esGrupo: !!mu?.es_grupo, padreId: u?.padre_unidad_id ?? null, residencial: res,
+      clave: r.clave, inmueble: u?.inmueble ?? null, numero: numEfectivo,
+      propietario: propEfectivo,
+      identidad: identEfectiva, actividad: u?.actividad ?? null,
+      estado: u?.estado ?? 'Declarada', cantidad: r.cantidad, esGrupo: !!mu?.es_grupo, padreId: u?.padre_unidad_id ?? (padre?.id || null),
+      padreInmueble: padre?.inmueble ?? u?.padre_inmueble ?? null, padreNumero: padre?.numero ?? null,
+      residencial: res,
       mensualBs: r.montoBs, pendienteDesde: desde || null, periodos: M.periodosPendientes(r.montoBs > 0 ? desde : null, hoy),
       deuda, multaMeses, multaExtraBs, multasManuales: manuales, multasManualesBs, totalBs: r2(deuda.totalBs + multaExtraBs + multasManualesBs),
-      saldoFavorBs: Number(u?.saldo_favor_bs) >= 1.00 ? r2(Number(u.saldo_favor_bs)) : 0,
+      saldoFavorBs: Number(u?.saldo_favor_bs || padre?.saldo_favor_bs) >= 1.00 ? r2(Number(u?.saldo_favor_bs || padre?.saldo_favor_bs)) : 0,
       agenteRetencion: esAgente,
     };
   });
