@@ -823,22 +823,43 @@ export async function POST(request: Request) {
 
     // Agente de retención: la factura se emite por el MONTO BRUTO TOTAL (100% IVA), no por el neto pagado
     const conRetencion = esRetencion !== undefined ? !!esRetencion : (pagoTieneRetencion(detPago) || !!(propRef as any)?.agente_retencion);
-    const saldoFavorGenerado = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
     const montoFacturaGuardadoRaw = parseFloat(String(detPago.monto_factura || 0)) || 0;
     const montoRetencionGuardada = parseFloat(String(detPago.monto_retencion_iva || detPago.retencion_iva || 0)) || 0;
+    const abonoPrevioDescontado = parseFloat(String(detPago.abono_previo_descontado || 0)) || 0;
 
     const totalEfectivoPagado = (() => {
       if (Array.isArray(detPago?.pagos_agregados) && detPago.pagos_agregados.length > 0) {
-        return detPago.pagos_agregados
+        const sumPa = detPago.pagos_agregados
           .filter((p: any) => !String(p?.metodo || p?.tipo || '').toLowerCase().includes('saldo a favor') && !String(p?.metodo || p?.tipo || '').toLowerCase().includes('nota de credito'))
           .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+        if (abonoPrevioDescontado > 0 && detPago.pagos_agregados.length === 1 && Math.abs(sumPa - (parseFloat(String(pagoRow?.monto || 0)) || 0)) < 1) {
+          return r2(sumPa + abonoPrevioDescontado);
+        }
+        return r2(sumPa);
       }
       if (Array.isArray(detPago?.formasPago) && detPago.formasPago.length > 0) {
-        return detPago.formasPago
+        const sumFp = detPago.formasPago
           .filter((p: any) => !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('saldo a favor') && !String(p?.descripcion || p?.tipo || p?.metodo || '').toLowerCase().includes('nota de credito'))
           .reduce((s: number, p: any) => s + (parseFloat(String(p?.monto || 0)) || 0), 0);
+        if (abonoPrevioDescontado > 0 && detPago.formasPago.length === 1 && Math.abs(sumFp - (parseFloat(String(pagoRow?.monto || 0)) || 0)) < 1) {
+          return r2(sumFp + abonoPrevioDescontado);
+        }
+        return r2(sumFp);
       }
-      return parseFloat(String(pagoRow?.monto || 0)) || 0;
+      const mBase = parseFloat(String(pagoRow?.monto || 0)) || 0;
+      return abonoPrevioDescontado > 0 ? r2(mBase + abonoPrevioDescontado) : mBase;
+    })();
+
+    const saldoFavorGeneradoRaw = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || detPago.saldo_favor_generado || 0)) || 0;
+    const saldoFavorGenerado = (() => {
+      if (saldoFavorGeneradoRaw > 0) return saldoFavorGeneradoRaw;
+      if (montoFacturaGuardadoRaw > 0 && totalEfectivoPagado > 0) {
+        const netoExigido = r2(montoFacturaGuardadoRaw - (conRetencion ? montoRetencionGuardada : 0));
+        if (totalEfectivoPagado > netoExigido + 0.50) {
+          return r2(totalEfectivoPagado - netoExigido);
+        }
+      }
+      return 0;
     })();
 
     const mNetoPagoGuardado = parseFloat(String(detPago.monto_neto_factura || 0)) || 0;
@@ -1051,7 +1072,7 @@ export async function POST(request: Request) {
           .filter((fp: any) => String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('saldo a favor') || String(fp?.descripcion || fp?.tipo || fp?.metodo || '').toLowerCase().includes('nota de credito'))
           .reduce((sum: number, fp: any) => sum + (parseFloat(String(fp.monto || 0)) || 0), 0);
       }
-      if (sf === 0 && montoFacturaGuardado > 0) {
+      if (sf === 0 && montoFacturaGuardado > 0 && abonoPrevioDescontado === 0 && detPago.saldo_usado === undefined) {
         const mFactura = montoFacturaGuardado;
         const mPago = totalEfectivoPagado;
         const mRet = montoRetencionGuardada;
@@ -1667,7 +1688,10 @@ export async function POST(request: Request) {
                 const sumFps = fps.reduce((acc, it) => acc + parseFloat(it.Monto), 0);
                 const diffFps = r2(totalAPagar - sumFps);
                 if (diffFps !== 0 && fps.length > 0) {
-                  fps[0].Monto = (parseFloat(fps[0].Monto) + diffFps).toFixed(2);
+                  const targetIdx = pagosBancarios.length > 1 && fps[pagosBancarios.length - 1] && (parseFloat(fps[pagosBancarios.length - 1].Monto) + diffFps > 0)
+                    ? pagosBancarios.length - 1
+                    : 0;
+                  fps[targetIdx].Monto = (parseFloat(fps[targetIdx].Monto) + diffFps).toFixed(2);
                 }
                 return fps;
               }
@@ -1744,7 +1768,9 @@ export async function POST(request: Request) {
 
               // Monto registrado en la conciliación del pago (sumando multi-transferencias si aplica)
               const montoConciliado = totalEfectivoPagado > 0 ? totalEfectivoPagado : (parseFloat(String(detPago.monto_conciliado || pagoRow?.monto || 0)) || 0);
-              const saldoFavorGen = parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || 0)) || 0;
+              const saldoFavorGen = saldoFavorGenerado > 0
+                ? saldoFavorGenerado
+                : (parseFloat(String(detPago.saldo_a_favor_nuevo || detPago.monto_sobrante || detPago.saldo_favor || 0)) || 0);
 
               const refsMulti = Array.isArray(detPago.pagos_agregados) && detPago.pagos_agregados.length > 1
                 ? detPago.pagos_agregados

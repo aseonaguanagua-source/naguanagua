@@ -1784,6 +1784,14 @@ export default function CajaPage() {
         const detObj = typeof p.detalles === 'string' ? (() => { try { return JSON.parse(p.detalles); } catch { return {}; } })() : (p.detalles || {});
         if (!detObj || detObj.es_abono !== true || detObj.abono_completado === true) return false;
         if (detObj.anulado || detObj.factura_digital?.anulada || detObj.factura_anulada) return false;
+        if (detObj.factura_digital?.emitida === true) return false;
+        if (p.created_at && String(p.created_at) < '2026-11-01') return false;
+
+        const mPagado = parseFloat(String(p.monto || detObj.monto_abonado || 0)) || 0;
+        const mRet = parseFloat(String(detObj.monto_retencion_iva || detObj.retencion_iva || 0)) || 0;
+        const mSaldo = parseFloat(String(detObj.saldo_usado || detObj.descuento_saldo_favor || 0)) || 0;
+        const mObjetivo = parseFloat(String(detObj.total_seleccionado || detObj.monto_factura || 0)) || 0;
+        if (mObjetivo > 0 && (mPagado + mRet + mSaldo) >= mObjetivo - 0.50) return false;
 
         const pIdentClean = String(p.identidad || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const pIdentNums = String(p.identidad || '').replace(/\D/g, '');
@@ -2345,14 +2353,15 @@ export default function CajaPage() {
       if (isNaN(transferido) || transferido <= 0) return alert("Debe ingresar un monto transferido válido.");
       
       const diffTransferido = Math.round((transferido - finalTotal) * 100) / 100;
-      if (diffTransferido < -0.10 || isPagoMultiple) {
+      if (diffTransferido < -0.10) {
         esAbono = true;
         montoReal = transferido;
       } else if (diffTransferido > 0.10) {
+        esAbono = false;
         saldoAFavorNuevo = diffTransferido;
         montoReal = transferido;
       } else {
-        // Pago exacto (dentro de tolerancia de 10 céntimos por redondeo BCV)
+        // Pago exacto o completación de Pago Múltiple (dentro de tolerancia de 10 céntimos por redondeo BCV)
         esAbono = false;
         montoReal = transferido;
       }
@@ -3780,6 +3789,113 @@ export default function CajaPage() {
           : foundUser.Contribuyente;
         const codInmuebleT = inmPagoT?.inmueble || inmPagoT?.cod_cont || undefined;
 
+        const fpsListT: any[] = [];
+        const pagosAgregadosPreviosT: any[] = [];
+        if (!esAbono && abonoPrevioAprobado > 0 && abonosAprobados.length > 0) {
+          abonosAprobados.forEach((ap: any) => {
+            const detAp = typeof ap.detalles === 'string' ? (() => { try { return JSON.parse(ap.detalles); } catch { return {}; } })() : (ap.detalles || {});
+            const mAp = parseFloat(ap.monto || detAp.monto_abonado || '0') || 0;
+            if (mAp > 0) {
+              const tipoAp = ap.tipo || 'Transferencia';
+              fpsListT.push({
+                descripcion: tipoAp === 'Debito' ? 'TARJETA DE DÉBITO (ABONO PREVIO)' : `${tipoAp.toUpperCase()} (ABONO PREVIO)`,
+                fecha: detAp.fecha_transaccion || ap.created_at || new Date().toISOString(),
+                forma: tipoAp === 'Debito' ? '05' : ['Credito', 'TMD', 'TVD'].includes(tipoAp) ? '06' : '03',
+                banco: ap.banco || undefined,
+                referencia: ap.referencia || undefined,
+                monto: mAp
+              });
+              pagosAgregadosPreviosT.push({
+                id: ap.id,
+                metodo: tipoAp,
+                tipo: tipoAp,
+                banco: ap.banco || '',
+                bancoDestino: detAp.banco_destino || '',
+                referencia: ap.referencia || '',
+                monto: mAp,
+                fechaTransaccion: detAp.fecha_transaccion || (ap.created_at ? String(ap.created_at).slice(0, 10) : fechaTransaccion),
+                es_abono_previo: true
+              });
+            }
+          });
+        }
+        if (montoReal > 0) {
+          fpsListT.push({
+            descripcion: paymentMethod.toUpperCase(),
+            fecha: fechaTransaccion || new Date().toISOString(),
+            forma: '03',
+            banco: banco || undefined,
+            referencia: referencia || undefined,
+            monto: montoReal
+          });
+        }
+        if (descuentoSaldoFavor > 0) {
+          fpsListT.push({
+            descripcion: 'COMPENSACIÓN (NOTA DE CRÉDITO / SALDO A FAVOR)',
+            fecha: new Date().toISOString(),
+            forma: '99',
+            referencia: 'NC-SALDO-FAVOR',
+            monto: descuentoSaldoFavor
+          });
+        }
+
+        const detallesTransferenciaObj: any = {
+          contribuyente: contribuyenteFinalT,
+          contribuyente_nombre: contribuyenteFinalT,
+          codigo_inmueble: codInmuebleT,
+          cod_inmueble: codInmuebleT,
+          recibos: selectedRecibos, 
+          cuotas: selectedCuotas,
+          servicios: selectedServicios,
+          tala_poda: selectedTalaPoda,
+          cajero: cajero_id,
+          banco_destino: bancoDestino,
+          saldo_favor: saldoAFavorNuevo,
+          saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+          monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
+          monto_factura: totalFacturaBruto,
+          monto_neto_factura: finalTotal,
+          monto_retencion_iva: realMontoRetencionIVA,
+          es_retencion: (realMontoRetencionIVA > 0),
+          agente_retencion: (realMontoRetencionIVA > 0),
+          iva_percent: ivaPercent,
+          es_abono: esAbono,
+          monto_abonado: esAbono ? montoReal : undefined,
+          total_seleccionado: totalBs,
+          saldo_usado: descuentoSaldoFavor,
+          abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
+          formasPago: fpsListT.length > 0 ? fpsListT : undefined,
+          ...(pagosAgregadosPreviosT.length > 0 ? {
+            es_pago_multiple: true,
+            pagos_agregados: [
+              ...pagosAgregadosPreviosT,
+              {
+                id: pagoIdT,
+                metodo: paymentMethod,
+                tipo: paymentMethod,
+                banco: banco || paymentMethod,
+                bancoDestino: bancoDestino || '',
+                referencia: referencia,
+                monto: montoReal,
+                fechaTransaccion
+              }
+            ]
+          } : {}),
+          tasa_bcv: currentBcvRate,
+          deuda_total_sistema: foundUser.DeudaTotal,
+          deuda_previa: deudaPreviaT,
+          comprobante_nombre: comprobante?.name || '',
+          comprobante_url: comprobanteUrl,
+          comprobante_b64: comprobanteB64 || undefined,
+          comprobante_retencion_nombre: comprobanteRetencionFile?.name || undefined,
+          comprobante_retencion_url: compRetUrlT || undefined,
+          comprobante_retencion_b64: compRetB64T || undefined,
+          fecha_transaccion: fechaTransaccion,
+          tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
+          nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
+          omitir_multa_septiembre: omitirMultaSeptiembre || undefined
+        };
+
         let { error: pErr } = await supabase.from('pagos_reportados').insert({
           id: pagoIdT,
           identidad: foundUser.Identidad,
@@ -3789,45 +3905,7 @@ export default function CajaPage() {
           tipo: paymentMethod,
           estado: 'Por Verificar',
           created_at: fechaUTC,
-          detalles: JSON.stringify({ 
-            contribuyente: contribuyenteFinalT,
-            contribuyente_nombre: contribuyenteFinalT,
-            codigo_inmueble: codInmuebleT,
-            cod_inmueble: codInmuebleT,
-            recibos: selectedRecibos, 
-            cuotas: selectedCuotas,
-            servicios: selectedServicios,
-            tala_poda: selectedTalaPoda,
-            cajero: cajero_id,
-            banco_destino: bancoDestino,
-            saldo_favor: saldoAFavorNuevo,
-            saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
-            monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
-            monto_factura: totalFacturaBruto,
-            monto_neto_factura: finalTotal,
-            monto_retencion_iva: realMontoRetencionIVA,
-            es_retencion: (realMontoRetencionIVA > 0),
-            agente_retencion: (realMontoRetencionIVA > 0),
-            iva_percent: ivaPercent,
-            es_abono: esAbono,
-            monto_abonado: esAbono ? montoReal : undefined,
-            total_seleccionado: totalBs,
-            saldo_usado: descuentoSaldoFavor,
-            abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
-            tasa_bcv: currentBcvRate,
-            deuda_total_sistema: foundUser.DeudaTotal,
-            deuda_previa: deudaPreviaT,
-            comprobante_nombre: comprobante?.name || '',
-            comprobante_url: comprobanteUrl,
-            comprobante_b64: comprobanteB64 || undefined,
-            comprobante_retencion_nombre: comprobanteRetencionFile?.name || undefined,
-            comprobante_retencion_url: compRetUrlT || undefined,
-            comprobante_retencion_b64: compRetB64T || undefined,
-            fecha_transaccion: fechaTransaccion,
-            tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
-            nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
-            omitir_multa_septiembre: omitirMultaSeptiembre || undefined
-          })
+          detalles: JSON.stringify(detallesTransferenciaObj)
         });
 
         if (pErr && (pErr.code === '23505' || String(pErr.message).includes('referencia_key') || String(pErr.message).includes('duplicate'))) {
@@ -3841,49 +3919,31 @@ export default function CajaPage() {
             tipo: paymentMethod,
             estado: 'Por Verificar',
             created_at: fechaUTC,
-            detalles: JSON.stringify({
-              contribuyente: foundUser.Contribuyente,
-              contribuyente_nombre: foundUser.Contribuyente,
-              recibos: selectedRecibos,
-              cuotas: selectedCuotas,
-              servicios: selectedServicios,
-              tala_poda: selectedTalaPoda,
-              cajero: cajero_id,
-              banco_destino: bancoDestino,
-              saldo_favor: saldoAFavorNuevo,
-              saldo_a_favor_nuevo: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
-              monto_sobrante: saldoAFavorNuevo > 0 ? saldoAFavorNuevo : undefined,
-              monto_factura: totalFacturaBruto,
-              monto_neto_factura: finalTotal,
-              monto_retencion_iva: realMontoRetencionIVA,
-              es_retencion: (realMontoRetencionIVA > 0),
-              agente_retencion: (realMontoRetencionIVA > 0),
-              iva_percent: ivaPercent,
-              es_abono: esAbono,
-              monto_abonado: esAbono ? montoReal : undefined,
-              total_seleccionado: totalBs,
-              saldo_usado: descuentoSaldoFavor,
-              abono_previo_descontado: abonoPrevioAprobado > 0 ? abonoPrevioAprobado : undefined,
-              tasa_bcv: currentBcvRate,
-              deuda_total_sistema: foundUser.DeudaTotal,
-              deuda_previa: deudaPreviaT,
-              comprobante_nombre: comprobante?.name || '',
-              comprobante_url: comprobanteUrl,
-              comprobante_b64: comprobanteB64 || undefined,
-              comprobante_retencion_nombre: comprobanteRetencionFile?.name || undefined,
-              comprobante_retencion_url: compRetUrlT || undefined,
-              comprobante_retencion_b64: compRetB64T || undefined,
-              fecha_transaccion: fechaTransaccion,
-              tasa_bcv_aplicada: customBcvRate ? customBcvRate : undefined,
-              nota_cambio_tasa: justificacionBcv ? justificacionBcv : undefined,
-              omitir_multa_septiembre: omitirMultaSeptiembre || undefined
-            })
+            detalles: JSON.stringify(detallesTransferenciaObj)
           });
           pErr = r2.error;
         }
         
         if (pErr) throw pErr;
         ultimoPagoIdRef.current = pagoIdT;
+
+        if (!esAbono && abonoPrevioAprobado > 0 && abonosAprobados.length > 0) {
+          try {
+            for (const ap of abonosAprobados) {
+              let parsedDet: any = {};
+              try { parsedDet = typeof ap.detalles === 'string' ? JSON.parse(ap.detalles) : ap.detalles; } catch(e){}
+              if (parsedDet?.es_abono && !parsedDet?.abono_completado) {
+                parsedDet.abono_completado = true;
+                parsedDet.completado_con_pago_id = pagoIdT;
+                await supabase.from('pagos_reportados').update({
+                  detalles: JSON.stringify(parsedDet)
+                }).eq('id', ap.id);
+              }
+            }
+          } catch (e) {
+            console.warn('Error marcando abonos previos como completados en transferencia:', e);
+          }
+        }
         // ── GENERAR COMPROBANTE DE RETENCIÓN DE IVA COMO NOTA DE CRÉDITO ──
         // REGLA: La retención solo se genera/aplica cuando se cubra el pago total del mes (no para abonos parciales)
         if (realMontoRetencionIVA > 0 && !esAbono) {
