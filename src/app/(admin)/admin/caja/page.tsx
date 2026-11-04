@@ -1327,7 +1327,13 @@ export default function CajaPage() {
         }, 0
       );
       
-      const isAgenteDetected = (activeInmFresh || []).some((i: any) => i.agente_retencion === true) || Boolean(primaryInm?.agente_retencion) || Boolean(user.agente_retencion);
+      const isAgenteDetected = isCodeFormat && searchedInm
+        ? searchedInm.agente_retencion === true
+        : (activeInmFresh || []).some((i: any) => {
+            const isCondoInm = (i.condominio_padre_id || i.es_condominio) && !naParentCodesFresh.includes(i.condominio_padre_id);
+            if (isCondoInm && !isPagoIndInm(i)) return false;
+            return i.agente_retencion === true;
+          });
       setFoundUser({
         ...user,
         agente_retencion: isAgenteDetected,
@@ -1830,13 +1836,14 @@ export default function CajaPage() {
         setEsAgenteRetencion(false);
       } else {
         setIvaPercent(0.16); // 16% para comerciales
-        // Detectar si es agente de retención
-        const esAgente = Boolean(user.agente_retencion) || (activeInmFresh || []).some((i: any) => i.agente_retencion === true) || !!(inmuebles as any[]).find(
-          (inm: any) => (
-            inm.identidad === user.Identidad ||
-            inm.identidad === user.Identidad?.replace(/-/g, '')
-          ) && inm.agente_retencion === true
-        );
+        // Detectar si el inmueble consultado (o los inmuebles cobrables en Caja) tienen Agente de Retención
+        const esAgente = isCodeFormat && searchedInm
+          ? searchedInm.agente_retencion === true
+          : (activeInmFresh || []).some((i: any) => {
+              const isCondoInm = (i.condominio_padre_id || i.es_condominio) && !naParentCodesFresh.includes(i.condominio_padre_id);
+              if (isCondoInm && !isPagoIndInm(i)) return false;
+              return i.agente_retencion === true;
+            });
         setEsAgenteRetencion(esAgente);
         setRetencionIVA(0);
       }
@@ -2035,7 +2042,10 @@ export default function CajaPage() {
       const ivaInm = ivaMes * totalMeses;
       siva4 += ivaInm;
 
-      const esAgente = inm.agente_retencion === true || isAgenteGlobal;
+      // Cada inmueble respeta su propia casilla de Agente de Retención (salvo cuando paga la matriz de condominio)
+      const esAgente = isCondominioPayer
+        ? (inm.agente_retencion === true || isAgenteGlobal)
+        : (inm.agente_retencion === true);
       if (!esRes && esAgente) {
         sivaRetencionable4 += ivaInm;
       }
@@ -4676,15 +4686,31 @@ export default function CajaPage() {
                         const ok = confirm(`¿${val ? 'Marcar' : 'Desmarcar'} a este contribuyente como Agente de Retención (75% IVA)?`);
                         if (!ok) return;
                         try {
-                          await supabase.from('inmuebles').update({ agente_retencion: val }).eq('identidad', foundUser.Identidad);
-                          if (foundUser.CodCont) {
+                          if (foundUser.isSearchByCode && foundUser.CodCont) {
                             await supabase.from('inmuebles').update({ agente_retencion: val }).eq('inmueble', foundUser.CodCont);
-                            await supabase.from('inmuebles').update({ agente_retencion: val }).eq('condominio_padre_id', foundUser.CodCont);
-                            await supabase.from('condominios').update({ agente_retencion: val }).eq('codigo', foundUser.CodCont);
+                            await supabase.from('inmuebles').update({ agente_retencion: val }).eq('padre_id', foundUser.CodCont);
+                          } else {
+                            await supabase.from('inmuebles').update({ agente_retencion: val }).eq('identidad', foundUser.Identidad).is('condominio_padre_id', null);
+                            if (foundUser.CodCont) {
+                              await supabase.from('inmuebles').update({ agente_retencion: val }).eq('inmueble', foundUser.CodCont);
+                              await supabase.from('condominios').update({ agente_retencion: val }).eq('codigo', foundUser.CodCont);
+                            }
+                            if (foundUser.Identidad) {
+                              await supabase.from('condominios').update({ agente_retencion: val }).eq('identidad', foundUser.Identidad);
+                            }
                           }
-                          if (foundUser.Identidad) {
-                            await supabase.from('condominios').update({ agente_retencion: val }).eq('identidad', foundUser.Identidad);
-                          }
+                          setFreshInmuebles(prev => prev.map((i: any) => {
+                            if (foundUser.isSearchByCode && foundUser.CodCont) {
+                              if (i.inmueble === foundUser.CodCont || i.padre_id === foundUser.CodCont) {
+                                return { ...i, agente_retencion: val };
+                              }
+                              return i;
+                            }
+                            if (!i.condominio_padre_id) return { ...i, agente_retencion: val };
+                            return i;
+                          }));
+                          setFoundUser((prev: any) => prev ? { ...prev, agente_retencion: val, esAgenteRetencion: val } : prev);
+                          setEsAgenteRetencion(val);
                           await refreshUserData(foundUser.Identidad);
                           alert('Estado de Agente de Retención actualizado.');
                         } catch(err) {

@@ -518,7 +518,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ActividadComercial: (clase.includes('Comercial') || clase === 'Industrial' || clase === 'Mixto') ? (act || '') : '',
             TipoResidencia: clase === 'Residencial' ? (act || '') : '',
             Clasificacion: clase,
-            esAgenteRetencion: row.agente_retencion === true,
+            esAgenteRetencion: !isCondoChild && row.agente_retencion === true,
             SaldoFavor: parseFloat(row.saldo_favor_bs || '0'),
             DeudaMMV: rowDeudaMMV,
             MultaBs: rowMultaBs,
@@ -548,7 +548,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           existing.DeudaCongelada += rowCongelada;
           existing.MultaBs = (existing.MultaBs || 0) + rowMultaBs;
           existing.DeudaBs = (existing.DeudaBs || 0) + rowDeudaBs;
-          if (row.agente_retencion === true) existing.esAgenteRetencion = true;
+          if (!isCondoChild && row.agente_retencion === true) existing.esAgenteRetencion = true;
           if (!existing.condominio_padre_id && row.condominio_padre_id) {
             existing.condominio_padre_id = row.condominio_padre_id;
             existing.condominio_padre_nombre = pInfo?.nombre || null;
@@ -771,7 +771,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               Telefono: freshContrib.telefono || c.Telefono,
               Contribuyente: freshContrib.nombre || c.Contribuyente,
               Direccion: freshContrib.direccion || c.Direccion,
-              esAgenteRetencion: freshInms ? freshInms.some((i: any) => i.agente_retencion === true) : false
+              esAgenteRetencion: freshInms ? freshInms.some((i: any) => !i.condominio_padre_id && i.agente_retencion === true) : false
             };
           }
           return c;
@@ -1093,11 +1093,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const act = actividadDeLocal(local);
           if (local.codigo) {
             const o = local.__orig || {};
-            const cambio = o.uso !== local.uso || o.actividad !== local.actividad || o.nivel !== local.nivel ||
-              o.tipoResidencia !== local.tipoResidencia || o.estatus !== local.estatus || o.agente_retencion !== local.agente_retencion ||
+            const cambioTarifaOAct = o.uso !== local.uso || o.actividad !== local.actividad || o.nivel !== local.nivel ||
+              o.tipoResidencia !== local.tipoResidencia || o.estatus !== local.estatus ||
               (local.direccion && local.direccion !== o.direccion);
             
             const updatePayload: any = {};
+            if (o.agente_retencion !== local.agente_retencion) {
+              updatePayload.agente_retencion = local.agente_retencion === true;
+            }
             if (local.contribuyente && String(local.contribuyente).trim() !== '' && local.contribuyente !== o.contribuyente) {
               updatePayload.contribuyente = String(local.contribuyente).trim().toUpperCase();
             } else if (data.locales.length === 1 && data.Contribuyente) {
@@ -1134,7 +1137,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               updatePayload.correo_electronico = data.Correo;
             }
 
-            if (cambio) {
+            if (cambioTarifaOAct) {
               const mmv = isTerrenoInm(act) ? 0 : calcularMmvMes({ ...local, actividad: act }, ordenanzasConfig);
               if (local.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}" (${local.codigo}).`);
               updatePayload.actividad_principal = act;
@@ -1261,13 +1264,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Sincronizar agente_retencion en todos los inmuebles y condominios vinculados
-      if (data.esAgenteRetencion !== undefined) {
+      // Sincronizar agente_retencion globalmente SOLO cuando NO se editaron locales individuales
+      // (cuando data.locales existe, cada local guarda su propio check local.agente_retencion)
+      if (data.esAgenteRetencion !== undefined && !(Array.isArray(data.locales) && data.locales.length > 0)) {
         const esAgenteVal = data.esAgenteRetencion === true;
-        await supabase.from('inmuebles').update({ agente_retencion: esAgenteVal }).eq('identidad', identidadExacta);
+        await supabase.from('inmuebles').update({ agente_retencion: esAgenteVal }).eq('identidad', identidadExacta).is('condominio_padre_id', null);
         if (codigosPropios.length > 0) {
           await supabase.from('inmuebles').update({ agente_retencion: esAgenteVal }).in('inmueble', codigosPropios);
-          await supabase.from('inmuebles').update({ agente_retencion: esAgenteVal }).in('condominio_padre_id', codigosPropios);
         }
         try {
           if (codigosPropios.length > 0) {

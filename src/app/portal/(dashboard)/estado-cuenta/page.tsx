@@ -581,24 +581,17 @@ export default function EstadoCuentaPage() {
       subtotalMultasLocal = Math.round(subtotalMultasLocal * 100) / 100;
 
       const totalPagarLocal = Math.round((subtotalBaseLocal + subtotalIvaLocal + subtotalMultasLocal + totalServiciosBs) * 100) / 100;
-      // Agente de retención: si el contribuyente o cualquiera de sus inmuebles comerciales es agente de retención,
-      // Agente de retención: si el contribuyente o cualquiera de sus inmuebles comerciales es agente de retención,
-      // la condición fiscal de agente (SENIAT) aplica al contribuyente sobre la totalidad del IVA comercial generado.
+      // Agente de retención: se evalúa estrictamente por las actividades comerciales del inmueble/cluster actual
       const checkAgenteBool = (val: any) => val === true || val === 1 || String(val) === 'true' || String(val) === '1' || String(val).toUpperCase() === 'SI';
-      const esAgenteCluster = !esRes && (
-        checkAgenteBool(myContribuyente?.agente_retencion) ||
-        checkAgenteBool(myContribuyente?.esAgenteRetencion) ||
-        misInmuebles.some((i: any) => checkAgenteBool(i.agente_retencion)) ||
-        cluster.inms.some((i: any) => checkAgenteBool(i.agente_retencion))
-      );
+      const esAgenteCluster = !esRes && cluster.inms.some((i: any) => checkAgenteBool(i.agente_retencion));
       const retencionSumada = clusterInmBreakdown.reduce((s: number, b: any) => {
         const inmB = cluster.inms.find((i: any) => i.inmueble === b.inmueble);
         const bEsRes = inmB ? isResidencialInm(inmB) : false;
         return s + (!bEsRes && checkAgenteBool(inmB?.agente_retencion) ? b.ivaTotal * 0.75 : 0);
       }, 0);
-      const ivaRetenidoLocal = (esAgenteCluster || retencionSumada > 0)
-        ? Math.round((subtotalIvaLocal * 0.75) * 100) / 100
-        : 0;
+      const ivaRetenidoLocal = retencionSumada > 0
+        ? Math.round(retencionSumada * 100) / 100
+        : (esAgenteCluster ? Math.round((subtotalIvaLocal * 0.75) * 100) / 100 : 0);
       const esAgenteLocal = ivaRetenidoLocal > 0;
       const totalCancelarLocal = Math.round((totalPagarLocal - ivaRetenidoLocal) * 100) / 100;
 

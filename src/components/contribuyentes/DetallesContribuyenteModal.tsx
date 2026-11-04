@@ -768,15 +768,21 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
       });
   }, [userInms]);
 
-  // Verificar si es agente de retención (75% IVA)
+  // Verificar si tiene algún inmueble propio (fuera de condominio) que sea agente de retención (75% IVA)
   const esAgente = useMemo(() => {
-    return userInms.some(i => i.agente_retencion === true || String(i.agente_retencion) === 'true');
-  }, [userInms]);
+    return unifiedInmuebles.some(g => {
+      const isCondo = (g.inm.condominio_padre_id || g.inm.es_condominio) && !g.isNAParent;
+      if (isCondo) return false;
+      return g.inm.agente_retencion === true || String(g.inm.agente_retencion) === 'true' ||
+        (g.hijos || []).some((h: any) => h.agente_retencion === true || String(h.agente_retencion) === 'true');
+    });
+  }, [unifiedInmuebles]);
 
   // Deuda total acumulada de los inmuebles (unificada para no duplicar N/A con sus hijos)
   const resumenDeudaInmuebles = useMemo(() => {
     let totalBase = 0;
     let totalIva = 0;
+    let totalIvaRetencionable = 0;
     let totalMultas = 0;
     let mesesMax = 0;
 
@@ -808,6 +814,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
       let baseMes = 0;
       let ivaMes = 0;
+      let ivaMesRetencionable = 0;
       let multaMes = 0;
 
       if (isNAParent && hijos && hijos.length > 0) {
@@ -820,6 +827,9 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           const hMulta = esExon ? 0 : Math.round((hBase * hMora) * 100) / 100;
           baseMes += hBase;
           ivaMes += hIva;
+          if (!hRes && (h.agente_retencion === true || String(h.agente_retencion) === 'true' || inm.agente_retencion === true || String(inm.agente_retencion) === 'true')) {
+            ivaMesRetencionable += hIva;
+          }
           multaMes += hMulta;
         });
       } else {
@@ -828,34 +838,41 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           : calcularMensualidad({ ...inm, cant_inmuebles: inm.es_condominio ? (isNA ? 1 : inm.cant_inmuebles) : 1 }, tasaEfectiva);
         baseMes = Math.round(rawBase * 100) / 100;
         ivaMes = esRes ? 0 : Math.round((baseMes * 0.16) * 100) / 100;
+        if (!esRes && (inm.agente_retencion === true || String(inm.agente_retencion) === 'true')) {
+          ivaMesRetencionable = ivaMes;
+        }
         const moraTasa = esRes ? 0.10 : 0.12;
         multaMes = esExon ? 0 : Math.round((baseMes * moraTasa) * 100) / 100;
       }
 
       baseMes = Math.round(baseMes * 100) / 100;
       ivaMes = Math.round(ivaMes * 100) / 100;
+      ivaMesRetencionable = Math.round(ivaMesRetencionable * 100) / 100;
       multaMes = Math.round(multaMes * 100) / 100;
 
       const baseInm = Math.round((baseMes * meses) * 100) / 100;
       const ivaInm = Math.round((ivaMes * meses) * 100) / 100;
+      const ivaRetInm = Math.round((ivaMesRetencionable * meses) * 100) / 100;
       const multaInm = Math.round((multaMes * mesesConMulta) * 100) / 100;
 
       totalBase += baseInm;
       totalIva += ivaInm;
+      totalIvaRetencionable += ivaRetInm;
       totalMultas += multaInm;
     });
 
     totalBase = Math.round(totalBase * 100) / 100;
     totalIva = Math.round(totalIva * 100) / 100;
+    totalIvaRetencionable = Math.round(totalIvaRetencionable * 100) / 100;
     totalMultas = Math.round(totalMultas * 100) / 100;
 
     const subtotal = Math.round((totalBase + totalIva + totalMultas) * 100) / 100;
-    const retencion75 = esAgente ? Math.round(totalIva * 0.75 * 100) / 100 : 0;
+    const retencion75 = totalIvaRetencionable > 0 ? Math.round(totalIvaRetencionable * 0.75 * 100) / 100 : 0;
     const totalPagar = Math.max(0, Math.round((subtotal - retencion75) * 100) / 100);
     const totalConvenio = unifiedInmuebles.reduce((a, g) => a + (parseFloat(g.inm?.deuda_congelada_bs || '0') || 0), 0);
 
     return { totalBase, totalIva, totalMultas, totalConvenio, subtotal, retencion75, totalPagar, mesesMax };
-  }, [unifiedInmuebles, tasaEfectiva, esAgente]);
+  }, [unifiedInmuebles, tasaEfectiva]);
 
   // Condominio padre si aplica
   const condominioPadre = useMemo(() => {

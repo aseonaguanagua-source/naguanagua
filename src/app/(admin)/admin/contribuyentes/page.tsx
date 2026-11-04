@@ -1307,24 +1307,17 @@ function ContribuyentesPageContent() {
       subtotalMultasLocal = Math.round(subtotalMultasLocal * 100) / 100;
 
       const totalPagarLocal = Math.round((subtotalBaseLocal + subtotalIvaLocal + subtotalMultasLocal + totalServiciosBs) * 100) / 100;
-      // Agente de retención: si el contribuyente o cualquiera de sus inmuebles comerciales es agente de retención,
-      // la condición fiscal de agente (SENIAT) aplica al contribuyente sobre la totalidad del IVA comercial generado.
+      // Agente de retención: se evalúa estrictamente por las actividades comerciales del inmueble/cluster actual
+      // para que un local individual sin retención (ej. URB007835) no herede la retención de un condominio donde participa el mismo RIF.
       const checkAgenteBool = (val: any) => val === true || val === 1 || String(val) === 'true' || String(val) === '1' || String(val).toUpperCase() === 'SI';
-      const esAgenteCluster = !esRes && (
-        checkAgenteBool(viewData?.agente_retencion) ||
-        checkAgenteBool(viewData?.esAgenteRetencion) ||
-        cluster.inmuebles.some((i: any) => checkAgenteBool(i.agente_retencion)) ||
-        userInms.some((i: any) => checkAgenteBool(i.agente_retencion))
-      );
-      // Si el cluster es agente o tiene retención en cualquiera de sus actividades comerciales,
-      // la retención del 75% aplica sobre el IVA total comercial gravado
+      const esAgenteCluster = !esRes && cluster.inmuebles.some((i: any) => checkAgenteBool(i.agente_retencion));
       const retencionSumada = clusterInmBreakdown.reduce((s: number, b: any) => {
         const inmB = cluster.inmuebles.find((i: any) => i.inmueble === b.inmueble);
         return s + (checkAgenteBool(inmB?.agente_retencion) ? b.ivaTotal * 0.75 : 0);
       }, 0);
-      const ivaRetenidoLocal = (esAgenteCluster || retencionSumada > 0)
-        ? Math.round((subtotalIvaLocal * 0.75) * 100) / 100
-        : 0;
+      const ivaRetenidoLocal = retencionSumada > 0
+        ? Math.round(retencionSumada * 100) / 100
+        : (esAgenteCluster ? Math.round((subtotalIvaLocal * 0.75) * 100) / 100 : 0);
       const esAgenteLocal = ivaRetenidoLocal > 0;
       const totalCancelarLocal = Math.round((totalPagarLocal - ivaRetenidoLocal) * 100) / 100;
 
@@ -2422,8 +2415,17 @@ function ContribuyentesPageContent() {
       }
     } catch (_) {}
 
+    const nonCondoLocales = locales.filter((l: any) => {
+      const mInm = misInmuebles.find((i: any) => i.inmueble === l.codigo);
+      return !mInm?.condominio_padre_id;
+    });
+    const effectiveEsAgente = nonCondoLocales.length > 0
+      ? nonCondoLocales.every((l: any) => l.agente_retencion === true)
+      : (locales.length > 0 ? locales.every((l: any) => l.agente_retencion === true) : Boolean(row.esAgenteRetencion));
+
     setFormData({ 
       ...row,
+      esAgenteRetencion: effectiveEsAgente,
       clave_portal: row.clave_portal || misInmuebles[0]?.clave_portal || '',
       Direccion: direccionEfectiva,
       Clasificacion: autoClasificacion,

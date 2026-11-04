@@ -191,8 +191,8 @@ export async function PATCH(req: Request) {
       }
     }
 
-    // Sincronizar el campo agente_retencion en la tabla inmuebles para el inmueble principal del condominio,
-    // todos los inmuebles con este condominio como padre, y los que compartan el RIF del condominio.
+    // Sincronizar el campo agente_retencion únicamente en el inmueble matriz del condominio
+    // (NO en las unidades hijas, ya que cada propietario tiene sus propios inmuebles individuales fuera del condominio).
     if ('agente_retencion' in upd) {
       const nuevoAgente = !!upd.agente_retencion;
       
@@ -201,24 +201,13 @@ export async function PATCH(req: Request) {
         .update({ agente_retencion: nuevoAgente })
         .eq('inmueble', antes.codigo);
 
-      // 2. Todos los inmuebles vinculados al condominio por condominio_padre_id
-      await sb.from('inmuebles')
-        .update({ agente_retencion: nuevoAgente })
-        .eq('condominio_padre_id', antes.codigo);
-
-      // 3. Inmuebles con la identidad del condominio
+      // 2. Inmuebles matriz con la identidad propia del condominio
       const condoIdent = upd.identidad ?? antes.identidad;
       if (condoIdent) {
         await sb.from('inmuebles')
           .update({ agente_retencion: nuevoAgente })
-          .eq('identidad', condoIdent);
-      }
-
-      // 4. Todas las unidades vinculadas en condominio_unidades
-      const { data: us } = await sb.from('condominio_unidades').select('inmueble').eq('condominio_id', antes.id);
-      const allInms = (us || []).map((x: any) => x.inmueble).filter(Boolean);
-      for (let i = 0; i < allInms.length; i += 200) {
-        await sb.from('inmuebles').update({ agente_retencion: nuevoAgente }).in('inmueble', allInms.slice(i, i + 200));
+          .eq('identidad', condoIdent)
+          .eq('es_condominio', true);
       }
     }
 
