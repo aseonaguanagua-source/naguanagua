@@ -57,9 +57,16 @@ export async function POST(req: Request) {
 
     const fila: Record<string, any> = { estado: 'Activa', multa_meses: 0, ...limpiar(unidad || {}), condominio_id: c.id, creada_en_modulo: true };
     if (!fila.inmueble && !fila.numero) return NextResponse.json({ error: 'Indique el código del inmueble o el número del local/apartamento.' }, { status: 400 });
+    let yaEliminadaId: string | null = null;
     if (fila.inmueble) {
       const { data: ya } = await sb.from('condominio_unidades').select('id, condominio_id, estado, condominios(codigo,nombre)').eq('inmueble', fila.inmueble).maybeSingle();
-      if (ya) return NextResponse.json({ error: `El inmueble ${fila.inmueble} ya está registrado en ${(ya as any).condominios?.nombre || 'otro condominio'} (${ya.estado}). Búsquelo y edítelo.` }, { status: 409 });
+      if (ya) {
+        if (ya.estado === 'Eliminada') {
+          yaEliminadaId = ya.id;
+        } else {
+          return NextResponse.json({ error: `El inmueble ${fila.inmueble} ya está registrado en ${(ya as any).condominios?.nombre || 'otro condominio'} (${ya.estado}). Búsquelo y edítelo.` }, { status: 409 });
+        }
+      }
     }
     // Extra fields processing
     const _tel = fila._telefono; const _cor = fila._correo; const _dir = fila._direccion; const _actExt = fila._actividades_extra;
@@ -77,7 +84,9 @@ export async function POST(req: Request) {
       fila.inmueble = `${c.codigo}-${String(nextNum).padStart(3, '0')}`;
     }
 
-    const { data: nueva, error } = await sb.from('condominio_unidades').insert(fila).select('*').single();
+    const { data: nueva, error } = yaEliminadaId
+      ? await sb.from('condominio_unidades').update({ ...fila, updated_at: new Date().toISOString() }).eq('id', yaEliminadaId).select('*').single()
+      : await sb.from('condominio_unidades').insert(fila).select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     // Ensure it exists in inmuebles with complete synchronized fields
