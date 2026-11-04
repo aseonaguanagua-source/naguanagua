@@ -2773,7 +2773,14 @@ function ContribuyentesPageContent() {
         const tipoId = (formData.TipoIdentidad || 'V').toUpperCase();
         const digits = String(formData.Identidad || '').replace(/[^0-9]/g, '');
         const idCompleta = `${tipoId}-${digits}`;
-        const yaExiste = contribuyentes.some((c: any) => String(c.Identidad || '').toUpperCase().replace(/-/g, '') === idCompleta.replace(/-/g, ''));
+        const yaExiste = contribuyentes.some((c: any) => {
+          const mismoRif = String(c.Identidad || '').toUpperCase().replace(/-/g, '') === idCompleta.replace(/-/g, '');
+          if (!mismoRif) return false;
+          const est = String(c.Estado || '').trim().toLowerCase();
+          if (['eliminado', 'eliminada', 'inactivo', 'inactiva', 'baja', 'desactivado'].includes(est)) return false;
+          if (c.isCondoChild || c.condominio_padre_id) return false;
+          return true;
+        });
         if (yaExiste) {
           alert(`El contribuyente ${idCompleta} ya está registrado. Búsquelo y use "Editar" para agregarle actividades.`);
           setIsSaving(false);

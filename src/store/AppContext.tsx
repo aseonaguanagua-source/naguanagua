@@ -1400,12 +1400,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
           unidades.push({ uso: 'Comercial', actividad: a.actividad, nivel: a.nivel, estatus: 'Ocupado' }));
       }
 
-      const codigos = await siguientesCodigosInmueble(unidades.length);
-      const rowsToInsert = unidades.map((u: any, idx: number) => {
+      // Si el contribuyente tenía inmuebles previamente eliminados (ej. dados de baja de un condominio para pagar por fuera)
+      // o ya reactivados sin condominio_padre_id, reutilizar su código original para no duplicar fichas
+      const { data: inmsPrevios } = await supabase
+        .from('inmuebles')
+        .select('id, inmueble, estado, condominio_padre_id, meses_deuda')
+        .eq('identidad', identidad)
+        .order('created_at', { ascending: true });
+
+      const reutilizables = (inmsPrevios || []).filter((r: any) => {
+        const est = String(r.estado || '').trim().toLowerCase();
+        return ['eliminado', 'inactivo', 'baja', 'desactivado'].includes(est) || (!r.condominio_padre_id && (inmsPrevios || []).length === 1);
+      });
+
+      const faltantes = Math.max(0, unidades.length - reutilizables.length);
+      const codigosNuevos = faltantes > 0 ? await siguientesCodigosInmueble(faltantes) : [];
+      const codigos = unidades.map((_, idx) => reutilizables[idx]?.inmueble || codigosNuevos[idx - reutilizables.length]);
+
+      const rowsToUpsert = unidades.map((u: any, idx: number) => {
         const act = actividadDeLocal(u);
         const mmv = isTerrenoInm(act) ? 0 : calcularMmvMes({ ...u, actividad: act }, ordenanzasConfig);
         if (u.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para la actividad "${act || '(vacía)'}".`);
         if (u.uso === 'Residencial' && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act || '(vacío)'}".`);
+        const prevMeses = Number(reutilizables[idx]?.meses_deuda) || 0;
+        const mesesActivos = prevMeses > 0 ? prevMeses : 1;
         return {
           inmueble: codigos[idx],
           identidad,
@@ -1417,8 +1435,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           tipo: tipoDeUso(u.uso),
           clasificacion: 'Individual',
           estado: 'Activo',
+          condominio_padre_id: null,
+          es_condominio: false,
           actividad_principal: act,
           mmv_mes: mmv,
+          meses_deuda: mesesActivos,
+          deuda_mmv: parseFloat((mesesActivos * mmv).toFixed(5)),
           agente_retencion: data.esAgenteRetencion === true,
           cant_inmuebles: 1,
         };
@@ -1435,12 +1457,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }], { onConflict: 'identidad' });
       if (errContrib) throw new Error('No se pudo registrar el contribuyente: ' + errContrib.message);
 
-      // 2. Inmuebles / actividades
-      const { error } = await supabase.from('inmuebles').insert(rowsToInsert);
+      // 2. Inmuebles / actividades (upsert por inmueble para reactivar si venía eliminado de condominio)
+      const { error } = await supabase.from('inmuebles').upsert(rowsToUpsert, { onConflict: 'inmueble' });
       if (error) throw new Error('No se pudieron registrar los inmuebles: ' + error.message);
 
       await refreshUserData(identidad).catch(() => {});
-      await addAuditLog('NUEVO_CONTRIBUYENTE', `Se registró un nuevo contribuyente: ${data.Contribuyente} (Identidad: ${identidad}) | Inmuebles: ${rowsToInsert.map(r => `${r.inmueble} ${r.actividad_principal} (${r.mmv_mes} MMV)`).join('; ')}`);
+      await addAuditLog('NUEVO_CONTRIBUYENTE', `Se registró un nuevo contribuyente: ${data.Contribuyente} (Identidad: ${identidad}) | Inmuebles: ${rowsToUpsert.map(r => `${r.inmueble} ${r.actividad_principal} (${r.mmv_mes} MMV)`).join('; ')}`);
       return identidad;
     } catch (e) {
       console.error("Error adding contribuyente to Supabase:", e);

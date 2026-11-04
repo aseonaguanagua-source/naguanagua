@@ -264,6 +264,7 @@ export async function PATCH(req: Request) {
       }
       if (upd.estado === 'Eliminada') {
         inmUpd.estado = 'Eliminado';
+        inmUpd.condominio_padre_id = null;
         inmUpd.mmv_mes = 0;
         inmUpd.deuda_mmv = 0;
         inmUpd.cant_inmuebles = 0;
