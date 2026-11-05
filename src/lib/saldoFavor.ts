@@ -270,6 +270,12 @@ export async function descontarSaldoFavor(
 
       const esCondoMatriz = Boolean(condoRow && codTargetUpper && condoRow.codigo.toUpperCase() === codTargetUpper);
       const esLocalHijo = Boolean(!condoRow && codTargetUpper && /^(URB|AURI|[A-Z]{2,})\d+/i.test(codTargetUpper));
+      const allKnownInmCodes = new Set<string>(
+        [
+          ...(inms || []).map((x: any) => String(x?.inmueble || '').trim().toUpperCase()),
+          ...(codTargetUpper ? [codTargetUpper] : []),
+        ].filter(Boolean)
+      );
 
       let porConsumirDoc = montoNum;
       for (const doc of docsVigentes || []) {
@@ -279,14 +285,17 @@ export async function descontarSaldoFavor(
           det = typeof doc.detalles === 'string' ? JSON.parse(doc.detalles) : (doc.detalles || {});
         } catch {}
 
-        const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
+        const docInmRaw = String(det.codigo_inmueble || '').trim().toUpperCase();
+        const docInmTokens = docInmRaw.split(/\s+/).filter(Boolean);
         const docAmbito = String(det.ambito || '').trim().toUpperCase();
+        const isTrueCondoNote = docAmbito === 'CONDOMINIO' && Boolean(det.modalidad_origen || det.codigo_condominio);
 
         // Respetar separación estricta entre Nota de Crédito de Condominio Matriz vs Local Individual
         if (esCondoMatriz) {
-          if (docAmbito === 'LOCAL' || (docInm && docInm !== codTargetUpper)) continue;
+          if (docAmbito === 'LOCAL' || (docInmTokens.length > 0 && !docInmTokens.includes(codTargetUpper))) continue;
         } else if (esLocalHijo) {
-          if (docAmbito === 'CONDOMINIO' || (docInm && docInm !== codTargetUpper)) continue;
+          if (isTrueCondoNote && !docInmTokens.some(t => allKnownInmCodes.has(t))) continue;
+          if (docAmbito === 'LOCAL' && docInmTokens.length > 0 && !docInmTokens.some(t => allKnownInmCodes.has(t))) continue;
         }
 
         const montoDoc = parseFloat(String(det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;

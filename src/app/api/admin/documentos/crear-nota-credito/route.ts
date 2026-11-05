@@ -21,9 +21,27 @@ export async function POST(req: Request) {
 
     const refFinal = (referencia || '').trim() || `NC-${Date.now().toString().slice(-6)}`;
     const targetId = String(identidad).trim().toUpperCase();
-    const condoCode = codigoCondominio ? String(codigoCondominio).trim().toUpperCase() : undefined;
-    const inmCode = codigoInmueble ? String(codigoInmueble).trim().toUpperCase() : condoCode;
-    const ambitoFinal = ambito || (inmCode && condoCode && inmCode !== condoCode ? 'LOCAL' : (condoCode ? 'CONDOMINIO' : 'CONTRIBUYENTE'));
+    const rawCondoCode = codigoCondominio ? String(codigoCondominio).trim().toUpperCase().split(/\s+/)[0] : undefined;
+    const rawInmCode = codigoInmueble ? String(codigoInmueble).trim().toUpperCase().split(/\s+/)[0] : rawCondoCode;
+
+    // Verificar si el código realmente corresponde a un condominio registrado en `condominios`
+    let isRealCondo = false;
+    if (rawCondoCode) {
+      const { data: condoMatch } = await supabase
+        .from('condominios')
+        .select('id, codigo')
+        .eq('codigo', rawCondoCode)
+        .neq('estado', 'Eliminado')
+        .limit(1)
+        .maybeSingle();
+      if (condoMatch) isRealCondo = true;
+    }
+
+    const condoCode = isRealCondo ? rawCondoCode : undefined;
+    const inmCode = rawInmCode;
+    const ambitoFinal = ambito
+      ? (ambito === 'CONDOMINIO' && !isRealCondo && !modalidadOrigen ? 'CONTRIBUYENTE' : ambito)
+      : (inmCode && condoCode && inmCode !== condoCode ? 'LOCAL' : (isRealCondo ? 'CONDOMINIO' : 'CONTRIBUYENTE'));
 
     // 1. Insertar el documento oficial
     const { data: doc, error: errDoc } = await supabase

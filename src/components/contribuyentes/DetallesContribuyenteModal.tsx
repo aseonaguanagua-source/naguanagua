@@ -649,7 +649,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
   const reloadNotas = async () => {
     const ident = viewData?.Identidad || '';
-    const code = String(viewData?.CodCont || viewData?.cod_cont || '');
+    const code = primaryFichaCode || String(viewData?.CodCont || viewData?.cod_cont || '').split(/\s+/)[0] || '';
     try {
       const res = await fetch(`/api/admin/documentos/listar-notas-credito?identidad=${encodeURIComponent(ident)}&codigo=${encodeURIComponent(code)}`);
       const j = await res.json();
@@ -662,6 +662,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
     if (!montoParsed || montoParsed <= 0) return alert('Ingrese un monto válido para la Nota de Crédito.');
     setGuardandoNota(true);
     try {
+      const primaryCod = primaryFichaCode || String(viewData?.CodCont || viewData?.cod_cont || '').trim().toUpperCase().split(/\s+/)[0] || undefined;
       const res = await fetch('/api/admin/documentos/crear-nota-credito', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -671,7 +672,9 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           monto: montoParsed,
           motivo: notaMotivo.trim() || 'Nota de Crédito generada administrativamente',
           referencia: notaRef.trim(),
-          codigoCondominio: viewData.CodCont || viewData.cod_cont,
+          codigoInmueble: primaryCod,
+          codigoCondominio: viewData?.es_condominio ? primaryCod : undefined,
+          ambito: viewData?.es_condominio ? 'CONDOMINIO' : 'CONTRIBUYENTE',
           usuario: 'Admin'
         })
       });
@@ -950,6 +953,23 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
     });
   }, [unifiedInmuebles]);
 
+  const saldoFavorEfectivo = useMemo(() => {
+    const sumNotasVigentes = (notasDb || [])
+      .filter((n: any) => n.estado === 'Vigente')
+      .reduce((acc: number, n: any) => {
+        try {
+          const det = typeof n.detalles === 'string' ? JSON.parse(n.detalles || '{}') : (n.detalles || {});
+          return acc + (parseLocalFloat(det.monto_bs ?? det.monto ?? 0) || 0);
+        } catch {
+          return acc;
+        }
+      }, 0);
+    if (sumNotasVigentes > 0.01) return Math.round(sumNotasVigentes * 100) / 100;
+    const sumInms = userInms.reduce((acc: number, i: any) => acc + (parseFloat(String(i.saldo_favor_bs || 0)) || 0), 0);
+    if (sumInms > 0.01) return Math.round(sumInms * 100) / 100;
+    return Math.round((parseFloat(String(viewData?.SaldoFavor || 0)) || 0) * 100) / 100;
+  }, [notasDb, userInms, viewData]);
+
   // Deuda total acumulada de los inmuebles (unificada para no duplicar N/A con sus hijos)
   const resumenDeudaInmuebles = useMemo(() => {
     let totalBase = 0;
@@ -1040,11 +1060,13 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
     const subtotal = Math.round((totalBase + totalIva + totalMultas) * 100) / 100;
     const retencion75 = totalIvaRetencionable > 0 ? Math.round(totalIvaRetencionable * 0.75 * 100) / 100 : 0;
-    const totalPagar = Math.max(0, Math.round((subtotal - retencion75) * 100) / 100);
+    const totalSinSaldoFavor = Math.max(0, Math.round((subtotal - retencion75) * 100) / 100);
+    const descuentoSaldoFavor = Math.min(totalSinSaldoFavor, saldoFavorEfectivo);
+    const totalPagar = Math.max(0, Math.round((totalSinSaldoFavor - descuentoSaldoFavor) * 100) / 100);
     const totalConvenio = unifiedInmuebles.reduce((a, g) => a + (parseFloat(g.inm?.deuda_congelada_bs || '0') || 0), 0);
 
-    return { totalBase, totalIva, totalMultas, totalConvenio, subtotal, retencion75, totalPagar, mesesMax };
-  }, [unifiedInmuebles, tasaEfectiva]);
+    return { totalBase, totalIva, totalMultas, totalConvenio, subtotal, retencion75, descuentoSaldoFavor, totalPagar, mesesMax };
+  }, [unifiedInmuebles, tasaEfectiva, saldoFavorEfectivo]);
 
   // Condominio padre si aplica
   const condominioPadre = useMemo(() => {
@@ -1183,7 +1205,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
             <div className="bg-white/5 rounded-xl p-2.5 border border-white/10">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Saldo a Favor</span>
               <span className="text-base font-black text-emerald-400 tabular-nums">
-                Bs. {formatBs(viewData.SaldoFavor || 0)}
+                Bs. {formatBs(saldoFavorEfectivo)}
               </span>
             </div>
 

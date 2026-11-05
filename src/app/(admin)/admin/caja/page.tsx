@@ -1268,6 +1268,7 @@ export default function CajaPage() {
       try {
         const docIdentSearch = Array.from(new Set([
           ...userIdentVariants,
+          ...updatedUserIdentVariants,
           user.Identidad,
           user.CodCont,
           user.cod_cont,
@@ -1276,13 +1277,13 @@ export default function CajaPage() {
         if (docIdentSearch.length > 0) {
           const { data: docsNC } = await supabase
             .from('documentos')
-            .select('id, estado, detalles')
+            .select('id, estado, contribuyente, detalles')
             .eq('tipo', 'Nota de Credito')
             .eq('estado', 'Vigente')
             .in('identidad', docIdentSearch);
           if (docsNC && docsNC.length > 0) {
             const codBuscadoUpper = isCodeFormat && (user.CodCont || user.cod_cont)
-              ? String(user.CodCont || user.cod_cont).trim().toUpperCase()
+              ? String(user.CodCont || user.cod_cont).trim().toUpperCase().split(/\s+/)[0]
               : '';
             const codigosPropiosUpper = new Set(
               (activeInmFresh || []).map((i: any) => String(i.inmueble || '').trim().toUpperCase()).filter(Boolean)
@@ -1293,12 +1294,14 @@ export default function CajaPage() {
               let det: any = {};
               try { det = typeof d.detalles === 'string' ? JSON.parse(d.detalles) : (d.detalles || {}); } catch {}
               const docAmbito = String(det.ambito || '').trim().toUpperCase();
-              const docInm = String(det.codigo_inmueble || '').trim().toUpperCase();
-              // En Caja individual no mezclar notas que pertenezcan exclusivamente a un Condominio matriz (Pago Completo / Abono)
-              if (docAmbito === 'CONDOMINIO' && !user.es_condominio) return acc;
-              // Si se buscó un código de local específico y la nota apunta a otro local distinto, no mezclarla
-              if (codBuscadoUpper && docInm && docInm !== codBuscadoUpper && !codigosPropiosUpper.has(docInm)) return acc;
-              if (!codBuscadoUpper && docInm && codigosPropiosUpper.size > 0 && !codigosPropiosUpper.has(docInm)) return acc;
+              const docInmRaw = String(det.codigo_inmueble || '').trim().toUpperCase();
+              const docInmTokens = docInmRaw.split(/\s+/).filter(Boolean);
+              const matchesOwnCode = docInmTokens.some(t => t === codBuscadoUpper || codigosPropiosUpper.has(t));
+              const isTrueCondoNote = docAmbito === 'CONDOMINIO' && Boolean(det.modalidad_origen || String(d.contribuyente || '').toUpperCase().includes('CONDOMINIO'));
+              // En Caja individual no mezclar notas que pertenezcan exclusivamente a un Condominio matriz (salvo que apunten al propio código del contribuyente)
+              if (isTrueCondoNote && !user.es_condominio && !matchesOwnCode) return acc;
+              // Si la nota apunta a códigos de local específicos y ninguno coincide con los códigos del contribuyente consultado, no mezclarla
+              if (docInmTokens.length > 0 && codigosPropiosUpper.size > 0 && !matchesOwnCode) return acc;
               const m = parseFloat(String(det.monto_bs ?? det.monto ?? '0').replace(/,/g, '.')) || 0;
               return acc + (m > 0 ? m : 0);
             }, 0);
@@ -4261,6 +4264,7 @@ export default function CajaPage() {
 
       alert('Nota de crédito eliminada y saldo a favor revertido exitosamente.');
       if (foundUser?.Identidad) {
+        setFoundUser((prev: any) => prev ? { ...prev, SaldoFavor: Math.max(0, Math.round(((prev.SaldoFavor || 0) - montoNota) * 100) / 100) } : prev);
         await fetchContribNotas(foundUser.Identidad);
         await refreshUserData(foundUser.Identidad);
       }
@@ -4277,6 +4281,7 @@ export default function CajaPage() {
     if (!foundUser) return;
     
     try {
+      const primaryCod = String(foundUser.cod_cont || foundUser.CodCont || '').trim().toUpperCase().split(/\s+/)[0] || undefined;
       const res = await fetch('/api/admin/documentos/crear-nota-credito', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4286,7 +4291,9 @@ export default function CajaPage() {
           monto: montoNota,
           motivo: 'Nota de crédito generada manualmente desde Caja',
           referencia: notaManualRef.trim(),
-          codigoCondominio: foundUser.CodCont || foundUser.cod_cont,
+          codigoInmueble: primaryCod,
+          codigoCondominio: foundUser.es_condominio ? primaryCod : undefined,
+          ambito: foundUser.es_condominio ? 'CONDOMINIO' : 'CONTRIBUYENTE',
           usuario: getCajeroId() || 'Admin'
         })
       });
@@ -4297,6 +4304,8 @@ export default function CajaPage() {
       setNotaManualMonto('');
       setNotaManualRef('');
       setNotaTab('lista');
+      setFoundUser((prev: any) => prev ? { ...prev, SaldoFavor: Math.round(((prev.SaldoFavor || 0) + montoNota) * 100) / 100 } : prev);
+      setUseSaldoFavor(true);
       if (foundUser?.Identidad) {
         await fetchContribNotas(foundUser.Identidad);
         await refreshUserData(foundUser.Identidad);
