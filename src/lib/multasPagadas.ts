@@ -418,6 +418,19 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
       }
     }
   }
+  if (!unidadId && condominioId) {
+    const { data } = await sb
+      .from('condominio_movimientos')
+      .select('id, condominio_id, unidad_id, tipo, concepto, monto_bs, pago_id, created_at')
+      .eq('condominio_id', condominioId)
+      .is('unidad_id', null)
+      .eq('tipo', 'PAGO');
+    if (data) {
+      for (const r of data) {
+        if (!movimientosRows.some((m) => m.id === r.id)) movimientosRows.push(r);
+      }
+    }
+  }
 
   // 3. Recolectar pagos_reportados relevantes
   const pagosMap = new Map<string, any>();
@@ -596,8 +609,13 @@ export async function obtenerHistorialPagosMultasYPeriodos(params: {
       for (const l of lineasCondo) {
         const lInm = String(l?.inmueble || '').trim().toUpperCase();
         const lUid = String(l?.unidad_id || '').trim();
+        const esPagoMatrizCondo = Boolean(
+          codigoCondominio &&
+          !unidadId &&
+          (lInm === codigoCondominio || lUid === '__CONDOMINIO__' || lUid === '__SIN_REGISTRAR__')
+        );
         const coincideUnidad =
-          (inmCode && lInm === inmCode) || (unidadId && lUid && lUid === unidadId);
+          (inmCode && lInm === inmCode) || (unidadId && lUid && lUid === unidadId) || esPagoMatrizCondo;
         if (!coincideUnidad) continue;
 
         const aseoBs = Number(l?.aseoBs || 0);

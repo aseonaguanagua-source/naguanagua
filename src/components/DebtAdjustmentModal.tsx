@@ -115,6 +115,62 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
   const [rangeStartKey, setRangeStartKey] = useState<string>(allMonths[0]?.key || '2019-12');
   const [rangeEndKey, setRangeEndKey] = useState<string>(allMonths[allMonths.length - 1]?.key || '2026-09');
 
+  // Historial de períodos de aseo ya cancelados (bloquea re-agregar meses ya pagados en el sistema)
+  const [pagosPorPeriodo, setPagosPorPeriodo] = useState<Record<string, any>>({});
+  const [listaPagosPeriodo, setListaPagosPeriodo] = useState<any[]>([]);
+  const [cargandoPagosPeriodo, setCargandoPagosPeriodo] = useState<boolean>(false);
+
+  const esMesCancelado = (key: string, mapa: Record<string, any> = pagosPorPeriodo): boolean => {
+    const info = mapa?.[key];
+    return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
+  };
+
+  useEffect(() => {
+    const codInm = targetInmCode !== 'ALL' ? targetInmCode : (activeInm?.inmueble || row?.inmueble || '');
+    if (!codInm && !identProp) {
+      setPagosPorPeriodo({});
+      setListaPagosPeriodo([]);
+      return;
+    }
+    let cancelado = false;
+    setCargandoPagosPeriodo(true);
+    const qs = new URLSearchParams();
+    if (codInm) qs.set('inmueble', String(codInm));
+    if (identProp) qs.set('identidad', String(identProp));
+
+    fetch(`/api/admin/multas/verificar-pagos?${qs.toString()}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelado) return;
+        if (data && data.ok) {
+          const mapa = data.porPeriodo || {};
+          setPagosPorPeriodo(mapa);
+          const listaSoloMeses = (Array.isArray(data.lista) ? data.lista : Object.values(mapa)).filter(
+            (item: any) => item && (item.tipo === 'MES' || item.tipo === 'MES_CON_MULTA')
+          );
+          setListaPagosPeriodo(listaSoloMeses);
+          // Excluir automáticamente cualquier mes que ya haya sido cancelado
+          setSelectedMonths(prev => prev.filter(k => !esMesCancelado(k, mapa)));
+        } else {
+          setPagosPorPeriodo({});
+          setListaPagosPeriodo([]);
+        }
+      })
+      .catch(() => {
+        if (!cancelado) {
+          setPagosPorPeriodo({});
+          setListaPagosPeriodo([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoPagosPeriodo(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [targetInmCode, activeInm?.inmueble, row?.inmueble, identProp]);
+
   useEffect(() => {
     // Obtener tasa BCV actualizada
     fetch(`/api/bcv?t=${Date.now()}`, { cache: 'no-store' })
@@ -131,8 +187,11 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
     );
 
     if (currentMonthsCount > 0 && allMonths.length > 0) {
-      // Tomar los últimos N meses disponibles
-      const preselected = allMonths.slice(-currentMonthsCount).map(m => m.key);
+      // Tomar los últimos N meses disponibles que no estén ya cancelados
+      const preselected = allMonths
+        .slice(-currentMonthsCount)
+        .map(m => m.key)
+        .filter(k => !esMesCancelado(k));
       setSelectedMonths(preselected);
       if (preselected.length > 0) {
         setRangeStartKey(preselected[0]);
@@ -144,7 +203,7 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       setRangeStartKey(allMonths[allMonths.length - 1].key);
       setRangeEndKey(allMonths[allMonths.length - 1].key);
     }
-  }, [activeInm, row, allMonths]);
+  }, [activeInm, row, allMonths]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Manejador del rango Desde - Hasta
   const applyRangeSelection = (startK: string, endK: string) => {
@@ -154,7 +213,10 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
 
     const fromIdx = Math.min(startIdx, endIdx);
     const toIdx = Math.max(startIdx, endIdx);
-    const rangeKeys = allMonths.slice(fromIdx, toIdx + 1).map(m => m.key);
+    const rangeKeys = allMonths
+      .slice(fromIdx, toIdx + 1)
+      .map(m => m.key)
+      .filter(k => !esMesCancelado(k));
     setSelectedMonths(rangeKeys);
   };
 
@@ -174,7 +236,10 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       setSelectedMonths([]);
       return;
     }
-    const chosen = allMonths.slice(-count).map(m => m.key);
+    const chosen = allMonths
+      .slice(-count)
+      .map(m => m.key)
+      .filter(k => !esMesCancelado(k));
     setSelectedMonths(chosen);
     if (chosen.length > 0) {
       setRangeStartKey(chosen[0]);
@@ -184,6 +249,14 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
 
   // Toggle de un mes individual en la cuadrícula
   const toggleMonth = (key: string) => {
+    if (esMesCancelado(key)) {
+      const infoPago = pagosPorPeriodo[key];
+      const mLabel = allMonths.find(m => m.key === key)?.label || key;
+      alert(
+        `No se puede agregar el mes ${mLabel} (${key}):\n\nYa figura como "${infoPago.etiqueta}" en el sistema.\nReferencia de pago: ${infoPago.referencia}`
+      );
+      return;
+    }
     setSelectedMonths(prev =>
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
     );
@@ -191,7 +264,10 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
 
   // Toggle año completo
   const toggleYear = (year: number) => {
-    const yearKeys = allMonths.filter(m => m.year === year).map(m => m.key);
+    const yearKeys = allMonths
+      .filter(m => m.year === year && !esMesCancelado(m.key))
+      .map(m => m.key);
+    if (yearKeys.length === 0) return;
     const allSelected = yearKeys.every(k => selectedMonths.includes(k));
     if (allSelected) {
       setSelectedMonths(prev => prev.filter(k => !yearKeys.includes(k)));
@@ -271,6 +347,20 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
       return;
     }
 
+    // Verificar en memoria si alguno de los meses seleccionados o los últimos N meses ya fue cancelado
+    const effectivePeriodsToCheck = selectedMonths.length > 0
+      ? Array.from(new Set([...selectedMonths, ...allMonths.slice(-selectedMonths.length).map(m => m.key)]))
+      : [];
+    const conflictoLocal = effectivePeriodsToCheck.find(k => esMesCancelado(k));
+    if (conflictoLocal) {
+      const infoPago = pagosPorPeriodo[conflictoLocal];
+      const mLabel = allMonths.find(m => m.key === conflictoLocal)?.label || conflictoLocal;
+      setErrorMsg(
+        `No se puede asignar deuda sobre el período ${mLabel} (${conflictoLocal}): ya figura como "${infoPago.etiqueta}" con la Referencia: ${infoPago.referencia}.`
+      );
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const selectedCount = selectedMonths.length;
@@ -285,6 +375,32 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
 
       if (targetInms.length === 0) {
         throw new Error('No se encontraron inmuebles asociados para actualizar.');
+      }
+
+      // Verificación en servidor antes de guardar para evitar agregar meses que ya fueron cancelados en el sistema
+      if (selectedCount > 0) {
+        const periodosEfectivosServidor = Array.from(
+          new Set([...selectedMonths, ...allMonths.slice(-selectedCount).map(m => m.key)])
+        );
+        for (const inm of targetInms) {
+          const qsCheck = new URLSearchParams();
+          if (inm?.inmueble) qsCheck.set('inmueble', String(inm.inmueble));
+          if (identProp) qsCheck.set('identidad', String(identProp));
+          const resCheck = await fetch(`/api/admin/multas/verificar-pagos?${qsCheck.toString()}`);
+          if (resCheck.ok) {
+            const jsonCheck = await resCheck.json();
+            const mapaSrv = jsonCheck?.porPeriodo || {};
+            const perYaPagado = periodosEfectivosServidor.find(k => esMesCancelado(k, mapaSrv));
+            if (perYaPagado) {
+              const pExistente = mapaSrv[perYaPagado];
+              const mLabel = allMonths.find(m => m.key === perYaPagado)?.label || perYaPagado;
+              setPagosPorPeriodo(mapaSrv);
+              throw new Error(
+                `No se puede agregar el período ${mLabel} (${perYaPagado}) al inmueble ${inm.inmueble}: ya fue cancelado en el sistema (${pExistente.etiqueta}) · Referencia: ${pExistente.referencia}.`
+              );
+            }
+          }
+        }
       }
 
       const fechaHoy = new Date().toLocaleDateString('es-VE');
@@ -708,18 +824,23 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
                         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5">
                           {months.map(m => {
                             const isChecked = selectedMonths.includes(m.key);
+                            const isPaid = esMesCancelado(m.key);
+                            const paidInfo = pagosPorPeriodo[m.key];
                             return (
                               <button
                                 key={m.key}
                                 type="button"
                                 onClick={() => toggleMonth(m.key)}
+                                title={isPaid ? `${paidInfo?.etiqueta || 'Cancelado'} · Ref: ${paidInfo?.referencia || 'S/R'}` : m.label}
                                 className={`text-[11px] font-bold py-1.5 px-2 rounded-lg border transition-all flex items-center justify-center gap-1 ${
-                                  isChecked
+                                  isPaid
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 line-through opacity-75 cursor-not-allowed'
+                                    : isChecked
                                     ? 'bg-orange-500 text-white border-orange-600 shadow-2xs'
                                     : 'bg-white text-slate-700 border-slate-200 hover:border-orange-300 hover:bg-orange-50/30'
                                 }`}
                               >
-                                {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                {isChecked && !isPaid && <Check className="w-3 h-3 stroke-[3]" />}
                                 <span>{m.monthName}</span>
                               </button>
                             );
@@ -732,6 +853,40 @@ export function DebtAdjustmentModal({ row, inmuebles, tcmmv, recibos, setFactura
               )}
             </div>
           </div>
+
+          {/* Tarjeta de Períodos ya Cancelados (bloqueados para evitar cobro doble) */}
+          {(cargandoPagosPeriodo || listaPagosPeriodo.length > 0) && (
+            <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-1.5">
+              <div className="text-[11px] font-extrabold text-emerald-900 uppercase tracking-wider flex items-center justify-between">
+                <span>Períodos ya cancelados en el sistema (No admiten volver a agregar el mes)</span>
+                {cargandoPagosPeriodo && <span className="text-[10px] font-semibold text-emerald-700">Verificando...</span>}
+              </div>
+              {listaPagosPeriodo.length > 0 && (
+                <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                  {listaPagosPeriodo.map((item: any) => {
+                    const mLabel = allMonths.find(m => m.key === item.periodo)?.label || item.periodo;
+                    return (
+                      <div
+                        key={item.periodo}
+                        className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-emerald-200 text-xs"
+                      >
+                        <span className="font-bold text-slate-800">
+                          {mLabel}{' '}
+                          <span className="font-mono text-[10px] text-slate-500">({item.periodo})</span>
+                          <span className="ml-2 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            {item.etiqueta}
+                          </span>
+                        </span>
+                        <span className="text-[11px] text-slate-700">
+                          Ref: <b className="font-mono text-emerald-900">{item.referencia}</b>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Tarjeta de Resumen Financiero en Vivo */}
           <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-200 shadow-inner space-y-2">

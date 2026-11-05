@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { Save, X, RefreshCw, Plus, Trash2, Home, Store, AlertTriangle, Award, FileText, Sliders, LogOut } from 'lucide-react';
 import { ordenanzaData } from '@/data/ordenanza';
 import { actividadConNivel, nivelActividad, quitarNivelActividad, resolverFOComercial } from '@/lib/calculos';
-import { mesesPendientes } from '@/lib/condominios/motor';
+import { mesesPendientes, pendienteDesdeParaMeses, periodosPendientes } from '@/lib/condominios/motor';
 import ModalAjusteMeses from './ModalAjusteMeses';
 import { parseLocalFloat, formatLocalNumberInput } from '@/lib/formatters';
 
@@ -269,6 +269,24 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
     setErr('');
     if (motivo.trim().length < 5) { setErr('Escriba el motivo del cambio (queda en la Auditoría).'); return; }
     if (clase === 'COM' && !actCom.trim() && f.estado !== 'Desocupada' && !f.es_grupo) { setErr('Indique la actividad comercial.'); return; }
+
+    // Bloquear si los meses pendientes de aseo solicitados abarcan algún período cuyo mes ya fue cancelado en el sistema
+    const numMesesNuevos = Math.max(0, parseInt(f.meses) || 0);
+    if (numMesesNuevos > 0) {
+      const desdeCalc = pendienteDesdeParaMeses(numMesesNuevos);
+      const periodosNuevos = periodosPendientes(desdeCalc);
+      const perConflicto = periodosNuevos.find(p => {
+        const info = pagosPorPeriodo[p];
+        return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
+      });
+      if (perConflicto) {
+        const info = pagosPorPeriodo[perConflicto];
+        const msg = `No se puede asignar ${numMesesNuevos} mes(es) pendientes porque incluye el período ${fmtPeriodo(perConflicto)} (${perConflicto}), el cual ya fue cancelado (${info.etiqueta} · Referencia: ${info.referencia}).`;
+        setErr(msg);
+        alert(msg);
+        return;
+      }
+    }
     const datos: any = {
       inmueble: f.inmueble, numero: f.numero, propietario: f.propietario, identidad: f.identidad, estado: f.estado,
       padre_unidad_id: f.padre_unidad_id || null, es_grupo: f.es_grupo, meses: f.meses, multa_meses: f.multa_meses,
@@ -634,7 +652,7 @@ export default function EditorUnidad({ condo, unidad, unidades, multas, renglon,
             {listaPagosPeriodo.length > 0 && (
               <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-1.5">
                 <div className="text-[11px] font-extrabold text-emerald-900 uppercase tracking-wider">
-                  Períodos / Multas ya cancelados (No admiten recarga de multa)
+                  Períodos / Multas ya cancelados (No admiten volver a agregar el mes ni recargar multa)
                 </div>
                 <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
                   {listaPagosPeriodo.map((item: any) => (

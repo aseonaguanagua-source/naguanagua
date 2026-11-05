@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import { buscarPorDueno, calcularEstado, cargarCondominio, resumenGeneral, tasaVigente } from '@/lib/condominios/servicio';
-import { mesesPendientes, pendienteDesdeParaMeses } from '@/lib/condominios/motor';
+import { mesesPendientes, pendienteDesdeParaMeses, periodosPendientes } from '@/lib/condominios/motor';
+import { obtenerHistorialPagosMultasYPeriodos } from '@/lib/multasPagadas';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -102,6 +103,30 @@ export async function PATCH(req: Request) {
     }
     if (cambios && 'meses' in cambios) {
       const nuevo = pendienteDesdeParaMeses(Math.max(0, parseInt(cambios.meses) || 0));
+      const mesesAntes = mesesPendientes(antes.aseo_pendiente_desde);
+      const mesesDespues = mesesPendientes(nuevo);
+      if (mesesDespues > mesesAntes && nuevo) {
+        const periodosNuevos = periodosPendientes(nuevo);
+        const hist = await obtenerHistorialPagosMultasYPeriodos({
+          inmueble: antes.codigo,
+          condominio_id: antes.id,
+          codigo_condominio: antes.codigo,
+          identidad: antes.identidad,
+        });
+        const perConflicto = periodosNuevos.find(p => {
+          const info = hist.porPeriodo?.[p];
+          return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
+        });
+        if (perConflicto) {
+          const info = hist.porPeriodo[perConflicto];
+          return NextResponse.json(
+            {
+              error: `No se puede agregar el período ${perConflicto} (${mesesDespues} meses) al condominio ${antes.codigo}: ya fue cancelado en el sistema (${info.etiqueta}) con la Referencia: ${info.referencia}.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
       upd.aseo_pendiente_desde = nuevo;
     }
     if (Object.keys(upd).length === 0 && (!cambios || !('clave_portal' in cambios))) return NextResponse.json({ error: 'No hay cambios' }, { status: 400 });

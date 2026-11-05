@@ -3,6 +3,7 @@ import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
 import { pendienteDesdeParaMeses, mesesPendientes, periodosPendientes, isResidencialInm } from '@/lib/condominios/motor';
 import { tasaVigente } from '@/lib/condominios/servicio';
 import { calcularMensualidad } from '@/lib/calculos';
+import { obtenerHistorialPagosMultasYPeriodos } from '@/lib/multasPagadas';
 
 export const dynamic = 'force-dynamic';
 
@@ -154,6 +155,35 @@ export async function PATCH(req: Request) {
     if (upd.inmueble && upd.inmueble !== antes.inmueble) {
       const { data: ya } = await sb.from('condominio_unidades').select('id').eq('inmueble', upd.inmueble).limit(1).maybeSingle();
       if (ya) return NextResponse.json({ error: `El inmueble ${upd.inmueble} ya está registrado en otra unidad.` }, { status: 409 });
+    }
+
+    // Bloquear si se intenta aumentar o fijar meses pendientes sobre un período cuyo mes ya fue cancelado en el sistema
+    if ('aseo_pendiente_desde' in upd && upd.aseo_pendiente_desde) {
+      const mesesAntes = mesesPendientes(antes.aseo_pendiente_desde);
+      const mesesDespues = mesesPendientes(upd.aseo_pendiente_desde);
+      if (mesesDespues > mesesAntes) {
+        const periodosNuevos = periodosPendientes(upd.aseo_pendiente_desde);
+        const hist = await obtenerHistorialPagosMultasYPeriodos({
+          unidad_id: id,
+          inmueble: antes.inmueble || upd.inmueble,
+          condominio_id: antes.condominio_id,
+          codigo_condominio: (antes as any).condominios?.codigo,
+          identidad: antes.identidad || upd.identidad,
+        });
+        const perConflicto = periodosNuevos.find(p => {
+          const info = hist.porPeriodo?.[p];
+          return Boolean(info && (info.tipo === 'MES' || info.tipo === 'MES_CON_MULTA'));
+        });
+        if (perConflicto) {
+          const info = hist.porPeriodo[perConflicto];
+          return NextResponse.json(
+            {
+              error: `No se puede agregar el período ${perConflicto} (${mesesDespues} meses): ya fue cancelado en el sistema (${info.etiqueta}) con la Referencia: ${info.referencia}.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
     }
     
     // Actualizar campos en inmuebles (sincronización completa de propietario, identidad, deuda y actividad)
