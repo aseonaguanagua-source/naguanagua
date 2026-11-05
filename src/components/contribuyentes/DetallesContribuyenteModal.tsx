@@ -379,15 +379,15 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               // Cruzar con condominios y condominio_unidades para detectar cualquier condominio asociado al RIF o códigos
               try {
                 const [{ data: allCondos }, { data: unitsByRif }] = await Promise.all([
-                  supabase.from('condominios').select('id, codigo, nombre, rif, estado').neq('estado', 'Eliminado').neq('estado', 'Inactivo'),
+                  supabase.from('condominios').select('id, codigo, nombre, identidad, estado').neq('estado', 'Eliminado').neq('estado', 'Inactivo'),
                   supabase.from('condominio_unidades')
-                    .select('condominio_id, codigo_contribuyente, numero_unidad, inquilino_nombre, rif_unidad, actividad_economica, estado')
+                    .select('condominio_id, inmueble, numero, propietario, identidad, actividad, estado')
+                    .neq('estado', 'Eliminada')
                     .neq('estado', 'Eliminado')
-                    .neq('estado', 'Inactivo')
                     .or([
-                      ...Array.from(allIdVariants).map(v => `rif_unidad.eq.${v}`),
-                      ...(rawDigits.length >= 4 ? [`rif_unidad.ilike.%${rawDigits}%`] : []),
-                      ...todosRif.map((r: any) => r.inmueble).filter(Boolean).map((c: string) => `codigo_contribuyente.eq.${c}`),
+                      ...Array.from(allIdVariants).map(v => `identidad.eq.${v}`),
+                      ...(rawDigits.length >= 4 ? [`identidad.ilike.%${rawDigits}%`] : []),
+                      ...todosRif.map((r: any) => r.inmueble).filter(Boolean).map((c: string) => `inmueble.eq.${c}`),
                     ].join(','))
                 ]);
 
@@ -414,7 +414,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                     groupedCondos.set(key, {
                       codigo: key,
                       nombre: meta?.nombre || cName || `Condominio ${key}`,
-                      rif: meta?.rif || cRif || 'S/R',
+                      rif: meta?.identidad || cRif || 'S/R',
                       esCondominioMatriz: isMat,
                       locales: [],
                     });
@@ -426,9 +426,9 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
                 // 1) Si el RIF mismo es de un condominio matriz
                 (allCondos || []).forEach((c: any) => {
-                  const cDigits = String(c.rif || '').replace(/\D/g, '');
+                  const cDigits = String(c.identidad || '').replace(/\D/g, '');
                   if ((rawDigits.length >= 5 && cDigits === rawDigits) || codes.includes(String(c.codigo || '').trim().toUpperCase())) {
-                    ensureCondo(c.codigo, c.nombre, c.rif, true);
+                    ensureCondo(c.codigo, c.nombre, c.identidad, true);
                   }
                 });
 
@@ -455,14 +455,14 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                 (unitsByRif || []).forEach((u: any) => {
                   const parentCondo = condoById.get(String(u.condominio_id || ''));
                   if (!parentCondo?.codigo) return;
-                  const entry = ensureCondo(parentCondo.codigo, parentCondo.nombre, parentCondo.rif, false);
-                  const uCode = String(u.codigo_contribuyente || u.numero_unidad || '').trim().toUpperCase();
+                  const entry = ensureCondo(parentCondo.codigo, parentCondo.nombre, parentCondo.identidad, false);
+                  const uCode = String(u.inmueble || u.numero || '').trim().toUpperCase();
                   if (entry && uCode && !entry.locales.some(l => l.codigo === uCode)) {
                     entry.locales.push({
                       codigo: uCode,
-                      local: u.numero_unidad || '',
-                      nombre: u.inquilino_nombre || '',
-                      actividad: u.actividad_economica || '',
+                      local: u.numero || '',
+                      nombre: u.propietario || '',
+                      actividad: u.actividad || '',
                     });
                   }
                 });
