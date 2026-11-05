@@ -356,13 +356,39 @@ export default function FacturacionElectronicaPage() {
   const normalizarFormaPagoTFHKA = (raw: any): string => {
     const s = String(raw || 'Transferencia').trim();
     if (/d[eé]bito|punto de venta|\bpos\b|\btdd\b/i.test(s)) return 'Tarjeta de débito';
-    if (/cr[eé]dito|\btdc\b/i.test(s)) return 'Tarjeta de crédito';
-    if (/pago\s*m[oó]vil|c2p|p2p/i.test(s)) return 'Pago Móvil';
+    if (/cr[eé]dito|\btdc\b|\btmd\b|\btvd\b|master|visa/i.test(s)) return 'Tarjeta de crédito';
     if (/dep[oó]sito/i.test(s)) return 'Depósito en cuenta';
-    if (/divisa|d[oó]lar/i.test(s)) return 'Efectivo divisas';
-    if (/efectivo/i.test(s)) return 'Efectivo';
-    if (/cheque/i.test(s)) return 'Cheque';
     return 'Transferencia';
+  };
+
+  const activarModoPagoMultiple = () => {
+    const refStr = String(emitReferencia || '').trim();
+    const plusMatch = refStr.match(/^([^\s(]+)\s*\(\+\s*([^)]+)\)/);
+    const ref1 = plusMatch ? plusMatch[1].trim() : refStr;
+    const ref2 = plusMatch ? (plusMatch[2].split(/[,\s+]+/)[0] || '').trim() : '';
+    const fDef = emitFechaPago || emitFechaEmision || hoyCaracas();
+    const baseNum = parseFloat(ajusteMontoServicio) || 0;
+    const multaNum = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
+    const ivaNum = parseFloat((baseNum * 0.16).toFixed(2));
+    const totEst = totalReferencia || parseFloat((baseNum + multaNum + ivaNum).toFixed(2)) || 0;
+    const fp1 = emitFormaPago && emitFormaPago !== 'PAGO_MULTIPLE' ? emitFormaPago : 'Tarjeta de débito';
+    const fp2 = fp1 === 'Tarjeta de débito' ? 'Transferencia' : 'Tarjeta de débito';
+    setEmitFormasPagoMultiples([
+      {
+        formaPago: fp1,
+        banco: emitBanco || '',
+        referencia: ref1,
+        fecha: fDef,
+        monto: totEst.toFixed(2),
+      },
+      {
+        formaPago: fp2,
+        banco: '',
+        referencia: ref2,
+        fecha: fDef,
+        monto: '0.00',
+      },
+    ]);
   };
 
   // Modal de Edición de Datos Fiscales del Pago (monto, retención, nombre, cédula/RIF, referencia, caja)
@@ -837,13 +863,7 @@ export default function FacturacionElectronicaPage() {
 
     // Forma de pago y banco inicial
     const fpRaw = String(pago.tipo || (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.descripcion) || 'Transferencia').trim();
-    const fpDesc = /d[eé]bito|punto de venta|\bpos\b/i.test(fpRaw)
-      ? 'Tarjeta de débito'
-      : /pago\s*m[oó]vil|c2p|p2p/i.test(fpRaw)
-      ? 'Pago Móvil'
-      : /efectivo/i.test(fpRaw)
-      ? 'Efectivo'
-      : 'Transferencia';
+    const fpDesc = normalizarFormaPagoTFHKA(fpRaw);
     setEmitFormaPago(fpDesc);
     const bancoDesc = pago.banco || (Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago[0]?.banco) || pago.detalles?.banco || '';
     setEmitBanco(bancoDesc);
@@ -2357,71 +2377,285 @@ export default function FacturacionElectronicaPage() {
                       <option value="condominios">Caja Condominios</option>
                     </select>
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <label className="block text-[10px] font-bold text-slate-600 uppercase">Forma de Pago (TFHKA)</label>
-                      {emitFormasPagoMultiples.length <= 1 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const refStr = String(emitReferencia || '').trim();
-                            const plusMatch = refStr.match(/^([^\s(]+)\s*\(\+\s*([^)]+)\)/);
-                            const ref1 = plusMatch ? plusMatch[1].trim() : refStr;
-                            const ref2 = plusMatch ? (plusMatch[2].split(/[,\s+]+/)[0] || '').trim() : '';
-                            const fDef = emitFechaPago || emitFechaEmision || hoyCaracas();
-                            const baseNum = parseFloat(ajusteMontoServicio) || 0;
-                            const multaNum = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
-                            const ivaNum = parseFloat((baseNum * 0.16).toFixed(2));
-                            const totEst = totalReferencia || parseFloat((baseNum + multaNum + ivaNum).toFixed(2)) || 0;
-                            setEmitFormasPagoMultiples([
-                              {
-                                formaPago: emitFormaPago || 'Tarjeta de débito',
-                                banco: emitBanco || '',
-                                referencia: ref1,
-                                fecha: fDef,
-                                monto: totEst.toFixed(2),
-                              },
-                              {
-                                formaPago: emitFormaPago === 'Tarjeta de débito' ? 'Transferencia' : 'Tarjeta de débito',
-                                banco: '',
-                                referencia: ref2,
-                                fecha: fDef,
-                                monto: '0.00',
-                              },
-                            ]);
+                  {emitFormasPagoMultiples.length <= 1 ? (
+                    <>
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase">Forma de Pago (TFHKA)</label>
+                          <button
+                            type="button"
+                            onClick={activarModoPagoMultiple}
+                            className="text-[10px] font-black text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                            title="Activar Pago Múltiple (ej. una parte por Débito y otra por Transferencia)"
+                          >
+                            ☑️ PAGO MÚLTIPLE
+                          </button>
+                        </div>
+                        <select
+                          value={emitFormaPago}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === 'PAGO_MULTIPLE') {
+                              activarModoPagoMultiple();
+                            } else {
+                              setEmitFormaPago(val);
+                            }
                           }}
-                          className="text-[10px] font-black text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
-                          title="Dividir o editar múltiples formas de pago (ej. Débito + Transferencia)"
+                          className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 bg-white"
                         >
-                          + Pago Múltiple
-                        </button>
-                      )}
-                    </div>
-                    <select
-                      value={emitFormaPago}
-                      onChange={e => setEmitFormaPago(e.target.value)}
-                      className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 bg-white"
-                    >
-                      <option value="Transferencia">Transferencia Bancaria</option>
-                      <option value="Pago Móvil">Pago Móvil (C2P/P2P)</option>
-                      <option value="Tarjeta de débito">Tarjeta de Débito (Punto de Venta)</option>
-                      <option value="Tarjeta de crédito">Tarjeta de Crédito</option>
-                      <option value="Depósito en cuenta">Depósito en Cuenta</option>
-                      <option value="Efectivo">Efectivo Bolívares</option>
-                      <option value="Efectivo divisas">Efectivo Divisas</option>
-                      <option value="Cheque">Cheque</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Banco / Entidad Financiera</label>
-                    <input
-                      type="text"
-                      value={emitBanco}
-                      onChange={e => setEmitBanco(e.target.value)}
-                      placeholder="Ej.: Banesco, Mercantil, Bancamiga"
-                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 bg-white"
-                    />
-                  </div>
+                          <option value="Transferencia">Transferencia Bancaria</option>
+                          <option value="Tarjeta de débito">Punto de Venta (Tarjeta de Débito)</option>
+                          <option value="Tarjeta de crédito">Punto de Venta (Tarjeta de Crédito / TMD / TVD)</option>
+                          <option value="Depósito en cuenta">Depósito Bancario</option>
+                          <option value="PAGO_MULTIPLE">💳 Pago Múltiple (Débito + Transferencia / Varios Pagos)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Banco / Entidad Financiera</label>
+                        <input
+                          type="text"
+                          value={emitBanco}
+                          onChange={e => setEmitBanco(e.target.value)}
+                          placeholder="Ej.: Banesco, Mercantil, Bancamiga"
+                          className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 bg-white"
+                        />
+                      </div>
+                    </>
+                  ) : (() => {
+                    const sumaMulti = emitFormasPagoMultiples.reduce((acc, it) => acc + (parseFloat(String(it.monto || '0').replace(',', '.')) || 0), 0);
+                    const baseActual = parseFloat(ajusteMontoServicio) || 0;
+                    const multaActual = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
+                    const ivaActual = parseFloat((baseActual * 0.16).toFixed(2));
+                    const metaFactura = totalReferencia || parseFloat((baseActual + multaActual + ivaActual).toFixed(2)) || 0;
+                    const difMulti = Math.round((metaFactura - sumaMulti) * 100) / 100;
+
+                    return (
+                      <div className="col-span-2 p-3.5 rounded-xl bg-indigo-50/80 border-2 border-indigo-300 text-xs space-y-2.5 shadow-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-indigo-200">
+                          <div className="font-black text-indigo-950 flex items-center gap-1.5">
+                            <span>💳 Pago Múltiple Activo ({emitFormasPagoMultiples.length} pagos)</span>
+                            <span className="text-[10px] font-bold bg-indigo-200 text-indigo-900 px-1.5 py-0.5 rounded">
+                              Edite cada forma de pago (Débito / Transferencia)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${
+                              Math.abs(difMulti) <= 0.05
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : 'bg-amber-100 text-amber-900 border-amber-300'
+                            }`}>
+                              Suma: Bs. {fmtBs(sumaMulti)}
+                              {Math.abs(difMulti) > 0.05 ? ` (Dif: Bs. ${fmtBs(difMulti)})` : ' ✓'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setEmitFormasPagoMultiples([])}
+                              className="text-[10px] font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded cursor-pointer"
+                              title="Volver a una sola forma de pago unificada"
+                            >
+                              ✕ Quitar Pago Múltiple
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          {emitFormasPagoMultiples.map((fp, idx) => (
+                            <div key={idx} className="p-2.5 rounded-lg bg-white border border-indigo-200 shadow-2xs space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded">
+                                  Pago #{idx + 1}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  {Math.abs(difMulti) > 0.01 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const otros = emitFormasPagoMultiples.reduce((s, item, i) => i === idx ? s : s + (parseFloat(String(item.monto || '0').replace(',', '.')) || 0), 0);
+                                        const resto = Math.max(0, Math.round((metaFactura - otros) * 100) / 100);
+                                        setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, monto: resto.toFixed(2) } : item));
+                                      }}
+                                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded cursor-pointer"
+                                      title="Asignar la diferencia restante a este pago para cuadrar el total de la factura"
+                                    >
+                                      Cuadrar resto (Bs. {fmtBs(Math.max(0, metaFactura - emitFormasPagoMultiples.reduce((s, item, i) => i === idx ? s : s + (parseFloat(String(item.monto || '0').replace(',', '.')) || 0), 0)))})
+                                    </button>
+                                  )}
+                                  {emitFormasPagoMultiples.length > 2 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEmitFormasPagoMultiples(prev => prev.filter((_, i) => i !== idx))}
+                                      className="text-slate-400 hover:text-rose-600 font-bold text-xs px-1 cursor-pointer"
+                                      title="Quitar esta forma de pago"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Forma de Pago (TFHKA)</label>
+                                  <select
+                                    value={fp.formaPago}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, formaPago: val } : item));
+                                      if (idx === 0) setEmitFormaPago(val);
+                                    }}
+                                    className="w-full border border-slate-300 rounded-md px-2 py-1 text-[11px] font-bold bg-white focus:ring-2 focus:ring-indigo-500"
+                                  >
+                                    <option value="Transferencia">Transferencia Bancaria</option>
+                                    <option value="Tarjeta de débito">Punto de Venta (Tarjeta de Débito)</option>
+                                    <option value="Tarjeta de crédito">Punto de Venta (Tarjeta de Crédito / TMD / TVD)</option>
+                                    <option value="Depósito en cuenta">Depósito Bancario</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Banco / Entidad</label>
+                                  <input
+                                    type="text"
+                                    value={fp.banco}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, banco: val } : item));
+                                      if (idx === 0) setEmitBanco(val);
+                                    }}
+                                    placeholder="Ej.: Banesco, Mercantil, Debito"
+                                    className="w-full border border-slate-300 rounded-md px-2 py-1 text-[11px] bg-white focus:ring-2 focus:ring-indigo-500"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Referencia</label>
+                                  <input
+                                    type="text"
+                                    value={fp.referencia}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, referencia: val } : item));
+                                    }}
+                                    placeholder="Nro. Referencia"
+                                    className="w-full border border-slate-300 rounded-md px-2 py-1 text-[11px] font-mono bg-white focus:ring-2 focus:ring-indigo-500"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <div>
+                                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Fecha</label>
+                                    <input
+                                      type="date"
+                                      value={fp.fecha}
+                                      onChange={e => {
+                                        const val = e.target.value;
+                                        setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, fecha: val } : item));
+                                      }}
+                                      className="w-full border border-slate-300 rounded-md px-1.5 py-1 text-[10px] font-semibold bg-white focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Monto (Bs)</label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={fp.monto}
+                                      onChange={e => {
+                                        const val = e.target.value;
+                                        setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, monto: val } : item));
+                                      }}
+                                      className="w-full border border-emerald-400 bg-emerald-50/40 rounded-md px-2 py-1 text-[11px] font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const fDef = emitFechaPago || emitFechaEmision || hoyCaracas();
+                              const resto = Math.max(0, Math.round((metaFactura - sumaMulti) * 100) / 100);
+                              setEmitFormasPagoMultiples(prev => [
+                                ...prev,
+                                {
+                                  formaPago: 'Transferencia',
+                                  banco: '',
+                                  referencia: '',
+                                  fecha: fDef,
+                                  monto: resto.toFixed(2),
+                                }
+                              ]);
+                            }}
+                            className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-300 px-2.5 py-1 rounded-lg cursor-pointer transition-colors"
+                          >
+                            + Agregar otra forma de pago
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={guardandoFormasPago}
+                            onClick={async () => {
+                              const pId = selectedPagoForEmit?.pagoId || selectedPagoForEmit?.id;
+                              if (!pId) return;
+                              setGuardandoFormasPago(true);
+                              try {
+                                const payloadFps = emitFormasPagoMultiples.map(fp => ({
+                                  descripcion: fp.formaPago || 'Transferencia',
+                                  tipo: fp.formaPago || 'Transferencia',
+                                  metodo: fp.formaPago || 'Transferencia',
+                                  banco: (fp.banco || '').trim(),
+                                  referencia: (fp.referencia || '').trim(),
+                                  fecha: fp.fecha || emitFechaPago || hoyCaracas(),
+                                  monto: parseFloat(String(fp.monto || '0').replace(',', '.')) || 0,
+                                }));
+                                const res = await fetch('/api/admin/factura-digital/editar-pago', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    pagoId: pId,
+                                    formasPago: payloadFps,
+                                    usuario: adminUser?.usuario || 'Administrador',
+                                  }),
+                                });
+                                const d = await res.json();
+                                if (!res.ok || (!d.ok && !d.success)) {
+                                  throw new Error(d.error || 'No se pudieron guardar las formas de pago');
+                                }
+                                setSelectedPagoForEmit((prev: any) => prev ? {
+                                  ...prev,
+                                  detalles: {
+                                    ...(prev.detalles || {}),
+                                    formasPago: payloadFps,
+                                    pagos_agregados: payloadFps,
+                                  }
+                                } : prev);
+                                setPagosList(prev => prev.map(it => (it.id === pId || it.pagoId === pId) ? {
+                                  ...it,
+                                  detalles: {
+                                    ...(it.detalles || {}),
+                                    formasPago: payloadFps,
+                                    pagos_agregados: payloadFps,
+                                  }
+                                } : it));
+                                alert('¡Formas de pago múltiples actualizadas y guardadas en el registro!');
+                              } catch (err: any) {
+                                alert('Error al guardar formas de pago: ' + err.message);
+                              } finally {
+                                setGuardandoFormasPago(false);
+                              }
+                            }}
+                            className="text-[11px] font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded-lg shadow-2xs cursor-pointer disabled:opacity-50 transition-colors"
+                          >
+                            {guardandoFormasPago ? 'Guardando...' : '💾 Guardar Formas de Pago'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
                     <div>
                       <label className="block text-[10px] font-bold text-emerald-900 uppercase mb-0.5 flex items-center justify-between">
@@ -2503,247 +2737,6 @@ export default function FacturacionElectronicaPage() {
                           </p>
                         );
                       })()}
-                    </div>
-                  );
-                })()}
-
-                {/* Desglose editable de formas de pago múltiples (ej. Débito + Transferencia) */}
-                {emitFormasPagoMultiples.length > 1 && (() => {
-                  const sumaMulti = emitFormasPagoMultiples.reduce((acc, it) => acc + (parseFloat(String(it.monto || '0').replace(',', '.')) || 0), 0);
-                  const baseActual = parseFloat(ajusteMontoServicio) || 0;
-                  const multaActual = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
-                  const ivaActual = parseFloat((baseActual * 0.16).toFixed(2));
-                  const metaFactura = totalReferencia || parseFloat((baseActual + multaActual + ivaActual).toFixed(2)) || 0;
-                  const difMulti = Math.round((metaFactura - sumaMulti) * 100) / 100;
-
-                  return (
-                    <div className="p-3.5 rounded-xl bg-indigo-50/70 border-2 border-indigo-200 text-xs space-y-2.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-indigo-200/80">
-                        <div className="font-black text-indigo-950 flex items-center gap-1.5">
-                          <span>💳 Formas de Pago Múltiples ({emitFormasPagoMultiples.length} pagos)</span>
-                          <span className="text-[10px] font-bold bg-indigo-200/80 text-indigo-900 px-1.5 py-0.5 rounded">
-                            Editable por cada pago
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${
-                            Math.abs(difMulti) <= 0.05
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                              : 'bg-amber-100 text-amber-900 border-amber-300'
-                          }`}>
-                            Suma: Bs. {fmtBs(sumaMulti)}
-                            {Math.abs(difMulti) > 0.05 ? ` (Dif: Bs. ${fmtBs(difMulti)})` : ' ✓'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setEmitFormasPagoMultiples([])}
-                            className="text-[10px] font-bold text-slate-500 hover:text-rose-600 px-1.5 py-0.5 rounded hover:bg-rose-50 cursor-pointer"
-                            title="Volver a una sola forma de pago unificada"
-                          >
-                            Unificar en 1
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        {emitFormasPagoMultiples.map((fp, idx) => (
-                          <div key={idx} className="p-2.5 rounded-lg bg-white border border-indigo-200 shadow-2xs space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded">
-                                Pago #{idx + 1}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                {Math.abs(difMulti) > 0.01 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const otros = emitFormasPagoMultiples.reduce((s, item, i) => i === idx ? s : s + (parseFloat(String(item.monto || '0').replace(',', '.')) || 0), 0);
-                                      const resto = Math.max(0, Math.round((metaFactura - otros) * 100) / 100);
-                                      setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, monto: resto.toFixed(2) } : item));
-                                    }}
-                                    className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded cursor-pointer"
-                                    title="Asignar la diferencia restante a este pago para cuadrar el total de la factura"
-                                  >
-                                    Cuadrar resto (Bs. {fmtBs(Math.max(0, metaFactura - emitFormasPagoMultiples.reduce((s, item, i) => i === idx ? s : s + (parseFloat(String(item.monto || '0').replace(',', '.')) || 0), 0)))})
-                                  </button>
-                                )}
-                                {emitFormasPagoMultiples.length > 2 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setEmitFormasPagoMultiples(prev => prev.filter((_, i) => i !== idx))}
-                                    className="text-slate-400 hover:text-rose-600 font-bold text-xs px-1 cursor-pointer"
-                                    title="Quitar esta forma de pago"
-                                  >
-                                    ✕
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              <div>
-                                <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Forma de Pago (TFHKA)</label>
-                                <select
-                                  value={fp.formaPago}
-                                  onChange={e => {
-                                    const val = e.target.value;
-                                    setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, formaPago: val } : item));
-                                    if (idx === 0) setEmitFormaPago(val);
-                                  }}
-                                  className="w-full border border-slate-300 rounded-md px-2 py-1 text-[11px] font-bold bg-white focus:ring-2 focus:ring-indigo-500"
-                                >
-                                  <option value="Transferencia">Transferencia Bancaria</option>
-                                  <option value="Pago Móvil">Pago Móvil (C2P/P2P)</option>
-                                  <option value="Tarjeta de débito">Tarjeta de Débito (Punto de Venta)</option>
-                                  <option value="Tarjeta de crédito">Tarjeta de Crédito</option>
-                                  <option value="Depósito en cuenta">Depósito en Cuenta</option>
-                                  <option value="Efectivo">Efectivo Bolívares</option>
-                                  <option value="Efectivo divisas">Efectivo Divisas</option>
-                                  <option value="Cheque">Cheque</option>
-                                </select>
-                              </div>
-
-                              <div>
-                                <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Banco / Entidad</label>
-                                <input
-                                  type="text"
-                                  value={fp.banco}
-                                  onChange={e => {
-                                    const val = e.target.value;
-                                    setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, banco: val } : item));
-                                    if (idx === 0) setEmitBanco(val);
-                                  }}
-                                  placeholder="Ej.: Banesco, Mercantil, Debito"
-                                  className="w-full border border-slate-300 rounded-md px-2 py-1 text-[11px] bg-white focus:ring-2 focus:ring-indigo-500"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Referencia</label>
-                                <input
-                                  type="text"
-                                  value={fp.referencia}
-                                  onChange={e => {
-                                    const val = e.target.value;
-                                    setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, referencia: val } : item));
-                                  }}
-                                  placeholder="Nro. Referencia"
-                                  className="w-full border border-slate-300 rounded-md px-2 py-1 text-[11px] font-mono bg-white focus:ring-2 focus:ring-indigo-500"
-                                />
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-1.5">
-                                <div>
-                                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Fecha</label>
-                                  <input
-                                    type="date"
-                                    value={fp.fecha}
-                                    onChange={e => {
-                                      const val = e.target.value;
-                                      setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, fecha: val } : item));
-                                    }}
-                                    className="w-full border border-slate-300 rounded-md px-1.5 py-1 text-[10px] font-semibold bg-white focus:ring-2 focus:ring-indigo-500"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Monto (Bs)</label>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={fp.monto}
-                                    onChange={e => {
-                                      const val = e.target.value;
-                                      setEmitFormasPagoMultiples(prev => prev.map((item, i) => i === idx ? { ...item, monto: val } : item));
-                                    }}
-                                    className="w-full border border-emerald-400 bg-emerald-50/40 rounded-md px-2 py-1 text-[11px] font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const fDef = emitFechaPago || emitFechaEmision || hoyCaracas();
-                            const resto = Math.max(0, Math.round((metaFactura - sumaMulti) * 100) / 100);
-                            setEmitFormasPagoMultiples(prev => [
-                              ...prev,
-                              {
-                                formaPago: 'Transferencia',
-                                banco: '',
-                                referencia: '',
-                                fecha: fDef,
-                                monto: resto.toFixed(2),
-                              }
-                            ]);
-                          }}
-                          className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-300 px-2.5 py-1 rounded-lg cursor-pointer transition-colors"
-                        >
-                          + Agregar otra forma de pago
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={guardandoFormasPago}
-                          onClick={async () => {
-                            const pId = selectedPagoForEmit?.pagoId || selectedPagoForEmit?.id;
-                            if (!pId) return;
-                            setGuardandoFormasPago(true);
-                            try {
-                              const payloadFps = emitFormasPagoMultiples.map(fp => ({
-                                descripcion: fp.formaPago || 'Transferencia',
-                                tipo: fp.formaPago || 'Transferencia',
-                                metodo: fp.formaPago || 'Transferencia',
-                                banco: (fp.banco || '').trim(),
-                                referencia: (fp.referencia || '').trim(),
-                                fecha: fp.fecha || emitFechaPago || hoyCaracas(),
-                                monto: parseFloat(String(fp.monto || '0').replace(',', '.')) || 0,
-                              }));
-                              const res = await fetch('/api/admin/factura-digital/editar-pago', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  pagoId: pId,
-                                  formasPago: payloadFps,
-                                  usuario: adminUser?.usuario || 'Administrador',
-                                }),
-                              });
-                              const d = await res.json();
-                              if (!res.ok || (!d.ok && !d.success)) {
-                                throw new Error(d.error || 'No se pudieron guardar las formas de pago');
-                              }
-                              setSelectedPagoForEmit((prev: any) => prev ? {
-                                ...prev,
-                                detalles: {
-                                  ...(prev.detalles || {}),
-                                  formasPago: payloadFps,
-                                  pagos_agregados: payloadFps,
-                                }
-                              } : prev);
-                              setPagosList(prev => prev.map(it => (it.id === pId || it.pagoId === pId) ? {
-                                ...it,
-                                detalles: {
-                                  ...(it.detalles || {}),
-                                  formasPago: payloadFps,
-                                  pagos_agregados: payloadFps,
-                                }
-                              } : it));
-                              alert('¡Formas de pago múltiples actualizadas y guardadas en el registro!');
-                            } catch (err: any) {
-                              alert('Error al guardar formas de pago: ' + err.message);
-                            } finally {
-                              setGuardandoFormasPago(false);
-                            }
-                          }}
-                          className="text-[11px] font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded-lg shadow-2xs cursor-pointer disabled:opacity-50 transition-colors"
-                        >
-                          {guardandoFormasPago ? 'Guardando...' : '💾 Guardar Formas de Pago'}
-                        </button>
-                      </div>
                     </div>
                   );
                 })()}

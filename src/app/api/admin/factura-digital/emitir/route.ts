@@ -1613,14 +1613,10 @@ export async function POST(request: Request) {
             FormasPago: (() => {
               // Códigos fiscales TFHKA (mismos que SIGYR)
               const tabla: [string, string, string[]][] = [
-                ['02', 'Pago Móvil',         ['pago movil', 'pagomovil', 'p2p', 'c2p']],
-                ['06', 'Tarjeta de crédito', ['tarjeta de credito', 'tdc', 'credito']],
+                ['06', 'Tarjeta de crédito', ['tarjeta de credito', 'tdc', 'credito', 'tmd', 'tvd', 'master', 'visa']],
                 ['05', 'Tarjeta de débito',  ['tarjeta de debito', 'tdd', 'debito', 'punto de venta', 'pos']],
                 ['03', 'Transferencia',      ['transferencia', 'zelle']],
                 ['01', 'Depósito en cuenta', ['deposito']],
-                ['07', 'Cheque',             ['cheque']],
-                ['09', 'Efectivo divisas',   ['divisa', 'dolar']],
-                ['08', 'Efectivo',           ['efectivo']],
               ];
               const norm = tipoPago.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
               const hit = tabla.find(([, , keys]) => keys.some(k => norm.includes(k)));
