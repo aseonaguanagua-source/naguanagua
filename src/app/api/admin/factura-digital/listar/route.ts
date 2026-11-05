@@ -272,15 +272,21 @@ export async function GET(request: Request) {
             if (refAbonoBase && !current.referencias.includes(refAbonoBase)) {
               current.referencias.push(refAbonoBase);
             }
-            if (Array.isArray(dA?.formasPago) && dA.formasPago.length > 0) {
+            const fechaAbono = dA?.fecha_transaccion || dA?.fecha_banco || String(pAbono.created_at || '').slice(0, 10);
+            const tipoAbono = pAbono.tipo || (Array.isArray(dA?.formasPago) && dA.formasPago[0]?.descripcion) || 'Transferencia';
+            const bancoAbono = pAbono.banco || (Array.isArray(dA?.formasPago) && dA.formasPago[0]?.banco) || '';
+            if (Array.isArray(dA?.formasPago) && dA.formasPago.length > 1) {
               current.formasPago.push(...dA.formasPago);
             } else {
               current.formasPago.push({
-                forma: '03',
-                descripcion: `${pAbono.tipo || 'Transferencia'} ${pAbono.banco || ''} ${refAbonoBase || ''}`.trim(),
+                forma: /d[eé]bito|punto/i.test(String(tipoAbono)) ? '05' : '03',
+                descripcion: String(tipoAbono).trim(),
+                tipo: String(tipoAbono).trim(),
+                metodo: String(tipoAbono).trim(),
                 monto: montoSoloA,
-                banco: pAbono.banco,
-                referencia: refAbonoBase
+                banco: bancoAbono,
+                referencia: refAbonoBase,
+                fecha: fechaAbono,
               });
             }
           }
@@ -965,6 +971,30 @@ export async function GET(request: Request) {
       const refFinal = mergedPlusRefs.length > 0
         ? `${refBaseClean} (+ ${mergedPlusRefs.join(', ')})`
         : refRawStr;
+
+      if (infoAbonos && Array.isArray(infoAbonos.formasPago) && infoAbonos.formasPago.length > 0) {
+        const tieneMultiReal = Array.isArray(det.formasPago) && det.formasPago.length > 1;
+        if (!tieneMultiReal) {
+          const montoPropio = parseFloat(String(pago.monto || 0)) || 0;
+          const fechaPropio = det.fecha_transaccion || det.fecha_banco || String(pago.created_at || '').slice(0, 10);
+          const tipoPropio = pago.tipo || (Array.isArray(det.formasPago) && det.formasPago[0]?.descripcion) || 'Transferencia';
+          const bancoPropio = pago.banco || (Array.isArray(det.formasPago) && det.formasPago[0]?.banco) || '';
+          const desgloseReal = [
+            {
+              forma: /d[eé]bito|punto/i.test(String(tipoPropio)) ? '05' : '03',
+              descripcion: String(tipoPropio).trim(),
+              tipo: String(tipoPropio).trim(),
+              metodo: String(tipoPropio).trim(),
+              monto: montoPropio,
+              banco: bancoPropio,
+              referencia: refBaseClean,
+              fecha: fechaPropio,
+            },
+            ...infoAbonos.formasPago,
+          ];
+          det.pagos_agregados = desgloseReal;
+        }
+      }
 
       return {
         id: pago.id,

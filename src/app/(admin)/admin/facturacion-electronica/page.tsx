@@ -362,11 +362,30 @@ export default function FacturacionElectronicaPage() {
   };
 
   const activarModoPagoMultiple = () => {
+    const fDef = emitFechaPago || emitFechaEmision || hoyCaracas();
+    const rawGuardados = Array.isArray(selectedPagoForEmit?.detalles?.formasPago) && selectedPagoForEmit.detalles.formasPago.length > 1
+      ? selectedPagoForEmit.detalles.formasPago
+      : Array.isArray(selectedPagoForEmit?.detalles?.pagos_agregados) && selectedPagoForEmit.detalles.pagos_agregados.length > 1
+      ? selectedPagoForEmit.detalles.pagos_agregados
+      : null;
+
+    if (rawGuardados && rawGuardados.length > 1) {
+      setEmitFormasPagoMultiples(
+        rawGuardados.map((fp: any) => ({
+          formaPago: normalizarFormaPagoTFHKA(fp.descripcion || fp.tipo || fp.metodo || emitFormaPago),
+          banco: String(fp.banco || emitBanco || '').trim(),
+          referencia: String(fp.referencia || '').trim(),
+          fecha: String(fp.fecha || fp.fechaTransaccion || fDef).slice(0, 10) || fDef,
+          monto: (parseFloat(String(fp.monto ?? 0).replace(',', '.')) || 0).toFixed(2),
+        }))
+      );
+      return;
+    }
+
     const refStr = String(emitReferencia || '').trim();
     const plusMatch = refStr.match(/^([^\s(]+)\s*\(\+\s*([^)]+)\)/);
     const ref1 = plusMatch ? plusMatch[1].trim() : refStr;
     const ref2 = plusMatch ? (plusMatch[2].split(/[,\s+]+/)[0] || '').trim() : '';
-    const fDef = emitFechaPago || emitFechaEmision || hoyCaracas();
     const baseNum = parseFloat(ajusteMontoServicio) || 0;
     const multaNum = emitLlevaMulta ? (parseFloat(ajusteMontoMulta) || 0) : 0;
     const ivaNum = parseFloat((baseNum * 0.16).toFixed(2));
@@ -893,7 +912,7 @@ export default function FacturacionElectronicaPage() {
     setEmitFechaAsignacion(fechaEmisionGuardada);
     setEmitFechaPago(fechaPagoOrig || hoyYMD);
 
-    // Cargar desglose de formas de pago múltiples si existe (o si la referencia contiene "(+ ...)")
+    // Cargar desglose de formas de pago múltiples solo si existen montos reales desglosados (> 0 en cada pago)
     const fechaTxDefault = fechaPagoOrig || hoyYMD;
     const rawFps = Array.isArray(pago.detalles?.formasPago) && pago.detalles.formasPago.length > 1
       ? pago.detalles.formasPago
@@ -901,7 +920,13 @@ export default function FacturacionElectronicaPage() {
       ? pago.detalles.pagos_agregados
       : null;
 
-    if (rawFps && rawFps.length > 1) {
+    const todosTienenMontoReal = Boolean(
+      rawFps &&
+      rawFps.length > 1 &&
+      rawFps.every((fp: any) => (parseFloat(String(fp?.monto ?? 0).replace(',', '.')) || 0) > 0)
+    );
+
+    if (rawFps && todosTienenMontoReal) {
       setEmitFormasPagoMultiples(
         rawFps.map((fp: any) => ({
           formaPago: normalizarFormaPagoTFHKA(fp.descripcion || fp.tipo || fp.metodo || fpDesc),
@@ -912,28 +937,7 @@ export default function FacturacionElectronicaPage() {
         }))
       );
     } else {
-      const refStr = String(pago.referencia || '').trim();
-      const plusMatch = refStr.match(/^([^\s(]+)\s*\(\+\s*([^)]+)\)/);
-      if (plusMatch) {
-        const ref1 = plusMatch[1].trim();
-        const extraRefs = plusMatch[2].split(/[,\s+]+/).map(s => s.trim()).filter(Boolean);
-        const allRefs = [ref1, ...extraRefs];
-        if (allRefs.length > 1) {
-          setEmitFormasPagoMultiples(
-            allRefs.map((rItem, idx) => ({
-              formaPago: fpDesc,
-              banco: bancoDesc,
-              referencia: rItem,
-              fecha: fechaTxDefault,
-              monto: idx === 0 ? ref.toFixed(2) : '0.00',
-            }))
-          );
-        } else {
-          setEmitFormasPagoMultiples([]);
-        }
-      } else {
-        setEmitFormasPagoMultiples([]);
-      }
+      setEmitFormasPagoMultiples([]);
     }
   };
 

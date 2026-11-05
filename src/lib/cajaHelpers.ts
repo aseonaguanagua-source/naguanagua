@@ -53,7 +53,7 @@ export const getUserInmuebles = (
 ): InmuebleBasic[] => {
   if (!foundUser || (foundUser as any).isServicioEspecialDirecto) return [];
 
-  const isTrueCondo = 
+  const isTrueCondo =
     ((foundUser as any).Contribuyente || '').toLowerCase().includes('condominio') ||
     ((foundUser as any).Clasificacion || '').toLowerCase().includes('condominio') ||
     (((foundUser as any).Tipo || '').toUpperCase().includes('RESIDENCIAL') && (foundUser as any).es_condominio);
@@ -280,8 +280,8 @@ export function clusterInmueblesByLocal(userInms: InmuebleBasic[]): Map<string, 
   }
 
   for (const cluster of clusters) {
-    const parentInm = cluster.inms.find(i => 
-      (i.actividad_principal || '').toUpperCase() === 'N/A' || 
+    const parentInm = cluster.inms.find(i =>
+      (i.actividad_principal || '').toUpperCase() === 'N/A' ||
       (i.actividad_principal || '').toLowerCase().includes('padre en sigyr') ||
       cluster.inms.some(other => (other as any).padre_id === i.inmueble)
     );
@@ -377,7 +377,7 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
     const rawPadreId = String((inm as any).padre_id || '').trim().toUpperCase();
     const localPadreId = rawPadreId && validPadreIds.has(rawPadreId) ? (inm as any).padre_id : undefined;
     const isNA = (inm.actividad_principal || '').trim().toUpperCase() === 'N/A' ||
-                 (inm.actividad_principal || '').toLowerCase().includes('padre en sigyr');
+      (inm.actividad_principal || '').toLowerCase().includes('padre en sigyr');
 
     const inmIsRes = isResidencialInm(inm);
 
@@ -425,8 +425,8 @@ export function groupInmueblesByLocal(userInms: InmuebleBasic[]): InmuebleCluste
   }
 
   return clusters.map(c => {
-    const parentInm = c.inms.find(i => 
-      (i.actividad_principal || '').toUpperCase() === 'N/A' || 
+    const parentInm = c.inms.find(i =>
+      (i.actividad_principal || '').toUpperCase() === 'N/A' ||
       (i.actividad_principal || '').toLowerCase().includes('padre en sigyr') ||
       c.inms.some(other => (other as any).padre_id === i.inmueble)
     );
