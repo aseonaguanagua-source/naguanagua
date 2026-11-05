@@ -29,6 +29,9 @@ export async function performLogout(redirectTo: string = '/admin'): Promise<void
     });
 
     sessionStorage.clear();
+    if (typeof window !== 'undefined') {
+      delete (window as any).__activeCajeroId;
+    }
 
     // Eliminar cookie del servidor
     await fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});

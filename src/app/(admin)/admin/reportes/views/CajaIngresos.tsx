@@ -23,7 +23,7 @@ function parseDet(p: any): any {
 }
 
 function isDebito(p: any) {
-  return p.tipo === 'Debito' || p.tipo === 'REC' || p.tipo === 'Punto de Venta';
+  const t = String(p.tipo || '').toUpperCase().trim(); return t === 'DEBITO' || t === 'DÉBITO' || t === 'CREDITO' || t === 'CRÉDITO' || t === 'TMD' || t === 'TVD' || t === 'REC' || t === 'PUNTO DE VENTA';
 }
 
 export default function CajaIngresos({ pagos, cajeros, isAdmin, currentUser, tcmmv, onBack, onExportPDF, onExportExcel }: Props) {

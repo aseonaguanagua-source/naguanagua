@@ -39,7 +39,7 @@ export const getActiveAuditUser = (): { usuario: string; nombre?: string; letra?
   if (typeof window === 'undefined') return { usuario: 'SISTEMA' };
 
   try {
-    const rawUserData = localStorage.getItem('admin_user_data');
+    const rawUserData = localStorage.getItem('admin_user_data') || sessionStorage.getItem('admin_user_data');
     if (rawUserData) {
       const uData = JSON.parse(rawUserData);
       if (uData.nombre || uData.usuario) {
@@ -61,6 +61,15 @@ export const getActiveAuditUser = (): { usuario: string; nombre?: string; letra?
         nombre: u,
         letra: l || undefined,
         rol: u.toLowerCase().includes('admin') ? 'Administrador' : 'Cajero'
+      };
+    }
+
+    const cachedCajero = sessionStorage.getItem('active_cajero_id') || (window as any).__activeCajeroId;
+    if (cachedCajero && cachedCajero !== 'Administrador' && cachedCajero !== 'Sistema') {
+      return {
+        usuario: String(cachedCajero),
+        nombre: String(cachedCajero),
+        rol: 'Cajero'
       };
     }
 

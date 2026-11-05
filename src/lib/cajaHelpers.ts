@@ -145,14 +145,42 @@ export const getUserInmuebles = (
 
 // ─── getCajeroId ───────────────────────────────────────────────────────────────
 /**
- * Lee la sesión del cajero actual desde localStorage.
- * Consolida la lógica que antes aparecía copiada 4 veces en caja/page.tsx.
+ * Lee la sesión del cajero actual desde localStorage, sessionStorage o memoria de la pestaña.
+ * Consolida la lógica que antes aparecía copiada 4 veces en caja/page.tsx y evita que una
+ * limpieza de localStorage desde otra pestaña haga caer el cajero en "Administrador".
  */
 export const getCajeroId = (): string => {
   if (typeof window === 'undefined') return 'Sistema';
-  const cajero = localStorage.getItem('adminUser') || 'Administrador';
-  const letra = localStorage.getItem('adminLetra');
-  return letra && cajero !== 'Administrador' ? `${letra}-${cajero}` : cajero;
+  let cajero = localStorage.getItem('adminUser') || '';
+  let letra = localStorage.getItem('adminLetra') || '';
+
+  if (!cajero || cajero === 'Administrador') {
+    try {
+      const rawData = localStorage.getItem('admin_user_data') || sessionStorage.getItem('admin_user_data');
+      if (rawData) {
+        const parsed = JSON.parse(rawData);
+        if (parsed?.usuario && (!cajero || cajero === 'Administrador')) cajero = String(parsed.usuario).trim();
+        if (parsed?.letra && !letra) letra = String(parsed.letra).trim().toUpperCase();
+      }
+    } catch {}
+  }
+
+  if (!cajero || cajero === 'Administrador') {
+    const cached = sessionStorage.getItem('active_cajero_id') || (window as any).__activeCajeroId;
+    if (cached && cached !== 'Administrador' && cached !== 'Sistema') {
+      return String(cached);
+    }
+  }
+
+  const finalCajero = cajero || 'Administrador';
+  const result = letra && finalCajero !== 'Administrador' ? `${letra}-${finalCajero}` : finalCajero;
+  if (result && result !== 'Administrador' && result !== 'Sistema') {
+    try {
+      sessionStorage.setItem('active_cajero_id', result);
+      (window as any).__activeCajeroId = result;
+    } catch {}
+  }
+  return result;
 };
 
 // ─── addressSimilarity / isSameLocal ──────────────────────────────────────────

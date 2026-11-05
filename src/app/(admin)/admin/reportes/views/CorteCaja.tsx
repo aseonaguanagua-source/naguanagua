@@ -50,7 +50,7 @@ function isSaldo(p: any) {
 function isDebito(p: any) {
   if (isSaldo(p)) return false;
   const t = String(p.tipo || '').toUpperCase().trim();
-  return t === 'DEBITO' || t === 'REC' || t === 'PUNTO DE VENTA';
+  return t === 'DEBITO' || t === 'DÉBITO' || t === 'CREDITO' || t === 'CRÉDITO' || t === 'TMD' || t === 'TVD' || t === 'REC' || t === 'PUNTO DE VENTA';
 }
 
 export default function CorteCaja({ pagos, cajeros, isAdmin, currentUser, onBack, onExportPDF }: Props) {

@@ -107,6 +107,16 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
               parsed.permisos.ver_reportes = true;
             }
             localStorage.setItem('admin_user_data', JSON.stringify(parsed));
+            if (parsed.usuario) localStorage.setItem('adminUser', parsed.usuario);
+            if (parsed.letra) localStorage.setItem('adminLetra', parsed.letra);
+            try {
+              sessionStorage.setItem('admin_user_data', JSON.stringify(parsed));
+              const cId = parsed.letra && parsed.usuario !== 'Administrador' ? `${parsed.letra}-${parsed.usuario}` : parsed.usuario;
+              if (cId) {
+                sessionStorage.setItem('active_cajero_id', cId);
+                (window as any).__activeCajeroId = cId;
+              }
+            } catch {}
           }
 
           setUser(parsed);
@@ -204,6 +214,14 @@ export default function AdminAuthWrapper({ children }: { children: React.ReactNo
         localStorage.setItem('adminUser', data.usuario);
         localStorage.setItem('adminLetra', data.letra || '');
         localStorage.setItem('admin_auth_andministrador', 'true');
+        try {
+          sessionStorage.setItem('admin_user_data', JSON.stringify(workerData));
+          const cId = data.letra ? `${data.letra}-${data.usuario}` : data.usuario;
+          if (cId) {
+            sessionStorage.setItem('active_cajero_id', cId);
+            (window as any).__activeCajeroId = cId;
+          }
+        } catch {}
 
         if (data.rol === 'Operador de Censo' || data.usuario === 'censo') {
           localStorage.setItem('operador_censo_auth', data.usuario);
