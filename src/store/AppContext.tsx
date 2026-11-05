@@ -734,10 +734,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           padre_id: row.padre_id || null,
         }));
 
+        const freshCodesSet = new Set(normalizedFreshInms.map((r: any) => String(r.inmueble || '').toUpperCase()).filter(Boolean));
         setInmuebles(prev => {
           const next = [
             ...prev.filter(i =>
-              (i.identidad || '').replace(/-/g, '').toUpperCase() !== idClean
+              (i.identidad || '').replace(/-/g, '').toUpperCase() !== idClean &&
+              !freshCodesSet.has(String(i.inmueble || '').toUpperCase())
             ),
             ...normalizedFreshInms
           ];
@@ -821,15 +823,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return { deudaMMV, multaBs, congelada, saldoFavor, meses, deudaBs };
         };
 
+        const freshInmCodesSet = new Set((freshInms || []).map((i: any) => String(i.inmueble || '').toUpperCase()).filter(Boolean));
         setContribuyentes(prev => {
           const sameIdRows = prev.filter(c => (c.Identidad || '').replace(/-/g, '').toUpperCase() === idClean);
           return prev.map(c => {
             const cId = (c.Identidad || '').replace(/-/g, '').toUpperCase();
-            if (cId === idClean) {
-              const cCodes = String(c.CodCont || c.cod_cont || '').trim().split(/\s+/).filter(Boolean);
+            const cCodes = String(c.CodCont || c.cod_cont || '').trim().split(/\s+/).map(s => s.toUpperCase()).filter(Boolean);
+            const matchesByCode = cCodes.length > 0 && cCodes.some(code => freshInmCodesSet.has(code));
+            if (cId === idClean || matchesByCode) {
               const inmsForRow = (freshInms && freshInms.length > 0)
-                ? (sameIdRows.length > 1 && cCodes.length > 0
-                    ? freshInms.filter((i: any) => cCodes.includes(i.inmueble) || (i.padre_id && cCodes.includes(i.padre_id)))
+                ? ((sameIdRows.length > 1 || matchesByCode) && cCodes.length > 0
+                    ? freshInms.filter((i: any) => cCodes.includes(String(i.inmueble || '').toUpperCase()) || (i.padre_id && cCodes.includes(String(i.padre_id || '').toUpperCase())))
                     : freshInms)
                 : [];
               const targetInms = inmsForRow.length > 0 ? inmsForRow : (freshInms || []);
@@ -850,12 +854,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 sumSaldoFavor = stats.reduce((acc, s) => acc + s.saldoFavor, 0);
               }
 
+              const matchedPrimaryInm = targetInms[0];
               return {
                 ...c,
-                Correo: freshContrib?.email || freshContrib?.correo_electronico || c.Correo,
-                Telefono: freshContrib?.telefono || c.Telefono,
-                Contribuyente: freshContrib?.nombre || c.Contribuyente,
-                Direccion: freshContrib?.direccion || c.Direccion,
+                Identidad: matchedPrimaryInm?.identidad || freshContrib?.identidad || c.Identidad,
+                Correo: freshContrib?.email || freshContrib?.correo_electronico || matchedPrimaryInm?.correo_electronico || c.Correo,
+                Telefono: freshContrib?.telefono || matchedPrimaryInm?.telefono || c.Telefono,
+                Contribuyente: matchedPrimaryInm?.contribuyente || freshContrib?.nombre || c.Contribuyente,
+                Direccion: matchedPrimaryInm?.direccion || freshContrib?.direccion || c.Direccion,
                 DeudaBs: sumDeudaBs,
                 MesesDeuda: maxMeses,
                 DeudaMMV: sumMMV,
@@ -1210,16 +1216,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const nuevaClasificacion = data.Clasificacion || 'Residencial';
       let nuevaActividad = '';
       const cambios: string[] = [];
+      const identidadesRefrescar = new Set<string>([identidadExacta]);
 
       if (Array.isArray(data.locales) && data.locales.length > 0) {
+        const naParentCodes: string[] = Array.isArray(data.__naParentCodes)
+          ? data.__naParentCodes.map((c: string) => String(c || '').trim().toUpperCase()).filter(Boolean)
+          : [];
+        data.locales.forEach((l: any) => {
+          const pid = String(l.padre_id || l.__orig?.padre_id || '').trim().toUpperCase();
+          if (pid && !naParentCodes.includes(pid)) naParentCodes.push(pid);
+        });
+
         // 3a. Varios inmuebles/actividades: actualizar SOLO los que cambiaron; insertar los nuevos; dar de baja los eliminados
         const nuevos = data.locales.filter((l: any) => !l.codigo);
         const codigosNuevos = nuevos.length > 0 ? await siguientesCodigosInmueble(nuevos.length) : [];
         let iNuevo = 0;
         
-        // Dar de baja (Eliminar) los inmuebles/actividades que fueron removidos en la interfaz
+        // Dar de baja (Eliminar) los inmuebles/actividades que fueron removidos en la interfaz (nunca eliminar contenedores N/A padres)
         const codigosActuales = data.locales.map((l: any) => l.codigo).filter(Boolean);
-        const codigosEliminados = codigosPropios.filter(c => !codigosActuales.includes(c));
+        const codigosEliminados = codigosPropios.filter(c => !codigosActuales.includes(c) && !naParentCodes.includes(String(c || '').trim().toUpperCase()));
         
         for (const codEliminado of codigosEliminados) {
           const { error: eDel } = await supabase.from('inmuebles').update({ estado: 'Eliminado', mmv_mes: 0, deuda_mmv: 0, cant_inmuebles: 0 }).eq('inmueble', codEliminado);
@@ -1227,7 +1242,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           cambios.push(`ELIMINADO: ${codEliminado} dado de baja`);
         }
 
-        if (data.locales.length === 1 && data.locales[0].codigo) {
+        if (data.locales.length === 1 && data.locales[0].codigo && naParentCodes.length === 0) {
           try {
             await supabase
               .from('inmuebles')
@@ -1237,12 +1252,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         
         for (const local of data.locales) {
-          const act = actividadDeLocal(local);
+          const o = local.__orig || {};
+          const esContenedorNA =
+            local.esContenedorNA === true ||
+            naParentCodes.includes(String(local.codigo || '').trim().toUpperCase()) ||
+            String(local.actividad || '').trim().toUpperCase() === 'N/A' ||
+            String(o.actividad || '').trim().toUpperCase() === 'N/A';
+          const act = esContenedorNA ? 'N/A' : actividadDeLocal(local);
           if (local.codigo) {
-            const o = local.__orig || {};
-            const cambioTarifaOAct = o.uso !== local.uso || o.actividad !== local.actividad || o.nivel !== local.nivel ||
+            const cambioTarifaOAct = !esContenedorNA && (
+              o.uso !== local.uso || o.actividad !== local.actividad || o.nivel !== local.nivel ||
               o.tipoResidencia !== local.tipoResidencia || o.estatus !== local.estatus ||
-              (local.direccion && local.direccion !== o.direccion);
+              (local.direccion && local.direccion !== o.direccion)
+            );
             
             const updatePayload: any = {};
             if (o.agente_retencion !== local.agente_retencion) {
@@ -1256,9 +1278,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
               updatePayload.contribuyente = String(data.Contribuyente).trim().toUpperCase();
             }
             if (local.identidad && String(local.identidad).trim() !== '' && String(local.identidad).trim().toUpperCase() !== String(o.identidad || identidadExacta).trim().toUpperCase()) {
-              const nuevaIdLocal = String(local.identidad).trim().toUpperCase();
+              const nuevaIdLocal = normalizarIdentidad(String(local.identidad).trim().toUpperCase(), String(local.identidad).trim().charAt(0) || 'J');
               updatePayload.identidad = nuevaIdLocal;
-              updatePayload.padre_id = null;
+              identidadesRefrescar.add(nuevaIdLocal);
+              const pidLocal = String(local.padre_id || o.padre_id || '').trim().toUpperCase();
+              const hermanosMismoPadre = pidLocal
+                ? data.locales.filter((l: any) => String(l.padre_id || l.__orig?.padre_id || '').trim().toUpperCase() === pidLocal)
+                : [];
+              const todosHermanosMismoRif = pidLocal && hermanosMismoPadre.every((h: any) => {
+                const hId = normalizarIdentidad(String(h.identidad || data.Identidad || '').trim().toUpperCase(), String(h.identidad || data.Identidad || 'J').trim().charAt(0) || 'J');
+                return hId === nuevaIdLocal;
+              });
+              // Si pertenece a un contenedor N/A y todas sus actividades cambian al nuevo RIF, conservar padre_id intacto
+              if (pidLocal && (todosHermanosMismoRif || naParentCodes.includes(pidLocal))) {
+                updatePayload.padre_id = pidLocal;
+              } else {
+                updatePayload.padre_id = null;
+              }
               await supabase.from('contribuyentes').upsert([{
                 identidad: nuevaIdLocal,
                 nombre: (local.contribuyente || data.Contribuyente || '').trim().toUpperCase(),
@@ -1291,6 +1327,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               updatePayload.tipo = tipoDeUso(local.uso);
               updatePayload.mmv_mes = mmv;
               updatePayload.agente_retencion = local.agente_retencion === true;
+              local.mmvActual = mmv;
               cambios.push(`${local.codigo}: ${o.actividad || o.tipoResidencia || '-'} → ${act} (${mmv} MMV)`);
             }
 
@@ -1307,14 +1344,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
             if (local.uso !== 'Residencial' && !isTerrenoInm(act) && !(mmv > 0)) throw new Error(`No hay tarifa en la ordenanza para "${act}". Seleccione una actividad válida.`);
             const codigo = codigosNuevos[iNuevo++];
+            const padreAsignado = naParentCodes.length === 1 ? naParentCodes[0] : (local.padre_id || null);
+            const idNuevoLocal = local.identidad
+              ? normalizarIdentidad(String(local.identidad).trim().toUpperCase(), String(local.identidad).trim().charAt(0) || 'J')
+              : identidadExacta;
+            identidadesRefrescar.add(idNuevoLocal);
             const { error: eI } = await supabase.from('inmuebles').insert([{
               inmueble: codigo,
-              identidad: identidadExacta,
-              contribuyente: data.Contribuyente,
+              identidad: idNuevoLocal,
+              contribuyente: (local.contribuyente || data.Contribuyente || '').trim().toUpperCase(),
               telefono: data.Telefono,
               correo_electronico: data.Correo,
               direccion: local.direccion || (local.numeracion ? `${data.Direccion} | ${local.numeracion}` : data.Direccion),
               cod_cont: data.CodCont || data.cod_cont || null,
+              padre_id: padreAsignado,
               tipo: tipoDeUso(local.uso),
               clasificacion: 'Individual',
               estado: 'Activo',
@@ -1326,7 +1369,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
               agente_retencion: local.agente_retencion === true,
             }]);
             if (eI) throw eI;
+            local.mmvActual = mmv;
             cambios.push(`NUEVO ${codigo}: ${act} (${mmv} MMV)`);
+          }
+        }
+
+        // Sincronizar contenedor(es) N/A padre (ej. URB033361) con el RIF, Razón Social y suma de MMV de sus actividades hijas
+        for (const naCode of naParentCodes) {
+          const hijosLocales = data.locales.filter((l: any) =>
+            String(l.codigo || '').trim().toUpperCase() !== naCode &&
+            (String(l.padre_id || l.__orig?.padre_id || '').trim().toUpperCase() === naCode || naParentCodes.length === 1)
+          );
+          if (hijosLocales.length > 0) {
+            const primerHijo = hijosLocales[0];
+            const nombreUnificado = String(
+              (nombreTopCambio ? data.Contribuyente : (primerHijo.contribuyente || data.Contribuyente)) || ''
+            ).trim().toUpperCase();
+            const idUnificada = primerHijo.identidad
+              ? normalizarIdentidad(String(primerHijo.identidad).trim().toUpperCase(), String(primerHijo.identidad).trim().charAt(0) || 'J')
+              : identidadExacta;
+            identidadesRefrescar.add(idUnificada);
+            const sumaMmv = Math.round(
+              hijosLocales.reduce((acc: number, h: any) => acc + (parseFloat(String(h.mmvActual ?? h.mmv_mes ?? 0)) || 0), 0) * 10000
+            ) / 10000;
+            const updNa: any = {
+              actividad_principal: 'N/A',
+              padre_id: null,
+              cant_inmuebles: hijosLocales.length,
+            };
+            if (nombreUnificado) updNa.contribuyente = nombreUnificado;
+            if (idUnificada) updNa.identidad = idUnificada;
+            if (sumaMmv > 0) updNa.mmv_mes = sumaMmv;
+            if (primerHijo.direccion || data.Direccion) updNa.direccion = primerHijo.direccion || data.Direccion;
+            if (data.Telefono && String(data.Telefono).trim().length >= 7) updNa.telefono = String(data.Telefono).trim();
+            if (data.Correo && String(data.Correo).includes('@')) updNa.correo_electronico = String(data.Correo).trim().toLowerCase();
+
+            await supabase.from('contribuyentes').upsert([{
+              identidad: idUnificada,
+              nombre: nombreUnificado || data.Contribuyente,
+              telefono: updNa.telefono || data.Telefono || null,
+              email: updNa.correo_electronico || data.Correo || null,
+              direccion: updNa.direccion || data.Direccion || null,
+            }], { onConflict: 'identidad' });
+
+            await supabase.from('inmuebles').update(updNa).eq('inmueble', naCode);
+            await supabase.from('inmuebles').update({ cant_inmuebles: hijosLocales.length, padre_id: naCode }).in(
+              'inmueble',
+              hijosLocales.map((h: any) => h.codigo).filter(Boolean)
+            );
           }
         }
       } else {
@@ -1428,7 +1518,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Recargar del servidor (fuente de verdad) en lugar de parchear el estado local
-      await refreshUserData(identidadExacta).catch(() => {});
+      for (const idRef of Array.from(identidadesRefrescar)) {
+        if (idRef) await refreshUserData(idRef).catch(() => {});
+      }
 
       let logMsg = `Se actualizaron los datos del contribuyente: ${data.Contribuyente} (Identidad: ${identidadExacta})`;
       if (cambios.length > 0) logMsg += ` | Cambios de tarifa/actividad: ${cambios.join('; ')}`;

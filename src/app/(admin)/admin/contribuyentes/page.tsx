@@ -2331,35 +2331,50 @@ function ContribuyentesPageContent() {
       }
       const { data: dbData } = await q;
       if (dbData && dbData.length > 0) {
-        const existingCodes = new Set(misInmuebles.map(i => i.inmueble));
+        const byCode = new Map(misInmuebles.map((i: any) => [i.inmueble, i]));
         dbData.forEach((di: any) => {
-          if (!existingCodes.has(di.inmueble)) {
-            misInmuebles.push(di);
-            existingCodes.add(di.inmueble);
-          }
+          byCode.set(di.inmueble, di);
         });
+        misInmuebles = Array.from(byCode.values());
       }
       const allFoundCodes = misInmuebles.map(i => i.inmueble).filter(Boolean);
       if (allFoundCodes.length > 0) {
         const { data: hijos } = await supabase.from('inmuebles').select('*').neq('estado', 'Eliminado').neq('estado', 'Inactivo').in('padre_id', allFoundCodes);
         if (hijos && hijos.length > 0) {
-          const existingCodes = new Set(misInmuebles.map(i => i.inmueble));
+          const byCode = new Map(misInmuebles.map((i: any) => [i.inmueble, i]));
           hijos.forEach((h: any) => {
-            if (!existingCodes.has(h.inmueble)) {
-              misInmuebles.push(h);
-              existingCodes.add(h.inmueble);
-            }
+            byCode.set(h.inmueble, h);
           });
+          misInmuebles = Array.from(byCode.values());
         }
       }
     } catch (_) {}
 
     misInmuebles.sort((a: any, b: any) => (a.inmueble || '').localeCompare(b.inmueble || ''));
     const usoDe = (inm: any) => (isResidencialInm(inm) ? 'Residencial' : 'Comercial');
+
+    // Si hay un contenedor padre N/A (ej. URB033361) que tiene actividades hijas vinculadas (padre_id),
+    // mostrar en las tarjetas editables únicamente las actividades reales y sincronizar el contenedor N/A automáticamente al guardar
+    const padresConHijosSet = new Set(
+      misInmuebles.map((i: any) => String(i.padre_id || '').trim().toUpperCase()).filter(Boolean)
+    );
+    const naParents = misInmuebles.filter((i: any) => {
+      const code = String(i.inmueble || '').trim().toUpperCase();
+      const act = String(i.actividad_principal || '').trim().toUpperCase();
+      return !i.padre_id && act === 'N/A' && padresConHijosSet.has(code);
+    });
+    const naParentCodes = naParents.map((p: any) => String(p.inmueble || '').trim().toUpperCase()).filter(Boolean);
+    const inmParaLocales = naParentCodes.length > 0
+      ? misInmuebles.filter((i: any) => !naParentCodes.includes(String(i.inmueble || '').trim().toUpperCase()))
+      : misInmuebles;
+
+    const freshPrimaryInm = naParents[0] || inmParaLocales[0] || misInmuebles[0];
+    const contribuyenteEfectivo = freshPrimaryInm?.contribuyente || row.Contribuyente || '';
+    const identidadEfectiva = freshPrimaryInm?.identidad || row.Identidad || '';
     
-    if (misInmuebles.length > 0) {
-      cantidadInmuebles = misInmuebles.length;
-      locales = misInmuebles.map((inm: any, idx: number) => {
+    if (inmParaLocales.length > 0) {
+      cantidadInmuebles = inmParaLocales.length;
+      locales = inmParaLocales.map((inm: any, idx: number) => {
         const uso = usoDe(inm);
         const act = inm.actividad_principal || '';
         const desocupado = uso === 'Comercial' && /DESOCUPAD/i.test(act);
@@ -2367,6 +2382,7 @@ function ContribuyentesPageContent() {
         const loc: any = {
           id: `local-${idx}-${Date.now()}`,
           codigo: inm.inmueble,
+          padre_id: inm.padre_id || (naParentCodes.length === 1 ? naParentCodes[0] : null),
           numeracion: inm.inmueble || `Inmueble ${idx + 1}`,
           uso,
           estatus: desocupado ? 'Desocupado' : 'Ocupado',
@@ -2374,8 +2390,8 @@ function ContribuyentesPageContent() {
           tipoResidencia: uso === 'Residencial' ? (act || ordenanzaData.tiposResidenciales[0].label) : '',
           nivel: ordenanzaData.nivelesMetraje[an.nivelIdx] || ordenanzaData.nivelesMetraje[0],
           mmvActual: inm.mmv_mes,
-          contribuyente: inm.contribuyente || row.Contribuyente || '',
-          identidad: inm.identidad || row.Identidad || '',
+          contribuyente: inm.contribuyente || contribuyenteEfectivo,
+          identidad: inm.identidad || identidadEfectiva,
           direccion: inm.direccion || '',
           telefono: inm.telefono || '',
           correo_electronico: inm.correo_electronico || '',
@@ -2392,7 +2408,8 @@ function ContribuyentesPageContent() {
           identidad: loc.identidad,
           direccion: loc.direccion,
           telefono: loc.telefono,
-          correo_electronico: loc.correo_electronico
+          correo_electronico: loc.correo_electronico,
+          padre_id: loc.padre_id
         };
         return loc;
       });
@@ -2457,6 +2474,8 @@ function ContribuyentesPageContent() {
 
     setFormData({ 
       ...row,
+      Contribuyente: contribuyenteEfectivo,
+      Identidad: identidadEfectiva,
       esAgenteRetencion: effectiveEsAgente,
       clave_portal: row.clave_portal || misInmuebles[0]?.clave_portal || '',
       Direccion: direccionEfectiva,
@@ -2473,11 +2492,12 @@ function ContribuyentesPageContent() {
       cantidadInmuebles,
       locales,
       actividadesExtra: [],
-      __inmuebleCodes: misInmuebles.map((i: any) => i.inmueble).filter(Boolean),
+      __inmuebleCodes: inmParaLocales.map((i: any) => i.inmueble).filter(Boolean),
+      __naParentCodes: naParentCodes,
       Nota: '',
     });
-    setOriginalData({ ...row, Direccion: direccionEfectiva, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia, NivelMetraje });
-    setEditingId(row.Identidad);
+    setOriginalData({ ...row, Contribuyente: contribuyenteEfectivo, Identidad: identidadEfectiva, Direccion: direccionEfectiva, Clasificacion: autoClasificacion, ActividadComercial, TipoResidencia, NivelMetraje });
+    setEditingId(identidadEfectiva);
     setIsNew(false);
     setShowSuccess(false);
     setShowCalculation(false);
@@ -2772,8 +2792,30 @@ function ContribuyentesPageContent() {
       const finalTelefono = `${formData.telefonoPrefijo}${formData.telefonoNumero}`;
       const finalCorreo = `${formData.correoNombre}${formData.correoDominio === 'Otro' ? formData.correoDominioOtro : formData.correoDominio}`;
       
+      // Si el operador editó el nombre/RIF en todas las tarjetas de actividades (ej. grupo N/A), sincronizar también el encabezado
+      let contribUnificado = formData.Contribuyente;
+      let identidadUnificada = formData.Identidad;
+      if (Array.isArray(formData.locales) && formData.locales.length > 0) {
+        const nombresLocales = Array.from(new Set(
+          formData.locales.map((l: any) => String(l.contribuyente || '').trim().toUpperCase()).filter(Boolean)
+        ));
+        if (
+          nombresLocales.length === 1 &&
+          String(formData.Contribuyente || '').trim().toUpperCase() === String(originalData?.Contribuyente || '').trim().toUpperCase()
+        ) {
+          contribUnificado = nombresLocales[0];
+        }
+        const idsLocales = Array.from(new Set(
+          formData.locales.map((l: any) => String(l.identidad || '').trim().toUpperCase()).filter(Boolean)
+        ));
+        if (idsLocales.length === 1) {
+          identidadUnificada = idsLocales[0];
+        }
+      }
+
       const dataToSave = {
         ...formData,
+        Contribuyente: contribUnificado,
         Telefono: finalTelefono,
         Correo: finalCorreo,
         __original: originalData,
@@ -2807,7 +2849,7 @@ function ContribuyentesPageContent() {
       }
 
       // Asegurar que los documentos de uploadDocs queden registrados en observaciones
-      const idParaDocs = editingId || dataToSave.Identidad;
+      const idParaDocs = identidadUnificada || editingId || dataToSave.Identidad;
       if (idParaDocs) {
         try {
           const { data: cObs } = await supabase.from('contribuyentes').select('observaciones').eq('identidad', idParaDocs).maybeSingle();
@@ -2826,9 +2868,63 @@ function ContribuyentesPageContent() {
           }
         } catch (_) {}
       }
-      
-      setOriginalData(dataToSave);
+
+      const updatedLocalesWithOrig = Array.isArray(dataToSave.locales)
+        ? dataToSave.locales.map((loc: any) => ({
+            ...loc,
+            __orig: {
+              uso: loc.uso,
+              actividad: loc.actividad,
+              nivel: loc.nivel,
+              tipoResidencia: loc.tipoResidencia,
+              estatus: loc.estatus,
+              agente_retencion: loc.agente_retencion,
+              contribuyente: loc.contribuyente,
+              identidad: loc.identidad,
+              direccion: loc.direccion,
+              telefono: loc.telefono,
+              correo_electronico: loc.correo_electronico,
+              padre_id: loc.padre_id,
+            }
+          }))
+        : dataToSave.locales;
+
+      const finalSavedState = {
+        ...dataToSave,
+        Contribuyente: contribUnificado,
+        Identidad: identidadUnificada || dataToSave.Identidad,
+        locales: updatedLocalesWithOrig,
+      };
+      setFormData(finalSavedState);
+      setOriginalData(finalSavedState);
+      if (identidadUnificada && identidadUnificada !== editingId) {
+        setEditingId(identidadUnificada);
+      }
       await refreshUserData(editingId || dataToSave.Identidad);
+      if (identidadUnificada && identidadUnificada !== editingId) {
+        await refreshUserData(identidadUnificada).catch(() => {});
+      }
+      if (serverResults.length > 0) {
+        const targetCodes = new Set([
+          ...(dataToSave.__inmuebleCodes || []),
+          ...(dataToSave.__naParentCodes || []),
+          String(dataToSave.CodCont || '').trim().toUpperCase(),
+        ].filter(Boolean));
+        setServerResults((prev: any[]) => prev.map((sr: any) => {
+          const srCode = String(sr.CodCont || sr.cod_cont || '').trim().toUpperCase();
+          if ((srCode && targetCodes.has(srCode)) || sr.Identidad === editingId) {
+            return {
+              ...sr,
+              Contribuyente: contribUnificado,
+              Identidad: identidadUnificada || dataToSave.Identidad,
+              Telefono: finalTelefono,
+              Correo: finalCorreo,
+              Direccion: dataToSave.Direccion,
+            };
+          }
+          return sr;
+        }));
+      }
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err: any) {
@@ -2935,9 +3031,17 @@ function ContribuyentesPageContent() {
                         });
                         const j = await res.json();
                         if (!res.ok) throw new Error(j.error || 'Error');
-                        setFormData({ ...formData, Identidad: j.identidad });
-                        setOriginalData((o: any) => o ? { ...o, Identidad: j.identidad } : o);
+                        const updatedLocalesId = Array.isArray(formData.locales)
+                          ? formData.locales.map((loc: any) => ({
+                              ...loc,
+                              identidad: j.identidad,
+                              __orig: loc.__orig ? { ...loc.__orig, identidad: j.identidad } : loc.__orig,
+                            }))
+                          : formData.locales;
+                        setFormData({ ...formData, Identidad: j.identidad, locales: updatedLocalesId });
+                        setOriginalData((o: any) => o ? { ...o, Identidad: j.identidad, locales: updatedLocalesId } : o);
                         setEditingId(j.identidad);
+                        await refreshUserData(actual).catch(() => {});
                         await refreshUserData(j.identidad).catch(() => {});
                         alert(`Identidad cambiada a ${j.identidad}.`);
                       } catch (err: any) {
@@ -2953,7 +3057,27 @@ function ContribuyentesPageContent() {
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 mb-1">Nombre o Razón Social</label>
-                <input type="text" value={formData.Contribuyente} onChange={e => setFormData({...formData, Contribuyente: e.target.value})} className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" required />
+                <input
+                  type="text"
+                  value={formData.Contribuyente}
+                  onChange={e => {
+                    const nuevoNom = e.target.value;
+                    const prevNom = String(formData.Contribuyente || '').trim().toUpperCase();
+                    const origNom = String(originalData?.Contribuyente || '').trim().toUpperCase();
+                    const updatedLocales = Array.isArray(formData.locales)
+                      ? formData.locales.map((loc: any) => {
+                          const locNom = String(loc.contribuyente || '').trim().toUpperCase();
+                          if (!locNom || locNom === prevNom || locNom === origNom) {
+                            return { ...loc, contribuyente: nuevoNom };
+                          }
+                          return loc;
+                        })
+                      : formData.locales;
+                    setFormData({ ...formData, Contribuyente: nuevoNom, locales: updatedLocales });
+                  }}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500"
+                  required
+                />
               </div>
             </div>
 
