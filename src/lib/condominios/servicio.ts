@@ -298,8 +298,15 @@ export function calcularEstado(condoRow: any, unidadesRows: any[], tasaRaw: numb
     // Si la unidad es un grupo contenedor (mu?.es_grupo), no genera multas directas: cobran sus actividades
     // multaExtraBs solo cobra meses de multa remanentes (previos al aseo pendiente) no cubiertos por el aseo dinámico
     let mesesMultaRemanente = (!mu?.es_grupo && u) ? Math.max(0, multaMesesRaw - mesesMoraCubiertosPorAseo) : 0;
-    if (omitirMultaSeptiembre && mesesMultaRemanente > 0 && M.periodosMultasPrevias(desde, mesesMultaRemanente, hoy).includes('2026-09')) {
-      mesesMultaRemanente = Math.max(0, mesesMultaRemanente - 1);
+    if (mesesMultaRemanente > 0) {
+      const prevPeriodos = M.periodosMultasPrevias(desde, mesesMultaRemanente, hoy).filter(p => {
+        if (exoneradoTotalInm) return false;
+        if (hasta && p <= hasta) return false;
+        if (isMesExoneradoMulta(notasInmCheck, p)) return false;
+        if (omitirMultaSeptiembre && p === '2026-09') return false;
+        return true;
+      });
+      mesesMultaRemanente = prevPeriodos.length;
     }
     const multaMeses = mesesMultaEnAseo + mesesMultaRemanente;
     const multaExtraBs = (!mu?.es_grupo && u)
@@ -450,20 +457,30 @@ export async function cargarCondominio(codigo: string) {
     const rawSF = parseFloat(inf.saldo_favor_bs || '0') || 0;
     const multaBsInm = parseFloat(inf.multa_bs || '0') || 0;
 
-    // Auto-reconciliar si en tabla `inmuebles` ya se descontó el mes (ej. Septiembre 2026 pagado/facturado)
-    // pero `condominio_unidades` quedó rezagada con más meses pendientes
+    // Auto-reconciliar si en tabla `inmuebles` ya se descontó el mes (ej. pagado en Caja General / Contribuyentes)
+    // o si la multa ya fue saldada en `inmuebles`, pero `condominio_unidades` quedó rezagada
     let aseoDesdeEfectivo = u.aseo_pendiente_desde;
-    let multaMesesEfectivo = u.multa_meses;
+    let multaMesesEfectivo = Number(u.multa_meses || 0);
     if (esUnidadesPropias && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
       const mInm = Math.max(0, parseInt(String(inf.meses_deuda), 10) || 0);
       const mUnid = M.mesesPendientes(u.aseo_pendiente_desde);
-      if (mUnid >= 2 && mInm === 1 && multaBsInm <= 0.01) {
-        aseoDesdeEfectivo = M.pendienteDesdeParaMeses(1);
+      let cambioSync = false;
+      if (mInm < mUnid) {
+        aseoDesdeEfectivo = mInm === 0 ? null : M.pendienteDesdeParaMeses(mInm);
+        if (mInm <= 1 && multaBsInm <= 0.01) {
+          multaMesesEfectivo = 0;
+        }
+        cambioSync = true;
+      }
+      if (multaMesesEfectivo > 0 && mInm <= 1 && multaBsInm <= 0.01) {
         multaMesesEfectivo = 0;
+        cambioSync = true;
+      }
+      if (cambioSync) {
         unidadesASincronizarBD.push({
           id: u.id,
           aseo_pendiente_desde: aseoDesdeEfectivo,
-          multa_meses: 0,
+          multa_meses: multaMesesEfectivo,
         });
       }
     }
@@ -525,6 +542,30 @@ export async function cargarCondominio(codigo: string) {
   const { data: pagosPorCod } = await sb.from('pagos_reportados').select(COLS_PAGOS).filter('detalles->condominio->>codigo', 'eq', condo.codigo).limit(50);
   (pagosPorCod || []).forEach(p => { if (!pagosMap.has(p.id)) pagosMap.set(p.id, p); });
 
+  // También buscar pagos registrados en Caja General / Conciliación a nombre de los propietarios de las unidades
+  // que hayan incluido algún código de inmueble perteneciente a este condominio
+  const rifsUnidades = [...new Set(unidades.map((u: any) => String(u.identidad || '').trim()).filter(r => r.length >= 6 && r !== condo.identidad))];
+  const codigosSet = new Set(codigosUnidades);
+  if (rifsUnidades.length > 0 && codigosSet.size > 0) {
+    for (let i = 0; i < rifsUnidades.length; i += 100) {
+      const { data: pagosUnids } = await sb.from('pagos_reportados')
+        .select(COLS_PAGOS)
+        .in('identidad', rifsUnidades.slice(i, i + 100))
+        .order('created_at', { ascending: false })
+        .limit(100);
+      (pagosUnids || []).forEach(p => {
+        if (pagosMap.has(p.id)) return;
+        const detStr = JSON.stringify(p.detalles || {}).toUpperCase();
+        for (const codU of codigosSet) {
+          if (detStr.includes(codU)) {
+            pagosMap.set(p.id, p);
+            break;
+          }
+        }
+      });
+    }
+  }
+
   const pagos = Array.from(pagosMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return { condo, unidades, movimientos: movimientos || [], multas: multas || [], pagos };
@@ -562,8 +603,13 @@ export async function resumenGeneral() {
     if (cPadre && unidadesPropias(cPadre) && inf.meses_deuda !== undefined && inf.meses_deuda !== null) {
       const mInm = Math.max(0, parseInt(String(inf.meses_deuda), 10) || 0);
       const mUnid = M.mesesPendientes(u.aseo_pendiente_desde);
-      if (mUnid >= 2 && mInm === 1 && u.multa_bs <= 0.01) {
-        u.aseo_pendiente_desde = M.pendienteDesdeParaMeses(1);
+      if (mInm < mUnid) {
+        u.aseo_pendiente_desde = mInm === 0 ? null : M.pendienteDesdeParaMeses(mInm);
+        if (mInm <= 1 && u.multa_bs <= 0.01) {
+          u.multa_meses = 0;
+        }
+      }
+      if (Number(u.multa_meses || 0) > 0 && mInm <= 1 && u.multa_bs <= 0.01) {
         u.multa_meses = 0;
       }
     }
