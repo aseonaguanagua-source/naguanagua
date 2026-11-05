@@ -560,8 +560,7 @@ export default function DondePagarPage() {
         monthlyGroups,
         singleItems: []
       };
-      // Temporalmente oculto el bloque informativo de Régimen de Condominio a solicitud del usuario
-    }).filter((g) => g.allReceiptRefs.length > 0 && !(g as any).isCondo);
+    }).filter((g) => g.allReceiptRefs.length > 0 || (g as any).isCondo);
   }, [userInms, rawRecibos, localClustersMap, pagosPorVerificar, effectiveTcmmv, reglasCobro, condoNames]);
 
   // Por defecto expandir el primer local
@@ -969,8 +968,7 @@ export default function DondePagarPage() {
     }
   };
 
-  // Temporalmente deshabilitado el bloque de Régimen de Condominio en Soy Contribuyente a solicitud del usuario
-  if (false && bloqueadoPorCondominio && rawRecibos.length === 0 && serviciosPend.length === 0) {
+  if (bloqueadoPorCondominio && rawRecibos.length === 0 && serviciosPend.length === 0) {
     const isCondoInm = (i: any) =>
       Boolean(
         i?.es_condominio ||
