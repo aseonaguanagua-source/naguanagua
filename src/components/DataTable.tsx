@@ -13,9 +13,10 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   itemsPerPage?: number;
   searchable?: boolean;
+  onSearchChange?: (term: string) => void;
 }
 
-export function DataTable<T extends Record<string, any>>({ data, columns, itemsPerPage: defaultPerPage = 25, searchable = true }: DataTableProps<T>) {
+export function DataTable<T extends Record<string, any>>({ data, columns, itemsPerPage: defaultPerPage = 25, searchable = true, onSearchChange }: DataTableProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -25,9 +26,10 @@ export function DataTable<T extends Record<string, any>>({ data, columns, itemsP
     const handler = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
       setCurrentPage(1);
+      if (onSearchChange) onSearchChange(searchTerm);
     }, 300);
     return () => clearTimeout(handler);
-  }, [searchTerm]);
+  }, [searchTerm, onSearchChange]);
 
   const filteredData = React.useMemo(() => {
     return data.filter((item) => {

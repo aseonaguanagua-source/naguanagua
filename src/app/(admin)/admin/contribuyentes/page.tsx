@@ -124,7 +124,210 @@ function ContribuyentesPageContent() {
   const [groupCondoChildren, setGroupCondoChildren] = useState(true);
   const [filteredContribuyentes, setFilteredContribuyentes] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [tableSearchTerm, setTableSearchTerm] = useState('');
+  const [condoSearchNotice, setCondoSearchNotice] = useState<Array<{
+    condominioCodigo: string;
+    condominioNombre: string;
+    condominioRif?: string;
+    esMatrizDirecta: boolean;
+    locales: Array<{ codigo: string; numero?: string; propietario?: string; identidad?: string }>;
+  }>>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  const detectarCondominiosAsociados = React.useCallback(async (rawTerm: string) => {
+    const term = String(rawTerm || '').trim();
+    if (term.length < 3) {
+      setCondoSearchNotice([]);
+      return [];
+    }
+    try {
+      const upper = term.toUpperCase();
+      const rawDigits = term.replace(/[^0-9]/g, '');
+      const cleanPrefix = upper.replace(/[-\s]/g, '');
+
+      // 1. Buscar si coincide directamente con un condominio matriz en tabla condominios
+      const condoOrs = [`codigo.ilike.%${upper}%`, `nombre.ilike.%${term}%`, `identidad.ilike.%${upper}%`];
+      if (rawDigits.length >= 4) condoOrs.push(`identidad.ilike.%${rawDigits}%`);
+      const { data: condosDirect } = await supabase
+        .from('condominios')
+        .select('id, codigo, nombre, identidad')
+        .or(condoOrs.join(','))
+        .limit(20);
+
+      // 2. Buscar en condominio_unidades por inmueble (código), identidad o propietario
+      const cuOrs = [`inmueble.ilike.%${upper}%`, `identidad.ilike.%${upper}%`, `propietario.ilike.%${term}%`];
+      if (rawDigits.length >= 4) cuOrs.push(`identidad.ilike.%${rawDigits}%`);
+      if (cleanPrefix !== upper && cleanPrefix.length >= 3) cuOrs.push(`identidad.ilike.%${cleanPrefix}%`);
+      const { data: cuMatched } = await supabase
+        .from('condominio_unidades')
+        .select('id, condominio_id, inmueble, numero, propietario, identidad, es_grupo')
+        .or(cuOrs.join(','))
+        .limit(100);
+
+      // 3. Buscar en inmuebles que tengan condominio_padre_id o es_condominio=true
+      const inmOrs = [`inmueble.ilike.%${upper}%`, `identidad.ilike.%${upper}%`, `contribuyente.ilike.%${term}%`];
+      if (rawDigits.length >= 4) inmOrs.push(`identidad.ilike.%${rawDigits}%`);
+      const { data: inmMatched } = await supabase
+        .from('inmuebles')
+        .select('id, inmueble, identidad, contribuyente, condominio_padre_id, es_condominio, numero_local, estado')
+        .or(inmOrs.join(','))
+        .not('estado', 'ilike', 'eliminado%')
+        .limit(100);
+
+      const condoIdsToFetch = new Set<string>();
+      const condoCodesToFetch = new Set<string>();
+
+      (cuMatched || []).forEach((u: any) => {
+        if (u.condominio_id) condoIdsToFetch.add(u.condominio_id);
+      });
+      (inmMatched || []).forEach((i: any) => {
+        if (i.condominio_padre_id) condoCodesToFetch.add(String(i.condominio_padre_id).trim().toUpperCase());
+        if (i.es_condominio && i.inmueble) condoCodesToFetch.add(String(i.inmueble).trim().toUpperCase());
+      });
+
+      const condoById = new Map<string, { id: string; codigo: string; nombre: string; identidad?: string }>();
+      const condoByCode = new Map<string, { id: string; codigo: string; nombre: string; identidad?: string }>();
+
+      (condosDirect || []).forEach((c: any) => {
+        const obj = { id: c.id, codigo: String(c.codigo || '').toUpperCase(), nombre: c.nombre || c.codigo, identidad: c.identidad };
+        condoById.set(c.id, obj);
+        if (obj.codigo) condoByCode.set(obj.codigo, obj);
+      });
+
+      if (condoIdsToFetch.size > 0) {
+        const { data: cByIds } = await supabase
+          .from('condominios')
+          .select('id, codigo, nombre, identidad')
+          .in('id', Array.from(condoIdsToFetch));
+        (cByIds || []).forEach((c: any) => {
+          const obj = { id: c.id, codigo: String(c.codigo || '').toUpperCase(), nombre: c.nombre || c.codigo, identidad: c.identidad };
+          condoById.set(c.id, obj);
+          if (obj.codigo) condoByCode.set(obj.codigo, obj);
+        });
+      }
+
+      if (condoCodesToFetch.size > 0) {
+        const missingCodes = Array.from(condoCodesToFetch).filter(c => !condoByCode.has(c));
+        if (missingCodes.length > 0) {
+          const { data: cByCodes } = await supabase
+            .from('condominios')
+            .select('id, codigo, nombre, identidad')
+            .in('codigo', missingCodes);
+          (cByCodes || []).forEach((c: any) => {
+            const obj = { id: c.id, codigo: String(c.codigo || '').toUpperCase(), nombre: c.nombre || c.codigo, identidad: c.identidad };
+            condoById.set(c.id, obj);
+            if (obj.codigo) condoByCode.set(obj.codigo, obj);
+          });
+          // Fallback desde tabla inmuebles si algún condominio padre no estaba en tabla condominios
+          const stillMissing = missingCodes.filter(c => !condoByCode.has(c));
+          if (stillMissing.length > 0) {
+            const { data: inmPadres } = await supabase
+              .from('inmuebles')
+              .select('id, inmueble, contribuyente, identidad')
+              .in('inmueble', stillMissing);
+            (inmPadres || []).forEach((ip: any) => {
+              const code = String(ip.inmueble || '').toUpperCase();
+              if (code && !condoByCode.has(code)) {
+                condoByCode.set(code, { id: ip.id, codigo: code, nombre: ip.contribuyente || code, identidad: ip.identidad });
+              }
+            });
+          }
+        }
+      }
+
+      const grouped = new Map<string, {
+        condominioCodigo: string;
+        condominioNombre: string;
+        condominioRif?: string;
+        esMatrizDirecta: boolean;
+        localesMap: Map<string, { codigo: string; numero?: string; propietario?: string; identidad?: string }>;
+      }>();
+
+      const ensureCondo = (codigo: string, nombre: string, rif?: string, esMatriz = false) => {
+        const key = String(codigo || '').trim().toUpperCase();
+        if (!key) return null;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            condominioCodigo: key,
+            condominioNombre: nombre || key,
+            condominioRif: rif,
+            esMatrizDirecta: esMatriz,
+            localesMap: new Map()
+          });
+        } else if (esMatriz) {
+          grouped.get(key)!.esMatrizDirecta = true;
+        }
+        return grouped.get(key)!;
+      };
+
+      (condosDirect || []).forEach((c: any) => {
+        ensureCondo(c.codigo, c.nombre, c.identidad, true);
+      });
+
+      (cuMatched || []).forEach((u: any) => {
+        const condo = condoById.get(u.condominio_id);
+        if (!condo) return;
+        const codInm = String(u.inmueble || '').trim().toUpperCase();
+        const esMismoCodigoPadre = codInm === condo.codigo;
+        const entry = ensureCondo(condo.codigo, condo.nombre, condo.identidad, esMismoCodigoPadre);
+        if (entry && codInm && !esMismoCodigoPadre) {
+          entry.localesMap.set(codInm, {
+            codigo: codInm,
+            numero: u.numero || undefined,
+            propietario: u.propietario || undefined,
+            identidad: u.identidad || undefined
+          });
+        }
+      });
+
+      (inmMatched || []).forEach((i: any) => {
+        const codInm = String(i.inmueble || '').trim().toUpperCase();
+        if (i.es_condominio && codInm) {
+          const cInfo = condoByCode.get(codInm);
+          ensureCondo(codInm, cInfo?.nombre || i.contribuyente || codInm, cInfo?.identidad || i.identidad, true);
+        }
+        if (i.condominio_padre_id) {
+          const pCod = String(i.condominio_padre_id).trim().toUpperCase();
+          const cInfo = condoByCode.get(pCod);
+          const entry = ensureCondo(pCod, cInfo?.nombre || pCod, cInfo?.identidad, false);
+          if (entry && codInm && codInm !== pCod && !entry.localesMap.has(codInm)) {
+            entry.localesMap.set(codInm, {
+              codigo: codInm,
+              numero: i.numero_local || undefined,
+              propietario: i.contribuyente || undefined,
+              identidad: i.identidad || undefined
+            });
+          }
+        }
+      });
+
+      const finalNotices = Array.from(grouped.values()).map(g => ({
+        condominioCodigo: g.condominioCodigo,
+        condominioNombre: g.condominioNombre,
+        condominioRif: g.condominioRif,
+        esMatrizDirecta: g.esMatrizDirecta,
+        locales: Array.from(g.localesMap.values())
+      }));
+
+      setCondoSearchNotice(finalNotices);
+      return finalNotices;
+    } catch (e) {
+      console.warn('Error detectando condominios asociados:', e);
+      return [];
+    }
+  }, []);
+
+  useEffect(() => {
+    const activeTerm = serverSearchTerm.trim() || tableSearchTerm.trim();
+    if (!activeTerm || activeTerm.length < 3) {
+      setCondoSearchNotice([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      detectarCondominiosAsociados(activeTerm);
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [serverSearchTerm, tableSearchTerm, detectarCondominiosAsociados]);
 
   const handleSyncBD = async () => {
     try {
@@ -1952,20 +2155,13 @@ function ContribuyentesPageContent() {
         }
       }
       
-      // Detección de Condominio Padre: solo si la búsqueda coincide directamente con el inmueble matriz del condominio
-      const isCondoPadreSearch = allFoundInmuebles.some((i: any) => 
-        i.es_condominio && (i.inmueble === term || parseInt(i.cant_inmuebles || '0') > 1)
-      );
-      
-      if (isCondoPadreSearch) {
-        const condoPadre = allFoundInmuebles.find((i: any) => i.es_condominio);
-        if (confirm(`El código "${term}" corresponde al Condominio matriz "${condoPadre?.contribuyente || ''}".\n¿Desea ir a la Ficha del Condominio?`)) {
-          window.location.href = `/admin/condominios/ficha?codigo=${condoPadre?.inmueble || term}`;
-        }
-        setIsSearchingServer(false);
-        setServerSearchTerm('');
-        return;
-      }
+      const noticesCondo = await detectarCondominiosAsociados(term);
+      const condoByLocalMap = new Map<string, { codigo: string; nombre: string }>();
+      noticesCondo.forEach(nc => {
+        nc.locales.forEach(loc => {
+          if (loc.codigo) condoByLocalMap.set(loc.codigo.toUpperCase(), { codigo: nc.condominioCodigo, nombre: nc.condominioNombre });
+        });
+      });
 
       const identidadesConInmueble = new Set((allFoundInmuebles || []).map((i: any) => i.identidad).filter(Boolean));
 
@@ -1991,6 +2187,9 @@ function ContribuyentesPageContent() {
         // El contenedor local de actividades siempre es padre_id (NO condominio_padre_id)
         const parentKey = isSearchedChild ? null : (row.padre_id || null);
         const groupKey = isCodeFormat ? (isSearchedChild ? cod : (parentKey || cod)) : (parentKey || cod || row.id || row.identidad);
+        const condoMatch = (cod && condoByLocalMap.get(String(cod).toUpperCase())) || null;
+        const condoPadreCod = row.condominio_padre_id || condoMatch?.codigo || null;
+        const condoPadreNom = condoMatch?.nombre || (inmuebles || []).find((i: any) => i.inmueble === condoPadreCod)?.contribuyente || null;
 
         if (groupKey && !mapResults.has(groupKey)) {
           const rowEstado = row.estado || 'Activo';
@@ -2009,9 +2208,15 @@ function ContribuyentesPageContent() {
             DeudaMMV: parseFloat(row.deuda_mmv || 0),
             DeudaCongelada: parseFloat(row.deuda_congelada_bs || 0),
             DeudaBs: calcRowDeudaCanonical(row, tcmmv),
-            MesesDeuda: ((row.condominio_padre_id || row.es_condominio) && !isCondominioPagoIndividual(row)) ? 0 : parseInt(row.meses_deuda || '0'),
+            MesesDeuda: ((condoPadreCod || row.es_condominio) && !isCondominioPagoIndividual(row)) ? 0 : parseInt(row.meses_deuda || '0'),
             Estado: rowEstado,
-            FechaRegistro: row.created_at || null
+            FechaRegistro: row.created_at || null,
+            es_condominio: Boolean(row.es_condominio),
+            isCondominio: Boolean(row.es_condominio),
+            condominio_padre_id: condoPadreCod,
+            condominio_padre_nombre: condoPadreNom,
+            isCondoChild: Boolean(condoPadreCod),
+            condominiosAsociados: condoPadreCod ? [{ codigo: condoPadreCod, nombre: condoPadreNom || condoPadreCod, locales: cod ? [cod] : [] }] : []
           });
         } else if (groupKey && mapResults.has(groupKey)) {
           const existing = mapResults.get(groupKey);
@@ -2029,8 +2234,23 @@ function ContribuyentesPageContent() {
           if (rowEstado === 'Activo') {
             existing.Estado = 'Activo';
           }
-          if ((!row.condominio_padre_id && !row.es_condominio) || isCondominioPagoIndividual(row)) {
+          if ((!condoPadreCod && !row.es_condominio) || isCondominioPagoIndividual(row)) {
             existing.MesesDeuda = Math.max(existing.MesesDeuda || 0, parseInt(row.meses_deuda || '0'));
+          }
+          if (condoPadreCod) {
+            if (!existing.condominio_padre_id) {
+              existing.condominio_padre_id = condoPadreCod;
+              existing.condominio_padre_nombre = condoPadreNom;
+              existing.isCondoChild = true;
+            }
+            const arr = Array.isArray(existing.condominiosAsociados) ? existing.condominiosAsociados : [];
+            const foundC = arr.find((x: any) => x.codigo === condoPadreCod);
+            if (foundC) {
+              if (cod && !foundC.locales.includes(cod)) foundC.locales.push(cod);
+            } else {
+              arr.push({ codigo: condoPadreCod, nombre: condoPadreNom || condoPadreCod, locales: cod ? [cod] : [] });
+            }
+            existing.condominiosAsociados = arr;
           }
           const rowIsElim = ['eliminado', 'inactivo', 'desactivado', 'baja'].includes(String(row.estado || '').trim().toLowerCase());
           if (!isCodeFormat && cod && !rowIsElim && !existing.CodCont.includes(cod)) {
@@ -4077,25 +4297,41 @@ function ContribuyentesPageContent() {
         const isCondo = Boolean(row.isCondominio || row.es_condominio);
         const isChild = Boolean(row.isCondoChild || row.condominio_padre_id);
         const padreNombre = row.condominio_padre_nombre || (inmuebles || []).find((i: any) => i.inmueble === row.condominio_padre_id || i.id === row.condominio_padre_id)?.contribuyente || null;
+        const condosAsoc: Array<{ codigo: string; nombre: string; locales: string[] }> = Array.isArray(row.condominiosAsociados) && row.condominiosAsociados.length > 0
+          ? row.condominiosAsociados
+          : (isChild && row.condominio_padre_id ? [{ codigo: row.condominio_padre_id, nombre: padreNombre || row.condominio_padre_id, locales: [] }] : []);
         return (
           <div>
             <div className="font-medium text-slate-800 flex items-center gap-1.5 flex-wrap">
               <span>{row.Contribuyente}</span>
               {isCondo && (
                 <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full border border-purple-200">
-                  Condominio Padre
+                  Condominio Padre ({row.CodCont || row.cod_cont})
                 </span>
               )}
             </div>
-            {isChild && (
-              <div className="text-[11px] text-indigo-900 bg-indigo-50/80 border border-indigo-200/90 px-2 py-0.5 rounded-md mt-1 font-semibold flex items-center gap-1.5 w-fit shadow-2xs">
-                <span>🏢 Pertenece al Condominio:</span>
-                <span className="font-extrabold text-indigo-950">{padreNombre || row.condominio_padre_id}</span>
-                {row.condominio_padre_id && (
-                  <span className="font-mono text-[10px] text-indigo-700 bg-white px-1.5 py-0.2 rounded border border-indigo-200">
-                    ({row.condominio_padre_id})
-                  </span>
-                )}
+            {condosAsoc.length > 0 && (
+              <div className="flex flex-col gap-1 mt-1">
+                {condosAsoc.map((ca) => (
+                  <a
+                    key={ca.codigo}
+                    href={`/admin/condominios/ficha?codigo=${encodeURIComponent(ca.codigo)}`}
+                    onClick={e => e.stopPropagation()}
+                    className="text-[11px] text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1.5 w-fit shadow-2xs transition-colors"
+                    title={`Ir a la ficha del condominio ${ca.codigo}`}
+                  >
+                    <span>🏢 Pertenece al Condominio:</span>
+                    <span className="font-extrabold text-indigo-950">{ca.nombre}</span>
+                    <span className="font-mono text-[10px] text-white bg-indigo-700 px-1.5 py-0.2 rounded font-black">
+                      {ca.codigo}
+                    </span>
+                    {ca.locales && ca.locales.length > 0 && (
+                      <span className="font-mono text-[10px] text-indigo-700">
+                        · Local(es): {ca.locales.join(', ')}
+                      </span>
+                    )}
+                  </a>
+                ))}
               </div>
             )}
           </div>
@@ -4561,7 +4797,10 @@ function ContribuyentesPageContent() {
               value={serverSearchTerm}
               onChange={(e) => {
                 setServerSearchTerm(e.target.value);
-                if (!e.target.value.trim()) setIsShowingServerResults(false);
+                if (!e.target.value.trim()) {
+                  setIsShowingServerResults(false);
+                  setCondoSearchNotice([]);
+                }
               }}
               onKeyDown={(e) => e.key === 'Enter' && handleServerSearch()}
               placeholder="Buscar directamente en la BD por Código de Inmueble (ej. URB004206), Cédula/RIF o Razón Social..."
@@ -4586,6 +4825,7 @@ function ContribuyentesPageContent() {
               onClick={() => {
                 setIsShowingServerResults(false);
                 setServerSearchTerm('');
+                setCondoSearchNotice([]);
               }}
               className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
             >
@@ -4600,8 +4840,97 @@ function ContribuyentesPageContent() {
         )}
       </div>
 
+      {/* AVISO AUTOMÁTICO DE CONDOMINIO(S) ASOCIADO(S) */}
+      {condoSearchNotice.length > 0 && (
+        <div className="bg-indigo-50 border-2 border-indigo-300 rounded-xl p-4 shadow-sm space-y-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-indigo-950 font-extrabold text-xs md:text-sm">
+              <Building2 className="w-5 h-5 text-indigo-700 shrink-0" />
+              <span>
+                {condoSearchNotice.some(c => c.esMatrizDirecta)
+                  ? `🏢 AVISO: El código / RIF buscado corresponde a un Condominio registrado`
+                  : condoSearchNotice.length === 1
+                  ? `🏢 AVISO: Este contribuyente / código pertenece o tiene local(es) asociado(s) al Condominio ${condoSearchNotice[0].condominioCodigo}`
+                  : `🏢 AVISO: Este contribuyente tiene locales asociados a ${condoSearchNotice.length} Condominios (${condoSearchNotice.map(c => c.condominioCodigo).join(', ')})`}
+              </span>
+            </div>
+            <a
+              href="/admin/condominios"
+              className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline"
+            >
+              Ir al Módulo de Condominios →
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {condoSearchNotice.map((cn) => (
+              <div
+                key={cn.condominioCodigo}
+                className="bg-white border border-indigo-200 rounded-lg p-3 flex flex-col justify-between gap-2 shadow-2xs"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="bg-indigo-700 text-white font-mono font-black text-xs px-2.5 py-0.5 rounded shadow-2xs">
+                      Código Condominio: {cn.condominioCodigo}
+                    </span>
+                    <span className="font-bold text-xs text-slate-900">
+                      {cn.condominioNombre}
+                    </span>
+                    {cn.condominioRif && (
+                      <span className="font-mono text-[11px] text-slate-500">
+                        ({cn.condominioRif})
+                      </span>
+                    )}
+                  </div>
+                  {cn.locales.length > 0 ? (
+                    <div className="text-[11px] text-slate-700 pt-1">
+                      <span className="font-bold text-indigo-900">
+                        Local(es) asociado(s) ({cn.locales.length}):{' '}
+                      </span>
+                      <span className="font-mono">
+                        {cn.locales
+                          .slice(0, 8)
+                          .map(l => `${l.codigo}${l.numero ? ` (Loc. ${l.numero})` : ''}`)
+                          .join(', ')}
+                        {cn.locales.length > 8 ? ` y ${cn.locales.length - 8} más...` : ''}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-indigo-800 font-medium pt-0.5">
+                      Código principal / matriz del condominio.
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <a
+                    href={`/admin/condominios/ficha?codigo=${encodeURIComponent(cn.condominioCodigo)}`}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <Building className="w-3.5 h-3.5" />
+                    <span>Ver Ficha Condominio ({cn.condominioCodigo}) ↗</span>
+                  </a>
+                  <a
+                    href={`/admin/condominios/caja?codigo=${encodeURIComponent(cn.condominioCodigo)}`}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>Caja Condominios ↗</span>
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded border border-slate-200 shadow-sm mt-4 overflow-hidden">
-        <DataTable data={filteredContribuyentes} columns={activeTab === 'Activos' ? columns : inactiveColumns} itemsPerPage={15} />
+        <DataTable
+          data={filteredContribuyentes}
+          columns={activeTab === 'Activos' ? columns : inactiveColumns}
+          itemsPerPage={15}
+          onSearchChange={(term) => setTableSearchTerm(term)}
+        />
       </div>
       </>)}
 

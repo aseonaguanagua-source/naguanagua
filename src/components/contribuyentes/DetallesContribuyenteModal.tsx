@@ -212,6 +212,13 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
   const [selectedInmCode, setSelectedInmCode] = useState<string | null>(null);
   const [otrosInmuebles, setOtrosInmuebles] = useState<any[]>([]);
   const [todosInmueblesRif, setTodosInmueblesRif] = useState<any[]>([]);
+  const [condominiosModalInfo, setCondominiosModalInfo] = useState<Array<{
+    codigo: string;
+    nombre: string;
+    rif: string;
+    esCondominioMatriz: boolean;
+    locales: Array<{ codigo: string; local: string; nombre: string; actividad: string }>;
+  }>>([]);
   const [claveWeb, setClaveWeb] = useState<string>('');
   const [editandoClave, setEditandoClave] = useState<boolean>(false);
   const [guardandoClave, setGuardandoClave] = useState<boolean>(false);
@@ -354,7 +361,7 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
 
             const { data: todosRif } = await supabase
               .from('inmuebles')
-              .select('inmueble, tipo, actividad_principal, direccion, identidad, estado, meses_deuda, deuda_mmv, padre_id, numero_local')
+              .select('inmueble, tipo, actividad_principal, direccion, identidad, estado, meses_deuda, deuda_mmv, padre_id, condominio_padre_id, es_condominio, numero_local, nombre_comercial, propietario')
               .neq('estado', 'Eliminado')
               .neq('estado', 'Inactivo')
               .or(Array.from(allIdVariants).map(v => `identidad.eq.${v}`).join(','));
@@ -368,6 +375,102 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
               } else {
                 setFiltroInmueblePago('todos');
               }
+
+              // Cruzar con condominios y condominio_unidades para detectar cualquier condominio asociado al RIF o códigos
+              try {
+                const [{ data: allCondos }, { data: unitsByRif }] = await Promise.all([
+                  supabase.from('condominios').select('id, codigo, nombre, rif, estado').neq('estado', 'Eliminado').neq('estado', 'Inactivo'),
+                  supabase.from('condominio_unidades')
+                    .select('condominio_id, codigo_contribuyente, numero_unidad, inquilino_nombre, rif_unidad, actividad_economica, estado')
+                    .neq('estado', 'Eliminado')
+                    .neq('estado', 'Inactivo')
+                    .or([
+                      ...Array.from(allIdVariants).map(v => `rif_unidad.eq.${v}`),
+                      ...(rawDigits.length >= 4 ? [`rif_unidad.ilike.%${rawDigits}%`] : []),
+                      ...todosRif.map((r: any) => r.inmueble).filter(Boolean).map((c: string) => `codigo_contribuyente.eq.${c}`),
+                    ].join(','))
+                ]);
+
+                const condoById = new Map<string, any>();
+                const condoByCode = new Map<string, any>();
+                (allCondos || []).forEach((c: any) => {
+                  if (c.id) condoById.set(String(c.id), c);
+                  if (c.codigo) condoByCode.set(String(c.codigo).trim().toUpperCase(), c);
+                });
+
+                const groupedCondos = new Map<string, {
+                  codigo: string;
+                  nombre: string;
+                  rif: string;
+                  esCondominioMatriz: boolean;
+                  locales: Array<{ codigo: string; local: string; nombre: string; actividad: string }>;
+                }>();
+
+                const ensureCondo = (cCode: string, cName?: string, cRif?: string, isMat = false) => {
+                  const key = String(cCode || '').trim().toUpperCase();
+                  if (!key) return null;
+                  if (!groupedCondos.has(key)) {
+                    const meta = condoByCode.get(key);
+                    groupedCondos.set(key, {
+                      codigo: key,
+                      nombre: meta?.nombre || cName || `Condominio ${key}`,
+                      rif: meta?.rif || cRif || 'S/R',
+                      esCondominioMatriz: isMat,
+                      locales: [],
+                    });
+                  } else if (isMat) {
+                    groupedCondos.get(key)!.esCondominioMatriz = true;
+                  }
+                  return groupedCondos.get(key)!;
+                };
+
+                // 1) Si el RIF mismo es de un condominio matriz
+                (allCondos || []).forEach((c: any) => {
+                  const cDigits = String(c.rif || '').replace(/\D/g, '');
+                  if ((rawDigits.length >= 5 && cDigits === rawDigits) || codes.includes(String(c.codigo || '').trim().toUpperCase())) {
+                    ensureCondo(c.codigo, c.nombre, c.rif, true);
+                  }
+                });
+
+                // 2) Desde todosRif (inmuebles con condominio_padre_id o es_condominio)
+                todosRif.forEach((inm: any) => {
+                  const inmCode = String(inm.inmueble || '').trim().toUpperCase();
+                  if (inm.es_condominio) {
+                    ensureCondo(inmCode, inm.nombre_comercial || inm.propietario, inm.identidad, true);
+                  }
+                  if (inm.condominio_padre_id) {
+                    const entry = ensureCondo(inm.condominio_padre_id);
+                    if (entry && !entry.locales.some(l => l.codigo === inmCode)) {
+                      entry.locales.push({
+                        codigo: inmCode,
+                        local: inm.numero_local || '',
+                        nombre: inm.nombre_comercial || inm.propietario || '',
+                        actividad: inm.actividad_principal || '',
+                      });
+                    }
+                  }
+                });
+
+                // 3) Desde condominio_unidades
+                (unitsByRif || []).forEach((u: any) => {
+                  const parentCondo = condoById.get(String(u.condominio_id || ''));
+                  if (!parentCondo?.codigo) return;
+                  const entry = ensureCondo(parentCondo.codigo, parentCondo.nombre, parentCondo.rif, false);
+                  const uCode = String(u.codigo_contribuyente || u.numero_unidad || '').trim().toUpperCase();
+                  if (entry && uCode && !entry.locales.some(l => l.codigo === uCode)) {
+                    entry.locales.push({
+                      codigo: uCode,
+                      local: u.numero_unidad || '',
+                      nombre: u.inquilino_nombre || '',
+                      actividad: u.actividad_economica || '',
+                    });
+                  }
+                });
+
+                if (isMounted) {
+                  setCondominiosModalInfo(Array.from(groupedCondos.values()));
+                }
+              } catch (_) {}
             }
           } catch (_) {}
         }
@@ -1102,6 +1205,52 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
           </div>
         )}
 
+        {/* ══ BANNER DE CONDOMINIO(S) ASOCIADO(S) EN MODAL ══ */}
+        {condominiosModalInfo.length > 0 && (
+          <div className="bg-gradient-to-r from-violet-950 via-indigo-950 to-purple-950 border-b-2 border-violet-500/60 p-3.5 px-6 text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-violet-500/20 border border-violet-400/40 rounded-xl text-violet-200 shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full">
+                      🏢 Aviso de Condominio
+                    </span>
+                    <span className="text-xs font-extrabold text-violet-100">
+                      {condominiosModalInfo.some(c => c.esCondominioMatriz)
+                        ? 'Este contribuyente es un Condominio Matriz o posee locales asociados a Condominio(s):'
+                        : `Este contribuyente tiene locales asociados a ${condominiosModalInfo.length === 1 ? 'un Condominio' : `${condominiosModalInfo.length} Condominios`}:`}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {condominiosModalInfo.map(cd => (
+                      <div key={cd.codigo} className="inline-flex flex-wrap items-center gap-1.5 bg-white/10 border border-violet-400/30 rounded-lg px-2.5 py-1 text-xs">
+                        <span className="font-black text-amber-300 font-mono">
+                          Código Condominio: {cd.codigo}
+                        </span>
+                        <span className="text-violet-200 font-bold">· {cd.nombre}</span>
+                        {cd.locales.length > 0 && (
+                          <span className="text-[11px] bg-violet-900/80 text-violet-100 px-1.5 py-0.5 rounded border border-violet-400/30 font-mono">
+                            Local(es): {cd.locales.map(l => l.local ? `${l.codigo} (Loc. ${l.local})` : l.codigo).join(', ')}
+                          </span>
+                        )}
+                        <a
+                          href={`/admin/condominios?search=${encodeURIComponent(cd.codigo)}`}
+                          className="text-[11px] font-black text-amber-300 hover:text-amber-200 underline ml-1"
+                        >
+                          Ir al Condominio →
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ══ BARRA DE PESTAÑAS (TABS NAVEGABLES) ══ */}
         <div className="bg-slate-100/80 border-b border-slate-200 px-4 sm:px-6 flex gap-1 overflow-x-auto shrink-0 select-none">
           {[
@@ -1237,6 +1386,11 @@ export const DetallesContribuyenteModal: React.FC<DetallesContribuyenteModalProp
                                   {inmRif.padre_id && (
                                     <span className="text-[10px] text-indigo-300 block">
                                       Filial de matriz {inmRif.padre_id}
+                                    </span>
+                                  )}
+                                  {inmRif.condominio_padre_id && (
+                                    <span className="inline-flex items-center gap-1 mt-0.5 text-[10px] font-bold text-amber-300 bg-violet-950/90 border border-violet-400/40 px-1.5 py-0.5 rounded font-mono">
+                                      🏢 Condominio: {inmRif.condominio_padre_id}
                                     </span>
                                   )}
                                 </td>
