@@ -16,9 +16,20 @@ const FORWARD_RESPONSE_HEADERS = [
 async function handleProxy(req: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
     try {
         const resolvedParams = await context.params;
-        const subPath = (resolvedParams?.path || []).join('/');
+        const pathParts = resolvedParams?.path || [];
+        const subPath = pathParts.join('/');
         const search = req.nextUrl.search || '';
         const targetUrl = `${SUPABASE_URL}/${subPath}${search}`;
+
+        const method = req.method.toUpperCase();
+        // La tabla legacy `facturas` (4,818 recibos antiguos como O-003804) tenía RLS sin política anon,
+        // por lo que en lecturas GET desde el cliente siempre devolvía [] y el sistema generaba únicamente
+        // los meses dinámicos `RECIB-HIST-` desde `inmuebles.meses_deuda`. Si devolvemos `facturas` en GET,
+        // en Caja aparecen DOS montos (la factura legacy O-003804 + los meses RECIB-HIST-) y el Estado de
+        // Cuenta muestra períodos desfasados ("SEP-2026 a SEP-2026").
+        if (method === 'GET' && pathParts[0] === 'rest' && pathParts[1] === 'v1' && pathParts[2] === 'facturas') {
+            return NextResponse.json([], { status: 200 });
+        }
 
         const headers = new Headers();
         req.headers.forEach((value, key) => {
@@ -41,7 +52,6 @@ async function handleProxy(req: NextRequest, context: { params: Promise<{ path?:
         headers.set('apikey', SERVICE_KEY);
         headers.set('Authorization', `Bearer ${SERVICE_KEY}`);
 
-        const method = req.method.toUpperCase();
         const hasBody = method !== 'GET' && method !== 'HEAD';
         const bodyBuffer = hasBody ? await req.arrayBuffer() : undefined;
 

@@ -112,7 +112,12 @@ export function construirRecibosContribuyente(params: {
       return i;
     });
 
-  const recibos: any[] = (params.facturas || []).filter(f => ESTADOS_RECIBO_PENDIENTE.includes(f.estado));
+  // Solo incluir recibos formales del sistema actual (CM-, RECIB-, MULTA-) para no duplicar con facturas legacy (ej. O-003804)
+  const recibos: any[] = (params.facturas || []).filter(f => {
+    if (!ESTADOS_RECIBO_PENDIENTE.includes(f.estado)) return false;
+    const ref = String(f.referencia || '').toUpperCase();
+    return ref.startsWith('CM-') || ref.startsWith('RECIB-') || ref.startsWith('MULTA-');
+  });
 
   // Generar meses históricos y multas para todos los inmuebles facturables con deuda
   if (billables.some(tieneDeudaInm)) {

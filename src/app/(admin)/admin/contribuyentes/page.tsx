@@ -591,7 +591,10 @@ function ContribuyentesPageContent() {
         .then(({ data: facData }) => {
           // fallback por nombre si no hay resultados por identidad (cubre RECIB- con identidad en otro formato)
           const applyDynamicInvoices = async (baseFacturas: any[]) => {
-            const combined = [...baseFacturas];
+            const combined = [...baseFacturas].filter((f: any) => {
+              const ref = String(f.referencia || '').toUpperCase();
+              return ref.startsWith('CM-') || ref.startsWith('RECIB-') || ref.startsWith('MULTA-');
+            });
             // Inmuebles FRESCOS de la BD: la copia en memoria puede tener deuda ya pagada en Caja
             const idsBuscar = Array.from(new Set([viewData.Identidad, identidadClean].filter(Boolean)));
             const { data: inmsBD } = await supabase.from('inmuebles').select('*')
@@ -898,8 +901,12 @@ function ContribuyentesPageContent() {
     const tasaValida = tcmmv && tcmmv > 0 ? tcmmv : 982.75895071;
     const idLimpio = (viewData.Identidad || '').replace(/-/g, '').toUpperCase();
 
-    // 1. Obtener facturas pendientes (priorizar viewFacturasDb o consultar DB)
-    let deudas: any[] = [...viewFacturasDb];
+    // 1. Obtener facturas pendientes (priorizar viewFacturasDb o consultar DB, filtrando legacy O-...)
+    const isReciboSistemaActual = (f: any) => {
+      const ref = String(f?.referencia || '').toUpperCase();
+      return ref.startsWith('CM-') || ref.startsWith('RECIB-') || ref.startsWith('MULTA-');
+    };
+    let deudas: any[] = [...viewFacturasDb].filter(isReciboSistemaActual);
     if (deudas.length === 0) {
       try {
         const identidadOriginal = (viewData.Identidad || '').trim();
@@ -915,7 +922,7 @@ function ContribuyentesPageContent() {
           .order('emision', { ascending: true });
 
         if (facturasDB && facturasDB.length > 0) {
-          deudas = facturasDB;
+          deudas = facturasDB.filter(isReciboSistemaActual);
         } else {
           const { data: fallback } = await supabase
             .from('facturas')
@@ -923,7 +930,7 @@ function ContribuyentesPageContent() {
             .eq('contribuyente', viewData.Contribuyente || '')
             .in('estado', ['Pendiente', 'Por Verificar', 'Abonado'])
             .order('emision', { ascending: true });
-          if (fallback) deudas = fallback;
+          if (fallback) deudas = fallback.filter(isReciboSistemaActual);
         }
       } catch (e) {
         deudas = (recibos || [])
@@ -931,7 +938,7 @@ function ContribuyentesPageContent() {
             const fid = (f.identidad || f.contribuyente || '').replace(/-/g, '').toUpperCase();
             return fid === idLimpio || fid === viewData.Identidad || f.contribuyente === viewData.Contribuyente;
           })
-          .filter((f: any) => f.estado === 'Pendiente' || f.estado === 'Por Verificar' || f.estado === 'Abonado');
+          .filter((f: any) => (f.estado === 'Pendiente' || f.estado === 'Por Verificar' || f.estado === 'Abonado') && isReciboSistemaActual(f));
       }
     }
 
@@ -1344,14 +1351,14 @@ function ContribuyentesPageContent() {
       let periodoHasta = 'N/A';
       let penultimoPeriodo = 'N/A';
 
-      if (clusterDeudas.length > 0) {
+      if (!cluster.isMultiActivity && clusterDeudas.length > 0) {
         periodoDesde = formatPeriodo(clusterDeudas[0].emision);
         periodoHasta = formatPeriodo(clusterDeudas[clusterDeudas.length - 1].emision);
         if (clusterDeudas.length > 1) {
           penultimoPeriodo = formatPeriodo(clusterDeudas[clusterDeudas.length - 2].emision);
         }
       } else if (numMesesTotal > 0) {
-        // En octubre, el último mes adeudado/emitido es septiembre (today.getMonth() - 1), ya que octubre se cobra en noviembre
+        // En octubre/noviembre, el último mes adeudado/emitido es today.getMonth() - 1
         const dIni = new Date(today.getFullYear(), today.getMonth() - numMesesTotal, 1);
         const dFin = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         const dPen = new Date(today.getFullYear(), today.getMonth() - 2, 1);

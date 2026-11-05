@@ -1420,9 +1420,12 @@ export default function CajaPage() {
         }
       }
 
-      // NO combinar con contexto React (puede estar desactualizado tras un pago)
-      // Solo usar datos frescos de Supabase
-      let combined = [...(allUserFacturas || []), ...fallbackFacturas];
+      // Solo usar datos frescos de Supabase y filtrar recibos legacy (ej. O-003804) que no son del sistema actual
+      // para no duplicar montos en Caja junto con los meses dinámicos RECIB-HIST-
+      let combined = [...(allUserFacturas || []), ...fallbackFacturas].filter((f: any) => {
+        const ref = String(f.referencia || '').toUpperCase();
+        return ref.startsWith('CM-') || ref.startsWith('RECIB-') || ref.startsWith('MULTA-');
+      });
 
       // Si se buscó por código específico, aislar para que solo aparezcan facturas de ESTE inmueble o de sus hijos
       if (isCodeFormat && (user.CodCont || user.cod_cont)) {
